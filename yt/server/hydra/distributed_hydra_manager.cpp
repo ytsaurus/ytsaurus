@@ -297,13 +297,16 @@ public:
                 "No active quorum"));
         }
 
-        return DoBuildSnapshotDistributed(epochContext).Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> errorOrParams) -> TErrorOr<int> {
-            if (!errorOrParams.IsOK()) {
-                return TError(errorOrParams);
-            }
-            const auto& params = errorOrParams.Value();
-            return params.SnapshotId;
-        }));
+        return epochContext
+            ->ChangelogRotation
+            ->BuildSnapshot()
+            .Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> errorOrParams) -> TErrorOr<int> {
+                if (!errorOrParams.IsOK()) {
+                    return TError(errorOrParams);
+                }
+                const auto& params = errorOrParams.Value();
+                return params.SnapshotId;
+            }));
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
@@ -844,15 +847,21 @@ private:
     void OnChangelogLimitReached(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YCHECK(GetAutomatonState() == EPeerState::Leading);
+        YCHECK(epochContext->IsActiveLeader);
 
-        DoBuildSnapshotDistributed(epochContext);
+        auto changelogRotation = epochContext->ChangelogRotation;
+        if (changelogRotation->IsSnapshotInProgress()) {
+            LOG_WARNING("Previous snapshot is still being built, skipping the current one");
+            changelogRotation->RotateChangelog();
+        } else {
+            changelogRotation->BuildSnapshot();
+        }
     }
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> DoBuildSnapshotDistributed(TEpochContextPtr epochContext) 
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(GetAutomatonState() == EPeerState::Leading);
-        YCHECK(epochContext->IsActiveLeader);
 
         return epochContext->ChangelogRotation->BuildSnapshot();
     }

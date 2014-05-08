@@ -308,6 +308,7 @@ TChangelogRotation::TChangelogRotation(
     , EpochId_(epochId)
     , EpochControlInvoker_(epochControlInvoker)
     , EpochAutomatonInvoker_(epochAutomatonInvoker)
+    , SnapshotsInProgress_(0)
     , Logger(HydraLogger)
 {
     YCHECK(Config_);
@@ -339,7 +340,22 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TChangelogRotation::BuildSnapshot()
 
     auto session = New<TSession>(this, true);
     session->Run();
-    return session->GetSnapshotResult();
+    auto result = session->GetSnapshotResult();
+
+    ++SnapshotsInProgress_;
+    auto this_ = MakeStrong(this);
+    result.Finally().Subscribe(BIND([this, this_] () {
+        --SnapshotsInProgress_;
+    }));
+
+    return result;
+}
+
+bool TChangelogRotation::IsSnapshotInProgress() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return SnapshotsInProgress_.load() > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

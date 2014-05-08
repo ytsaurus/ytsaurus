@@ -14,6 +14,8 @@
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_service_proxy.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NHydra {
 
@@ -45,6 +47,12 @@ public:
      */
     TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
+    //! Returns |true| iff a snapshot is currently being built.
+    /*!
+     *  \note Thread affinity: any
+     */
+    bool IsSnapshotInProgress() const;
+
 private:
     TDistributedHydraManagerConfigPtr Config_;
     NElection::TCellManagerPtr CellManager_;
@@ -54,6 +62,8 @@ private:
     TEpochId EpochId_;
     IInvokerPtr EpochControlInvoker_;
     IInvokerPtr EpochAutomatonInvoker_;
+
+    std::atomic<int> SnapshotsInProgress_;
 
     NLog::TTaggedLogger Logger;
 
