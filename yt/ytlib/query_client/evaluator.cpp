@@ -388,7 +388,6 @@ public:
                     rowBuffer.GetCapacity(),
                     scratchSpace.GetCapacity());
 
-                return TError();
             } catch (const std::exception& ex) {
                 return TError("Failed to evaluate plan fragment") << ex;
             }
