@@ -156,9 +156,6 @@ TQueryStatistics TCoordinator::GetStatistics() const
         result.Incomplete |= subResult.Incomplete;
     }
 
-    result.SyncTime /= Peers_.size();
-    result.AsyncTime /= Peers_.size();
-
     result.SyncTime += QueryStat.SyncTime;
     result.AsyncTime += QueryStat.AsyncTime;    
 

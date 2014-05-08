@@ -92,6 +92,8 @@ public:
 
                 result.RowsRead += subqueryResult.RowsRead;
                 result.RowsWritten += subqueryResult.RowsWritten;
+                result.SyncTime += subqueryResult.SyncTime;
+                result.AsyncTime += subqueryResult.AsyncTime;
                 result.Incomplete |= subqueryResult.Incomplete;
 
                 return result;
