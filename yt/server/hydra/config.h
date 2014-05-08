@@ -35,7 +35,7 @@ public:
         RegisterParameter("index_block_size", IndexBlockSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024);
-        RegisterParameter("append_buffer_size", FlushBufferSize)
+        RegisterParameter("flush_buffer_size", FlushBufferSize)
             .GreaterThanOrEqual(0)
             .Default(0);
         RegisterParameter("flush_period", FlushPeriod)
