@@ -356,7 +356,7 @@ void TSelectCommand::DoExecute()
     NQueryClient::TQueryStatistics statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 "ms., SyncTime: %" PRIi64 "ms., Incomplete: %s)",
+        "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 ", SyncTime: %" PRIi64 ", Incomplete: %s)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
