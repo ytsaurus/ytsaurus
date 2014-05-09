@@ -22,9 +22,13 @@ namespace NYT {
 namespace NQueryClient {
 namespace NRoutines {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NConcurrency;
+static const size_t InitialGroupOpHashtableCapacity = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
 
 void WriteRow(TRow row, TPassedFragmentParams* P)
 {
@@ -130,7 +134,7 @@ void GroupOpHelper(
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
-        256,
+        InitialGroupOpHashtableCapacity,
         NDetail::TGroupHasher(keySize),
         NDetail::TGroupComparer(keySize));
 
