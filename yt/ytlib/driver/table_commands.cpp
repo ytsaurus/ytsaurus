@@ -353,7 +353,7 @@ void TSelectCommand::DoExecute()
         options));
     THROW_ERROR_EXCEPTION_IF_FAILED(queryStatisticsOrError);
 
-    NQueryClient::TQueryStatistics statistics = queryStatisticsOrError.Value();
+    const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
         "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 ", SyncTime: %" PRIi64 ", Incomplete: %s)",
