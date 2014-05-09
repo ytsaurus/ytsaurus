@@ -56,19 +56,48 @@ private:
     void* TagCookie_;
 
     int CurrentChunkIndex_;
-    size_t CurrentOffset_;
 
     i64 Size_;
     i64 Capacity_;
+
+    char* CurrentPtr_;
+    char* EndPtr_;
 
     std::vector<TSharedRef> Chunks_;
     std::vector<TSharedRef> LargeBlocks_;
 
 
+    char* AllocateUnalignedSlow(size_t size);
+
     void AllocateChunk();
+    void SwitchChunk();
+    void SetupPointers();
+
     TSharedRef AllocateLargeBlock(size_t size);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
+{
+    // Fast path.
+    if (CurrentPtr_ + size <= EndPtr_) {
+        char* result = CurrentPtr_;
+        CurrentPtr_ += size;
+        Size_ += size;
+        return result;
+    }
+
+    // Slow path.
+    return AllocateUnalignedSlow(size);
+}
+
+inline char* TChunkedMemoryPool::Allocate(size_t size)
+{
+    CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + 7) & ~7);
+    return AllocateUnaligned(size);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
