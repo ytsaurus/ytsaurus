@@ -320,6 +320,7 @@ public:
             TRACE_ANNOTATION("fragment_id", fragment.Id());
 
             auto Logger = BuildLogger(fragment);
+
             TQueryStatistics statistics;
             TDuration wallTime;
 
@@ -371,7 +372,7 @@ public:
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
                     if (!writer->Write(batch)) {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
+                        NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                         auto error = WaitFor(writer->GetReadyEvent());
                         THROW_ERROR_EXCEPTION_IF_FAILED(error);
                     }
@@ -388,11 +389,15 @@ public:
                     rowBuffer.GetCapacity(),
                     scratchSpace.GetCapacity());
 
+                statistics.SyncTime = wallTime - statistics.AsyncTime;
+
+                TRACE_ANNOTATION("rows_read", statistics.RowsRead);
+                TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
+                TRACE_ANNOTATION("incomplete", statistics.Incomplete);
             } catch (const std::exception& ex) {
                 return TError("Failed to evaluate plan fragment") << ex;
             }
 
-            statistics.SyncTime = wallTime - statistics.AsyncTime;
             return statistics;
         }        
     }
