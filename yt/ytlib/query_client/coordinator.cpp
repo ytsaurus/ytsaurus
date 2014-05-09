@@ -83,7 +83,7 @@ TError TCoordinator::Run()
 
         try {
             LOG_DEBUG("Coordinating plan fragment");
-        NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
             // Infer key range and push it down.
             auto keyRange = Fragment_.GetHead()->GetKeyRange();
@@ -115,13 +115,13 @@ TError TCoordinator::Run()
                 Simplify(Gather(Scatter(Fragment_.GetHead()))));
 
             DelegateToPeers();
+
+            QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
         } catch (const std::exception& ex) {
             auto error = TError("Failed to coordinate query fragment") << ex;
             LOG_ERROR(error);
             return error;
         }
-
-        QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
 
         return TError();
     }

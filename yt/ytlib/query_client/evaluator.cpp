@@ -440,7 +440,10 @@ private:
         return std::make_pair(codegenedFunction, std::move(variables));
     }
 
-    static void CallCodegenedFunction(TCodegenedFunction codegenedFunction, TRow constants, TPassedFragmentParams* passedFragmentParams)
+    static void CallCodegenedFunction(
+        TCodegenedFunction codegenedFunction,
+        TRow constants,
+        TPassedFragmentParams* passedFragmentParams)
     {
 #ifdef DEBUG
         int dummy;
@@ -449,7 +452,10 @@ private:
         codegenedFunction(constants, passedFragmentParams);
     }
 
-    void(* volatile CallCodegenedFunctionPtr_)(TCodegenedFunction codegenedFunction, TRow constants, TPassedFragmentParams* passedFragmentParams);
+    void(* volatile CallCodegenedFunctionPtr_)(
+        TCodegenedFunction codegenedFunction,
+        TRow constants,
+        TPassedFragmentParams* passedFragmentParams);
 
 private:
     TCGFragmentCompiler Compiler_;
