@@ -71,6 +71,7 @@ def get_master_config():
 
     cell_directory = {
         soft_backoff_time = 100;
+        hard_backoff_time = 100;
     };
 
     transaction_manager = {
