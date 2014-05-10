@@ -131,7 +131,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
         Schema_.Columns().size()) * RowIndex_;
 
     for (int id = 0; id < KeyColumnCount_; ++id) {
-        KeyBegin_[id] = ReadKeyValue(id);
+        ReadKeyValue(KeyBegin_ + id, id);
     }
 
     TimestampOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
@@ -187,10 +187,12 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
         int upperValueIndex = GetColumnValueCount(chunkSchemaId);
 
         for (int valueIndex = lowerValueIndex; valueIndex < upperValueIndex; ++valueIndex) {
-            *currentValue++ = ReadValue(
+            ReadValue(
+                currentValue,
                 ValueOffset_ + valueIndex,
                 valueId,
                 chunkSchemaId);
+            ++currentValue;
         }
     }
     row.GetHeader()->ValueCount = (currentValue - beginValues);
@@ -201,8 +203,8 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
 TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool)
 {
     int timestampIndex = LowerBound(0, TimestampCount_, [&] (int index) {
-        auto ts = ReadTimestamp(TimestampOffset_ + index);
-        return (ts & TimestampValueMask) > Timestamp_;
+        auto timestamp = ReadTimestamp(TimestampOffset_ + index);
+        return (timestamp & TimestampValueMask) > Timestamp_;
     });
 
     if (timestampIndex == TimestampCount_) {
@@ -219,6 +221,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
     
     auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
+    auto timestampValue = timestamp & TimestampValueMask;
     
     auto* beginTimestamps = row.BeginTimestamps();
     beginTimestamps[0] = timestamp;
@@ -237,18 +240,18 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     for (const auto& mapping : SchemaIdMapping_) {
         int valueId = mapping.ReaderSchemaIndex;
         int chunkSchemaId = mapping.ChunkSchemaIndex;
+        int columnValueCount = GetColumnValueCount(chunkSchemaId);
 
         int valueIndex = LowerBound(
             chunkSchemaId == KeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1),
-            GetColumnValueCount(chunkSchemaId),
+            columnValueCount,
             [&] (int index) {
-                auto value = ReadValue(ValueOffset_ + index, valueId, chunkSchemaId);
-                return value.Timestamp  > Timestamp_;
+                return ReadValueTimestamp(ValueOffset_ + index, valueId) > Timestamp_;
             });
 
-        if (valueIndex < GetColumnValueCount(chunkSchemaId)) {
-            *currentValue = ReadValue(ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-            if (currentValue->Timestamp >= (timestamp & TimestampValueMask)) {
+        if (valueIndex < columnValueCount) {
+            ReadValue(currentValue, ValueOffset_ + valueIndex, valueId, chunkSchemaId);
+            if (currentValue->Timestamp >= timestampValue) {
                 // Check that value didn't come from the previous incarnation of this row.
                 ++currentValue;
             }
@@ -261,71 +264,104 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
     return row;
 }
 
-TUnversionedValue TSimpleVersionedBlockReader::ReadKeyValue(int id)
+void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 {
-    char* valuePtr = KeyDataPtr_;
-    KeyDataPtr_ += sizeof(i64);
+    value->Id = id;
+
+    char* ptr = KeyDataPtr_;
+    KeyDataPtr_ += 8;
 
     bool isNull = KeyNullFlags_[RowIndex_ * KeyColumnCount_ + id];
     if (isNull) {
-        return MakeUnversionedSentinelValue(EValueType::Null, id);
+        value->Type = EValueType::Null;
+        return;
     }
 
-    switch (Schema_.Columns()[id].Type) {
+    auto type = Schema_.Columns()[id].Type;
+    value->Type = type;
+
+    switch (type) {
         case EValueType::Integer:
-            return MakeUnversionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), id);
+            ReadInteger(value, ptr);
+            break;
 
         case EValueType::Double:
-            return MakeUnversionedDoubleValue(*reinterpret_cast<double*>(valuePtr), id);
+            ReadDouble(value, ptr);
+            break;
 
         case EValueType::String:
-            return MakeUnversionedStringValue(ReadString(valuePtr), id);
-
         case EValueType::Any:
-            return MakeUnversionedAnyValue(ReadString(valuePtr), id);
+            ReadStringLike(value, ptr);
+            break;
 
         default:
             YUNREACHABLE();
     }
 }
 
-TStringBuf TSimpleVersionedBlockReader::ReadString(char* ptr)
+void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
+{
+    YASSERT(id >= KeyColumnCount_);
+    char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    auto timestamp = *reinterpret_cast<TTimestamp*>(ptr + 8);
+
+    value->Id = id;
+    value->Timestamp = timestamp;
+
+    bool isNull = ValueNullFlags_[valueIndex];
+    if (isNull) {
+        value->Type = EValueType::Null;
+        return;
+    }
+
+    auto type = Schema_.Columns()[chunkSchemaId].Type;
+    value->Type = type;
+
+    switch (type) {
+        case EValueType::Integer:
+            ReadInteger(value, ptr);
+            break;
+
+        case EValueType::Double:
+            ReadDouble(value, ptr);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+            ReadStringLike(value, ptr);
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void TSimpleVersionedBlockReader::ReadInteger(TUnversionedValue* value, char* ptr)
+{
+    value->Data.Integer = *reinterpret_cast<i64*>(ptr);
+}
+
+void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, char* ptr)
+{
+    value->Data.Double = *reinterpret_cast<double*>(ptr);
+}
+
+void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, char* ptr)
 {
     ui32 offset = *reinterpret_cast<ui32*>(ptr);
     ptr += sizeof(ui32);
 
     ui32 length = *reinterpret_cast<ui32*>(ptr);
 
-    return TStringBuf(StringData_.Begin() + offset, length);
+    value->Data.String = StringData_.Begin() + offset;
+    value->Length = length;
 }
 
-TVersionedValue TSimpleVersionedBlockReader::ReadValue(int valueIndex, int id, int chunkSchemaId)
+TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex, int id)
 {
     YASSERT(id >= KeyColumnCount_);
-    char* valuePtr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
-    auto timestamp = *reinterpret_cast<TTimestamp*>(valuePtr + 8);
-
-    bool isNull = ValueNullFlags_[valueIndex];
-    if (isNull) {
-        return MakeVersionedSentinelValue(EValueType::Null,  timestamp, id);
-    }
-
-    switch (Schema_.Columns()[chunkSchemaId].Type) {
-        case EValueType::Integer:
-            return MakeVersionedIntegerValue(*reinterpret_cast<i64*>(valuePtr), timestamp, id);
-
-        case EValueType::Double:
-            return MakeVersionedDoubleValue(*reinterpret_cast<double*>(valuePtr), timestamp, id);
-
-        case EValueType::String:
-            return MakeVersionedStringValue(ReadString(valuePtr), timestamp, id);
-
-        case EValueType::Any:
-            return MakeVersionedAnyValue(ReadString(valuePtr), timestamp, id);
-
-        default:
-            YUNREACHABLE();
-    }
+    char* ptr = ValueData_.Begin() + TSimpleVersionedBlockWriter::ValueSize * valueIndex;
+    return *reinterpret_cast<TTimestamp*>(ptr + 8);
 }
 
 const TOwningKey& TSimpleVersionedBlockReader::GetKey() const

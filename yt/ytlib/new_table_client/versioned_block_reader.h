@@ -74,9 +74,13 @@ private:
     TVersionedRow ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool);
 
     TTimestamp ReadTimestamp(int timestampIndex);
-    TVersionedValue ReadValue(int valueIndex, int id, int chunkSchemaId);
-    TUnversionedValue ReadKeyValue(int id);
-    TStringBuf ReadString(char* ptr);
+    void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
+    TTimestamp ReadValueTimestamp(int valueIndex, int id);
+    void ReadKeyValue(TUnversionedValue* value, int id);
+    
+    void ReadInteger(TUnversionedValue* value, char* ptr);
+    void ReadDouble(TUnversionedValue* value, char* ptr);
+    void ReadStringLike(TUnversionedValue* value, char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
 
