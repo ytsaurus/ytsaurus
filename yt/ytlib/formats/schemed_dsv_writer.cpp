@@ -330,6 +330,15 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
             break;
         }
 
+        case EValueType::Double: {
+            // TODO(babenko): optimize
+            const size_t maxSize = 64;
+            Buffer_.Resize(Buffer_.Size() + maxSize);
+            int size = sprintf(Buffer_.End() - maxSize, "%lf", value.Data.Double);
+            Buffer_.Resize(Buffer_.Size() - maxSize + size);
+            break;
+        }
+
         case EValueType::String:
             WriteRaw(TStringBuf(value.Data.String, value.Length));
             break;
