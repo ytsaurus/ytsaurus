@@ -110,6 +110,11 @@ public:
         const TYPath& path,
         IServiceContextPtr /*context*/) override
     {
+        if (ExpirationPeriod == TDuration::Zero()) {
+            // Cache disabled.
+            return TResolveResult::There(UnderlyingService, path);
+        }
+
         return TResolveResult::There(GetCachedTree(), path);
     }
 
@@ -120,6 +125,7 @@ private:
     TSpinLock SpinLock;
     INodePtr CachedTree;
     TInstant LastUpdateTime;
+
 
     virtual bool DoInvoke(IServiceContextPtr /*context*/) override
     {
