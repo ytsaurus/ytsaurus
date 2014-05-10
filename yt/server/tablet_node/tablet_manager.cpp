@@ -779,6 +779,9 @@ private:
         if (!tablet)
             return;
 
+        if (tablet->Partitions().size() >= tablet->GetConfig()->MaxPartitionCount)
+            return;
+
         auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
         auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
         int partitionIndex = partition->GetIndex();
