@@ -322,7 +322,8 @@ void TBootstrap::Run()
         "/tablet_slots",
         CreateVirtualNode(
             TabletSlotManager->GetOrchidService()
-            ->Via(GetControlInvoker())));
+            ->Via(GetControlInvoker())
+            ->Cached(Config->OrchidCacheExpirationPeriod))));
     SetBuildAttributes(OrchidRoot, "node");
 
     NHttp::TServer httpServer(Config->MonitoringPort);
