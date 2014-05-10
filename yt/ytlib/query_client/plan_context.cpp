@@ -85,11 +85,11 @@ TStringBuf TPlanContext::Capture(const char* begin, const char* end)
 
     return TStringBuf(buffer, length);
 }
+
 TStringBuf TPlanContext::Capture(const TStringBuf& stringBuf)
 {
-    return Capture(~stringBuf, ~stringBuf + +stringBuf);
+    return Capture(stringBuf.data(), stringBuf.data() + stringBuf.length());
 }
-
 
 TNodeDirectoryPtr TPlanContext::GetNodeDirectory() const
 {

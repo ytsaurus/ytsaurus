@@ -57,7 +57,9 @@ public:
 
     };
 
-    explicit TPlanContext(TTimestamp timestamp = NullTimestamp, i64 rowLimit = std::numeric_limits<i64>::max());
+    explicit TPlanContext(
+        TTimestamp timestamp = NullTimestamp,
+        i64 rowLimit = std::numeric_limits<i64>::max());
     ~TPlanContext();
 
     void* Allocate(size_t size);
