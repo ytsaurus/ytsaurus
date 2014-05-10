@@ -36,9 +36,12 @@ private:
     int KeyColumnCount_;
 
     NVersionedTableClient::TKeyComparer KeyComparer_;
-    SmallVector<TVersionedValue, NVersionedTableClient::TypicalColumnCount> MergedValues_;
-    SmallVector<bool, NVersionedTableClient::TypicalColumnCount> ColumnFlags_;
+
+    NVersionedTableClient::TUnversionedRow MergedRow_;
+    SmallVector<NVersionedTableClient::TTimestamp, NVersionedTableClient::TypicalColumnCount> MergedTimestamps_;
+
     SmallVector<int, NVersionedTableClient::TypicalColumnCount> ColumnIds_;
+    SmallVector<int, NVersionedTableClient::TypicalColumnCount> ColumnIdToIndex_;
     
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;

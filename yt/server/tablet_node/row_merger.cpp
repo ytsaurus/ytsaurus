@@ -18,22 +18,29 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     , SchemaColumnCount_(schemaColumnCount)
     , KeyColumnCount_(keyColumnCount)
     , KeyComparer_(KeyColumnCount_)
-    , MergedValues_(SchemaColumnCount_)
-    , ColumnFlags_(SchemaColumnCount_)
 {
     if (columnFilter.All) {
-        for (int id = 0; id < schemaColumnCount; ++id) {
-            ColumnFlags_[id] = true;
+        for (int id = 0; id < SchemaColumnCount_; ++id) {
             ColumnIds_.push_back(id);
         }
     } else {
         for (int id : columnFilter.Indexes) {
-            if (id < 0 || id >= schemaColumnCount) {
+            if (id < 0 || id >= SchemaColumnCount_) {
                 THROW_ERROR_EXCEPTION("Invalid column id %d in column filter",
                     id);
             }
-            ColumnFlags_[id] = true;
             ColumnIds_.push_back(id);
+        }
+    }
+
+    ColumnIdToIndex_.resize(SchemaColumnCount_);
+    for (int id = 0; id < SchemaColumnCount_; ++id) {
+        ColumnIdToIndex_[id] = -1;
+    }
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        if (id >= KeyColumnCount_) {
+            ColumnIdToIndex_[id] = index;            
         }
     }
 }
@@ -42,11 +49,24 @@ void TUnversionedRowMerger::Start(const TUnversionedValue* keyBegin)
 {
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
-    for (int id = 0; id < KeyColumnCount_; ++id) {
-        MergedValues_[id] = MakeVersionedValue(keyBegin[id], MaxTimestamp);
+
+    if (!MergedRow_) {
+        MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
     }
-    for (int id = KeyColumnCount_; id < SchemaColumnCount_; ++id) {
-        MergedValues_[id] = MakeVersionedSentinelValue(EValueType::Null, NullTimestamp, id);
+
+    auto* mergedValuesBegin = MergedRow_.Begin();
+    auto* mergedTimestampsBegin = MergedTimestamps_.data();
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        int id = ColumnIds_[index];
+        auto* mergedValue = mergedValuesBegin + index;
+        mergedValue->Id = id;
+        if (id < KeyColumnCount_) {
+            *mergedValue = keyBegin[id];
+            mergedTimestampsBegin[index] = MaxTimestamp;
+        } else {
+            mergedValue->Type = EValueType::Null;
+            mergedTimestampsBegin[index] = NullTimestamp;
+        }
     }
 }
 
@@ -58,7 +78,6 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     auto rowTimestamp = row.BeginTimestamps()[0];
     auto rowTimestampValue = rowTimestamp & TimestampValueMask;
     
-    // Fast lane.
     if (rowTimestampValue < LatestDelete_)
         return;
 
@@ -71,12 +90,16 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
             LatestDelete_ = std::max(LatestDelete_, rowTimestampValue);
         }
 
-        const auto* rowValues = row.BeginValues();
-        for (int index = 0; index < row.GetValueCount(); ++index) {
-            const auto& value = rowValues[index];
-            int id = value.Id;
-            if (ColumnFlags_[id] && MergedValues_[id].Timestamp < value.Timestamp) {
-                MergedValues_[id] = value;
+        const auto* partialValuesBegin = row.BeginValues();
+        auto* mergedValuesBegin = MergedRow_.Begin();
+        auto* mergedTimestampsBegin = MergedTimestamps_.data();
+        for (int partialIndex = 0; partialIndex < row.GetValueCount(); ++partialIndex) {
+            const auto& partialValue = partialValuesBegin[partialIndex];
+            int id = partialValue.Id;
+            int mergedIndex = ColumnIdToIndex_[id];
+            if (mergedIndex >= 0 && mergedTimestampsBegin[mergedIndex] < partialValue.Timestamp) {
+                mergedValuesBegin[mergedIndex] = partialValue;
+                mergedTimestampsBegin[mergedIndex] = partialValue.Timestamp;
             }
         }
     }
@@ -88,17 +111,17 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         return TUnversionedRow();
     }
 
-    auto row = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
-    auto* outputValue = row.Begin();
-    for (int id : ColumnIds_) {
-        auto& mergedValue = MergedValues_[id];
-        if (mergedValue.Timestamp < LatestDelete_) {
-            mergedValue.Type = EValueType::Null;
+    const auto* mergedTimestampsBegin = MergedTimestamps_.data();
+    auto* mergedValuesBegin = MergedRow_.Begin();
+    for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        if (mergedTimestampsBegin[index] < LatestDelete_) {
+            mergedValuesBegin[index].Type = EValueType::Null;
         }
-        *outputValue++ = mergedValue;
     }
 
-    return row;
+    auto mergedRow = MergedRow_;
+    MergedRow_ = TUnversionedRow();
+    return mergedRow;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
