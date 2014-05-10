@@ -29,7 +29,7 @@ public:
 
     //! Actually evaluates query.
     //! NB: Does not throw.
-    TError Run();
+    void Run();
 
     //! Returns a plan fragment to be evaluated by the coordinator.
     TPlanFragment GetCoordinatorFragment() const;

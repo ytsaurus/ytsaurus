@@ -11,10 +11,9 @@ class TEvaluator
 {
 public:
     TEvaluator();
-
     ~TEvaluator();
 
-    TErrorOr<TQueryStatistics> Run(
+    TQueryStatistics Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer);

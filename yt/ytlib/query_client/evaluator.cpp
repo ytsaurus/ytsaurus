@@ -311,7 +311,7 @@ public:
         CallCodegenedFunctionPtr_ = &CallCodegenedFunction;
     }
 
-    TErrorOr<TQueryStatistics> Run(
+    TQueryStatistics Run(
         IEvaluateCallbacks* callbacks,
         const TPlanFragment& fragment,
         ISchemafulWriterPtr writer)
@@ -395,7 +395,7 @@ public:
                 TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
                 TRACE_ANNOTATION("incomplete", statistics.Incomplete);
             } catch (const std::exception& ex) {
-                return TError("Failed to evaluate plan fragment") << ex;
+                THROW_ERROR_EXCEPTION("Failed to evaluate plan fragment") << ex;
             }
 
             return statistics;
@@ -478,7 +478,7 @@ TEvaluator::TEvaluator()
 TEvaluator::~TEvaluator()
 { }
 
-TErrorOr<TQueryStatistics> TEvaluator::Run(
+TQueryStatistics TEvaluator::Run(
     IEvaluateCallbacks* callbacks,
     const TPlanFragment& fragment,
     ISchemafulWriterPtr writer)

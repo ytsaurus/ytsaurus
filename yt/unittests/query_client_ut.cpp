@@ -360,9 +360,7 @@ protected:
             &CoordinateMock_,
             TPlanFragment::Prepare(&PrepareMock_, source));
 
-        auto error = Coordinator_->Run();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
-
+        Coordinator_->Run();
         CoordinatorFragment_ = Coordinator_->GetCoordinatorFragment();
         PeerFragments_ = Coordinator_->GetPeerFragments();
     }
@@ -1294,7 +1292,7 @@ protected:
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
-        ui64 rowLimit = std::numeric_limits<ui64>::max())
+        i64 rowLimit = std::numeric_limits<i64>::max())
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .Guarded()
@@ -1312,7 +1310,7 @@ protected:
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
-        ui64 rowLimit)
+        i64 rowLimit)
     {
         std::vector<TRow> source(owningSource.size());
         std::vector<std::vector<TRow>> results;
@@ -1363,11 +1361,10 @@ protected:
         }
 
         TEvaluator evaluator;
-        auto error = evaluator.Run(
+        evaluator.Run(
             &EvaluateMock_,
             TPlanFragment::Prepare(&PrepareMock_, query, rowLimit),
             WriterMock_);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;

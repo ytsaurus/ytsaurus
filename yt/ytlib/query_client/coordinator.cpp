@@ -74,7 +74,7 @@ TCoordinator::TCoordinator(
 TCoordinator::~TCoordinator()
 { }
 
-TError TCoordinator::Run()
+void TCoordinator::Run()
 {
     TRACE_CHILD("QueryClient", "Coordinate") {
         TRACE_ANNOTATION("fragment_id", Fragment_.Id());
@@ -118,12 +118,8 @@ TError TCoordinator::Run()
 
             QueryStat.SyncTime = wallTime - QueryStat.AsyncTime;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to coordinate query fragment") << ex;
-            LOG_ERROR(error);
-            return error;
+            THROW_ERROR_EXCEPTION("Failed to coordinate query fragment") << ex;
         }
-
-        return TError();
     }
 }
 

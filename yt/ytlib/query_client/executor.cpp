@@ -37,9 +37,10 @@ public:
     {
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
-        return BIND([this, this_, fragment, writer] () -> TErrorOr<TQueryStatistics> {
+        return BIND([this, this_, fragment, writer] () {
                 return Evaluator_.Run(Callbacks_, fragment, std::move(writer));
             })
+            .Guarded()
             .AsyncVia(Invoker_)
             .Run();
 #else
@@ -74,21 +75,17 @@ public:
 #ifdef YT_USE_LLVM
         auto this_ = MakeStrong(this);
 
-        return BIND([this, this_, fragment, writer] () -> TErrorOr<TQueryStatistics> {
+        return BIND([this, this_, fragment, writer] () -> TQueryStatistics {
                 TCoordinator coordinator(Callbacks_, fragment);
 
-                auto error = coordinator.Run();
-                RETURN_IF_ERROR(error);
+                coordinator.Run();
 
-                auto resultOrError = Evaluator_.Run(
+                auto result = Evaluator_.Run(
                     &coordinator,
                     coordinator.GetCoordinatorFragment(),
                     std::move(writer));
 
-                RETURN_IF_ERROR(resultOrError);
-
-                TQueryStatistics result = resultOrError.Value();
-                TQueryStatistics subqueryResult = coordinator.GetStatistics();
+                auto subqueryResult = coordinator.GetStatistics();
 
                 result.RowsRead += subqueryResult.RowsRead;
                 result.RowsWritten += subqueryResult.RowsWritten;
@@ -98,6 +95,7 @@ public:
 
                 return result;
             })
+            .Guarded()
             .AsyncVia(Invoker_)
             .Run();
 #else
