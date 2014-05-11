@@ -17,7 +17,7 @@ namespace NFormats {
 class TJsonCallbacks {
 public:
     TJsonCallbacks();
-    TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder);
+    TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memoryLimit);
 
     void OnStringScalar(const TStringBuf& value);
     void OnIntegerScalar(i64 value);
@@ -38,14 +38,20 @@ private:
         (Map)
     );
 
+    // Memory accounted approximately
+    void AccountMemory(i64 memory);
     void OnItemStarted();
     void OnItemFinished();
 
     TUtf8Transcoder Utf8Transcoder_;
+    i64 ConsumedMemory_;
+    i64 MemoryLimit_;
+
     std::stack<ENodeType> Stack_;
 
     std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     std::queue<NYTree::INodePtr> FinishedNodes_;
+    std::queue<i64> NodesMemory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

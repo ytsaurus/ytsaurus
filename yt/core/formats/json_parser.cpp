@@ -99,7 +99,7 @@ public:
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
             THROW_ERROR_EXCEPTION("Pretty json format is not supported for list fragments");
         }
-        Callbacks_ = TJsonCallbacks(TUtf8Transcoder(Config_->EncodeUtf8));
+        Callbacks_ = TJsonCallbacks(TUtf8Transcoder(Config_->EncodeUtf8), Config_->MemoryLimit);
 
         YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, static_cast<void*>(&Callbacks_));
         if (Type_ == EYsonType::ListFragment) {

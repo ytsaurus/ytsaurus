@@ -12,15 +12,19 @@ namespace NFormats {
 TJsonCallbacks::TJsonCallbacks()
 { }
 
-TJsonCallbacks::TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder)
+TJsonCallbacks::TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memoryLimit)
     : Utf8Transcoder_(utf8Transcoder)
+    , ConsumedMemory_(0)
+    , MemoryLimit_(memoryLimit)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
 {
     TreeBuilder_->BeginTree();
+    NodesMemory_.push(0);
 }
 
 void TJsonCallbacks::OnStringScalar(const TStringBuf& value)
 {
+    AccountMemory(value.Size());
     OnItemStarted();
     TreeBuilder_->OnStringScalar(Utf8Transcoder_.Decode(value));
     OnItemFinished();
@@ -28,6 +32,7 @@ void TJsonCallbacks::OnStringScalar(const TStringBuf& value)
 
 void TJsonCallbacks::OnIntegerScalar(i64 value)
 {
+    AccountMemory(sizeof(value));
     OnItemStarted();
     TreeBuilder_->OnIntegerScalar(value);
     OnItemFinished();
@@ -35,6 +40,7 @@ void TJsonCallbacks::OnIntegerScalar(i64 value)
 
 void TJsonCallbacks::OnDoubleScalar(double value)
 {
+    AccountMemory(sizeof(value));
     OnItemStarted();
     TreeBuilder_->OnDoubleScalar(value);
     OnItemFinished();
@@ -42,6 +48,7 @@ void TJsonCallbacks::OnDoubleScalar(double value)
 
 void TJsonCallbacks::OnEntity()
 {
+    AccountMemory(0);
     OnItemStarted();
     TreeBuilder_->OnEntity();
     OnItemFinished();
@@ -49,6 +56,7 @@ void TJsonCallbacks::OnEntity()
 
 void TJsonCallbacks::OnBeginList()
 {
+    AccountMemory(0);
     OnItemStarted();
     TreeBuilder_->OnBeginList();
     Stack_.push(ENodeType::List);
@@ -63,6 +71,7 @@ void TJsonCallbacks::OnEndList()
 
 void TJsonCallbacks::OnBeginMap()
 {
+    AccountMemory(0);
     OnItemStarted();
     TreeBuilder_->OnBeginMap();
     Stack_.push(ENodeType::Map);
@@ -70,6 +79,7 @@ void TJsonCallbacks::OnBeginMap()
 
 void TJsonCallbacks::OnKeyedItem(const TStringBuf& key)
 {
+    AccountMemory(sizeof(key.size()));
     TreeBuilder_->OnKeyedItem(Utf8Transcoder_.Decode(key));
 }
 
@@ -78,6 +88,19 @@ void TJsonCallbacks::OnEndMap()
     TreeBuilder_->OnEndMap();
     Stack_.pop();
     OnItemFinished();
+}
+
+void TJsonCallbacks::AccountMemory(i64 memory)
+{
+    memory += sizeof(NYTree::INodePtr);
+    if (ConsumedMemory_ + memory > MemoryLimit_) {
+        THROW_ERROR_EXCEPTION(
+            "Memory limit exceeded while parsing JSON: allocated %" PRId64 ", limit %" PRId64,
+            ConsumedMemory_ + memory,
+            MemoryLimit_);
+    }
+    ConsumedMemory_ += memory;
+    NodesMemory_.back() += memory;
 }
 
 void TJsonCallbacks::OnItemStarted()
@@ -92,6 +115,7 @@ void TJsonCallbacks::OnItemFinished()
 {
     if (Stack_.empty()) {
         FinishedNodes_.push(TreeBuilder_->EndTree());
+        NodesMemory_.push(0);
         TreeBuilder_->BeginTree();
     }
 }
@@ -104,8 +128,13 @@ bool TJsonCallbacks::HasFinishedNodes() const
 NYTree::INodePtr TJsonCallbacks::ExtractFinishedNode()
 {
     YCHECK(!FinishedNodes_.empty());
+
+    ConsumedMemory_ -= NodesMemory_.front();
+    NodesMemory_.pop();
+
     NYTree::INodePtr node = FinishedNodes_.front();
     FinishedNodes_.pop();
+
     return node;
 }
 
