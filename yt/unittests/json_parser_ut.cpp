@@ -364,6 +364,42 @@ TEST(TJsonParserTest, AttributesWithoutValue)
     );
 }
 
+TEST(TJsonParserTest, Trash)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "fdslfsdhfkajsdhf";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, TrailingTrash)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, MultipleValues)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"a\":\"b\"}{\"a\":\"b\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 TEST(TJsonParserTest, ReservedKeyName)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;

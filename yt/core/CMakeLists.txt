@@ -36,6 +36,7 @@ target_link_libraries ( ytcore
   ytext-json
   ytext-httpserver
   protobuf
+  yajl_s
 )
 
 include_directories(

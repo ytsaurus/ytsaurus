@@ -1,106 +1,222 @@
 #include "stdafx.h"
 #include "json_parser.h"
+#include "json_callbacks.h"
 #include "helpers.h"
 #include "utf8_decoder.h"
 
 #include <core/misc/error.h>
 
-#include <library/json/json_reader.h>
+#include <yajl/yajl_parse.h>
 
 namespace NYT {
 namespace NFormats {
 
-using namespace NJson;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonParser::TJsonParser(
-    NYson::IYsonConsumer* consumer,
-    TJsonFormatConfigPtr config,
-    NYson::EYsonType type)
-    : Consumer(consumer)
-    , Config(config)
-    , Type(type)
-{
-    YCHECK(Type != NYson::EYsonType::MapFragment);
-    if (!Config) {
-        Config = New<TJsonFormatConfig>();
-    }
-    if (Config->Format == EJsonFormat::Pretty && Type == NYson::EYsonType::ListFragment) {
-        THROW_ERROR_EXCEPTION("Pretty json format isn't supported for list fragments");
-    }
-    Utf8Transcoder_ = TUtf8Transcoder(Config->EncodeUtf8);
+namespace {
+
+static int OnNull(void* ctx) {
+    static_cast<TJsonCallbacks*>(ctx)->OnEntity();
+    return 1;
 }
 
-void TJsonParser::Read(const TStringBuf& data)
-{
-    Stream.Write(data);
+static int OnBoolean(void *ctx, int boolean) {
+    THROW_ERROR_EXCEPTION("Json parser does not support boolean values");
+    return 1;
 }
 
-void TJsonParser::Finish()
-{
-    Parse(&Stream);
+static int OnInteger(void *ctx, long long value) {
+    static_cast<TJsonCallbacks*>(ctx)->OnIntegerScalar(value);
+    return 1;
 }
 
-void TJsonParser::ParseNode(TInputStream* input)
-{
-    TJsonValue jsonValue;
-    TJsonReaderConfig config;
-    config.MemoryLimit = Config->MemoryLimit;
-    ReadJsonTree(input, &config, &jsonValue);
-    VisitAny(jsonValue);
+static int OnDouble(void *ctx, double value) {
+    static_cast<TJsonCallbacks*>(ctx)->OnDoubleScalar(value);
+    return 1;
 }
 
-void TJsonParser::Parse(TInputStream* input)
+static int OnString(void *ctx, const unsigned char *val, size_t len) {
+    static_cast<TJsonCallbacks*>(ctx)->OnStringScalar(TStringBuf((const char *)val, len));
+    return 1;
+}
+
+static int OnStartMap(void *ctx) {
+    static_cast<TJsonCallbacks*>(ctx)->OnBeginMap();
+    return 1;
+}
+
+static int OnMapKey(void *ctx, const unsigned char *val, size_t len) {
+    static_cast<TJsonCallbacks*>(ctx)->OnKeyedItem(TStringBuf((const char *)val, len));
+    return 1;
+}
+
+static int OnEndMap(void *ctx) {
+    static_cast<TJsonCallbacks*>(ctx)->OnEndMap();
+    return 1;
+}
+
+static int OnStartArray(void *ctx) {
+    static_cast<TJsonCallbacks*>(ctx)->OnBeginList();
+    return 1;
+}
+
+static int OnEndArray(void *ctx) {
+    static_cast<TJsonCallbacks*>(ctx)->OnEndList();
+    return 1;
+}
+
+static yajl_callbacks YajlCallbacks = {
+    OnNull,
+    OnBoolean,
+    OnInteger,
+    OnDouble,
+    nullptr,
+    OnString,
+    OnStartMap,
+    OnMapKey,
+    OnEndMap,
+    OnStartArray,
+    OnEndArray
+};
+
+} // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJsonParser::TImpl
 {
-    if (Type == NYson::EYsonType::ListFragment) {
-        Stroka line;
-        while (input->ReadLine(line)) {
-            Consumer->OnListItem();
-            TStringInput stream(line);
-            ParseNode(&stream);
+public:
+    TImpl(IYsonConsumer* consumer, TJsonFormatConfigPtr config, EYsonType type)
+        : Consumer_(consumer), Config_(config), Type_(type)
+    {
+        YCHECK(Type_ != EYsonType::MapFragment);
+        if (!Config_) {
+            Config_ = New<TJsonFormatConfig>();
         }
-    } else {
-        ParseNode(input);
+        if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
+            THROW_ERROR_EXCEPTION("Pretty json format is not supported for list fragments");
+        }
+        Callbacks_ = TJsonCallbacks(TUtf8Transcoder(Config_->EncodeUtf8));
+
+        YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, static_cast<void*>(&Callbacks_));
+        if (Type_ == EYsonType::ListFragment) {
+            yajl_config(YajlHandle_, yajl_allow_multiple_values, 1);
+        }
+        yajl_set_memory_limit(YajlHandle_, Config_->MemoryLimit);
+    }
+
+    void Read(const TStringBuf& data);
+    void Finish();
+
+    void Parse(TInputStream* input);
+
+private:
+    IYsonConsumer* Consumer_;
+    TJsonFormatConfigPtr Config_;
+    EYsonType Type_;
+
+    yajl_handle YajlHandle_;
+    TJsonCallbacks Callbacks_;
+
+    void ConsumeNode(INodePtr node);
+    void ConsumeNode(IListNodePtr node);
+    void ConsumeNode(IMapNodePtr node);
+    void ConsumeMapFragment(IMapNodePtr node);
+
+    void ConsumeNodes();
+    void OnError(const char* data, int len);
+};
+
+void TJsonParser::TImpl::ConsumeNodes()
+{
+    while (Callbacks_.HasFinishedNodes()) {
+        if (Type_ == EYsonType::ListFragment) {
+            Consumer_->OnListItem();
+        }
+        ConsumeNode(Callbacks_.ExtractFinishedNode());
     }
 }
 
-void TJsonParser::VisitAny(const TJsonValue& value)
+void TJsonParser::TImpl::OnError(const char* data, int len)
 {
-    switch (value.GetType()) {
-        case JSON_ARRAY:
-            VisitArray(value.GetArray());
+    unsigned char* errorMessage = yajl_get_error(
+        YajlHandle_,
+        1,
+        reinterpret_cast<const unsigned char*>(data),
+        len);
+    TError error("Error parsing JSON: %s", errorMessage);
+    yajl_free_error(YajlHandle_, errorMessage);
+    yajl_free(YajlHandle_);
+    THROW_ERROR_EXCEPTION(error);
+}
+
+void TJsonParser::TImpl::Read(const TStringBuf& data)
+{
+    if (yajl_parse(
+            YajlHandle_,
+            reinterpret_cast<const unsigned char*>(data.Data()),
+            data.Size()) == yajl_status_error)
+    {
+        OnError(data.Data(), data.Size());
+    }
+    ConsumeNodes();
+}
+
+void TJsonParser::TImpl::Finish()
+{
+    if (yajl_complete_parse(YajlHandle_) == yajl_status_error) {
+        OnError(nullptr, 0);
+    }
+    yajl_free(YajlHandle_);
+    ConsumeNodes();
+}
+
+void TJsonParser::TImpl::Parse(TInputStream* input)
+{
+    static const int bufferLength = 65536;
+    char buffer[bufferLength];
+    while (int readLength = input->Read(buffer, bufferLength))
+    {
+        Read(TStringBuf(buffer, readLength));
+    }
+    Finish();
+}
+
+void TJsonParser::TImpl::ConsumeNode(INodePtr node)
+{
+    switch (node->GetType()) {
+        case ENodeType::Integer:
+            Consumer_->OnIntegerScalar(node->AsInteger()->GetValue());
             break;
-        case JSON_MAP:
-            VisitMap(value.GetMap());
+        case ENodeType::Double:
+            Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());
             break;
-        case JSON_INTEGER:
-            Consumer->OnIntegerScalar(value.GetInteger());
+        case ENodeType::Entity:
+            Consumer_->OnEntity();
             break;
-        case JSON_DOUBLE:
-            Consumer->OnDoubleScalar(value.GetDouble());
+        case ENodeType::String:
+            Consumer_->OnStringScalar(node->AsString()->GetValue());
             break;
-        case JSON_NULL:
-            Consumer->OnEntity();
+        case ENodeType::Map:
+            ConsumeNode(node->AsMap());
             break;
-        case JSON_STRING:
-            Consumer->OnStringScalar(Utf8Transcoder_.Decode(value.GetString()));
+        case ENodeType::List:
+            ConsumeNode(node->AsList());
             break;
-        case JSON_BOOLEAN:
-            THROW_ERROR_EXCEPTION("Boolean values in JSON are not supported");
-            break;
-        case JSON_UNDEFINED:
         default:
             YUNREACHABLE();
             break;
-    }
+    };
 }
 
-void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
+void TJsonParser::TImpl::ConsumeMapFragment(IMapNodePtr map)
 {
-    FOREACH (const auto& pair, map) {
+    for (const auto& pair : map->GetChildren()) {
         TStringBuf key = pair.first;
-        const auto& value = pair.second;
+        INodePtr value = pair.second;
         if (IsSpecialJsonKey(key)) {
             if (key.size() < 2 || key[1] != '$') {
                 THROW_ERROR_EXCEPTION(
@@ -109,61 +225,82 @@ void TJsonParser::VisitMapItems(const TJsonValue::TMap& map)
             }
             key = key.substr(1);
         }
-
-        Consumer->OnKeyedItem(Utf8Transcoder_.Decode(key));
-        VisitAny(value);
+        Consumer_->OnKeyedItem(key);
+        ConsumeNode(value);
     }
 }
 
-void TJsonParser::VisitArray(const TJsonValue::TArray& array)
+void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
 {
-    Consumer->OnBeginList();
-    FOREACH (const auto& value, array) {
-        Consumer->OnListItem();
-        VisitAny(value);
-    }
-    Consumer->OnEndList();
-}
-
-void TJsonParser::VisitMap(const TJsonValue::TMap& map)
-{
-    auto value = map.find("$value");
-    if (value != map.end()) {
-        auto it = map.find("$attributes");
-        if (it != map.end()) {
-            const auto& attributes = it->second;
-            if (attributes.GetType() != JSON_MAP) {
+    auto node = map->FindChild("$value");
+    if (node) {
+        auto attributes = map->FindChild("$attributes");
+        if (attributes) {
+            if (attributes->GetType() != ENodeType::Map) {
                 THROW_ERROR_EXCEPTION("Value of $attributes must be map");
             }
-            Consumer->OnBeginAttributes();
-            VisitMapItems(attributes.GetMap());
-            Consumer->OnEndAttributes();
+            Consumer_->OnBeginAttributes();
+            ConsumeMapFragment(attributes->AsMap());
+            Consumer_->OnEndAttributes();
         }
-        VisitAny(value->second);
+        ConsumeNode(node);
     } else {
-        if (map.find("$attributes") != map.end()) {
+        if (map->FindChild("$attributes")) {
             THROW_ERROR_EXCEPTION("Found key `$attributes` without key `$value`");
         }
-        Consumer->OnBeginMap();
-        VisitMapItems(map);
-        Consumer->OnEndMap();
+        Consumer_->OnBeginMap();
+        ConsumeMapFragment(map);
+        Consumer_->OnEndMap();
     }
+}
+
+void TJsonParser::TImpl::ConsumeNode(IListNodePtr list)
+{
+    Consumer_->OnBeginList();
+    for (int i = 0; i < list->GetChildCount(); ++i) {
+        Consumer_->OnListItem();
+        ConsumeNode(list->GetChild(i));
+    }
+    Consumer_->OnEndList();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJsonParser::TJsonParser(
+    IYsonConsumer* consumer,
+    TJsonFormatConfigPtr config,
+    EYsonType type)
+    : Impl_(new TImpl(consumer, config, type))
+{ }
+
+void TJsonParser::Read(const TStringBuf& data)
+{
+    Impl_->Read(data);
+}
+
+void TJsonParser::Finish()
+{
+    Impl_->Finish();
+}
+
+void TJsonParser::Parse(TInputStream* input)
+{
+    Impl_->Parse(input);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseJson(
     TInputStream* input,
-    NYson::IYsonConsumer* consumer,
+    IYsonConsumer* consumer,
     TJsonFormatConfigPtr config,
-    NYson::EYsonType type)
+    EYsonType type)
 {
     TJsonParser jsonParser(consumer, config, type);
     jsonParser.Parse(input);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NFormats
 } // namespace NYT
