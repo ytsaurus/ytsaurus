@@ -12,6 +12,7 @@ namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+using ::testing::NiceMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +365,42 @@ TEST(TJsonParserTest, AttributesWithoutValue)
     );
 }
 
+TEST(TJsonParserTest, Trash)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "fdslfsdhfkajsdhf";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, TrailingTrash)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
+TEST(TJsonParserTest, MultipleValues)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "{\"a\":\"b\"}{\"a\":\"b\"}";
+
+    TStringInput stream(input);
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock)
+    );
+}
+
 TEST(TJsonParserTest, ReservedKeyName)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
@@ -396,7 +433,6 @@ TEST(TJsonParserTest, MemoryLimit1)
 TEST(TJsonParserTest, MemoryLimit2)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
-    //InSequence dummy; // order in map is not specified
 
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("my_string"));
@@ -411,6 +447,57 @@ TEST(TJsonParserTest, MemoryLimit2)
     TStringInput stream(input);
     ParseJson(&stream, &Mock);
 }
+
+TEST(TJsonParserTest, MemoryLimit3)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 1000;
+
+    int keyCount = 100;
+    TStringStream stream;
+    stream << "{";
+    for (int i = 0; i < keyCount; ++i) {
+        stream << "\"key" << ToString(i) << "\": \"value\"";
+        if (i + 1 < keyCount) {
+            stream << ",";
+        }
+    }
+    stream << "}";
+
+    EXPECT_ANY_THROW(
+        ParseJson(&stream, &Mock, config)
+    );
+}
+
+TEST(TJsonParserTest, MemoryLimit4)
+{
+    NiceMock<NYTree::TMockYsonConsumer> Mock;
+
+    auto config = New<TJsonFormatConfig>();
+    config->MemoryLimit = 200000;
+
+    int rowCount = 1000;
+    int keyCount = 100;
+
+    TStringStream stream;
+    for (int j = 0; j < rowCount; ++j) {
+        stream << "{";
+        for (int i = 0; i < keyCount; ++i) {
+            stream << "\"key" << ToString(i) << "\": \"value\"";
+            if (i + 1 < keyCount) {
+                stream << ",";
+            }
+        }
+        stream << "}\n";
+    }
+
+    // Not throw, because of total memory occupied by all rows is greater than MemoryLimit,
+    // but memory occuied by individual row is much lower than MemoryLimit.
+    ParseJson(&stream, &Mock, config, NYson::EYsonType::ListFragment);
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 

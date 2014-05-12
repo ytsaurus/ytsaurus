@@ -10,6 +10,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: rewrite this documentation
 // YSON-to-JSON Mapping Conventions
 //
 // * Map fragment (which exists in YSON) is not supported.

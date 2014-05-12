@@ -2,12 +2,9 @@
 
 #include "public.h"
 #include "config.h"
-#include "utf8_decoder.h"
 
 #include <core/formats/parser.h>
 #include <core/yson/consumer.h>
-
-#include <library/json/json_value.h>
 
 namespace NYT {
 namespace NFormats {
@@ -32,21 +29,8 @@ public:
     void Parse(TInputStream* input);
 
 private:
-    NYson::IYsonConsumer* Consumer;
-    TJsonFormatConfigPtr Config;
-    NYson::EYsonType Type;
-    TUtf8Transcoder Utf8Transcoder_;
-
-    TStringStream Stream;
-
-    void VisitAny(const NJson::TJsonValue& value);
-
-    void VisitMap(const NJson::TJsonValue::TMap& map);
-    void VisitMapItems(const NJson::TJsonValue::TMap& map);
-
-    void VisitArray(const NJson::TJsonValue::TArray& array);
-
-    void ParseNode(TInputStream* input);
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

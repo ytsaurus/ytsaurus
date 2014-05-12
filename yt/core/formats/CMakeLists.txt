@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/format.cpp
   ${BASE}/helpers.cpp
   ${BASE}/utf8_decoder.cpp
+  ${BASE}/json_callbacks.cpp
   ${BASE}/json_parser.cpp
   ${BASE}/json_writer.cpp
   ${BASE}/parser.cpp
@@ -27,6 +28,7 @@ set( HDRS
   ${BASE}/format.h
   ${BASE}/helpers.h
   ${BASE}/utf8_decoder.h
+  ${BASE}/json_callbacks.h
   ${BASE}/json_parser.h
   ${BASE}/json_writer.h
   ${BASE}/parser.h

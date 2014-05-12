@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "pattern.h"
 
 #include <core/misc/ref_counted.h>
@@ -25,55 +26,6 @@ struct ILogWriter
     virtual void Flush() = 0;
     virtual void Reload() = 0;
     virtual void CheckSpace(i64 minSpace) = 0;
-
-    DECLARE_ENUM(EType,
-        (File)
-        (StdOut)
-        (StdErr)
-        (Raw)
-    );
-
-    struct TConfig
-        : public NYTree::TYsonSerializable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        EType Type;
-        Stroka Pattern;
-        Stroka FileName;
-
-        TConfig()
-        {
-            RegisterParameter("type", Type);
-            RegisterParameter("pattern", Pattern)
-                .Default()
-                .CheckThat(BIND([] (const Stroka& pattern) {
-                    auto error = ValidatePattern(pattern);
-                    if (!error.IsOK()) {
-                        THROW_ERROR error;
-                    }
-                }));
-            RegisterParameter("file_name", FileName)
-                .Default();
-
-            RegisterValidator([&] () {
-                DoValidate();
-            });
-        }
-
-        void DoValidate()
-        {
-            if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
-                THROW_ERROR_EXCEPTION("FileName is empty while type is File");
-            } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
-                THROW_ERROR_EXCEPTION("FileName is not empty while type is not File");
-            }
-
-            if (Type != EType::Raw && Pattern.empty()) {
-                THROW_ERROR_EXCEPTION("Pattern is empty while type is not Raw");
-            }
-        }
-    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,106 +34,63 @@ class TStreamLogWriter
     : public ILogWriter
 {
 public:
-    TStreamLogWriter(
-        TOutputStream* stream,
-        Stroka pattern);
+    explicit TStreamLogWriter(TOutputStream* stream = nullptr);
 
     virtual void Write(const TLogEvent& event) override;
     virtual void Flush() override;
     virtual void Reload() override;
     virtual void CheckSpace(i64 minSpace) override;
 
+protected:
+    TOutputStream* Stream_;
+
 private:
-    TOutputStream* Stream;
-    Stroka Pattern;
-
+    std::unique_ptr<TMessageBuffer> Buffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdErrLogWriter
+class TStderrLogWriter
     : public TStreamLogWriter
 {
 public:
-    explicit TStdErrLogWriter(const Stroka& pattern) ;
-
+    TStderrLogWriter();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdOutLogWriter
+class TStdoutLogWriter
     : public TStreamLogWriter
 {
 public:
-    explicit TStdOutLogWriter(const Stroka& pattern);
-
+    TStdoutLogWriter();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileLogWriterBase
-    : public ILogWriter
+class TFileLogWriter
+    : public TStreamLogWriter
 {
 public:
-    explicit TFileLogWriterBase(const Stroka& fileName);
-
+    explicit TFileLogWriter(const Stroka& fileName);
+    virtual void Write(const TLogEvent& event) override;
+    virtual void Flush() override;
+    virtual void Reload() override;
     virtual void CheckSpace(i64 minSpace) override;
 
 protected:
     static const size_t BufferSize = 1 << 16;
 
     void ReopenFile();
+    void EnsureInitialized(bool writeTrailingNewline = false);
 
-    Stroka FileName;
-    bool Initialized;
+    Stroka FileName_;
+    bool Initialized_;
 
-    TAtomic NotEnoughSpace;
+    TAtomic NotEnoughSpace_;
 
-    std::unique_ptr<TFile> File;
-    std::unique_ptr<TBufferedFileOutput> FileOutput;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFileLogWriter
-    : public TFileLogWriterBase
-{
-public:
-    TFileLogWriter(
-        Stroka fileName,
-        Stroka pattern);
-
-    virtual void Write(const TLogEvent& event) override;
-    virtual void Flush() override;
-    virtual void Reload() override;
-
-private:
-
-    void EnsureInitialized();
-
-    Stroka Pattern;
-    ILogWriterPtr LogWriter;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRawFileLogWriter
-    : public TFileLogWriterBase
-{
-public:
-    explicit TRawFileLogWriter(const Stroka& fileName);
-
-    virtual void Write(const TLogEvent& event);
-    virtual void Flush();
-    virtual void Reload();
-
-private:
-
-    void EnsureInitialized();
-
-    std::unique_ptr<TMessageBuffer> Buffer;
-
+    std::unique_ptr<TFile> File_;
+    std::unique_ptr<TBufferedFileOutput> FileOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

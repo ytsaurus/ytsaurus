@@ -14,24 +14,24 @@ namespace NLog {
 
 TLogger::TLogger(const Stroka& category)
     : Category(category)
-    , ConfigVersion(-1)
+    , Version(-1)
     , LogManager(NULL)
 { }
 
 TLogger::TLogger(const TLogger& other)
     : Category(other.Category)
-    , ConfigVersion(-1)
+    , Version(-1)
     , LogManager(NULL)
 { }
 
-Stroka TLogger::GetCategory() const
+const Stroka& TLogger::GetCategory() const
 {
     return Category;
 }
 
-void TLogger::Write(const TLogEvent& event)
+void TLogger::Write(TLogEvent&& event)
 {
-    GetLogManager()->Enqueue(event);
+    GetLogManager()->Enqueue(std::move(event));
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const
@@ -40,7 +40,7 @@ bool TLogger::IsEnabled(ELogLevel level) const
         return false;
     }
 
-    if (GetLogManager()->GetConfigVersion() != ConfigVersion) {
+    if (GetLogManager()->GetVersion() != Version) {
         const_cast<TLogger*>(this)->UpdateConfig();
     }
 
@@ -49,10 +49,8 @@ bool TLogger::IsEnabled(ELogLevel level) const
 
 void TLogger::UpdateConfig()
 {
-    GetLogManager()->GetLoggerConfig(
-        Category,
-        &MinLevel,
-        &ConfigVersion);
+    MinLevel = GetLogManager()->GetMinLevel(Category);
+    Version = GetLogManager()->GetVersion();
 }
 
 TLogManager* TLogger::GetLogManager() const

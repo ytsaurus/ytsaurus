@@ -241,7 +241,6 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
             auto counterDelta = counter.Value - counter.LastValue;
             auto timeDelta = now - counter.LastTime;
             auto sampleValue = counterDelta * counter.Interval / timeDelta;
-            guard.Release();
             Enqueue(counter.Path, sampleValue, counter.TagIds);
         }
         counter.LastTime = now;
@@ -289,7 +288,6 @@ void TProfiler::DoAggregate(
         auto avg = counter.Sum / counter.SampleCount;
         counter.ResetAggregation();
         counter.Deadline = now + counter.Interval;
-        guard.Release();
         if (!counter.Path.empty()) {
 	        switch (counter.Mode) {
     	        case EAggregateMode::All:

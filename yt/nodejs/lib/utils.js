@@ -254,7 +254,7 @@ exports.merge = function (lhs, rhs)
                     lhs[p] = rhs[p];
                 }
             }
-        } catch(err) {
+        } catch (err) {
             lhs[p] = rhs[p];
         }
     }

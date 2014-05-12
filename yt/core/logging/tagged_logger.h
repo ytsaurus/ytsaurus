@@ -15,9 +15,9 @@ public:
     explicit TTaggedLogger(TLogger& innerLogger);
     TTaggedLogger(const TTaggedLogger& other);
 
-    Stroka GetCategory() const;
+    const Stroka& GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
-    void Write(const TLogEvent& event);
+    void Write(TLogEvent&& event);
 
     void AddTag(const Stroka& tag);
 
@@ -27,6 +27,7 @@ private:
     TLogger* InnerLogger;
     Stroka Tags;
 
+    Stroka Empty;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
