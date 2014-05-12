@@ -16,6 +16,7 @@ import datetime
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
 DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
 DEFAULT_CHUNK_SIZE = 4000
+DEFAULT_ACK_QUEUE_LENGTH = 1
 DEFAULT_SERVICE_ID = "yt"
 DEFAULT_SOURCE_ID = "tramsmm43"
 
@@ -26,18 +27,25 @@ CHUNK_HEADER_SIZE = struct.calcsize(CHUNK_HEADER_FORMAT)
 class State(object):
     log = logging.getLogger("State")
 
-    def __init__(self, event_log, chunk_size=DEFAULT_CHUNK_SIZE, **options):
+    def __init__(self,
+                 event_log,
+                 io_loop=None,
+                 chunk_size=DEFAULT_CHUNK_SIZE,
+                 ack_queue_length=DEFAULT_ACK_QUEUE_LENGTH,
+                 **options):
         self.log_broker_ = None
         self.log_broker_options_ = options
         self.event_log_ = event_log
+        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
         self.chunk_size = chunk_size
+        self.ack_queue_length_ = ack_queue_length
         self.last_saved_seqno_ = 0
         self.last_seqno_ = 0
         self.acked_seqno_ = set()
 
-    def start(self, io_loop=None, IOStreamClass=None):
+    def start(self, IOStreamClass=None):
         self.init_seqno()
-        self.log_broker_ = LogBroker(self, io_loop, IOStreamClass, **self.log_broker_options_)
+        self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **self.log_broker_options_)
         self.log_broker_.start()
 
     def init_seqno(self):
@@ -46,12 +54,13 @@ class State(object):
         self.log.info("Last saved seqno is %d", self.last_seqno_)
 
     def maybe_save_another_chunk(self):
-        if self.last_saved_seqno_ - self.last_seqno_ < 1:
+        if self.last_saved_seqno_ - self.last_seqno_ < self.ack_queue_length_:
             self.log.debug("Schedule chunk save")
             seqno = self.last_saved_seqno_ + 1
             data = self.event_log_.get_data(self.to_line_index(seqno), self.chunk_size)
             self.log_broker_.save_chunk(seqno, data)
             self.last_saved_seqno_ = seqno
+            self.io_loop_.add_callback(self.maybe_save_another_chunk)
 
     def on_session_changed(self):
         self.last_seqno_ = self.last_saved_seqno_
@@ -323,14 +332,16 @@ class Session(object):
         return attributes
 
 
-def main(table_name, proxy_path, service_id, source_id, chunk_size, **kwargs):
+def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, **kwargs):
     io_loop = ioloop.IOLoop.instance()
-    def stop():
-        io_loop.stop()
 
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
-    state = State(event_log=event_log, chunk_size=chunk_size, service_id=service_id, source_id=source_id)
+    state = State(
+        event_log=event_log,
+        io_loop=io_loop,
+        chunk_size=chunk_size, ack_queue_length=ack_queue_length,
+        service_id=service_id, source_id=source_id)
     state.start()
     io_loop.start()
 
@@ -354,6 +365,7 @@ def run():
         help="[yt] path to scheduler event log")
     options.define("proxy_path", metavar="URL", help="[yt] url to proxy")
     options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
+    options.define("ack_queue_length", default=DEFAULT_ACK_QUEUE_LENGTH, help="number of concurrent chunks to save")
 
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
