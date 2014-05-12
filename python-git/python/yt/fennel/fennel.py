@@ -167,6 +167,7 @@ class LogBroker(object):
 
     def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None, **options):
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
         self.state_ = state
         self.starting_ = False
         self.chunk_id_ = 0
@@ -210,12 +211,13 @@ class LogBroker(object):
         self.log.info("Send request")
         self.iostream_.write(
             "PUT /rt/store HTTP/1.1\r\n"
-            "Host: 127.0.0.1\r\n"
+            "Host: {host}\r\n"
             "Content-Type: text/plain\r\n"
             "Transfer-Encoding: chunked\r\n"
             "RTSTreamFormat: v2le\r\n"
             "Session: {session_id}\r\n"
             "\r\n".format(
+                host=self.host_,
                 session_id=id_)
         )
         self.iostream_.read_until_close(self.on_response_end, self.on_response)
@@ -247,6 +249,7 @@ class Session(object):
             service_id=None,
             source_id=None):
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
         self.service_id_ = service_id or DEFAULT_SERVICE_ID
         self.source_id_ = source_id or DEFAULT_SOURCE_ID
         self.id_ = None
@@ -270,10 +273,11 @@ class Session(object):
             "ident={ident}&"
             "sourceid={source_id} "
             "HTTP/1.1\r\n"
-            "Host: kafka02gt.stat.yandex.net\r\n"
+            "Host: {host}\r\n"
             "Accept: */*\r\n\r\n".format(
                 ident="yt",
-                source_id=self.source_id_)
+                source_id=self.source_id_,
+                host=self.host_)
         )
 
     @gen.coroutine
