@@ -273,13 +273,19 @@ class TestSessionReconanect(IOLoopedTestCase):
 
 class TestSaveChunk(IOLoopedTestCase):
     def test_basic(self):
+        state = mock.Mock(name="state")
         l = fennel.LogBroker(
-            mock.Mock(name="state"),
+            state,
             io_loop=self.io_loop,
             IOStreamClass = self.stream_factory)
-        l.save_chunk(0, [{"key0":"value0"}])
-        l.save_chunk(1, [{"key1":"value1"}])
-        l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
+        l.start()
+
+        def save_all():
+            l.save_chunk(0, [{"key0":"value0"}])
+            l.save_chunk(1, [{"key1":"value1"}])
+            l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
+        state.on_session_changed = save_all
+
         self.start()
 
         assert "session" in self.stream_holder

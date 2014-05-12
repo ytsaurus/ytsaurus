@@ -39,7 +39,6 @@ class State(object):
         self.init_seqno()
         self.log_broker_ = LogBroker(self, io_loop, IOStreamClass, **self.log_broker_options_)
         self.log_broker_.start()
-        self.maybe_save_another_chunk()
 
     def init_seqno(self):
         self.last_saved_seqno_ = self.from_line_index(self.event_log_.get_next_line_to_save())
@@ -53,6 +52,10 @@ class State(object):
             data = self.event_log_.get_data(self.to_line_index(seqno), self.chunk_size)
             self.log_broker_.save_chunk(seqno, data)
             self.last_saved_seqno_ = seqno
+
+    def on_session_changed(self):
+        self.last_seqno_ = self.last_saved_seqno_
+        self.maybe_save_another_chunk()
 
     def on_skip(self, seqno):
         if seqno > self.last_seqno_:
@@ -163,7 +166,6 @@ class LogBroker(object):
         self.session_options_ = options
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
         self.iostream_ = None
-        self.pending_data = []
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def start(self):
@@ -183,9 +185,7 @@ class LogBroker(object):
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
             self.iostream_.write(data_to_write)
         else:
-            self.start()
-            self.log.debug("Add %d chunk to pending queue", seqno)
-            self.pending_data.append((seqno, data))
+            assert False
 
     def on_session_changed(self, id_):
         self.starting_ = False
@@ -210,9 +210,7 @@ class LogBroker(object):
                 session_id=id_)
         )
         self.iostream_.read_until_close(self.on_response_end, self.on_response)
-        for seqno, data in self.pending_data:
-            self.save_chunk(seqno, data)
-        self.pending_data = []
+        self.state_.on_session_changed()
 
     def on_response(self, data):
         self.log.debug(data)
