@@ -13,7 +13,19 @@ namespace NVersionedTableClient {
 
 extern const NLog::TLogger TableClientLogger;
 
-int LowerBound(int lowerIndex, int upperIndex, std::function<bool(int)> less);
+template <class TPredicate>
+int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
+{
+    while (upperIndex - lowerIndex > 0) {
+        auto middle = (upperIndex + lowerIndex) / 2;
+        if (less(middle)) {
+            lowerIndex = middle + 1;
+        } else {
+            upperIndex = middle;
+        }
+    }
+    return lowerIndex;
+}
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns);
 
