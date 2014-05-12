@@ -59,31 +59,26 @@ def get_master_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                categories  = [ "*" ];
             };
         ];
         writers = {
             stderr = {
-                type = StdErr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "master-0.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = raw;
+                type = file;
                 file_name = "master-0.debug.log";
             };
         }
@@ -128,31 +123,26 @@ def get_scheduler_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                categories  = [ "*" ];
             };
         ];
         writers = {
             stderr = {
-                type = StdErr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "scheduler-0.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = raw;
+                type = file;
                 file_name = "scheduler-0.debug.log";
             };
         }
@@ -177,33 +167,27 @@ def get_driver_config():
             {
                 min_level = Info;
                 writers = [ file ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Debug;
                 writers = [ raw ];
-                categories  = [ "*" ];
             };
             {
                 min_level = Error;
                 writers = [ stderr ];
-                categories  = [ "*" ];
             };
         ];
         writers = {
             stderr = {
-                type = StdErr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
+                type = stderr;
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "ytdriver.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = Raw;
+                type = file;
                 file_name = "ytdriver.debug.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
         };
     };
@@ -263,31 +247,26 @@ def get_node_config():
                 {
                     min_level = Info;
                     writers = [ file ];
-                    categories  = [ "*" ];
                 };
                 {
                     min_level = Debug;
                     writers = [ raw ];
-                    categories  = [ "*" ];
                 };
                 {
                     min_level = Error;
                     writers = [ stderr ];
-                    categories  = [ "*" ];
                 };
             ];
             writers = {
                 stderr = {
-                    type = StdErr;
-                    pattern = "$(datetime) $(level) $(category) $(message)";
+                    type = stderr;
                 };
                 file = {
-                    type = File;
+                    type = file;
                     file_name = "job_proxy-0.log";
-                    pattern = "$(datetime) $(level) $(category) $(message)";
                 };
                 raw = {
-                    type = Raw;
+                    type = file;
                     file_name = "job_proxy-0.debug.log";
                 };
             }
@@ -304,26 +283,22 @@ def get_node_config():
             {
                 min_level = info;
                 writers = [ file ];
-                categories  = [ "*" ];
             };
             {
                 min_level = debug;
                 writers = [ raw ];
-                categories  = [ "*" ];
             };
         ];
         writers = {
             stderr = {
-                type = std_err;
-                pattern = "$(datetime) $(level) $(category) $(message)";
+                type = stderr;
             };
             file = {
                 type = file;
                 file_name = "node-0.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = raw;
+                type = file;
                 file_name = "node-0.debug.log";
             };
         }
