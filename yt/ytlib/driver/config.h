@@ -32,8 +32,7 @@ public:
     NApi::TFileReaderConfigPtr FileReader;
     NApi::TFileWriterConfigPtr FileWriter;
     NVersionedTableClient::TTableReaderConfigPtr TableReader;
-    NTableClient::TTableWriterConfigPtr TableWriter;
-    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
+    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
     bool ReadFromFollowers;
@@ -57,8 +56,7 @@ public:
             .DefaultNew();
         RegisterParameter("journal_writer", JournalWriter)
             .DefaultNew();
-        RegisterParameter("new_table_writer", NewTableWriter)
-            .DefaultNew();
+
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
             .Default(false);
