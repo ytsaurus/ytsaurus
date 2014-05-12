@@ -7,6 +7,8 @@
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <core/rpc/public.h>
 
 namespace NYT {
@@ -49,6 +51,17 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessWriterPtr CreateSchemalessTableWriter(
+    TTableWriterConfigPtr config,
+    const NYPath::TRichYPath& richPath,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    NRpc::IChannelPtr masterChannel,
+    NTransactionClient::TTransactionPtr transaction,
+    NTransactionClient::TTransactionManagerPtr transactionManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
