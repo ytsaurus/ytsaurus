@@ -27,6 +27,7 @@
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
 #include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 #include <ytlib/new_table_client/table_producer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
@@ -93,6 +94,8 @@ void TReadTableCommand::DoExecute()
     TBlobOutput buffer;
 
     auto format = Context_->GetOutputFormat();
+
+    // ToDo(psushin): CreateSchemalessWriterForFormat
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     std::vector<TUnversionedRow> rows;
@@ -131,17 +134,19 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto writer = CreateAsyncTableWriter(
+    auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+
+    auto nameTable = New<TNameTable>();
+    auto writer = CreateSchemalessTableWriter(
         config,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context_->GetClient()->GetTransactionManager(),
-        Request_->Path,
-        Request_->Path.Attributes().Find<TKeyColumns>("sorted_by"));
+        Context_->GetClient()->GetTransactionManager());
 
     writer->Open();
 
-    TLegacyTableConsumer consumer(writer);
+    TWritingTableConsumer consumer(keyColumns);
+    consumer.AddWriter(writer);
 
     auto format = Context_->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
@@ -158,16 +163,15 @@ void TWriteTableCommand::DoExecute()
         if (bytesRead.Value() == 0)
             break;
 
-        parser->Read(TStringBuf(buffer.Begin(), bytesRead.Value()));
-
-        if (!writer->IsReady()) {
-            auto result = WaitFor(writer->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        parser->Read(TStringBuf(buffer.Begin(), length));
+        consumer.Flush();
     }
 
     parser->Finish();
-    writer->Close();
+    consumer.Flush();
+
+    auto error = WaitFor(writer->Close());
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,7 +260,7 @@ void TInsertCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->NewTableWriter,
+        Context_->GetConfig()->TableWriter,
         Request_->TableWriter);
     config = UpdateYsonSerializable(
         config,

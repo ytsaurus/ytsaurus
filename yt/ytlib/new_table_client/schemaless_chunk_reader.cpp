@@ -647,6 +647,10 @@ TError TSchemalessTableReader::DoOpen()
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 {
     YCHECK(UnderlyingReader_);
+    if (IsAborted()) {
+        return true;
+    }
+
     return UnderlyingReader_->Read(rows);
 }
 
