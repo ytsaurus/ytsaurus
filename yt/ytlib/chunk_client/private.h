@@ -15,10 +15,9 @@ extern NLog::TLogger ChunkWriterLogger;
 extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
 extern NRpc::IChannelFactoryPtr LightNodeChannelFactory;
 
-extern const int MaxPrefetchWindow;
-
+const int MaxPrefetchWindow = 250;
 //! Estimated memory overhead per chunk reader.
-extern const i64 ChunkReaderMemorySize;
+const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

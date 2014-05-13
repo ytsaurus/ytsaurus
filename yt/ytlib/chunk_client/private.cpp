@@ -19,9 +19,6 @@ NRpc::IChannelFactoryPtr LightNodeChannelFactory(NRpc::CreateCachingChannelFacto
 // For heavy requests (e.g. PutBlocks).
 NRpc::IChannelFactoryPtr HeavyNodeChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
-const int MaxPrefetchWindow = 250;
-const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
