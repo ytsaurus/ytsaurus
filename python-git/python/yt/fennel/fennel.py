@@ -342,11 +342,23 @@ class Session(object):
         metadata_raw = yield gen.Task(self.iostream_.read_until, "\r\n\r\n")
 
         self.log.debug("Parse response %s", metadata_raw)
-        self.read_metadata(metadata_raw[:-4])
+        result = self.read_metadata(metadata_raw[:-4])
+        if not result:
+            self.log.error("Unable to find Session header in the response")
+            self.iostream_.close()
+            return
 
         while True:
             headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
-            data = yield gen.Task(self.iostream_.read_until, "\r\n")
+            body_size = None
+            try:
+                body_size = int(headers_raw, 16)
+            except ValueError:
+                self.log.error("Bad HTTP chunk header format")
+            if body_size is None or (body_size == 0):
+                self.iostream_.close()
+                return
+            data = yield gen.Task(self.iostream_.read_bytes, body_size + 2)
 
             self.log.debug("Process status: %s", data)
             self.process_data(data)
@@ -359,6 +371,8 @@ class Session(object):
                     self.id_ = value.strip()
                     self.log.info("Session id: %s", self.id_)
                     self.log_broker_.on_session_changed(self.id_)
+                    return True
+        return False
 
     def abort(self):
         self.log.info("Abort the session")
