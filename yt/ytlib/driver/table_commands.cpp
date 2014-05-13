@@ -143,7 +143,10 @@ void TWriteTableCommand::DoExecute()
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetTransactionManager());
 
-    writer->Open();
+    {
+        auto error = WaitFor(writer->Open());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
 
     TWritingTableConsumer consumer(keyColumns);
     consumer.AddWriter(writer);
