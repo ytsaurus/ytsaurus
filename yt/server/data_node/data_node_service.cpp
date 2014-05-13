@@ -756,7 +756,8 @@ void TDataNodeService::MakeChunkSplits(
     for (int i = 0; i < keyColumns.size(); ++i) {
         Stroka value = keyColumnsExt.values(i);
         if (keyColumns[i] != value) {
-            auto error = TError("Invalid key columns: expected %s, actual %s",
+            auto error = TError("Invalid key columns for chunk %s: expected %s, actual %s",
+                ~ToString(chunkId),
                 ~keyColumns[i],
                 ~value);
             LOG_ERROR(error);
@@ -842,7 +843,7 @@ void TDataNodeService::MakeChunkSplits(
     auto createNewSplit = [&] () {
         currentSplit = splittedChunk->add_chunk_specs();
         currentSplit->CopyFrom(*chunkSpec);
-        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->extensions());
+        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkSpec->extensions());
         startRowIndex = endRowIndex;
         dataSize = 0;
     };
@@ -873,6 +874,10 @@ void TDataNodeService::MakeChunkSplits(
             auto key = beginIt->key();
 
             *boundaryKeysExt.mutable_end() = key;
+
+            // Sanity check.
+            YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) < 0);
+
             SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
 
             endRowIndex = beginIt->row_index();
@@ -891,6 +896,8 @@ void TDataNodeService::MakeChunkSplits(
         }
     }
 
+    // Sanity check.
+    YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) < 0);
     SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 

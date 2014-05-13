@@ -258,7 +258,11 @@ public:
 
                         auto* facade = Writer->GetCurrentWriter();
                         if (facade) {
-                            facade->WriteRowUnsafe(row, key);
+                            if (SchedulerJobSpecExt.enable_sort_verification()) {
+                                facade->WriteRow(row);
+                            } else {
+                                facade->WriteRowUnsafe(row, key);
+                            }
                         } else {
                             break;
                         }
@@ -274,14 +278,22 @@ public:
                 YCHECK(isRowReady || rowIndexHeap.empty());
 
                 if (isRowReady) {
-                    syncWriter->WriteRowUnsafe(row, key);
+                    if (SchedulerJobSpecExt.enable_sort_verification()) {
+                        syncWriter->WriteRow(row);
+                    } else {
+                        syncWriter->WriteRowUnsafe(row, key);
+                    }
                     ++writtenRowCount;
                 }
 
                 // Synchronously write the rest of the rows.
                 while (!rowIndexHeap.empty()) {
                     prepareRow();
-                    syncWriter->WriteRowUnsafe(row, key);
+                    if (SchedulerJobSpecExt.enable_sort_verification()) {
+                        syncWriter->WriteRow(row);
+                    } else {
+                        syncWriter->WriteRowUnsafe(row, key);
+                    }
                     ++writtenRowCount;
                     setProgress();
                 }

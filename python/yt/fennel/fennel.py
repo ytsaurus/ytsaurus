@@ -11,6 +11,7 @@ import struct
 import logging
 import json
 import datetime
+import zlib
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -47,6 +48,9 @@ class State(object):
         self.init_seqno()
         self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **self.log_broker_options_)
         self.log_broker_.start()
+
+    def abort(self):
+        self.log_broker.abort()
 
     def init_seqno(self):
         self.last_saved_seqno_ = self.from_line_index(self.event_log_.get_next_line_to_save())
@@ -138,8 +142,7 @@ class EventLog(object):
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    for row in data:
-        serialized_data += json.dumps(row)
+    serialized_data += zlib.compress("".join([json.dumps(row) for row in data]))
     return serialized_data
 
 
@@ -153,11 +156,14 @@ def parse_chunk(serialized_data):
     chunk_id, seqno, lines = struct.unpack(CHUNK_HEADER_FORMAT, serialized_data[index:index + CHUNK_HEADER_SIZE])
     index += CHUNK_HEADER_SIZE
 
+    decompressed_data = zlib.decompress(serialized_data[index:])
+    i = 0
+
     data = []
     decoder = json.JSONDecoder()
-    while index < len(serialized_data):
-        item, shift = decoder.raw_decode(serialized_data[index:])
-        index += shift
+    while i < len(decompressed_data):
+        item, shift = decoder.raw_decode(decompressed_data[i:])
+        i += shift
         data.append(item)
     return data
 
@@ -167,14 +173,15 @@ class LogBroker(object):
 
     def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None, **options):
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
         self.state_ = state
         self.starting_ = False
         self.chunk_id_ = 0
         self.lines_ = 0
+        self.push_channel_ = None
         self.session_ = None
         self.session_options_ = options
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.iostream_ = None
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def start(self):
@@ -184,25 +191,57 @@ class LogBroker(object):
             self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_, **self.session_options_)
             self.session_.connect()
 
+    def abort(self):
+        self.push_channel_.abort()
+        self.session_.abort()
+
     def save_chunk(self, seqno, data):
-        if self.iostream_ is not None:
+        if self.push_channel_ is not None:
             serialized_data = serialize_chunk(self.chunk_id_, seqno, self.lines_, data)
             self.chunk_id_ += 1
             self.lines_ += 1
 
             self.log.debug("Save chunk [%d]", seqno)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
-            self.iostream_.write(data_to_write)
+            self.push_channel_.write(data_to_write)
         else:
             assert False
 
     def on_session_changed(self, id_):
         self.starting_ = False
-        # close old iostream_
+        if self.push_channel_ is not None:
+            self.push_channel_.abort()
+
         self.chunk_id_ = 0
         self.lines_ = 0
 
+        self.push_channel_ = PushChannel(self.state_, id_,
+            io_loop=self.io_loop_,
+            IOStreamClass=self.IOStreamClass,
+            endpoint=self.endpoint_)
+        self.push_channel_.connect()
+
+
+class PushChannel(object):
+    log = logging.getLogger("push_channel")
+
+    def __init__(self, state, session_id, io_loop=None, IOStreamClass=None, endpoint=None):
+        self.state_ = state
+        self.session_id_ = session_id
+        self.aborted_ = False
+
+        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
+
+        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
+        self.iostream_ = None
+        self.IOStreamClass = IOStreamClass or iostream.IOStream
+
+    def connect(self):
         self.log.info("Create a push channel")
+        if self.aborted_:
+            self.log.error("Unable to connect: channel is aborted")
+            return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
         self.iostream_.set_close_callback(self.on_close)
@@ -210,16 +249,33 @@ class LogBroker(object):
         self.log.info("Send request")
         self.iostream_.write(
             "PUT /rt/store HTTP/1.1\r\n"
-            "Host: 127.0.0.1\r\n"
+            "Host: {host}\r\n"
             "Content-Type: text/plain\r\n"
+            "Content-Encoding: gzip\r\n"
             "Transfer-Encoding: chunked\r\n"
             "RTSTreamFormat: v2le\r\n"
             "Session: {session_id}\r\n"
             "\r\n".format(
-                session_id=id_)
+                host=self.host_,
+                session_id=self.session_id_)
         )
-        self.iostream_.read_until_close(self.on_response_end, self.on_response)
+
+    def write(self, data):
+        if self.aborted_:
+            self.log.error("Unable to write: channel is aborted")
+            return
+        self.iostream_.write(data)
+
+    def abort(self):
+        self.log.info("Abort the push channel")
+        self.aborted_ = True
+        if self.iostream_ is not None:
+            self.iostream_.close()
+
+    def on_connect(self):
+        self.log.info("The push channel has been created")
         self.state_.on_session_changed()
+        self.iostream_.read_until_close(self.on_response_end, self.on_response)
 
     def on_response(self, data):
         self.log.debug(data)
@@ -227,11 +283,11 @@ class LogBroker(object):
     def on_response_end(self, data):
         pass
 
-    def on_connect(self):
-        self.log.info("The push channel has been created")
-
     def on_close(self):
         self.log.info("The push channel has been closed")
+        self.iostream_ = None
+        if not self.aborted_:
+            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
 
 class Session(object):
@@ -247,9 +303,11 @@ class Session(object):
             service_id=None,
             source_id=None):
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
         self.service_id_ = service_id or DEFAULT_SERVICE_ID
         self.source_id_ = source_id or DEFAULT_SOURCE_ID
         self.id_ = None
+        self.aborted_ = False
         self.state_ = state
         self.log_broker_ = log_broker
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
@@ -258,6 +316,8 @@ class Session(object):
 
     def connect(self):
         assert self.iostream_ is None
+        if self.aborted_:
+            return
         self.log.info("Connect to kafka")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -270,10 +330,11 @@ class Session(object):
             "ident={ident}&"
             "sourceid={source_id} "
             "HTTP/1.1\r\n"
-            "Host: kafka02gt.stat.yandex.net\r\n"
+            "Host: {host}\r\n"
             "Accept: */*\r\n\r\n".format(
                 ident="yt",
-                source_id=self.source_id_)
+                source_id=self.source_id_,
+                host=self.host_)
         )
 
     @gen.coroutine
@@ -299,10 +360,17 @@ class Session(object):
                     self.log.info("Session id: %s", self.id_)
                     self.log_broker_.on_session_changed(self.id_)
 
+    def abort(self):
+        self.log.info("Abort the session")
+        self.aborted_ = True
+        if self.iostream is not None:
+            self.iostream_.close()
+
     def on_close(self):
         self.log.error("Connection is closed")
         self.iostream_ = None
-        self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
+        if not self.aborted_:
+            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
     def process_data(self, data):
         if data.startswith("skip"):

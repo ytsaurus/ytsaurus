@@ -9,6 +9,7 @@ import pytest
 import mock
 import datetime
 import unittest
+import logging
 import json
 
 
@@ -286,6 +287,8 @@ class TestSaveChunk(IOLoopedTestCase):
             l.save_chunk(2, [{"key2":"value2"}, {"key3":"value3"}])
         state.on_session_changed = save_all
 
+        self.start()
+        # the first one stops when the fake session stream is over
         self.start()
 
         assert "session" in self.stream_holder

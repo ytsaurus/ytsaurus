@@ -64,6 +64,9 @@ message TSchedulerJobSpecExt
     optional bool is_approximate = 9 [default = false];
 
     optional bool job_proxy_memory_control = 10 [default = true];
+
+    optional bool enable_sort_verification = 11 [default = true];
+
 }
 
 message TSchedulerJobResultExt

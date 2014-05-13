@@ -70,6 +70,8 @@ public:
 
     bool JobProxyMemoryControl;
 
+    bool EnableSortVerification;
+
     TNullable<Stroka> Title;
 
     TOperationSpecBase()
@@ -90,6 +92,9 @@ public:
             .Default(Null);
 
         RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
+            .Default(true);
+
+        RegisterParameter("enable_sort_verification", EnableSortVerification)
             .Default(true);
 
         RegisterParameter("title", Title)
