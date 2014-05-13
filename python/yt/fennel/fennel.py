@@ -11,6 +11,7 @@ import struct
 import logging
 import json
 import datetime
+import zlib
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -138,8 +139,7 @@ class EventLog(object):
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    for row in data:
-        serialized_data += json.dumps(row)
+    serialized_data += zlib.compress("".join([json.dumps(row) for row in data]))
     return serialized_data
 
 
@@ -153,11 +153,14 @@ def parse_chunk(serialized_data):
     chunk_id, seqno, lines = struct.unpack(CHUNK_HEADER_FORMAT, serialized_data[index:index + CHUNK_HEADER_SIZE])
     index += CHUNK_HEADER_SIZE
 
+    decompressed_data = zlib.decompress(serialized_data[index:])
+    i = 0
+
     data = []
     decoder = json.JSONDecoder()
-    while index < len(serialized_data):
-        item, shift = decoder.raw_decode(serialized_data[index:])
-        index += shift
+    while i < len(decompressed_data):
+        item, shift = decoder.raw_decode(decompressed_data[i:])
+        i += shift
         data.append(item)
     return data
 
@@ -213,6 +216,7 @@ class LogBroker(object):
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: {host}\r\n"
             "Content-Type: text/plain\r\n"
+            "Content-Encoding: gzip\r\n"
             "Transfer-Encoding: chunked\r\n"
             "RTSTreamFormat: v2le\r\n"
             "Session: {session_id}\r\n"
