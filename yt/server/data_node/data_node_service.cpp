@@ -155,13 +155,12 @@ private:
 
         context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
-        auto session = GetSession(chunkId);
+        auto sessionManager = Bootstrap->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
 
         YCHECK(session->GetWrittenBlockCount() == request->block_count());
 
-        Bootstrap
-            ->GetSessionManager()
-            ->FinishSession(session, meta)
+        sessionManager->FinishSession(session, meta)
             .Subscribe(BIND([=] (TErrorOr<TChunkPtr> chunkOrError) {
                 if (chunkOrError.IsOK()) {
                     auto chunk = chunkOrError.Value();
@@ -182,7 +181,8 @@ private:
 
         context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
-        auto session = GetSession(chunkId);
+        auto sessionManager = Bootstrap->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
         session->Ping();
 
         context->Reply();
@@ -210,9 +210,9 @@ private:
             request->Attachments().size(),
             ~FormatBool(enableCaching));
 
-        auto session = GetSession(chunkId);
-        session
-            ->PutBlocks(startBlockIndex, request->Attachments(), enableCaching)
+        auto sessionManager = Bootstrap->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
+        session->PutBlocks(startBlockIndex, request->Attachments(), enableCaching)
             .Subscribe(BIND([=] (TError error) {
                 context->Reply(error);
             }));
@@ -233,9 +233,9 @@ private:
             blockCount,
             ~target.GetDefaultAddress());
 
-        auto session = GetSession(chunkId);
-        session
-            ->SendBlocks(startBlockIndex, blockCount, target)
+        auto sessionManager = Bootstrap->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
+        session->SendBlocks(startBlockIndex, blockCount, target)
             .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     context->Reply();
@@ -260,11 +260,13 @@ private:
             ~ToString(chunkId),
             blockIndex);
 
-        auto session = GetSession(chunkId);
+        auto sessionManager = Bootstrap->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
 
-        session->FlushBlock(blockIndex).Subscribe(BIND([=] (TError error) {
-            context->Reply(error);
-        }));
+        session->FlushBlock(blockIndex)
+            .Subscribe(BIND([=] (TError error) {
+                context->Reply(error);
+            }));
     }
 
 
@@ -362,7 +364,8 @@ private:
             ~JoinToString(extensionTags),
             ~ToString(partitionTag));
 
-        auto chunk = GetChunk(chunkId);
+        auto chunkRegistry = Bootstrap->GetChunkRegistry();
+        auto chunk = chunkRegistry->GetChunk(chunkId);
         auto asyncChunkMeta = chunk->GetMeta(
             context->GetPriority(),
             request->all_extension_tags() ? nullptr : &extensionTags);
@@ -509,30 +512,6 @@ private:
                 "Chunk %s already exists",
                 ~ToString(chunkId));
         }
-    }
-
-    TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId)
-    {
-        auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
-        if (!session) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::NoSuchSession,
-                "Session %s is invalid or expired",
-                ~ToString(chunkId));
-        }
-        return session;
-    }
-
-    TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId)
-    {
-        auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(chunkId);
-        if (!chunk) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::NoSuchChunk,
-                "No such chunk %s",
-                ~ToString(chunkId));
-        }
-        return chunk;
     }
 
 

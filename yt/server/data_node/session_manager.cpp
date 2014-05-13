@@ -642,16 +642,31 @@ TSessionManager::TSessionManager(
     VERIFY_INVOKER_AFFINITY(Bootstrap->GetControlInvoker(), ControlThread);
 }
 
-TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
+TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto it = SessionMap.find(chunkId);
-    if (it == SessionMap.end())
+    if (it == SessionMap.end()) {
         return nullptr;
+    }
 
     auto session = it->second;
     session->Ping();
+    return session;
+}
+
+TSessionPtr TSessionManager::GetSession(const TChunkId& chunkId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto session = FindSession(chunkId);
+    if (!session) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchSession,
+            "Session %s is invalid or expired",
+            ~ToString(chunkId));
+    }
     return session;
 }
 
@@ -741,14 +756,14 @@ void TSessionManager::OnLeaseExpired(TSessionPtr session)
     CancelSession(session, TError("Session lease expired"));
 }
 
-int TSessionManager::GetSessionCount(EWriteSessionType type) const
+int TSessionManager::GetSessionCount(EWriteSessionType type)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return SessionCounts[static_cast<int>(type)];
 }
 
-i64 TSessionManager::GetPendingWriteSize() const
+i64 TSessionManager::GetPendingWriteSize() 
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -774,7 +789,7 @@ void TSessionManager::UpdatePendingWriteSize(i64 delta)
     AtomicIncrement(PendingWriteSize, delta);
 }
 
-std::vector<TSessionPtr> TSessionManager::GetSessions() const
+std::vector<TSessionPtr> TSessionManager::GetSessions()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

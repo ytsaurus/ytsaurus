@@ -21,7 +21,10 @@ public:
     explicit TChunkRegistry(NCellNode::TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    TChunkPtr FindChunk(const TChunkId& chunkId) const;
+    TChunkPtr FindChunk(const TChunkId& chunkId);
+
+    //! Finds chunk by id. Throws if no chunk exists.
+    TChunkPtr GetChunk(const TChunkId& chunkId);
 
 private:
     NCellNode::TBootstrap* Bootstrap_;

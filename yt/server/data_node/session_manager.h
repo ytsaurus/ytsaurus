@@ -208,20 +208,23 @@ public:
      */
     void CancelSession(TSessionPtr session, const TError& error);
 
-    //! Finds a session by TChunkId. Returns NULL when no session is found.
-    TSessionPtr FindSession(const TChunkId& chunkId) const;
+    //! Finds session by chunk id. Returns |nullptr| if no session is found.
+    TSessionPtr FindSession(const TChunkId& chunkId);
+
+    //! Finds session by chunk id. Throws if no session is found.
+    TSessionPtr GetSession(const TChunkId& chunkId);
 
     //! Returns the number of currently active sessions of a given type.
-    int GetSessionCount(EWriteSessionType type) const;
+    int GetSessionCount(EWriteSessionType type);
 
     //! Returns the list of all registered sessions.
-    std::vector<TSessionPtr> GetSessions() const;
+    std::vector<TSessionPtr> GetSessions();
 
     //! Returns the number of bytes pending for write.
     /*!
      *  Thread affinity: any
      */
-    i64 GetPendingWriteSize() const;
+    i64 GetPendingWriteSize();
 
 private:
     friend class TSession;
