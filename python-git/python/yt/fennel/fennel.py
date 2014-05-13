@@ -49,6 +49,9 @@ class State(object):
         self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **self.log_broker_options_)
         self.log_broker_.start()
 
+    def abort(self):
+        self.log_broker.abort()
+
     def init_seqno(self):
         self.last_saved_seqno_ = self.from_line_index(self.event_log_.get_next_line_to_save())
         self.last_seqno_ = self.last_saved_seqno_
@@ -175,6 +178,7 @@ class LogBroker(object):
         self.starting_ = False
         self.chunk_id_ = 0
         self.lines_ = 0
+        self.push_channel_ = None
         self.session_ = None
         self.session_options_ = options
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
@@ -186,6 +190,10 @@ class LogBroker(object):
             self.log.info("Start a log broker")
             self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_, **self.session_options_)
             self.session_.connect()
+
+    def abort(self):
+        self.push_channel_.abort()
+        self.session_.abort()
 
     def save_chunk(self, seqno, data):
         if self.push_channel_ is not None:
@@ -201,7 +209,9 @@ class LogBroker(object):
 
     def on_session_changed(self, id_):
         self.starting_ = False
-        # close old push channel
+        if self.push_channel_ is not None:
+            self.push_channel_.abort()
+
         self.chunk_id_ = 0
         self.lines_ = 0
 
@@ -218,6 +228,7 @@ class PushChannel(object):
     def __init__(self, state, session_id, io_loop=None, IOStreamClass=None, endpoint=None):
         self.state_ = state
         self.session_id_ = session_id
+        self.aborted_ = False
 
         self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
         self.host_ = self.endpoint_[0]
@@ -228,6 +239,9 @@ class PushChannel(object):
 
     def connect(self):
         self.log.info("Create a push channel")
+        if self.aborted_:
+            self.log.error("Unable to connect: channel is aborted")
+            return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
         self.iostream_.set_close_callback(self.on_close)
@@ -245,11 +259,23 @@ class PushChannel(object):
                 host=self.host_,
                 session_id=self.session_id_)
         )
-        self.iostream_.read_until_close(self.on_response_end, self.on_response)
-        self.state_.on_session_changed()
 
     def write(self, data):
+        if self.aborted_:
+            self.log.error("Unable to write: channel is aborted")
+            return
         self.iostream_.write(data)
+
+    def abort(self):
+        self.log.info("Abort the push channel")
+        self.aborted_ = True
+        if self.iostream_ is not None:
+            self.iostream_.close()
+
+    def on_connect(self):
+        self.log.info("The push channel has been created")
+        self.state_.on_session_changed()
+        self.iostream_.read_until_close(self.on_response_end, self.on_response)
 
     def on_response(self, data):
         self.log.debug(data)
@@ -257,11 +283,11 @@ class PushChannel(object):
     def on_response_end(self, data):
         pass
 
-    def on_connect(self):
-        self.log.info("The push channel has been created")
-
     def on_close(self):
         self.log.info("The push channel has been closed")
+        self.iostream_ = None
+        if not self.aborted_:
+            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
 
 class Session(object):
@@ -281,6 +307,7 @@ class Session(object):
         self.service_id_ = service_id or DEFAULT_SERVICE_ID
         self.source_id_ = source_id or DEFAULT_SOURCE_ID
         self.id_ = None
+        self.aborted_ = False
         self.state_ = state
         self.log_broker_ = log_broker
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
@@ -289,6 +316,8 @@ class Session(object):
 
     def connect(self):
         assert self.iostream_ is None
+        if self.aborted_:
+            return
         self.log.info("Connect to kafka")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -331,10 +360,17 @@ class Session(object):
                     self.log.info("Session id: %s", self.id_)
                     self.log_broker_.on_session_changed(self.id_)
 
+    def abort(self):
+        self.log.info("Abort the session")
+        self.aborted_ = True
+        if self.iostream is not None:
+            self.iostream_.close()
+
     def on_close(self):
         self.log.error("Connection is closed")
         self.iostream_ = None
-        self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
+        if not self.aborted_:
+            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
     def process_data(self, data):
         if data.startswith("skip"):
