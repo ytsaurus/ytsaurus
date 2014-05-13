@@ -574,7 +574,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     attributes->push_back("account");
-    attributes->push_back("user_attributes_names");
+    attributes->push_back("user_attributes_keys");
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -679,7 +679,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
         return true;
     }
 
-    if (key == "user_attributes_names") {
+    if (key == "user_attributes_keys") {
         BuildYsonFluently(consumer)
             .Value(GetUserAttributes()->List());
         return true;
