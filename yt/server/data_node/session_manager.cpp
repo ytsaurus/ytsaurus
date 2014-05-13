@@ -11,7 +11,7 @@
 #include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

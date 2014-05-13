@@ -2,7 +2,7 @@ package NYT.NTabletClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/hive/transaction_supervisor_service.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

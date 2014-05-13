@@ -5,7 +5,8 @@
 #include <core/misc/ref.h>
 #include <core/misc/error.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

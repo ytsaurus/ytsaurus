@@ -6,7 +6,8 @@
 #include <core/misc/error.h>
 #include <core/misc/cache.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 #include <server/cell_node/public.h>
 

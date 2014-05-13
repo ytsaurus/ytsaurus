@@ -60,16 +60,6 @@ message TMiscExt
     optional int64 max_timestamp = 11 [default = 0];
 }
 
-message TChunkInfo
-{
-    // Exact full size (data size plus meta size).
-    // For erasure chunks this is the sum for all parts.
-    required int64 disk_space = 1;
-
-    // Not sent during full heartbeats.
-    optional uint64 meta_checksum = 2;
-}
-
 message TPartInfo
 {
     // Number of first block in whole chunk

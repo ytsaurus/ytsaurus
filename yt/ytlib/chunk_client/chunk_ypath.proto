@@ -1,7 +1,8 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

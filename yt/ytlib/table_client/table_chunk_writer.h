@@ -10,7 +10,7 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 #include <core/concurrency/thread_affinity.h>

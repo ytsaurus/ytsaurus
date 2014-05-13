@@ -2,7 +2,7 @@
 
 #include "async_reader.h"
 #include "format.h"
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
 

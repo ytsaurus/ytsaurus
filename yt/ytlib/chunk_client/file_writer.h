@@ -4,7 +4,7 @@
 #include "async_writer.h"
 #include "format.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <core/misc/checksum.h>
 
 #include <util/system/file.h>

@@ -11,7 +11,7 @@
 #include <ytlib/new_table_client/versioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

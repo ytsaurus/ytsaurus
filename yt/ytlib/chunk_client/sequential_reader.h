@@ -14,7 +14,7 @@
 
 #include <core/compression/public.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <core/logging/tagged_logger.h>
 

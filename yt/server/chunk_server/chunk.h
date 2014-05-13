@@ -11,7 +11,8 @@
 
 #include <core/erasure/public.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 

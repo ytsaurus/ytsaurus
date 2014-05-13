@@ -5,7 +5,7 @@ import "yt/core/rpc/rpc.proto";
 import "yt/core/misc/error.proto";
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

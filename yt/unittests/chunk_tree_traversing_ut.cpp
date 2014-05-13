@@ -11,7 +11,7 @@
 
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <server/chunk_server/chunk_tree_traversing.h>
 #include <server/chunk_server/chunk_list.h>

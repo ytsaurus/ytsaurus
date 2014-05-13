@@ -4,7 +4,7 @@ import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/server/tablet_server/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

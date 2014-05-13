@@ -12,7 +12,7 @@
 
 #include <ytlib/new_table_client/row_buffer.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NTabletNode {

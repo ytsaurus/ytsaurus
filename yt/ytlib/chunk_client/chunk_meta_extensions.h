@@ -2,7 +2,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 

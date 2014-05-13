@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 #include <ytlib/chunk_client/data_statistics.h>
 

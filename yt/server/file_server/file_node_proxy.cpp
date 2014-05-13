@@ -6,7 +6,7 @@
 #include <core/misc/string.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <server/chunk_server/chunk.h>

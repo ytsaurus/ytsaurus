@@ -85,7 +85,8 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_info.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_meta.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_spec.proto YT_SOURCE_FILES )
 protoc( ${BASE}/schema.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )

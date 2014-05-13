@@ -10,7 +10,7 @@
 
 #include <ytlib/new_table_client/public.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <ytlib/tablet_client/public.h>
 
