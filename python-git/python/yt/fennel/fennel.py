@@ -178,7 +178,6 @@ class LogBroker(object):
         self.session_ = None
         self.session_options_ = options
         self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.iostream_ = None
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def start(self):
@@ -189,23 +188,45 @@ class LogBroker(object):
             self.session_.connect()
 
     def save_chunk(self, seqno, data):
-        if self.iostream_ is not None:
+        if self.push_channel_ is not None:
             serialized_data = serialize_chunk(self.chunk_id_, seqno, self.lines_, data)
             self.chunk_id_ += 1
             self.lines_ += 1
 
             self.log.debug("Save chunk [%d]", seqno)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
-            self.iostream_.write(data_to_write)
+            self.push_channel_.write(data_to_write)
         else:
             assert False
 
     def on_session_changed(self, id_):
         self.starting_ = False
-        # close old iostream_
+        # close old push channel
         self.chunk_id_ = 0
         self.lines_ = 0
 
+        self.push_channel_ = PushChannel(self.state_, id_,
+            io_loop=self.io_loop_,
+            IOStreamClass=self.IOStreamClass,
+            endpoint=self.endpoint_)
+        self.push_channel_.connect()
+
+
+class PushChannel(object):
+    log = logging.getLogger("push_channel")
+
+    def __init__(self, state, session_id, io_loop=None, IOStreamClass=None, endpoint=None):
+        self.state_ = state
+        self.session_id_ = session_id
+
+        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self.host_ = self.endpoint_[0]
+
+        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
+        self.iostream_ = None
+        self.IOStreamClass = IOStreamClass or iostream.IOStream
+
+    def connect(self):
         self.log.info("Create a push channel")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
@@ -222,10 +243,13 @@ class LogBroker(object):
             "Session: {session_id}\r\n"
             "\r\n".format(
                 host=self.host_,
-                session_id=id_)
+                session_id=self.session_id_)
         )
         self.iostream_.read_until_close(self.on_response_end, self.on_response)
         self.state_.on_session_changed()
+
+    def write(self, data):
+        self.iostream_.write(data)
 
     def on_response(self, data):
         self.log.debug(data)
