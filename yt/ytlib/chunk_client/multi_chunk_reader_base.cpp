@@ -133,9 +133,10 @@ TAsyncError TMultiChunkReaderBase::Open()
     if (CompletionError_.IsSet())
         return CompletionError_.ToFuture();
 
-    return BIND(&TMultiChunkReaderBase::DoOpen, MakeStrong(this))
+    ReadyEvent_ = BIND(&TMultiChunkReaderBase::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
+    return ReadyEvent_;
 }
 
 TAsyncError TMultiChunkReaderBase::GetReadyEvent()
