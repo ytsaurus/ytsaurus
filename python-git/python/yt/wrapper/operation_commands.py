@@ -1,6 +1,6 @@
 import config
 from common import require, prefix, get_value
-from errors import YtError, YtOperationFailedError, YtResponseError, format_error, YtWaitStrategyTimeoutError
+from errors import YtError, YtOperationFailedError, YtResponseError, format_error, YtTimeoutError
 from driver import make_request
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from tree_commands import get_attribute, exists, search
@@ -255,7 +255,7 @@ class WaitStrategy(object):
     def process_operation(self, type, operation, finalize=None):
         """
         Run operation, wait for final state.
-        If timeout occured, raise YtWaitStrategyTimeoutError.
+        If timeout occured, raise YtTimeoutError.
         If KeyboardInterrupt occured, abort operation, remove files and reraise KeyboardInterrupt.
         """
         finalize = finalize if finalize else lambda state: None
@@ -273,7 +273,7 @@ class WaitStrategy(object):
             finalize(state)
             if timeout_occured:
                 logger.info("Timeout occured.")
-                raise YtWaitStrategyTimeoutError
+                raise YtTimeoutError
 
 
         if self.check_result and state.is_failed():

@@ -60,7 +60,7 @@ class YtTokenError(YtError):
 class YtFormatError(YtError):
     pass
 
-class YtWaitStrategyTimeoutError(YtError):
+class YtTimeoutError(YtError):
     """
     Oops! WaitStrategy timeout expired.
     """
