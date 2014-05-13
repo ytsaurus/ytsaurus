@@ -77,7 +77,7 @@ class TDataNodeService
 public:
     TDataNodeService(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : TServiceBase(
             CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
             TDataNodeServiceProxy::GetServiceName(),
@@ -118,10 +118,10 @@ public:
 
 private:
     TDataNodeConfigPtr Config_;
-    NConcurrency::TActionQueuePtr WorkerThread_;
-    NCellNode::TBootstrap* Bootstrap_;
+    TActionQueuePtr WorkerThread_;
+    TBootstrap* Bootstrap_;
 
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -1002,7 +1002,7 @@ private:
 
 IServicePtr CreateDataNodeService(
     TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
 {
     return New<TDataNodeService>(
         config,
