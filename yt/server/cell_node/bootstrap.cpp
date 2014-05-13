@@ -215,7 +215,7 @@ void TBootstrap::Run()
         CreateLimitedThrottler(Config->DataNode->RepairOutThrottler),
         DataNodeProfiler.GetPathPrefix() + "/repair_out");
 
-    RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
+    RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
 
