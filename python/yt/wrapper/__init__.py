@@ -1,5 +1,5 @@
 from errors import YtError, YtOperationFailedError, YtResponseError, YtNetworkError, YtProxyUnavailable, YtTokenError, \
-     YtFormatError, YtWaitStrategyTimeoutError
+     YtFormatError, YtTimeoutError
 from record import record_to_line, line_to_record
 from yamr_record import Record
 from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat, SchemedDsvFormat, YamredDsvFormat, \

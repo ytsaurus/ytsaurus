@@ -510,7 +510,7 @@ class TestNativeMode(YtTestBase, YTEnv):
         loading_time = usual_time - pause
 
         start = time.time()
-        with self.assertRaises(yt.YtWaitStrategyTimeoutError):
+        with self.assertRaises(yt.YtTimeoutError):
             yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
