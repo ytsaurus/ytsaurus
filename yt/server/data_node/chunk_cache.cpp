@@ -77,7 +77,7 @@ public:
                 Location,
                 descriptor,
                 Bootstrap->GetChunkCache(),
-                Bootstrap->GetMemoryUsageTracker());
+                &Bootstrap->GetMemoryUsageTracker());
             Put(chunk);
         }
 
@@ -326,7 +326,7 @@ private:
                 ChunkMeta,
                 FileWriter->GetChunkInfo(),
                 Owner->Bootstrap->GetChunkCache(),
-                Owner->Bootstrap->GetMemoryUsageTracker());
+                &Owner->Bootstrap->GetMemoryUsageTracker());
             Cookie->EndInsert(chunk);
             Owner->Register(chunk);
             Cleanup();

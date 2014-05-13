@@ -55,21 +55,21 @@ TChunk::TChunk(
     const TChunkId& id,
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
-    TNodeMemoryTracker& memoryUsageTracker)
+    TNodeMemoryTracker* memoryUsageTracker)
     : Id_(id)
     , Location_(location)
     , Info_(chunkInfo)
     , Meta_(New<TRefCountedChunkMeta>(chunkMeta))
     , MemoryUsageTracker_(memoryUsageTracker)
 {
-    MemoryUsageTracker_.Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+    MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     Initialize();
 }
 
 TChunk::TChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
-    TNodeMemoryTracker& memoryUsageTracker)
+    TNodeMemoryTracker* memoryUsageTracker)
     : Id_(descriptor.Id)
     , Location_(location)
     , MemoryUsageTracker_(memoryUsageTracker)
@@ -88,7 +88,7 @@ void TChunk::Initialize()
 TChunk::~TChunk()
 {
     if (Meta_) {
-        MemoryUsageTracker_.Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+        MemoryUsageTracker_->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     }
 }
 
@@ -182,7 +182,7 @@ void TChunk::DoReadMeta(TPromise<TError> promise)
         if (!Meta_) {
             // These are very quick getters.
             Meta_ = New<TRefCountedChunkMeta>(reader->GetChunkMeta());
-            MemoryUsageTracker_.Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+            MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
         }
     }
 
@@ -283,18 +283,23 @@ TStoredChunk::TStoredChunk(
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
-    TNodeMemoryTracker& memoryUsageTracker)
-    : TChunk(location, chunkId, chunkMeta, chunkInfo, memoryUsageTracker)
+    TNodeMemoryTracker* memoryUsageTracker)
+    : TChunk(
+        location,
+        chunkId,
+        chunkMeta,
+        chunkInfo,
+        memoryUsageTracker)
 { }
 
 TStoredChunk::TStoredChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
-    TNodeMemoryTracker& memoryUsageTracker)
-    : TChunk(location, descriptor, memoryUsageTracker)
-{ }
-
-TStoredChunk::~TStoredChunk()
+    TNodeMemoryTracker* memoryUsageTracker)
+    : TChunk(
+        location,
+        descriptor,
+        memoryUsageTracker)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +310,7 @@ TCachedChunk::TCachedChunk(
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
     TChunkCachePtr chunkCache,
-    TNodeMemoryTracker& memoryUsageTracker)
+    TNodeMemoryTracker* memoryUsageTracker)
     : TChunk(
         location,
         chunkId,
@@ -320,8 +325,11 @@ TCachedChunk::TCachedChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     TChunkCachePtr chunkCache,
-    TNodeMemoryTracker& memoryUsageTracker)
-    : TChunk(location, descriptor, memoryUsageTracker)
+    TNodeMemoryTracker* memoryUsageTracker)
+    : TChunk(
+        location,
+        descriptor,
+        memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache_(chunkCache)
 { }
@@ -335,6 +343,32 @@ TCachedChunk::~TCachedChunk()
         Location_->ScheduleChunkRemoval(this);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJournalChunk::TJournalChunk(
+    TLocationPtr location,
+    const TChunkId& chunkId,
+    const TChunkMeta& chunkMeta,
+    const TChunkInfo& chunkInfo,
+    TNodeMemoryTracker* memoryUsageTracker)
+    : TChunk(
+        location,
+        chunkId,
+        chunkMeta,
+        chunkInfo,
+        memoryUsageTracker)
+{ }
+
+TJournalChunk::TJournalChunk(
+    TLocationPtr location,
+    const TChunkDescriptor& descriptor,
+    TNodeMemoryTracker* memoryUsageTracker)
+    : TChunk(
+        location,
+        descriptor,
+        memoryUsageTracker)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

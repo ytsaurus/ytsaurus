@@ -55,7 +55,7 @@ void TChunkStore::Initialize()
             auto chunk = New<TStoredChunk>(
                 location,
                 descriptor,
-                Bootstrap->GetMemoryUsageTracker());
+                &Bootstrap->GetMemoryUsageTracker());
             RegisterExistingChunk(chunk);
         }
 

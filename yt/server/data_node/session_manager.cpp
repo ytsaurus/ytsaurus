@@ -510,7 +510,7 @@ TErrorOr<TChunkPtr> TSession::OnFileClosed(TError error)
         ChunkId,
         Writer->GetChunkMeta(),
         Writer->GetChunkInfo(),
-        Bootstrap->GetMemoryUsageTracker());
+        &Bootstrap->GetMemoryUsageTracker());
     Bootstrap->GetChunkStore()->RegisterNewChunk(chunk);
     return TChunkPtr(chunk);
 }

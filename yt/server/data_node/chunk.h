@@ -41,32 +41,15 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes chunk at a chunk holder.
 class TChunk
     : public virtual TRefCounted
 {
-    //! Chunk id.
+public:
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
-    //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TLocationPtr, Location);
-
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::NProto::TChunkInfo, Info);
 
 public:
-    //! Constructs a chunk for which its meta is already known.
-    TChunk(
-        TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
-
-    //! Constructs a chunk for which no info is loaded.
-    TChunk(
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
-
     ~TChunk();
 
     //! Returns the full path to the chunk data file.
@@ -118,6 +101,17 @@ public:
 protected:
     void EvictChunkReader();
 
+    TChunk(
+        TLocationPtr location,
+        const TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+
+    TChunk(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor,
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
 private:
     void Initialize();
@@ -133,7 +127,7 @@ private:
     bool RemovalScheduled_;
     TPromise<void> RemovedEvent_;
 
-    NCellNode::TNodeMemoryTracker& MemoryUsageTracker_;
+    NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;
 
 };
 
@@ -141,7 +135,7 @@ DEFINE_REFCOUNTED_TYPE(TChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A chunk owned by #TChunkStore.
+//! A chunk owned by TChunkStore.
 class TStoredChunk
     : public TChunk
 {
@@ -151,14 +145,13 @@ public:
         const TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
     TStoredChunk(
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
-    ~TStoredChunk();
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoredChunk)
@@ -177,13 +170,13 @@ public:
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
     TCachedChunk(
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
     ~TCachedChunk();
 
@@ -193,6 +186,28 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedChunk)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalChunk
+    : public TChunk
+{
+public:
+    TJournalChunk(
+        TLocationPtr location,
+        const TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+
+    TJournalChunk(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor,
+        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
