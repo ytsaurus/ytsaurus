@@ -82,9 +82,9 @@ public:
             CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
             TDataNodeServiceProxy::GetServiceName(),
             DataNodeLogger.GetCategory())
-        , Config(config)
-        , WorkerThread(New<TActionQueue>("DataNodeWorker"))
-        , Bootstrap(bootstrap)
+        , Config_(config)
+        , WorkerThread_(New<TActionQueue>("DataNodeWorker"))
+        , Bootstrap_(bootstrap)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -109,19 +109,19 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
 
-        ProfilingExecutor = New<TPeriodicExecutor>(
-            Bootstrap->GetControlInvoker(),
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
             BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
-        ProfilingExecutor->Start();
+        ProfilingExecutor_->Start();
     }
 
 private:
-    TDataNodeConfigPtr Config;
-    NConcurrency::TActionQueuePtr WorkerThread;
-    NCellNode::TBootstrap* Bootstrap;
+    TDataNodeConfigPtr Config_;
+    NConcurrency::TActionQueuePtr WorkerThread_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -140,7 +140,7 @@ private:
         ValidateNoSession(chunkId);
         ValidateNoChunk(chunkId);
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         sessionManager->StartSession(chunkId, sessionType, syncOnClose);
 
         context->Reply();
@@ -155,7 +155,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
         YCHECK(session->GetWrittenBlockCount() == request->block_count());
@@ -181,7 +181,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
         session->Ping();
 
@@ -210,7 +210,7 @@ private:
             request->Attachments().size(),
             ~FormatBool(enableCaching));
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
         session->PutBlocks(startBlockIndex, request->Attachments(), enableCaching)
             .Subscribe(BIND([=] (TError error) {
@@ -233,7 +233,7 @@ private:
             blockCount,
             ~target.GetDefaultAddress());
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
         session->SendBlocks(startBlockIndex, blockCount, target)
             .Subscribe(BIND([=] (TError error) {
@@ -260,7 +260,7 @@ private:
             ~ToString(chunkId),
             blockIndex);
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
         session->FlushBlock(blockIndex)
@@ -285,9 +285,9 @@ private:
 
         bool isThrottling = IsOutThrottling();
 
-        auto chunkStore = Bootstrap->GetChunkStore();
-        auto blockStore = Bootstrap->GetBlockStore();
-        auto peerBlockTable = Bootstrap->GetPeerBlockTable();
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto blockStore = Bootstrap_->GetBlockStore();
+        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
         bool hasCompleteChunk = chunkStore->FindChunk(chunkId);
         response->set_has_complete_chunk(hasCompleteChunk);
@@ -295,7 +295,7 @@ private:
         response->Attachments().resize(blockCount);
 
         // NB: All callbacks should be handled in the control thread.
-        auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
+        auto awaiter = New<TParallelAwaiter>(Bootstrap_->GetControlInvoker());
 
         // Assign decreasing priorities to block requests to take advantage of sequential read.
         i64 priority = context->GetPriority();
@@ -364,7 +364,7 @@ private:
             ~JoinToString(extensionTags),
             ~ToString(partitionTag));
 
-        auto chunkRegistry = Bootstrap->GetChunkRegistry();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunk(chunkId);
         auto asyncChunkMeta = chunk->GetMeta(
             context->GetPriority(),
@@ -373,7 +373,7 @@ private:
         asyncChunkMeta.Subscribe(BIND(&TDataNodeService::OnGotChunkMeta,
             Unretained(this),
             context,
-            partitionTag).Via(WorkerThread->GetInvoker()));
+            partitionTag).Via(WorkerThread_->GetInvoker()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
@@ -383,13 +383,13 @@ private:
             request->chunk_specs_size(),
             request->min_split_size());
 
-        auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
+        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
 
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             auto* splittedChunk = response->add_splitted_chunks();
-            auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
+            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
                 auto error = TError("No such chunk %s",
@@ -420,13 +420,13 @@ private:
             request->key_columns_size(),
             request->sample_requests_size());
 
-        auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
+        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
         auto keyColumns = FromProto<Stroka>(request->key_columns());
 
         for (const auto& sampleRequest : request->sample_requests()) {
             auto* sampleResponse = response->add_sample_responses();
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
-            auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
+            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
                 auto error = TError("No such chunk %s",
@@ -459,7 +459,7 @@ private:
         context->SetRequestInfo("ChunkId: %s",
             ~ToString(chunkId));
 
-        Bootstrap
+        Bootstrap_
             ->GetChunkCache()
             ->DownloadChunk(chunkId)
             .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
@@ -486,7 +486,7 @@ private:
             ~ToString(expirationTime),
             request->block_ids_size());
 
-        auto peerBlockTable = Bootstrap->GetPeerBlockTable();
+        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
         for (const auto& block_id : request->block_ids()) {
             TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
             peerBlockTable->UpdatePeer(blockId, peer);
@@ -496,7 +496,7 @@ private:
 
     void ValidateNoSession(const TChunkId& chunkId)
     {
-        if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
+        if (Bootstrap_->GetSessionManager()->FindSession(chunkId)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::SessionAlreadyExists,
                 "Session %s already exists",
@@ -506,7 +506,7 @@ private:
 
     void ValidateNoChunk(const TChunkId& chunkId)
     {
-        if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
+        if (Bootstrap_->GetChunkStore()->FindChunk(chunkId)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::ChunkAlreadyExists,
                 "Chunk %s already exists",
@@ -901,7 +901,7 @@ private:
         int blockCount = static_cast<int>(request->block_indexes_size());
         auto sessionType = EReadSessionType(request->session_type());
 
-        auto peerBlockTable = Bootstrap->GetPeerBlockTable();
+        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
         // Compute statistics.
         int blocksWithData = 0;
@@ -938,7 +938,7 @@ private:
             blocksWithData,
             blocksWithP2P);
 
-        auto throttler = Bootstrap->GetOutThrottler(sessionType);
+        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
         throttler->Throttle(totalSize).Subscribe(BIND([=] () {
             context->Reply();
         }));
@@ -949,22 +949,22 @@ private:
     {
         return
             NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutSize +
-            Bootstrap->GetBlockStore()->GetPendingReadSize();
+            Bootstrap_->GetBlockStore()->GetPendingReadSize();
     }
 
     i64 GetPendingInSize() const
     {
-        return Bootstrap->GetSessionManager()->GetPendingWriteSize();
+        return Bootstrap_->GetSessionManager()->GetPendingWriteSize();
     }
 
 
     bool IsOutThrottling() const
     {
         i64 pendingSize = GetPendingOutSize();
-        if (pendingSize > Config->BusOutThrottlingLimit) {
+        if (pendingSize > Config_->BusOutThrottlingLimit) {
             LOG_DEBUG("Outcoming throttling is active: %" PRId64 " > %" PRId64,
                 pendingSize,
-                Config->BusOutThrottlingLimit);
+                Config_->BusOutThrottlingLimit);
             return true;
         } else {
             return false;
@@ -974,10 +974,10 @@ private:
     bool IsInThrottling() const
     {
         i64 pendingSize = GetPendingInSize();
-        if (pendingSize > Config->BusInThrottlingLimit) {
+        if (pendingSize > Config_->BusInThrottlingLimit) {
             LOG_DEBUG("Incoming throttling is active: %" PRId64 " > %" PRId64,
                 pendingSize,
-                Config->BusInThrottlingLimit);
+                Config_->BusInThrottlingLimit);
             return true;
         } else {
             return false;
@@ -990,7 +990,7 @@ private:
         Profiler.Enqueue("/pending_out_size", GetPendingOutSize());
         Profiler.Enqueue("/pending_in_size", GetPendingInSize());
 
-        auto sessionManager = Bootstrap->GetSessionManager();
+        auto sessionManager = Bootstrap_->GetSessionManager();
         for (auto type : EWriteSessionType::GetDomainValues()) {
             Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
         }
