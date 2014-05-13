@@ -300,3 +300,17 @@ class TestSaveChunk(IOLoopedTestCase):
         assert chunks[1][0]["key1"] == "value1"
         assert chunks[2][1]["key3"] == "value3"
 
+
+def xtest_session_integration():
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
+    io_loop = ioloop.IOLoop()
+    def stop():
+        io_loop.stop()
+
+    io_loop.add_timeout(datetime.timedelta(seconds=3), stop)
+    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream, source_id="WHt4FAA")
+    s.connect()
+    io_loop.start()
+    assert s.id_ is not None
