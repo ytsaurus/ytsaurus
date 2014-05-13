@@ -104,6 +104,8 @@ public:
         YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, static_cast<void*>(&Callbacks_));
         if (Type_ == EYsonType::ListFragment) {
             yajl_config(YajlHandle_, yajl_allow_multiple_values, 1);
+            // To allow empty list fragment
+            yajl_config(YajlHandle_, yajl_allow_partial_values, 1);
         }
         yajl_set_memory_limit(YajlHandle_, Config_->MemoryLimit);
     }
