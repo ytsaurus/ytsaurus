@@ -482,6 +482,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_job_proxy_memory_control(Controller->Spec->JobProxyMemoryControl);
+        schedulerJobSpecExt->set_enable_sort_verification(Controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
