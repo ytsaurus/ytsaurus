@@ -72,6 +72,11 @@ public:
         Acquire();
     }
 
+    explicit TFluentLogEventImpl(NYson::IYsonConsumer* consumer)
+        : TBase(consumer)
+        , Logger_(nullptr)
+    { }
+
     TFluentLogEventImpl(TFluentLogEventImpl&& other)
         : TBase(other.Consumer, other.Parent)
         , Logger_(other.Logger_)
