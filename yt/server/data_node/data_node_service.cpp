@@ -876,7 +876,7 @@ void TDataNodeService::MakeChunkSplits(
             *boundaryKeysExt.mutable_end() = key;
 
             // Sanity check.
-            YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) < 0);
+            YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
 
             SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
 
@@ -897,7 +897,7 @@ void TDataNodeService::MakeChunkSplits(
     }
 
     // Sanity check.
-    YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) < 0);
+    YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
     SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 
