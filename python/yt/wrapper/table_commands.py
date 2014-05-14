@@ -791,7 +791,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
         config.set_proxy(current_proxy)
         if copy_all_attributes:
-            attributes = src_attributes.get("user_attributes_names", []) + ["compression_codec", "erasure_codec", "replication_factor"]
+            attributes = src_attributes.get("user_attribute_keys", []) + ["compression_codec", "erasure_codec", "replication_factor"]
         if attributes is None:
             attributes = []
 
