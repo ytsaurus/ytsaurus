@@ -132,6 +132,16 @@ class EventLog(object):
                 start_index=begin,
                 end_index=begin + count), format="json", raw=False)]
 
+    def truncate(self, count):
+        with self.yt.Transaction():
+            index_of_first_line = int(self.yt.get(self.index_of_first_line_attr_))
+            index_of_first_line += count
+            self.yt.set(self.index_of_first_line_attr_, index_of_first_line)
+            self.yt.run_erase(yt.TablePath(
+                self.table_name_,
+                start_index=0,
+                end_index=count))
+
     def set_next_line_to_save(self, line_index):
         self.yt.set(self.lines_to_save_attr_, line_index)
 
@@ -448,6 +458,12 @@ def init(table_name, proxy_path, **kwargs):
     event_log.initialize()
 
 
+def truncate(table_name, proxy_path, count, **kwargs):
+    yt.config.set_proxy(proxy_path)
+    event_log = EventLog(yt, table_name=table_name)
+    event_log.truncate(count)
+
+
 def run():
     options.define("table_name",
         metavar="PATH",
@@ -460,7 +476,10 @@ def run():
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
+    options.define("count", default=10**6, help="number of lines to truncate")
+
     options.define("init", default=False, help="init and exit")
+    options.define("truncate", default=False, help="truncate and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
     options.define("verbose", default=False, help="vervose mode")
@@ -473,7 +492,9 @@ def run():
     def log_exit():
         logging.debug("Exited")
 
-    if options.options.init:
+    if options.options.truncate:
+        func = truncate
+    elif options.options.init:
         func = init
     else:
         func = main
