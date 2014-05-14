@@ -277,9 +277,20 @@ public:
 
                 YCHECK(isRowReady || rowIndexHeap.empty());
 
+                auto writeRowVerified = [&] () {
+                    try {
+                        syncWriter->WriteRow(row);
+                    } catch (const TErrorException& ex) {
+                        LOG_FATAL_IF(
+                            ex.Error().FindMatching(NTableClient::EErrorCode::SortOrderViolation), 
+                            "Sort order violation in sort job.");
+                        throw;
+                    }
+                };
+
                 if (isRowReady) {
                     if (SchedulerJobSpecExt.enable_sort_verification()) {
-                        syncWriter->WriteRow(row);
+                        writeRowVerified();
                     } else {
                         syncWriter->WriteRowUnsafe(row, key);
                     }
@@ -290,7 +301,7 @@ public:
                 while (!rowIndexHeap.empty()) {
                     prepareRow();
                     if (SchedulerJobSpecExt.enable_sort_verification()) {
-                        syncWriter->WriteRow(row);
+                        writeRowVerified();
                     } else {
                         syncWriter->WriteRowUnsafe(row, key);
                     }
