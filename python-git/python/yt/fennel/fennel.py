@@ -49,6 +49,9 @@ class State(object):
         self.event_log_ = event_log
         self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **options)
 
+        self.save_chunk_handle_ = None
+        self.update_state_handle_ = None
+
     def start(self):
         self._initialize()
         self.log_broker_.start()
@@ -62,12 +65,24 @@ class State(object):
         self.log.info("Last saved seqno is %d", self.last_seqno_)
 
     def maybe_save_another_chunk(self):
+        if self.save_chunk_handle_ is not None:
+            # wait for callback
+            return
         if self.last_saved_seqno_ - self.last_seqno_ < self.ack_queue_length_:
-            self.log.debug("Schedule chunk save")
+            self._save_chunk()
+
+    def _save_chunk(self):
+        self.log.debug("Schedule chunk save")
+        self.save_chunk_handle_ = None
+        try:
             seqno = self.last_saved_seqno_ + 1
             data = self.event_log_.get_data(self._to_line_index(seqno), self.chunk_size_)
             self.log_broker_.save_chunk(seqno, data)
             self.last_saved_seqno_ = seqno
+        except yt.YtError:
+            self.log.error("Unable to schedule chunk save", exc_info=True)
+            self.save_chunk_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self._save_chunk)
+        else:
             self.io_loop_.add_callback(self.maybe_save_another_chunk)
 
     def on_session_changed(self):
@@ -101,12 +116,24 @@ class State(object):
     def update_last_seqno(self, new_last_seqno):
         self.log.debug("Update last seqno: %d", new_last_seqno)
 
-        self.event_log_.set_next_line_to_save(self._to_line_index(new_last_seqno))
         self.last_seqno_ = new_last_seqno
         for seqno in list(self.acked_seqno_):
             if seqno <= self.last_seqno_:
                 self.acked_seqno_.remove(seqno)
+
+        if self.update_state_handle_ is None:
+            self.update_state_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=5), self._update_state)
+
         self.maybe_save_another_chunk()
+
+    def _update_state(self):
+        self.log.debug("Update state. Last seqno: %d", self.last_seqno_)
+        self.update_state_handle_ = None
+        try:
+            self.event_log_.set_next_line_to_save(self._to_line_index(self.last_seqno_))
+        except yt.YtError:
+            self.log.error("Unable to update next line to save", exc_info=True)
+            self.update_state_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self._update_state)
 
     def _to_line_index(self, reqno):
         return reqno * self.chunk_size_
