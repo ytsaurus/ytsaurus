@@ -5,7 +5,11 @@ import yt.wrapper as yt
 from tornado import ioloop
 from tornado import iostream
 from tornado import gen
+from tornado import options
 
+import sys
+import os
+import atexit
 import socket
 import struct
 import logging
@@ -33,27 +37,27 @@ class State(object):
                  io_loop=None,
                  chunk_size=DEFAULT_CHUNK_SIZE,
                  ack_queue_length=DEFAULT_ACK_QUEUE_LENGTH,
+                 IOStreamClass=None,
                  **options):
-        self.log_broker_ = None
-        self.log_broker_options_ = options
-        self.event_log_ = event_log
-        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.chunk_size = chunk_size
+        self.chunk_size_ = chunk_size
         self.ack_queue_length_ = ack_queue_length
         self.last_saved_seqno_ = 0
         self.last_seqno_ = 0
         self.acked_seqno_ = set()
 
-    def start(self, IOStreamClass=None):
-        self.init_seqno()
-        self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **self.log_broker_options_)
+        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
+        self.event_log_ = event_log
+        self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **options)
+
+    def start(self):
+        self._initialize()
         self.log_broker_.start()
 
     def abort(self):
         self.log_broker.abort()
 
-    def init_seqno(self):
-        self.last_saved_seqno_ = self.from_line_index(self.event_log_.get_next_line_to_save())
+    def _initialize(self):
+        self.last_saved_seqno_ = self._from_line_index(self.event_log_.get_next_line_to_save())
         self.last_seqno_ = self.last_saved_seqno_
         self.log.info("Last saved seqno is %d", self.last_seqno_)
 
@@ -61,7 +65,7 @@ class State(object):
         if self.last_saved_seqno_ - self.last_seqno_ < self.ack_queue_length_:
             self.log.debug("Schedule chunk save")
             seqno = self.last_saved_seqno_ + 1
-            data = self.event_log_.get_data(self.to_line_index(seqno), self.chunk_size)
+            data = self.event_log_.get_data(self._to_line_index(seqno), self.chunk_size_)
             self.log_broker_.save_chunk(seqno, data)
             self.last_saved_seqno_ = seqno
             self.io_loop_.add_callback(self.maybe_save_another_chunk)
@@ -95,18 +99,18 @@ class State(object):
     def update_last_seqno(self, new_last_seqno):
         self.log.debug("Update last seqno: %d", new_last_seqno)
 
-        self.event_log_.set_next_line_to_save(self.to_line_index(new_last_seqno))
+        self.event_log_.set_next_line_to_save(self._to_line_index(new_last_seqno))
         self.last_seqno_ = new_last_seqno
         for seqno in list(self.acked_seqno_):
             if seqno <= self.last_seqno_:
                 self.acked_seqno_.remove(seqno)
         self.maybe_save_another_chunk()
 
-    def to_line_index(self, reqno):
-        return reqno * self.chunk_size
+    def _to_line_index(self, reqno):
+        return reqno * self.chunk_size_
 
-    def from_line_index(self, line_index):
-        return line_index / self.chunk_size
+    def _from_line_index(self, line_index):
+        return line_index / self.chunk_size_
 
 
 class EventLog(object):
@@ -121,10 +125,10 @@ class EventLog(object):
             lines_removed = int(self.yt.get(self.index_of_first_line_attr_))
             begin -= lines_removed
             assert begin >= 0
-            return [json.loads(item) for item in self.yt.read_table("{0}[#{1}:#{2}]".format(
+            return [item for item in self.yt.read_table(yt.TablePath(
                 self.table_name_,
-                begin,
-                begin + count), format="json")]
+                start_index=begin,
+                end_index=begin + count), format="json", raw=False)]
 
     def set_next_line_to_save(self, line_index):
         self.yt.set(self.lines_to_save_attr_, line_index)
@@ -132,7 +136,7 @@ class EventLog(object):
     def get_next_line_to_save(self):
         return self.yt.get(self.lines_to_save_attr_)
 
-    def init_if_not_initialized(self):
+    def initialize(self):
         with self.yt.Transaction():
             if not self.yt.exists(self.lines_to_save_attr_):
                 self.yt.set(self.lines_to_save_attr_, 0)
@@ -342,11 +346,23 @@ class Session(object):
         metadata_raw = yield gen.Task(self.iostream_.read_until, "\r\n\r\n")
 
         self.log.debug("Parse response %s", metadata_raw)
-        self.read_metadata(metadata_raw[:-4])
+        result = self.read_metadata(metadata_raw[:-4])
+        if not result:
+            self.log.error("Unable to find Session header in the response")
+            self.iostream_.close()
+            return
 
         while True:
             headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
-            data = yield gen.Task(self.iostream_.read_until, "\r\n")
+            body_size = None
+            try:
+                body_size = int(headers_raw, 16)
+            except ValueError:
+                self.log.error("Bad HTTP chunk header format")
+            if body_size is None or (body_size == 0):
+                self.iostream_.close()
+                return
+            data = yield gen.Task(self.iostream_.read_bytes, body_size + 2)
 
             self.log.debug("Process status: %s", data)
             self.process_data(data)
@@ -359,6 +375,8 @@ class Session(object):
                     self.id_ = value.strip()
                     self.log.info("Session id: %s", self.id_)
                     self.log_broker_.on_session_changed(self.id_)
+                    return True
+        return False
 
     def abort(self):
         self.log.info("Abort the session")
@@ -417,16 +435,10 @@ def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_le
 def init(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
-    event_log.init_if_not_initialized()
+    event_log.initialize()
 
 
 def run():
-    from tornado import options
-
-    import sys
-    import os
-    import atexit
-
     options.define("table_name",
         metavar="PATH",
         default=DEFAULT_TABLE_NAME,

@@ -75,16 +75,6 @@ def test_save(fake_state):
     assert fake_state.last_saved_seqno_ == 1
 
 
-def test_event_log_get_data():
-    fake_yt = mock.Mock(name="yt")
-    fake_yt.get = mock.Mock(return_value=200)
-    fake_yt.read_table = mock.Mock(return_value=[json.dumps("1")])
-    fake_yt.Transaction = mock.MagicMock()
-    event_log = fennel.EventLog(fake_yt, table_name="//tmp/event_log")
-    event_log.get_data(200, 1000)
-    fake_yt.read_table.assert_called_with("//tmp/event_log[#0:#1000]", format="json")
-
-
 @pytest.fixture
 def fake_session():
     return fennel.Session(
@@ -300,3 +290,17 @@ class TestSaveChunk(IOLoopedTestCase):
         assert chunks[1][0]["key1"] == "value1"
         assert chunks[2][1]["key3"] == "value3"
 
+
+def xtest_session_integration():
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
+    io_loop = ioloop.IOLoop()
+    def stop():
+        io_loop.stop()
+
+    io_loop.add_timeout(datetime.timedelta(seconds=3), stop)
+    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream, source_id="WHt4FAA")
+    s.connect()
+    io_loop.start()
+    assert s.id_ is not None
