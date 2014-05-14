@@ -41,11 +41,11 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNontemplateCypressNodeProxyBase::TUserAttributeDictionary
+class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    explicit TUserAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
+    explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
         : Proxy(proxy)
     { }
 
@@ -85,7 +85,7 @@ public:
         auto cypressManager = Proxy->Bootstrap->GetCypressManager();
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         auto* node = cypressManager->LockNode(
             Proxy->TrunkNode,
@@ -106,7 +106,7 @@ public:
         auto transactionManager = Proxy->Bootstrap->GetTransactionManager();
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
         std::reverse(transactions.begin(), transactions.end());
@@ -355,7 +355,7 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
             auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            trunkProxy->ListSystemAttributes(&systemAttributes);
+            trunkProxy->ListBuiltinAttributes(&systemAttributes);
 
             yhash_set<Stroka> systemAttributeKeys;
             FOREACH (const auto& attribute, systemAttributes) {
@@ -367,8 +367,8 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
                 if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
                     trunkProxy->MutableAttributes()->SetYson(key, value);
                 } else {
-                    if (!trunkProxy->SetSystemAttribute(key, value)) {
-                        ThrowCannotSetSystemAttribute(key);
+                    if (!trunkProxy->SetBuiltinAttribute(key, value)) {
+                        ThrowCannotSetBuiltinAttribute(key);
                     }
                 }
             }        
@@ -515,7 +515,7 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TAsyncError TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(
+TAsyncError TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
@@ -524,10 +524,10 @@ TAsyncError TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(
         return visitor->Run(const_cast<TNontemplateCypressNodeProxyBase*>(this));
     }
 
-    return TObjectProxyBase::GetSystemAttributeAsync(key, consumer);
+    return TObjectProxyBase::GetBuiltinAttributeAsync(key, consumer);
 }
 
-bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "account") {
         ValidateNoTransaction();
@@ -549,7 +549,7 @@ bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, con
         return true;
     }
 
-    return TObjectProxyBase::SetSystemAttribute(key, value);
+    return TObjectProxyBase::SetBuiltinAttribute(key, value);
 }
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
@@ -578,7 +578,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
-bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
+bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
@@ -680,12 +680,24 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     }
 
     if (key == "user_attribute_keys") {
+        std::vector<TAttributeInfo> systemAttributes;
+        ListSystemAttributes(&systemAttributes);
+
+        auto customAttributes = GetCustomAttributes()->List();
+        std::set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
+
+        for (const auto attribute : systemAttributes) {
+            if (attribute.IsCustom) {
+                customAttributesSet.erase(attribute.Key);
+            }
+        }
+
         BuildYsonFluently(consumer)
-            .Value(GetUserAttributes()->List());
+            .Value(std::vector<Stroka>(customAttributesSet.begin(), customAttributesSet.end()));
         return true;
     }
 
-    return TObjectProxyBase::GetSystemAttribute(key, consumer);
+    return TObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
@@ -822,9 +834,9 @@ const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr
     return dynamic_cast<const ICypressNodeProxy*>(~node);
 }
 
-std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
+std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateCustomAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(this));
+    return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
@@ -1099,7 +1111,7 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -1107,7 +1119,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka&
         return true;
     }
 
-    return TNontemplateCypressNodeProxyBase::GetSystemAttribute(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
@@ -1652,7 +1664,7 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("broken");
 }
 
-bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* impl = GetThisTypedImpl();
     const auto& targetId = impl->GetTargetId();
@@ -1684,10 +1696,10 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
         return true;
     }
 
-    return TBase::GetSystemAttribute(key, consumer);
+    return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TLinkNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "target_id") {
         auto targetId = ConvertTo<TObjectId>(value);
@@ -1706,7 +1718,7 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         return true;
     }
 
-    return TBase::SetSystemAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value);
 }
 
 IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
@@ -1874,7 +1886,7 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attri
     attributes->push_back(TAttributeInfo("value", true, true));
 }
 
-bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* impl = GetThisTypedImpl();
 
@@ -1884,10 +1896,10 @@ bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* co
         return true;
     }
 
-    return TBase::GetSystemAttribute(key, consumer);
+    return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TDocumentNodeProxy::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "value") {
         auto* impl = LockThisTypedImpl();
@@ -1895,7 +1907,7 @@ bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString
         return true;
     }
 
-    return TBase::SetSystemAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

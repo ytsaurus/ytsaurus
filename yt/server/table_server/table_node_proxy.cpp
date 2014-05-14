@@ -54,8 +54,8 @@ private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
-    virtual void ValidateUserAttributeUpdate(
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override;
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override;
@@ -106,6 +106,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
+    // Custom system attributes
+    attributes->push_back(TAttributeInfo("compression_codec", true, false, true));
+    attributes->push_back(TAttributeInfo("erasure_codec", true, false, true));
+    attributes->push_back(TAttributeInfo("channels", true, false, true));
     TBase::ListSystemAttributes(attributes);
 }
 
@@ -121,7 +125,7 @@ void TTableNodeProxy::ValidatePathAttributes(
     }
 }
 
-bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
@@ -147,10 +151,10 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         }
     }
 
-    return TBase::GetSystemAttribute(key, consumer);
+    return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-void TTableNodeProxy::ValidateUserAttributeUpdate(
+void TTableNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
     const TNullable<TYsonString>& oldValue,
     const TNullable<TYsonString>& newValue)
@@ -165,7 +169,7 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
         return;
     }
 
-    TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
+    TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
 }
 
 ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)

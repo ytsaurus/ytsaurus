@@ -198,24 +198,24 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto* provider = GetTargetSystemAttributeProvider();
-        if (provider && provider->GetSystemAttribute(key, consumer)) {
+        if (provider && provider->GetBuiltinAttribute(key, consumer)) {
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* provider = GetTargetSystemAttributeProvider();
-        if (provider && provider->SetSystemAttribute(key, value)) {
+        if (provider && provider->SetBuiltinAttribute(key, value)) {
             return true;
         }
 
-        return TBase::SetSystemAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override

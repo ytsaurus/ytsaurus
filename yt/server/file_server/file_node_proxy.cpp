@@ -46,7 +46,16 @@ public:
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
 
-    virtual void ValidateUserAttributeUpdate(
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    {
+        attributes->push_back(TAttributeInfo("compression_codec", true, false, true));
+        attributes->push_back(TAttributeInfo("erasure_codec", true, false, true));
+        attributes->push_back(TAttributeInfo("executable", true, false, true));
+        attributes->push_back(TAttributeInfo("file_name", true, false, true));
+        TBase::ListSystemAttributes(attributes);
+    }
+
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
@@ -63,7 +72,7 @@ private:
             return;
         }
 
-        TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
+        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
     virtual ELockMode GetLockMode(EUpdateMode updateMode) override

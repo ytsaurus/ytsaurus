@@ -80,11 +80,11 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectProxyBase::TUserAttributeDictionary
+class TObjectProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    explicit TUserAttributeDictionary(TObjectProxyBase* proxy)
+    explicit TCustomAttributeDictionary(TObjectProxyBase* proxy)
         : Proxy(proxy)
     { }
 
@@ -125,7 +125,7 @@ public:
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         const auto& id = Proxy->GetId();
         auto objectManager = Proxy->Bootstrap->GetObjectManager();
@@ -136,7 +136,7 @@ public:
     virtual bool Remove(const Stroka& key) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         const auto& id = Proxy->GetId();
         auto objectManager = Proxy->Bootstrap->GetObjectManager();
@@ -184,12 +184,12 @@ const TObjectId& TObjectProxyBase::GetId() const
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return *const_cast<TObjectProxyBase*>(this)->GetUserAttributes();
+    return *const_cast<TObjectProxyBase*>(this)->GetCustomAttributes();
 }
 
 IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 {
-    return GetUserAttributes();
+    return GetCustomAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
@@ -454,8 +454,8 @@ void TObjectProxyBase::SerializeAttributes(
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            ListSystemAttributes(&systemAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> buildinAttributes;
+            ListBuiltinAttributes(&buildinAttributes);
 
             auto userKeys = userAttributes.List();
 
@@ -466,8 +466,8 @@ void TObjectProxyBase::SerializeAttributes(
                     userKeys.end());
 
                 std::sort(
-                    systemAttributes.begin(),
-                    systemAttributes.end(),
+                    buildinAttributes.begin(),
+                    buildinAttributes.end(),
                     [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
                         return lhs.Key < rhs.Key;
                     });
@@ -478,13 +478,13 @@ void TObjectProxyBase::SerializeAttributes(
                 attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
             }
 
-            FOREACH (const auto& attribute, systemAttributes) {
+            FOREACH (const auto& attribute, buildinAttributes) {
                 if (attribute.IsPresent){
                     attributesConsumer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         attributesConsumer.OnEntity();
                     } else {
-                        YCHECK(GetSystemAttribute(attribute.Key, &attributesConsumer));
+                        YCHECK(GetBuiltinAttribute(attribute.Key, &attributesConsumer));
                     }
                 }
             }
@@ -500,7 +500,7 @@ void TObjectProxyBase::SerializeAttributes(
 
             FOREACH (const auto& key, keys) {
                 TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
-                if (!GetSystemAttribute(key, &attributeValueConsumer)) {
+                if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
                     auto value = userAttributes.FindYson(key);
                     if (value) {
                         attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
@@ -556,12 +556,12 @@ bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
+IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
-    if (!UserAttributes) {
-        UserAttributes = DoCreateUserAttributes();
+    if (!CustomAttributes) {
+        CustomAttributes = DoCreateCustomAttributes();
     }
-    return ~UserAttributes;
+    return ~CustomAttributes;
 }
 
 ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
@@ -569,9 +569,9 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
     return this;
 }
 
-std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
+std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateCustomAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(this));
+    return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -591,7 +591,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
-bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -658,12 +658,12 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TAsyncError TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     return Null;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* acd = FindThisAcd();

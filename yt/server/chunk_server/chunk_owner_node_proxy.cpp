@@ -462,7 +462,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttri
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
-bool TChunkOwnerNodeProxy::GetSystemAttribute(
+bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
@@ -522,10 +522,10 @@ bool TChunkOwnerNodeProxy::GetSystemAttribute(
         return true;
     }
 
-    return TNontemplateCypressNodeProxyBase::GetSystemAttribute(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
+TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
@@ -573,10 +573,10 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
             consumer);
     }
 
-    return TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key, consumer);
 }
 
-void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
+void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
     const TNullable<NYTree::TYsonString>& oldValue,
     const TNullable<NYTree::TYsonString>& newValue)
@@ -600,7 +600,7 @@ void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
     }
 }
 
-bool TChunkOwnerNodeProxy::SetSystemAttribute(
+bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
@@ -651,7 +651,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
         return true;
     }
 
-    return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
+    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
 void TChunkOwnerNodeProxy::ValidatePathAttributes(

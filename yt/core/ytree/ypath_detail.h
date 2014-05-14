@@ -108,7 +108,7 @@ class TSupportsAttributes
 {
 protected:
     //! Can be |nullptr|.
-    virtual IAttributeDictionary* GetUserAttributes();
+    virtual IAttributeDictionary* GetCustomAttributes();
 
     //! Can be |nullptr|.
     virtual ISystemAttributeProvider* GetSystemAttributeProvider();
@@ -148,19 +148,19 @@ protected:
         TCtxRemovePtr context) override;
 
     //! Called before attribute #key is updated (added, removed or changed).
-    virtual void ValidateUserAttributeUpdate(
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue);
 
-    //! Same as #ValidateUserAttributeUpdate but wraps the exceptions.
-    void GuardedValidateUserAttributeUpdate(
+    //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
+    void GuardedValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue);
 
     //! Called after some user attributes are changed.
-    virtual void OnUserAttributesUpdated();
+    virtual void OnCustomAttributesUpdated();
 
 private:
     TFuture< TErrorOr<TYsonString> > DoFindAttribute(const Stroka& key);
@@ -178,7 +178,7 @@ private:
 
     void DoRemoveAttribute(const TYPath& path);
 
-    void GuardedSetSystemAttribute(const Stroka& key, const TYsonString& value);
+    void GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& value);
 
 };
 

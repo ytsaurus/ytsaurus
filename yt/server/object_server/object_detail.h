@@ -66,11 +66,11 @@ public:
         bool sortKeys) override;
 
 protected:
-    class TUserAttributeDictionary;
+    class TCustomAttributeDictionary;
 
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
-    std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;
+    std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
@@ -90,16 +90,16 @@ protected:
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
-    virtual NYTree::IAttributeDictionary* GetUserAttributes() override;
+    virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
 
-    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
+    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes();
 
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     TObjectBase* GetSchema(EObjectType type);
     TObjectBase* GetThisSchema();

@@ -63,7 +63,7 @@ void ThrowNoSuchAttribute(const Stroka& key)
         ~ToYPathLiteral(key).Quote());
 }
 
-void ThrowNoSuchUserAttribute(const Stroka& key)
+void ThrowNoSuchCustomAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -71,7 +71,7 @@ void ThrowNoSuchUserAttribute(const Stroka& key)
         ~ToYPathLiteral(key).Quote());
 }
 
-void ThrowNoSuchSystemAttribute(const Stroka& key)
+void ThrowNoSuchBuiltinAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -116,7 +116,7 @@ void ThrowCannotRemoveAttribute(const Stroka& key)
         ~ToYPathLiteral(key).Quote());
 }
 
-void ThrowCannotSetSystemAttribute(const Stroka& key)
+void ThrowCannotSetBuiltinAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION("System attribute %s cannot be set",
         ~ToYPathLiteral(key).Quote());

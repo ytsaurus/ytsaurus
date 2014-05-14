@@ -21,11 +21,13 @@ struct ISystemAttributeProvider
         const char* Key;
         bool IsPresent;
         bool IsOpaque;
+        bool IsCustom;
 
-        TAttributeInfo(const char* key, bool isPresent = true, bool isOpaque = false)
+        TAttributeInfo(const char* key, bool isPresent = true, bool isOpaque = false, bool isCustom = false)
             : Key(key)
             , IsPresent(isPresent)
             , IsOpaque(isOpaque)
+            , IsCustom(isCustom)
         { }
     };
 
@@ -35,31 +37,34 @@ struct ISystemAttributeProvider
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
+    
+    //! Populates the list of all builtin attributes supported by this object.
+    void ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes);
 
-    //! Gets the value of a system attribute.
+    //! Gets the value of a builtin attribute.
     /*!
-     *  \returns False if there is no system attribute with the given key.
+     *  \returns False if there is no builtin attribute with the given key.
      */
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
-    //! Asynchronously gets the value of a system attribute.
+    //! Asynchronously gets the value of a builtin attribute.
     /*!
-     *  \returns Null if there is no such async system attribute with the given key.
+     *  \returns Null if there is no such async builtin attribute with the given key.
      */
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
-    //! Sets the value of a system attribute.
+    //! Sets the value of a builtin attribute.
     /*!
-     *  \returns False if there is no writable system attribute with the given key.
+     *  \returns False if there is no writable builtin attribute with the given key.
      */
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) = 0;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) = 0;
 
 
     // Extension methods.
 
     //! Returns an instance of TAttributeInfo matching a given #key or |NULL| if no such
-    //! system attribute is known.
-    TAttributeInfo* FindSystemAttributeInfo(const Stroka& key);
+    //! builtin attribute is known.
+    TAttributeInfo* FindBuiltinAttributeInfo(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

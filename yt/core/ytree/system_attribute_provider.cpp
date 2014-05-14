@@ -6,10 +6,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindSystemAttributeInfo(const Stroka& key)
+ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindBuiltinAttributeInfo(const Stroka& key)
 {
     std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-    ListSystemAttributes(&systemAttributes);
+    ListBuiltinAttributes(&systemAttributes);
     auto it = std::find_if(
         systemAttributes.begin(),
         systemAttributes.end(),
@@ -17,6 +17,18 @@ ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindSystemAt
             return info.Key == key;
         });
     return it == systemAttributes.end() ? NULL : &(*it);
+}
+
+void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes)
+{
+    std::vector<TAttributeInfo> systemAttributes;
+    ListSystemAttributes(&systemAttributes);
+
+    for (const auto& attribute : systemAttributes) {
+        if (!attribute.IsCustom) {
+            (*attributes).push_back(attribute);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
