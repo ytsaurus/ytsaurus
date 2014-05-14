@@ -82,6 +82,9 @@ class State(object):
         except yt.YtError:
             self.log.error("Unable to schedule chunk save", exc_info=True)
             self.save_chunk_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self._save_chunk)
+        except EventLog.NotEnoughDataError:
+            self.log.warning("Unable to get {0} rows from event log".format(self.chunk_size_), exc_info=True)
+            self.io_loop_.add_timeout(datetime.timedelta(seconds=120), self.maybe_save_another_chunk)
         else:
             self.io_loop_.add_callback(self.maybe_save_another_chunk)
 
@@ -143,6 +146,9 @@ class State(object):
 
 
 class EventLog(object):
+    class NotEnoughDataError(RuntimeError):
+        pass
+
     def __init__(self, yt, table_name=None):
         self.yt = yt
         self.table_name_ = table_name or "//tmp/event_log"
@@ -150,14 +156,18 @@ class EventLog(object):
         self.lines_to_save_attr_ = "{0}/@lines_to_save".format(self.table_name_)
 
     def get_data(self, begin, count):
+        result = None
         with self.yt.Transaction():
             lines_removed = int(self.yt.get(self.index_of_first_line_attr_))
             begin -= lines_removed
             assert begin >= 0
-            return [item for item in self.yt.read_table(yt.TablePath(
+            result = [item for item in self.yt.read_table(yt.TablePath(
                 self.table_name_,
                 start_index=begin,
                 end_index=begin + count), format="json", raw=False)]
+        if len(result) != count:
+            raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
+        return result
 
     def truncate(self, count):
         with self.yt.Transaction():
