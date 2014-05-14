@@ -281,6 +281,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         }
 
         LastKey = CurrentKey;
+        CurrentKey.Clear();
         ProcessKey();
     }
 }
