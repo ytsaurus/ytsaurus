@@ -567,4 +567,74 @@ describe("YtCommand - output format selection", function() {
             rsp.should.be.yt_error;
         }, done).end();
     });
+
+    it("should specify content disposition for /download", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition;
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should specify content disposition for /read", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/read", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition;
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should use attachment disposition by default", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("attachment");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should use attachment disposition when user requested garbage", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download?disposition=garbage", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("attachment");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should use inline disposition when user requested 'inline'", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download?disposition=inline", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("inline");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should guess filename from the path", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download?path=//home/sandello/data", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("attachment; filename=\"yt_home_sandello_data\"");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should override filename from the query", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download?path=//home/sandello/data&filename=data.txt", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("attachment; filename=\"data.txt\"");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
 });
