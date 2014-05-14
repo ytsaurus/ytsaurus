@@ -125,10 +125,10 @@ class EventLog(object):
             lines_removed = int(self.yt.get(self.index_of_first_line_attr_))
             begin -= lines_removed
             assert begin >= 0
-            return [json.loads(item) for item in self.yt.read_table("{0}[#{1}:#{2}]".format(
+            return [item for item in self.yt.read_table(yt.TablePath(
                 self.table_name_,
-                begin,
-                begin + count), format="json")]
+                start_index=begin,
+                end_index=begin + count), format="json", raw=False)]
 
     def set_next_line_to_save(self, line_index):
         self.yt.set(self.lines_to_save_attr_, line_index)
