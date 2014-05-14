@@ -22,21 +22,18 @@ def fake_state():
 
 def test_on_skip_new(fake_state):
     fake_state.on_skip(10);
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 10
 
 
 def test_on_skip_old(fake_state):
     fake_state.last_seqno_ = 20
     fake_state.on_skip(10);
-    assert not fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 20
 
 
 def test_on_save_ack_next(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(1)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 1
 
 
@@ -44,14 +41,12 @@ def test_on_save_ack_not_next(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(2)
     assert fake_state.last_seqno_ == 0
-    assert not fake_state.event_log_.set_next_line_to_save.called
 
 
 def test_on_save_ack_reordered(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(1)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 2
 
 
@@ -59,7 +54,6 @@ def test_on_skip_removes_old_acks(fake_state):
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(11)
     fake_state.on_skip(10)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 11
 
 
