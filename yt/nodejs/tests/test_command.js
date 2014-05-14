@@ -637,4 +637,15 @@ describe("YtCommand - output format selection", function() {
             stub.should.have.been.calledOnce;
         }, done).end();
     });
+
+    it("should (hacky) use text/plain + inline disposition for STDERRs", function(done) {
+        var stub = this.stub;
+        ask("GET", V + "/download?path=//sys/operations/111/jobs/222/stderr", {},
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.should.have.content_disposition("inline; filename=\"yt_sys_operations_111_jobs_222_stderr\"");
+            rsp.should.have.content_type("text/plain");
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
 });

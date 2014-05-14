@@ -492,12 +492,11 @@ YtCommand.prototype._getOutputFormat = function() {
     this.__DBG("_getOutputFormat");
 
     var result_format, result_mime, header;
+    var filename = undefined;
+    var disposition = "attachment";
 
     // First, resolve content disposition.
     if (this.descriptor.is_heavy) {
-        var filename = undefined;
-        var disposition = "attachment";
-
         // Do our best to guess filename.
         var passed_path = this.req.parsedQuery["path"];
         if (typeof(passed_path) !== "undefined") {
@@ -518,6 +517,12 @@ YtCommand.prototype._getOutputFormat = function() {
         }
 
         // Do our best to guess disposition.
+        // XXX(sandello): For STDERRs -- use inline disposition.
+        if (typeof(filename) !== "undefined") {
+            if (filename.match(/sys_operations_.*_stderr$/)) {
+                disposition = "inline";
+            }
+        }
         var passed_disposition = this.req.parsedQuery["disposition"];
         if (typeof(passed_disposition) !== "undefined") {
             disposition = passed_disposition.toLowerCase();
@@ -529,11 +534,12 @@ YtCommand.prototype._getOutputFormat = function() {
         }
 
         // Construct header.
+        var resulting_header = disposition;
         if (typeof(filename) !== "undefined") {
-            disposition = disposition + "; filename=\"" + filename + "\"";
+            resulting_header += "; filename=\"" + filename + "\"";
         }
 
-        this.rsp.setHeader("Content-Disposition", disposition);
+        this.rsp.setHeader("Content-Disposition", resulting_header);
     }
 
     // Now, check whether the command either produces no data or an octet stream.
@@ -545,7 +551,12 @@ YtCommand.prototype._getOutputFormat = function() {
 
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
         this.output_format = _PREDEFINED_YSON_FORMAT;
-        this.mime_type = "application/octet-stream";
+        // XXX(sandello): Allow browsers to display data inline.
+        if (disposition === "inline") {
+            this.mime_type = "text/plain";
+        } else {
+            this.mime_type = "application/octet-stream";
+        }
         return;
     }
 
