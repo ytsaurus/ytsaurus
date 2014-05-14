@@ -21,6 +21,12 @@ struct TColumnSchema
     TColumnSchema();
     TColumnSchema(const Stroka& name, EValueType type);
 
+    TColumnSchema(const TColumnSchema&) = default;
+    TColumnSchema(TColumnSchema&&) = default;
+
+    TColumnSchema& operator=(const TColumnSchema&) = default;
+    TColumnSchema& operator=(TColumnSchema&&) = default;
+
     Stroka Name;
     EValueType Type;
 };
