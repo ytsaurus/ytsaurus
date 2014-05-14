@@ -312,6 +312,16 @@ TEST(TJsonParserTest, SomeHackyTest)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, EmptyListFragment)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    Stroka empty;
+    TStringInput stream(empty);
+    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+}
+
 TEST(TJsonParserTest, ListFragment)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;

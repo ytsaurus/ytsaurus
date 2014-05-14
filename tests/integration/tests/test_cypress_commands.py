@@ -656,5 +656,5 @@ class TestCypressCommands(YTEnvSetup):
     def test_list_attributes(self):
         create('map_node', '//tmp/map', attributes={'user_attr1': 10})
         set('//tmp/map/@user_attr2', 'abc')
-        assert sorted(get('//tmp/map/@user_attributes_names')) == sorted(['user_attr1', 'user_attr2'])
+        assert sorted(get('//tmp/map/@user_attribute_keys')) == sorted(['user_attr1', 'user_attr2'])
 
