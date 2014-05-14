@@ -75,16 +75,6 @@ def test_save(fake_state):
     assert fake_state.last_saved_seqno_ == 1
 
 
-def test_event_log_get_data():
-    fake_yt = mock.Mock(name="yt")
-    fake_yt.get = mock.Mock(return_value=200)
-    fake_yt.read_table = mock.Mock(return_value=[json.dumps("1")])
-    fake_yt.Transaction = mock.MagicMock()
-    event_log = fennel.EventLog(fake_yt, table_name="//tmp/event_log")
-    event_log.get_data(200, 1000)
-    fake_yt.read_table.assert_called_with("//tmp/event_log[#0:#1000]", format="json")
-
-
 @pytest.fixture
 def fake_session():
     return fennel.Session(
