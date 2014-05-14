@@ -75,6 +75,7 @@ class State(object):
         self.maybe_save_another_chunk()
 
     def on_skip(self, seqno):
+        self.log.debug("Skip seqno=%d", seqno)
         if seqno > self.last_seqno_:
             last_seqno = seqno
             for i in self.acked_seqno_:
@@ -86,6 +87,7 @@ class State(object):
             self.update_last_seqno(last_seqno)
 
     def on_save_ack(self, seqno):
+        self.log.debug("Ack seqno=%d", seqno)
         self.acked_seqno_.add(seqno)
         last_seqno = self.last_seqno_
         for seqno in self.acked_seqno_:
@@ -343,6 +345,7 @@ class Session(object):
 
     @gen.coroutine
     def on_connect(self):
+        self.log.info("The session channel has been created")
         metadata_raw = yield gen.Task(self.iostream_.read_until, "\r\n\r\n")
 
         self.log.debug("Parse response %s", metadata_raw)
@@ -352,20 +355,27 @@ class Session(object):
             self.iostream_.close()
             return
 
-        while True:
-            headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
-            body_size = None
-            try:
-                body_size = int(headers_raw, 16)
-            except ValueError:
-                self.log.error("Bad HTTP chunk header format")
-            if body_size is None or (body_size == 0):
-                self.iostream_.close()
-                return
-            data = yield gen.Task(self.iostream_.read_bytes, body_size + 2)
+        try:
+            while True:
+                headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
+                try:
+                    body_size = int(headers_raw, 16)
+                except ValueError:
+                    self.log.error("Bad HTTP chunk header format")
+                    self.iostream_.close()
+                    return
+                if body_size == 0:
+                    self.log.error("HTTP response is finished")
+                    self.iostream_.close()
+                    return
+                data = yield gen.Task(self.iostream_.read_bytes, body_size + 2)
 
-            self.log.debug("Process status: %s", data)
-            self.process_data(data)
+                self.log.debug("Process status: %s", data.strip())
+                self.process_data(data.strip())
+        except Exception:
+            self.log.error("Unhandled exception. Close the push channel", exc_info=True)
+            self.iostream_.close()
+            raise
 
     def read_metadata(self, data):
         for index, line in enumerate(data.split("\n")):
@@ -379,13 +389,13 @@ class Session(object):
         return False
 
     def abort(self):
-        self.log.info("Abort the session")
+        self.log.info("Abort the session channel")
         self.aborted_ = True
         if self.iostream is not None:
             self.iostream_.close()
 
     def on_close(self):
-        self.log.error("Connection is closed")
+        self.log.error("The session channel has been closed")
         self.iostream_ = None
         if not self.aborted_:
             self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
