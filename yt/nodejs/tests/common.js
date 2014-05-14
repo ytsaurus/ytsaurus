@@ -63,9 +63,17 @@ chai.Assertion.addProperty("http5xx", function() {
     this._obj.statusCode.should.be.within(500, 600);
 });
 
-chai.Assertion.addMethod("content_type", function(mime) {
-    if (mime) {
-        this._obj.headers["content-type"].should.eql(mime);
+chai.Assertion.addMethod("content_disposition", function(disposition) {
+    if (disposition) {
+        this._obj.headers["content-disposition"].should.eql(disposition);
+    } else {
+        this._obj.headers["content-disposition"].should.be.a("string");
+    }
+});
+
+chai.Assertion.addMethod("content_type", function(type) {
+    if (type) {
+        this._obj.headers["content-type"].should.eql(type);
     } else {
         this._obj.headers["content-type"].should.be.a("string");
     }

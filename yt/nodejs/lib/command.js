@@ -75,6 +75,7 @@ _MIME_BY_OUTPUT_TYPE[binding.EDataType_Structured] = [
     "application/x-yt-yson-binary",
 ];
 _MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
+    "application/json",
     "application/x-yamr-delimited",
     "application/x-yamr-lenval",
     "application/x-yamr-subkey-delimited",
@@ -173,18 +174,12 @@ YtCommand.prototype.dispatch = function(req, rsp) {
     self.req = req;
     self.rsp = rsp;
 
-    var ua = self.req.headers["user-agent"] + ""; // Do not care about 'null' or 'undefined'
-    var is_ie = ua.indexOf("Trident") !== -1;
-
-    // XXX(sandello): IE is bugged; it fails to parse request with trailing
-    // headers that include colons. Remarkable.
-    self.omit_trailers = is_ie;
-
-    self.req.parsedUrl = url.parse(self.req.url);
-    self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
+    // "Accepted". This may change during the pipeline.
+    self.rsp.statusCode = 202;
 
     Q
         .fcall(function() {
+            self._parseRequest();
             self._getName();
             self._getUser();
             self._getDescriptor();
@@ -261,6 +256,22 @@ YtCommand.prototype._epilogue = function(result) {
     }
 
     this.rsp.end();
+};
+
+YtCommand.prototype._parseRequest = function() {
+    "use strict";
+    this.__DBG("_parseRequest");
+
+    this.req.parsedUrl = url.parse(this.req.url);
+    this.req.parsedQuery = qs.parse(this.req.parsedUrl.query);
+
+    // Do not care about 'null' or 'undefined' in code below.
+    var ua = this.req.headers["user-agent"] + "";
+    var is_ie = ua.indexOf("Trident") !== -1;
+
+    // XXX(sandello): IE is bugged; it fails to parse request with trailing
+    // headers that include colons. Remarkable.
+    this.omit_trailers = is_ie;
 };
 
 YtCommand.prototype._getName = function() {
@@ -482,41 +493,63 @@ YtCommand.prototype._getOutputFormat = function() {
 
     var result_format, result_mime, header;
 
-    // Firstly, check whether the command either produces no data or an octet stream.
-    if (this.descriptor.output_type_as_integer === binding.EDataType_Null) {
-        this.output_format = _PREDEFINED_YSON_FORMAT;
-        this.mime_type = undefined;
-        return;
-    }
+    // First, resolve content disposition.
     if (this.descriptor.is_heavy) {
+        var filename = undefined;
+        var disposition = "attachment";
+
         // Do our best to guess filename.
-        var filename;
-        try {
-            filename = qs.parse(this.req.parsedUrl.query).path;
-            filename = filename.toLowerCase()
-                .replace(/[^a-z0-9.]/g, '_')
+        var passed_path = this.req.parsedQuery["path"];
+        if (typeof(passed_path) !== "undefined") {
+            filename = "yt_" + passed_path;
+        }
+        var passed_filename = this.req.parsedQuery["filename"];
+        if (typeof(passed_filename) !== "undefined") {
+            filename = passed_filename;
+        }
+
+        // Sanitize filename.
+        if (typeof(filename) !== "undefined") {
+            filename = filename
+                .replace(/[^a-zA-Z0-9-.]/g, '_')
                 .replace(/_+/, '_')
                 .replace(/^_/, '')
                 .replace(/_$/, '');
-            filename = "yt_" + filename;
-        } catch (err) {
-            filename = undefined;
         }
 
-        var disposition = "attachment";
-        if (typeof(disposition) !== "undefined") {
+        // Do our best to guess disposition.
+        var passed_disposition = this.req.parsedQuery["disposition"];
+        if (typeof(passed_disposition) !== "undefined") {
+            disposition = passed_disposition.toLowerCase();
+        }
+
+        // Sanitize disposition.
+        if (disposition !== "attachment" && disposition !== "inline") {
+            disposition = "attachment";
+        }
+
+        // Construct header.
+        if (typeof(filename) !== "undefined") {
             disposition = disposition + "; filename=\"" + filename + "\"";
         }
 
         this.rsp.setHeader("Content-Disposition", disposition);
     }
+
+    // Now, check whether the command either produces no data or an octet stream.
+    if (this.descriptor.output_type_as_integer === binding.EDataType_Null) {
+        this.output_format = _PREDEFINED_YSON_FORMAT;
+        this.mime_type = undefined;
+        return;
+    }
+
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
         this.output_format = _PREDEFINED_YSON_FORMAT;
         this.mime_type = "application/octet-stream";
         return;
     }
 
-    // Secondly, try to deduce output format from Accept header.
+    // Now, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
         result_mime = utils.bestAcceptedType(
@@ -533,7 +566,7 @@ YtCommand.prototype._getOutputFormat = function() {
         result_format = _MIME_TO_FORMAT[result_mime];
     }
 
-    // Thirdly, try to deduce output format from our custom header.
+    // Now, try to deduce output format from our custom header.
     header = this.req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
         try {
