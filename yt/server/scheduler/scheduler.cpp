@@ -694,6 +694,9 @@ private:
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
+    TFluentEventLogger EventLogger_;
+
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
 
@@ -1810,7 +1813,7 @@ private:
 
     TFluentLogEvent LogEventFluently(ELogEventType eventType)
     {
-        return TFluentLogEvent(GetEventLogConsumer())
+        return EventLogger_.LogEventFluently(GetEventLogConsumer())
             .Item(STRINGBUF("timestamp")).Value(Now())
             .Item(STRINGBUF("event_type")).Value(eventType);
     }

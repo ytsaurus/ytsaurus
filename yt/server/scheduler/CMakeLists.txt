@@ -26,6 +26,7 @@ set( SRCS
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
+  ${BASE}/event_log.cpp
 )
 set( HDRS
   ${BASE}/chunk_info_collector-inl.h
