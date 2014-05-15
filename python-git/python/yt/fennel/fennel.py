@@ -383,7 +383,8 @@ class Session(object):
         self.iostream_.write(
             "GET /rt/session?"
             "ident={ident}&"
-            "sourceid={source_id} "
+            "sourceid={source_id}&"
+            "logtype=json "
             "HTTP/1.1\r\n"
             "Host: {host}\r\n"
             "Accept: */*\r\n\r\n".format(
