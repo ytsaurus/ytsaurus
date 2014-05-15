@@ -28,8 +28,8 @@ private:
     typedef TCacheBase<TKey, TValue, THash> TCache;
     friend class TCacheBase<TKey, TValue, THash>;
 
-    TIntrusivePtr<TCache> Cache;
-    TKey Key;
+    TIntrusivePtr<TCache> Cache_;
+    TKey Key_;
 
 };
 
@@ -51,17 +51,23 @@ public:
     std::vector<TValuePtr> GetAll();
 
 protected:
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
 
     class TInsertCookie
     {
     public:
+        TInsertCookie();
         explicit TInsertCookie(const TKey& key);
+        TInsertCookie(TInsertCookie&& other);
+        TInsertCookie(const TInsertCookie& other) = delete;
         ~TInsertCookie();
 
-        inline TKey GetKey() const;
-        inline TAsyncValuePtrOrErrorResult GetValue() const;
-        inline bool IsActive() const;
+        TInsertCookie& operator = (TInsertCookie&& other);
+        TInsertCookie& operator = (const TInsertCookie& other) = delete;
+
+        TKey GetKey() const;
+        TAsyncValuePtrOrErrorResult GetValue() const;
+        bool IsActive() const;
 
         void Cancel(const TError& error);
         void EndInsert(TValuePtr value);
@@ -69,10 +75,12 @@ protected:
     private:
         friend class TCacheBase;
 
-        TKey Key;
-        TIntrusivePtr<TCacheBase> Cache;
-        TAsyncValuePtrOrErrorResult ValueOrError;
-        bool Active;
+        TKey Key_;
+        TIntrusivePtr<TCacheBase> Cache_;
+        TAsyncValuePtrOrErrorResult ValueOrError_;
+        bool Active_;
+
+        void Abort();
 
     };
 
@@ -118,10 +126,10 @@ private:
     typedef yhash_map<TKey, TItem*, THash> TItemMap;
     typedef TIntrusiveListWithAutoDelete<TItem, TDelete> TItemList;
 
-    TValueMap ValueMap;
-    TItemMap ItemMap;
-    TItemList LruList;
-    int ItemMapSize;
+    TValueMap ValueMap_;
+    TItemMap ItemMap_;
+    TItemList LruList_;
+    int ItemMapSize_;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
@@ -143,7 +151,7 @@ protected:
     virtual bool IsTrimNeeded() const;
 
 private:
-    int MaxSize;
+    int MaxSize_;
 
 };
 
@@ -164,8 +172,8 @@ protected:
     virtual bool IsTrimNeeded() const override;
 
 private:
-    i64 TotalWeight;
-    i64 MaxWeight;
+    i64 TotalWeight_;
+    i64 MaxWeight_;
 
 };
 
