@@ -1,10 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "async_writer.h"
+#include "writer.h"
 #include "format.h"
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
+
 #include <core/misc/checksum.h>
 
 #include <util/system/file.h>
@@ -16,7 +17,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     explicit TFileWriter(
@@ -28,7 +29,7 @@ public:
     virtual bool WriteBlock(const TSharedRef& block);
     virtual TAsyncError GetReadyEvent();
 
-    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     void Abort();
 

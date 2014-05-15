@@ -17,7 +17,7 @@ namespace NDataNode {
  *  \note
  *  Must be called from the Control Thread.
  */
-NChunkClient::IAsyncReaderPtr CreateLocalChunkReader(
+NChunkClient::IReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
     const NChunkClient::TChunkId& chunkId);
 

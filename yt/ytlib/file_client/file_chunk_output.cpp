@@ -14,7 +14,7 @@
 
 #include <ytlib/api/config.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
@@ -75,13 +75,13 @@ void TFileChunkOutput::Open()
     LOG_INFO("Chunk created");
 
     auto targets = nodeDirectory->GetDescriptors(Replicas);
-    AsyncWriter = CreateReplicationWriter(Config, ChunkId, targets);
-    AsyncWriter->Open();
+    ChunkWriter = CreateReplicationWriter(Config, ChunkId, targets);
+    ChunkWriter->Open();
 
     Writer = New<TFileChunkWriter>(
         Config,
         New<TEncodingWriterOptions>(),
-        AsyncWriter);
+        ChunkWriter);
 
     IsOpen = true;
 
@@ -121,8 +121,8 @@ void TFileChunkOutput::DoFinish()
         TObjectServiceProxy proxy(MasterChannel);
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-        *req->mutable_chunk_info() = AsyncWriter->GetChunkInfo();
-        for (int index : AsyncWriter->GetWrittenIndexes()) {
+        *req->mutable_chunk_info() = ChunkWriter->GetChunkInfo();
+        for (int index : ChunkWriter->GetWrittenIndexes()) {
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();

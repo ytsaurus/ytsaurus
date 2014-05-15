@@ -6,7 +6,7 @@
 #include "private.h"
 #include "config.h"
 #include "block_cache.h"
-#include "async_reader.h"
+#include "reader.h"
 #include "dispatcher.h"
 #include "chunk_meta_extensions.h"
 #include "replication_reader.h"
@@ -150,7 +150,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkIndex,
         ~ToString(chunkId));
 
-    IAsyncReaderPtr asyncReader;
+    IReaderPtr asyncReader;
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = NErasure::ECodec(chunkSpec.erasure_codec());
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);

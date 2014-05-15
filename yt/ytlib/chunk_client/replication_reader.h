@@ -16,7 +16,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateReplicationReader(
+IReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,

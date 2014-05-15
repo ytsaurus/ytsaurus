@@ -65,7 +65,7 @@ protected:
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
 
-    IAsyncReaderPtr MemoryReader;
+    IReaderPtr MemoryReader;
     TMemoryWriterPtr MemoryWriter;
 
     TChunkedMemoryPool MemoryPool;

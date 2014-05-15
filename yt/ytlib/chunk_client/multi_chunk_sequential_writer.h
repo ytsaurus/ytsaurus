@@ -9,6 +9,7 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -63,7 +64,7 @@ protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        IAsyncWriterPtr AsyncWriter;
+        IWriterPtr AsyncWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 

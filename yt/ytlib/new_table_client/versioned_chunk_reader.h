@@ -13,7 +13,7 @@ namespace NVersionedTableClient {
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
+    NChunkClient::IReaderPtr chunkReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,

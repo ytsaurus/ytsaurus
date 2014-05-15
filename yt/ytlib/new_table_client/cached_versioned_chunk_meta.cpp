@@ -2,7 +2,7 @@
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/concurrency/scheduler.h>
@@ -23,7 +23,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
-    IAsyncReaderPtr asyncReader,
+    IReaderPtr chunkReader,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
 {
@@ -31,11 +31,11 @@ TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
 
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(asyncReader, schema, keyColumns);
+        .Run(chunkReader, schema, keyColumns);
 }
 
 TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
-    IAsyncReaderPtr asyncReader,
+    IReaderPtr chunkReader,
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
 {
@@ -47,7 +47,7 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
 
-        auto chunkMetaOrError = WaitFor(asyncReader->AsyncGetChunkMeta());
+        auto chunkMetaOrError = WaitFor(chunkReader->GetChunkMeta());
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError)
         ChunkMeta_.Swap(&chunkMetaOrError.Value());
 
@@ -62,7 +62,7 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
         return TErrorOr<TCachedVersionedChunkMetaPtr>(this);
     } catch (const std::exception& ex) {
         return TError("Error caching meta of chunk %s",
-            ~ToString(asyncReader->GetChunkId()))
+            ~ToString(chunkReader->GetChunkId()))
             << ex;
     }
 }

@@ -9,7 +9,7 @@
 
 #include <core/yson/tokenizer.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -62,7 +62,7 @@ void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
+    NChunkClient::IWriterPtr chunkWriter,
     TOwningKey lastKey)
     : TChunkWriterBase(config, options, chunkWriter)
     , Facade(this)
@@ -378,9 +378,9 @@ TAsyncError TTableChunkWriter::Close()
         PrepareBlock();
     }
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-        .Via(TDispatcher::Get()->GetWriterInvoker()));
+            .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
@@ -529,7 +529,7 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
     BoundaryKeysExt.mutable_end();
 }
 
-TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(FinishedWriterCount == CreatedWriterCount);
     
@@ -540,7 +540,7 @@ TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::
     auto writer = New<TTableChunkWriter>(
         Config,
         Options,
-        asyncWriter,
+        chunkWriter,
         std::move(lastKey));
 
     CurrentWriter = writer;

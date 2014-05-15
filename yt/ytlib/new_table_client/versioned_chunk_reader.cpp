@@ -10,7 +10,7 @@
 #include "versioned_reader.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/read_limit.h>
@@ -42,7 +42,7 @@ public:
     TVersionedChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        IAsyncReaderPtr asyncReader,
+        IReaderPtr chunkReader,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
@@ -55,7 +55,7 @@ public:
 private:
     const TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr CachedChunkMeta_;
-    IAsyncReaderPtr AsyncReader_;
+    IReaderPtr ChunkReader_;
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
 
@@ -94,14 +94,14 @@ template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    IAsyncReaderPtr asyncReader,
+    IReaderPtr chunkReader,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
     : Config_(std::move(config))
     , CachedChunkMeta_(std::move(chunkMeta))
-    , AsyncReader_(std::move(asyncReader))
+    , ChunkReader_(std::move(chunkReader))
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , Timestamp_(timestamp)
@@ -337,7 +337,7 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     SequentialReader_ = New<TSequentialReader>(
         Config_,
         std::move(blocks),
-        AsyncReader_,
+        ChunkReader_,
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
     auto error = WaitFor(SequentialReader_->AsyncNextBlock());
@@ -383,7 +383,7 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
-    IAsyncReaderPtr asyncReader,
+    IReaderPtr chunkReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
@@ -395,7 +395,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
             return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
                 config,
                 chunkMeta,
-                asyncReader,
+                chunkReader,
                 std::move(lowerLimit),
                 std::move(upperLimit),
                 columnFilter,

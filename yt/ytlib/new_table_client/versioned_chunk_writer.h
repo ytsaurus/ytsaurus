@@ -29,7 +29,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NChunkClient::IAsyncWriterPtr asyncWriter);
+    NChunkClient::IWriterPtr chunkWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

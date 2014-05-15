@@ -9,7 +9,7 @@
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -54,7 +54,7 @@ class TChunkReader
 public:
     TChunkReader(
         TChunkReaderConfigPtr config,
-        NChunkClient::IAsyncReaderPtr asyncReader,
+        NChunkClient::IReaderPtr chunkReader,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTimestamp timestamp);
@@ -73,7 +73,7 @@ private:
     };
 
     TChunkReaderConfigPtr Config;
-    NChunkClient::IAsyncReaderPtr UnderlyingReader;
+    NChunkClient::IReaderPtr UnderlyingReader;
 
     TTableSchema Schema;
     bool IncludeAllColumns;
@@ -109,12 +109,12 @@ private:
 
 TChunkReader::TChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
+    NChunkClient::IReaderPtr chunkReader,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     TTimestamp timestamp)
     : Config(config)
-    , UnderlyingReader(asyncReader)
+    , UnderlyingReader(chunkReader)
     , IncludeAllColumns(false)
     , CurrentBlockIndex(0)
     , Logger(TableReaderLogger)
@@ -163,7 +163,7 @@ void TChunkReader::DoOpen()
     tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(UnderlyingReader->AsyncGetChunkMeta(Null, &tags));
+    auto metaOrError = WaitFor(UnderlyingReader->GetChunkMeta(Null, &tags));
     if (!metaOrError.IsOK()) {
         State.Finish(metaOrError);
         return;
@@ -485,7 +485,7 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
+    NChunkClient::IReaderPtr chunkReader,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
@@ -498,7 +498,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                 nullptr,
                 config, 
                 TChannel::Universal(), 
-                asyncReader, 
+                chunkReader, 
                 lowerLimit, 
                 upperLimit,
                 0,
@@ -510,7 +510,7 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         }
 
         case ETableChunkFormat::Schemaful:
-            return New<TChunkReader>(config, asyncReader, lowerLimit, upperLimit, timestamp);
+            return New<TChunkReader>(config, chunkReader, lowerLimit, upperLimit, timestamp);
 
         default:
             YUNREACHABLE();

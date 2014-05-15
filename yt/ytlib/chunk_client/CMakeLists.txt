@@ -29,8 +29,8 @@ set( SRCS
   ${BASE}/sequential_reader.cpp
 )
 set( HDRS
-  ${BASE}/async_reader.h
-  ${BASE}/async_writer.h
+  ${BASE}/reader.h
+  ${BASE}/writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
   ${BASE}/chunk_helpers.h

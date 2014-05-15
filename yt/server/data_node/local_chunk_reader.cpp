@@ -5,7 +5,7 @@
 
 #include <core/tracing/trace_context.h>
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -37,7 +37,7 @@ class TLocalChunkReader;
 typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
 class TLocalChunkReader
-    : public NChunkClient::IAsyncReader
+    : public NChunkClient::IReader
 {
 public:
     TLocalChunkReader(
@@ -52,7 +52,7 @@ public:
         Chunk_->ReleaseReadLock();
     }
 
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         NTracing::TTraceSpanGuard guard(
             NTracing::GetCurrentTraceContext(),
@@ -62,16 +62,16 @@ public:
             ->Run(blockIndexes);
     }
 
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+    virtual TAsyncGetMetaResult GetChunkMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* tags) override
+        const std::vector<int>* extensionTags) override
     {
         NTracing::TTraceSpanGuard guard(
             NTracing::GetCurrentTraceContext(),
             "LocalChunkReader",
             "GetChunkMeta");
         return Chunk_
-            ->GetMeta(FetchPriority, tags)
+            ->GetMeta(FetchPriority, extensionTags)
             .Apply(BIND(
                 &TLocalChunkReader::OnGotChunkMeta,
                 partitionTag,
@@ -164,7 +164,7 @@ private:
 
 };
 
-NChunkClient::IAsyncReaderPtr CreateLocalChunkReader(
+NChunkClient::IReaderPtr CreateLocalChunkReader(
     TBootstrap* bootstrap,
     const TChunkId& chunkId)
 {

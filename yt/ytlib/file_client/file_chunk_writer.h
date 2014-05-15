@@ -10,7 +10,6 @@
 
 #include <core/logging/tagged_logger.h>
 
-
 namespace NYT {
 namespace NFileClient {
 
@@ -39,7 +38,7 @@ public:
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter);
+        NChunkClient::IWriterPtr chunkWriter);
 
     ~TFileChunkWriter();
 
@@ -61,7 +60,7 @@ private:
     TFileChunkWriterConfigPtr Config;
     NChunkClient::TEncodingWriterOptionsPtr Options;
     NChunkClient::TEncodingWriterPtr EncodingWriter;
-    NChunkClient::IAsyncWriterPtr ChunkWriter;
+    NChunkClient::IWriterPtr ChunkWriter;
 
     TFileChunkWriterFacade Facade;
     TBlob Buffer;
@@ -96,7 +95,7 @@ public:
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options);
 
-    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TFileChunkWriterPtr writer);
 

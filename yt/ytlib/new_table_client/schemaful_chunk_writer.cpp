@@ -13,7 +13,7 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_writer.h>
@@ -40,7 +40,7 @@ public:
     TChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        IAsyncWriterPtr asyncWriter);
+        IWriterPtr chunkWriter);
 
     virtual TAsyncError Open(
         const TTableSchema& schema,
@@ -82,7 +82,7 @@ private:
 
     TChunkWriterConfigPtr Config;
     TEncodingWriterOptionsPtr Options;
-    IAsyncWriterPtr UnderlyingWriter;
+    IWriterPtr UnderlyingWriter;
 
     std::vector<int> KeyIds;
     TNameTablePtr InputNameTable;
@@ -130,12 +130,12 @@ private:
 TChunkWriter::TChunkWriter(
     TChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IAsyncWriterPtr asyncWriter)
+    IWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
-    , UnderlyingWriter(asyncWriter)
+    , UnderlyingWriter(chunkWriter)
     , OutputNameTable(New<TNameTable>())
-    , EncodingWriter(New<TEncodingWriter>(config, options, asyncWriter))
+    , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
     , IsNewKey(false)
     , RowIndex(0)
     , LargestBlockSize(0)
@@ -368,7 +368,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     }
 
     {
-        auto error = WaitFor(EncodingWriter->AsyncFlush());
+        auto error = WaitFor(EncodingWriter->Flush());
         if (!error.IsOK()) {
             result.Set(error);
             return;
@@ -407,7 +407,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     miscExt.set_max_block_size(LargestBlockSize);
     SetProtoExtension(Meta.mutable_extensions(), miscExt);
 
-    auto error = WaitFor(UnderlyingWriter->AsyncClose(Meta));
+    auto error = WaitFor(UnderlyingWriter->Close(Meta));
     result.Set(error);
 }
 
@@ -428,9 +428,9 @@ void TChunkWriter::FlushPreviousBlock()
 ISchemafulWriterPtr CreateSchemafulChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr asyncWriter)
+    NChunkClient::IWriterPtr chunkWriter)
 {
-    return New<TChunkWriter>(config, options, asyncWriter);
+    return New<TChunkWriter>(config, options, chunkWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

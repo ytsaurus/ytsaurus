@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "async_writer.h"
+#include "writer.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -9,7 +9,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMemoryWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     TMemoryWriter();
@@ -17,7 +17,7 @@ public:
     virtual void Open() override;
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual TAsyncError GetReadyEvent() override;
-    virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TAsyncError Close(const NProto::TChunkMeta& chunkMeta) override;
 
     // Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;

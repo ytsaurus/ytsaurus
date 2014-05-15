@@ -2,7 +2,7 @@
 
 #include "encoding_chunk_writer.h"
 
-#include "async_writer.h"
+#include "writer.h"
 #include "config.h"
 #include "encoding_writer.h"
 
@@ -18,8 +18,8 @@ using namespace NConcurrency;
 TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr asyncWriter)
-    : AsyncWriter_(asyncWriter)
+    IWriterPtr asyncWriter)
+    : ChunkWriter_(asyncWriter)
     , EncodingWriter_(New<TEncodingWriter>(config, options, asyncWriter))
     , CurrentBlockIndex_(0)
     , LargestBlockSize_(0)
@@ -42,7 +42,7 @@ void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef>&& data)
 
 TError TEncodingChunkWriter::Close()
 {
-    auto error = WaitFor(EncodingWriter_->AsyncFlush());
+    auto error = WaitFor(EncodingWriter_->Flush());
     if (!error.IsOK()) {
         return error;
     }
@@ -53,7 +53,7 @@ TError TEncodingChunkWriter::Close()
     MiscExt_.set_meta_size(Meta_.ByteSize());
     SetProtoExtension(Meta_.mutable_extensions(), MiscExt_);
 
-    return WaitFor(AsyncWriter_->AsyncClose(Meta_));
+    return WaitFor(ChunkWriter_->Close(Meta_));
 }
 
 TAsyncError TEncodingChunkWriter::GetReadyEvent() const

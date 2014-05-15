@@ -29,7 +29,7 @@ TAsyncError TMemoryWriter::GetReadyEvent()
     return MakeFuture(TError());
 }
 
-TAsyncError TMemoryWriter::AsyncClose(const TChunkMeta& chunkMeta)
+TAsyncError TMemoryWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(!IsClosed_);
     ChunkMeta_ = chunkMeta;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "async_reader.h"
+#include "reader.h"
 
 #include <core/actions/future.h>
 
@@ -50,9 +50,8 @@ public:
 
     TSequentialReader(
         TSequentialReaderConfigPtr config,
-        // ToDo: use move semantics
-        std::vector<TBlockInfo>&& blocks,
-        IAsyncReaderPtr chunkReader,
+        std::vector<TBlockInfo> blocks,
+        IReaderPtr chunkReader,
         NCompression::ECodec codecId);
 
     bool HasNext() const;
@@ -75,7 +74,7 @@ public:
 private:
     void OnGotBlocks(
         int firstSequenceIndex,
-        IAsyncReader::TReadResult readResult);
+        IReader::TReadResult readResult);
 
     void FetchNextGroup();
     void RequestBlocks(
@@ -85,12 +84,12 @@ private:
 
     void DecompressBlocks(
         int blockIndex,
-        const IAsyncReader::TReadResult& readResult);
+        const IReader::TReadResult& readResult);
 
     const std::vector<TBlockInfo> BlockSequence;
 
     TSequentialReaderConfigPtr Config;
-    IAsyncReaderPtr ChunkReader;
+    IReaderPtr ChunkReader;
 
     std::vector< TPromise<TSharedRef> > BlockWindow;
 

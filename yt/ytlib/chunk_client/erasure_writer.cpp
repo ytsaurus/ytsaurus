@@ -130,13 +130,13 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
         NErasure::ICodec* codec,
-        const std::vector<IAsyncWriterPtr>& writers)
+        const std::vector<IWriterPtr>& writers)
             : Config_(config)
             , Codec_(codec)
             , Writers_(writers)
@@ -181,7 +181,7 @@ public:
         return result;
     }
 
-    virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TAsyncError Close(const NProto::TChunkMeta& chunkMeta) override;
 
 private:
     void PrepareBlocks();
@@ -192,7 +192,7 @@ private:
 
     TError EncodeAndWriteParityBlocks();
 
-    TError WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks);
+    TError WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks);
 
     TAsyncError WriteParityBlocks(const std::vector<TSharedRef>& blocks);
 
@@ -203,7 +203,7 @@ private:
     TErasureWriterConfigPtr Config_;
     NErasure::ICodec* Codec_;
 
-    std::vector<IAsyncWriterPtr> Writers_;
+    std::vector<IWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
 
     // Information about blocks, necessary to write blocks
@@ -292,7 +292,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
     return parallelCollector->Complete();
 }
 
-TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks)
+TError TErasureWriter::WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -304,7 +304,7 @@ TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<T
         }
     }
 
-    return WaitFor(writer->AsyncClose(ChunkMeta_));
+    return WaitFor(writer->Close(ChunkMeta_));
 }
 
 TError TErasureWriter::EncodeAndWriteParityBlocks()
@@ -357,12 +357,12 @@ TAsyncError TErasureWriter::CloseParityWriters()
     auto collector = New<TParallelCollector<void>>();
     for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
         auto& writer = Writers_[Codec_->GetDataPartCount() + i];
-        collector->Collect(writer->AsyncClose(ChunkMeta_));
+        collector->Collect(writer->Close(ChunkMeta_));
     }
     return collector->Complete();
 }
 
-TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
+TAsyncError TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
 {
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
@@ -403,10 +403,10 @@ TAsyncError TErasureWriter::OnClosed(TError error)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr CreateErasureWriter(
+IWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     NErasure::ICodec* codec,
-    const std::vector<IAsyncWriterPtr>& writers)
+    const std::vector<IWriterPtr>& writers)
 {
     return New<TErasureWriter>(config, codec, writers);
 }

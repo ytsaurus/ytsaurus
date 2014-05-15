@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "config.h"
 #include "replication_reader.h"
-#include "async_reader.h"
+#include "reader.h"
 #include "block_cache.h"
 #include "private.h"
 #include "block_id.h"
@@ -52,7 +52,7 @@ class TReadSession;
 class TGetMetaSession;
 
 class TReplicationReader
-    : public IAsyncReader
+    : public IReader
 {
 public:
     typedef TErrorOr<TChunkReplicaList> TGetSeedsResult;
@@ -107,11 +107,11 @@ public:
             ~NetworkName_);
     }
 
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override;
+    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) override;
 
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+    virtual TAsyncGetMetaResult GetChunkMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<i32>* tags = nullptr) override;
+        const std::vector<i32>* extensionTags = nullptr) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -499,7 +499,7 @@ class TReadSession
 public:
     TReadSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
-        , Promise_(NewPromise<IAsyncReader::TReadResult>())
+        , Promise_(NewPromise<IReader::TReadResult>())
         , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
@@ -512,7 +512,7 @@ public:
         }
     }
 
-    IAsyncReader::TAsyncReadResult Run()
+    IReader::TAsyncReadResult Run()
     {
         FetchBlocksFromCache();
 
@@ -528,7 +528,7 @@ public:
 
 private:
     //! Promise representing the session.
-    IAsyncReader::TAsyncReadPromise Promise_;
+    IReader::TAsyncReadPromise Promise_;
 
     //! Block indexes to read during the session.
     std::vector<int> BlockIndexes_;
@@ -814,7 +814,7 @@ private:
             YCHECK(block);
             blocks.push_back(block);
         }
-        Promise_.Set(IAsyncReader::TReadResult(blocks));
+        Promise_.Set(IReader::TReadResult(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -830,7 +830,7 @@ private:
     }
 };
 
-TReplicationReader::TAsyncReadResult TReplicationReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
+TReplicationReader::TAsyncReadResult TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -851,7 +851,7 @@ public:
         const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
-        , Promise_(NewPromise<IAsyncReader::TGetMetaResult>())
+        , Promise_(NewPromise<IReader::TGetMetaResult>())
         , PartitionTag_(partitionTag)
     {
         if (extensionTags) {
@@ -871,7 +871,7 @@ public:
         }
     }
 
-    IAsyncReader::TAsyncGetMetaResult Run()
+    IReader::TAsyncGetMetaResult Run()
     {
         NextRetry();
         return Promise_;
@@ -879,7 +879,7 @@ public:
 
 private:
     //! Promise representing the session.
-    IAsyncReader::TAsyncGetMetaPromise Promise_;
+    IReader::TAsyncGetMetaPromise Promise_;
 
     std::vector<int> ExtensionTags_;
     TNullable<int> PartitionTag_;
@@ -975,7 +975,7 @@ private:
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk meta obtained");
-        Promise_.Set(IAsyncReader::TGetMetaResult(chunkMeta));
+        Promise_.Set(IReader::TGetMetaResult(chunkMeta));
     }
 
     virtual void OnSessionFailed() override
@@ -992,7 +992,7 @@ private:
 
 };
 
-TReplicationReader::TAsyncGetMetaResult TReplicationReader::AsyncGetChunkMeta(
+TReplicationReader::TAsyncGetMetaResult TReplicationReader::GetChunkMeta(
     const TNullable<int>& partitionTag,
     const std::vector<i32>* extensionTags)
 {
@@ -1006,7 +1006,7 @@ TReplicationReader::TAsyncGetMetaResult TReplicationReader::AsyncGetChunkMeta(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateReplicationReader(
+IReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,

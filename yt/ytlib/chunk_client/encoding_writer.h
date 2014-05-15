@@ -28,7 +28,7 @@ public:
     TEncodingWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IAsyncWriterPtr asyncWriter);
+        IWriterPtr chunkWriter);
 
     bool IsReady() const;
     TAsyncError GetReadyEvent();
@@ -37,7 +37,7 @@ public:
     void WriteBlock(std::vector<TSharedRef>&& vectorizedBlock);
 
     // Future is set when all block get written to underlying writer.
-    TAsyncError AsyncFlush();
+    TAsyncError Flush();
 
     ~TEncodingWriter();
 
@@ -50,7 +50,7 @@ private:
     double CompressionRatio_;
 
     TEncodingWriterConfigPtr Config;
-    IAsyncWriterPtr AsyncWriter;
+    IWriterPtr ChunkWriter;
 
     IInvokerPtr CompressionInvoker;
     NConcurrency::TAsyncSemaphore Semaphore;

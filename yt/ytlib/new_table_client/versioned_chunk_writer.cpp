@@ -7,7 +7,7 @@
 #include "versioned_writer.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
@@ -37,7 +37,7 @@ public:
         TChunkWriterOptionsPtr options,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns,
-        const IAsyncWriterPtr& asyncWriter);
+        const IWriterPtr& asyncWriter);
 
     virtual TAsyncError Open() override;
 
@@ -108,7 +108,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    const IAsyncWriterPtr& asyncWriter)
+    const IWriterPtr& asyncWriter)
     : Config_(config)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
@@ -316,7 +316,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    IAsyncWriterPtr asyncWriter)
+    IWriterPtr asyncWriter)
 {
     return New<TVersionedChunkWriter>(config, options, schema, keyColumns, asyncWriter);
 }
@@ -348,7 +348,7 @@ private:
     IVersionedWriter* CurrentWriter_;
 
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IAsyncWriterPtr underlyingWriter) override;
+    virtual IChunkWriterBasePtr CreateFrontalWriter(IWriterPtr underlyingWriter) override;
 
 };
 
@@ -381,7 +381,7 @@ bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
     return CurrentWriter_->Write(rows) && !TrySwitchSession();
 }
 
-IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IAsyncWriterPtr underlyingWriter)
+IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IWriterPtr underlyingWriter)
 {
     auto writer = CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
     CurrentWriter_ = writer.Get();

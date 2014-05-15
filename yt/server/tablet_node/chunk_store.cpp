@@ -19,7 +19,7 @@
 
 #include <ytlib/api/client.h>
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/block_cache.h>

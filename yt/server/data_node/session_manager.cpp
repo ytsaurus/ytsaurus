@@ -475,7 +475,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 
     PROFILE_TIMING ("/chunk_writer_close_time") {
         try {
-            auto result = Writer->AsyncClose(chunkMeta).Get();
+            auto result = Writer->Close(chunkMeta).Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         } catch (const std::exception& ex) {
             OnIOError(TError(

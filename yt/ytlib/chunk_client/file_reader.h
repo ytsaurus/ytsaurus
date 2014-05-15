@@ -1,7 +1,8 @@
 #pragma once
 
-#include "async_reader.h"
+#include "reader.h"
 #include "format.h"
+
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
@@ -13,7 +14,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of IAsyncReader.
 class TFileReader
-    : public IAsyncReader
+    : public IReader
 {
 public:
     //! Creates a new reader.
@@ -31,20 +32,18 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    NChunkClient::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = nullptr) const;
+    NChunkClient::NProto::TChunkMeta GetChunkMeta(
+        const std::vector<int>* extensionTags = nullptr) const;
 
     //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
+    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes);
 
     //! Implements IChunkReader and calls #GetChunkMeta.
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+    virtual TAsyncGetMetaResult GetChunkMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* tags = NULL);
+        const std::vector<int>* extensionTags = nullptr);
 
     //! Synchronously reads a given block from the file.
-    /*!
-     *  Returns NULL reference if the block does not exist.
-     */
     TSharedRef ReadBlock(int blockIndex);
 
     virtual TChunkId GetChunkId() const override;

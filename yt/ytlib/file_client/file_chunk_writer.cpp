@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 namespace NYT {
@@ -17,7 +17,7 @@ using namespace NChunkClient;
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IAsyncWriterPtr chunkWriter)
+    IWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
@@ -76,7 +76,7 @@ TAsyncError TFileChunkWriter::Close()
 
     FlushBlock();
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TFileChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
             .Via(TDispatcher::Get()->GetWriterInvoker()));
 
@@ -103,7 +103,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
-    ChunkWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
@@ -191,11 +191,11 @@ TFileChunkWriterProvider::TFileChunkWriterProvider(
     , ActiveWriters(0)
 { }
 
-TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriters == 0);
     ++ActiveWriters;
-    return New<TFileChunkWriter>(Config, Options, asyncWriter);
+    return New<TFileChunkWriter>(Config, Options, chunkWriter);
 }
 
 void TFileChunkWriterProvider::OnChunkFinished()

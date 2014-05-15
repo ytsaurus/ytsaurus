@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <core/misc/common.h>
 #include <core/misc/ref.h>
 #include <core/misc/error.h>
@@ -14,8 +16,8 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a basic interface for readings chunks from data nodes.
-struct IAsyncReader
+//! A basic interface for readings chunks from a suitable source.
+struct IReader
     : public virtual TRefCounted
 {
     //! Describes a result of #AsyncReadBlocks.
@@ -28,21 +30,18 @@ struct IAsyncReader
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
     typedef TPromise<TGetMetaResult> TAsyncGetMetaPromise;
 
-    //! Reads (asynchronously) a given set of blocks.
-    /*!
-     *  Negative indexes indicate that blocks are numbered from the end.
-     *  I.e. -1 means the last block.
-     */
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) = 0;
+    //! Asynchronously reads a given set of blocks.
+    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) = 0;
 
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+    //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
+    virtual TAsyncGetMetaResult GetChunkMeta(
         const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* tags = nullptr) = 0;
+        const std::vector<int>* extensionTags = nullptr) = 0;
 
     virtual TChunkId GetChunkId() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncReader)
+DEFINE_REFCOUNTED_TYPE(IReader)
 
 ///////////////////////////////////////////////////////////////////////////////
 

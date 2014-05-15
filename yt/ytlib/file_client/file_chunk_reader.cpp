@@ -21,12 +21,12 @@ static auto& Logger = FileReaderLogger;
 
 TFileChunkReader::TFileChunkReader(
     const NChunkClient::TSequentialReaderConfigPtr& sequentialConfig,
-    const NChunkClient::IAsyncReaderPtr& asyncReader,
+    const NChunkClient::IReaderPtr& chunkReader,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset)
     : SequentialConfig(sequentialConfig)
-    , AsyncReader(asyncReader)
+    , ChunkReader(chunkReader)
     , CodecId(codecId)
     , StartOffset(startOffset)
     , EndOffset(endOffset)
@@ -38,17 +38,17 @@ TAsyncError TFileChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
 
     LOG_INFO("Requesting chunk meta");
-    AsyncReader->AsyncGetChunkMeta().Subscribe(
+    ChunkReader->GetChunkMeta().Subscribe(
         BIND(&TFileChunkReader::OnGotMeta, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();
 }
 
-void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         auto error = TError("Failed to get file chunk meta") << result;
@@ -134,7 +134,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult resu
     SequentialReader = New<TSequentialReader>(
         SequentialConfig,
         std::move(blockSequence),
-        AsyncReader,
+        ChunkReader,
         NCompression::ECodec(CodecId));
 
     LOG_INFO("File reader opened");
@@ -225,7 +225,7 @@ TFileChunkReaderProvider::TFileChunkReaderProvider(
 
 TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IAsyncReaderPtr& chunkReader)
+    const NChunkClient::IReaderPtr& chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 

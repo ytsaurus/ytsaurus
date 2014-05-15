@@ -373,7 +373,7 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr CreateAsyncTableWriter(
+IWriterPtr CreateAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     TTransactionPtr transaction,

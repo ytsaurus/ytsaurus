@@ -64,8 +64,8 @@ void TFileReader::Open()
     Opened_ = true;
 }
 
-TFuture<IAsyncReader::TReadResult>
-TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
+TFuture<IReader::TReadResult>
+TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     YCHECK(Opened_);
 
@@ -121,22 +121,23 @@ i64 TFileReader::GetFullSize() const
     return MetaSize_ + DataSize_;
 }
 
-TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
+TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* extensionTags) const
 {
     YCHECK(Opened_);
-    return tags ? FilterChunkMetaByExtensionTags(ChunkMeta_, *tags) : ChunkMeta_;
+    return extensionTags
+        ? FilterChunkMetaByExtensionTags(ChunkMeta_, *extensionTags)
+        : ChunkMeta_;
 }
 
-IAsyncReader::TAsyncGetMetaResult
-TFileReader::AsyncGetChunkMeta(
+IReader::TAsyncGetMetaResult TFileReader::GetChunkMeta(
     const TNullable<int>& partitionTag,
-    const std::vector<int>* tags)
+    const std::vector<int>* extensionTags)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
     YCHECK(!partitionTag.HasValue());
-    return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
+    return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));
 }
 
 TChunkId TFileReader::GetChunkId() const 

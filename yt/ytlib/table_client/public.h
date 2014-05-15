@@ -36,7 +36,7 @@ struct IWriterBase;
 typedef TIntrusivePtr<IWriterBase> IWriterBasePtr;
 
 struct IAsyncWriter;
-typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
+typedef TIntrusivePtr<IAsyncWriter> IWriterPtr;
 
 struct ISyncWriter;
 typedef TIntrusivePtr<ISyncWriter> ISyncWriterPtr;
@@ -48,7 +48,7 @@ struct ISyncReader;
 typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 
 struct IAsyncReader;
-typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
+typedef TIntrusivePtr<IAsyncReader> IReaderPtr;
 
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;

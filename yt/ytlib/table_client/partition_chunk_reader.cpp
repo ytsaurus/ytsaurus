@@ -38,7 +38,7 @@ TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
 TPartitionChunkReader::TPartitionChunkReader(
     TPartitionChunkReaderProviderPtr provider,
     const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
-    const NChunkClient::IAsyncReaderPtr& asyncReader,
+    const NChunkClient::IReaderPtr& chunkReader,
     int partitionTag,
     NCompression::ECodec codecId)
     : RowPointer_(NULL)
@@ -46,7 +46,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , Provider(provider)
     , Facade(this)
     , SequentialConfig(sequentialReader)
-    , AsyncReader(asyncReader)
+    , ChunkReader(chunkReader)
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableReaderLogger)
@@ -56,20 +56,20 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
 
-    std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
+    std::vector<int> extensionTags;
+    extensionTags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
-    AsyncReader->AsyncGetChunkMeta(PartitionTag, &tags).Subscribe(
+    ChunkReader->GetChunkMeta(PartitionTag, &extensionTags).Subscribe(
         BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();
 }
 
-void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+void TPartitionChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         OnFail(result);
@@ -108,7 +108,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
     SequentialReader = New<TSequentialReader>(
         SequentialConfig,
         std::move(blockSequence),
-        AsyncReader,
+        ChunkReader,
         CodecId);
 
     LOG_INFO("Reading %d blocks for partition %d",
@@ -261,7 +261,7 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IAsyncReaderPtr& chunkReader)
+    const NChunkClient::IReaderPtr& chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 

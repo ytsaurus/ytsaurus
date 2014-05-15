@@ -2,7 +2,7 @@
 
 #include "multi_chunk_sequential_writer_base.h"
 
-#include "async_writer.h"
+#include "writer.h"
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_replica.h"
 #include "chunk_writer_base.h"
@@ -200,7 +200,7 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
 
         YCHECK(NextSession_.Replicas.size() == totalPartCount);
 
-        std::vector<IAsyncWriterPtr> writers;
+        std::vector<IWriterPtr> writers;
         for (int index = 0; index < totalPartCount; ++index) {
             auto partId = ErasurePartIdFromChunkId(NextSession_.ChunkId, index);
             auto target = NodeDirectory_->GetDescriptor(NextSession_.Replicas[index]);

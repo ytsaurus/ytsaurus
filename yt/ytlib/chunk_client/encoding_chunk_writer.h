@@ -22,7 +22,7 @@ public:
     TEncodingChunkWriter(
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
-        IAsyncWriterPtr asyncWriter);
+        IWriterPtr asyncWriter);
 
     void WriteBlock(std::vector<TSharedRef>&& data);
     TError Close();
@@ -35,7 +35,7 @@ public:
     NProto::TDataStatistics GetDataStatistics() const;
 
 private:
-    IAsyncWriterPtr AsyncWriter_;
+    IWriterPtr ChunkWriter_;
     TEncodingWriterPtr EncodingWriter_;
 
     int CurrentBlockIndex_;

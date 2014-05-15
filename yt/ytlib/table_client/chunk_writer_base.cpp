@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
 #include <core/misc/protobuf_helpers.h>
@@ -29,7 +29,7 @@ static auto& Logger = TableWriterLogger;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter)
+    NChunkClient::IWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , ChunkWriter(chunkWriter)
@@ -91,7 +91,7 @@ void TChunkWriterBase::FinalizeWriter()
     }
 
     auto this_ = MakeStrong(this);
-    ChunkWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));

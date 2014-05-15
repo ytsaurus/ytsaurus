@@ -8,7 +8,7 @@
 #include "name_table.h"
 #include "schemaless_block_writer.h"
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer_base.h>
 
@@ -35,7 +35,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         TNameTablePtr nameTable,
-        IAsyncWriterPtr asyncWriter,
+        IWriterPtr asyncWriter,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
@@ -59,7 +59,7 @@ TSchemalessChunkWriter<TBase>::TSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    IAsyncWriterPtr asyncWriter,
+    IWriterPtr asyncWriter,
     const TKeyColumns& keyColumns)
     : TBase(config, options, asyncWriter, keyColumns)
     , NameTable_(nameTable)
@@ -112,12 +112,12 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IAsyncWriterPtr asyncWriter)
+    NChunkClient::IWriterPtr chunkWriter)
 {
     if (keyColumns.empty()) {
-        return New<TSchemalessChunkWriter<TChunkWriterBase>>(config, options, nameTable, asyncWriter);
+        return New<TSchemalessChunkWriter<TChunkWriterBase>>(config, options, nameTable, chunkWriter);
     } else {
-        return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(config, options, nameTable, asyncWriter, keyColumns);
+        return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(config, options, nameTable, chunkWriter, keyColumns);
     }
 }
 
@@ -148,7 +148,7 @@ private:
     ISchemalessWriter* CurrentWriter_;
 
 
-    virtual IChunkWriterBasePtr CreateFrontalWriter(IAsyncWriterPtr underlyingWriter) override;
+    virtual IChunkWriterBasePtr CreateFrontalWriter(IWriterPtr underlyingWriter) override;
 
 };
 
@@ -181,7 +181,7 @@ bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow> &rows
     return CurrentWriter_->Write(rows) && !TrySwitchSession();
 }
 
-IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateFrontalWriter(IAsyncWriterPtr underlyingWriter)
+IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateFrontalWriter(IWriterPtr underlyingWriter)
 {
     auto writer = CreateSchemalessChunkWriter(Config_, Options_, NameTable_, KeyColumns_, underlyingWriter);
     CurrentWriter_ = writer.Get();

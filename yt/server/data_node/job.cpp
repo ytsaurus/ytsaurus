@@ -23,7 +23,7 @@
 
 #include <ytlib/job_tracker_client/statistics.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/erasure_reader.h>
@@ -390,7 +390,7 @@ private:
         LOG_DEBUG("All blocks are enqueued for replication");
 
         {
-            auto error = WaitFor(writer->AsyncClose(*chunkMeta));
+            auto error = WaitFor(writer->Close(*chunkMeta));
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing replication writer");
         }
     }
@@ -446,7 +446,7 @@ private:
 
         auto config = Bootstrap->GetConfig()->DataNode;
 
-        std::vector<IAsyncReaderPtr> readers;
+        std::vector<IReaderPtr> readers;
         for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
             for (auto replica : replicas) {
@@ -471,7 +471,7 @@ private:
             readers.push_back(reader);
         }
 
-        std::vector<IAsyncWriterPtr> writers;
+        std::vector<IWriterPtr> writers;
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
             const auto& target = targets[index];

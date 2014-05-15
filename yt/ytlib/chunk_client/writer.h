@@ -14,7 +14,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic interface for uploading chunks to data nodes.
-struct IAsyncWriter
+struct IWriter
     : public virtual TRefCounted
 {
     //! Starts a new upload session.
@@ -32,7 +32,7 @@ struct IAsyncWriter
      *  Should be called only once.
      *  Calling #WriteBlock afterwards is an error.
      */
-    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 
     //! Returns the chunk info.
     /*!
@@ -51,7 +51,7 @@ struct IAsyncWriter
     virtual const std::vector<int> GetWrittenIndexes() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IAsyncWriter)
+DEFINE_REFCOUNTED_TYPE(IWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

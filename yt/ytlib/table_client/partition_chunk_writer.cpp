@@ -8,7 +8,7 @@
 
 #include <core/yson/lexer.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/encoding_writer.h>
@@ -60,7 +60,7 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
+    NChunkClient::IWriterPtr chunkWriter,
     IPartitioner* partitioner)
     : TChunkWriterBase(config, options, chunkWriter)
     , Partitioner(partitioner)
@@ -239,8 +239,8 @@ NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
     static const int schedulerMetaTagsArray[] = {
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TPartitionsExt>::Value };
-
+        TProtoExtensionTag<NProto::TPartitionsExt>::Value
+    };
     static const yhash_set<int> schedulerMetaTags(schedulerMetaTagsArray, schedulerMetaTagsArray + 2);
 
     auto meta = Meta;
@@ -262,7 +262,7 @@ TAsyncError TPartitionChunkWriter::Close()
         PrepareBlock();
     }
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
         .Via(TDispatcher::Get()->GetWriterInvoker()));
 
@@ -296,7 +296,7 @@ TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
-TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriterCount == 0);
     if (CurrentWriter) {
@@ -307,7 +307,7 @@ TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunk
     CurrentWriter = New<TPartitionChunkWriter>(
         Config,
         Options,
-        asyncWriter,
+        chunkWriter,
         Partitioner);
 
     TGuard<TSpinLock> guard(SpinLock);

@@ -15,12 +15,12 @@ using namespace NChunkClient::NProto;
 
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
-    std::vector<TBlockInfo>&& blocks,
-    IAsyncReaderPtr chunkReader,
+    std::vector<TBlockInfo> blocks,
+    IReaderPtr chunkReader,
     NCompression::ECodec codecId)
     : UncompressedDataSize_(0)
     , CompressedDataSize_(0)
-    , BlockSequence(blocks)
+    , BlockSequence(std::move(blocks))
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
@@ -95,7 +95,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
 
 void TSequentialReader::OnGotBlocks(
     int firstSequenceIndex,
-    IAsyncReader::TReadResult readResult)
+    IReader::TReadResult readResult)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -124,7 +124,7 @@ void TSequentialReader::OnGotBlocks(
 
 void TSequentialReader::DecompressBlocks(
     int blockIndex,
-    const IAsyncReader::TReadResult& readResult)
+    const IReader::TReadResult& readResult)
 {
     const auto& blocks = readResult.Value();
     for (int i = 0; i < blocks.size(); ++i, ++blockIndex) {
@@ -199,7 +199,7 @@ void TSequentialReader::RequestBlocks(
     int groupSize)
 {
     AsyncSemaphore.Acquire(groupSize);
-    ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(
+    ChunkReader->ReadBlocks(blockIndexes).Subscribe(
         BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),
             firstIndex)

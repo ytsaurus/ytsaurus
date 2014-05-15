@@ -18,7 +18,7 @@ namespace NVersionedTableClient {
 //! NChunkClient::IAsyncReader, e.g. TMemoryReader, TReplicationReader etc.
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr asyncReader,
+    NChunkClient::IReaderPtr chunkReader,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& endLimit = NChunkClient::TReadLimit(),

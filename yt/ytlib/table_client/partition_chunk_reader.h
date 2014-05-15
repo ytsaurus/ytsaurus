@@ -5,7 +5,7 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <core/misc/async_stream_state.h>
@@ -51,7 +51,7 @@ public:
     TPartitionChunkReader(
         TPartitionChunkReaderProviderPtr provider,
         const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
-        const NChunkClient::IAsyncReaderPtr& asyncReader,
+        const NChunkClient::IReaderPtr& chunkReader,
         int partitionTag,
         NCompression::ECodec codecId);
 
@@ -75,7 +75,7 @@ private:
     TFacade Facade;
 
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IAsyncReaderPtr AsyncReader;
+    NChunkClient::IReaderPtr ChunkReader;
 
     int PartitionTag;
     NCompression::ECodec CodecId;
@@ -93,7 +93,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result);
+    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
     void OnNextBlock(TError error);
 
     bool NextRow();
@@ -115,7 +115,7 @@ public:
 
     TPartitionChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IAsyncReaderPtr& chunkReader);
+        const NChunkClient::IReaderPtr& chunkReader);
 
     void OnReaderOpened(
         TPartitionChunkReaderPtr reader,

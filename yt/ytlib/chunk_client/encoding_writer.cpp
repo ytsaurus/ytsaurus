@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "dispatcher.h"
-#include "async_writer.h"
+#include "writer.h"
 
 #include <core/compression/codec.h>
 
@@ -21,12 +21,12 @@ static auto& Logger = ChunkWriterLogger;
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IAsyncWriterPtr asyncWriter)
+    IWriterPtr asyncWriter)
     : UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)
     , Config(config)
-    , AsyncWriter(asyncWriter)
+    , ChunkWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(NCompression::GetCodec(options->CompressionCodec))
@@ -199,13 +199,13 @@ void TEncodingWriter::WritePendingBlocks()
     while (!PendingBlocks.empty()) {
         LOG_DEBUG("Writing pending block");
         auto& front = PendingBlocks.front();
-        auto result = AsyncWriter->WriteBlock(front);
+        auto result = ChunkWriter->WriteBlock(front);
         Semaphore.Release(front.Size());
         PendingBlocks.pop_front();
 
         if (!result) {
             IsWaiting = true;
-            AsyncWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
+            ChunkWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
             return;
         }
     }
@@ -230,7 +230,7 @@ TAsyncError TEncodingWriter::GetReadyEvent()
     return State.GetOperationError();
 }
 
-TAsyncError TEncodingWriter::AsyncFlush()
+TAsyncError TEncodingWriter::Flush()
 {
     State.StartOperation();
 

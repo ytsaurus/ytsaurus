@@ -3,7 +3,7 @@
 #endif
 #undef MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
 
-#include "async_writer.h"
+#include "writer.h"
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
@@ -168,7 +168,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
     } else {
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
 
-        std::vector<IAsyncWriterPtr> writers = CreateErasurePartWriters(
+        auto writers = CreateErasurePartWriters(
             Config,
             session.ChunkId,
             erasureCodec,

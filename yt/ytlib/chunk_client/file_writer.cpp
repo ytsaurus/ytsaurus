@@ -82,7 +82,7 @@ TAsyncError TFileWriter::GetReadyEvent()
     return Result;
 }
 
-TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     if (!IsOpen || !Result.Get().IsOK()) {
         return Result;

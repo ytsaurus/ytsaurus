@@ -208,7 +208,7 @@ private:
         TNodeDirectoryPtr NodeDirectory;
 
         TFileWriterPtr FileWriter;
-        IAsyncReaderPtr RemoteReader;
+        IReaderPtr RemoteReader;
         TSequentialReaderPtr SequentialReader;
         TChunkMeta ChunkMeta;
         TChunkInfo ChunkInfo;
@@ -229,12 +229,12 @@ private:
             }
 
             LOG_INFO("Getting chunk meta");
-            RemoteReader->AsyncGetChunkMeta().Subscribe(
+            RemoteReader->GetChunkMeta().Subscribe(
                 BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
                 .Via(WriteInvoker));
         }
 
-        void OnGotChunkMeta(IAsyncReader::TGetMetaResult result)
+        void OnGotChunkMeta(IReader::TGetMetaResult result)
         {
             if (!result.IsOK()) {
                 OnError(result);
@@ -305,8 +305,7 @@ private:
         {
             LOG_INFO("Closing chunk");
             // NB: This is always done synchronously.
-            auto closeResult = FileWriter->AsyncClose(ChunkMeta).Get();
-
+            auto closeResult = FileWriter->Close(ChunkMeta).Get();
             if (!closeResult.IsOK()) {
                 OnError(closeResult);
                 return;

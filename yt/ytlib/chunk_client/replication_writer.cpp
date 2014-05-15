@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "replication_writer.h"
-#include "async_writer.h"
+#include "writer.h"
 #include "config.h"
 #include "chunk_meta_extensions.h"
 #include "data_node_service_proxy.h"
@@ -113,7 +113,7 @@ typedef std::deque<TGroupPtr> TWindow;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     TReplicationWriter(
@@ -130,7 +130,7 @@ public:
     virtual bool WriteBlock(const TSharedRef& block) override;
     virtual TAsyncError GetReadyEvent() override;
 
-    virtual TAsyncError AsyncClose(const TChunkMeta& chunkMeta) override;
+    virtual TAsyncError Close(const TChunkMeta& chunkMeta) override;
 
     virtual const TChunkInfo& GetChunkInfo() const override;
     virtual const std::vector<int> GetWrittenIndexes() const override;
@@ -874,7 +874,7 @@ void TReplicationWriter::DoClose()
     }
 }
 
-TAsyncError TReplicationWriter::AsyncClose(const TChunkMeta& chunkMeta)
+TAsyncError TReplicationWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);
@@ -915,7 +915,7 @@ const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr CreateReplicationWriter(
+IWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets,

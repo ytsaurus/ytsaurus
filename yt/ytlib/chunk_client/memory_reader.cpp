@@ -13,7 +13,7 @@ TMemoryReader::TMemoryReader(
     , Blocks(std::move(blocks))
 { }
 
-auto TMemoryReader::AsyncReadBlocks(const std::vector<int>& blockIndexes) -> TAsyncReadResult
+auto TMemoryReader::ReadBlocks(const std::vector<int>& blockIndexes) -> TAsyncReadResult
 {
     std::vector<TSharedRef> blocks;
     for (auto index: blockIndexes) {
@@ -24,15 +24,15 @@ auto TMemoryReader::AsyncReadBlocks(const std::vector<int>& blockIndexes) -> TAs
     return MakeFuture(TReadResult(std::move(blocks)));
 }
 
-auto TMemoryReader::AsyncGetChunkMeta(
+auto TMemoryReader::GetChunkMeta(
     const TNullable<int>& partitionTag,
-    const std::vector<int>* tags) -> TAsyncGetMetaResult
+    const std::vector<int>* extensionTags) -> TAsyncGetMetaResult
 {
     YCHECK(!partitionTag);
 
     return MakeFuture(TGetMetaResult(
-        tags
-        ? FilterChunkMetaByExtensionTags(ChunkMeta, *tags)
+        extensionTags
+        ? FilterChunkMetaByExtensionTags(ChunkMeta, *extensionTags)
         : ChunkMeta));
 }
 

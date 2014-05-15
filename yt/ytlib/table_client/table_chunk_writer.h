@@ -57,7 +57,7 @@ public:
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter,
+        NChunkClient::IWriterPtr chunkWriter,
         NVersionedTableClient::TOwningKey lastKey);
 
     ~TTableChunkWriter();
@@ -163,7 +163,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options);
 
-    TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TTableChunkWriterPtr writer);
 

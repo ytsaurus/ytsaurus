@@ -7,7 +7,7 @@
 #include <core/compression/codec.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <core/logging/tagged_logger.h>
@@ -26,7 +26,7 @@ public:
 
     TFileChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IAsyncReaderPtr& chunkReader);
+        const NChunkClient::IReaderPtr& chunkReader);
 
     void OnReaderOpened(
         TFileChunkReaderPtr reader,
@@ -67,7 +67,7 @@ public:
 
     TFileChunkReader(
         const NChunkClient::TSequentialReaderConfigPtr& sequentialConfig,
-        const NChunkClient::IAsyncReaderPtr& asyncReader,
+        const NChunkClient::IReaderPtr& asyncReader,
         NCompression::ECodec codecId,
         i64 startOffset,
         i64 endOffset);
@@ -87,7 +87,7 @@ public:
 
 private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IAsyncReaderPtr AsyncReader;
+    NChunkClient::IReaderPtr ChunkReader;
 
     NCompression::ECodec CodecId;
 
@@ -103,7 +103,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     void OnNextBlock(TError error);
-    void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result);
+    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
 
 };
 

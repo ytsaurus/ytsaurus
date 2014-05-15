@@ -11,7 +11,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -161,14 +161,14 @@ class TTableChunkReader::TRegularInitializer
 public:
     TRegularInitializer(
         TSequentialReaderConfigPtr config,
-        TTableChunkReaderPtr chunkReader,
-        NChunkClient::IAsyncReaderPtr asyncReader,
+        TTableChunkReaderPtr tableReader,
+        NChunkClient::IReaderPtr chunkReader,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit)
         : SequentialConfig(config)
-        , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
-        , Channel(chunkReader->Channel)
+        , TableReader(tableReader)
+        , Channel(tableReader->Channel)
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
@@ -177,10 +177,10 @@ public:
 
     void Initialize()
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -200,7 +200,7 @@ public:
 
         LOG_INFO("Requesting chunk meta");
 
-        AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
+        ChunkReader->GetChunkMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -213,9 +213,9 @@ private:
         chunkReader->ReaderState.Fail(error);
     }
 
-    void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
@@ -265,7 +265,7 @@ private:
         if (HasRangeRequest || chunkReader->Options->ReadKey) {
             if (!miscExt.sorted()) {
                 auto error = TError("Received key range read request for an unsorted chunk %s",
-                    ~ToString(AsyncReader->GetChunkId()));
+                    ~ToString(ChunkReader->GetChunkId()));
                 OnFail(error, chunkReader);
                 return;
             }
@@ -354,7 +354,7 @@ private:
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
             std::move(blockSequence),
-            AsyncReader,
+            ChunkReader,
             NCompression::ECodec(miscExt.compression_codec()));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
@@ -497,7 +497,7 @@ private:
 
     void OnStartingBlockReceived(int selectedChannelIndex, TError error)
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
@@ -556,7 +556,7 @@ private:
 
     void ValidateRow(const TError error)
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
@@ -596,8 +596,8 @@ private:
     }
 
     TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IAsyncReaderPtr AsyncReader;
-    TWeakPtr<TTableChunkReader> ChunkReader;
+    NChunkClient::IReaderPtr ChunkReader;
+    TWeakPtr<TTableChunkReader> TableReader;
 
     TChannel Channel;
 
@@ -629,20 +629,20 @@ class TTableChunkReader::TPartitionInitializer
 public:
     TPartitionInitializer(
         TSequentialReaderConfigPtr config,
-        TTableChunkReaderPtr chunkReader,
-        NChunkClient::IAsyncReaderPtr asyncReader)
+        TTableChunkReaderPtr tableReader,
+        NChunkClient::IReaderPtr chunkReader)
         : SequentialConfig(config)
-        , AsyncReader(asyncReader)
-        , ChunkReader(chunkReader)
+        , ÑhunkReader(chunkReader)
+        , TableReader(tableReader)
         , Logger(TableReaderLogger)
     { }
 
     void Initialize()
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ÑhunkReader->GetChunkId())));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -651,15 +651,15 @@ public:
 
         LOG_INFO("Requesting chunk meta");
 
-        AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags)
+        ÑhunkReader->GetChunkMeta(chunkReader->PartitionTag, &tags)
             .Subscribe(
                 BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+    void OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
     {
-        auto chunkReader = ChunkReader.Lock();
+        auto chunkReader = TableReader.Lock();
         if (!chunkReader)
             return;
 
@@ -707,7 +707,7 @@ public:
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
             std::move(blockSequence),
-            AsyncReader,
+            ÑhunkReader,
             NCompression::ECodec(miscExt.compression_codec()));
 
         LOG_DEBUG("Reading %d blocks for partition %d",
@@ -727,8 +727,8 @@ public:
     }
 
     TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IAsyncReaderPtr AsyncReader;
-    TWeakPtr<TTableChunkReader> ChunkReader;
+    NChunkClient::IReaderPtr ÑhunkReader;
+    TWeakPtr<TTableChunkReader> TableReader;
     NLog::TTaggedLogger Logger;
 };
 
@@ -739,7 +739,7 @@ TTableChunkReader::TTableChunkReader(
     TTableChunkReaderProviderPtr provider,
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
-    NChunkClient::IAsyncReaderPtr chunkReader,
+    NChunkClient::IReaderPtr chunkReader,
     const NChunkClient::TReadLimit& startLimit,
     const NChunkClient::TReadLimit& endLimit,
     int tableIndex,
@@ -1026,7 +1026,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IAsyncReaderPtr& chunkReader)
+    const NChunkClient::IReaderPtr& chunkReader)
 {
     return New<TTableChunkReader>(
         this,
