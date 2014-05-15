@@ -278,6 +278,8 @@ public:
 
     ELogLevel GetMinLevel(const Stroka& category) const
     {
+        TGuard<TSpinLock> guard(&SpinLock);
+
         ELogLevel level = ELogLevel::Maximum;
         for (const auto& rule : Config->Rules) {
             if (rule->IsApplicable(category)) {

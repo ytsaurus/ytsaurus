@@ -25,7 +25,7 @@ public:
 
 private:
     TLogManager* GetLogManager() const;
-    void UpdateConfig();
+    void Update();
 
     Stroka Category;
     int Version;

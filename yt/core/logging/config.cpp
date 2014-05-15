@@ -37,6 +37,10 @@ TLogConfigPtr TLogConfig::CreateDefault()
     auto config = New<TLogConfig>();
     config->Rules.push_back(rule);
 
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = 0;
+    config->LowBacklogWatermark = 0;
+
     return config;
 }
 
