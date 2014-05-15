@@ -62,7 +62,7 @@ class State(object):
     def _initialize(self):
         self.last_saved_seqno_ = self._from_line_index(self.event_log_.get_next_line_to_save())
         self.last_seqno_ = self.last_saved_seqno_
-        self.log.info("Last saved seqno is %d", self.last_seqno_)
+        self.log.info("Last acked seqno is %d", self.last_seqno_)
 
     def maybe_save_another_chunk(self):
         if self.save_chunk_handle_ is not None:
@@ -89,7 +89,8 @@ class State(object):
             self.io_loop_.add_callback(self.maybe_save_another_chunk)
 
     def on_session_changed(self):
-        self.last_seqno_ = self.last_saved_seqno_
+        self.last_saved_seqno_ = self.last_seqno_
+        self.log.info("Last acked seqno is %d", self.last_seqno_)
         self.maybe_save_another_chunk()
 
     def on_skip(self, seqno):
@@ -120,6 +121,7 @@ class State(object):
         self.log.debug("Update last seqno: %d", new_last_seqno)
 
         self.last_seqno_ = new_last_seqno
+        self.log.info("Last acked seqno is %d", self.last_seqno_)
         for seqno in list(self.acked_seqno_):
             if seqno <= self.last_seqno_:
                 self.acked_seqno_.remove(seqno)
@@ -130,7 +132,7 @@ class State(object):
         self.maybe_save_another_chunk()
 
     def _update_state(self):
-        self.log.debug("Update state. Last seqno: %d", self.last_seqno_)
+        self.log.debug("Update state. Last acked seqno: %d", self.last_seqno_)
         self.update_state_handle_ = None
         try:
             self.event_log_.set_next_line_to_save(self._to_line_index(self.last_seqno_))
