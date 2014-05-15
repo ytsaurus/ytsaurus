@@ -585,7 +585,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false));
     attributes->push_back(TAttributeInfo("acl", hasAcd, true));
     attributes->push_back(TAttributeInfo("owner", hasOwner, false));
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
