@@ -4,6 +4,9 @@
 #include "location.h"
 #include "reader_cache.h"
 #include "chunk_cache.h"
+#include "block_store.h"
+
+#include <core/profiling/scoped_timer.h>
 
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
@@ -22,6 +25,8 @@ using namespace NChunkClient::NProto;
 
 static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
+
+static NProfiling::TRateCounter DiskReadThroughputCounter("/disk_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +139,122 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(
         }).AsyncVia(invoker));
 }
 
+TAsyncError TChunk::ReadBlocks(
+    int firstBlockIndex,
+    int blockCount,
+    i64 priority,
+    std::vector<TSharedRef>* blocks)
+{
+    YCHECK(firstBlockIndex >= 0);
+    YCHECK(blockCount >= 0);
+
+    auto blockStore = Location_->GetBootstrap()->GetBlockStore();
+
+    i64 pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
+    if (pendingSize >= 0) {
+        blockStore->IncrementPendingReadSize(pendingSize);
+    }
+
+    auto promise = NewPromise<TError>();
+
+    auto callback = BIND(
+        &TChunk::DoReadBlocks,
+        MakeStrong(this),
+        firstBlockIndex,
+        blockCount,
+        pendingSize,
+        promise,
+        blocks);
+
+    Location_
+        ->GetDataReadInvoker()
+        ->Invoke(callback, priority);
+
+    return promise;
+}
+
+void TChunk::DoReadBlocks(
+    int firstBlockIndex,
+    int blockCount,
+    i64 pendingSize,
+    TPromise<TError> promise,
+    std::vector<TSharedRef>* blocks)
+{
+    auto* bootstrap = Location_->GetBootstrap();
+    auto blockStore = bootstrap->GetBlockStore();
+    auto readerCache = bootstrap->GetReaderCache();
+
+    auto readerOrError = readerCache->GetReader(this);
+    if (!readerOrError.IsOK()) {
+        if (pendingSize >= 0) {
+            blockStore->DecrementPendingReadSize(pendingSize);
+        }
+        promise.Set(readerOrError);
+        return;
+    }
+
+    const auto& reader = readerOrError.Value();
+
+    if (pendingSize < 0) {
+        InitializeCachedMeta(reader->GetChunkMeta());
+        pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
+        YCHECK(pendingSize >= 0);
+    }
+
+    if (firstBlockIndex + blockCount > BlocksExt_.blocks_size()) {
+        promise.Set(TError("Chunk %s has no blocks %d-%d",
+            ~ToString(Id_),
+            BlocksExt_.blocks_size(),
+            firstBlockIndex + blockCount - 1));
+        return;
+    }
+
+    for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
+        if ((*blocks)[blockIndex - firstBlockIndex])
+            continue;
+
+        TBlockId blockId(Id_, blockIndex);
+        NProfiling::TScopedTimer timer;
+        TSharedRef block;
+        try {
+            LOG_DEBUG("Started reading block (BlockId: %s, LocationId: %s)",
+                ~ToString(blockId),
+                ~Location_->GetId());
+            
+            block = reader->ReadBlock(blockIndex);
+
+            LOG_DEBUG("Finished reading block (BlockId: %s, LocationId: %s)",
+                ~ToString(blockId),
+                ~Location_->GetId());
+        } catch (const std::exception& ex) {
+            auto error = TError(
+                NChunkClient::EErrorCode::IOError,
+                "Error reading chunk block %s",
+                ~ToString(blockId))
+                << ex;
+            Location_->Disable();
+            blockStore->DecrementPendingReadSize(pendingSize);
+            promise.Set(error);
+            return;
+        }
+
+        (*blocks)[blockIndex - firstBlockIndex] = block;
+
+        auto readTime = timer.GetElapsed();
+        i64 blockSize = block.Size();
+
+        auto& locationProfiler = Location_->Profiler();
+        locationProfiler.Enqueue("/block_read_size", blockSize);
+        locationProfiler.Enqueue("/block_read_time", readTime.MicroSeconds());
+        locationProfiler.Enqueue("/block_read_speed", blockSize * 1000000 / (1 + readTime.MicroSeconds()));
+        DataNodeProfiler.Increment(DiskReadThroughputCounter, blockSize);
+    }
+
+    blockStore->DecrementPendingReadSize(pendingSize);
+
+    promise.Set(TError());
+}
+
 TRefCountedChunkMetaPtr TChunk::GetCachedMeta() const
 {
     return Meta_;
@@ -175,23 +296,50 @@ void TChunk::DoReadMeta(TPromise<TError> promise)
         reader = result.Value();
     }
 
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        // This check is important since this code may get triggered
-        // multiple times and readers do not use any locking.
-        if (!Meta_) {
-            // These are very quick getters.
-            Meta_ = New<TRefCountedChunkMeta>(reader->GetChunkMeta());
-            MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
-        }
-    }
-
+    InitializeCachedMeta(reader->GetChunkMeta());
     ReleaseReadLock();
+
     LOG_DEBUG("Finished reading meta (ChunkId: %s, LocationId: %s)",
         ~ToString(Id_),
         ~Location_->GetId());
 
     promise.Set(TError());
+}
+
+void TChunk::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    // This check is important since this code may get triggered
+    // multiple times and readers do not use any locking.
+    if (Meta_)
+        return;
+
+    BlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+    Meta_ = New<TRefCountedChunkMeta>(meta);
+
+    MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+}
+
+
+i64 TChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
+{
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (!Meta_) {
+            return -1;
+        }
+    }
+
+    i64 result = 0;
+    for (int blockIndex = firstBlockIndex;
+         blockIndex < firstBlockIndex + blockCount && blockIndex < BlocksExt_.blocks_size();
+         ++blockIndex)
+    {
+        const auto& blockInfo = BlocksExt_.blocks(blockIndex);
+        result += blockInfo.size();
+    }
+
+    return result;
 }
 
 bool TChunk::TryAcquireReadLock()
@@ -235,6 +383,11 @@ void TChunk::ReleaseReadLock()
     if (scheduleRemoval) {
         DoRemoveChunk();
     }
+}
+
+bool TChunk::IsReadLockAcquired() const
+{
+    return ReadLockCounter_ > 0;
 }
 
 TFuture<void> TChunk::ScheduleRemoval()

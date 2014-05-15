@@ -76,8 +76,14 @@ message TRspFlushBlock
 
 message TReqGetBlocks
 {
+    message TBlockRange
+    {
+        required int32 first_block_index = 1;
+        required int32 block_count = 2;
+    }
+
     required NYT.NProto.TGuid chunk_id = 1;
-    repeated int32 block_indexes = 2;
+    repeated TBlockRange block_ranges = 2;
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
     optional uint64 peer_expiration_time = 4;
     optional bool enable_caching = 5 [default = true];
@@ -86,13 +92,13 @@ message TReqGetBlocks
 
 message TRspGetBlocks
 {
-    message TBlockInfo
+    message TPeerDescriptor
     {
-        required bool data_attached = 1;
-        repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor p2p_descriptors = 2;
+        required int32 block_index = 1;
+        repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptors = 2;
     }
 
-    repeated TBlockInfo blocks = 1;
+    repeated TPeerDescriptor peer_descriptors = 1;
     required bool has_complete_chunk = 2;
 }
 

@@ -70,40 +70,41 @@ public:
         const Stroka& networkName,
         EReadSessionType sessionType,
         IThroughputThrottlerPtr throttler)
-        : Config(config)
-        , BlockCache(blockCache)
-        , NodeDirectory(nodeDirectory)
-        , LocalDescriptor(localDescriptor)
-        , ChunkId(chunkId)
+        : Config_(config)
+        , BlockCache_(blockCache)
+        , NodeDirectory_(nodeDirectory)
+        , LocalDescriptor_(localDescriptor)
+        , ChunkId_(chunkId)
         , NetworkName_(networkName)
-        , SessionType(sessionType)
-        , Throttler(throttler)
+        , SessionType_(sessionType)
+        , Throttler_(throttler)
         , Logger(ChunkReaderLogger)
-        , ObjectServiceProxy(masterChannel)
-        , ChunkServiceProxy(masterChannel)
-        , InitialSeedReplicas(seedReplicas)
-        , SeedsTimestamp(TInstant::Zero())
+        , ObjectServiceProxy_(masterChannel)
+        , ChunkServiceProxy_(masterChannel)
+        , InitialSeedReplicas_(seedReplicas)
+        , SeedsTimestamp_(TInstant::Zero())
     {
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
     }
 
     void Initialize()
     {
-        if (!Config->AllowFetchingSeedsFromMaster && InitialSeedReplicas.empty()) {
+        if (!Config_->AllowFetchingSeedsFromMaster && InitialSeedReplicas_.empty()) {
             THROW_ERROR_EXCEPTION(
                 "Reader is unusable: master seeds retries are disabled and no initial seeds are given (ChunkId: %s)",
-                ~ToString(ChunkId));
+                ~ToString(ChunkId_));
         }
 
-        if (!InitialSeedReplicas.empty()) {
-            GetSeedsPromise = MakePromise(TGetSeedsResult(InitialSeedReplicas));
+        if (!InitialSeedReplicas_.empty()) {
+            GetSeedsPromise_ = MakePromise(TGetSeedsResult(InitialSeedReplicas_));
         }
 
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s)",
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s, Network: %s)",
             ~JoinToString(InitialSeedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)),
-            ~FormatBool(Config->FetchFromPeers),
+            ~FormatBool(Config_->FetchFromPeers),
             LocalDescriptor ? ~ToString(LocalDescriptor->GetAddressOrThrow(NetworkName_)) : "<Null>",
-            ~FormatBool(Config->EnableNodeCaching));
+            ~FormatBool(Config_->EnableNodeCaching),
+            ~NetworkName_);
     }
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override;
@@ -114,7 +115,7 @@ public:
 
     virtual TChunkId GetChunkId() const override
     {
-        return ChunkId;
+        return ChunkId_;
     }
 
 private:
@@ -122,40 +123,41 @@ private:
     friend class TReadSession;
     friend class TGetMetaSession;
 
-    TReplicationReaderConfigPtr Config;
-    IBlockCachePtr BlockCache;
-    TNodeDirectoryPtr NodeDirectory;
-    TNullable<TNodeDescriptor> LocalDescriptor;
-    TChunkId ChunkId;
+    TReplicationReaderConfigPtr Config_;
+    IBlockCachePtr BlockCache_;
+    TNodeDirectoryPtr NodeDirectory_;
+    TNullable<TNodeDescriptor> LocalDescriptor_;
+    TChunkId ChunkId_;
     Stroka NetworkName_;
-    EReadSessionType SessionType;
-    IThroughputThrottlerPtr Throttler;
+    EReadSessionType SessionType_;
+    IThroughputThrottlerPtr Throttler_;
     NLog::TTaggedLogger Logger;
 
-    TObjectServiceProxy ObjectServiceProxy;
-    TChunkServiceProxy ChunkServiceProxy;
+    TObjectServiceProxy ObjectServiceProxy_;
+    TChunkServiceProxy ChunkServiceProxy_;
 
-    TSpinLock SpinLock;
-    TChunkReplicaList InitialSeedReplicas;
-    TInstant SeedsTimestamp;
-    TAsyncGetSeedsPromise GetSeedsPromise;
+    TSpinLock SpinLock_;
+    TChunkReplicaList InitialSeedReplicas_;
+    TInstant SeedsTimestamp_;
+    TAsyncGetSeedsPromise GetSeedsPromise_;
+
 
     TAsyncGetSeedsResult AsyncGetSeeds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        if (!GetSeedsPromise) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (!GetSeedsPromise_) {
             LOG_INFO("Need fresh chunk seeds");
-            GetSeedsPromise = NewPromise<TGetSeedsResult>();
+            GetSeedsPromise_ = NewPromise<TGetSeedsResult>();
             // Don't ask master for fresh seeds too often.
             TDelayedExecutor::Submit(
                 BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
                     .Via(TDispatcher::Get()->GetReaderInvoker()),
-                SeedsTimestamp + Config->RetryBackoffTime);
+                SeedsTimestamp_ + Config_->RetryBackoffTime);
         }
 
-        return GetSeedsPromise;
+        return GetSeedsPromise_;
     }
 
     void DiscardSeeds(TAsyncGetSeedsResult result)
@@ -163,20 +165,20 @@ private:
         YCHECK(result);
         YCHECK(result.IsSet());
 
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (!Config->AllowFetchingSeedsFromMaster) {
+        if (!Config_->AllowFetchingSeedsFromMaster) {
             // We're not allowed to ask master for seeds.
             // Better keep the initial ones.
             return;
         }
 
-        if (GetSeedsPromise.ToFuture() != result) {
+        if (GetSeedsPromise_.ToFuture() != result) {
             return;
         }
 
-        YCHECK(GetSeedsPromise.IsSet());
-        GetSeedsPromise.Reset();
+        YCHECK(GetSeedsPromise_.IsSet());
+        GetSeedsPromise_.Reset();
     }
 
     void LocateChunk()
@@ -185,8 +187,8 @@ private:
 
         LOG_INFO("Requesting chunk seeds from master");
 
-        auto req = ChunkServiceProxy.LocateChunks();
-        ToProto(req->add_chunk_ids(), ChunkId);
+        auto req = ChunkServiceProxy_.LocateChunks();
+        ToProto(req->add_chunk_ids(), ChunkId_);
         req->Invoke().Subscribe(
             BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -195,38 +197,38 @@ private:
     void OnLocateChunkResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(GetSeedsPromise);
+        YCHECK(GetSeedsPromise_);
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            SeedsTimestamp = TInstant::Now();
+            TGuard<TSpinLock> guard(SpinLock_);
+            SeedsTimestamp_ = TInstant::Now();
         }
 
         if (!rsp->IsOK()) {
-            YCHECK(!GetSeedsPromise.IsSet());
-            GetSeedsPromise.Set(rsp->GetError());
+            YCHECK(!GetSeedsPromise_.IsSet());
+            GetSeedsPromise_.Set(rsp->GetError());
             return;
         }
 
         YCHECK(rsp->chunks_size() <= 1);
         if (rsp->chunks_size() == 0) {
-            YCHECK(!GetSeedsPromise.IsSet());
-            GetSeedsPromise.Set(TError("No such chunk %s", ~ToString(ChunkId)));
+            YCHECK(!GetSeedsPromise_.IsSet());
+            GetSeedsPromise_.Set(TError("No such chunk %s", ~ToString(ChunkId_)));
             return;
         }
         const auto& chunkInfo = rsp->chunks(0);
 
-        NodeDirectory->MergeFrom(rsp->node_directory());
+        NodeDirectory_->MergeFrom(rsp->node_directory());
         auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
         // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
         Shuffle(seedReplicas.begin(), seedReplicas.end());
 
         LOG_INFO("Chunk seeds received (SeedReplicas: [%s])",
-            ~JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)));
+            ~JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
-        YCHECK(!GetSeedsPromise.IsSet());
-        GetSeedsPromise.Set(seedReplicas);
+        YCHECK(!GetSeedsPromise_.IsSet());
+        GetSeedsPromise_.Set(seedReplicas);
     }
 
 };
@@ -238,57 +240,57 @@ class TSessionBase
 {
 protected:
     //! Reference to the owning reader.
-    TWeakPtr<TReplicationReader> Reader;
+    TWeakPtr<TReplicationReader> Reader_;
 
     //! Translates node ids to node descriptors.
-    TNodeDirectoryPtr NodeDirectory;
+    TNodeDirectoryPtr NodeDirectory_;
 
     //! Name of the network to use from descriptor.
     Stroka NetworkName_;
 
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
-    int RetryIndex;
+    int RetryIndex_;
 
     //! Zero based pass index (less than |Reader->Config->PassCount|).
-    int PassIndex;
+    int PassIndex_;
 
     //! Seed replicas for the current retry.
-    TChunkReplicaList SeedReplicas;
+    TChunkReplicaList SeedReplicas_;
 
     //! Set of peer addresses corresponding to SeedReplcias.
-    yhash_set<Stroka> SeedAddresses;
+    yhash_set<Stroka> SeedAddresses_;
 
     //! Set of peer addresses banned for the current retry.
-    yhash_set<Stroka> BannedPeers;
+    yhash_set<Stroka> BannedPeers_;
 
     //! List of candidates to try.
-    std::vector<TNodeDescriptor> PeerList;
+    std::vector<TNodeDescriptor> PeerList_;
 
     //! Current index in #PeerList.
-    int PeerIndex;
+    int PeerIndex_;
 
     //! The instant this session has started.
-    TInstant StartTime;
+    TInstant StartTime_;
 
     NLog::TTaggedLogger Logger;
 
 
     explicit TSessionBase(TReplicationReader* reader)
-        : Reader(reader)
-        , NodeDirectory(reader->NodeDirectory)
+        : Reader_(reader)
+        , NodeDirectory_(reader->NodeDirectory_)
         , NetworkName_(reader->NetworkName_)
-        , RetryIndex(0)
-        , PassIndex(0)
-        , PeerIndex(0)
-        , StartTime(TInstant::Now())
+        , RetryIndex_(0)
+        , PassIndex_(0)
+        , PeerIndex_(0)
+        , StartTime_(TInstant::Now())
         , Logger(ChunkReaderLogger)
     {
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId)));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId_)));
     }
 
     void BanPeer(const Stroka& address)
     {
-        if (BannedPeers.insert(address).second) {
+        if (BannedPeers_.insert(address).second) {
             LOG_INFO("Node is banned for the current retry (Address: %s)",
                 ~address);
         }
@@ -296,17 +298,17 @@ protected:
 
     bool IsPeerBanned(const Stroka& address)
     {
-        return BannedPeers.find(address) != BannedPeers.end();
+        return BannedPeers_.find(address) != BannedPeers_.end();
     }
 
     bool IsSeed(const Stroka& address)
     {
-        return SeedAddresses.find(address) != SeedAddresses.end();
+        return SeedAddresses_.find(address) != SeedAddresses_.end();
     }
 
     virtual void NextRetry()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader) {
             return;
         }
@@ -314,37 +316,37 @@ protected:
         YCHECK(!GetSeedsResult);
 
         LOG_INFO("Retry started: %d of %d",
-            RetryIndex + 1,
-            reader->Config->RetryCount);
+            RetryIndex_ + 1,
+            reader->Config_->RetryCount);
 
         GetSeedsResult = reader->AsyncGetSeeds();
         GetSeedsResult.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
 
-        PassIndex = 0;
-        BannedPeers.clear();
+        PassIndex_ = 0;
+        BannedPeers_.clear();
     }
 
     virtual void NextPass() = 0;
 
     void OnRetryFailed()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        int retryCount = reader->Config->RetryCount;
+        int retryCount = reader->Config_->RetryCount;
         LOG_INFO("Retry failed: %d of %d",
-            RetryIndex + 1,
+            RetryIndex_ + 1,
             retryCount);
 
         YCHECK(GetSeedsResult);
         reader->DiscardSeeds(GetSeedsResult);
         GetSeedsResult.Reset();
 
-        ++RetryIndex;
-        if (RetryIndex >= retryCount) {
+        ++RetryIndex_;
+        if (RetryIndex_ >= retryCount) {
             OnSessionFailed();
             return;
         }
@@ -352,32 +354,32 @@ protected:
         TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextRetry, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()),
-            reader->Config->RetryBackoffTime);
+            reader->Config_->RetryBackoffTime);
     }
 
 
     template <class TSeedHandler>
     bool PrepareNextPass(const TSeedHandler& seedHandler)
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return false;
 
         LOG_INFO("Pass started: %d of %d",
-            PassIndex + 1,
-            reader->Config->PassCount);
+            PassIndex_ + 1,
+            reader->Config_->PassCount);
 
-        PeerList.clear();
-        PeerIndex = 0;
-        for (auto replica : SeedReplicas) {
-            const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+        PeerList_.clear();
+        PeerIndex_ = 0;
+        for (auto replica : SeedReplicas_) {
+            const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
             auto address = descriptor.FindAddress(NetworkName_);
             if (address && !IsPeerBanned(*address)) {
                 seedHandler(descriptor);
             }
         }
 
-        if (PeerList.empty()) {
+        if (PeerList_.empty()) {
             LOG_INFO("No feasible seeds to start a pass");
             OnRetryFailed();
             return false;
@@ -388,25 +390,25 @@ protected:
 
     void OnPassCompleted()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        int passCount = reader->Config->PassCount;
+        int passCount = reader->Config_->PassCount;
         LOG_INFO("Pass completed: %d of %d",
-            PassIndex + 1,
+            PassIndex_ + 1,
             passCount);
 
-        ++PassIndex;
-        if (PassIndex >= passCount) {
+        ++PassIndex_;
+        if (PassIndex_ >= passCount) {
             OnRetryFailed();
             return;
         }
 
-        auto backoffTime = reader->Config->MinPassBackoffTime *
-            std::pow(reader->Config->PassBackoffTimeMultiplier, PassIndex - 1);
+        auto backoffTime = reader->Config_->MinPassBackoffTime *
+            std::pow(reader->Config_->PassBackoffTimeMultiplier, PassIndex_ - 1);
 
-        backoffTime = std::min(backoffTime, reader->Config->MaxPassBackoffTime);
+        backoffTime = std::min(backoffTime, reader->Config_->MaxPassBackoffTime);
 
         TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextPass, MakeStrong(this))
@@ -437,7 +439,7 @@ private:
 
     void OnGotSeeds(TReplicationReader::TGetSeedsResult result)
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
@@ -450,34 +452,36 @@ private:
             return;
         }
 
-        SeedReplicas = result.Value();
-        if (SeedReplicas.empty()) {
+        SeedReplicas_ = result.Value();
+        if (SeedReplicas_.empty()) {
             RegisterError(TError("Chunk is lost"));
             OnRetryFailed();
             return;
         }
 
-        SeedAddresses.clear();
+        SeedAddresses_.clear();
         for (auto replica : SeedReplicas) {
-            const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
+            auto descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
             auto address = descriptor.FindAddress(NetworkName_);
             if (address) {
-                SeedAddresses.insert(*address);
+                SeedAddresses_.insert(*address);
             } else {
                 RegisterError(TError(
                     NChunkClient::EErrorCode::AddressNotFound,
-                    "Cannot find %s address for %s", ~NetworkName_.Quote(), ~descriptor.GetDefaultAddress()));
+                    "Cannot find %s address for %s",
+                    ~NetworkName_.Quote(),
+                    ~descriptor.GetDefaultAddress()));
                 OnSessionFailed();
             }
         }
 
         // Prefer local node if in seeds.
-        for (auto it = SeedReplicas.begin(); it != SeedReplicas.end(); ++it) {
-            const auto& descriptor = reader->NodeDirectory->GetDescriptor(*it);
+        for (auto it = SeedReplicas_.begin(); it != SeedReplicas_.end(); ++it) {
+            const auto& descriptor = reader->NodeDirectory_->GetDescriptor(*it);
             if (descriptor.IsLocal()) {
                 auto localSeed = *it;
-                SeedReplicas.erase(it);
-                SeedReplicas.insert(SeedReplicas.begin(), localSeed);
+                SeedReplicas_.erase(it);
+                SeedReplicas_.insert(SeedReplicas_.begin(), localSeed);
                 break;
             }
         }
@@ -495,16 +499,16 @@ class TReadSession
 public:
     TReadSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
-        , Promise(NewPromise<IAsyncReader::TReadResult>())
-        , BlockIndexes(blockIndexes)
+        , Promise_(NewPromise<IAsyncReader::TReadResult>())
+        , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
     }
 
     ~TReadSession()
     {
-        if (!Promise.IsSet()) {
-            Promise.Set(TError("Reader terminated"));
+        if (!Promise_.IsSet()) {
+            Promise_.Set(TError("Reader terminated"));
         }
     }
 
@@ -519,18 +523,18 @@ public:
             NextRetry();
         }
 
-        return Promise;
+        return Promise_;
     }
 
 private:
     //! Promise representing the session.
-    IAsyncReader::TAsyncReadPromise Promise;
+    IAsyncReader::TAsyncReadPromise Promise_;
 
     //! Block indexes to read during the session.
-    std::vector<int> BlockIndexes;
+    std::vector<int> BlockIndexes_;
 
     //! Blocks that are fetched so far.
-    yhash_map<int, TSharedRef> FetchedBlocks;
+    yhash_map<int, TSharedRef> FetchedBlocks_;
 
     struct TPeerBlocksInfo
     {
@@ -539,14 +543,15 @@ private:
     };
 
     //! Known peers and their blocks (address -> TPeerBlocksInfo).
-    yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
+    yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap_;
+
 
     virtual void NextPass() override
     {
-        PeerBlocksMap.clear();
+        PeerBlocksMap_.clear();
 
         auto seedHandler = [&] (const TNodeDescriptor& descriptor) {
-            for (int blockIndex : BlockIndexes) {
+            for (int blockIndex : BlockIndexes_) {
                 AddPeer(descriptor, blockIndex);
             }
         };
@@ -559,11 +564,11 @@ private:
 
     void AddPeer(const TNodeDescriptor& nodeDescriptor, int blockIndex)
     {
-        const auto& address = nodeDescriptor.GetAddress(NetworkName_);
-        auto peerBlocksMapIt = PeerBlocksMap.find(address);
-        if (peerBlocksMapIt == PeerBlocksMap.end()) {
-            peerBlocksMapIt = PeerBlocksMap.insert(std::make_pair(address, TPeerBlocksInfo())).first;
-            PeerList.push_back(nodeDescriptor);
+        const auto& address = nodeDescriptor.GetDefaultAddress();
+        auto peerBlocksMapIt = PeerBlocksMap_.find(address);
+        if (peerBlocksMapIt == PeerBlocksMap_.end()) {
+            peerBlocksMapIt = PeerBlocksMap_.insert(std::make_pair(address, TPeerBlocksInfo())).first;
+            PeerList_.push_back(nodeDescriptor);
         }
         peerBlocksMapIt->second.BlockIndexes.insert(blockIndex);
     }
@@ -571,20 +576,20 @@ private:
     TNodeDescriptor PickNextPeer()
     {
         // When the time comes to fetch from a non-seeding node, pick a random one.
-        if (PeerIndex >= SeedReplicas.size()) {
-            size_t count = PeerList.size() - PeerIndex;
-            size_t randomIndex = PeerIndex + RandomNumber(count);
-            std::swap(PeerList[PeerIndex], PeerList[randomIndex]);
+        if (PeerIndex_ >= SeedReplicas_.size()) {
+            size_t count = PeerList_.size() - PeerIndex_;
+            size_t randomIndex = PeerIndex_ + RandomNumber(count);
+            std::swap(PeerList_[PeerIndex_], PeerList_[randomIndex]);
         }
-        return PeerList[PeerIndex++];
+        return PeerList_[PeerIndex_++];
     }
 
     std::vector<int> GetUnfetchedBlockIndexes()
     {
         std::vector<int> result;
-        result.reserve(BlockIndexes.size());
-        for (int blockIndex : BlockIndexes) {
-            if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
+        result.reserve(BlockIndexes_.size());
+        for (int blockIndex : BlockIndexes_) {
+            if (FetchedBlocks_.find(blockIndex) == FetchedBlocks_.end()) {
                 result.push_back(blockIndex);
             }
         }
@@ -598,8 +603,8 @@ private:
         std::vector<int> result;
         result.reserve(indexesToFetch.size());
 
-        auto peerBlocksMapIt = PeerBlocksMap.find(nodeDescriptor.GetAddress(NetworkName_));
-        YCHECK(peerBlocksMapIt != PeerBlocksMap.end());
+        auto peerBlocksMapIt = PeerBlocksMap_.find(nodeDescriptor.GetDefaultAddress());
+        YCHECK(peerBlocksMapIt != PeerBlocksMap_.end());
 
         const auto& blocksInfo = peerBlocksMapIt->second;
 
@@ -615,17 +620,17 @@ private:
 
     void FetchBlocksFromCache()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        for (int blockIndex : BlockIndexes) {
-            if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
-                TBlockId blockId(reader->ChunkId, blockIndex);
-                auto block = reader->BlockCache->Find(blockId);
+        for (int blockIndex : BlockIndexes_) {
+            if (FetchedBlocks_.find(blockIndex) == FetchedBlocks_.end()) {
+                TBlockId blockId(reader->ChunkId_, blockIndex);
+                auto block = reader->BlockCache_->Find(blockId);
                 if (block) {
                     LOG_INFO("Block is fetched from cache (Block: %d)", blockIndex);
-                    YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
+                    YCHECK(FetchedBlocks_.insert(std::make_pair(blockIndex, block)).second);
                 }
             }
         }
@@ -634,7 +639,7 @@ private:
 
     void RequestBlocks()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
@@ -649,7 +654,7 @@ private:
                 break;
             }
 
-            if (PeerIndex >= PeerList.size()) {
+            if (PeerIndex_ >= PeerList_.size()) {
                 OnPassCompleted();
                 break;
             }
@@ -671,17 +676,21 @@ private:
                 }
 
                 TDataNodeServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(reader->Config->BlockRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
 
                 auto request = proxy.GetBlocks();
-                request->SetStartTime(StartTime);
-                ToProto(request->mutable_chunk_id(), reader->ChunkId);
-                ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
-                request->set_enable_caching(reader->Config->EnableNodeCaching);
-                request->set_session_type(reader->SessionType);
-                if (reader->LocalDescriptor) {
-                    auto expirationTime = TInstant::Now() + reader->Config->PeerExpirationTimeout;
-                    ToProto(request->mutable_peer_descriptor(), reader->LocalDescriptor.Get());
+                request->SetStartTime(StartTime_);
+                ToProto(request->mutable_chunk_id(), reader->ChunkId_);
+                for (int index : unfetchedBlockIndexes) {
+                    auto* range = request->add_block_ranges();
+                    range->set_first_block_index(index);
+                    range->set_block_count(1);
+                }
+                request->set_enable_caching(reader->Config_->EnableNodeCaching);
+                request->set_session_type(reader->SessionType_);
+                if (reader->LocalDescriptor_) {
+                    auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
+                    ToProto(request->mutable_peer_descriptor(), reader->LocalDescriptor_.Get());
                     request->set_peer_expiration_time(expirationTime.GetValue());
                 }
 
@@ -727,55 +736,59 @@ private:
         TDataNodeServiceProxy::TReqGetBlocksPtr req,
         TDataNodeServiceProxy::TRspGetBlocksPtr rsp)
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader) {
             return MakeFuture();
         }
 
         const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
-        LOG_INFO("Started processing block response (Address: %s)", ~requestedAddress);
-
-        size_t blockCount = req->block_indexes_size();
-        YCHECK(rsp->blocks_size() == blockCount);
-        YCHECK(rsp->Attachments().size() == blockCount);
+        LOG_INFO("Started processing block response (Address: %s)",
+            ~requestedAddress);
 
         i64 totalSize = 0;
+        int attachmentIndex = 0;
 
-        for (int index = 0; index < static_cast<int>(blockCount); ++index) {
-            int blockIndex = req->block_indexes(index);
-            TBlockId blockId(reader->ChunkId, blockIndex);
-            const auto& blockInfo = rsp->blocks(index);
-            if (blockInfo.data_attached()) {
-                LOG_INFO("Block data received (Block: %d)",
-                    blockIndex);
-                auto block = rsp->Attachments()[index];
-                YCHECK(block);
+        for (const auto& range : req->block_ranges()) {
+            for (int blockIndex = range.first_block_index();
+                 blockIndex < range.first_block_index() + range.block_count();
+                 ++blockIndex)
+            {
+                TBlockId blockId(reader->ChunkId_, blockIndex);
+                auto block = rsp->Attachments()[attachmentIndex++];
+                if (block) {
+                    LOG_INFO("Block data received (BlockId: %d)",
+                        ~ToString(blockId));
 
-                // Only keep source address if P2P is on.
-                auto source = reader->LocalDescriptor
-                    ? TNullable<TNodeDescriptor>(requestedDescriptor)
-                    : TNullable<TNodeDescriptor>(Null);
-                reader->BlockCache->Put(blockId, block, source);
+                    // Only keep source address if P2P is on.
+                    auto source = reader->LocalDescriptor_
+                        ? TNullable<TNodeDescriptor>(requestedDescriptor)
+                        : TNullable<TNodeDescriptor>(Null);
+                    reader->BlockCache_->Put(blockId, block, source);
 
-                YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
-                totalSize += block.Size();
-            } else if (reader->Config->FetchFromPeers) {
-                for (const auto& protoP2PDescriptor : blockInfo.p2p_descriptors()) {
-                    auto p2pDescriptor = FromProto<TNodeDescriptor>(protoP2PDescriptor);
-                    if (p2pDescriptor.FindAddress(NetworkName_)) {
-                        AddPeer(p2pDescriptor, blockIndex);
-                        LOG_INFO("P2P descriptor received (Block: %d, Address: %s)",
-                            blockIndex,
-                            ~p2pDescriptor.GetAddress(NetworkName_));
-                    } else {
-                        RegisterError(TError(
-                            NChunkClient::EErrorCode::AddressNotFound,
-                            "Cannot find %s address for %s", ~NetworkName_.Quote(), ~p2pDescriptor.GetDefaultAddress()));
-                        OnSessionFailed();
-                    }
-                }
+                    YCHECK(FetchedBlocks_.insert(std::make_pair(blockIndex, block)).second);
+                    totalSize += block.Size();
             }
         }
+
+		if (reader->Config->FetchFromPeers) {
+            for (const auto& protoPeerDescriptor : blockInfo.p2p_descriptors()) {
+                auto peerDescriptor = FromProto<TNodeDescriptor>(protoP2PDescriptor);
+                if (peerDescriptor.FindAddress(NetworkName_)) {
+                    AddPeer(peerDescriptor, blockIndex);
+                    LOG_INFO("Peer descriptor received (Block: %d, Address: %s)",
+                        blockIndex,
+                        ~peerDescriptor.GetAddress(NetworkName_));
+                 } else {
+                    RegisterError(TError(
+                        NChunkClient::EErrorCode::AddressNotFound,
+                        "Cannot find %s address for %s"
+                        ~NetworkName_.Quote(),
+                        ~peerDescriptor.GetDefaultAddress()));
+                    OnSessionFailed();
+        		}
+            }
+        }
+
 
         if (IsSeed(requestedAddress) && !rsp->has_complete_chunk()) {
             LOG_INFO("Seed does not contain the chunk (Address: %s)",
@@ -786,7 +799,7 @@ private:
         LOG_INFO("Finished processing block response (TotalSize: %" PRId64 ")",
             totalSize);
 
-        return reader->Throttler->Throttle(totalSize);
+        return reader->Throttler_->Throttle(totalSize);
     }
 
 
@@ -795,25 +808,25 @@ private:
         LOG_INFO("All chunk blocks are fetched");
 
         std::vector<TSharedRef> blocks;
-        blocks.reserve(BlockIndexes.size());
-        for (int blockIndex : BlockIndexes) {
-            auto block = FetchedBlocks[blockIndex];
+        blocks.reserve(BlockIndexes_.size());
+        for (int blockIndex : BlockIndexes_) {
+            auto block = FetchedBlocks_[blockIndex];
             YCHECK(block);
             blocks.push_back(block);
         }
-        Promise.Set(IAsyncReader::TReadResult(blocks));
+        Promise_.Set(IAsyncReader::TReadResult(blocks));
     }
 
     virtual void OnSessionFailed() override
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
         auto error = BuildCombinedError(TError(
             "Error fetching blocks for chunk %s",
-            ~ToString(reader->ChunkId)));
-        Promise.Set(error);
+            ~ToString(reader->ChunkId_)));
+        Promise_.Set(error);
     }
 };
 
@@ -838,14 +851,14 @@ public:
         const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
-        , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
-        , PartitionTag(partitionTag)
+        , Promise_(NewPromise<IAsyncReader::TGetMetaResult>())
+        , PartitionTag_(partitionTag)
     {
         if (extensionTags) {
-            ExtensionTags = *extensionTags;
-            AllExtensionTags = false;
+            ExtensionTags_ = *extensionTags;
+            AllExtensionTags_ = false;
         } else {
-            AllExtensionTags = true;
+            AllExtensionTags_ = true;
         }
 
         Logger.AddTag(Sprintf("GetMetaSession: %p", this));
@@ -853,30 +866,30 @@ public:
 
     ~TGetMetaSession()
     {
-        if (!Promise.IsSet()) {
-            Promise.Set(TError("Reader terminated"));
+        if (!Promise_.IsSet()) {
+            Promise_.Set(TError("Reader terminated"));
         }
     }
 
     IAsyncReader::TAsyncGetMetaResult Run()
     {
         NextRetry();
-        return Promise;
+        return Promise_;
     }
 
 private:
     //! Promise representing the session.
-    IAsyncReader::TAsyncGetMetaPromise Promise;
+    IAsyncReader::TAsyncGetMetaPromise Promise_;
 
-    std::vector<int> ExtensionTags;
-    TNullable<int> PartitionTag;
-    bool AllExtensionTags;
+    std::vector<int> ExtensionTags_;
+    TNullable<int> PartitionTag_;
+    bool AllExtensionTags_;
 
 
     virtual void NextPass()
     {
         auto seedHandler = [&] (const TNodeDescriptor& descriptor) {
-            PeerList.push_back(descriptor);
+            PeerList_.push_back(descriptor);
         };
 
         if (!PrepareNextPass(seedHandler))
@@ -887,16 +900,16 @@ private:
 
     void RequestInfo()
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
-        if (PeerIndex >= PeerList.size()) {
+        if (PeerIndex_ >= PeerList_.size()) {
             OnPassCompleted();
             return;
         }
 
-        const auto& descriptor = PeerList[PeerIndex];
+        const auto& descriptor = PeerList_[PeerIndex_];
         const auto& address = descriptor.GetAddress(NetworkName_);
 
         LOG_INFO("Requesting chunk meta (Address: %s)", ~address);
@@ -910,18 +923,18 @@ private:
         }
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config->MetaRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config_->MetaRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
-        request->SetStartTime(StartTime);
-        ToProto(request->mutable_chunk_id(), reader->ChunkId);
-        request->set_all_extension_tags(AllExtensionTags);
+        request->SetStartTime(StartTime_);
+        ToProto(request->mutable_chunk_id(), reader->ChunkId_);
+        request->set_all_extension_tags(AllExtensionTags_);
 
-        if (PartitionTag) {
-            request->set_partition_tag(PartitionTag.Get());
+        if (PartitionTag_) {
+            request->set_partition_tag(PartitionTag_.Get());
         }
 
-        ToProto(request->mutable_extension_tags(), ExtensionTags);
+        ToProto(request->mutable_extension_tags(), ExtensionTags_);
         request->Invoke().Subscribe(
             BIND(&TGetMetaSession::OnGetChunkMetaResponse, MakeStrong(this), descriptor)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -950,7 +963,7 @@ private:
 
         RegisterError(error);
 
-        ++PeerIndex;
+        ++PeerIndex_;
         if (error.GetCode() !=  NRpc::EErrorCode::Unavailable) {
             BanPeer(address);
         }
@@ -962,19 +975,19 @@ private:
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk meta obtained");
-        Promise.Set(IAsyncReader::TGetMetaResult(chunkMeta));
+        Promise_.Set(IAsyncReader::TGetMetaResult(chunkMeta));
     }
 
     virtual void OnSessionFailed() override
     {
-        auto reader = Reader.Lock();
+        auto reader = Reader_.Lock();
         if (!reader)
             return;
 
         auto error = BuildCombinedError(TError(
             "Error fetching meta for chunk %s",
-            ~ToString(reader->ChunkId)));
-        Promise.Set(error);
+            ~ToString(reader->ChunkId_)));
+        Promise_.Set(error);
     }
 
 };

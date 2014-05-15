@@ -5,7 +5,6 @@
 #include <core/misc/lease_manager.h>
 
 #include <core/concurrency/thread_affinity.h>
-
 #include <core/concurrency/throughput_throttler.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
@@ -34,10 +33,10 @@ public:
         bool syncOnClose,
         TLocationPtr location);
 
+    ~TSession();
+
     //! Starts the session.
     void Start();
-
-    ~TSession();
 
     //! Returns the TChunkId being uploaded.
     TChunkId GetChunkId() const;
@@ -59,7 +58,7 @@ public:
 
     //! Puts a contiguous range of blocks into the window.
     TAsyncError PutBlocks(
-        int startblockIndex,
+        int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching);
 
@@ -82,8 +81,6 @@ public:
 
 private:
     friend class TSessionManager;
-
-    typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -128,7 +125,6 @@ private:
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
 
-    static TAsyncError DoSendBlocks(TProxy::TReqPutBlocksPtr req);
 
     TFuture< TErrorOr<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);

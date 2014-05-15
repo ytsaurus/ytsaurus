@@ -9,8 +9,6 @@
 
 #include <core/misc/cache.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NDataNode {
 
@@ -30,16 +28,16 @@ public:
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TFileReader(fileName)
-        , ChunkId(chunkId)
+        , ChunkId_(chunkId)
     { }
 
     virtual TChunkId GetChunkId() const override
     {
-        return ChunkId;
+        return ChunkId_;
     }
 
 private:
-    TChunkId ChunkId;
+    TChunkId ChunkId_;
 
 };
 
@@ -55,6 +53,8 @@ public:
 
     TGetReaderResult Get(TChunkPtr chunk)
     {
+        YCHECK(chunk->IsReadLockAcquired());
+
         auto location = chunk->GetLocation();
         auto& Profiler = location->Profiler();
 
@@ -62,13 +62,6 @@ public:
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
-            if (!isexist(~fileName)) {
-                cookie.Cancel(TGetReaderResult(TError(
-                    EErrorCode::NoSuchChunk,
-                    "No such chunk: %s",
-                    ~ToString(chunkId))));
-            }
-
             LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
                 ~location->GetId(),
                 ~ToString(chunkId));
@@ -81,7 +74,7 @@ public:
                 } catch (const std::exception& ex) {
                     auto error = TError(
                         NChunkClient::EErrorCode::IOError,
-                        "Error opening chunk: %s",
+                        "Error opening chunk %s",
                         ~ToString(chunkId))
                         << ex;
                     cookie.Cancel(error);
@@ -107,7 +100,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 TReaderCache::TReaderCache(TDataNodeConfigPtr config)
-    : Impl(New<TImpl>(config))
+    : Impl_(New<TImpl>(config))
 { }
 
 TReaderCache::~TReaderCache()
@@ -115,12 +108,12 @@ TReaderCache::~TReaderCache()
 
 TReaderCache::TGetReaderResult TReaderCache::GetReader(TChunkPtr chunk)
 {
-    return Impl->Get(chunk);
+    return Impl_->Get(chunk);
 }
 
 void TReaderCache::EvictReader(TChunk* chunk)
 {
-    Impl->Evict(chunk);
+    Impl_->Evict(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

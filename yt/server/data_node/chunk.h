@@ -8,6 +8,7 @@
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
+#include <ytlib/chunk_client/data_node_service.pb.h>
 
 #include <server/cell_node/public.h>
 
@@ -70,6 +71,17 @@ public:
         i64 priority,
         const std::vector<int>* tags = nullptr);
 
+    //! Asynchronously reads a range of blocks.
+    /*!
+     *  Blocks are put into #blocks list. If some element is not null then
+     *  the corresponding block must not be fetched.
+     */
+    TAsyncError ReadBlocks(
+        int firstBlockIndex,
+        int blockCount,
+        i64 priority,
+        std::vector<TSharedRef>* blocks);
+
     //! Returns chunk meta.
     /*!
         If chunk meta not cached, returns |nullptr|.
@@ -89,6 +101,9 @@ public:
      *  enqueues removal actions to the appropriate thread.
      */
     void ReleaseReadLock();
+
+    //! Returns |true| iff a read lock is acquired.
+    bool IsReadLockAcquired() const;
 
     //! Marks the chunk as pending for removal.
     /*!
@@ -120,8 +135,21 @@ private:
     TAsyncError ReadMeta(i64 priority);
     void DoReadMeta(TPromise<TError> promise);
 
-    mutable TSpinLock SpinLock_;
-    mutable TRefCountedChunkMetaPtr Meta_;
+    void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
+    i64 ComputePendingReadSize(int firstBlockIndex, int blockCount);
+
+    void DoReadBlocks(
+        int firstBlockIndex,
+        int blockCount,
+        i64 pendingSize,
+        TPromise<TError> promise,
+        std::vector<TSharedRef>* blocks);
+
+
+    TSpinLock SpinLock_;
+    TRefCountedChunkMetaPtr Meta_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+    
 
     int ReadLockCounter_;
     bool RemovalScheduled_;

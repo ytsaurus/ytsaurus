@@ -50,34 +50,30 @@ public:
 
     ~TBlockStore();
 
-    typedef TErrorOr<TCachedBlockPtr> TGetBlockResult;
-    typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
+    typedef TErrorOr<std::vector<TSharedRef>> TGetBlocksResult;
 
-    //! Gets (asynchronously) a block from the store.
+    //! Asynchronously retrives a range of blocks from the store.
     /*!
-     * This call returns an async result that becomes set when the
-     * block is fetched. Fetching an already-cached block is cheap
-     * (i.e. requires no context switch). Fetching an uncached block
-     * enqueues a disk-read action to the appropriate IO queue.
+     * This call returns a promise to the list of requested blocks.
+     *
+     * Fetching an already-cached block is cheap (i.e. requires no context switch).
+     * Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
+     * 
+     * If some block is missing then the corresponding entry is null.
      */
-    TAsyncGetBlockResult GetBlock(
-        const TBlockId& blockId,
+    TFuture<TGetBlocksResult> GetBlocks(
+        const TChunkId& chunkId,
+        int firstBlockIndex,
+        int blockCount,
         i64 priority,
         bool enableCaching);
-
-    //! Tries to find a block in the cache.
-    /*!
-     *  If the block is not available immediately, it returns NULL.
-     *  No IO is queued.
-     */
-    TCachedBlockPtr FindBlock(const TBlockId& blockId);
 
     //! Puts a block into the store.
     /*!
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    TCachedBlockPtr PutBlock(
+    void PutBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
@@ -88,18 +84,22 @@ public:
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
+    //! Increments pending read size.
+    void IncrementPendingReadSize(i64 bytes);
+
+    //! Decrements pending read size.
+    void DecrementPendingReadSize(i64 bytes);
+
     //! Returns a caching adapter.
     NChunkClient::IBlockCachePtr GetBlockCache();
 
 private:
     class TStoreImpl;
-    friend class TStoreImpl;
-
     class TCacheImpl;
-    friend class TCacheImpl;
+    class TGetBlocksSession;
 
-    TIntrusivePtr<TStoreImpl> StoreImpl;
-    TIntrusivePtr<TCacheImpl> CacheImpl;
+    TIntrusivePtr<TStoreImpl> StoreImpl_;
+    TIntrusivePtr<TCacheImpl> CacheImpl_;
 
 };
 

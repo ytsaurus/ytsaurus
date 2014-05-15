@@ -105,9 +105,13 @@ private:
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             for (int index = 0; index < static_cast<int>(blockIndexes.size()); ++index) {
-                TBlockId blockId(Owner_->Chunk_->GetId(), blockIndexes[index]);
                 awaiter->Await(
-                    blockStore->GetBlock(blockId, FetchPriority, EnableCaching),
+                    blockStore->GetBlocks(
+                        Owner_->Chunk_->GetId(),
+                        blockIndexes[index],
+                        1,
+                        FetchPriority,
+                        EnableCaching),
                     BIND(&TReadSession::OnBlockFetched, MakeStrong(this), index));
             }
     
@@ -125,10 +129,10 @@ private:
         std::vector<TSharedRef> Blocks_;
 
 
-        void OnBlockFetched(int index, TBlockStore::TGetBlockResult result)
+        void OnBlockFetched(int index, TBlockStore::TGetBlocksResult result)
         {
             if (result.IsOK()) {
-                Blocks_[index] = result.Value()->GetData();
+                Blocks_[index] = result.Value()[0];
             } else {
                 Promise_.TrySet(TError("Error reading local chunk")
                     << result);

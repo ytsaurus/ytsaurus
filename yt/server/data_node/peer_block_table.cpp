@@ -3,8 +3,13 @@
 #include "peer_block_table.h"
 #include "config.h"
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NDataNode {
+
+using namespace NChunkClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,15 +18,24 @@ static auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfigPtr config)
-    : Config(config)
+    : Config_(config)
 { }
+
+bool TPeerBlockTable::MayHavePeers(const TChunkId& chunkId) const
+{
+    // NB: No peering for journal chunks.
+    auto type = TypeFromId(chunkId);
+    return
+        type == EObjectType::Chunk ||
+        type >= EObjectType::ErasureChunkPart_0 && type <= EObjectType::ErasureChunkPart_15;
+}
 
 const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 {
     SweepAllExpiredPeers();
 
-    auto it = Table.find(blockId);
-    if (it == Table.end()) {
+    auto it = Table_.find(blockId);
+    if (it == Table_.end()) {
         static std::vector<TPeerInfo> empty;
         return empty;
     } else {
@@ -58,30 +72,29 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
         peers.insert(it, peer);
     }
 
-    if (peers.size() > Config->MaxPeersPerBlock) {
-        peers.erase(peers.begin() + Config->MaxPeersPerBlock, peers.end());
+    if (peers.size() > Config_->MaxPeersPerBlock) {
+        peers.erase(peers.begin() + Config_->MaxPeersPerBlock, peers.end());
     }
 }
 
 void TPeerBlockTable::SweepAllExpiredPeers()
 {
-    if (TInstant::Now() < LastSwept + Config->SweepPeriod) {
+    if (TInstant::Now() < LastSwept_ + Config_->SweepPeriod) {
         return;
     }
 
-    // TODO: implement FilterMap/FilterSet
-    auto it = Table.begin();
-    while (it != Table.end()) {
+    auto it = Table_.begin();
+    while (it != Table_.end()) {
         auto jt = it;
         ++jt;
         SweepExpiredPeers(it->second);
         if (it->second.empty()) {
-            Table.erase(it);
+            Table_.erase(it);
         }
         it = jt;
     }
 
-    LastSwept = TInstant::Now();
+    LastSwept_ = TInstant::Now();
 
     LOG_DEBUG("All expired peers were swept");
 }
@@ -100,11 +113,11 @@ void TPeerBlockTable::SweepExpiredPeers(std::vector<TPeerInfo>& peers)
 
 std::vector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId)
 {
-    auto it = Table.find(blockId);
-    if (it != Table.end())
+    auto it = Table_.find(blockId);
+    if (it != Table_.end())
         return it->second;
-    auto pair = Table.insert(std::make_pair(blockId, std::vector<TPeerInfo>()));
-    YASSERT(pair.second);
+    auto pair = Table_.insert(std::make_pair(blockId, std::vector<TPeerInfo>()));
+    YCHECK(pair.second);
     return pair.first->second;
 }
 

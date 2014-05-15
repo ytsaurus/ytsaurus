@@ -42,7 +42,7 @@ private:
     class TCachedReader;
     class TImpl;
 
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 

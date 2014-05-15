@@ -234,7 +234,7 @@ TAsyncError TSession::SendBlocks(
 
     Ping();
 
-    TProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
+    TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
@@ -250,14 +250,9 @@ TAsyncError TSession::SendBlocks(
 
     auto throttler = Bootstrap->GetOutThrottler(Type);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
-        return DoSendBlocks(req);
-    }));
-}
-
-TAsyncError TSession::DoSendBlocks(TProxy::TReqPutBlocksPtr req)
-{
-    return req->Invoke().Apply(BIND([=] (TProxy::TRspPutBlocksPtr rsp) {
-        return rsp->GetError();
+        return req->Invoke().Apply(BIND([=] (TDataNodeServiceProxy::TRspPutBlocksPtr rsp) {
+            return rsp->GetError();
+        }));
     }));
 }
 

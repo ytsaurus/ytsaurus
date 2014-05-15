@@ -369,12 +369,16 @@ private:
             LOG_DEBUG("Retrieving block %d for replication", index);
 
             TBlockId blockId(ChunkId, index);
-
-            auto blockOrError = WaitFor(blockStore->GetBlock(blockId, 0, false));
+            auto blockOrError = WaitFor(blockStore->GetBlocks(
+                blockId.ChunkId,
+                blockId.BlockIndex,
+                1,
+                0,
+                false));
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError, "Error getting block %s for replication",
                 ~ToString(blockId));
 
-            auto block = blockOrError.Value()->GetData();
+            const auto& block = blockOrError.Value()[0];
             auto result = writer->WriteBlock(block);
             if (!result) {
                 auto error = WaitFor(writer->GetReadyEvent());

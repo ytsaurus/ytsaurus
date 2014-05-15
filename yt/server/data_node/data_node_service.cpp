@@ -50,6 +50,25 @@
 #include <cmath>
 
 namespace NYT {
+namespace NChunkClient {
+namespace NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TReqGetBlocks::TBlockRange& range)
+{
+    return Sprintf("%d:%d",
+        range.first_block_index(),
+        range.first_block_index() + range.block_count() - 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
+} // namespace NChunkClient
+} // namespace NYT
+
+namespace NYT {
 namespace NDataNode {
 
 using namespace NRpc;
@@ -72,7 +91,7 @@ static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeService
-    : public NRpc::TServiceBase
+    : public TServiceBase
 {
 public:
     TDataNodeService(
@@ -273,80 +292,142 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlocks)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int blockCount = static_cast<int>(request->block_indexes_size());
         bool enableCaching = request->enable_caching();
         auto sessionType = EReadSessionType(request->session_type());
 
-        context->SetRequestInfo("ChunkId: %s, Blocks: [%s], EnableCaching: %s, SessionType: %s",
+        context->SetRequestInfo("ChunkId: %s, BlockRanges: [%s], EnableCaching: %s, SessionType: %s",
             ~ToString(chunkId),
-            ~JoinToString(request->block_indexes()),
+            ~JoinToString(request->block_ranges()),
             ~FormatBool(enableCaching),
             ~ToString(sessionType));
-
-        bool isThrottling = IsOutThrottling();
 
         auto chunkStore = Bootstrap_->GetChunkStore();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        bool hasCompleteChunk = chunkStore->FindChunk(chunkId);
+        bool hasCompleteChunk = (chunkStore->FindChunk(chunkId) != nullptr);
         response->set_has_complete_chunk(hasCompleteChunk);
 
+        int blockCount = 0;
+        for (const auto& range : request->block_ranges()) {
+            blockCount += range.block_count();
+        }
         response->Attachments().resize(blockCount);
 
-        // NB: All callbacks should be handled in the control thread.
-        auto awaiter = New<TParallelAwaiter>(Bootstrap_->GetControlInvoker());
-
-        // Assign decreasing priorities to block requests to take advantage of sequential read.
-        i64 priority = context->GetPriority();
-
-        for (int index = 0; index < blockCount; ++index) {
-            int blockIndex = request->block_indexes(index);
-            TBlockId blockId(chunkId, blockIndex);
-
-            auto* blockInfo = response->add_blocks();
-
-            if (isThrottling) {
-                // Cannot send the actual data to the client due to throttling.
-                // Let's try to suggest some other peers.
-                blockInfo->set_data_attached(false);
-                const auto& peers = peerBlockTable->GetPeers(blockId);
-                if (!peers.empty()) {
-                    for (const auto& peer : peers) {
-                        ToProto(blockInfo->add_p2p_descriptors(), peer.Descriptor);
-                    }
-                    LOG_DEBUG("%" PRISZT " peers suggested for block %d",
-                        peers.size(),
-                        blockIndex);
-                }
-            } else {
-                // Fetch the actual data (either from cache or from disk).
-                LOG_DEBUG("Fetching block %d", blockIndex);
-                awaiter->Await(
-                    blockStore->GetBlock(blockId, priority, enableCaching),
-                    BIND([=] (TBlockStore::TGetBlockResult result) {
-                        if (result.IsOK()) {
-                            // Attach the real data.
-                            blockInfo->set_data_attached(true);
-                            auto block = result.Value();
-                            response->Attachments()[index] = block->GetData();
-                            LOG_DEBUG("Fetched block %d", blockIndex);
-                        } else if (result.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
-                            // This is really sad. We neither have the full chunk nor this particular block.
-                            blockInfo->set_data_attached(false);
-                            LOG_DEBUG("Chunk is missing, block %d is not cached", blockIndex);
-                        } else {
-                            // Something went wrong while fetching the block.
-                            // The most probable cause is that a non-existing block was requested.
-                            awaiter->Cancel();
-                            context->Reply(result);
+        if (IsOutThrottling()) {
+            // Cannot send the actual data to the client due to throttling.
+            // Let's try to suggest some other peers.
+            if (peerBlockTable->MayHavePeers(chunkId)) {
+                for (const auto& range : request->block_ranges()) {
+                    for (int blockIndex = range.first_block_index();
+                        blockIndex < range.first_block_index() + range.block_count();
+                        ++blockIndex)
+                    {
+                        TBlockId blockId(chunkId, blockIndex);
+                        const auto& peers = peerBlockTable->GetPeers(blockId);
+                        if (!peers.empty()) {
+                            auto* peerDescriptor = response->add_peer_descriptors();
+                            peerDescriptor->set_block_index(blockIndex);
+                            for (const auto& peer : peers) {
+                                ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
+                            }
+                            LOG_DEBUG("Peers suggested (BlockId: %s, PeerCount: %d)",
+                                ~ToString(blockId),
+                                static_cast<int>(peers.size()));
                         }
-                    }));
-                --priority;
+                    }
+                }
             }
-        }
+        } else {
+            auto awaiter = New<TParallelAwaiter>(Bootstrap_->GetControlInvoker());
 
-        awaiter->Complete(BIND(&TDataNodeService::OnGotBlocks, MakeStrong(this), context));
+            // Assign decreasing priorities to block requests to take advantage of sequential read.
+            i64 priority = context->GetPriority();
+
+            int attachmentIndex = 0;
+            for (const auto& range : request->block_ranges()) {
+                // Fetch the actual data (either from cache or from disk).
+                LOG_DEBUG("Fetching block range (BlockIds: %s:%d-%d)",
+                    ~ToString(chunkId),
+                    range.first_block_index(),
+                    range.first_block_index() + range.block_count() - 1);
+
+                auto handler = BIND([=] (int firstAttachmentIndex, TBlockStore::TGetBlocksResult result) {
+                    if (result.IsOK()) {
+                        // Attach the data.
+                        const auto& blocks = result.Value();
+                        for (int index = 0; index < static_cast<int>(blocks.size()); ++index) {
+                            response->Attachments()[firstAttachmentIndex + index] = blocks[index];
+                        }
+                    } else {
+                        // Something went wrong while fetching the block.
+                        awaiter->Cancel();
+                        context->Reply(result);
+                    }
+                });
+
+                awaiter->Await(
+                    blockStore->GetBlocks(
+                        chunkId,
+                        range.first_block_index(),
+                        range.block_count(),
+                        priority,
+                        enableCaching),
+                    BIND(handler, attachmentIndex));
+
+                --priority;
+                attachmentIndex += range.block_count();
+            }
+    
+            awaiter->Complete(BIND([=] () {
+                // Compute statistics.
+                int blocksWithData = 0;
+                for (const auto& block : response->Attachments()) {
+                    if (block) {
+                        ++blocksWithData;
+                    }
+                }
+
+                int blocksWithPeers = response->peer_descriptors_size();
+
+                i64 blocksSize = 0;
+                for (const auto& block : response->Attachments()) {
+                    blocksSize += block.Size();
+                }
+
+                // Register the peer that we had just sent the reply to.
+                if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
+                    auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+                    auto expirationTime = TInstant(request->peer_expiration_time());
+                    TPeerInfo peerInfo(descriptor, expirationTime);
+
+                    int attachmentIndex = 0;
+                    for (const auto& range : request->block_ranges()) {
+                        for (int blockIndex = range.first_block_index();
+                            blockIndex < range.first_block_index() + range.block_count();
+                            ++blockIndex)
+                        {
+                            if (response->Attachments()[attachmentIndex++]) {
+                                TBlockId blockId(chunkId, blockIndex);
+                                peerBlockTable->UpdatePeer(blockId, peerInfo);
+                            }
+                        }
+                    }
+                }
+
+                context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithP2P: %d, BlocksSize: %" PRId64,
+                    ~FormatBool(response->has_complete_chunk()),
+                    blocksWithData,
+                    blocksWithPeers,
+                    blocksSize);
+
+                // Throttle response.
+                auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+                throttler->Throttle(blocksSize).Subscribe(BIND([=] () {
+                    context->Reply();
+                }));
+            }));
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
@@ -370,11 +451,22 @@ private:
             context->GetPriority(),
             request->all_extension_tags() ? nullptr : &extensionTags);
 
-        asyncChunkMeta.Subscribe(BIND(&TDataNodeService::OnGotChunkMeta,
-            Unretained(this),
-            context,
-            partitionTag).Via(WorkerThread_->GetInvoker()));
+        asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
+            }
+
+            const auto& chunkMeta = *result.Value();
+
+            *context->Response().mutable_chunk_meta() = partitionTag
+                ? FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag)
+                : chunkMeta;
+
+            context->Reply();
+        }).Via(WorkerThread_->GetInvoker()));
     }
+
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
     {
@@ -413,247 +505,6 @@ private:
             context->Reply();
         }));
     }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
-    {
-        context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
-            request->key_columns_size(),
-            request->sample_requests_size());
-
-        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
-
-        for (const auto& sampleRequest : request->sample_requests()) {
-            auto* sampleResponse = response->add_sample_responses();
-            auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
-            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
-
-            if (!chunk) {
-                auto error = TError("No such chunk %s",
-                    ~ToString(chunkId));
-                LOG_WARNING(error);
-                ToProto(sampleResponse->mutable_error(), error);
-                continue;
-            }
-
-            awaiter->Await(
-                chunk->GetMeta(context->GetPriority()),
-                BIND(
-                    &TDataNodeService::ProcessSample,
-                    MakeStrong(this),
-                    &sampleRequest,
-                    sampleResponse,
-                    keyColumns));
-        }
-
-        awaiter->Complete(BIND([=] () {
-            context->Reply();
-        }));
-    }
-
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk)
-    {
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-
-        context->SetRequestInfo("ChunkId: %s",
-            ~ToString(chunkId));
-
-        Bootstrap_
-            ->GetChunkCache()
-            ->DownloadChunk(chunkId)
-            .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
-                if (result.IsOK()) {
-                    context->Reply();
-                } else {
-                    context->Reply(TError(
-                        NChunkClient::EErrorCode::ChunkPrecachingFailed,
-                        "Error precaching chunk %s",
-                        ~ToString(chunkId))
-                        << result);
-                }
-            }));
-    }
-
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
-    {
-        auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
-        auto expirationTime = TInstant(request->peer_expiration_time());
-        TPeerInfo peer(descriptor, expirationTime);
-
-        context->SetRequestInfo("Descriptor: %s, ExpirationTime: %s, BlockCount: %d",
-            ~ToString(descriptor),
-            ~ToString(expirationTime),
-            request->block_ids_size());
-
-        auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
-        for (const auto& block_id : request->block_ids()) {
-            TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
-            peerBlockTable->UpdatePeer(blockId, peer);
-        }
-    }
-
-
-    void ValidateNoSession(const TChunkId& chunkId)
-    {
-        if (Bootstrap_->GetSessionManager()->FindSession(chunkId)) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::SessionAlreadyExists,
-                "Session %s already exists",
-                ~ToString(chunkId));
-        }
-    }
-
-    void ValidateNoChunk(const TChunkId& chunkId)
-    {
-        if (Bootstrap_->GetChunkStore()->FindChunk(chunkId)) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ChunkAlreadyExists,
-                "Chunk %s already exists",
-                ~ToString(chunkId));
-        }
-    }
-
-
-    void ProcessSample(
-        const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
-        NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
-        const NTableClient::TKeyColumns& keyColumns,
-        TChunk::TGetMetaResult result)
-    {
-        auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
-
-        if (!result.IsOK()) {
-            auto error = TError("Error getting meta of chunk %s",
-                ~ToString(chunkId))
-                << result;
-            LOG_WARNING(error);
-            ToProto(sampleResponse->mutable_error(), error);
-            return;
-        }
-
-        const auto& chunkMeta = *result.Value();
-        if (chunkMeta.type() != EChunkType::Table) {
-            auto error = TError("Invalid type of chunk %s: expected %s, actual %s",
-                ~ToString(chunkId),
-                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
-                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
-            LOG_WARNING(error);
-            ToProto(sampleResponse->mutable_error(), error);
-            return;
-        }
-
-        switch (chunkMeta.version()) {
-            case ETableChunkFormat::Old:
-                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
-                break;
-
-            case ETableChunkFormat::VersionedSimple:
-                ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
-                break;
-
-            default:
-                auto error = TError("Invalid version %d of chunk %s",
-                    chunkMeta.version(),
-                    ~ToString(chunkId));
-                LOG_WARNING(error);
-                ToProto(sampleResponse->mutable_error(), error);
-                break;
-        }
-    }
-
-    void ProcessOldChunkSamples(
-        const TReqGetTableSamples::TSampleRequest* sampleRequest,
-        TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
-    {
-        auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
-        std::vector<TSample> samples;
-        RandomSampleN(
-            samplesExt.items().begin(),
-            samplesExt.items().end(),
-            std::back_inserter(samples),
-            sampleRequest->sample_count());
-
-        for (const auto& sample : samples) {
-            TUnversionedRowBuilder rowBuilder;
-            auto* key = chunkSamples->add_keys();
-            size_t size = 0;
-            for (const auto& column : keyColumns) {
-                if (size >= MaxKeySize)
-                    break;
-
-                auto it = std::lower_bound(
-                    sample.parts().begin(),
-                    sample.parts().end(),
-                    column,
-                    [] (const TSamplePart& part, const Stroka& column) {
-                        return part.column() < column;
-                    });
-
-                TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
-                size += sizeof(keyPart); // part type
-                if (it != sample.parts().end() && it->column() == column) {
-                    switch (it->key_part().type()) {
-                    case EKeyPartType::Composite:
-                        keyPart = MakeUnversionedAnyValue(TStringBuf());
-                        break;
-                    case EKeyPartType::Integer:
-                        keyPart = MakeUnversionedIntegerValue(it->key_part().int_value());
-                        break;
-                    case EKeyPartType::Double:
-                        keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
-                        break;
-                    case EKeyPartType::String: {
-                        auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
-                        auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
-                        keyPart = MakeUnversionedStringValue(value);
-                        size += partSize;
-                        break;
-                    }
-                    default:
-                        YUNREACHABLE();
-                    }
-                }
-                rowBuilder.AddValue(keyPart);
-            }
-            ToProto(key, rowBuilder.GetRow());
-        }
-    }
-
-    void ProcessVersionedChunkSamples(
-        const TReqGetTableSamples::TSampleRequest* sampleRequest,
-        TRspGetTableSamples::TChunkSamples* chunkSamples,
-        const NTableClient::TKeyColumns& keyColumns,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta)
-    {
-        auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
-
-        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-        auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
-
-        if (chunkKeyColumns != keyColumns) {
-            auto error = TError("Key columns mismatch in chunk %s: expected [%s], actual [%s]",
-                ~ToString(chunkId),
-                ~JoinToString(keyColumns),
-                ~JoinToString(chunkKeyColumns));
-            LOG_WARNING(error);
-            ToProto(chunkSamples->mutable_error(), error);
-            return;
-        }
-
-        auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        std::vector<Stroka> samples;
-        RandomSampleN(
-            samplesExt.entries().begin(),
-            samplesExt.entries().end(),
-            std::back_inserter(samples),
-            sampleRequest->sample_count());
-
-        ToProto(chunkSamples->mutable_keys(), samples);
-    }
-
 
     void MakeChunkSplits(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
@@ -869,80 +720,245 @@ private:
     }
 
 
-    void OnGotChunkMeta(
-        TCtxGetChunkMetaPtr context,
-        TNullable<int> partitionTag,
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
+    {
+        context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
+            request->key_columns_size(),
+            request->sample_requests_size());
+
+        auto awaiter = New<TParallelAwaiter>(WorkerThread_->GetInvoker());
+        auto keyColumns = FromProto<Stroka>(request->key_columns());
+
+        for (const auto& sampleRequest : request->sample_requests()) {
+            auto* sampleResponse = response->add_sample_responses();
+            auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
+            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
+
+            if (!chunk) {
+                auto error = TError("No such chunk %s",
+                    ~ToString(chunkId));
+                LOG_WARNING(error);
+                ToProto(sampleResponse->mutable_error(), error);
+                continue;
+            }
+
+            awaiter->Await(
+                chunk->GetMeta(context->GetPriority()),
+                BIND(
+                    &TDataNodeService::ProcessSample,
+                    MakeStrong(this),
+                    &sampleRequest,
+                    sampleResponse,
+                    keyColumns));
+        }
+
+        awaiter->Complete(BIND([=] () {
+            context->Reply();
+        }));
+    }
+
+    void ProcessSample(
+        const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
+        NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
+        const NTableClient::TKeyColumns& keyColumns,
         TChunk::TGetMetaResult result)
     {
+        auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+
         if (!result.IsOK()) {
-            context->Reply(result);
+            auto error = TError("Error getting meta of chunk %s",
+                ~ToString(chunkId))
+                << result;
+            LOG_WARNING(error);
+            ToProto(sampleResponse->mutable_error(), error);
             return;
         }
 
         const auto& chunkMeta = *result.Value();
-
-        if (partitionTag) {
-            *context->Response().mutable_chunk_meta() = FilterChunkMetaByPartitionTag(
-                chunkMeta,
-                *partitionTag);
-        } else {
-            *context->Response().mutable_chunk_meta() = chunkMeta;
+        if (chunkMeta.type() != EChunkType::Table) {
+            auto error = TError("Invalid type of chunk %s: expected %s, actual %s",
+                ~ToString(chunkId),
+                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
+                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            LOG_WARNING(error);
+            ToProto(sampleResponse->mutable_error(), error);
+            return;
         }
 
-        context->Reply();
+        switch (chunkMeta.version()) {
+            case ETableChunkFormat::Old:
+                ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
+                break;
+
+            case ETableChunkFormat::VersionedSimple:
+                ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, chunkMeta);
+                break;
+
+            default:
+                auto error = TError("Invalid version %d of chunk %s",
+                    chunkMeta.version(),
+                    ~ToString(chunkId));
+                LOG_WARNING(error);
+                ToProto(sampleResponse->mutable_error(), error);
+                break;
+        }
     }
 
-    void OnGotBlocks(TCtxGetBlocksPtr context)
+    void ProcessOldChunkSamples(
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta)
     {
-        auto* request = &context->Request();
-        auto* response = &context->Response();
+        auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
+        std::vector<TSample> samples;
+        RandomSampleN(
+            samplesExt.items().begin(),
+            samplesExt.items().end(),
+            std::back_inserter(samples),
+            sampleRequest->sample_count());
 
+        for (const auto& sample : samples) {
+            TUnversionedRowBuilder rowBuilder;
+            auto* key = chunkSamples->add_keys();
+            size_t size = 0;
+            for (const auto& column : keyColumns) {
+                if (size >= MaxKeySize)
+                    break;
+
+                auto it = std::lower_bound(
+                    sample.parts().begin(),
+                    sample.parts().end(),
+                    column,
+                    [] (const TSamplePart& part, const Stroka& column) {
+                        return part.column() < column;
+                    });
+
+                TUnversionedValue keyPart = MakeUnversionedSentinelValue(EValueType::Null);
+                size += sizeof(keyPart); // part type
+                if (it != sample.parts().end() && it->column() == column) {
+                    switch (it->key_part().type()) {
+                        case EKeyPartType::Composite:
+                            keyPart = MakeUnversionedAnyValue(TStringBuf());
+                            break;
+                        case EKeyPartType::Integer:
+                            keyPart = MakeUnversionedIntegerValue(it->key_part().int_value());
+                            break;
+                        case EKeyPartType::Double:
+                            keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
+                            break;
+                        case EKeyPartType::String: {
+                            auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                            auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
+                            keyPart = MakeUnversionedStringValue(value);
+                            size += partSize;
+                            break;
+                        }
+                        default:
+                            YUNREACHABLE();
+                    }
+                }
+                rowBuilder.AddValue(keyPart);
+            }
+            ToProto(key, rowBuilder.GetRow());
+        }
+    }
+
+    void ProcessVersionedChunkSamples(
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta)
+    {
+        auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
+
+        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+
+        if (chunkKeyColumns != keyColumns) {
+            auto error = TError("Key columns mismatch in chunk %s: expected [%s], actual [%s]",
+                ~ToString(chunkId),
+                ~JoinToString(keyColumns),
+                ~JoinToString(chunkKeyColumns));
+            LOG_WARNING(error);
+            ToProto(chunkSamples->mutable_error(), error);
+            return;
+        }
+
+        auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
+        std::vector<Stroka> samples;
+        RandomSampleN(
+            samplesExt.entries().begin(),
+            samplesExt.entries().end(),
+            std::back_inserter(samples),
+            sampleRequest->sample_count());
+
+        ToProto(chunkSamples->mutable_keys(), samples);
+    }
+
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk)
+    {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int blockCount = static_cast<int>(request->block_indexes_size());
-        auto sessionType = EReadSessionType(request->session_type());
+
+        context->SetRequestInfo("ChunkId: %s",
+            ~ToString(chunkId));
+
+        Bootstrap_
+            ->GetChunkCache()
+            ->DownloadChunk(chunkId)
+            .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
+                if (result.IsOK()) {
+                    context->Reply();
+                } else {
+                    context->Reply(TError(
+                        NChunkClient::EErrorCode::ChunkPrecachingFailed,
+                        "Error precaching chunk %s",
+                        ~ToString(chunkId))
+                        << result);
+                }
+            }));
+    }
+
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
+    {
+        auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+        auto expirationTime = TInstant(request->peer_expiration_time());
+        TPeerInfo peer(descriptor, expirationTime);
+
+        context->SetRequestInfo("Descriptor: %s, ExpirationTime: %s, BlockCount: %d",
+            ~ToString(descriptor),
+            ~ToString(expirationTime),
+            request->block_ids_size());
 
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
-
-        // Compute statistics.
-        int blocksWithData = 0;
-        int blocksWithP2P = 0;
-        for (const auto& blockInfo : response->blocks()) {
-            if (blockInfo.data_attached()) {
-                ++blocksWithData;
-            }
-            if (blockInfo.p2p_descriptors_size() != 0) {
-                ++blocksWithP2P;
-            }
+        for (const auto& block_id : request->block_ids()) {
+            TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
+            peerBlockTable->UpdatePeer(blockId, peer);
         }
-
-        i64 totalSize = 0;
-        for (const auto& block : response->Attachments()) {
-            totalSize += block.Size();
-        }
-
-        // Register the peer that we had just sent the reply to.
-        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
-            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
-            auto expirationTime = TInstant(request->peer_expiration_time());
-            TPeerInfo peerInfo(descriptor, expirationTime);
-            for (int index = 0; index < blockCount; ++index) {
-                if (response->blocks(index).data_attached()) {
-                    TBlockId blockId(chunkId, request->block_indexes(index));
-                    peerBlockTable->UpdatePeer(blockId, peerInfo);
-                }
-            }
-        }
-
-        context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithP2P: %d",
-            ~FormatBool(response->has_complete_chunk()),
-            blocksWithData,
-            blocksWithP2P);
-
-        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
-        throttler->Throttle(totalSize).Subscribe(BIND([=] () {
-            context->Reply();
-        }));
     }
+
+
+    void ValidateNoSession(const TChunkId& chunkId)
+    {
+        if (Bootstrap_->GetSessionManager()->FindSession(chunkId)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::SessionAlreadyExists,
+                "Session %s already exists",
+                ~ToString(chunkId));
+        }
+    }
+
+    void ValidateNoChunk(const TChunkId& chunkId)
+    {
+        if (Bootstrap_->GetChunkStore()->FindChunk(chunkId)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::ChunkAlreadyExists,
+                "Chunk %s already exists",
+                ~ToString(chunkId));
+        }
+    }
+
 
 
     i64 GetPendingOutSize() const
