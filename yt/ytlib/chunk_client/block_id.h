@@ -13,6 +13,7 @@ namespace NChunkClient {
  */
 struct TBlockId
 {
+    TBlockId();
     TBlockId(const TChunkId& chunkId, int blockIndex);
 
     //! TChunkId of the chunk where the block belongs.
