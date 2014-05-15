@@ -50,12 +50,16 @@ public:
     virtual TChunkId GetChunkId() const override;
 
 private:
-    Stroka FileName;
-    bool Opened;
-    std::unique_ptr<TFile> DataFile;
-    i64 InfoSize;
-    i64 DataSize;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    Stroka FileName_;
+
+    bool Opened_;
+    std::unique_ptr<TFile> DataFile_;
+    
+    i64 MetaSize_;
+    i64 DataSize_;
+
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
 
 };
 
