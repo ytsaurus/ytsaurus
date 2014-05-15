@@ -41,13 +41,13 @@ bool TLogger::IsEnabled(ELogLevel level) const
     }
 
     if (GetLogManager()->GetVersion() != Version) {
-        const_cast<TLogger*>(this)->UpdateConfig();
+        const_cast<TLogger*>(this)->Update();
     }
 
     return level >= MinLevel;
 }
 
-void TLogger::UpdateConfig()
+void TLogger::Update()
 {
     MinLevel = GetLogManager()->GetMinLevel(Category);
     Version = GetLogManager()->GetVersion();
