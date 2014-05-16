@@ -249,13 +249,13 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
 
 TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stroka& key)
 {
-    auto userAttributes = GetCustomAttributes();
+    auto customAttributes = GetCustomAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    if (userAttributes) {
-        auto userYson = userAttributes->FindYson(key);
-        if (userYson) {
-            return MakeFuture(TErrorOr<TYsonString>(userYson.Get()));
+    if (customAttributes) {
+        auto attribute = customAttributes->FindYson(key);
+        if (attribute) {
+            return MakeFuture(TErrorOr<TYsonString>(attribute.Get()));
         }
     }
 
@@ -263,8 +263,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
         TStringStream syncStream;
         NYson::TYsonWriter syncWriter(&syncStream);
         if (systemAttributeProvider->GetBuiltinAttribute(key, &syncWriter)) {
-            TYsonString systemYson(syncStream.Str());
-            return MakeFuture(TErrorOr<TYsonString>(systemYson));
+            TYsonString builtinYson(syncStream.Str());
+            return MakeFuture(TErrorOr<TYsonString>(builtinYson));
         }
 
         auto onAsyncAttribute = [] (
@@ -313,7 +313,6 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto userAttributes = GetCustomAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
@@ -325,9 +324,9 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
         writer.OnBeginMap();
 
         if (systemAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            FOREACH (const auto& attribute, builtinAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
@@ -339,10 +338,11 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
             }
         }
 
-        if (userAttributes) {
-            FOREACH (const auto& key, userAttributes->List()) {
+        auto customAttributes = GetCustomAttributes();
+        if (customAttributes) {
+            FOREACH (const auto& key, customAttributes->List()) {
                 writer.OnKeyedItem(key);
-                Consume(userAttributes->GetYson(key), &writer);
+                Consume(customAttributes->GetYson(key), &writer);
             }
         }
 
@@ -419,9 +419,6 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto userAttributes = GetCustomAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
-
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -429,18 +426,19 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
         NYson::TYsonWriter writer(&stream);
         writer.OnBeginList();
 
-        if (userAttributes) {
-            auto userKeys = userAttributes->List();
-            FOREACH (const auto& key, userKeys) {
+        auto customAttributes = GetCustomAttributes();
+        if (customAttributes) {
+            FOREACH (const auto& key, customAttributes->List()) {
                 writer.OnListItem();
                 writer.OnStringScalar(key);
             }
         }
 
+        auto systemAttributeProvider = GetSystemAttributeProvider();
         if (systemAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            FOREACH (const auto& attribute, builtinAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnListItem();
                     writer.OnStringScalar(attribute.Key);
@@ -504,9 +502,6 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto userAttributes = GetCustomAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
-
     NYPath::TTokenizer tokenizer(path);
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         return TrueFuture;
@@ -516,17 +511,16 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
     auto key = tokenizer.GetLiteralValue();
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        if (userAttributes) {
-            auto userYson = userAttributes->FindYson(key);
-            if (userYson) {
-                return TrueFuture;
-            }
+        auto customAttributes = GetCustomAttributes();
+        if (customAttributes && customAttributes->FindYson(key)) {
+            return TrueFuture;
         }
 
+        auto systemAttributeProvider = GetSystemAttributeProvider();
         if (systemAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            FOREACH (const auto& attribute, builtinAttributes) {
                 if (attribute.Key == key && attribute.IsPresent) {
                     return TrueFuture;
                 }
@@ -564,7 +558,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-    auto userAttributes = GetCustomAttributes();
+    auto customAttributes = GetCustomAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
@@ -573,10 +567,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         auto newAttributes = ConvertToAttributes(newYson);
 
         if (systemAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&systemAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
 
-            FOREACH (const auto& attribute, systemAttributes) {
+            FOREACH (const auto& attribute, builtinAttributes) {
                 Stroka key(attribute.Key);
                 auto newAttributeYson = newAttributes->FindYson(key);
                 if (newAttributeYson) {
@@ -592,24 +586,24 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         auto newUserKeys = newAttributes->List();
         std::sort(newUserKeys.begin(), newUserKeys.end());
 
-        if (!userAttributes) {
+        if (!customAttributes) {
              if (!newUserKeys.empty()) {
                  THROW_ERROR_EXCEPTION("User attributes are not supported");
              }
              return;
         }
 
-        auto oldUserKeys = userAttributes->List();
+        auto oldUserKeys = customAttributes->List();
         std::sort(oldUserKeys.begin(), oldUserKeys.end());
 
         FOREACH (const auto& key, newUserKeys) {
             auto value = newAttributes->GetYson(key);
-            userAttributes->SetYson(key, value);
+            customAttributes->SetYson(key, value);
         }
 
         FOREACH (const auto& key, oldUserKeys) {
             if (!newAttributes->FindYson(key)) {
-                userAttributes->Remove(key);
+                customAttributes->Remove(key);
             }
         }
     } else {
@@ -621,10 +615,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         const ISystemAttributeProvider::TAttributeInfo* attribute = nullptr;
-        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         if (systemAttributeProvider) {
-            systemAttributeProvider->ListBuiltinAttributes(&systemAttributes);
-            FOREACH (const auto& currentAttribute, systemAttributes) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            FOREACH (const auto& currentAttribute, builtinAttributes) {
                 if (currentAttribute.Key == key) {
                     attribute = &currentAttribute;
                     break;
@@ -650,14 +644,14 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 GuardedSetBuiltinAttribute(key, newWholeYson);
             }
         } else {
-            if (!userAttributes) {
+            if (!customAttributes) {
                 THROW_ERROR_EXCEPTION("User attributes are not supported");
             }
             
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                userAttributes->SetYson(key, newYson);
+                customAttributes->SetYson(key, newYson);
             } else {
-                auto oldWholeYson = userAttributes->FindYson(key);
+                auto oldWholeYson = customAttributes->FindYson(key);
                 if (!oldWholeYson) {
                     ThrowNoSuchCustomAttribute(key);
                 }
@@ -666,7 +660,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                 auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
-                userAttributes->SetYson(key, newWholeYson);
+                customAttributes->SetYson(key, newWholeYson);
             }
         }
     }
@@ -691,7 +685,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-    auto userAttributes = GetCustomAttributes();
+    auto customAttributes = GetCustomAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
@@ -699,20 +693,20 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
     if (tokenizer.GetToken() == WildcardToken) {
-        if (userAttributes) {
-            auto userKeys = userAttributes->List();
-            std::sort(userKeys.begin(), userKeys.end());
-            FOREACH (const auto& key, userKeys) {
-                YCHECK(userAttributes->Remove(key));
+        if (customAttributes) {
+            auto customKeys = customAttributes->List();
+            std::sort(customKeys.begin(), customKeys.end());
+            FOREACH (const auto& key, customKeys) {
+                YCHECK(customAttributes->Remove(key));
             }
         }
     } else {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
 
-        auto userYson = userAttributes ? userAttributes->FindYson(key) : TNullable<TYsonString>(Null);
+        auto customYson = customAttributes ? customAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            if (!userYson) {
+            if (!customYson) {
                 if (systemAttributeProvider) {
                     auto* attributeInfo = systemAttributeProvider->FindBuiltinAttributeInfo(key);
                     if (attributeInfo) {
@@ -725,13 +719,13 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 }
             }
 
-            YCHECK(userAttributes->Remove(key));
+            YCHECK(customAttributes->Remove(key));
         } else {
-            if (userYson) {
-                auto userNode = ConvertToNode(userYson);
-                SyncYPathRemove(userNode, tokenizer.GetInput());
-                auto updatedUserYson = ConvertToYsonStringStable(userNode);
-                userAttributes->SetYson(key, updatedUserYson);
+            if (customYson) {
+                auto customNode = ConvertToNode(customYson);
+                SyncYPathRemove(customNode, tokenizer.GetInput());
+                auto updatedUserYson = ConvertToYsonStringStable(customNode);
+                customAttributes->SetYson(key, updatedUserYson);
             } else {
                 TStringStream stream;
                 NYson::TYsonWriter writer(&stream);
@@ -739,10 +733,10 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                     ThrowNoSuchBuiltinAttribute(key);
                 }
 
-                TYsonString systemYson(stream.Str());
-                auto systemNode = ConvertToNode(systemYson);
-                SyncYPathRemove(systemNode, tokenizer.GetInput());
-                auto updatedSystemYson = ConvertToYsonStringStable(systemNode);
+                TYsonString builtinYson(stream.Str());
+                auto builtinNode = ConvertToNode(builtinYson);
+                SyncYPathRemove(builtinNode, tokenizer.GetInput());
+                auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);
 
                 GuardedSetBuiltinAttribute(key, updatedSystemYson);
             }
@@ -790,7 +784,7 @@ void TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TY
     try {
         result = GetSystemAttributeProvider()->SetBuiltinAttribute(key, yson);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error setting system attribute %s",
+        THROW_ERROR_EXCEPTION("Error setting builtin attribute %s",
             ~ToYPathLiteral(key).Quote())
             << ex;
     }
@@ -809,11 +803,11 @@ void TSupportsAttributes::GuardedValidateCustomAttributeUpdate(
         ValidateCustomAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting user attribute %s",
+            THROW_ERROR_EXCEPTION("Error setting custom attribute %s",
                 ~ToYPathLiteral(key).Quote())
                 << ex;
         } else {
-            THROW_ERROR_EXCEPTION("Error removing user attribute %s",
+            THROW_ERROR_EXCEPTION("Error removing custom attribute %s",
                 ~ToYPathLiteral(key).Quote())
                 << ex;
         }

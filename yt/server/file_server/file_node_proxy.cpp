@@ -48,8 +48,6 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        attributes->push_back(TAttributeInfo("compression_codec", true, false, true));
-        attributes->push_back(TAttributeInfo("erasure_codec", true, false, true));
         attributes->push_back(TAttributeInfo("executable", true, false, true));
         attributes->push_back(TAttributeInfo("file_name", true, false, true));
         TBase::ListSystemAttributes(attributes);

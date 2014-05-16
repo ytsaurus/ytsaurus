@@ -684,16 +684,16 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         ListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
-        std::set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
+        yhash_set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
-        for (const auto attribute : systemAttributes) {
+        for (const auto& attribute : systemAttributes) {
             if (attribute.IsCustom) {
                 customAttributesSet.erase(attribute.Key);
             }
         }
 
         BuildYsonFluently(consumer)
-            .Value(std::vector<Stroka>(customAttributesSet.begin(), customAttributesSet.end()));
+            .Value(customAttributesSet);
         return true;
     }
 

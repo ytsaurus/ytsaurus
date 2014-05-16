@@ -23,7 +23,11 @@ struct ISystemAttributeProvider
         bool IsOpaque;
         bool IsCustom;
 
-        TAttributeInfo(const char* key, bool isPresent = true, bool isOpaque = false, bool isCustom = false)
+        TAttributeInfo(
+            const char* key,
+            bool isPresent = true,
+            bool isOpaque = false,
+            bool isCustom = false)
             : Key(key)
             , IsPresent(isPresent)
             , IsOpaque(isOpaque)
@@ -37,7 +41,7 @@ struct ISystemAttributeProvider
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
-    
+
     //! Populates the list of all builtin attributes supported by this object.
     void ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes);
 
@@ -62,7 +66,7 @@ struct ISystemAttributeProvider
 
     // Extension methods.
 
-    //! Returns an instance of TAttributeInfo matching a given #key or |NULL| if no such
+    //! Returns an instance of TAttributeInfo matching a given #key or |nullptr| if no such
     //! builtin attribute is known.
     TAttributeInfo* FindBuiltinAttributeInfo(const Stroka& key);
 };

@@ -454,8 +454,8 @@ void TObjectProxyBase::SerializeAttributes(
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> buildinAttributes;
-            ListBuiltinAttributes(&buildinAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            ListBuiltinAttributes(&builtinAttributes);
 
             auto userKeys = userAttributes.List();
 
@@ -466,8 +466,8 @@ void TObjectProxyBase::SerializeAttributes(
                     userKeys.end());
 
                 std::sort(
-                    buildinAttributes.begin(),
-                    buildinAttributes.end(),
+                    builtinAttributes.begin(),
+                    builtinAttributes.end(),
                     [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
                         return lhs.Key < rhs.Key;
                     });
@@ -478,7 +478,7 @@ void TObjectProxyBase::SerializeAttributes(
                 attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
             }
 
-            FOREACH (const auto& attribute, buildinAttributes) {
+            FOREACH (const auto& attribute, builtinAttributes) {
                 if (attribute.IsPresent){
                     attributesConsumer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {

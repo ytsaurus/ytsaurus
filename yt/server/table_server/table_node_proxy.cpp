@@ -107,8 +107,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("sorted");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
     // Custom system attributes
-    attributes->push_back(TAttributeInfo("compression_codec", true, false, true));
-    attributes->push_back(TAttributeInfo("erasure_codec", true, false, true));
     attributes->push_back(TAttributeInfo("channels", true, false, true));
     TBase::ListSystemAttributes(attributes);
 }

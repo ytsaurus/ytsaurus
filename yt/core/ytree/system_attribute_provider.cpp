@@ -8,7 +8,7 @@ namespace NYTree {
 
 ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindBuiltinAttributeInfo(const Stroka& key)
 {
-    std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+    std::vector<TAttributeInfo> systemAttributes;
     ListBuiltinAttributes(&systemAttributes);
     auto it = std::find_if(
         systemAttributes.begin(),
@@ -19,7 +19,7 @@ ISystemAttributeProvider::TAttributeInfo* ISystemAttributeProvider::FindBuiltinA
     return it == systemAttributes.end() ? NULL : &(*it);
 }
 
-void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes)
+void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes)
 {
     std::vector<TAttributeInfo> systemAttributes;
     ListSystemAttributes(&systemAttributes);
