@@ -435,7 +435,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     TGuard<TSpinLock> guard(SpinLock);
 
     NProfiling::TTagIdList tagIds;
-    tagIds.push_back(0);
+    tagIds.push_back(ServiceTagId);
     tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     // Failure here means that such verb is already registered.
