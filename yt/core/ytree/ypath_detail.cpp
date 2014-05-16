@@ -583,25 +583,25 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
         }
 
-        auto newUserKeys = newAttributes->List();
-        std::sort(newUserKeys.begin(), newUserKeys.end());
+        auto newCustomKeys = newAttributes->List();
+        std::sort(newCustomKeys.begin(), newCustomKeys.end());
 
         if (!customAttributes) {
-             if (!newUserKeys.empty()) {
-                 THROW_ERROR_EXCEPTION("User attributes are not supported");
+             if (!newCustomKeys.empty()) {
+                 THROW_ERROR_EXCEPTION("Custom attributes are not supported");
              }
              return;
         }
 
-        auto oldUserKeys = customAttributes->List();
-        std::sort(oldUserKeys.begin(), oldUserKeys.end());
+        auto oldCustomKeys = customAttributes->List();
+        std::sort(oldCustomKeys.begin(), oldCustomKeys.end());
 
-        FOREACH (const auto& key, newUserKeys) {
+        FOREACH (const auto& key, newCustomKeys) {
             auto value = newAttributes->GetYson(key);
             customAttributes->SetYson(key, value);
         }
 
-        FOREACH (const auto& key, oldUserKeys) {
+        FOREACH (const auto& key, oldCustomKeys) {
             if (!newAttributes->FindYson(key)) {
                 customAttributes->Remove(key);
             }
@@ -645,7 +645,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
         } else {
             if (!customAttributes) {
-                THROW_ERROR_EXCEPTION("User attributes are not supported");
+                THROW_ERROR_EXCEPTION("Custom attributes are not supported");
             }
             
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -724,8 +724,8 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             if (customYson) {
                 auto customNode = ConvertToNode(customYson);
                 SyncYPathRemove(customNode, tokenizer.GetInput());
-                auto updatedUserYson = ConvertToYsonStringStable(customNode);
-                customAttributes->SetYson(key, updatedUserYson);
+                auto updatedCustomYson = ConvertToYsonStringStable(customNode);
+                customAttributes->SetYson(key, updatedCustomYson);
             } else {
                 TStringStream stream;
                 NYson::TYsonWriter writer(&stream);
