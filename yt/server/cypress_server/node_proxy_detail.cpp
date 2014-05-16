@@ -354,17 +354,17 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
         if (!keys.empty()) {
             auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            trunkProxy->ListBuiltinAttributes(&systemAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            trunkProxy->ListBuiltinAttributes(&builtinAttributes);
 
-            yhash_set<Stroka> systemAttributeKeys;
-            FOREACH (const auto& attribute, systemAttributes) {
-                YCHECK(systemAttributeKeys.insert(attribute.Key).second);
+            yhash_set<Stroka> builtinAttributeKeys;
+            FOREACH (const auto& attribute, builtinAttributes) {
+                YCHECK(builtinAttributeKeys.insert(attribute.Key).second);
             }
 
             FOREACH (const auto& key, keys) {
                 auto value = attributes->GetYson(key);
-                if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
+                if (builtinAttributeKeys.find(key) == builtinAttributeKeys.end()) {
                     trunkProxy->MutableAttributes()->SetYson(key, value);
                 } else {
                     if (!trunkProxy->SetBuiltinAttribute(key, value)) {
