@@ -24,8 +24,6 @@
 namespace NYT {
 namespace NChunkClient {
 
-///////////////////////////////////////////////////////////////////////////////
-
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -710,7 +708,6 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     auto req = node->LightProxy.FinishChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
     *req->mutable_chunk_meta() = ChunkMeta_;
-    req->set_block_count(BlockCount_);
 
     auto rsp = WaitFor(req->Invoke());
 

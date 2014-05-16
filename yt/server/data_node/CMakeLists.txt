@@ -17,6 +17,7 @@ set( SRCS
   ${BASE}/peer_block_updater.cpp
   ${BASE}/private.cpp
   ${BASE}/reader_cache.cpp
+  ${BASE}/blob_session.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
   ${BASE}/local_chunk_reader.cpp
@@ -40,6 +41,8 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/reader_cache.h
+  ${BASE}/session.h
+  ${BASE}/blob_session.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
   ${BASE}/local_chunk_reader.h

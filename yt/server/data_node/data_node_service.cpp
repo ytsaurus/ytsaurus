@@ -10,6 +10,7 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
+#include "session.h"
 
 #include <ytlib/table_client/public.h>
 
@@ -177,13 +178,11 @@ private:
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
-        YCHECK(session->GetWrittenBlockCount() == request->block_count());
-
-        sessionManager->FinishSession(session, meta)
+        session->Finish(meta)
             .Subscribe(BIND([=] (TErrorOr<IChunkPtr> chunkOrError) {
                 if (chunkOrError.IsOK()) {
                     auto chunk = chunkOrError.Value();
-                    auto chunkInfo = session->GetChunkInfo();
+                    const auto& chunkInfo = session->GetChunkInfo();
                     *response->mutable_chunk_info() = chunkInfo;
                     context->Reply();
                 } else {

@@ -39,11 +39,9 @@ TBlobChunk::TBlobChunk(
     : Id_(id)
     , Location_(location)
     , Info_(chunkInfo)
-    , Meta_(New<TRefCountedChunkMeta>(chunkMeta))
     , MemoryUsageTracker_(memoryUsageTracker)
 {
-    MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
-    Initialize();
+    InitializeCachedMeta(chunkMeta);
 }
 
 TBlobChunk::TBlobChunk(
@@ -56,13 +54,6 @@ TBlobChunk::TBlobChunk(
 {
     Info_.set_disk_space(descriptor.DiskSpace);
     Info_.clear_meta_checksum();
-    Initialize();
-}
-
-void TBlobChunk::Initialize()
-{
-    ReadLockCounter_ = 0;
-    RemovalScheduled_ = false;
 }
 
 TBlobChunk::~TBlobChunk()

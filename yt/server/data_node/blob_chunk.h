@@ -63,7 +63,6 @@ protected:
     void EvictChunkReader();
 
 private:
-    void Initialize();
     void DoRemoveChunk();
 
     TAsyncError ReadMeta(i64 priority);
@@ -84,8 +83,8 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     
 
-    int ReadLockCounter_;
-    bool RemovalScheduled_;
+    int ReadLockCounter_ = 0;
+    bool RemovalScheduled_ = false;
     TPromise<void> RemovedEvent_;
 
     NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;

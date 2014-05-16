@@ -2,170 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/lease_manager.h>
-
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/throughput_throttler.h>
-
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-
-#include <core/logging/tagged_logger.h>
-
-#include <core/profiling/profiler.h>
 
 #include <server/cell_node/public.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NDataNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Represents a chunk upload in progress.
-class TSession
-    : public TRefCounted
-{
-public:
-    TSession(
-        TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap,
-        const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose,
-        TLocationPtr location);
-
-    ~TSession();
-
-    //! Starts the session.
-    void Start();
-
-    //! Returns the TChunkId being uploaded.
-    TChunkId GetChunkId() const;
-
-    //! Returns session type provided by the client during handshake.
-    EWriteSessionType GetType() const;
-
-    //! Returns target chunk location.
-    TLocationPtr GetLocation() const;
-
-    //! Returns the total data size received so far.
-    i64 GetSize() const;
-
-    //! Returns the number of blocks that have already been flushed out of the window.
-    int GetWrittenBlockCount() const;
-
-    //! Returns the info of the just-uploaded chunk
-    NChunkClient::NProto::TChunkInfo GetChunkInfo() const;
-
-    //! Puts a contiguous range of blocks into the window.
-    TAsyncError PutBlocks(
-        int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
-        bool enableCaching);
-
-    //! Sends a range of blocks (from the current window) to another data node.
-    TAsyncError SendBlocks(
-        int startBlockIndex,
-        int blockCount,
-        const NNodeTrackerClient::TNodeDescriptor& target);
-
-    //! Flushes a block and moves the window
-    /*!
-     * The operation is asynchronous. It returns a result that gets set
-     * when the actual flush happens. Once a block is flushed, the next block becomes
-     * the first one in the window.
-     */
-    TAsyncError FlushBlock(int blockIndex);
-
-    //! Renews the lease.
-    void Ping();
-
-private:
-    friend class TSessionManager;
-
-    DECLARE_ENUM(ESlotState,
-        (Empty)
-        (Received)
-        (Written)
-    );
-
-    struct TSlot
-    {
-        TSlot()
-            : State(ESlotState::Empty)
-            , IsWritten(NewPromise())
-        { }
-
-        ESlotState State;
-        TSharedRef Block;
-        TPromise<void> IsWritten;
-    };
-
-    typedef std::vector<TSlot> TWindow;
-
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-    TChunkId ChunkId;
-    EWriteSessionType Type;
-    bool SyncOnClose;
-    TLocationPtr Location;
-
-    TError Error;
-    TWindow Window;
-    int WindowStartIndex;
-    int WriteIndex;
-    i64 Size;
-
-    Stroka FileName;
-    NChunkClient::TFileWriterPtr Writer;
-
-    TLeaseManager::TLease Lease;
-
-    IInvokerPtr WriteInvoker;
-
-    NLog::TTaggedLogger Logger;
-    NProfiling::TProfiler Profiler;
-
-
-    TFuture< TErrorOr<IChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    void Cancel(const TError& error);
-
-    void SetLease(TLeaseManager::TLease lease);
-    void CloseLease();
-
-    bool IsInWindow(int blockIndex);
-    void VerifyInWindow(int blockIndex);
-    TSlot& GetSlot(int blockIndex);
-    void ReleaseBlocks(int flushedBlockIndex);
-    TSharedRef GetBlock(int blockIndex);
-    void MarkAllSlotsWritten();
-
-    void OpenFile();
-    void DoOpenFile();
-
-    TAsyncError AbortWriter();
-    TError DoAbortWriter();
-    TError OnWriterAborted(TError error);
-
-    TAsyncError CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TError DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TErrorOr<IChunkPtr> OnFileClosed(TError error);
-
-    void EnqueueWrites();
-    TError DoWriteBlock(const TSharedRef& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, TError error);
-
-    TError OnBlockFlushed(int blockIndex);
-
-    void ReleaseSpaceOccupiedByBlocks();
-
-    void OnIOError(const TError& error);
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,36 +29,28 @@ public:
     /*!
      *  Chunk file is opened asynchronously, however the call returns immediately.
      */
-    TSessionPtr StartSession(
+    ISessionPtr StartSession(
         const TChunkId& chunkId,
         EWriteSessionType type,
         bool syncOnClose);
 
-    //! Completes an earlier opened upload session.
-    /*!
-     *  The call returns a result that gets set when the session is finished.
-     */
-    TFuture< TErrorOr<IChunkPtr> > FinishSession(
-        TSessionPtr session,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta);
-
-    //! Cancels an earlier opened upload session.
-    /*!
-     *  Chunk file is closed asynchronously, however the call returns immediately.
-     */
-    void CancelSession(TSessionPtr session, const TError& error);
-
     //! Finds session by chunk id. Returns |nullptr| if no session is found.
-    TSessionPtr FindSession(const TChunkId& chunkId);
+    ISessionPtr FindSession(const TChunkId& chunkId);
 
     //! Finds session by chunk id. Throws if no session is found.
-    TSessionPtr GetSession(const TChunkId& chunkId);
+    ISessionPtr GetSession(const TChunkId& chunkId);
 
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(EWriteSessionType type);
 
     //! Returns the list of all registered sessions.
-    std::vector<TSessionPtr> GetSessions();
+    std::vector<ISessionPtr> GetSessions();
+
+    //! Updates (increments or decrements) pending write size.
+    /*!
+     *  Thread affinity: any
+     */
+    void UpdatePendingWriteSize(i64 delta);
 
     //! Returns the number of bytes pending for write.
     /*!
@@ -223,26 +59,25 @@ public:
     i64 GetPendingWriteSize();
 
 private:
-    friend class TSession;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    yhash_map<TChunkId, ISessionPtr> SessionMap_;
+    std::vector<int> PerTypeSessionCount_;
+    std::atomic<i64> PendingWriteSize_;
 
-    typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
-    TSessionMap SessionMap;
-    std::vector<int> SessionCounts;
-    TAtomic PendingWriteSize;
 
-    void OnLeaseExpired(TSessionPtr session);
+    ISessionPtr CreateSession(
+        const TChunkId& chunkId,
+        EWriteSessionType type,
+        bool syncOnClose);
 
-    TErrorOr<IChunkPtr> OnSessionFinished(
-        TSessionPtr session,
-        TErrorOr<IChunkPtr> chunkOrError);
+    void OnSessionLeaseExpired(ISessionPtr session);
+    void OnSessionCompleted(ISession* session, IChunkPtr chunk);
+    void OnSessionFailed(ISession* session, const TError& error);
 
-    void RegisterSession(TSessionPtr session);
-    void UnregisterSession(TSessionPtr session);
-
-    void UpdatePendingWriteSize(i64 delta);
+    void RegisterSession(ISessionPtr session);
+    void UnregisterSession(ISessionPtr session);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
