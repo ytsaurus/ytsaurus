@@ -379,6 +379,9 @@ public:
         // Compute local satisfaction ratio.
         TSchedulerElementBase::PrescheduleJob(starvingOnly);
 
+        if (!Attributes_.Active)
+            return;
+
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         Attributes_.Active = false;
