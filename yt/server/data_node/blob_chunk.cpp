@@ -142,7 +142,7 @@ TAsyncError TBlobChunk::ReadBlocks(
 
     i64 pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
     if (pendingSize >= 0) {
-        blockStore->IncrementPendingReadSize(pendingSize);
+        blockStore->UpdatePendingReadSize(+pendingSize);
     }
 
     auto promise = NewPromise<TError>();
@@ -177,7 +177,7 @@ void TBlobChunk::DoReadBlocks(
     auto readerOrError = readerCache->GetReader(this);
     if (!readerOrError.IsOK()) {
         if (pendingSize >= 0) {
-            blockStore->DecrementPendingReadSize(pendingSize);
+            blockStore->UpdatePendingReadSize(-pendingSize);
         }
         promise.Set(readerOrError);
         return;
@@ -223,7 +223,7 @@ void TBlobChunk::DoReadBlocks(
                 ~ToString(blockId))
                 << ex;
             Location_->Disable();
-            blockStore->DecrementPendingReadSize(pendingSize);
+            blockStore->UpdatePendingReadSize(-pendingSize);
             promise.Set(error);
             return;
         }
@@ -240,8 +240,7 @@ void TBlobChunk::DoReadBlocks(
         DataNodeProfiler.Increment(DiskReadThroughputCounter, blockSize);
     }
 
-    blockStore->DecrementPendingReadSize(pendingSize);
-
+    blockStore->UpdatePendingReadSize(-pendingSize);
     promise.Set(TError());
 }
 

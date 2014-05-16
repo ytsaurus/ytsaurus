@@ -84,11 +84,8 @@ public:
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
-    //! Increments pending read size.
-    void IncrementPendingReadSize(i64 bytes);
-
-    //! Decrements pending read size.
-    void DecrementPendingReadSize(i64 bytes);
+    //! Updates (increments or decrements) pending read size.
+    void UpdatePendingReadSize(i64 delta);
 
     //! Returns a caching adapter.
     NChunkClient::IBlockCachePtr GetBlockCache();

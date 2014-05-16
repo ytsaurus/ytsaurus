@@ -150,22 +150,12 @@ public:
         return PendingReadSize_;
     }
 
-    void IncrementPendingReadSize(i64 bytes)
+    void UpdatePendingReadSize(i64 delta)
     {
-        YCHECK(bytes >= 0);
-        i64 result = (PendingReadSize_ += bytes);
-        LOG_DEBUG("Pending read size increased (PendingReadSize: %" PRId64 ", Delta: %" PRId64")",
+        i64 result = (PendingReadSize_ += delta);
+        LOG_DEBUG("Pending read size updated (PendingReadSize: %" PRId64 ", Delta: %" PRId64")",
             result,
-            bytes);
-    }
-
-    void DecrementPendingReadSize(i64 bytes)
-    {
-        YCHECK(bytes >= 0);
-        i64 result = (PendingReadSize_ -= bytes);
-        LOG_DEBUG("Pending read size decreased (PendingReadSize: %" PRId64 ", Delta: %" PRId64")",
-            result,
-            bytes);
+            delta);
     }
 
 private:
@@ -436,14 +426,9 @@ i64 TBlockStore::GetPendingReadSize() const
     return StoreImpl_->GetPendingReadSize();
 }
 
-void TBlockStore::IncrementPendingReadSize(i64 bytes)
+void TBlockStore::UpdatePendingReadSize(i64 delta)
 {
-    StoreImpl_->IncrementPendingReadSize(bytes);
-}
-
-void TBlockStore::DecrementPendingReadSize(i64 bytes)
-{
-    StoreImpl_->DecrementPendingReadSize(bytes);
+    StoreImpl_->UpdatePendingReadSize(delta);
 }
 
 IBlockCachePtr TBlockStore::GetBlockCache()
