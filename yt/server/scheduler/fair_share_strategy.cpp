@@ -197,11 +197,22 @@ public:
  protected:
     virtual double ComputeLocalSatisfactionRatio() const override
     {
+        double minShareRatio = Attributes_.AdjustedMinShareRatio;
         double fairShareRatio = Attributes_.FairShareRatio;
         double usageRatio = GetUsageRatio();
-        return fairShareRatio < RatioComparisonPrecision
-            ? 1.0
-            : usageRatio / fairShareRatio;
+
+        // Check for corner cases.
+        if (fairShareRatio < RatioComparisonPrecision) {
+            return 1.0;
+        }
+
+        if (minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio) {
+            // Needy element, negative satisfaction.
+            return usageRatio / minShareRatio - 1.0;
+        } else {
+            // Regular element, positive satisfaction.
+            return usageRatio / fairShareRatio;
+        }
     }
 
 };
@@ -373,14 +384,12 @@ public:
         Attributes_.Active = false;
         for (const auto& child : GetActiveChildren()) {
             child->PrescheduleJob(starvingOnly);
-
-            if (!child->Attributes().Active)
-                continue;
-
-            Attributes_.SatisfactionRatio = std::min(
-                Attributes_.SatisfactionRatio,
-                child->Attributes().SatisfactionRatio);
-            Attributes_.Active = true;
+            if (child->Attributes().Active) {
+                Attributes_.SatisfactionRatio = std::min(
+                    Attributes_.SatisfactionRatio,
+                    child->Attributes().SatisfactionRatio);
+                Attributes_.Active = true;
+            }
         }
     }
 
@@ -388,7 +397,9 @@ public:
     {
         ISchedulableElementPtr bestChild;
         for (const auto& child : GetActiveChildren()) {
-            if (!bestChild ||  child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio) {
+            if (!bestChild ||
+                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
+            {
                 bestChild = child;
             }
         }
