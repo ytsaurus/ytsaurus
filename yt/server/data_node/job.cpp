@@ -285,7 +285,7 @@ protected:
         }
     }
 
-    TStoredChunkPtr Chunk;
+    IChunkPtr Chunk;
 
 };
 

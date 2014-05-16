@@ -3,6 +3,8 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/data_node )
 set( SRCS
   ${BASE}/block_store.cpp
   ${BASE}/chunk.cpp
+  ${BASE}/blob_chunk.cpp
+  ${BASE}/journal_chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
@@ -22,6 +24,8 @@ set( SRCS
 set( HDRS
   ${BASE}/block_store.h
   ${BASE}/chunk.h
+  ${BASE}/blob_chunk.h
+  ${BASE}/journal_chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h

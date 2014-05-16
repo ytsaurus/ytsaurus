@@ -2,7 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "location.h"
-#include "chunk.h"
+#include "blob_chunk.h"
 #include "chunk_store.h"
 #include "master_connector.h"
 
@@ -30,32 +30,32 @@ static auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 { }
 
 void TChunkStore::Initialize()
 {
     LOG_INFO("Chunk store scan started");
 
-    for (int i = 0; i < Config->StoreLocations.size(); ++i) {
-        auto locationConfig = Config->StoreLocations[i];
+    for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
+        auto locationConfig = Config_->StoreLocations[i];
 
         auto location = New<TLocation>(
             ELocationType::Store,
             "store" + ToString(i),
             locationConfig,
-            Bootstrap);
+            Bootstrap_);
 
         location->SubscribeDisabled(
             BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
             
         auto descriptors = location->Initialize();
         for (const auto& descriptor : descriptors) {
-            auto chunk = New<TStoredChunk>(
+            auto chunk = New<TStoredBlobChunk>(
                 location,
                 descriptor,
-                &Bootstrap->GetMemoryUsageTracker());
+                &Bootstrap_->GetMemoryUsageTracker());
             RegisterExistingChunk(chunk);
         }
 
@@ -65,9 +65,9 @@ void TChunkStore::Initialize()
     LOG_INFO("Chunk store scan complete, %d chunks found", GetChunkCount());
 }
 
-void TChunkStore::RegisterNewChunk(TStoredChunkPtr chunk)
+void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
-    auto result = ChunkMap.insert(std::make_pair(chunk->GetId(), chunk));
+    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), chunk));
     if (!result.second) {
         auto oldChunk = result.first->second;
         LOG_FATAL("Duplicate chunk (Current: %s, Previous: %s)",
@@ -78,9 +78,9 @@ void TChunkStore::RegisterNewChunk(TStoredChunkPtr chunk)
     DoRegisterChunk(chunk);
 }
 
-void TChunkStore::RegisterExistingChunk(TStoredChunkPtr chunk)
+void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 {
-    auto result = ChunkMap.insert(std::make_pair(chunk->GetId(), chunk));
+    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), chunk));
     if (!result.second) {
         auto oldChunk = result.first->second;
         auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
@@ -112,7 +112,7 @@ void TChunkStore::RegisterExistingChunk(TStoredChunkPtr chunk)
     DoRegisterChunk(chunk);
 }
 
-void TChunkStore::DoRegisterChunk(TStoredChunkPtr chunk)
+void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
 {
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
@@ -125,19 +125,19 @@ void TChunkStore::DoRegisterChunk(TStoredChunkPtr chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
+IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
-    auto it = ChunkMap.find(chunkId);
-    return it == ChunkMap.end() ? NULL : it->second;
+    auto it = ChunkMap_.find(chunkId);
+    return it == ChunkMap_.end() ? NULL : it->second;
 }
 
-TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
+TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     auto promise = NewPromise();
     chunk->ScheduleRemoval().Subscribe(
         BIND([=] () mutable {
             // NB: No result check here, the location might got disabled.
-            ChunkMap.erase(chunk->GetId());
+            ChunkMap_.erase(chunk->GetId());
 
             auto location = chunk->GetLocation();
             location->UpdateChunkCount(-1);
@@ -146,7 +146,7 @@ TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
             ChunkRemoved_.Fire(chunk);
             promise.Set();
         })
-        .Via(Bootstrap->GetControlInvoker()));
+        .Via(Bootstrap_->GetControlInvoker()));
     return promise;
 }
 
@@ -184,8 +184,8 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
-    result.reserve(ChunkMap.size());
-    for (const auto& pair : ChunkMap) {
+    result.reserve(ChunkMap_.size());
+    for (const auto& pair : ChunkMap_) {
         result.push_back(pair.second);
     }
     return result;
@@ -193,7 +193,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 
 int TChunkStore::GetChunkCount() const
 {
-    return static_cast<int>(ChunkMap.size());
+    return static_cast<int>(ChunkMap_.size());
 }
 
 void TChunkStore::OnLocationDisabled(TLocationPtr location)
@@ -201,12 +201,12 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     // Scan through all chunks and remove those residing on this dead location.
     LOG_INFO("Started cleaning up chunk map");
     int count = 0;
-    auto it = ChunkMap.begin();
-    while (it != ChunkMap.end()) {
+    auto it = ChunkMap_.begin();
+    while (it != ChunkMap_.end()) {
         auto jt = it++;
         auto chunk = jt->second;
         if (chunk->GetLocation() == location) {
-            ChunkMap.erase(jt);
+            ChunkMap_.erase(jt);
             ++count;
         }
     }
@@ -214,7 +214,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
 
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
-    auto masterConnector = Bootstrap->GetMasterConnector();
+    auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(Sprintf("Chunk store %s is disabled",
         ~location->GetId().Quote()));
     masterConnector->ForceRegister();

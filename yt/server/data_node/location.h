@@ -52,8 +52,8 @@ public:
 
     //! Schedules physical removal of a chunk.
     // NB: Don't try replacing TChunk with TChunkPtr since
-    // this method is called from TCachedChunk::dtor.
-    TFuture<void> ScheduleChunkRemoval(TChunk* chunk);
+    // this method is called from TCachedBlobChunk::dtor.
+    TFuture<void> ScheduleChunkRemoval(IChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
     //! Never throws.

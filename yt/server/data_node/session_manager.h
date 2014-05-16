@@ -126,7 +126,7 @@ private:
     NProfiling::TProfiler Profiler;
 
 
-    TFuture< TErrorOr<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TFuture< TErrorOr<IChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -148,7 +148,7 @@ private:
 
     TAsyncError CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     TError DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TErrorOr<TChunkPtr> OnFileClosed(TError error);
+    TErrorOr<IChunkPtr> OnFileClosed(TError error);
 
     void EnqueueWrites();
     TError DoWriteBlock(const TSharedRef& block, int blockIndex);
@@ -194,7 +194,7 @@ public:
     /*!
      *  The call returns a result that gets set when the session is finished.
      */
-    TFuture< TErrorOr<TChunkPtr> > FinishSession(
+    TFuture< TErrorOr<IChunkPtr> > FinishSession(
         TSessionPtr session,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
@@ -235,9 +235,9 @@ private:
 
     void OnLeaseExpired(TSessionPtr session);
 
-    TErrorOr<TChunkPtr> OnSessionFinished(
+    TErrorOr<IChunkPtr> OnSessionFinished(
         TSessionPtr session,
-        TErrorOr<TChunkPtr> chunkOrError);
+        TErrorOr<IChunkPtr> chunkOrError);
 
     void RegisterSession(TSessionPtr session);
     void UnregisterSession(TSessionPtr session);

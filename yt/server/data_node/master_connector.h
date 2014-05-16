@@ -58,7 +58,7 @@ public:
     void RegisterAlert(const Stroka& alert);
 
 private:
-    typedef yhash_set<TChunkPtr> TChunkSet;
+    typedef yhash_set<IChunkPtr> TChunkSet;
 
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
@@ -144,10 +144,10 @@ private:
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
-    static NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
     void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);
@@ -166,14 +166,14 @@ private:
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(TChunkPtr chunk);
+    void OnChunkAdded(IChunkPtr chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(TChunkPtr chunk);
+    void OnChunkRemoved(IChunkPtr chunk);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

@@ -286,7 +286,7 @@ private:
     i64 Priority_;
     bool EnableCaching_;
 
-    TChunkPtr LockedChunk_;
+    IChunkPtr LockedChunk_;
 
     std::vector<TSharedRef> Blocks_;
     std::vector<TStoreImpl::TInsertCookie> Cookies_;

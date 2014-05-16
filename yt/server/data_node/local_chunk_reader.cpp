@@ -42,7 +42,7 @@ class TLocalChunkReader
 public:
     TLocalChunkReader(
         TBootstrap* bootstrap,
-        TChunkPtr chunk)
+        IChunkPtr chunk)
         : Bootstrap_(bootstrap)
         , Chunk_(chunk)
     { }
@@ -85,7 +85,7 @@ public:
 
 private:
     TBootstrap* Bootstrap_;
-    TChunkPtr Chunk_;
+    IChunkPtr Chunk_;
 
 
     class TReadSession
@@ -150,7 +150,7 @@ private:
     static TGetMetaResult OnGotChunkMeta(
         const TNullable<int>& partitionTag,
         NTracing::TTraceSpanGuard /*guard*/,
-        TChunk::TGetMetaResult result)
+        IChunk::TGetMetaResult result)
     {
         if (!result.IsOK()) {
             return TError(result);

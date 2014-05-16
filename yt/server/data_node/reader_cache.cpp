@@ -51,7 +51,7 @@ public:
         : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }
 
-    TGetReaderResult Get(TChunkPtr chunk)
+    TGetReaderResult Get(IChunkPtr chunk)
     {
         YCHECK(chunk->IsReadLockAcquired());
 
@@ -91,7 +91,7 @@ public:
         return cookie.GetValue().Get();
     }
 
-    void Evict(TChunk* chunk)
+    void Evict(IChunk* chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
@@ -106,12 +106,12 @@ TReaderCache::TReaderCache(TDataNodeConfigPtr config)
 TReaderCache::~TReaderCache()
 { }
 
-TReaderCache::TGetReaderResult TReaderCache::GetReader(TChunkPtr chunk)
+TReaderCache::TGetReaderResult TReaderCache::GetReader(IChunkPtr chunk)
 {
     return Impl_->Get(chunk);
 }
 
-void TReaderCache::EvictReader(TChunk* chunk)
+void TReaderCache::EvictReader(IChunk* chunk)
 {
     Impl_->Evict(chunk);
 }

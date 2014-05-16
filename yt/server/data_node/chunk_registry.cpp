@@ -19,7 +19,7 @@ TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
 
-TChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
+IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
 {
     // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
     auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
@@ -35,7 +35,7 @@ TChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
     return nullptr;
 }
 
-TChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
+IChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = FindChunk(chunkId);
     if (!chunk) {

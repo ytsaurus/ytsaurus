@@ -296,7 +296,7 @@ private:
 
     TNullable<TInstant> StartTime;
 
-    std::vector<NDataNode::TCachedChunkPtr> CachedChunks;
+    std::vector<NDataNode::IChunkPtr> CachedChunks;
 
     // Special node directory used to read cached chunks.
     TNodeDirectoryPtr NodeDirectory;
@@ -535,7 +535,7 @@ private:
 
             awaiter->Await(
                 chunkCache->DownloadChunk(chunkId),
-                BIND([=](NDataNode::TChunkCache::TDownloadResult result) {
+                BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
                             "Failed to download chunk %s",

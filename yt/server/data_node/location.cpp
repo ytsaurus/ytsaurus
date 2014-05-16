@@ -386,7 +386,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     return descriptors;
 }
 
-TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
+TFuture<void> TLocation::ScheduleChunkRemoval(IChunk* chunk)
 {
     const auto& id = chunk->GetId();
 

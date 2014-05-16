@@ -2,15 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
 #include <core/misc/error.h>
-#include <core/misc/cache.h>
+#include <core/misc/ref.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
-#include <ytlib/chunk_client/data_node_service.pb.h>
-
-#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -23,6 +19,8 @@ struct TChunkDescriptor
     TChunkId Id;
     i64 DiskSpace;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRefCountedChunkMeta
     : public TIntrinsicRefCounted
@@ -42,19 +40,15 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunk
+struct IChunk
     : public virtual TRefCounted
 {
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TLocationPtr, Location);
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::NProto::TChunkInfo, Info);
-
-public:
-    ~TChunk();
+    virtual const TChunkId& GetId() const = 0;
+    virtual TLocationPtr GetLocation() const = 0;
+    virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const = 0;
 
     //! Returns the full path to the chunk data file.
-    Stroka GetFileName() const;
+    virtual Stroka GetFileName() const = 0;
 
     typedef TErrorOr<TRefCountedChunkMetaPtr> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
@@ -67,43 +61,43 @@ public:
      *
      *  \note The meta is fetched asynchronously and is cached.
      */
-    TAsyncGetMetaResult GetMeta(
+    virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
-        const std::vector<int>* tags = nullptr);
+        const std::vector<int>* tags = nullptr) = 0;
 
     //! Asynchronously reads a range of blocks.
     /*!
      *  Blocks are put into #blocks list. If some element is not null then
      *  the corresponding block must not be fetched.
      */
-    TAsyncError ReadBlocks(
+    virtual TAsyncError ReadBlocks(
         int firstBlockIndex,
         int blockCount,
         i64 priority,
-        std::vector<TSharedRef>* blocks);
+        std::vector<TSharedRef>* blocks) = 0;
 
     //! Returns chunk meta.
     /*!
         If chunk meta not cached, returns |nullptr|.
      */
-    TRefCountedChunkMetaPtr GetCachedMeta() const;
+    virtual TRefCountedChunkMetaPtr GetCachedMeta() const = 0;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!
      *  Succeeds if removal is not scheduled yet.
      *  Returns |true| on success, |false| on failure.
      */
-    bool TryAcquireReadLock();
+    virtual bool TryAcquireReadLock() = 0;
 
     //! Releases an earlier acquired read lock, decrements the lock counter.
     /*!
      *  If this was the last read lock and chunk removal is pending,
      *  enqueues removal actions to the appropriate thread.
      */
-    void ReleaseReadLock();
+    virtual void ReleaseReadLock() = 0;
 
     //! Returns |true| iff a read lock is acquired.
-    bool IsReadLockAcquired() const;
+    virtual bool IsReadLockAcquired() const = 0;
 
     //! Marks the chunk as pending for removal.
     /*!
@@ -111,131 +105,11 @@ public:
      *  If no read lock is currently in progress, enqueues removal actions
      *  to the appropriate thread.
      */
-    TFuture<void> ScheduleRemoval();
-
-protected:
-    void EvictChunkReader();
-
-    TChunk(
-        TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-    TChunk(
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-private:
-    void Initialize();
-    void DoRemoveChunk();
-
-    TAsyncError ReadMeta(i64 priority);
-    void DoReadMeta(TPromise<TError> promise);
-
-    void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
-    i64 ComputePendingReadSize(int firstBlockIndex, int blockCount);
-
-    void DoReadBlocks(
-        int firstBlockIndex,
-        int blockCount,
-        i64 pendingSize,
-        TPromise<TError> promise,
-        std::vector<TSharedRef>* blocks);
-
-
-    TSpinLock SpinLock_;
-    TRefCountedChunkMetaPtr Meta_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
-    
-
-    int ReadLockCounter_;
-    bool RemovalScheduled_;
-    TPromise<void> RemovedEvent_;
-
-    NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;
+    virtual TFuture<void> ScheduleRemoval() = 0;
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunk)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A chunk owned by TChunkStore.
-class TStoredChunk
-    : public TChunk
-{
-public:
-    TStoredChunk(
-        TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-    TStoredChunk(
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TStoredChunk)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A chunk owned by TChunkCache.
-class TCachedChunk
-    : public TChunk
-    , public TCacheValueBase<TChunkId, TCachedChunk>
-{
-public:
-    TCachedChunk(
-        TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-    TCachedChunk(
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-    ~TCachedChunk();
-
-private:
-    TWeakPtr<TChunkCache> ChunkCache_;
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TCachedChunk)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJournalChunk
-    : public TChunk
-{
-public:
-    TJournalChunk(
-        TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-    TJournalChunk(
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TJournalChunk)
+DEFINE_REFCOUNTED_TYPE(IChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 

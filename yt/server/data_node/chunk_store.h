@@ -22,7 +22,7 @@ class TChunkStore
     : public TRefCounted
 {
 public:
-    typedef std::vector<TStoredChunkPtr> TChunks;
+    typedef std::vector<IChunkPtr> TChunks;
     typedef std::vector<TLocationPtr> TLocations;
 
     TChunkStore(
@@ -32,19 +32,19 @@ public:
     void Initialize();
 
     //! Registers a just-written chunk.
-    void RegisterNewChunk(TStoredChunkPtr chunk);
+    void RegisterNewChunk(IChunkPtr chunk);
 
     //! Registers a chunk at startup.
-    void RegisterExistingChunk(TStoredChunkPtr chunk);
+    void RegisterExistingChunk(IChunkPtr chunk);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
+    IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Physically removes the chunk.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    TFuture<void> RemoveChunk(TStoredChunkPtr chunk);
+    TFuture<void> RemoveChunk(IChunkPtr chunk);
 
     //! Calculates a storage location for a new chunk.
     /*!
@@ -63,19 +63,18 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added to the store.
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the store.
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
 private:
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
-    TChunkMap ChunkMap;
+    yhash_map<TChunkId, IChunkPtr> ChunkMap_;
 
-    void DoRegisterChunk(TStoredChunkPtr chunk);
+    void DoRegisterChunk(IChunkPtr chunk);
     void OnLocationDisabled(TLocationPtr location);
 
 };

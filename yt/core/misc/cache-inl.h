@@ -396,12 +396,12 @@ TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
 
 template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
-    : Key_(std::move(other.Key))
-    , Cache_(std::move(other.Cache))
+    : Key_(std::move(other.Key_))
+    , Cache_(std::move(other.Cache_))
     , ValueOrError_(std::move(other.ValueOrError_))
-    , Active_(other.Active)
+    , Active_(other.Active_)
 {
-    other.Active = false;
+    other.Active_ = false;
 }
 
 template <class TKey, class TValue, class THash>

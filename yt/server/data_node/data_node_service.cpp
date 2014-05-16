@@ -180,7 +180,7 @@ private:
         YCHECK(session->GetWrittenBlockCount() == request->block_count());
 
         sessionManager->FinishSession(session, meta)
-            .Subscribe(BIND([=] (TErrorOr<TChunkPtr> chunkOrError) {
+            .Subscribe(BIND([=] (TErrorOr<IChunkPtr> chunkOrError) {
                 if (chunkOrError.IsOK()) {
                     auto chunk = chunkOrError.Value();
                     auto chunkInfo = session->GetChunkInfo();
@@ -451,7 +451,7 @@ private:
             context->GetPriority(),
             request->all_extension_tags() ? nullptr : &extensionTags);
 
-        asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
+        asyncChunkMeta.Subscribe(BIND([=] (IChunk::TGetMetaResult result) {
             if (!result.IsOK()) {
                 context->Reply(result);
                 return;
@@ -511,7 +511,7 @@ private:
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
         const NTableClient::TKeyColumns& keyColumns,
-        TChunk::TGetMetaResult result)
+        IChunk::TGetMetaResult result)
     {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
@@ -761,7 +761,7 @@ private:
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* sampleResponse,
         const NTableClient::TKeyColumns& keyColumns,
-        TChunk::TGetMetaResult result)
+        IChunk::TGetMetaResult result)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 

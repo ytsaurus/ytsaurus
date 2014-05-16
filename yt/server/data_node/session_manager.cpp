@@ -4,7 +4,7 @@
 #include "config.h"
 #include "location.h"
 #include "block_store.h"
-#include "chunk.h"
+#include "blob_chunk.h"
 #include "chunk_store.h"
 
 #include <core/misc/fs.h>
@@ -371,7 +371,7 @@ TError TSession::OnBlockFlushed(int blockIndex)
     return Error;
 }
 
-TFuture< TErrorOr<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
+TFuture< TErrorOr<IChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -491,7 +491,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
     return Error;
 }
 
-TErrorOr<TChunkPtr> TSession::OnFileClosed(TError error)
+TErrorOr<IChunkPtr> TSession::OnFileClosed(TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -500,14 +500,14 @@ TErrorOr<TChunkPtr> TSession::OnFileClosed(TError error)
     }
 
     ReleaseSpaceOccupiedByBlocks();
-    auto chunk = New<TStoredChunk>(
+    auto chunk = New<TStoredBlobChunk>(
         Location,
         ChunkId,
         Writer->GetChunkMeta(),
         Writer->GetChunkInfo(),
         &Bootstrap->GetMemoryUsageTracker());
     Bootstrap->GetChunkStore()->RegisterNewChunk(chunk);
-    return TChunkPtr(chunk);
+    return IChunkPtr(chunk);
 }
 
 void TSession::ReleaseBlocks(int flushedBlockIndex)
@@ -712,7 +712,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
         ~ToString(session->GetChunkId()));
 }
 
-TFuture< TErrorOr<TChunkPtr> > TSessionManager::FinishSession(
+TFuture< TErrorOr<IChunkPtr> > TSessionManager::FinishSession(
     TSessionPtr session,
     const TChunkMeta& chunkMeta)
 {
@@ -726,7 +726,7 @@ TFuture< TErrorOr<TChunkPtr> > TSessionManager::FinishSession(
         .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
-TErrorOr<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TErrorOr<TChunkPtr> chunkOrError)
+TErrorOr<IChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TErrorOr<IChunkPtr> chunkOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

@@ -352,7 +352,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         static_cast<int>(request->removed_chunks_size()));
 }
 
-TChunkAddInfo TMasterConnector::BuildAddChunkInfo(TChunkPtr chunk)
+TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
@@ -361,7 +361,7 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(TChunkPtr chunk)
     return result;
 }
 
-TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(TChunkPtr chunk)
+TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 {
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
@@ -570,7 +570,7 @@ void TMasterConnector::Reset()
     RemovedSinceLastSuccess.clear();
 }
 
-void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
+void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -598,7 +598,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
     AddedSinceLastSuccess.insert(chunk);
 }
 
-void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
+void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

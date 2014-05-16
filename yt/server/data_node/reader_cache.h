@@ -30,13 +30,13 @@ public:
      *
      *  The returned reader is already open.
      */
-     TGetReaderResult GetReader(TChunkPtr chunk);
+     TGetReaderResult GetReader(IChunkPtr chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the file.
     /*!
-        NB: do not make it TChunkPtr since it is called from TCachedChunk dtor
+        NB: do not make it TChunkPtr since it is called from TCachedBlobChunk dtor
     */
-    void EvictReader(TChunk* chunk);
+    void EvictReader(IChunk* chunk);
 
 private:
     class TCachedReader;
