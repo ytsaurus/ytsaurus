@@ -773,14 +773,14 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, attributes=None, copy_all_attributes=False, strategy=None):
+                    network_name=None, spec=None, copy_attributes=False, strategy=None):
     def get_input_name(table):
         return to_table(table).get_json()
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
 
     # TODO(ignat): provide atomicity of attribute copying
-    if copy_all_attributes or attributes:
+    if copy_attributes:
         if len(source_table) != 1:
             raise YtError("Cannot copy attributes of multiple source tables")
 
@@ -791,11 +791,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         src_attributes = get(source_table[0] + "/@")
 
         config.set_proxy(current_proxy)
-        if copy_all_attributes:
-            attributes = src_attributes.get("user_attribute_keys", []) + ["compression_codec", "erasure_codec", "replication_factor"]
-        if attributes is None:
-            attributes = []
-
+        attributes = src_attributes.get("user_attribute_keys", []) + ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:
             set_attribute(destination_table, attribute, src_attributes[attribute])
 
