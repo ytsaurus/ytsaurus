@@ -779,6 +779,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
 
+    # TODO(ignat): provide atomicity of attribute copying
     if copy_all_attributes or attributes:
         if len(source_table) != 1:
             raise YtError("Cannot copy attributes of multiple source tables")
