@@ -147,7 +147,6 @@ def main():
     parser.add_argument("--sorted", action="store_true", default=False)
     parser.add_argument("--table", help="Path to the table. If --table is not set, binary uses stdin.")
     parser.add_argument("--has-subkey", action="store_true", default=False)
-    parser.add_argument("--reduce-by", action="append")
     parser.add_argument("--proxy")
 
     args = parser.parse_args()
@@ -178,15 +177,19 @@ def main():
         
         output_format = yt.YamrFormat(lenval=False, has_subkey=False)
 
+        reduce_by = None
+        if args.input_type == "yamr":
+            reduce_by = ["key"]
+        elif yt.exists(args.table + "/@sorted_by"):
+            reduce_by = yt.get_attribute(args.table + "/@sorted_by")
+
         if args.sorted:
-            if args.input_type == "yamr":
-                args.reduce_by = ["key"]
-            yt.run_reduce(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script, reduce_by=args.reduce_by)
+            yt.run_reduce(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script, reduce_by=reduce_by)
             yt.run_sort(dst, dst, sort_by=["key"])
         else:
             yt.run_map(cmd, args.table, dst, input_format=input_format, output_format=output_format, local_files=script)
         
-        sys.stdout.write(process_stream(yt.read_table(dst, format=output_format), "md5", args.sorted, args.reduce_by))
+        sys.stdout.write(process_stream(yt.read_table(dst, format=output_format), "md5", args.sorted, reduce_by))
 
     else:
         sys.stdout.write(process_stream(sys.stdin, args.input_type, args.sorted, args.reduce_by))
