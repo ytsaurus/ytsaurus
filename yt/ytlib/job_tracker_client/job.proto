@@ -4,6 +4,7 @@ import "yt/core/misc/error.proto";
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/chunk_client/data_statistics.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/cgroup/statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,12 +22,8 @@ message TJobStatistics
     required NChunkClient.NProto.TDataStatistics output = 2;
     required int64 time = 3;
 
-    optional int64 cpu_user_time = 4;
-    optional int64 cpu_system_time = 5;
-
-    optional int64 block_io_total_sectors = 6;
-    optional int64 block_io_bytes_read = 7;
-    optional int64 block_io_bytes_written = 8;
+    optional NCGroup.NProto.TCpuAccountingStats cpu = 4;
+    optional NCGroup.NProto.TBlockIOStats block_io = 5;
 }
 
 // Describes the outcome of the job, in particular if it has finished successfully.

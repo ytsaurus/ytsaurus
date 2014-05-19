@@ -34,6 +34,8 @@
 
 #include <ytlib/cell_directory/cell_directory.h>
 
+#include <ytlib/cgroup/statistics.h>
+
 #include <core/concurrency/fiber.h>
 #include <core/rpc/helpers.h>
 
@@ -3573,20 +3575,11 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("statistics").Value(statistics)
-        .DoIf(statistics.has_cpu_user_time(), [&] (TFluentLogEvent record) {
-                record.Item("cpu_user_time").Value(statistics.cpu_user_time());
+        .DoIf(statistics.has_cpu(), [&] (TFluentLogEvent record) {
+                record.Item("cpu").Value(statistics.cpu());
             })
-        .DoIf(statistics.has_cpu_system_time(), [&] (TFluentLogEvent record) {
-                record.Item("cpu_system_time").Value(statistics.cpu_system_time());
-            })
-        .DoIf(statistics.has_block_io_total_sectors(), [&] (TFluentLogEvent record) {
-                record.Item("block_io_total_sectors").Value(statistics.block_io_total_sectors());
-            })
-        .DoIf(statistics.has_block_io_bytes_read(), [&] (TFluentLogEvent record) {
-                record.Item("block_io_bytes_read").Value(statistics.block_io_bytes_read());
-            })
-        .DoIf(statistics.has_block_io_bytes_written(), [&] (TFluentLogEvent record) {
-                record.Item("block_io_bytes_written").Value(statistics.block_io_bytes_written());
+        .DoIf(statistics.has_block_io(), [&] (TFluentLogEvent record) {
+                record.Item("io").Value(statistics.block_io());
             });
 }
 

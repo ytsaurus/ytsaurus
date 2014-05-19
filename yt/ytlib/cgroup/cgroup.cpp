@@ -175,6 +175,12 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
     return result;
 }
 
+void ToProto(NProto::TCpuAccountingStats* protoStats, const TCpuAccounting::TStats& stats)
+{
+    protoStats->set_user_time(stats.User.MilliSeconds());
+    protoStats->set_system_time(stats.System.MilliSeconds());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockIO::TStats::TStats()
@@ -238,6 +244,13 @@ TBlockIO::TStats TBlockIO::GetStats()
     }
 #endif
     return result;
+}
+
+void ToProto(NProto::TBlockIOStats* protoStats, const TBlockIO::TStats& stats)
+{
+    protoStats->set_total_sectors(stats.TotalSectors);
+    protoStats->set_bytes_read(stats.BytesRead);
+    protoStats->set_bytes_written(stats.BytesWritten);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

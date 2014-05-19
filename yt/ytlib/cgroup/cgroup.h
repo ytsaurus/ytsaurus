@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/cgroup/statistics.pb.h>
+
 #include <util/generic/stroka.h>
 
 #include <vector>
@@ -51,6 +53,8 @@ public:
     TStats GetStats();
 };
 
+void ToProto(NProto::TCpuAccountingStats* protoStats, const TCpuAccounting::TStats& stats);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockIO
@@ -69,6 +73,8 @@ public:
     explicit TBlockIO(const Stroka& name);
     TStats GetStats();
 };
+
+void ToProto(NProto::TBlockIOStats* protoStats, const TBlockIO::TStats& stats);
 
 ////////////////////////////////////////////////////////////////////////////////
 
