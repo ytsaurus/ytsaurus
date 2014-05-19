@@ -159,12 +159,16 @@ def find_free_subpath(path):
         if not exists(name):
             return name
 
-def search(root="/", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None):
+def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None):
     """
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
     Adds given attributes to objects.
     """
+    # Deprecated. Default value "/" should be removed. 
+    if not root and not config.PREFIX:
+        root = "/"
+    root = to_name(root)
     attributes = get_value(attributes, [])
 
     request_attributes = deepcopy(flatten(get_value(attributes, [])))
