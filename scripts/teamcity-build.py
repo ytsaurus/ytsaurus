@@ -155,7 +155,7 @@ def package(options):
         artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
         if artifacts:
             for repository in options.repositories:
-                run(["dupload", "--to", repository, "--nomail"] + artifacts)
+                run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
                 teamcity_message("We have uploaded a package to " + repository)
                 teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
