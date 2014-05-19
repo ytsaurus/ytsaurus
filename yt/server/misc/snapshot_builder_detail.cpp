@@ -49,6 +49,7 @@ TAsyncError TSnapshotBuilderBase::Run()
     }
 
     if (ChildPid  == 0) {
+        CloseAllDescriptors();
         RunChild();
         _exit(0);
     } else {

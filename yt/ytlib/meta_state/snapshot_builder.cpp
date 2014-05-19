@@ -13,6 +13,7 @@
 
 #include <core/ytree/ypath_client.h>
 
+#include <core/misc/proc.h>
 #include <core/misc/serialize.h>
 
 #include <ytlib/election/cell_manager.h>
@@ -299,6 +300,7 @@ TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(c
             snapshotId)
             << TError::FromSystem());
     } else if (childPid == 0) {
+        CloseAllDescriptors();
         DoCreateLocalSnapshot(version);
         _exit(0);
     } else {
