@@ -65,8 +65,7 @@ void TCGroup::Create()
     LOG_INFO("Create cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
-    int hasError = Mkdir(FullPath_.data(), 0755);
-    if (hasError != 0) {
+    if (Mkdir(FullPath_.data(), 0755) != 0) {
         THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_.Quote())
             << TError::FromSystem();
     }
@@ -81,8 +80,7 @@ void TCGroup::Destroy()
 #ifdef _linux_
     YCHECK(Created_);
 
-    int hasError = NFs::Remove(FullPath_.data());
-    if (hasError != 0) {
+    if (NFs::Remove(FullPath_.data()) != 0) {
         THROW_ERROR(TError::FromSystem());
     }
     Created_ = false;
