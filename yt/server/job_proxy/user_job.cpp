@@ -76,6 +76,7 @@ static auto& Logger = JobProxyLogger;
 #ifdef _linux_
 
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
+static const char* CGroupPrefix = "yt-job-";
 
 class TUserJob
     : public TJob
@@ -95,8 +96,8 @@ public:
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
-        , CpuAccounting(ToString(jobId))
-        , BlockIO(ToString(jobId))
+        , CpuAccounting(CGroupPrefix + ToString(jobId))
+        , BlockIO(CGroupPrefix + ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
