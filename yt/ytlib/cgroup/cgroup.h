@@ -61,9 +61,9 @@ public:
     {
         TStats();
 
-        int64_t TotalSectors;
-        int64_t BytesRead;
-        int64_t BytesWritten;
+        i64 TotalSectors;
+        i64 BytesRead;
+        i64 BytesWritten;
     };
 
     explicit TBlockIO(const Stroka& name);

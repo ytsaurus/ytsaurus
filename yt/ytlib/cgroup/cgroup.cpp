@@ -127,7 +127,7 @@ bool TCGroup::IsCreated() const
 
 #ifdef _linux_
 
-TDuration FromJiffies(int64_t jiffies)
+TDuration FromJiffies(i64 jiffies)
 {
     long ticksPerSecond = sysconf(_SC_CLK_TCK);
     return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
@@ -157,11 +157,11 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
     }
 
     Stroka type[2];
-    int64_t jiffies[2];
+    i64 jiffies[2];
 
     for (int i = 0; i < 2; ++i) {
         type[i] = values[2 * i];
-        jiffies[i] = FromString<int64_t>(values[2 * i + 1]);
+        jiffies[i] = FromString<i64>(values[2 * i + 1]);
     }
 
     for (int i = 0; i < 2; ++ i) {
@@ -200,7 +200,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         while (3 * lineNumber + 2 < values.size()) {
             const Stroka& deviceId = values[3 * lineNumber];
             const Stroka& type = values[3 * lineNumber + 1];
-            int64_t bytes = FromString<int64_t>(~values[3 * lineNumber + 2]);
+            i64 bytes = FromString<i64>(~values[3 * lineNumber + 2]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
                 THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
@@ -226,7 +226,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         int lineNumber = 0;
         while (2 * lineNumber < values.size()) {
             const Stroka& deviceId = values[2 * lineNumber];
-            int64_t sectors = FromString<int64_t>(~values[2 * lineNumber + 1]);
+            i64 sectors = FromString<i64>(~values[2 * lineNumber + 1]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
                 THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
