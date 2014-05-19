@@ -34,20 +34,21 @@ TCGroup::~TCGroup()
     if (Created_) {
         try {
             Destroy();
-        } catch (const TErrorException& ) {
-            LOG_ERROR("Unable to destroy cgroup %s", ~FullPath_);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unable to destroy cgroup %s", ~FullPath_.Quote());
         }
     }
 }
 
 void TCGroup::Create()
 {
-    LOG_INFO("Create cgroup %s", ~FullPath_);
+    LOG_INFO("Create cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
     int hasError = Mkdir(FullPath_.data(), 0755);
     if (hasError != 0) {
-        THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_) << TError::FromSystem();
+        THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_.Quote())
+            << TError::FromSystem();
     }
     Created_ = true;
 #endif
@@ -55,7 +56,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroy cgroup %s", ~FullPath_);
+    LOG_INFO("Destroy cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
     YCHECK(Created_);
@@ -72,14 +73,14 @@ void TCGroup::AddCurrentProcess()
 {
 #ifdef _linux_
     auto pid = getpid();
-    LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_);
+    LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_.Quote());
 
     std::ofstream tasks(NFS::CombinePaths(FullPath_, "tasks").data(), std::ios_base::app);
     tasks << getpid() << std::endl;
 #endif
 }
 
-std::vector<int> TCGroup::GetTasks()
+std::vector<int> TCGroup::GetTasks() const
 {
     std::vector<int> results;
 #ifdef _linux_
@@ -117,29 +118,26 @@ bool TCGroup::IsCreated() const
 std::vector<char> ReadAll(const Stroka& fileName)
 {
     const size_t blockSize = 4096;
-    std::vector<char> buffer(blockSize, 0);
+    std::vector<char> buffer;
+    buffer.reserve(blockSize);
     size_t alreadyRead = 0;
 
     std::fstream file(fileName.data(), std::ios_base::in);
     if (file.fail()) {
-        // add a name of file
-        THROW_ERROR_EXCEPTION("Unable to open a file");
+        THROW_ERROR_EXCEPTION("Unable to open %s", ~fileName.Quote());
     }
 
     while (file.good()) {
-        file.read(buffer.data() + alreadyRead, buffer.size() - alreadyRead);
-        alreadyRead = buffer.size();
-
         buffer.resize(buffer.size() + blockSize);
+        file.read(buffer.data() + alreadyRead, buffer.size() - alreadyRead);
+
+        alreadyRead += file.gcount();
     }
     if (file.bad()) {
-        // add a name of file
-        THROW_ERROR_EXCEPTION("Unable to read data from a file");
+        THROW_ERROR_EXCEPTION("Unable to read data from %s", ~fileName.Quote());
     }
 
     if (file.eof()) {
-        alreadyRead += file.gcount();
-
         buffer.resize(alreadyRead + 1);
         buffer[alreadyRead] = 0;
     }
@@ -149,7 +147,7 @@ std::vector<char> ReadAll(const Stroka& fileName)
 
 #ifdef _linux_
 
-TDuration fromJiffies(int64_t jiffies)
+TDuration FromJiffies(int64_t jiffies)
 {
     long ticksPerSecond = sysconf(_SC_CLK_TCK);
     return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
@@ -172,12 +170,12 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 {
     TCpuAccounting::TStats result;
 #ifdef _linux_
-    const Stroka filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
+    const auto filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
     std::vector<char> statsRaw = ReadAll(filename);
     yvector<Stroka> values;
     int count = Split(statsRaw.data(), " \n", values);
     if (count != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s. Expected 4 values. Got %d", ~filename, count);
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~filename.Quote(), count);
     }
 
     std::string type[2];
@@ -185,14 +183,14 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 
     for (int i = 0; i < 2; ++i) {
         type[i] = values[2 * i];
-        jiffies[i] = FromString<int64_t>(~values[2 * i + 1]);
+        jiffies[i] = FromString<int64_t>(values[2 * i + 1]);
     }
 
     for (int i = 0; i < 2; ++ i) {
         if (type[i] == "user") {
-            result.User = fromJiffies(jiffies[i]);
+            result.User = FromJiffies(jiffies[i]);
         } else if (type[i] == "system") {
-            result.System = fromJiffies(jiffies[i]);
+            result.System = FromJiffies(jiffies[i]);
         }
     }
 #endif
@@ -216,20 +214,20 @@ TBlockIO::TStats TBlockIO::GetStats()
     TBlockIO::TStats result;
 #ifdef _linux_
     {
-        const Stroka filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
-        std::vector<char> statsRaw = ReadAll(filename);
+        const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
+        auto statsRaw = ReadAll(filename);
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
         result.BytesRead = result.BytesWritten = 0;
-        int line_number = 0;
-        while (3 * line_number + 2 < values.size()) {
-            const Stroka& deviceId = values[3 * line_number];
-            const Stroka& type = values[3 * line_number + 1];
-            int64_t bytes = FromString<int64_t>(~values[3 * line_number + 2]);
+        int lineNumber = 0;
+        while (3 * lineNumber + 2 < values.size()) {
+            const Stroka& deviceId = values[3 * lineNumber];
+            const Stroka& type = values[3 * lineNumber + 1];
+            int64_t bytes = FromString<int64_t>(~values[3 * lineNumber + 2]);
 
-            if ((deviceId.Size() <= 2) || (deviceId[0] != '8') || (deviceId[1] != ':')) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s. %s should start from 8:", ~filename, ~deviceId);
+            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
             }
 
             if (type == "Read") {
@@ -237,31 +235,31 @@ TBlockIO::TStats TBlockIO::GetStats()
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                if ((type != "Sync") && (type != "Async") && (type != "Total")) {
-                    THROW_ERROR_EXCEPTION("Unable to parse %s. Unexpected stat type: %s", ~filename, ~type);
+                if (type != "Sync" && type != "Async" && type != "Total") {
+                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~filename.Quote(), ~type);
                 }
             }
-            ++line_number;
+            ++lineNumber;
         }
     }
     {
-        const Stroka filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
-        std::vector<char> statsRaw = ReadAll(filename);
+        const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
+        auto statsRaw = ReadAll(filename);
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
         result.TotalSectors = 0;
-        int line_number = 0;
-        while (2 * line_number < values.size()) {
-            const Stroka& deviceId = values[2 * line_number];
-            int64_t sectors = FromString<int64_t>(~values[2 * line_number + 1]);
+        int lineNumber = 0;
+        while (2 * lineNumber < values.size()) {
+            const Stroka& deviceId = values[2 * lineNumber];
+            int64_t sectors = FromString<int64_t>(~values[2 * lineNumber + 1]);
 
-            if ((deviceId.Size() <= 2) || (deviceId[0] != '8') || (deviceId[1] != ':')) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s. %s should start from 8:", ~filename, ~deviceId);
+            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
             }
 
             result.TotalSectors += sectors;
-            ++line_number;
+            ++lineNumber;
         }
     }
 #endif
@@ -270,28 +268,27 @@ TBlockIO::TStats TBlockIO::GetStats()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size)
+std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)
 {
     std::map<Stroka, Stroka> result;
 
     yvector<Stroka> values;
-    Split(str, ":\n", values);
+    Split(str.data(), ":\n", values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
         FromString<int>(values[i]);
 
-        const Stroka& setOfSubsystems = values[i + 1];
+        const Stroka& subsystemsSet = values[i + 1];
         const Stroka& name = values[i + 2];
 
         yvector<Stroka> subsystems;
-        Split(setOfSubsystems.data(), ",", subsystems);
-        for (size_t j = 0; j < subsystems.size(); ++j) {
-            // skip elements which starts with name=
-            if (subsystems[j].find("name=") == Stroka::npos) {
+        Split(subsystemsSet.data(), ",", subsystems);
+        for (const auto& subsystem : subsystems) {
+            if (!subsystem.has_prefix("name=")) {
                 int start = 0;
-                if ((!name.empty()) && (name[0] == '/')) {
+                if (name.has_prefix("/")) {
                     start = 1;
                 }
-                result[subsystems[j]] = name.substr(start);
+                result[subsystem] = name.substr(start);
             }
         }
     }
@@ -302,7 +299,7 @@ std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size)
 Stroka GetParentFor(const Stroka& type)
 {
     auto rawData = ReadAll("/proc/self/cgroup");
-    auto result = ParseCurrentProcessCGrops(rawData.data(), rawData.size());
+    auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
     return result[type];
 }
 

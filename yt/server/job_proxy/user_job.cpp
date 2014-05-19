@@ -84,17 +84,17 @@ public:
     TUserJob(
         IJobHost* host,
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
-        std::unique_ptr<TUserJobIO> userJobIO,
-        NJobAgent::TJobId jobId)
+        const NJobAgent::TJobId& jobId,
+        std::unique_ptr<TUserJobIO> userJobIO)
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
+        , JobId(jobId)
         , InitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
-        , JobId(jobId)
         , CpuAccounting(ToString(jobId))
         , BlockIO(ToString(jobId))
     {
@@ -117,8 +117,8 @@ public:
         try {
             CpuAccounting.Create();
             BlockIO.Create();
-        } catch (const TErrorException& e) {
-            LOG_ERROR("Unable to create a cgroup to track job resource consumption");
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unable to create a cgroup to track job resource consumption");
         }
 
         ProcessStartTime = TInstant::Now();
@@ -148,26 +148,26 @@ public:
         if (CpuAccounting.IsCreated()) {
             try {
                 CpuAccountingStats = CpuAccounting.GetStats();
-            } catch (const TErrorException& e) {
-                LOG_ERROR(e, "Unable to get statistics");
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to get cpu usage statistics");
             }
             try {
                 CpuAccounting.Destroy();
-            } catch (const TErrorException& e) {
-                LOG_ERROR(e, "Unable to remove a cgroup");
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to remove cgroup %s", ~CpuAccounting.GetFullPath().Quote());
             }
         }
 
         if (BlockIO.IsCreated()) {
             try {
                 BlockIOStats = BlockIO.GetStats();
-            } catch (const TErrorException& e) {
-                LOG_ERROR(e, "Unable to get statistics");
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to get statistics");
             }
             try {
                 BlockIO.Destroy();
-            } catch (const TErrorException& e) {
-                LOG_ERROR(e, "Unable to remove a cgroup");
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to remove cgroup %s", ~BlockIO.GetFullPath().Quote());
             }
         }
 
@@ -660,6 +660,7 @@ private:
     std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
+    NJobAgent::TJobId JobId;
 
     volatile bool InitCompleted;
 
@@ -685,8 +686,6 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
-    NJobAgent::TJobId JobId;
-
     NCGroup::TCpuAccounting CpuAccounting;
     NCGroup::TCpuAccounting::TStats CpuAccountingStats;
 
@@ -703,8 +702,8 @@ TJobPtr CreateUserJob(
     return New<TUserJob>(
         host,
         userJobSpec,
-        std::move(userJobIO),
-        jobId);
+        jobId,
+        std::move(userJobIO));
 }
 
 #else

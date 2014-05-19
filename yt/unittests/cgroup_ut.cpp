@@ -100,14 +100,14 @@ TEST(CGroup, GetBlockIOStat)
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;
-    auto result = ParseCurrentProcessCGrops(empty.data(), empty.size());
+    auto result = ParseCurrentProcessCGroups(TStringBuf(empty.data(), empty.size()));
     EXPECT_TRUE(result.empty());
 }
 
 TEST(CurrentProcessCGroup, Basic)
 {
     auto basic = STRINGBUF("4:blkio:/\n3:cpuacct:/\n2:freezer:/some\n1:memory:/\n");
-    auto result = ParseCurrentProcessCGrops(basic.data(), basic.length());
+    auto result = ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length()));
     EXPECT_EQ("", result["blkio"]);
     EXPECT_EQ("", result["cpuacct"]);
     EXPECT_EQ("some", result["freezer"]);
@@ -118,7 +118,7 @@ TEST(CurrentProcessCGroup, Basic)
 TEST(CurrentProcessCGroup, Multiple)
 {
     auto basic = STRINGBUF("5:cpuacct,cpu,cpuset:/daemons\n");
-    auto result = ParseCurrentProcessCGrops(basic.data(), basic.length());
+    auto result = ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length()));
     EXPECT_EQ("daemons", result["cpu"]);
     EXPECT_EQ("daemons", result["cpuset"]);
     EXPECT_EQ("daemons", result["cpuacct"]);
@@ -128,7 +128,7 @@ TEST(CurrentProcessCGroup, Multiple)
 TEST(CurrentProcessCGroup, BadInput)
 {
     auto basic = STRINGBUF("xxx:cpuacct,cpu,cpuset:/daemons\n");
-    EXPECT_THROW(ParseCurrentProcessCGrops(basic.data(), basic.length()), std::exception);
+    EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
 }
 
 #endif

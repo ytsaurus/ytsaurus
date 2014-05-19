@@ -15,6 +15,7 @@ class TCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
+
 public:
     ~TCGroup();
 
@@ -23,9 +24,10 @@ public:
     void Create();
     void Destroy();
 
-    std::vector<int> GetTasks();
+    std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
     bool IsCreated() const;
+
 private:
     Stroka FullPath_;
     bool Created_;
@@ -45,7 +47,7 @@ public:
         TDuration System;
     };
 
-    TCpuAccounting(const Stroka& name);
+    explicit TCpuAccounting(const Stroka& name);
     TStats GetStats();
 };
 
@@ -64,7 +66,7 @@ public:
         int64_t BytesWritten;
     };
 
-    TBlockIO(const Stroka& name);
+    explicit TBlockIO(const Stroka& name);
     TStats GetStats();
 };
 
@@ -78,13 +80,13 @@ public:
     {
     };
 
-    TMemory(const Stroka& name);
+    explicit TMemory(const Stroka& name);
     TStats GetStats();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::map<Stroka, Stroka> ParseCurrentProcessCGrops(const char* str, size_t size);
+std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str);
 
 ////////////////////////////////////////////////////////////////////////////////
 
