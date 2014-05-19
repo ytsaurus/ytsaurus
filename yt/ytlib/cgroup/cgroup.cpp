@@ -115,36 +115,6 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<char> ReadAll(const Stroka& fileName)
-{
-    const size_t blockSize = 4096;
-    std::vector<char> buffer;
-    buffer.reserve(blockSize);
-    size_t alreadyRead = 0;
-
-    std::fstream file(fileName.data(), std::ios_base::in);
-    if (file.fail()) {
-        THROW_ERROR_EXCEPTION("Unable to open %s", ~fileName.Quote());
-    }
-
-    while (file.good()) {
-        buffer.resize(buffer.size() + blockSize);
-        file.read(buffer.data() + alreadyRead, buffer.size() - alreadyRead);
-
-        alreadyRead += file.gcount();
-    }
-    if (file.bad()) {
-        THROW_ERROR_EXCEPTION("Unable to read data from %s", ~fileName.Quote());
-    }
-
-    if (file.eof()) {
-        buffer.resize(alreadyRead + 1);
-        buffer[alreadyRead] = 0;
-    }
-
-    return buffer;
-}
-
 #ifdef _linux_
 
 TDuration FromJiffies(int64_t jiffies)
@@ -171,7 +141,7 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
     TCpuAccounting::TStats result;
 #ifdef _linux_
     const auto filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
-    std::vector<char> statsRaw = ReadAll(filename);
+    auto statsRaw = TFileInput(filename).ReadAll();
     yvector<Stroka> values;
     int count = Split(statsRaw.data(), " \n", values);
     if (count != 4) {
@@ -215,7 +185,7 @@ TBlockIO::TStats TBlockIO::GetStats()
 #ifdef _linux_
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
-        auto statsRaw = ReadAll(filename);
+        auto statsRaw = TFileInput(filename).ReadAll();
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
@@ -244,7 +214,7 @@ TBlockIO::TStats TBlockIO::GetStats()
     }
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
-        auto statsRaw = ReadAll(filename);
+        auto statsRaw = TFileInput(filename).ReadAll();
         yvector<Stroka> values;
         Split(statsRaw.data(), " \n", values);
 
@@ -298,7 +268,7 @@ std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)
 
 Stroka GetParentFor(const Stroka& type)
 {
-    auto rawData = ReadAll("/proc/self/cgroup");
+    auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
     auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
     return result[type];
 }
