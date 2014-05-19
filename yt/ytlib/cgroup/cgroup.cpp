@@ -22,7 +22,27 @@ static const char* CGroupRootPath = "/sys/fs/cgroup";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetParentFor(const Stroka& type);
+namespace {
+
+Stroka GetParentFor(const Stroka& type)
+{
+    auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
+    auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
+    return result[type];
+}
+
+
+yvector<Stroka> ReadAllValues(const Stroka& filename)
+{
+    auto raw = TFileInput(filename).ReadAll();
+    yvector<Stroka> values;
+    Split(raw.data(), " \n", values);
+    return values;
+}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TCGroup::TCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
@@ -84,20 +104,10 @@ std::vector<int> TCGroup::GetTasks() const
 {
     std::vector<int> results;
 #ifdef _linux_
-    std::ifstream tasks(NFS::CombinePaths(FullPath_, "tasks").data());
-    if (tasks.fail()) {
-        THROW_ERROR_EXCEPTION("Unable to open a task list file");
-    }
-
-    while (!tasks.eof()) {
-        int pid;
-        tasks >> pid;
-        if (tasks.bad()) {
-            THROW_ERROR_EXCEPTION("Unable to read a task list");
-        }
-        if (tasks.good()) {
-            results.push_back(pid);
-        }
+    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
+    for (const auto& value : values) {
+        int pid = FromString<int>(value);
+        results.push_back(pid);
     }
 #endif
     return results;
@@ -141,14 +151,12 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
     TCpuAccounting::TStats result;
 #ifdef _linux_
     const auto filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
-    auto statsRaw = TFileInput(filename).ReadAll();
-    yvector<Stroka> values;
-    int count = Split(statsRaw.data(), " \n", values);
-    if (count != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~filename.Quote(), count);
+    auto values = ReadAllValues(filename);
+    if (values.size() != 4) {
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~filename.Quote(), values.size());
     }
 
-    std::string type[2];
+    Stroka type[2];
     int64_t jiffies[2];
 
     for (int i = 0; i < 2; ++i) {
@@ -185,9 +193,7 @@ TBlockIO::TStats TBlockIO::GetStats()
 #ifdef _linux_
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
-        auto statsRaw = TFileInput(filename).ReadAll();
-        yvector<Stroka> values;
-        Split(statsRaw.data(), " \n", values);
+        auto values = ReadAllValues(filename);
 
         result.BytesRead = result.BytesWritten = 0;
         int lineNumber = 0;
@@ -214,9 +220,7 @@ TBlockIO::TStats TBlockIO::GetStats()
     }
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
-        auto statsRaw = TFileInput(filename).ReadAll();
-        yvector<Stroka> values;
-        Split(statsRaw.data(), " \n", values);
+        auto values = ReadAllValues(filename);
 
         result.TotalSectors = 0;
         int lineNumber = 0;
@@ -264,13 +268,6 @@ std::map<Stroka, Stroka> ParseCurrentProcessCGroups(TStringBuf str)
     }
 
     return result;
-}
-
-Stroka GetParentFor(const Stroka& type)
-{
-    auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
-    auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
-    return result[type];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
