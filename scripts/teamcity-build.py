@@ -64,7 +64,7 @@ def prepare(options):
     if codename not in ["lucid", "precise"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
-    options.repositories = ["yandex-" + codename, "yt-" + codename]
+    options.repositories = ["yt-" + codename, "yandex-" + codename]
 
     # Now determine the compiler.
     options.cc = run_captured(["which", options.cc])
@@ -156,8 +156,8 @@ def package(options):
         if artifacts:
             for repository in options.repositories:
                 run(["dupload", "--to", repository, "--nomail"] + artifacts)
-                teamcity_message("We have uploaded a package")
-                teamcity_interact("setParameter", name="yt.package_uploaded", value=1)
+                teamcity_message("We have uploaded a package to " + repository)
+                teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
 
 @yt_register_build_step
