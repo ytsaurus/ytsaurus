@@ -3568,26 +3568,26 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
     const auto& result = job->Result();
     const auto& statistics = result.statistics();
 
-    auto record = LogEventFluently(eventType)
+    return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
-        .Item("statistics").Value(statistics);
-    if (statistics.has_cpu_user_time()) {
-        record.Item("cpu_user_time").Value(statistics.cpu_user_time());}
-    if (statistics.has_cpu_system_time()) {
-        record.Item("cpu_system_time").Value(statistics.cpu_system_time());
-    }
-    if (statistics.has_block_io_total_sectors()) {
-        record.Item("block_io_total_sectors").Value(statistics.block_io_total_sectors());
-    }
-    if (statistics.has_block_io_bytes_read()) {
-        record.Item("block_io_bytes_read").Value(statistics.block_io_bytes_read());
-    }
-    if (statistics.has_block_io_bytes_written()) {
-        record.Item("block_io_bytes_written").Value(statistics.block_io_bytes_written());
-    }
-    return record;
+        .Item("statistics").Value(statistics)
+        .DoIf(statistics.has_cpu_user_time(), [&] (TFluentLogEvent record) {
+                record.Item("cpu_user_time").Value(statistics.cpu_user_time());
+            })
+        .DoIf(statistics.has_cpu_system_time(), [&] (TFluentLogEvent record) {
+                record.Item("cpu_system_time").Value(statistics.cpu_system_time());
+            })
+        .DoIf(statistics.has_block_io_total_sectors(), [&] (TFluentLogEvent record) {
+                record.Item("block_io_total_sectors").Value(statistics.block_io_total_sectors());
+            })
+        .DoIf(statistics.has_block_io_bytes_read(), [&] (TFluentLogEvent record) {
+                record.Item("block_io_bytes_read").Value(statistics.block_io_bytes_read());
+            })
+        .DoIf(statistics.has_block_io_bytes_written(), [&] (TFluentLogEvent record) {
+                record.Item("block_io_bytes_written").Value(statistics.block_io_bytes_written());
+            });
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
