@@ -200,7 +200,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         while (3 * lineNumber + 2 < values.size()) {
             const Stroka& deviceId = values[3 * lineNumber];
             const Stroka& type = values[3 * lineNumber + 1];
-            i64 bytes = FromString<i64>(~values[3 * lineNumber + 2]);
+            i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
                 THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
@@ -226,7 +226,7 @@ TBlockIO::TStats TBlockIO::GetStats()
         int lineNumber = 0;
         while (2 * lineNumber < values.size()) {
             const Stroka& deviceId = values[2 * lineNumber];
-            i64 sectors = FromString<i64>(~values[2 * lineNumber + 1]);
+            i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
                 THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
