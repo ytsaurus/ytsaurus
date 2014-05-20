@@ -102,7 +102,7 @@ public:
             .Default(EJsonAttributesMode::OnDemand);
         RegisterParameter("encode_utf8", EncodeUtf8)
             .Default(true);
-        RegisterParameter("string_scalar_length_limit", StringScalarLengthLimit)
+        RegisterParameter("string_length_limit", StringScalarLengthLimit)
             .Default(Null);
 
 
