@@ -764,7 +764,7 @@ public:
         return result;
     }
 
-    virtual void Update()
+    virtual void Update() override
     {
         TCompositeSchedulerElement::Update();
         ComputeResourceLimits();
