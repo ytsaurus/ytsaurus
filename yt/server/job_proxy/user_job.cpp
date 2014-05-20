@@ -115,12 +115,8 @@ public:
 
         InitCompleted = true;
 
-        try {
-            CpuAccounting.Create();
-            BlockIO.Create();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to create a cgroup to track job resource consumption");
-        }
+        CreateCGroup(CpuAccounting);
+        CreateCGroup(BlockIO);
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -146,31 +142,15 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        if (CpuAccounting.IsCreated()) {
-            try {
-                CpuAccountingStats = CpuAccounting.GetStats();
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to get cpu usage statistics");
-            }
-            try {
-                CpuAccounting.Destroy();
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to remove cgroup %s", ~CpuAccounting.GetFullPath().Quote());
-            }
-        }
+        RetrieveStats(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+                CpuAccountingStats = cgroup.GetStats();
+            });
+        RetrieveStats(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                BlockIOStats = cgroup.GetStats();
+            });
 
-        if (BlockIO.IsCreated()) {
-            try {
-                BlockIOStats = BlockIO.GetStats();
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to get statistics");
-            }
-            try {
-                BlockIO.Destroy();
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to remove cgroup %s", ~BlockIO.GetFullPath().Quote());
-            }
-        }
+        DestroyCGroup(CpuAccounting);
+        DestroyCGroup(BlockIO);
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -652,6 +632,40 @@ private:
         ToProto(result.mutable_block_io(), BlockIOStats);
 
         return result;
+    }
+
+    template <typename T>
+    void CreateCGroup(T& cgroup)
+    {
+        try {
+            cgroup.Create();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
+        }
+    }
+
+    template <typename T, typename Func>
+    void RetrieveStats(T& cgroup, Func retriever)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                retriever(cgroup);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to get statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
+    }
+
+    template <typename T>
+    void DestroyCGroup(T& cgroup)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                cgroup.Destroy();
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
     }
 
     std::unique_ptr<TUserJobIO> JobIO;
