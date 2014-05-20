@@ -84,6 +84,9 @@ class TMemory
 public:
     struct TStatistics
     {
+        TStatistics();
+
+        i64 TotalUsageInBytes;
     };
 
     explicit TMemory(const Stroka& name);

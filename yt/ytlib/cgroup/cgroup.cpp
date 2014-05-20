@@ -8,6 +8,7 @@
 #include <util/folder/dirut.h>
 #include <util/system/fs.h>
 #include <util/string/split.h>
+#include <util/string/strip.h>
 
 namespace NYT {
 namespace NCGroup {
@@ -248,6 +249,27 @@ void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics
     protoStats->set_bytes_read(stats.BytesRead);
     protoStats->set_bytes_written(stats.BytesWritten);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMemory::TMemory(const Stroka& name)
+    : TCGroup("memory", name)
+{ }
+
+TMemory::TStatistics TMemory::GetStatistics()
+{
+    TMemory::TStatistics result;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+    auto rawData = TFileInput(filename).ReadAll();
+    result.TotalUsageInBytes = FromString<i64>(strip(rawData));
+#endif
+    return result;
+}
+
+TMemory::TStatistics::TStatistics()
+    : TotalUsageInBytes(0)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

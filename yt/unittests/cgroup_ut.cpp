@@ -97,6 +97,17 @@ TEST(CGroup, GetBlockIOStat)
     group.Destroy();
 }
 
+TEST(CGroup, GetMemoryStats)
+{
+    TMemory group("some");
+    group.Create();
+
+    auto stats = group.GetStatistics();
+    EXPECT_EQ(0, stats.TotalUsageInBytes);
+
+    group.Destroy();
+}
+
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;
