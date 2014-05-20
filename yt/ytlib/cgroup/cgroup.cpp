@@ -10,7 +10,6 @@
 #include <util/string/split.h>
 
 #include <fstream>
-#include <sstream>
 
 namespace NYT {
 namespace NCGroup {
@@ -94,7 +93,7 @@ void TCGroup::AddCurrentProcess()
     LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_.Quote());
 
     std::ofstream tasks(NFS::CombinePaths(FullPath_, "tasks").data(), std::ios_base::app);
-    tasks << getpid() << std::endl;
+    tasks << pid << std::endl;
 #endif
 }
 
