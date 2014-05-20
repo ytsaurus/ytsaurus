@@ -821,6 +821,8 @@ public:
         , TCompositeSchedulerElement(host)
     {
         SetMode(ESchedulingMode::FairShare);
+        Attributes_.FairShareRatio = 1.0;
+        Attributes_.AdjustedMinShareRatio = 1.0;
     }
 
 };
