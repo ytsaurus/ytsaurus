@@ -164,8 +164,16 @@ bool TJsonWriterImpl::IsWriteAllowed()
 void TJsonWriterImpl::OnStringScalar(const TStringBuf& value)
 {
     if (IsWriteAllowed()) {
+        TStringBuf writeValue = value;
+        if (Config->StringScalarLengthLimit && value.Size() > *Config->StringScalarLengthLimit) {
+            OnBeginAttributes();
+                OnKeyedItem("incomplete");
+                OnStringScalar("true");
+            OnEndAttributes();
+            writeValue = value.substr(0, *Config->StringScalarLengthLimit);
+        }
         EnterNode();
-        WriteStringScalar(value);
+        WriteStringScalar(writeValue);
         LeaveNode();
     }
 }
