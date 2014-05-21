@@ -12,15 +12,15 @@ namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::TJobStatistics& operator += (NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs);
-NProto::TJobStatistics  operator +  (const NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs);
+TJobStatistics& operator += (TJobStatistics& lhs, const TJobStatistics& rhs);
+TJobStatistics  operator +  (const TJobStatistics& lhs, const TJobStatistics& rhs);
 
-NProto::TJobStatistics& operator -= (NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs);
-NProto::TJobStatistics  operator -  (const NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs);
+TJobStatistics& operator -= (TJobStatistics& lhs, const TJobStatistics& rhs);
+TJobStatistics  operator -  (const TJobStatistics& lhs, const TJobStatistics& rhs);
 
-const NProto::TJobStatistics& ZeroJobStatistics();
+const TJobStatistics& ZeroJobStatistics();
 
-void Serialize(const NProto::TJobStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TJobStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

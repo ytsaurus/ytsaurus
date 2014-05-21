@@ -14,52 +14,52 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
-NProto::TJobStatistics& operator+= (NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs)
+TJobStatistics& operator+= (TJobStatistics& lhs, const TJobStatistics& rhs)
 {
-	*lhs.mutable_input() = lhs.input() + rhs.input();
-    *lhs.mutable_output() = lhs.output() + rhs.output();
+    *lhs.mutable_input() += rhs.input();
+    *lhs.mutable_output() += rhs.output();
     lhs.set_time(lhs.time() + rhs.time());
     return lhs;
 }
 
-NProto::TJobStatistics operator+ (const NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs)
+TJobStatistics operator+ (const TJobStatistics& lhs, const TJobStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-NProto::TJobStatistics& operator-= (NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs)
+TJobStatistics& operator-= (TJobStatistics& lhs, const TJobStatistics& rhs)
 {
-    *lhs.mutable_input() = lhs.input() - rhs.input();
-    *lhs.mutable_output() = lhs.output() - rhs.output();
+    *lhs.mutable_input() -= rhs.input();
+    *lhs.mutable_output() -= rhs.output();
     lhs.set_time(lhs.time() - rhs.time());
     return lhs;
 }
 
-NProto::TJobStatistics operator- (const NProto::TJobStatistics& lhs, const NProto::TJobStatistics& rhs)
+TJobStatistics operator- (const TJobStatistics& lhs, const TJobStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-NProto::TJobStatistics GetZeroJobStatistics()
+TJobStatistics GetZeroJobStatistics()
 {
-    NProto::TJobStatistics statistics;
+    TJobStatistics statistics;
     *statistics.mutable_input() = NChunkClient::NProto::ZeroDataStatistics();
     *statistics.mutable_output() = NChunkClient::NProto::ZeroDataStatistics();
     statistics.set_time(0);
     return statistics;
 }
 
-const NProto::TJobStatistics& ZeroJobStatistics()
+const TJobStatistics& ZeroJobStatistics()
 {
-    static const NProto::TJobStatistics statistics = GetZeroJobStatistics();
+    static const TJobStatistics statistics = GetZeroJobStatistics();
     return statistics;
 }
 
-void Serialize(const NProto::TJobStatistics& statistics, NYson::IYsonConsumer* consumer)
+void Serialize(const TJobStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
