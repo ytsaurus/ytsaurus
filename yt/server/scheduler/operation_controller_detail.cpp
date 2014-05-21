@@ -3426,6 +3426,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
     jobSpec->set_enable_io_prio(config->EnableIOPrio);
+    jobSpec->set_enable_accounting(Config->EnableAccounting);
 
     {
         // Set input and output format.

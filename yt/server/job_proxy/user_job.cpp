@@ -115,8 +115,10 @@ public:
 
         InitCompleted = true;
 
-        CreateCGroup(CpuAccounting);
-        CreateCGroup(BlockIO);
+        if (UserJobSpec.enable_accounting()) {
+            CreateCGroup(CpuAccounting);
+            CreateCGroup(BlockIO);
+        }
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -142,15 +144,17 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        RetrieveStats(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
-                CpuAccountingStats = cgroup.GetStats();
-            });
-        RetrieveStats(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
-                BlockIOStats = cgroup.GetStats();
-            });
+        if (UserJobSpec.enable_accounting()) {
+            RetrieveStats(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+                    CpuAccountingStats = cgroup.GetStats();
+                });
+            RetrieveStats(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                    BlockIOStats = cgroup.GetStats();
+                });
 
-        DestroyCGroup(CpuAccounting);
-        DestroyCGroup(BlockIO);
+            DestroyCGroup(CpuAccounting);
+            DestroyCGroup(BlockIO);
+        }
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -516,8 +520,10 @@ private:
                 }
             }
 
-            CpuAccounting.AddCurrentProcess();
-            BlockIO.AddCurrentProcess();
+            if (UserJobSpec.enable_accounting()) {
+                CpuAccounting.AddCurrentProcess();
+                BlockIO.AddCurrentProcess();
+            }
 
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
@@ -628,8 +634,10 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        ToProto(result.mutable_cpu(), CpuAccountingStats);
-        ToProto(result.mutable_block_io(), BlockIOStats);
+        if (UserJobSpec.enable_accounting()) {
+            ToProto(result.mutable_cpu(), CpuAccountingStats);
+            ToProto(result.mutable_block_io(), BlockIOStats);
+        }
 
         return result;
     }
@@ -639,7 +647,7 @@ private:
         try {
             cgroup.Create();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
+            YUNREACHABLE();
         }
     }
 
@@ -650,7 +658,7 @@ private:
             try {
                 retriever(cgroup);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to get statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
+                YUNREACHABLE();
             }
         }
     }
@@ -661,7 +669,7 @@ private:
             try {
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
+                YUNREACHABLE();
             }
         }
     }
