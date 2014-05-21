@@ -10,7 +10,7 @@ namespace NLFAlloc {
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetCurrentUsed();
-i64 GetCurrentMmaped();
+i64 GetCurrentMmapped();
 i64 GetCurrentLargeBlocks();
 i64 GetCurrentSmallBlocks();
 i64 GetCurrentSystem();

@@ -148,10 +148,10 @@ void TResourceTracker::EnqueueMemoryUsage()
 void TResourceTracker::EnqueueLFAllocCounters()
 {
     Profiler.Enqueue("/lf_alloc/total/user_allocated", GetLFAllocCounterFull(CT_USER_ALLOC));
-    Profiler.Enqueue("/lf_alloc/total/mmaped", GetLFAllocCounterFull(CT_MMAP));
-    Profiler.Enqueue("/lf_alloc/total/mmaped_count", GetLFAllocCounterFull(CT_MMAP_CNT));
-    Profiler.Enqueue("/lf_alloc/total/munmaped", GetLFAllocCounterFull(CT_MUNMAP));
-    Profiler.Enqueue("/lf_alloc/total/munmaped_count", GetLFAllocCounterFull(CT_MUNMAP_CNT));
+    Profiler.Enqueue("/lf_alloc/total/mmapped", GetLFAllocCounterFull(CT_MMAP));
+    Profiler.Enqueue("/lf_alloc/total/mmapped_count", GetLFAllocCounterFull(CT_MMAP_CNT));
+    Profiler.Enqueue("/lf_alloc/total/munmapped", GetLFAllocCounterFull(CT_MUNMAP));
+    Profiler.Enqueue("/lf_alloc/total/munmapped_count", GetLFAllocCounterFull(CT_MUNMAP_CNT));
     Profiler.Enqueue("/lf_alloc/total/system_allocated", GetLFAllocCounterFull(CT_SYSTEM_ALLOC));
     Profiler.Enqueue("/lf_alloc/total/system_deallocated", GetLFAllocCounterFull(CT_SYSTEM_FREE));
     Profiler.Enqueue("/lf_alloc/total/small_blocks_allocated", GetLFAllocCounterFull(CT_SMALL_ALLOC));
@@ -163,15 +163,15 @@ void TResourceTracker::EnqueueLFAllocCounters()
     Profiler.Enqueue("/lf_alloc/current/small_blocks", NLFAlloc::GetCurrentSmallBlocks());
     Profiler.Enqueue("/lf_alloc/current/large_blocks", NLFAlloc::GetCurrentLargeBlocks());
 
-    auto mmaped = NLFAlloc::GetCurrentMmaped();
-    Profiler.Enqueue("/lf_alloc/current/mmaped", mmaped);
+    auto mmapped = NLFAlloc::GetCurrentMmapped();
+    Profiler.Enqueue("/lf_alloc/current/mmapped", mmapped);
 
-    auto mmapedCount = NLFAlloc::GetCurrentMmapedCount();
-    Profiler.Enqueue("/lf_alloc/current/mmaped_count", mmapedCount);
+    auto mmappedCount = NLFAlloc::GetCurrentMmappedCount();
+    Profiler.Enqueue("/lf_alloc/current/mmapped_count", mmappedCount);
 
     auto used = NLFAlloc::GetCurrentUsed();
     Profiler.Enqueue("/lf_alloc/current/used", used);
-    Profiler.Enqueue("/lf_alloc/current/locked", mmaped - used);
+    Profiler.Enqueue("/lf_alloc/current/locked", mmapped - used);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
