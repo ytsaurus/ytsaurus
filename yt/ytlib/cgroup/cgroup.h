@@ -41,19 +41,19 @@ class TCpuAccounting
     : public TCGroup
 {
 public:
-    struct TStats
+    struct TStatistics
     {
-        TStats();
+        TStatistics();
 
         TDuration User;
         TDuration System;
     };
 
     explicit TCpuAccounting(const Stroka& name);
-    TStats GetStats();
+    TStatistics GetStatistics();
 };
 
-void ToProto(NProto::TCpuAccountingStats* protoStats, const TCpuAccounting::TStats& stats);
+void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,9 +61,9 @@ class TBlockIO
     : public TCGroup
 {
 public:
-    struct TStats
+    struct TStatistics
     {
-        TStats();
+        TStatistics();
 
         i64 TotalSectors;
         i64 BytesRead;
@@ -71,10 +71,10 @@ public:
     };
 
     explicit TBlockIO(const Stroka& name);
-    TStats GetStats();
+    TStatistics GetStatistics();
 };
 
-void ToProto(NProto::TBlockIOStats* protoStats, const TBlockIO::TStats& stats);
+void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,12 +82,12 @@ class TMemory
     : public TCGroup
 {
 public:
-    struct TStats
+    struct TStatistics
     {
     };
 
     explicit TMemory(const Stroka& name);
-    TStats GetStats();
+    TStatistics GetStatistics();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

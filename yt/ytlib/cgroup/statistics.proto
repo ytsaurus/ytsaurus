@@ -2,13 +2,13 @@ package NYT.NCGroup.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TCpuAccountingStats
+message TCpuAccountingStatistics
 {
     required int64 user_time = 1;
     required int64 system_time = 2;
 }
 
-message TBlockIOStats
+message TBlockIOStatistics
 {
     required int64 total_sectors = 1;
     required int64 bytes_read = 2;

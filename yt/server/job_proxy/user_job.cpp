@@ -145,11 +145,11 @@ public:
         ToProto(result.mutable_error(), JobExitError);
 
         if (UserJobSpec.enable_accounting()) {
-            RetrieveStats(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
-                    CpuAccountingStats = cgroup.GetStats();
+            RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+                    CpuAccountingStats = cgroup.GetStatistics();
                 });
-            RetrieveStats(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
-                    BlockIOStats = cgroup.GetStats();
+            RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                    BlockIOStats = cgroup.GetStatistics();
                 });
 
             DestroyCGroup(CpuAccounting);
@@ -652,7 +652,7 @@ private:
     }
 
     template <typename T, typename Func>
-    void RetrieveStats(T& cgroup, Func retriever)
+    void RetrieveStatistics(T& cgroup, Func retriever)
     {
         if (cgroup.IsCreated()) {
             try {
@@ -704,10 +704,10 @@ private:
     int ProcessId;
 
     NCGroup::TCpuAccounting CpuAccounting;
-    NCGroup::TCpuAccounting::TStats CpuAccountingStats;
+    NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;
 
     NCGroup::TBlockIO BlockIO;
-    NCGroup::TBlockIO::TStats BlockIOStats;
+    NCGroup::TBlockIO::TStatistics BlockIOStats;
 };
 
 TJobPtr CreateUserJob(

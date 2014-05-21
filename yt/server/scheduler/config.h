@@ -163,7 +163,7 @@ public:
     //! Whether to call a |setrlimit| to limit user job VM size.
     bool EnableVMLimit;
 
-    //! Whether to enable user job accounting
+    //! Whether to enable user job accounting.
     bool EnableAccounting;
 
     //! Don't check resource demand for sanity if the number of online

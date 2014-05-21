@@ -12,23 +12,23 @@ namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuAccountingStats& operator += (TCpuAccountingStats& lhs, const TCpuAccountingStats& rhs);
-TCpuAccountingStats operator + (TCpuAccountingStats lhs, const TCpuAccountingStats& rhs);
+TCpuAccountingStatistics& operator += (TCpuAccountingStatistics& lhs, const TCpuAccountingStatistics& rhs);
+TCpuAccountingStatistics operator + (TCpuAccountingStatistics lhs, const TCpuAccountingStatistics& rhs);
 
-TCpuAccountingStats& operator -= (TCpuAccountingStats& lhs, const TCpuAccountingStats& rhs);
-TCpuAccountingStats operator - (TCpuAccountingStats lhs, const TCpuAccountingStats& rhs);
+TCpuAccountingStatistics& operator -= (TCpuAccountingStatistics& lhs, const TCpuAccountingStatistics& rhs);
+TCpuAccountingStatistics operator - (TCpuAccountingStatistics lhs, const TCpuAccountingStatistics& rhs);
 
-void Serialize(const TCpuAccountingStats& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TCpuAccountingStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockIOStats& operator += (TBlockIOStats& lhs, const TBlockIOStats& rhs);
-TBlockIOStats operator + (TBlockIOStats lhs, const TBlockIOStats& rhs);
+TBlockIOStatistics& operator += (TBlockIOStatistics& lhs, const TBlockIOStatistics& rhs);
+TBlockIOStatistics operator + (TBlockIOStatistics lhs, const TBlockIOStatistics& rhs);
 
-TBlockIOStats& operator -= (TBlockIOStats& lhs, const TBlockIOStats& rhs);
-TBlockIOStats operator - (TBlockIOStats lhs, const TBlockIOStats& rhs);
+TBlockIOStatistics& operator -= (TBlockIOStatistics& lhs, const TBlockIOStatistics& rhs);
+TBlockIOStatistics operator - (TBlockIOStatistics lhs, const TBlockIOStatistics& rhs);
 
-void Serialize(const TBlockIOStats& statistics, NYson::IYsonConsumer* consumer);
+void Serialize(const TBlockIOStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,8 +9,6 @@
 #include <util/system/fs.h>
 #include <util/string/split.h>
 
-#include <fstream>
-
 namespace NYT {
 namespace NCGroup {
 
@@ -135,7 +133,7 @@ TDuration FromJiffies(i64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuAccounting::TStats::TStats()
+TCpuAccounting::TStatistics::TStatistics()
     : User(0)
     , System(0)
 { }
@@ -144,9 +142,9 @@ TCpuAccounting::TCpuAccounting(const Stroka& name)
     : TCGroup("cpuacct", name)
 { }
 
-TCpuAccounting::TStats TCpuAccounting::GetStats()
+TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
 {
-    TCpuAccounting::TStats result;
+    TCpuAccounting::TStatistics result;
 #ifdef _linux_
     const auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
     auto values = ReadAllValues(path);
@@ -173,7 +171,7 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
     return result;
 }
 
-void ToProto(NProto::TCpuAccountingStats* protoStats, const TCpuAccounting::TStats& stats)
+void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats)
 {
     protoStats->set_user_time(stats.User.MilliSeconds());
     protoStats->set_system_time(stats.System.MilliSeconds());
@@ -181,7 +179,7 @@ void ToProto(NProto::TCpuAccountingStats* protoStats, const TCpuAccounting::TSta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockIO::TStats::TStats()
+TBlockIO::TStatistics::TStatistics()
     : TotalSectors(0)
     , BytesRead(0)
     , BytesWritten(0)
@@ -191,9 +189,9 @@ TBlockIO::TBlockIO(const Stroka& name)
     : TCGroup("blkio", name)
 { }
 
-TBlockIO::TStats TBlockIO::GetStats()
+TBlockIO::TStatistics TBlockIO::GetStatistics()
 {
-    TBlockIO::TStats result;
+    TBlockIO::TStatistics result;
 #ifdef _linux_
     {
         const auto path = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
@@ -244,7 +242,7 @@ TBlockIO::TStats TBlockIO::GetStats()
     return result;
 }
 
-void ToProto(NProto::TBlockIOStats* protoStats, const TBlockIO::TStats& stats)
+void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics& stats)
 {
     protoStats->set_total_sectors(stats.TotalSectors);
     protoStats->set_bytes_read(stats.BytesRead);

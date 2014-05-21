@@ -77,7 +77,7 @@ TEST(CGroup, GetCpuAccStat)
     TCpuAccounting group("some");
     group.Create();
 
-    auto stats = group.GetStats();
+    auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.User.MilliSeconds());
     EXPECT_EQ(0, stats.System.MilliSeconds());
 
@@ -89,7 +89,7 @@ TEST(CGroup, GetBlockIOStat)
     TBlockIO group("some");
     group.Create();
 
-    auto stats = group.GetStats();
+    auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.BytesRead);
     EXPECT_EQ(0, stats.BytesWritten);
     EXPECT_EQ(0, stats.TotalSectors);
