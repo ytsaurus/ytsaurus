@@ -15,6 +15,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         'scheduler' : {
+            'enable_accounting': 'true',
             'event_log' : {
                 'flush_period' : 300
             }
