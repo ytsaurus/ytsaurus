@@ -85,7 +85,7 @@ public:
     }
 
     TFluentLogEventImpl(const TFluentLogEventImpl& other)
-        : TBase(other.Consumer_, other.Parent)
+        : TBase(other.Consumer, other.Parent)
         , Logger_(other.Logger_)
     {
         Acquire();
