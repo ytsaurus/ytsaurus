@@ -97,6 +97,8 @@ bool TSchemalessChunkWriter<TBase>::Write(const std::vector<TUnversionedRow>& ro
     YCHECK(CurrentBlockWriter_);
 
     for (auto row : rows) {
+        Cout << "WRITE" << Endl;
+        Cout << ToString(row) << Endl;
         CurrentBlockWriter_->WriteRow(row);
         this->OnRow(row);
     }
@@ -116,6 +118,7 @@ void TSchemalessChunkWriter<TBase>::OnClose()
     auto& meta = TBase::EncodingChunkWriter_->Meta();
     TNameTableExt nameTableExt;
     ToProto(&nameTableExt, NameTable_);
+
     SetProtoExtension(meta.mutable_extensions(), nameTableExt);
 
     TBase::OnClose();
@@ -195,7 +198,6 @@ TSchemalessMultiChunkWriter::TSchemalessMultiChunkWriter(
     , Options_(options)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , CurrentWriter_(nullptr)
 { }
 
 bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow> &rows)
@@ -292,6 +294,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , Config_(config)
     , Options_(New<TTableWriterOptions>())
     , RichPath_(richPath)
+    , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , MasterChannel_(masterChannel)
     , Transaction_(transaction)

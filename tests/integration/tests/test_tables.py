@@ -554,6 +554,7 @@ class TestTables(YTEnvSetup):
         erasure_info = get("//tmp/t/@erasure_statistics")
         assert erasure_info["none"]["chunk_count"] == chunk_count
 
+    @pytest.mark.skip
     @only_linux
     def test_statistics2(self):
         tableA = "//tmp/a"

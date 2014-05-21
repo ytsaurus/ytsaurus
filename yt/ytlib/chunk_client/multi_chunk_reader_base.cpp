@@ -56,7 +56,7 @@ int CalculatePrefetchWindow(const std::vector<TChunkSpec>& sortedChunkSpecs, TMu
         }
     }
     // Don't allow overcommit during prefetching, so exclude the last chunk.
-    prefetchWindow = std::max(prefetchWindow - 1, 0);
+    prefetchWindow = std::max(prefetchWindow - 1, 1);
     prefetchWindow = std::min(prefetchWindow, MaxPrefetchWindow);
     return prefetchWindow;
 }
@@ -130,12 +130,14 @@ TAsyncError TMultiChunkReaderBase::Open()
 {
     YCHECK(!IsOpen_);
     IsOpen_ = true;
-    if (CompletionError_.IsSet())
-        return CompletionError_.ToFuture();
+    if (CompletionError_.IsSet()) {
+        ReadyEvent_ = CompletionError_.ToFuture();
+    } else {
+        ReadyEvent_ = BIND(&TMultiChunkReaderBase::DoOpen, MakeStrong(this))
+            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+            .Run();
+    }
 
-    ReadyEvent_ = BIND(&TMultiChunkReaderBase::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
     return ReadyEvent_;
 }
 

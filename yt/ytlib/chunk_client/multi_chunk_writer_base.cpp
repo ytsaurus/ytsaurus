@@ -324,6 +324,8 @@ void TNontemplateMultiChunkWriterBase::InitCurrentSession()
     NextSessionReady_ = BIND(&TNontemplateMultiChunkWriterBase::CreateNextSession, MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
+
+    WaitFor(CurrentSession_.TemplateWriter->Open());
 }
 
 bool TNontemplateMultiChunkWriterBase::VerifyActive()

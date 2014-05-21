@@ -169,22 +169,22 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     ChunkMeta_ = errorOrMeta.Value();
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
-    FromProto(&ChunkNameTable_, GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions()));
+    auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
+    FromProto(&ChunkNameTable_, nameTableExt);
 
     IdMapping_.resize(ChunkNameTable_->GetSize(), -1);
-    auto setMappingForId = [this] (int id) {
-        auto name = NameTable_->GetName(id);
-        auto chunkNameId = ChunkNameTable_->GetId(name);
-        IdMapping_[chunkNameId] = id;
-    };
 
     if (ColumnFilter_.All) {
-        for (int id = 0; id < NameTable_->GetSize(); ++id) {
-            setMappingForId(id);
+        for (int chunkNameId = 0; chunkNameId < ChunkNameTable_->GetSize(); ++chunkNameId) {
+            auto name = ChunkNameTable_->GetName(chunkNameId);
+            auto id = NameTable_->GetIdOrRegisterName(name);
+            IdMapping_[chunkNameId] = id;
         }
     } else {
         for (auto id : ColumnFilter_.Indexes) {
-            setMappingForId(id);
+            auto name = NameTable_->GetName(id);
+            auto chunkNameId = ChunkNameTable_->GetId(name);
+            IdMapping_[chunkNameId] = id;
         }
     }
 }
@@ -581,6 +581,7 @@ TError TSchemalessTableReader::DoOpen()
         batchReq->AddRequest(req, "fetch");
     }
 
+    LOG_INFO("Fetching table info");
     auto batchRsp = WaitFor(batchReq->Invoke());
     if (!batchRsp->IsOK()) {
         return TError("Error fetching table info") << *batchRsp;
@@ -588,9 +589,7 @@ TError TSchemalessTableReader::DoOpen()
 
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        if (!rsp->IsOK()) {    if (IsAborted()) {
-                return TError("Transaction aborted");
-            }
+        if (!rsp->IsOK()) {
             return TError("Error getting object type") << *rsp;
         }
 
@@ -612,15 +611,18 @@ TError TSchemalessTableReader::DoOpen()
 
         std::vector<TChunkSpec> chunkSpecs;
         for (const auto& chunkSpec : rsp->chunks()) {
-            if (IsUnavailable(chunkSpec)) {
-                if (!Config_->IgnoreUnavailableChunks) {
-                    return TError(
-                        "Chunk is unavailable (ChunkId: %s)",
-                        ~ToString(NYT::FromProto<TChunkId>(chunkSpec.chunk_id())));
-                }
-            } else {
+            if (!IsUnavailable(chunkSpec)) {
                 chunkSpecs.push_back(chunkSpec);
+                continue;
             }
+             
+            if (Config_->IgnoreUnavailableChunks) {
+                continue;
+            }
+             
+            return TError(
+                "Chunk is unavailable (ChunkId: %s)",
+                ~ToString(NYT::FromProto<TChunkId>(chunkSpec.chunk_id())));
         }
 
         UnderlyingReader_ = CreateSchemalessSequentialMultiChunkReader(
@@ -646,11 +648,11 @@ TError TSchemalessTableReader::DoOpen()
 
 bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 {
-    YCHECK(UnderlyingReader_);
     if (IsAborted()) {
         return true;
     }
 
+    YCHECK(UnderlyingReader_);
     return UnderlyingReader_->Read(rows);
 }
 
