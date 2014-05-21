@@ -10,9 +10,27 @@ namespace NCGroup {
 
 namespace NProto {
 
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuAccountingStats& operator += (TCpuAccountingStats& lhs, const TCpuAccountingStats& rhs);
+TCpuAccountingStats operator + (TCpuAccountingStats lhs, const TCpuAccountingStats& rhs);
+
+TCpuAccountingStats& operator -= (TCpuAccountingStats& lhs, const TCpuAccountingStats& rhs);
+TCpuAccountingStats operator - (TCpuAccountingStats lhs, const TCpuAccountingStats& rhs);
+
 void Serialize(const TCpuAccountingStats& statistics, NYson::IYsonConsumer* consumer);
 
+////////////////////////////////////////////////////////////////////////////////
+
+TBlockIOStats& operator += (TBlockIOStats& lhs, const TBlockIOStats& rhs);
+TBlockIOStats operator + (TBlockIOStats lhs, const TBlockIOStats& rhs);
+
+TBlockIOStats& operator -= (TBlockIOStats& lhs, const TBlockIOStats& rhs);
+TBlockIOStats operator - (TBlockIOStats lhs, const TBlockIOStats& rhs);
+
 void Serialize(const TBlockIOStats& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 }
 

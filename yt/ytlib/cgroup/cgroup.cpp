@@ -79,7 +79,7 @@ void TCGroup::Destroy()
 #ifdef _linux_
     YCHECK(Created_);
 
-    if (NFs::Remove(FullPath_.data()) != 0) {
+    if (!NFS::Remove(FullPath_)) {
         THROW_ERROR(TError::FromSystem());
     }
     Created_ = false;
@@ -92,8 +92,9 @@ void TCGroup::AddCurrentProcess()
     auto pid = getpid();
     LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_.Quote());
 
-    std::ofstream tasks(NFS::CombinePaths(FullPath_, "tasks").data(), std::ios_base::app);
-    tasks << pid << std::endl;
+    auto path = NFS::CombinePaths(FullPath_, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
 #endif
 }
 
@@ -147,10 +148,10 @@ TCpuAccounting::TStats TCpuAccounting::GetStats()
 {
     TCpuAccounting::TStats result;
 #ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
-    auto values = ReadAllValues(filename);
+    const auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
+    auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~filename.Quote(), values.size());
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~path.Quote(), values.size());
     }
 
     Stroka type[2];
@@ -195,8 +196,8 @@ TBlockIO::TStats TBlockIO::GetStats()
     TBlockIO::TStats result;
 #ifdef _linux_
     {
-        const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
-        auto values = ReadAllValues(filename);
+        const auto path = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
+        auto values = ReadAllValues(path);
 
         result.BytesRead = result.BytesWritten = 0;
         int lineNumber = 0;
@@ -206,7 +207,7 @@ TBlockIO::TStats TBlockIO::GetStats()
             i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
             }
 
             if (type == "Read") {
@@ -215,15 +216,15 @@ TBlockIO::TStats TBlockIO::GetStats()
                 result.BytesWritten += bytes;
             } else {
                 if (type != "Sync" && type != "Async" && type != "Total") {
-                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~filename.Quote(), ~type);
+                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
                 }
             }
             ++lineNumber;
         }
     }
     {
-        const auto filename = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
-        auto values = ReadAllValues(filename);
+        const auto path = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
+        auto values = ReadAllValues(path);
 
         result.TotalSectors = 0;
         int lineNumber = 0;
@@ -232,7 +233,7 @@ TBlockIO::TStats TBlockIO::GetStats()
             i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~filename.Quote(), ~deviceId);
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
             }
 
             result.TotalSectors += sectors;

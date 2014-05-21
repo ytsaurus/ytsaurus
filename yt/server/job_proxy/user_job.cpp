@@ -634,8 +634,7 @@ private:
         return result;
     }
 
-    template <typename T>
-    void CreateCGroup(T& cgroup)
+    void CreateCGroup(NCGroup::TCGroup& cgroup)
     {
         try {
             cgroup.Create();
@@ -656,8 +655,7 @@ private:
         }
     }
 
-    template <typename T>
-    void DestroyCGroup(T& cgroup)
+    void DestroyCGroup(NCGroup::TCGroup& cgroup)
     {
         if (cgroup.IsCreated()) {
             try {
