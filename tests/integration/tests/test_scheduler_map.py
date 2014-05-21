@@ -39,10 +39,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
         res = read('//sys/scheduler/event_log')
         for item in res:
             if item['event_type'] == 'job_completed':
-                for key in ['cpu_user_time', 'cpu_system_time', 'block_io_total_sectors', 'block_io_bytes_read', 'block_io_bytes_written']:
-                    assert key in item
+                stats = item['statistics']
+                for key in ['cpu', 'block_io']:
+                    assert key in stats
                 # out job should burn enough cpu
-                assert int(item['cpu_user_time']) > 0
+                assert int(stats['cpu']['user_time']) > 0
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):
