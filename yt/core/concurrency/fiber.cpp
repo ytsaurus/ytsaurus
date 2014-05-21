@@ -157,13 +157,7 @@ public:
             -1,
             0));
 
-        if (Base == MAP_FAILED) {
-            THROW_ERROR_EXCEPTION("Failed to allocate fiber stack")
-                << TErrorAttribute("requested_size", StackSize)
-                << TErrorAttribute("allocated_size", Size + GetExtraSize())
-                << TErrorAttribute("guarded_pages", StackGuardedPages)
-                << TError::FromSystem();
-        }
+        YCHECK(Base && Base != MAP_FAILED);
 
         ::mprotect(Base, GetExtraSize(), PROT_NONE);
 
