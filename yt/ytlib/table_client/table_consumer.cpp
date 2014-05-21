@@ -369,6 +369,7 @@ TTableConsumerBase::TTableConsumerBase(
     const TKeyColumns& keyColumns)
     : TreatMissingAsNull_(true)
     , AllowNonSchemaColumns_(true)
+    , CaptureStringScalars_(false)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
     , NameTable_(TNameTable::FromSchema(schema))
     , ControlState_(EControlState::None)
@@ -435,7 +436,13 @@ void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
+        if (CaptureStringScalars_) {
+            const char* begin = ValueBuffer_.Begin() + ValueBuffer_.Size();
+            ValueBuffer_.Write(value);
+            WriteValue(MakeUnversionedStringValue(TStringBuf(begin, value.Size()), ColumnIndex_));
+        } else {
+            WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
+        }
     } else {
         ValueWriter_.OnStringScalar(value);
     }
@@ -828,6 +835,7 @@ TWritingTableConsumer::TWritingTableConsumer(
     , TableIndex_(0)
 {
     TreatMissingAsNull_ = false;
+    CaptureStringScalars_ = true;
     ResetValues();
 }
 

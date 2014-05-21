@@ -158,6 +158,7 @@ protected:
 
     bool TreatMissingAsNull_;
     bool AllowNonSchemaColumns_;
+    bool CaptureStringScalars_;
 
     int KeyColumnCount_;
     NVersionedTableClient::TNameTablePtr NameTable_;

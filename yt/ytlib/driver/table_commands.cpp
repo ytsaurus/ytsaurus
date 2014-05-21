@@ -136,9 +136,13 @@ void TWriteTableCommand::DoExecute()
 
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
 
-    auto nameTable = New<TNameTable>();
+    TWritingTableConsumer consumer(keyColumns);
+
     auto writer = CreateSchemalessTableWriter(
         config,
+        Request_->Path,
+        nameTable,
+        keyColumns,
         Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context_->GetClient()->GetTransactionManager());
@@ -148,7 +152,6 @@ void TWriteTableCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
-    TWritingTableConsumer consumer(keyColumns);
     consumer.AddWriter(writer);
 
     auto format = Context_->GetInputFormat();
