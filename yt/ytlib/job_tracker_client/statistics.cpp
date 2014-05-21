@@ -20,8 +20,14 @@ TJobStatistics& operator+= (TJobStatistics& lhs, const TJobStatistics& rhs)
     *lhs.mutable_input() += rhs.input();
     *lhs.mutable_output() += rhs.output();
     lhs.set_time(lhs.time() + rhs.time());
-    *lhs.mutable_cpu() += rhs.cpu();
-    *lhs.mutable_block_io() += rhs.block_io();
+
+    if (lhs.has_cpu() && rhs.has_cpu()) {
+        *lhs.mutable_cpu() += rhs.cpu();
+    }
+    if (lhs.has_block_io() && rhs.has_block_io()) {
+        *lhs.mutable_block_io() += rhs.block_io();
+    }
+
     return lhs;
 }
 
@@ -37,8 +43,14 @@ TJobStatistics& operator-= (TJobStatistics& lhs, const TJobStatistics& rhs)
     *lhs.mutable_input() -= rhs.input();
     *lhs.mutable_output() -= rhs.output();
     lhs.set_time(lhs.time() - rhs.time());
-    *lhs.mutable_cpu() -= rhs.cpu();
-    *lhs.mutable_block_io() -= rhs.block_io();
+
+    if (lhs.has_cpu() && rhs.has_cpu()) {
+        *lhs.mutable_cpu() -= rhs.cpu();
+    }
+    if (lhs.has_block_io() && rhs.has_block_io()) {
+        *lhs.mutable_block_io() -= rhs.block_io();
+    }
+
     return lhs;
 }
 
