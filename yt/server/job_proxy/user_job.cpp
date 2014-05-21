@@ -98,6 +98,7 @@ public:
         , ProcessId(-1)
         , CpuAccounting(CGroupPrefix + ToString(jobId))
         , BlockIO(CGroupPrefix + ToString(jobId))
+        , Memory(CGroupPrefix + ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -118,6 +119,7 @@ public:
         if (UserJobSpec.enable_accounting()) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
+            CreateCGroup(Memory);
         }
 
         ProcessStartTime = TInstant::Now();
@@ -151,9 +153,11 @@ public:
             RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
                     BlockIOStats = cgroup.GetStatistics();
                 });
+            RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
+            DestroyCGroup(Memory);
         }
 
         if (ErrorOutput) {
@@ -569,49 +573,29 @@ private:
             return;
         }
 
+        if (!Memory.IsCreated()) {
+            return;
+        }
+
         try {
-            LOG_DEBUG("Started checking memory usage (UID: %d)", uid);
-
-            auto pids = GetPidsByUid(uid);
-
             i64 memoryLimit = UserJobSpec.memory_limit();
-            i64 rss = 0;
-            FOREACH(int pid, pids) {
-                try {
-                    i64 processRss = GetProcessRss(pid);
-                    // ProcessId itself is skipped since it's always 'sh'.
-                    // This also helps to prevent taking proxy's own RSS into account
-                    // when it has fork-ed but not exec-uted the child process yet.
-                    bool skip = (pid == ProcessId);
-                    LOG_DEBUG("PID: %d, RSS: %" PRId64 "%s",
-                        pid,
-                        processRss,
-                        skip ? " (skipped)" : "");
-                    if (!skip) {
-                        rss += processRss;
-                    }
-                } catch (const std::exception& ex) {
-                    LOG_DEBUG(ex, "Failed to get RSS for PID %d",
-                        pid);
-                }
-            }
-
-            LOG_DEBUG("Finished checking memory usage (UID: %d, RSS: %" PRId64 ", MemoryLimit: %" PRId64 ")",
-                uid,
-                rss,
+            auto stats = Memory.GetStatistics();
+            LOG_DEBUG("Get memory usage (JobId %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+                ~ToString(JobId),
+                stats.TotalUsageInBytes,
                 memoryLimit);
 
-            if (rss > memoryLimit) {
+            if (stats.TotalUsageInBytes > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                    << TErrorAttribute("rss", rss)
+                    << TErrorAttribute("total_usage_in_bytes", stats.TotalUsageInBytes)
                     << TErrorAttribute("limit", memoryLimit)
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
                 KilallByUid(uid);
                 return;
             }
 
-            if (rss > MemoryUsage) {
-                i64 delta = rss - MemoryUsage;
+            if (stats.TotalUsageInBytes > MemoryUsage) {
+                i64 delta = stats.TotalUsageInBytes - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;
@@ -708,6 +692,8 @@ private:
 
     NCGroup::TBlockIO BlockIO;
     NCGroup::TBlockIO::TStatistics BlockIOStats;
+
+    NCGroup::TMemory Memory;
 };
 
 TJobPtr CreateUserJob(
