@@ -15,6 +15,11 @@ i64 GetCurrentMmaped()
     return GetLFAllocCounterFull(CT_MMAP) - GetLFAllocCounterFull(CT_MUNMAP);
 }
 
+i64 GetCurrentMmapedCount()
+{
+    return GetLFAllocCounterFull(CT_MMAP_CNT) - GetLFAllocCounterFull(CT_MUNMAP_CNT);
+}
+
 i64 GetCurrentLargeBlocks()
 {
     return GetLFAllocCounterFull(CT_LARGE_ALLOC) - GetLFAllocCounterFull(CT_LARGE_FREE);
