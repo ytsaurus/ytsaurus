@@ -34,7 +34,7 @@ TEST(CGroup, DoubleCreate)
 {
     TBlockIO group("wierd_name");
     group.Create();
-    EXPECT_THROW(group.Create(), std::exception);
+    group.Create();
     group.Destroy();
 }
 

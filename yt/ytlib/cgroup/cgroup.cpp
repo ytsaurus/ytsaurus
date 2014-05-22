@@ -5,7 +5,6 @@
 #include <core/misc/fs.h>
 #include <core/misc/error.h>
 
-#include <util/folder/dirut.h>
 #include <util/system/fs.h>
 #include <util/string/split.h>
 #include <util/string/strip.h>
@@ -63,10 +62,7 @@ void TCGroup::Create()
     LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
-    if (Mkdir(FullPath_.data(), 0755) != 0) {
-        THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_.Quote())
-            << TError::FromSystem();
-    }
+    NFS::ForcePath(FullPath_, 0755);
     Created_ = true;
 #endif
 }
