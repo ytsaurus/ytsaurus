@@ -11,7 +11,10 @@ from datetime import timedelta, datetime
 
 def lock(path, mode=None, waitable=False, wait_for=None):
     """
-    Tries to lock the path. Raise exception if node already under exclusive lock.
+    Try to lock the path.
+
+    :return: taken lock id or ``None`` if lock was not taken.
+    :raises YtError: Raise ``YtError`` if node already under exclusive lock.
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
@@ -40,4 +43,3 @@ def lock(path, mode=None, waitable=False, wait_for=None):
             raise YtError("Timed out while waiting {0} milliseconds for lock {1}".format(wait_for.microseconds / 1000 + wait_for.seconds * 1000, lock_id))
 
     return lock_id
-

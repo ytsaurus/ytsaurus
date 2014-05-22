@@ -27,7 +27,8 @@ import exceptions
 import simplejson as json
 from cStringIO import StringIO
 
-""" Auxiliary methods """
+# Auxiliary methods
+
 def _filter_empty_tables(tables):
     filtered = []
     for table in tables:
@@ -235,7 +236,8 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
 """ Common table methods """
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):
-    """ Creates empty table, use recursive for automatically creation the path """
+    """Create empty table.
+    :param recursive: create the path automatically"""
     table = TablePath(path)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
