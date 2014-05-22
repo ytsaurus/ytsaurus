@@ -305,8 +305,8 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        ++CurrentRowIndex_;
-        if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ == UpperLimit_.GetRowIndex()) {
+        auto nextRowIndex = CurrentRowIndex_ + 1;
+        if (UpperLimit_.HasRowIndex() && nextRowIndex == UpperLimit_.GetRowIndex()) {
             return false;
         }
 
@@ -314,6 +314,7 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
             return false;
         }
 
+        CurrentRowIndex_ = nextRowIndex;
         ++RowCount_;
         rows->push_back(BlockReader_->GetRow(&MemoryPool_));
         
@@ -345,6 +346,9 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     i64 tableRowIndex,
     TNullable<int> partitionTag)
 {
+    Cout << "LOWER " << ToString(lowerLimit) << Endl;
+    Cout << "UPPER " << ToString(upperLimit) << Endl;
+
     return New<TSchemalessChunkReader>(
         config, 
         underlyingReader, 
@@ -437,6 +441,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
     IAsyncReaderPtr asyncReader)
 {
+    Cout << "SPEC " << chunkSpec.DebugString() << Endl;
     return CreateSchemalessChunkReader(
         Config_, 
         asyncReader, 

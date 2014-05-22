@@ -369,7 +369,6 @@ TTableConsumerBase::TTableConsumerBase(
     const TKeyColumns& keyColumns)
     : TreatMissingAsNull_(true)
     , AllowNonSchemaColumns_(true)
-    , CaptureStringScalars_(false)
     , KeyColumnCount_(static_cast<int>(keyColumns.size()))
     , NameTable_(TNameTable::FromSchema(schema))
     , ControlState_(EControlState::None)
@@ -436,13 +435,7 @@ void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        if (CaptureStringScalars_) {
-            const char* begin = ValueBuffer_.Begin() + ValueBuffer_.Size();
-            ValueBuffer_.Write(value);
-            WriteValue(MakeUnversionedStringValue(TStringBuf(begin, value.Size()), ColumnIndex_));
-        } else {
-            WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
-        }
+        WriteValue(MakeUnversionedStringValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnStringScalar(value);
     }
@@ -461,7 +454,7 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex_));
+        WriteValue(MakeUnversionedIntegerValue(value, ColumnIndex_));
     } else {
         WriteValue(MakeInt64Value<TUnversionedValue>(value, ColumnIndex_));
     }
@@ -497,7 +490,7 @@ void TTableConsumerBase::OnDoubleScalar(double value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex_));
+        WriteValue(MakeUnversionedDoubleValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnDoubleScalar(value);
     }
@@ -828,15 +821,13 @@ void TBuildingTableConsumer::OnEndRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWritingTableConsumer::TWritingTableConsumer(
-    const TKeyColumns& keyColumns)
-    : TTableConsumerBase(TTableSchema(), keyColumns)
+TWritingTableConsumer::TWritingTableConsumer()
+    : TTableConsumerBase(TTableSchema(), TKeyColumns())
     , RowIndex_(0)
     , TableIndex_(0)
+    , CurrentSize_(0)
 {
     TreatMissingAsNull_ = false;
-    CaptureStringScalars_ = true;
-    ResetValues();
 }
 
 void TWritingTableConsumer::AddWriter(ISchemalessWriterPtr writer)
@@ -844,14 +835,6 @@ void TWritingTableConsumer::AddWriter(ISchemalessWriterPtr writer)
     Writers_.push_back(writer);
     if (!CurrentWriter_) {
         CurrentWriter_ = writer;
-    }
-}
-
-void TWritingTableConsumer::ResetValues()
-{
-    Values_.clear();
-    for (int i = 0; i < KeyColumnCount_; ++i) {
-        Values_.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
     }
 }
 
@@ -867,7 +850,8 @@ void TWritingTableConsumer::Flush()
     }
 
     Rows_.clear();
-    MemoryPool_.Clear();
+    OwningRows_.clear();
+    CurrentSize_ = 0;
 }
 
 TError TWritingTableConsumer::AttachLocationAttributes(TError error)
@@ -880,30 +864,27 @@ void TWritingTableConsumer::OnBeginRow()
 
 void TWritingTableConsumer::OnValue(const TUnversionedValue& value)
 {
-    if (value.Id < KeyColumnCount_) {
-        Values_[value.Id] = value;
-    } else {
-        Values_.push_back(value);
-    }
+    Builder_.AddValue(value);
 }
 
 void TWritingTableConsumer::OnEndRow()
 {
-    auto row = TUnversionedRow::Allocate(&MemoryPool_, Values_.size());
-    ::memcpy(row.Begin(), Values_.data(), Values_.size() * sizeof(TUnversionedValue));
-    Rows_.push_back(row);
-    ResetValues();
+    OwningRows_.emplace_back(Builder_.GetRowAndReset());
+    const auto& row = OwningRows_.back();
 
-    if (ValueBuffer_.Size() > MaxValueBufferSize) {
+    CurrentSize_ += row.GetSize();
+    Rows_.emplace_back(row.Get());
+
+    ++RowIndex_;
+
+    if (CurrentSize_ > MaxValueBufferSize) {
         Flush();
-        ValueBuffer_.Clear();
     }
 }
 
 void TWritingTableConsumer::OnControlIntegerScalar(i64 value)
 {
     YCHECK(ControlAttribute_ == EControlAttribute::TableIndex);
-    YCHECK(Values_.empty());
 
     if (value >= Writers_.size()) {
         THROW_ERROR_EXCEPTION(

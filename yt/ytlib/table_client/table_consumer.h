@@ -158,7 +158,6 @@ protected:
 
     bool TreatMissingAsNull_;
     bool AllowNonSchemaColumns_;
-    bool CaptureStringScalars_;
 
     int KeyColumnCount_;
     NVersionedTableClient::TNameTablePtr NameTable_;
@@ -222,7 +221,7 @@ class TWritingTableConsumer
     : public TTableConsumerBase
 {
 public:
-    explicit TWritingTableConsumer(const NVersionedTableClient::TKeyColumns& keyColumns);
+    TWritingTableConsumer();
 
     void AddWriter(NVersionedTableClient::ISchemalessWriterPtr writer);
 
@@ -233,15 +232,13 @@ private:
     NVersionedTableClient::ISchemalessWriterPtr CurrentWriter_;
 
     i64 RowIndex_;
-
     int TableIndex_;
 
-    std::vector<NVersionedTableClient::TUnversionedValue> Values_;
+    NVersionedTableClient::TUnversionedOwningRowBuilder Builder_;
+    std::vector<NVersionedTableClient::TUnversionedOwningRow> OwningRows_;
     std::vector<NVersionedTableClient::TUnversionedRow> Rows_;
 
-    TChunkedMemoryPool MemoryPool_;
-
-    void ResetValues();
+    i64 CurrentSize_;
 
     virtual TError AttachLocationAttributes(TError error) override;
 
