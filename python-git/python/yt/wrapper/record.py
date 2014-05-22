@@ -1,17 +1,13 @@
-import config
+from format import dumps_row, loads_row
 from yamr_record import SimpleRecord, SubkeyedRecord
 
 """ Methods for records conversion """
 # Deprecated
 def record_to_line(rec, format=None, eoln=True):
-    if format is None: format = config.format.TABULAR_DATA_FORMAT
-
-    return format.dumps_row(rec)
+    return dumps_row(rec, format)
 
 def line_to_record(line, format=None):
-    if format is None: format = config.format.TABULAR_DATA_FORMAT
-
-    return format.loads_row(line)
+    return loads_row(line, format)
 
 def extract_key(rec, fields):
     if isinstance(rec, SimpleRecord) or isinstance(rec, SubkeyedRecord):

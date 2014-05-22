@@ -61,12 +61,12 @@ class TestFormats(object):
         stream = StringIO('{"a": 1}\n{"b": 2}')
         assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
 
-    def test_schemaful_dsv(self):
+    def test_schemaful_dsv_format(self):
         format = yt.SchemafulDsvFormat(columns=["a", "b"])
         self._check(format, "1\t2\n", {"a": "1", "b": "2"})
         self._check(format, "\\n\t2\n", {"a": "\n", "b": "2"})
 
-    def test_yamred_dsv(self):
+    def test_yamred_dsv_format(self):
         format = yt.YamredDsvFormat(key_column_names=["a", "b"], subkey_column_names=["c"], has_subkey=False, lenval=False)
         self._check(format, "a\tb\n", yt.Record("a", "b"))
         self._check(format, "a\tb\tc\n", yt.Record("a", "b\tc"))
