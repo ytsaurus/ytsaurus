@@ -1,7 +1,7 @@
 """
 Python wrapper for HTTP-interface of YT system.
 
-Package supports all most important commands of YT system: tree commands, table commands, operation commands, etc.
+Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
 """
 from errors import YtError, YtOperationFailedError, YtResponseError, YtNetworkError, YtProxyUnavailable, YtTokenError,\
                    YtFormatError, YtTimeoutError

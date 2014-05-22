@@ -4,21 +4,15 @@ from yt.common import YtError
 import simplejson as json
 
 class YtOperationFailedError(YtError):
-
     """Operation failed during WaitStrategy.process_operation."""
-
     pass
 
 class YtTimeoutError(YtError):
-
     """WaitStrategy timeout expired."""
-
     pass
 
 class YtResponseError(YtError):
-
     """Error in HTTP response."""
-
     def __init__(self, url, headers, error):
         super(YtResponseError, self).__init__(repr(error))
         self.url = url
@@ -42,38 +36,27 @@ class YtResponseError(YtError):
         return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
-
     """
     Error occurred while sending an HTTP request.
 
     Typically it wraps some underlying error.
     """
-
     pass
 
 class YtProxyUnavailable(YtError):
-
-    """Proxy responded that it is under heavy load."""
-
+    """Proxy is under heavy load."""
     pass
 
 class YtIncorrectResponse(YtError):
-
-    """Proxy response is incorrect."""
-
+    """Incorrect proxy response."""
     pass
 
 class YtTokenError(YtError):
-
     """Some problem occurred with authentication token."""
-
     pass
 
 class YtFormatError(YtError):
-
     """Wrong format"""
-
-    #TODO(veronikaiv): what format?
     pass
 
 def format_error(error, indent=0):

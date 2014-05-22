@@ -1,5 +1,5 @@
 import format_config
-from common import get_value, require
+from common import get_value, require, filter_dict
 from errors import YtError, YtFormatError
 from yamr_record import Record
 import yt.yson as yson
@@ -12,12 +12,10 @@ import simplejson as json
 from cStringIO import StringIO
 
 class Format(object):
-
     """ YT data representations.
 
         Abstract base class for different formats.
     """
-
     __metaclass__ = ABCMeta
 
     def __init__(self, name, attributes=None):
@@ -79,12 +77,12 @@ class Format(object):
 
     @abstractmethod
     def dump_row(self, row, stream):
-        """Convert to line and add to the stream one row"""
+        """Serialize row and write it to the stream."""
         pass
 
     @abstractmethod
     def dump_rows(self, rows, stream):
-        """Convert to line and add to the stream all rows"""
+        """Serialize rows and write it to the stream"""
         pass
 
     def dumps_row(self, row):
@@ -100,9 +98,16 @@ class Format(object):
 
     @staticmethod
     def _create_property(property_name):
-        getf = lambda self: self.attributes[property_name]
-        setf = lambda self, value: self.attributes.update({property_name: value})
-        return property(getf, setf)
+        get_func = lambda self: self.attributes[property_name]
+        set_func = lambda self, value: self.attributes.update({property_name: value})
+        return property(get_func, set_func)
+
+    @staticmethod
+    def _make_attributes(attributes, defaults, options):
+      result = defaults
+      result.update(get_value(attributes, {}))
+      result.update(filter_dict(lambda key, value: value is not None, options))
+      return result
 
     def is_read_row_supported(self):
         """..note: Deprecated."""
@@ -112,15 +117,11 @@ class Format(object):
         """..note: Deprecated."""
         return self.load_row(stream, unparsed=True)
 
-def smart_update(dictionary, new_keys_values):
-    good_new_keys_values = filter(lambda x: x[1] is not None, new_keys_values.iteritems())
-    dictionary.update(good_new_keys_values)
-
 class DsvFormat(Format):
     def __init__(self, enable_escaping=None, attributes=None):
-        all_attributes = {"enable_escaping": True}
-        all_attributes.update(get_value(attributes, {}))
-        smart_update(all_attributes, {"enable_escaping": enable_escaping})
+        all_attributes = Format._make_attributes(attributes,
+                                                 {"enable_escaping": True},
+                                                 {"enable_escaping": enable_escaping})
         super(DsvFormat, self).__init__("dsv", all_attributes)
 
     enable_escaping = Format._create_property("enable_escaping")
@@ -196,9 +197,9 @@ class DsvFormat(Format):
 
 class YsonFormat(Format):
     def __init__(self, format=None, attributes=None):
-        all_attributes = {"format": "text"}
-        all_attributes.update(get_value(attributes, {}))
-        smart_update(all_attributes, {"format": format})
+        all_attributes = Format._make_attributes(attributes,
+                                                 {"format": "text"},
+                                                 {"format": format})
         super(YsonFormat, self).__init__("yson", all_attributes)
 
     def load_row(self, stream, unparsed=False):
@@ -216,9 +217,9 @@ class YsonFormat(Format):
 
 class YamrFormat(Format):
     def __init__(self, has_subkey=None, lenval=None, field_separator=None, record_separator=None, attributes=None):
-        all_attributes = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n'}
-        all_attributes.update(get_value(attributes, {}))
-        smart_update(all_attributes, {"has_subkey": has_subkey, "lenval": lenval, "fs": field_separator, "rs": record_separator})
+        defaults = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n'}
+        options = {"has_subkey": has_subkey, "lenval": lenval, "fs": field_separator, "rs": record_separator}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
         super(YamrFormat, self).__init__("yamr", all_attributes)
 
     has_subkey = Format._create_property("has_subkey")
@@ -226,19 +227,26 @@ class YamrFormat(Format):
     lenval = Format._create_property("lenval")
 
     def load_row(self, stream, unparsed=False):
+        if unparsed:
+            if self.lenval:
+                fields = self._read_lenval(stream, unparsed=True)
+            else:
+                fields = stream.readline()
+
+            if not fields:
+                return None
+            return fields
+
         if self.lenval:
-            fields = self._read_lenval(stream, unparsed=unparsed)
+            fields = self._read_lenval(stream, unparsed=False)
+            if not fields:
+                return None
         else:
             fields = stream.readline()
-
-        if not fields:
-            return None
-
-        if unparsed:
-            return fields
-        elif not self.lenval:
+            # empty string splits to non empty list, so this check should be here
+            if not fields:
+                return None
             fields = fields.rstrip("\n").split("\t", self._get_field_count() - 1)
-
         return Record(*fields)
 
     def load_rows(self, stream):
@@ -329,10 +337,10 @@ class JsonFormat(Format):
 
 class YamredDsvFormat(YamrFormat):
     def __init__(self, key_column_names=None, subkey_column_names=None, has_subkey=None, lenval=None, attributes=None):
-        all_attributes = {"has_subkey": False, "lenval": False, "subkey_column_names": []}
-        all_attributes.update(get_value(attributes, {}))
-        smart_update(all_attributes, {"key_column_names": key_column_names, "subkey_column_names": subkey_column_names,
-                                      "has_subkey": has_subkey, "lenval": lenval})
+        defaults = {"has_subkey": False, "lenval": False, "subkey_column_names": []}
+        options = {"key_column_names": key_column_names, "subkey_column_names": subkey_column_names,
+                   "has_subkey": has_subkey, "lenval": lenval}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("key_column_names"),
                 YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
         super(YamredDsvFormat, self).__init__(attributes=all_attributes)
@@ -341,9 +349,9 @@ class YamredDsvFormat(YamrFormat):
 
 class SchemafulDsvFormat(Format):
     def __init__(self, columns=None, enable_escaping=None, attributes=None):
-        all_attributes = {"enable_escaping": True}
-        all_attributes.update(get_value(attributes, {}))
-        smart_update(all_attributes, {"columns": columns, "enable_escaping": enable_escaping})
+        defaults = {"enable_escaping": True}
+        options = {"columns": columns, "enable_escaping": enable_escaping}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("columns"),
                 YtFormatError("SchemafulDsvFormat require 'columns' attribute"))
         super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes)
@@ -396,31 +404,28 @@ class SchemedDsvFormat(SchemafulDsvFormat):
         super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes)
         self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
-_NAME_TO_FORMAT = {"yamr": YamrFormat,
-                  "dsv": DsvFormat,
-                  "yamred_dsv": YamredDsvFormat,
-                  "schemaful_dsv": SchemafulDsvFormat,
-                  "yson": YsonFormat,
-                  "json": JsonFormat}
-
 def create_format(yson_name, attributes=None):
-    """"""
     attributes = get_value(attributes, {})
 
     yson_string = yson.loads(yson_name)
     attributes.update(yson_string.attributes)
     name = str(yson_string)
+
+    NAME_TO_FORMAT = {"yamr": YamrFormat,
+                      "dsv": DsvFormat,
+                      "yamred_dsv": YamredDsvFormat,
+                      "schemaful_dsv": SchemafulDsvFormat,
+                      "yson": YsonFormat,
+                      "json": JsonFormat}
     try:
-        return _NAME_TO_FORMAT[name](attributes=attributes)
+        return NAME_TO_FORMAT[name](attributes=attributes)
     except KeyError:
         raise YtFormatError("Incorrect format " + name)
 
 def loads_row(string, format=None):
-    """"""
     format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.loads_row(string)
 
 def dumps_row(row, format=None):
-    """"""
     format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.dumps_row(row)

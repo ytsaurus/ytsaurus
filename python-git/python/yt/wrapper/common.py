@@ -77,6 +77,9 @@ def remove_attributes(tree):
 def first_not_none(iter):
     return ifilter(None, iter).next()
 
+def filter_dict(predicate, dictionary):
+    return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
+
 def get_value(value, default):
     if value is None:
         return default
