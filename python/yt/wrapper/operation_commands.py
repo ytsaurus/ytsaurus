@@ -18,9 +18,7 @@ from dateutil import tz
 OPERATIONS_PATH = "//sys/operations"
 
 class OperationState(object):
-
     """State of operation. (Simple wrapper for string name.)"""
-
     def __init__(self, name):
         self.name = name
 
@@ -47,9 +45,7 @@ class OperationState(object):
 
 
 class TimeWatcher(object):
-
     """Class for proper sleeping in ``WaitStrategy.process_operation``."""
-
     def __init__(self, min_interval, max_interval, slowdown_coef, timeout=None):
         """
         Initialise time watcher.
@@ -148,9 +144,7 @@ def order_progress(progress):
     return result
 
 class PrintOperationInfo(object):
-
     """Cache operation state and print info by update"""
-
     def __init__(self, operation):
         self.operation = operation
         self.state = None
@@ -267,9 +261,7 @@ def get_operation_result(operation):
         return result
 
 class WaitStrategy(object):
-
     """Strategy synchronously wait operation, print current progress and finalize at the completion."""
-
     def __init__(self, check_result=True, print_progress=True, timeout=None):
         """
         :param check_result: get stderr if operation failed
@@ -327,9 +319,7 @@ class WaitStrategy(object):
 
 # TODO(ignat): Fix interaction with transactions
 class AsyncStrategy(object):
-
     """Strategy just save some info about operations."""
-
     # TODO(improve this strategy)
     def __init__(self):
         self.operations = []
