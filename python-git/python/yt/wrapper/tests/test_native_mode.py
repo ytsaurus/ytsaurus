@@ -26,7 +26,7 @@ class TestNativeMode(YtTestBase, YTEnv):
     # Check equality of records in dsv format
     def check(self, recordsA, recordsB):
         def prepare(records):
-            return map(yt.line_to_record, sorted(list(records)))
+            return map(yt.loads_row, sorted(list(records)))
         self.assertEqual(prepare(recordsA), prepare(recordsB))
 
 
@@ -266,8 +266,8 @@ class TestNativeMode(YtTestBase, YTEnv):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, map(yt.record_to_line, [record]))
-        self.assertItemsEqual([record], map(yt.line_to_record, yt.read_table(table)))
+        yt.write_table(table, map(yt.dumps_row, [record]))
+        self.assertItemsEqual([record], map(yt.loads_row, yt.read_table(table)))
 
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))

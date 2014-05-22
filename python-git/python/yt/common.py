@@ -7,9 +7,7 @@ class YtError(Exception):
     pass
 
 def which(name, flags=os.X_OK):
-    """
-    Returns list of files in system paths with given name.
-    """
+    """ Return list of files in system paths with given name. """
     # TODO: check behavior when dealing with symlinks
     result = []
     for dir in os.environ.get("PATH", "").split(os.pathsep):
@@ -31,15 +29,13 @@ def update(d, u):
     return d
 
 def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
-    """ Creates flat list from all elements.  """
+    """ Create flat list from all elements. """
     if isinstance(obj, list_types):
         return list(chain(*map(flatten, obj)))
     return [obj]
 
 def update_from_env(variables):
-    """
-    Updates variables dict from environment.
-    """
+    """ Update variables dict from environment. """
     for key, value in os.environ.iteritems():
         prefix = "YT_"
         if not key.startswith(prefix):
