@@ -4,15 +4,21 @@ from yt.common import YtError
 import simplejson as json
 
 class YtOperationFailedError(YtError):
-    """
-    Represents error that occurs when we synchronously wait operation that fails.
-    """
+
+    """Operation failed during WaitStrategy.process_operation."""
+
+    pass
+
+class YtTimeoutError(YtError):
+
+    """WaitStrategy timeout expired."""
+
     pass
 
 class YtResponseError(YtError):
-    """
-    Represents error that occurs when we have error in HTTP response.
-    """
+
+    """Error in HTTP response."""
+
     def __init__(self, url, headers, error):
         super(YtResponseError, self).__init__(repr(error))
         self.url = url
@@ -36,36 +42,39 @@ class YtResponseError(YtError):
         return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
+
     """
-    Represents an error occured while sending an HTTP request.
+    Error occurred while sending an HTTP request.
+
     Typically it wraps some underlying error.
     """
+
     pass
 
 class YtProxyUnavailable(YtError):
-    """
-    Represents an error occured when proxy response that it is under heavy load.
-    """
+
+    """Proxy responded that it is under heavy load."""
+
     pass
 
 class YtIncorrectResponse(YtError):
-    """
-    Represents an error occured when proxy response is incorrect.
-    """
+
+    """Proxy response is incorrect."""
+
     pass
 
 class YtTokenError(YtError):
+
+    """Some problem occurred with authentication token."""
+
     pass
 
 class YtFormatError(YtError):
-    pass
 
-class YtTimeoutError(YtError):
-    """
-    Oops! WaitStrategy timeout expired.
-    """
-    pass
+    """Wrong format"""
 
+    #TODO(veronikaiv): what format?
+    pass
 
 def format_error(error, indent=0):
     if errors_config.ERROR_FORMAT == "json":
@@ -116,5 +125,3 @@ def pretty_format(error, indent=0):
             result += "\n" + format_error(inner_error, indent + 2)
 
     return result
-
-

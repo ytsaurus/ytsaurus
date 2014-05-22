@@ -4,6 +4,7 @@ import types
 import os
 
 class YtError(Exception):
+    """Base of all YT errors"""
     pass
 
 def which(name, flags=os.X_OK):
