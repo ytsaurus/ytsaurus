@@ -590,6 +590,11 @@ public:
         return *this;
     }
 
+    int GetSize() const
+    {
+        return StringData.length() + RowData.Size();
+    }
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 

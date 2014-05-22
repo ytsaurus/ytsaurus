@@ -43,6 +43,11 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  
+ *  /param reorderValues - set to true if key columns may not come in order, or be absent.
+ */
+
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -50,7 +55,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+    const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
+    bool reorderValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -97,8 +97,6 @@ bool TSchemalessChunkWriter<TBase>::Write(const std::vector<TUnversionedRow>& ro
     YCHECK(CurrentBlockWriter_);
 
     for (auto row : rows) {
-        Cout << "WRITE" << Endl;
-        Cout << ToString(row) << Endl;
         CurrentBlockWriter_->WriteRow(row);
         this->OnRow(row);
     }
@@ -161,20 +159,18 @@ public:
         const TKeyColumns& keyColumns,
         IChannelPtr masterChannel,
         const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId = NChunkClient::NullChunkListId);
+        const TChunkListId& parentChunkListId);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
 
-private:
+protected:
     TTableWriterConfigPtr Config_;
     TTableWriterOptionsPtr Options_;
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
 
-    ISchemalessWriter* CurrentWriter_;
 
-
-    virtual IChunkWriterBasePtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
+    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
 
 };
 
@@ -200,7 +196,7 @@ TSchemalessMultiChunkWriter::TSchemalessMultiChunkWriter(
     , KeyColumns_(keyColumns)
 { }
 
-bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow> &rows)
+bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
     if (!VerifyActive()) {
         return false;
@@ -218,6 +214,97 @@ IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateChunkWriter(IWriterPtr un
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReorderingSchemalessWriterPoolTag { };
+
+class TReorderingSchemalessMultiChunkWriter
+    : public TSchemalessMultiChunkWriter
+{
+public:
+    TReorderingSchemalessMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        TNameTablePtr nameTable,
+        const TKeyColumns& keyColumns,
+        IChannelPtr masterChannel,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId);
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+
+private:
+    std::vector<int> IdMapping_;
+    TChunkedMemoryPool MemoryPool_;
+    std::vector<TUnversionedValue> EmptyKey_;
+
+    TUnversionedRow ReorderRow(const TUnversionedRow& row);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    IChannelPtr masterChannel,
+    const TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId)
+    : TSchemalessMultiChunkWriter(config, options, nameTable, keyColumns, masterChannel, transactionId, parentChunkListId)
+    , MemoryPool_(TReorderingSchemalessWriterPoolTag())
+{ 
+    for (int i = 0; i < KeyColumns_.size(); ++i) {
+        auto id = NameTable_->GetIdOrRegisterName(KeyColumns_[i]);
+        if (id >= IdMapping_.size()) {
+            IdMapping_.resize(id + 1, -1);
+        } 
+        IdMapping_[id] = i;
+    }
+
+    EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
+}
+
+bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
+{
+    std::vector<TUnversionedRow> reorderedRows;
+    reorderedRows.reserve(rows.size());
+
+    for (const auto& row : rows) {
+        reorderedRows.push_back(ReorderRow(row));
+    }
+
+    return TSchemalessMultiChunkWriter::Write(reorderedRows);
+}
+
+TUnversionedRow TReorderingSchemalessMultiChunkWriter::ReorderRow(const TUnversionedRow& row)
+{
+    int valueCount = KeyColumns_.size() + row.GetCount();
+    TUnversionedRow result = TUnversionedRow::Allocate(&MemoryPool_, valueCount);
+
+    // Initialize with empty key.
+    ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
+
+    int nextValueIndex = KeyColumns_.size();
+    for (auto it = row.Begin(); it != row.End(); ++it) {
+        const auto& value = *it;
+        if (value.Id < IdMapping_.size()) {
+            int keyIndex = IdMapping_[value.Id];
+            if (keyIndex >= 0) {
+                result.Begin()[keyIndex] = value;
+                --valueCount;
+                continue;
+            }
+        }
+        result.Begin()[nextValueIndex] = value;
+        ++nextValueIndex;
+    }
+
+    result.SetCount(valueCount);
+    return row;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
@@ -225,9 +312,27 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId)
+    const NChunkClient::TChunkListId& parentChunkListId,
+    bool reorderValues)
 {
-    return New<TSchemalessMultiChunkWriter>(config, options, nameTable, keyColumns, masterChannel, transactionId, parentChunkListId);
+    if (reorderValues && !keyColumns.empty())
+        return New<TReorderingSchemalessMultiChunkWriter>(
+            config, 
+            options, 
+            nameTable, 
+            keyColumns, 
+            masterChannel, 
+            transactionId, 
+            parentChunkListId);
+    else
+        return New<TSchemalessMultiChunkWriter>(
+            config, 
+            options, 
+            nameTable, 
+            keyColumns, 
+            masterChannel, 
+            transactionId, 
+            parentChunkListId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,7 +590,8 @@ TError TSchemalessTableWriter::DoOpen()
         KeyColumns_,
         MasterChannel_,
         UploadTransaction_->GetId(),
-        ChunkListId_);
+        ChunkListId_,
+        true);
 
     auto error = WaitFor(UnderlyingWriter_->Open());
     if (!error.IsOK()) {

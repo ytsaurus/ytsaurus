@@ -157,8 +157,8 @@ Stroka ToString(const TReadLimit& limit)
     auto append = [&] (const TStringBuf& part) {
         if (result.empty()) {
             result.append(" ");
-            result.append(part);
         }
+        result.append(part);
     };
 
     if (limit.HasKey()) {

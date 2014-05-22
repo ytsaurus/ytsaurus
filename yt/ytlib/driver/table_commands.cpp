@@ -134,10 +134,9 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
+    TWritingTableConsumer consumer;
+
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
-
-    TWritingTableConsumer consumer(keyColumns);
-
     auto writer = CreateSchemalessTableWriter(
         config,
         Request_->Path,
