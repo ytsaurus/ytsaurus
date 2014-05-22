@@ -647,7 +647,7 @@ private:
         try {
             cgroup.Create();
         } catch (const std::exception& ex) {
-            YUNREACHABLE();
+            LOG_FATAL(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
         }
     }
 
@@ -658,7 +658,7 @@ private:
             try {
                 retriever(cgroup);
             } catch (const std::exception& ex) {
-                YUNREACHABLE();
+                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
             }
         }
     }
@@ -669,7 +669,7 @@ private:
             try {
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
-                YUNREACHABLE();
+                LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
             }
         }
     }
