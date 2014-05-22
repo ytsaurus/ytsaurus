@@ -270,7 +270,6 @@ public:
             ChecksumOutput_->Finish();
         }
         RawOutput_->Finish();
-        File_->Flush();
 
         if (!IsRaw_) {
             TSnapshotHeader header;
@@ -284,6 +283,7 @@ public:
             WritePod(*File_, header);
         }
 
+        File_->Flush();
         File_->Close();
     }
 
