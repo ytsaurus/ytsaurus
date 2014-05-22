@@ -134,8 +134,8 @@ TDuration FromJiffies(i64 jiffies)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCpuAccounting::TStatistics::TStatistics()
-    : User(0)
-    , System(0)
+    : UserTime(0)
+    , SystemTime(0)
 { }
 
 TCpuAccounting::TCpuAccounting(const Stroka& name)
@@ -162,9 +162,9 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
 
     for (int i = 0; i < 2; ++ i) {
         if (type[i] == "user") {
-            result.User = FromJiffies(jiffies[i]);
+            result.UserTime = FromJiffies(jiffies[i]);
         } else if (type[i] == "system") {
-            result.System = FromJiffies(jiffies[i]);
+            result.SystemTime = FromJiffies(jiffies[i]);
         }
     }
 #endif
@@ -173,8 +173,8 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
 
 void ToProto(NProto::TCpuAccountingStatistics* protoStats, const TCpuAccounting::TStatistics& stats)
 {
-    protoStats->set_user_time(stats.User.MilliSeconds());
-    protoStats->set_system_time(stats.System.MilliSeconds());
+    protoStats->set_user_time(stats.UserTime.MilliSeconds());
+    protoStats->set_system_time(stats.SystemTime.MilliSeconds());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

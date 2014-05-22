@@ -45,8 +45,8 @@ public:
     {
         TStatistics();
 
-        TDuration User;
-        TDuration System;
+        TDuration UserTime;
+        TDuration SystemTime;
     };
 
     explicit TCpuAccounting(const Stroka& name);
