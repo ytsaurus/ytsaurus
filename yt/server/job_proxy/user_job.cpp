@@ -527,6 +527,7 @@ private:
             if (UserJobSpec.enable_accounting()) {
                 CpuAccounting.AddCurrentProcess();
                 BlockIO.AddCurrentProcess();
+                Memory.AddCurrentProcess();
             }
 
             if (config->UserId > 0) {
