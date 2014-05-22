@@ -26,7 +26,7 @@ def module_relpath(module_name, module_file):
             if module_file.endswith(rel_path):
                 return rel_path
     return None
-    #!!! It is wrong solution, beacause modules can affect sys.path while importing
+    #!!! It is wrong solution, because modules can affect sys.path while importing
     #!!! Do not delete it to prevent wrong refactoring in the future.
     # module_path = module.__file__
     #for path in sys.path:

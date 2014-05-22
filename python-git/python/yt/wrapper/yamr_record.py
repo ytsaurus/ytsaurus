@@ -1,7 +1,13 @@
 """ Old style mapreduce records.
-    Copy-pasted from mapreducelib.py with some additions"""
+    Copy-pasted from mapreducelib.py with some additions.
+"""
+
 class SimpleRecord:
+
+    """Mapreduce-like record represents (key, value) pair, without subkey"""
+
     def __init__(self, key, value, tableIndex=0):
+        """:param tableIndex: """
         self.key = key
         self.value = value
         self.tableIndex = tableIndex
@@ -11,7 +17,7 @@ class SimpleRecord:
 
     def __repr__(self):
         return self.__str__()
-    
+
     def __cmp__(self, other):
         cmps = [cmp(getattr(self, field), getattr(other, field))
                 for field in ["key", "value"]]
@@ -28,12 +34,16 @@ class SimpleRecord:
         return self.tableIndex
 
 class SubkeyedRecord(SimpleRecord):
+
+    """Mapreduce-like record with key, subkey and value"""
+
     def __init__(self, key, subkey, value, tableIndex=0):
-        SimpleRecord.__init__(self, key, value)
+        SimpleRecord.__init__(self, key, value, tableIndex)
         self.subkey = subkey
-        self.tableIndex = tableIndex
+
     def items(self):
         return self.key, self.subkey, self.value
+
     def getTableIndex(self):
         return self.tableIndex
 
@@ -53,9 +63,8 @@ class SubkeyedRecord(SimpleRecord):
         return hash(frozenset([self.key, self.subkey, self.value]))
 
 def Record(*args, **kws):
-    """Represents mapreduce-like record with key, subkey, value"""
+    """Return mapreduce-like record with key, subkey, value."""
     assert len(args) >= 2, "incorrect arguments count [ARGS: %s]" % repr(args)
     if len(args) < 3:
         return SimpleRecord(*args, **kws)
     return SubkeyedRecord(*args[:3], **kws)
-
