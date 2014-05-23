@@ -326,11 +326,9 @@ private:
 
     void DoCleanupSnapshot(int snapshotId)
     {
-        try {
-            auto localPath = GetLocalPath(snapshotId);
-            NFS::Remove(localPath);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error removing temporary snapshot file");
+        auto localPath = GetLocalPath(snapshotId);
+        if (!NFS::Remove(localPath)) {
+            LOG_ERROR("Error removing temporary snapshot file");
         }
     }
 
