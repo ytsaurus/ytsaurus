@@ -12,6 +12,39 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemory;
+
+class TEvent
+    : private TNonCopyable
+{
+public:
+    TEvent();
+    ~TEvent();
+
+    TEvent(TEvent&& other);
+
+    bool Fired();
+
+    void Clear();
+    void Destroy();
+
+    TEvent& operator=(TEvent&& other);
+
+protected:
+    TEvent(int eventFd, int fd = -1);
+
+private:
+    void Swap(TEvent& other);
+
+    int EventFd_;
+    int Fd_;
+    bool Fired_;
+
+    friend TMemory;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCGroup
     : private TNonCopyable
 {
@@ -25,6 +58,8 @@ public:
 
     void Create();
     void Destroy();
+
+    void Set(const Stroka& name, const Stroka& value) const;
 
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
@@ -91,6 +126,10 @@ public:
 
     explicit TMemory(const Stroka& name);
     TStatistics GetStatistics();
+
+    void SetLimit(i64 bytes) const;
+    void DisableOOM() const;
+    TEvent GetOOMEvent() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

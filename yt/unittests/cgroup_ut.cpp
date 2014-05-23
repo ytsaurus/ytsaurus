@@ -7,6 +7,7 @@
 #ifdef _linux_
   #include <sys/wait.h>
   #include <unistd.h>
+  #include <sys/eventfd.h>
 #endif
 
 namespace NYT {
@@ -140,6 +141,52 @@ TEST(CurrentProcessCGroup, BadInput)
 {
     auto basic = STRINGBUF("xxx:cpuacct,cpu,cpuset:/daemons\n");
     EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
+}
+
+class TEvent : public NCGroup::TEvent
+{
+public:
+    TEvent(int eventFd, int fd = -1)
+        : NCGroup::TEvent(eventFd, fd)
+    { }
+};
+
+TEST(TEvent, Fired)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TEvent event(eventFd, -1);
+
+    EXPECT_FALSE(event.Fired());
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+}
+
+TEST(TEvent, Stiky)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TEvent event(eventFd, -1);
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+    EXPECT_TRUE(event.Fired());
+}
+
+TEST(TEvent, Clear)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TEvent event(eventFd, -1);
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+    event.Clear();
+    EXPECT_FALSE(event.Fired());
 }
 
 #endif

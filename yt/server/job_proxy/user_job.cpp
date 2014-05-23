@@ -120,6 +120,10 @@ public:
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
             CreateCGroup(Memory);
+
+            Memory.SetLimit(UserJobSpec.memory_limit());
+            Memory.DisableOOM();
+            OOMEvent = Memory.GetOOMEvent();
         }
 
         ProcessStartTime = TInstant::Now();
@@ -157,6 +161,7 @@ public:
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
+            OOMEvent.Destroy();
             DestroyCGroup(Memory);
         }
 
@@ -579,21 +584,19 @@ private:
         }
 
         try {
+            if (OOMEvent.Fired()) {
+                SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
+                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
+                KilallByUid(uid);
+                return;
+            }
+
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto stats = Memory.GetStatistics();
             LOG_DEBUG("Get memory usage (JobId %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
                 ~ToString(JobId),
                 stats.TotalUsageInBytes,
                 memoryLimit);
-
-            if (stats.TotalUsageInBytes > memoryLimit) {
-                SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                    << TErrorAttribute("total_usage_in_bytes", stats.TotalUsageInBytes)
-                    << TErrorAttribute("limit", memoryLimit)
-                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
-                KilallByUid(uid);
-                return;
-            }
 
             if (stats.TotalUsageInBytes > MemoryUsage) {
                 i64 delta = stats.TotalUsageInBytes - MemoryUsage;
@@ -695,6 +698,7 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
+    NCGroup::TEvent OOMEvent;
 };
 
 TJobPtr CreateUserJob(

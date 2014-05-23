@@ -9,6 +9,11 @@
 #include <util/string/split.h>
 #include <util/string/strip.h>
 
+#ifdef _linux_
+  #include <unistd.h>
+  #include <sys/eventfd.h>
+#endif
+
 namespace NYT {
 namespace NCGroup {
 
@@ -37,6 +42,88 @@ yvector<Stroka> ReadAllValues(const Stroka& filename)
     return values;
 }
 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEvent::TEvent(int eventFd, int fd)
+    : EventFd_(eventFd)
+    , Fd_(fd)
+    , Fired_(false)
+{ }
+
+TEvent::TEvent()
+    : TEvent(-1, -1)
+{ }
+
+TEvent::TEvent(TEvent&& other)
+    : TEvent()
+{
+    Swap(other);
+}
+
+TEvent::~TEvent()
+{
+    Destroy();
+}
+
+TEvent& TEvent::operator=(TEvent&& other)
+{
+    if (this == &other) {
+        return *this;
+    }
+    Destroy();
+    Swap(other);
+    return *this;
+}
+
+bool TEvent::Fired()
+{
+    YCHECK(EventFd_ != -1);
+
+    if (Fired_) {
+        return true;
+    }
+
+    i64 value;
+    auto bytesRead = ::read(EventFd_, &value, sizeof(value));
+
+    if (bytesRead == -1) {
+        auto errorCode = errno;
+        if (errorCode == EWOULDBLOCK || errorCode == EAGAIN) {
+            return false;
+        }
+        THROW_ERROR_EXCEPTION() << TError::FromSystem();
+    }
+    YCHECK(bytesRead == sizeof(value));
+    Fired_ = true;
+    return true;
+}
+
+void TEvent::Clear()
+{
+    Fired_ = false;
+}
+
+void TEvent::Destroy()
+{
+    Clear();
+    if (EventFd_ != -1) {
+        close(EventFd_);
+    }
+    EventFd_ = -1;
+
+    if (Fd_ != -1) {
+        close(Fd_);
+    }
+    Fd_ = -1;
+}
+
+void TEvent::Swap(TEvent& other)
+{
+    std::swap(EventFd_, other.EventFd_);
+    std::swap(Fd_, other.Fd_);
+    std::swap(Fired_, other.Fired_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +178,13 @@ void TCGroup::AddCurrentProcess()
     TFileOutput output(TFile(path, OpenMode::ForAppend));
     output << pid;
 #endif
+}
+
+void TCGroup::Set(const Stroka& name, const Stroka& value) const
+{
+    auto path = NFS::CombinePaths(FullPath_, name);
+    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    output << value;
 }
 
 std::vector<int> TCGroup::GetTasks() const
@@ -201,18 +295,14 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& type = values[3 * lineNumber + 1];
             i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
-            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
-            }
+            YCHECK(deviceId.has_prefix("8:"));
 
             if (type == "Read") {
                 result.BytesRead += bytes;
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                if (type != "Sync" && type != "Async" && type != "Total") {
-                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
-                }
+                YCHECK(type != "Sync" && type != "Async" && type != "Total");
             }
             ++lineNumber;
         }
@@ -261,6 +351,29 @@ TMemory::TStatistics TMemory::GetStatistics()
     result.TotalUsageInBytes = FromString<i64>(strip(rawData));
 #endif
     return result;
+}
+
+void TMemory::SetLimit(i64 bytes) const
+{
+    Set("memory.limit_in_bytes", ToString(bytes));
+}
+
+void TMemory::DisableOOM() const
+{
+    Set("memory.oom_control", "1");
+}
+
+TEvent TMemory::GetOOMEvent() const
+{
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
+    auto fd = ::open(~filename, O_WRONLY | O_CLOEXEC);
+
+    auto eventFd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    auto data = ToString(eventFd) + ' ' + ToString(fd);
+
+    Set("cgroup.event_control", data);
+
+    return TEvent(eventFd, fd);
 }
 
 TMemory::TStatistics::TStatistics()
