@@ -208,9 +208,14 @@ TSyncFileChangelog::TImpl::TImpl(
     Logger.AddTag(Sprintf("Path: %s", ~path));
 }
 
-TFileChangelogConfigPtr TSyncFileChangelog::TImpl::GetConfig()
+TFileChangelogConfigPtr TSyncFileChangelog::TImpl::GetConfig() const
 {
     return Config_;
+}
+
+const Stroka& TSyncFileChangelog::TImpl::GetFileName() const
+{
+    return FileName_;
 }
 
 void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)

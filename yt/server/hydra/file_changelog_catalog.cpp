@@ -61,6 +61,7 @@ class TFileChangelogCatalog
 public:
     explicit TFileChangelogCatalog(TFileChangelogCatalogConfigPtr config)
         : Config(config)
+        , Dispatcher(New<TFileChangelogDispatcher>("ChangelogFlush"))
         , ChangelogCache(New<TChangelogCache>(this))
         , MultiplexedChangelogId(-1)
     { }
@@ -107,7 +108,7 @@ public:
                 LOG_INFO("Creating new multiplexed changelog %d",
                     newId);
 
-                MultiplexedChangelog = CreateFileChangelog(
+                MultiplexedChangelog = Dispatcher->CreateChangelog(
                     GetMultiplexedChangelogPath(newId),
                     TSharedRef(),
                     Config->Multiplexed);
@@ -378,7 +379,7 @@ private:
             auto path = Catalog->GetSplitChangelogPath(cellGuid, id);
 
             try {
-                auto splitChangelog = CreateFileChangelog(
+                auto splitChangelog = Catalog->Dispatcher->CreateChangelog(
                     path,
                     meta,
                     Catalog->Config->Split);
@@ -415,7 +416,7 @@ private:
                         id));
                 } else {
                     try {
-                        auto splitChangelog = OpenFileChangelog(
+                        auto splitChangelog = Catalog->Dispatcher->OpenChangelog(
                             path,
                             Catalog->Config->Split);
 
@@ -516,12 +517,9 @@ private:
             LOG_INFO("Replaying dirty multiplexed changelog %d", changelogId);
 
             auto multiplexedChangelogPath = Catalog->GetMultiplexedChangelogPath(changelogId);
-            auto multiplexedChangelog = OpenFileChangelog(
+            auto multiplexedChangelog = Catalog->Dispatcher->OpenChangelog(
                 multiplexedChangelogPath,
                 Catalog->Config->Multiplexed);
-            if (!multiplexedChangelog) {
-                THROW_ERROR_EXCEPTION("Missing multiplexed changelog %d", changelogId);
-            }
 
             int startRecordId = 0;
             int recordCount = multiplexedChangelog->GetRecordCount();
@@ -588,7 +586,7 @@ private:
                 if (!isexist(~path)) {
                     return nullptr;
                 }
-                auto changelog = OpenFileChangelog(
+                auto changelog = Catalog->Dispatcher->OpenChangelog(
                     path,
                     Catalog->Config->Split);
                 it = SplitChangelogMap.insert(std::make_pair(
@@ -608,6 +606,8 @@ private:
 
 
     TFileChangelogCatalogConfigPtr Config;
+
+    TFileChangelogDispatcherPtr Dispatcher;
 
     //! Protects a section of members.
     TSpinLock SpinLock;
@@ -722,7 +722,7 @@ private:
         int oldId = MultiplexedChangelogId;
         int newId = MultiplexedChangelogId + 1;
 
-        auto newMultiplexedChangelog = CreateFileChangelog(
+        auto newMultiplexedChangelog = Dispatcher->CreateChangelog(
             GetMultiplexedChangelogPath(newId),
             TSharedRef(),
             Config->Multiplexed);

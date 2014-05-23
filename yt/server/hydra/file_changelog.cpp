@@ -32,20 +32,13 @@ static const TDuration FlushThreadQuantum = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogQueue
+class TFileChangelogDispatcher::TChangelogQueue
     : public TRefCounted
 {
 public:
     explicit TChangelogQueue(TSyncFileChangelogPtr changelog)
-        : Changelog(changelog)
-        , UseCount(0)
-        , FlushedRecordCount(changelog->GetRecordCount())
-        , ByteSize(0)
-        , FlushPromise(NewPromise())
-        , FlushForced(false)
-        , SealPromise(NewPromise())
-        , SealForced(false)
-        , SealRecordCount(-1)
+        : Changelog_(changelog)
+        , FlushedRecordCount_(changelog->GetRecordCount())
     { }
 
 
@@ -53,14 +46,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ++UseCount;
+        ++UseCount_;
     }
 
     void Unlock()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        --UseCount;
+        --UseCount_;
     }
 
 
@@ -68,13 +61,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        YCHECK(!SealForced);
-        AppendQueue.push_back(std::move(data));
-        ByteSize += data.Size();
+        TGuard<TSpinLock> guard(SpinLock_);
+        YCHECK(!SealForced_);
+        AppendQueue_.push_back(std::move(data));
+        ByteSize_ += data.Size();
 
-        YCHECK(FlushPromise);
-        return FlushPromise;
+        YCHECK(FlushPromise_);
+        return FlushPromise_;
     }
 
 
@@ -82,14 +75,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (FlushQueue.empty() && AppendQueue.empty()) {
+        if (FlushQueue_.empty() && AppendQueue_.empty()) {
             return MakeFuture();
         }
 
-        FlushForced = true;
-        return FlushPromise;
+        FlushForced_ = true;
+        return FlushPromise_;
     }
 
     TFuture<void> AsyncSeal(int recordCount)
@@ -97,12 +90,12 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            SealForced = true;
-            SealRecordCount = recordCount;
+            TGuard<TSpinLock> guard(SpinLock_);
+            SealForced_ = true;
+            SealRecordCount_ = recordCount;
         }
 
-        return SealPromise;
+        return SealPromise_;
     }
 
 
@@ -111,20 +104,20 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Unguarded access seems OK.
-        auto config = Changelog->GetConfig();
-        if (ByteSize >= config->FlushBufferSize) {
+        auto config = Changelog_->GetConfig();
+        if (ByteSize_ >= config->FlushBufferSize) {
             return true;
         }
 
-        if (Changelog->GetLastFlushed() < TInstant::Now() - config->FlushPeriod) {
+        if (Changelog_->GetLastFlushed() < TInstant::Now() - config->FlushPeriod) {
             return true;
         }
 
-        if (FlushForced) {
+        if (FlushForced_) {
             return true;
         }
 
-        if (SealForced) {
+        if (SealForced_) {
             return true;
         }
 
@@ -145,23 +138,23 @@ public:
 
         TPromise<void> promise;
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            if (!AppendQueue.empty() || !FlushQueue.empty()) {
+            if (!AppendQueue_.empty() || !FlushQueue_.empty()) {
                 return false;
             }
 
-            if (SealForced && !SealPromise.IsSet()) {
+            if (SealForced_ && !SealPromise_.IsSet()) {
                 return false;
             }
 
-            if (UseCount.load() > 0) {
+            if (UseCount_.load() > 0) {
                 return false;
             }
 
-            promise = FlushPromise;
-            FlushPromise.Reset();
-            FlushForced = false;
+            promise = FlushPromise_;
+            FlushPromise_.Reset();
+            FlushForced_ = false;
         }
 
         promise.Set();
@@ -193,13 +186,13 @@ public:
         };
 
         while (needMore()) {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (currentRecordId < FlushedRecordCount) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (currentRecordId < FlushedRecordCount_) {
                 // Read from disk, w/o spinlock.
                 guard.Release();
 
                 PROFILE_TIMING ("/changelog_read_io_time") {
-                    auto diskRecords = Changelog->Read(currentRecordId, needRecords, needBytes);
+                    auto diskRecords = Changelog_->Read(currentRecordId, needRecords, needBytes);
                     for (const auto& record : diskRecords) {
                         appendRecord(record);
                     }
@@ -218,8 +211,8 @@ public:
                 };
 
                 PROFILE_TIMING ("/changelog_read_copy_time") {
-                    readFromMemory(FlushQueue, FlushedRecordCount);
-                    readFromMemory(AppendQueue, FlushedRecordCount + FlushQueue.size());
+                    readFromMemory(FlushQueue_, FlushedRecordCount_);
+                    readFromMemory(AppendQueue_, FlushedRecordCount_ + FlushQueue_.size());
                 }
 
                 // Break since we don't except more records beyond this point.
@@ -234,27 +227,27 @@ public:
     }
 
 private:
-    TSyncFileChangelogPtr Changelog;
+    TSyncFileChangelogPtr Changelog_;
 
-    TSpinLock SpinLock;
-    std::atomic<int> UseCount;
+    TSpinLock SpinLock_;
+    std::atomic<int> UseCount_ = 0;
 
     //! Number of records flushed to the underlying sync changelog.
-    int FlushedRecordCount;
+    int FlushedRecordCount_ = 0;
     //! These records are currently being flushed to the underlying sync changelog and
     //! immediately follow the flushed part.
-    std::vector<TSharedRef> FlushQueue;
+    std::vector<TSharedRef> FlushQueue_;
     //! Newly appended records go here. These records immediately follow the flush part.
-    std::vector<TSharedRef> AppendQueue;
+    std::vector<TSharedRef> AppendQueue_;
 
-    i64 ByteSize;
+    i64 ByteSize_ = 0;
 
-    TPromise<void> FlushPromise;
-    bool FlushForced;
+    TPromise<void> FlushPromise_ = NewPromise();
+    bool FlushForced_ = false;
 
-    TPromise<void> SealPromise;
-    bool SealForced;
-    int SealRecordCount;
+    TPromise<void> SealPromise_ = NewPromise();
+    bool SealForced_ = false;
+    int SealRecordCount_ = -1;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
@@ -264,29 +257,29 @@ private:
     {
         TPromise<void> flushPromise;
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            YCHECK(FlushQueue.empty());
-            FlushQueue.swap(AppendQueue);
-            ByteSize = 0;
+            YCHECK(FlushQueue_.empty());
+            FlushQueue_.swap(AppendQueue_);
+            ByteSize_ = 0;
 
-            YCHECK(FlushPromise);
-            flushPromise = FlushPromise;
-            FlushPromise = NewPromise();
-            FlushForced = false;
+            YCHECK(FlushPromise_);
+            flushPromise = FlushPromise_;
+            FlushPromise_ = NewPromise();
+            FlushForced_ = false;
         }
 
-        if (!FlushQueue.empty()) {
+        if (!FlushQueue_.empty()) {
             PROFILE_TIMING("/changelog_flush_io_time") {
-                Changelog->Append(FlushedRecordCount, FlushQueue);
-                Changelog->Flush();
+                Changelog_->Append(FlushedRecordCount_, FlushQueue_);
+                Changelog_->Flush();
             }
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += FlushQueue.size();
-            FlushQueue.clear();
+            TGuard<TSpinLock> guard(SpinLock_);
+            FlushedRecordCount_ += FlushQueue_.size();
+            FlushQueue_.clear();
         }
 
         flushPromise.Set();
@@ -296,24 +289,24 @@ private:
     {
         TPromise<void> sealPromise;
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (!SealForced)
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (!SealForced_)
                 return;
-            sealPromise = SealPromise;
-            SealForced = false;
+            sealPromise = SealPromise_;
+            SealForced_ = false;
         }
 
         while (true) {
             {
-                TGuard<TSpinLock> guard(SpinLock);
-                if (AppendQueue.empty())
+                TGuard<TSpinLock> guard(SpinLock_);
+                if (AppendQueue_.empty())
                     break;
             }
             SyncFlush();
         }
 
         PROFILE_TIMING("/changelog_seal_io_time") {
-            Changelog->Seal(SealRecordCount);
+            Changelog_->Seal(SealRecordCount_);
         }
 
         sealPromise.Set();
@@ -321,17 +314,39 @@ private:
 
 };
 
-typedef TIntrusivePtr<TChangelogQueue> TChangelogQueuePtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogDispatcher
+class TFileChangelogDispatcher::TImpl
+    : public TRefCounted
 {
 public:
-    static TChangelogDispatcher* Get()
+    explicit TImpl(const Stroka& threadName)
+        : ThreadName_(threadName)
+        , Thread_(ThreadFunc, static_cast<void*>(this))
+        , WakeupEvent(Event::rManual)
+        , Started_(NewPromise())
+        // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
+        // , Finished_(false)
+        , RecordCounter_("/record_rate")
+        , SizeCounter_("/record_throughput")
     {
-        return Singleton<TChangelogDispatcher>();
+        Finished_ = false;
+        Thread_.Start();
+        Started_.Get();
     }
+
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
+    void Shutdown()
+    {
+        Finished_ = true;
+        WakeupEvent.Signal();
+        Thread_.Join();
+    }
+
 
     TFuture<void> Append(
         TSyncFileChangelogPtr changelog,
@@ -342,8 +357,8 @@ public:
         queue->Unlock();
         WakeupEvent.Signal();
 
-        Profiler.Increment(RecordCounter);
-        Profiler.Increment(SizeCounter, record.Size());
+        Profiler.Increment(RecordCounter_);
+        Profiler.Increment(SizeCounter_, record.Size());
 
         return result;
     }
@@ -395,46 +410,52 @@ public:
         return result;
     }
 
-    void Shutdown()
+    void Remove(TSyncFileChangelogPtr changelog)
     {
-        Finished = true;
-        WakeupEvent.Signal();
-        Thread.Join();
+        RemoveQueue(changelog);
+
+        auto path = changelog->GetFileName();
+
+        changelog->Close();
+
+        if (!NFS::Remove(path)) {
+            THROW_ERROR_EXCEPTION("Error removing changelog data file %s",
+                ~path.Quote());
+        }
+
+        if (!NFS::Remove(path + IndexSuffix)) {
+            THROW_ERROR_EXCEPTION("Error removing changelog index file %s",
+                ~path.Quote());
+        }
     }
 
 private:
-    DECLARE_SINGLETON_FRIEND(TChangelogDispatcher)
+    Stroka ThreadName_;
 
-    TChangelogDispatcher()
-        : Thread(ThreadFunc, static_cast<void*>(this))
-        , WakeupEvent(Event::rManual)
-        // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
-        // , Finished(false)
-        , RecordCounter("/record_rate")
-        , SizeCounter("/record_throughput")
-    {
-        Finished = false;
-        Thread.Start();
-    }
+    TSpinLock SpinLock_;
+    yhash_map<TSyncFileChangelogPtr, TChangelogQueuePtr> QueueMap_;
 
-    ~TChangelogDispatcher()
-    {
-        Shutdown();
-    }
+    TThread Thread_;
+    Event WakeupEvent;
+    TPromise<void> Started_;
+    std::atomic<bool> Finished_;
+
+    NProfiling::TRateCounter RecordCounter_;
+    NProfiling::TRateCounter SizeCounter_;
 
 
     TChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        auto it = QueueMap.find(changelog);
-        return it == QueueMap.end() ? nullptr : it->second;
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = QueueMap_.find(changelog);
+        return it == QueueMap_.end() ? nullptr : it->second;
     }
 
     TChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        auto it = QueueMap.find(changelog);
-        if (it == QueueMap.end()) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = QueueMap_.find(changelog);
+        if (it == QueueMap_.end()) {
             return nullptr;
         }
 
@@ -445,15 +466,15 @@ private:
 
     TChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
         TChangelogQueuePtr queue;
 
-        auto it = QueueMap.find(changelog);
-        if (it != QueueMap.end()) {
+        auto it = QueueMap_.find(changelog);
+        if (it != QueueMap_.end()) {
             queue = it->second;
         } else {
             queue = New<TChangelogQueue>(changelog);
-            YCHECK(QueueMap.insert(std::make_pair(changelog, queue)).second);
+            YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
         }
 
         queue->Lock();
@@ -462,8 +483,8 @@ private:
 
     void RemoveQueue(TSyncFileChangelogPtr changelog)
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        QueueMap.erase(changelog);
+        TGuard<TSpinLock> guard(SpinLock_);
+        QueueMap_.erase(changelog);
     }
 
     void FlushQueues()
@@ -471,8 +492,8 @@ private:
         // Take a snapshot.
         std::vector<TChangelogQueuePtr> queues;
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            for (const auto& pair : QueueMap) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            for (const auto& pair : QueueMap_) {
                 const auto& queue = pair.second;
                 if (queue->HasPendingActions()) {
                     queues.push_back(queue);
@@ -488,13 +509,13 @@ private:
 
     void SweepQueues()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        auto it = QueueMap.begin();
-        while (it != QueueMap.end()) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = QueueMap_.begin();
+        while (it != QueueMap_.end()) {
             auto jt = it++;
             auto queue = jt->second;
             if (queue->TrySweep()) {
-                QueueMap.erase(jt);
+                QueueMap_.erase(jt);
             }
         }
     }
@@ -509,16 +530,17 @@ private:
 
     static void* ThreadFunc(void* param)
     {
-        auto* this_ = (TChangelogDispatcher*) param;
+        auto* this_ = (TImpl*) param;
         this_->ThreadMain();
         return nullptr;
     }
 
     void ThreadMain()
     {
-        NConcurrency::SetCurrentThreadName("ChangelogFlush");
+        NConcurrency::SetCurrentThreadName(~ThreadName_);
+        Started_.Set();
 
-        while (!Finished) {
+        while (!Finished_) {
             ProcessQueues();
             WakeupEvent.Reset();
             WakeupEvent.WaitT(FlushThreadQuantum);
@@ -526,23 +548,7 @@ private:
     }
 
 
-    TSpinLock SpinLock;
-    yhash_map<TSyncFileChangelogPtr, TChangelogQueuePtr> QueueMap;
-
-    TThread Thread;
-    Event WakeupEvent;
-    std::atomic_bool Finished;
-
-    NProfiling::TRateCounter RecordCounter;
-    NProfiling::TRateCounter SizeCounter;
-
 };
-
-// TODO(babenko): get rid of this
-void ShutdownChangelogs()
-{
-    TChangelogDispatcher::Get()->Shutdown();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -551,9 +557,11 @@ class TFileChangelog
 {
 public:
     TFileChangelog(
+        TFileChangelogDispatcherPtr dispatcher,
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog)
-        : Config_(config)
+        : DispatcherImpl_(dispatcher->Impl_)
+        , Config_(config)
         , SyncChangelog_(changelog)
         , RecordCount_(changelog->GetRecordCount())
         , DataSize_(changelog->GetDataSize())
@@ -584,21 +592,17 @@ public:
         RecordCount_ += 1;
         DataSize_ += data.Size();
 
-        return TChangelogDispatcher::Get()->Append(
-            SyncChangelog_,
-            data);
+        return DispatcherImpl_->Append(SyncChangelog_, data);
     }
 
     virtual TFuture<void> Flush() override
     {
-        return TChangelogDispatcher::Get()->Flush(
-            SyncChangelog_);
+        return DispatcherImpl_->Flush(SyncChangelog_);
     }
 
     virtual void Close() override
     {
-        return TChangelogDispatcher::Get()->Close(
-            SyncChangelog_);
+        return DispatcherImpl_->Close(SyncChangelog_);
     }
 
     virtual std::vector<TSharedRef> Read(
@@ -606,7 +610,7 @@ public:
         int maxRecords,
         i64 maxBytes) const override
     {
-        return TChangelogDispatcher::Get()->Read(
+        return DispatcherImpl_->Read(
             SyncChangelog_,
             firstRecordId,
             maxRecords,
@@ -618,9 +622,7 @@ public:
         YCHECK(recordCount <= RecordCount_);
         RecordCount_.store(recordCount);
 
-        return TChangelogDispatcher::Get()->Seal(
-            SyncChangelog_,
-            recordCount);
+        return DispatcherImpl_->Seal(SyncChangelog_, recordCount);
     }
 
     virtual void Unseal() override
@@ -628,7 +630,13 @@ public:
         SyncChangelog_->Unseal();
     }
 
+    void Remove()
+    {
+        DispatcherImpl_->Remove(SyncChangelog_);
+    }
+
 private:
+    TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
     TFileChangelogConfigPtr Config_;
     TSyncFileChangelogPtr SyncChangelog_;
 
@@ -637,31 +645,40 @@ private:
 
 };
 
-IChangelogPtr CreateFileChangelog(
+DEFINE_REFCOUNTED_TYPE(TFileChangelog)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
+    : Impl_(New<TImpl>(threadName))
+{ }
+
+IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const Stroka& path,
     const TSharedRef& meta,
     TFileChangelogConfigPtr config)
 {
-    auto syncChangelog = New<TSyncFileChangelog>(
-        path,
-        config);
+    auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Create(meta);
-    return New<TFileChangelog>(
-        config,
-        syncChangelog);
+
+    return New<TFileChangelog>(this, config, syncChangelog);
 }
 
-IChangelogPtr OpenFileChangelog(
+IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     const Stroka& path,
     TFileChangelogConfigPtr config)
 {
-    auto syncChangelog = New<TSyncFileChangelog>(
-        path,
-        config);
+    auto syncChangelog = New<TSyncFileChangelog>(path, config);
     syncChangelog->Open();
-    return New<TFileChangelog>(
-        config,
-        syncChangelog);
+
+    return New<TFileChangelog>(this, config, syncChangelog);
+}
+
+void TFileChangelogDispatcher::RemoveChangelog(IChangelogPtr changelog)
+{
+    auto* fileChangelog = dynamic_cast<TFileChangelog*>(changelog.Get());
+    YCHECK(fileChangelog);
+    fileChangelog->Remove();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,11 +689,15 @@ class TCachedFileChangelog
 {
 public:
     explicit TCachedFileChangelog(
+        TFileChangelogDispatcherPtr dispather,
         TFileChangelogConfigPtr config,
         TSyncFileChangelogPtr changelog,
         int id)
         : TCacheValueBase(id)
-        , TFileChangelog(config, changelog)
+        , TFileChangelog(
+            dispather,
+            config,
+            changelog)
     { }
 
 };
@@ -687,9 +708,11 @@ class TFileChangelogStore
 {
 public:
     TFileChangelogStore(
+        const Stroka& threadName,
         const TCellGuid& cellGuid,
         TFileChangelogStoreConfigPtr config)
         : TSizeLimitedCache(config->MaxCachedChangelogs)
+        , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
         , CellGuid_(cellGuid)
         , Config_(config)
         , Logger(HydraLogger)
@@ -728,6 +751,7 @@ public:
                 Config_);
             changelog->Create(meta);
             cookie.EndInsert(New<TCachedFileChangelog>(
+                Dispatcher_,
                 Config_,
                 changelog,
                 id));
@@ -755,6 +779,7 @@ public:
                         Config_);
                     changelog->Open();
                     cookie.EndInsert(New<TCachedFileChangelog>(
+                        Dispatcher_,
                         Config_,
                         changelog,
                         id));
@@ -779,10 +804,13 @@ public:
     }
 
 private:
+    TFileChangelogDispatcherPtr Dispatcher_;
+
     TCellGuid CellGuid_;
     TFileChangelogStoreConfigPtr Config_;
 
     NLog::TTaggedLogger Logger;
+
 
     Stroka GetChangelogPath(int id)
     {
@@ -792,10 +820,12 @@ private:
 };
 
 IChangelogStorePtr CreateFileChangelogStore(
+    const Stroka& threadName,
     const TCellGuid& cellGuid,
     TFileChangelogStoreConfigPtr config)
 {
     auto store = New<TFileChangelogStore>(
+        threadName,
         cellGuid,
         config);
     store->Start();

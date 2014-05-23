@@ -6,22 +6,47 @@ namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
+    
+class TFileChangelogDispatcher
+    : public TRefCounted
+{
+public:
+    explicit TFileChangelogDispatcher(const Stroka& threadName);
 
-IChangelogPtr CreateFileChangelog(
-    const Stroka& path,
-    const TSharedRef& meta,
-    TFileChangelogConfigPtr config);
+    void Shutdown();
 
-IChangelogPtr OpenFileChangelog(
-    const Stroka& path,
-    TFileChangelogConfigPtr config);
+    IChangelogPtr CreateChangelog(
+        const Stroka& path,
+        const TSharedRef& meta,
+        TFileChangelogConfigPtr config);
+
+    IChangelogPtr OpenChangelog(
+        const Stroka& path,
+        TFileChangelogConfigPtr config);
+
+    void RemoveChangelog(IChangelogPtr changelog);
+
+private:
+    class TImpl;
+    typedef TIntrusivePtr<TImpl> TImplPtr;
+
+    class TChangelogQueue;
+    typedef TIntrusivePtr<TChangelogQueue> TChangelogQueuePtr;
+
+    friend class TFileChangelog;
+
+    TImplPtr Impl_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IChangelogStorePtr CreateFileChangelogStore(
+    const Stroka& threadName,
     const TCellGuid& cellGuid,
     TFileChangelogStoreConfigPtr config);
-
-// TODO(babenko): get rid of this
-void ShutdownChangelogs();
 
 ////////////////////////////////////////////////////////////////////////////////
 

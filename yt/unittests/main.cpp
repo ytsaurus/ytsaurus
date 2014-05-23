@@ -73,7 +73,6 @@ public:
 
     virtual void TearDown() override
     {
-        NYT::NHydra::ShutdownChangelogs();
         NYT::Shutdown();
     }
 

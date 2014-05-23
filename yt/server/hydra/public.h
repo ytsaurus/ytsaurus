@@ -12,10 +12,10 @@ namespace NHydra {
 DECLARE_REFCOUNTED_STRUCT(IAutomaton)
 DECLARE_REFCOUNTED_STRUCT(IHydraManager)
 
-struct TChangelogCreateParams;
 DECLARE_REFCOUNTED_STRUCT(IChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
 DECLARE_REFCOUNTED_STRUCT(IChangelogCatalog)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
 
 struct TSnapshotParams;
 struct TSnapshotCreateParams;
@@ -23,6 +23,7 @@ DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
 DECLARE_REFCOUNTED_STRUCT(ISnapshotWriter)
 DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
+DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 
 struct TMutationRequest;
 struct TMutationResponse;

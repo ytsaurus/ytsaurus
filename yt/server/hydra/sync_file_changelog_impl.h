@@ -139,7 +139,8 @@ public:
         const Stroka& fileName,
         TFileChangelogConfigPtr config);
 
-    TFileChangelogConfigPtr GetConfig();
+    TFileChangelogConfigPtr GetConfig() const;
+    const Stroka& GetFileName() const;
 
     void Open();
     void Close();

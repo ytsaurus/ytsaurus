@@ -24,6 +24,11 @@ TFileChangelogConfigPtr TSyncFileChangelog::GetConfig()
     return Impl_->GetConfig();
 }
 
+const Stroka& TSyncFileChangelog::GetFileName() const
+{
+    return Impl_->GetFileName();
+}
+
 void TSyncFileChangelog::Open()
 {
     Impl_->Open();

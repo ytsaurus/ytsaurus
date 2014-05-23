@@ -377,7 +377,6 @@ int Main(int argc, const char* argv[])
         exitCode = EExitCode::BootstrapError;
     }
 
-    NHydra::ShutdownChangelogs();
     Shutdown();
 
     return exitCode;

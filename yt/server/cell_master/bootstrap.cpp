@@ -267,6 +267,7 @@ void TBootstrap::Run()
         selfId);
 
     ChangelogStore = CreateFileChangelogStore(
+        "ChangelogFlush",
         GetCellGuid(),
         Config->Changelogs);
 

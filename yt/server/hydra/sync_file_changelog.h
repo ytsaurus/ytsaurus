@@ -27,6 +27,9 @@ public:
     //! Returns the configuration passed in ctor.
     TFileChangelogConfigPtr GetConfig();
 
+    //! Returns the data file name of the changelog.
+    const Stroka& GetFileName() const;
+
     //! Opens an existing changelog.
     //! Throws an exception on failure.
     void Open();
