@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "session_manager.h"
 #include "blob_session.h"
+#include "journal_session.h"
 #include "private.h"
 #include "config.h"
 #include "location.h"
@@ -13,6 +14,7 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 
@@ -112,27 +114,43 @@ ISessionPtr TSessionManager::CreateSession(
     auto chunkStore = Bootstrap_->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation();
 
-    auto chunkType = TypeFromId(chunkId);
-    if (chunkType == EObjectType::Chunk ||
-        chunkType >= EObjectType::ErasureChunkPart_0 && chunkType <= EObjectType::ErasureChunkPart_15)
-    {
-        auto session = New<TBlobSession>(
-            Config_,
-            Bootstrap_,
-            chunkId,
-            type,
-            syncOnClose,
-            location);
-        auto lease = TLeaseManager::CreateLease(
-            Config_->SessionTimeout,
-            BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), session)
-                .Via(Bootstrap_->GetControlInvoker()));
-        session->Start(lease);
-        return session;
-    } else {
-        THROW_ERROR_EXCEPTION("Invalid session chunk type %s",
-            ~FormatEnum(type).Quote());
+    auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
+
+    ISessionPtr session;
+    switch (chunkType) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            session = New<TBlobSession>(
+                Config_,
+                Bootstrap_,
+                chunkId,
+                type,
+                syncOnClose,
+                location);
+            break;
+
+        case EObjectType::JournalChunk:
+            session = New<TJournalSession>(
+                Config_,
+                Bootstrap_,
+                chunkId,
+                type,
+                syncOnClose,
+                location);
+            break;
+    
+        default:
+            THROW_ERROR_EXCEPTION("Invalid session chunk type %s",
+                ~FormatEnum(chunkType).Quote());
     }
+
+    auto lease = TLeaseManager::CreateLease(
+        Config_->SessionTimeout,
+        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), session)
+            .Via(Bootstrap_->GetControlInvoker()));
+    session->Start(lease);
+
+    return session;
 }
 
 void TSessionManager::OnSessionLeaseExpired(ISessionPtr session)

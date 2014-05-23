@@ -41,46 +41,26 @@ TBlobSession::TBlobSession(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
-    NChunkClient::EWriteSessionType type,
+    EWriteSessionType type,
     bool syncOnClose,
     TLocationPtr location)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , ChunkId(chunkId)
-    , Type(type)
-    , SyncOnClose(syncOnClose)
-    , Location(location)
+    : TSession(
+        config,
+        bootstrap,
+        chunkId,
+        type,
+        syncOnClose,
+        location)
     , WindowStartIndex(0)
     , WriteIndex(0)
     , Size(0)
-    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
-    , Logger(DataNodeLogger)
-    , Profiler(location->Profiler())
-{
-    YCHECK(bootstrap);
-    YCHECK(location);
-
-    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
-        ~Location->GetId(),
-        ~ToString(ChunkId)));
-
-    Location->UpdateSessionCount(+1);
-    FileName = Location->GetChunkFileName(ChunkId);
-}
-
-TBlobSession::~TBlobSession()
-{
-    Location->UpdateSessionCount(-1);
-}
+    , FileName(Location->GetChunkFileName(ChunkId))
+{ }
 
 void TBlobSession::Start(TLeaseManager::TLease lease)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    TSession::Start(lease);
 
-    LOG_DEBUG("Session started (SessionType: %s)",
-        ~ToString(Type));
-
-    Lease = lease;
     WriteInvoker->Invoke(BIND(&TBlobSession::DoOpenFile, MakeStrong(this)));
 }
 
@@ -96,7 +76,7 @@ void TBlobSession::DoOpenFile()
         catch (const std::exception& ex) {
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error creating chunk %s",
+                "Error creating blob chunk %s",
                 ~ToString(ChunkId))
                 << ex);
             return;
@@ -104,13 +84,6 @@ void TBlobSession::DoOpenFile()
     }
 
     LOG_DEBUG("Finished opening chunk writer");
-}
-
-void TBlobSession::Ping()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TLeaseManager::RenewLease(Lease);
 }
 
 TFuture<TErrorOr<IChunkPtr>> TBlobSession::Finish(const TChunkMeta& chunkMeta)
@@ -124,10 +97,10 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::Finish(const TChunkMeta& chunkMeta)
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::WindowError,
-                "Attempt to finish a session with an unflushed block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
-                blockIndex,
-                WindowStartIndex,
-                Window.size());
+                "Attempt to finish a blob session with an unflushed block %d",
+                blockIndex)
+                << TErrorAttribute("window_start", WindowStartIndex)
+                << TErrorAttribute("window_size", Window.size());
         }
     }
 
@@ -136,30 +109,6 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::Finish(const TChunkMeta& chunkMeta)
     return CloseFile(chunkMeta).Apply(
         BIND(&TBlobSession::OnFileClosed, MakeStrong(this))
             .AsyncVia(Bootstrap->GetControlInvoker()));
-}
-
-void TBlobSession::CloseLease()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TLeaseManager::CloseLease(Lease);
-}
-
-const TChunkId& TBlobSession::GetChunkId() const
-{
-    return ChunkId;
-}
-
-EWriteSessionType TBlobSession::GetType() const
-{
-    return Type;
-}
-
-TLocationPtr TBlobSession::GetLocation() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Location;
 }
 
 const TChunkInfo& TBlobSession::GetChunkInfo() const

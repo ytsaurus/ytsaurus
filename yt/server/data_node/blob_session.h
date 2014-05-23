@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "session.h"
+#include "session_detail.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/throughput_throttler.h>
@@ -20,7 +20,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobSession
-    : public ISession
+    : public TSession
 {
 public:
     TBlobSession(
@@ -31,14 +31,9 @@ public:
         bool syncOnClose,
         TLocationPtr location);
 
-    ~TBlobSession();
-
-    void Start(TLeaseManager::TLease lease);
-
-    virtual const TChunkId& GetChunkId() const override;
-    virtual EWriteSessionType GetType() const override;
-    TLocationPtr GetLocation() const override;
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
+
+    virtual void Start(TLeaseManager::TLease lease) override;
 
     virtual TAsyncError PutBlocks(
         int startBlockIndex,
@@ -52,15 +47,10 @@ public:
 
     virtual TAsyncError FlushBlock(int blockIndex) override;
 
-    virtual void Ping() override;
-
     virtual void Cancel(const TError& error) override;
 
     virtual TFuture<TErrorOr<IChunkPtr>> Finish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
-
-    DEFINE_SIGNAL(void(const TError& error), Failed);
-    DEFINE_SIGNAL(void(IChunkPtr chunk), Completed);
 
 private:
     DECLARE_ENUM(ESlotState,
@@ -83,13 +73,6 @@ private:
 
     typedef std::vector<TSlot> TWindow;
 
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-    TChunkId ChunkId;
-    EWriteSessionType Type;
-    bool SyncOnClose;
-    TLocationPtr Location;
-
     TError Error;
     TWindow Window;
     int WindowStartIndex;
@@ -99,15 +82,6 @@ private:
     Stroka FileName;
     NChunkClient::TFileWriterPtr Writer;
 
-    TLeaseManager::TLease Lease;
-
-    IInvokerPtr WriteInvoker;
-
-    NLog::TTaggedLogger Logger;
-    NProfiling::TProfiler Profiler;
-
-
-    void CloseLease();
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
@@ -136,9 +110,6 @@ private:
     void ReleaseSpace();
 
     void OnIOError(const TError& error);
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
 };
 

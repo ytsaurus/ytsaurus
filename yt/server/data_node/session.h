@@ -19,15 +19,6 @@ namespace NDataNode {
 struct ISession
     : public virtual TRefCounted
 {
-    //! Cancels the session.
-    virtual void Cancel(const TError& error) = 0;
-
-    //! Finishes the session.
-    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
-
-    // Used by clients.
-    
     //! Returns the TChunkId being uploaded.
     virtual const TChunkId& GetChunkId() const = 0;
 
@@ -39,6 +30,16 @@ struct ISession
 
     //! Returns the chunk info.
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
+
+    //! Initializes the session instance.
+    virtual void Start(TLeaseManager::TLease lease) = 0;
+
+    //! Cancels the session.
+    virtual void Cancel(const TError& error) = 0;
+
+    //! Finishes the session.
+    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
+        const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TAsyncError PutBlocks(
