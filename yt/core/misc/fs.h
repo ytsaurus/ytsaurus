@@ -15,6 +15,9 @@ namespace NFS {
 //! File suffix for temporary files.
 const char* const TempFileSuffix = "~";
 
+//! Returns |true| if a given path points to an existing file or directory.
+bool Exists(const Stroka& path);
+
 //! Removes a given file. Throws on failure.
 void Remove(const Stroka& path);
 

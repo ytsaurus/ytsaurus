@@ -38,6 +38,15 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
+bool Exists(const Stroka& path)
+{
+#ifdef _win32_
+    return GetFileAttributesA(~path) != 0xFFFFFFFF;
+#else
+    return access(path, F_OK) == 0;
+#endif
+}
+
 void Remove(const Stroka& path)
 {
     bool ok;
@@ -48,9 +57,9 @@ void Remove(const Stroka& path)
     ok = lstat(~path, &sb) == 0;
     if (ok) {
         if (S_ISDIR(sb.st_mode)) {
-            ok = ::rmdir(~path) == 0;
+            ok = rmdir(~path) == 0;
         } else {
-            ok = ::remove(~path) == 0;
+            ok = remove(~path) == 0;
         }
     }
 #endif
@@ -67,7 +76,7 @@ void Rename(const Stroka& oldPath, const Stroka& newPath)
 #if defined(_win_)
     ok = MoveFileEx(~oldPath, ~newPath, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-    ok = ::rename(~oldPath, ~newPath) == 0;
+    ok = rename(~oldPath, ~newPath) == 0;
 #endif
     if (!ok) {
         THROW_ERROR_EXCEPTION("Cannot rename %s into %s",
@@ -135,7 +144,7 @@ void CleanTempFiles(const Stroka& path)
 std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
 {
     std::vector<Stroka> result;
-    if (isexist(~path)) {
+    if (NFS::Exists(path)) {
         TFileList list;
         list.Fill(path, TStringBuf(), TStringBuf(), depth);
         int size = list.Size();
@@ -149,7 +158,7 @@ std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
 std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
 {
     std::vector<Stroka> result;
-    if (isexist(~path)) {
+    if (NFS::Exists(path)) {
         TDirsList list;
         list.Fill(path, TStringBuf(), TStringBuf(), depth);
         int size = list.Size();

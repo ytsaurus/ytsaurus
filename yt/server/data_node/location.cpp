@@ -18,9 +18,6 @@
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 
-#include <util/folder/filelist.h>
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NDataNode {
 
@@ -334,7 +331,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     LOG_INFO("Done, %" PRISZT " chunks found", descriptors.size());
 
     auto cellGuidPath = NFS::CombinePaths(path, CellGuidFileName);
-    if (isexist(~cellGuidPath)) {
+    if (NFS::Exists(cellGuidPath)) {
         TFileInput cellGuidFile(cellGuidPath);
         auto cellGuidString = cellGuidFile.ReadAll();
         TCellGuid cellGuid;

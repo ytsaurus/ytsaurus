@@ -13,8 +13,6 @@
 
 #include <util/stream/lz.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -486,7 +484,7 @@ private:
     bool CheckSnapshotExists(int snapshotId)
     {
         auto path = GetSnapshotPath(snapshotId);
-        if (isexist(~path)) {
+        if (NFS::Exists(path)) {
             return true;
         }
 

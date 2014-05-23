@@ -33,8 +33,6 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <util/folder/dirut.h>
-
 #include <util/stream/null.h>
 
 #include <errno.h>

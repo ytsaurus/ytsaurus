@@ -7,8 +7,6 @@
 #include <core/misc/string.h>
 #include <core/misc/serialize.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -23,7 +21,7 @@ namespace {
 //! Removes #destination if it exists. Then renames #destination into #source.
 void ReplaceFile(const Stroka& source, const Stroka& destination)
 {
-    if (isexist(~destination)) {
+    if (NFS::Exists(destination)) {
         NFS::Remove(destination);
     }
 

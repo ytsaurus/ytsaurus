@@ -20,8 +20,6 @@
 
 #include <core/tracing/trace_context.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NDriver {
 
@@ -67,11 +65,11 @@ Stroka TExecutor::GetConfigFileName()
         return fromEnv;
     }
 
-    if (isexist(~user)) {
+    if (NFS::Exists(user)) {
         return user;
     }
 
-    if (isexist(~system)) {
+    if (NFS::Exists(system)) {
         return system;
     }
 

@@ -29,8 +29,6 @@
 #include <util/stream/file.h>
 #include <util/stream/buffered.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -144,7 +142,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
     Logger.AddTag(Sprintf("OperationId: %s",
         ~ToString(job.Operation->GetId())));
 
-    if (!isexist(~job.FileName)) {
+    if (!NFS::Exists(job.FileName)) {
         LOG_WARNING("Snapshot file is missing");
         return;
     }

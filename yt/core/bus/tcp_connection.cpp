@@ -11,7 +11,6 @@
 #include <core/profiling/profiling_manager.h>
 
 #include <util/system/error.h>
-#include <util/folder/dirut.h>
 
 #include <errno.h>
 

@@ -14,8 +14,6 @@
 
 #include <util/system/thread.h>
 
-#include <util/folder/dirut.h>
-
 #include <util/generic/singleton.h>
 
 #include <atomic>
@@ -760,7 +758,7 @@ public:
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
             auto path = GetChangelogPath(id);
-            if (!isexist(~path)) {
+            if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(
                     NHydra::EErrorCode::NoSuchChangelog,
                     "No such changelog %d",
@@ -790,7 +788,7 @@ public:
     {
         for (int id = initialId; ; ++id) {
             auto path = GetChangelogPath(id);
-            if (!isexist(~path)) {
+            if (!NFS::Exists(~path)) {
                 return id == initialId ? NonexistingSegmentId : id - 1;
             }
         }

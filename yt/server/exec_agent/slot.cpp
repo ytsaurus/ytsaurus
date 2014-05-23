@@ -69,7 +69,7 @@ int TSlot::GetUserId() const
 void TSlot::DoClean()
 {
     try {
-        if (isexist(~SandboxPath)) {
+        if (NFS::Exists(SandboxPath)) {
             if (UserId == EmptyUserId) {
                 RemoveDirWithContents(SandboxPath);
             } else {

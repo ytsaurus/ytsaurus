@@ -16,7 +16,6 @@
 #include <ytlib/hydra/version.h>
 
 #include <util/folder/dirut.h>
-#include <util/folder/filelist.h>
 
 namespace NYT {
 namespace NHydra {
@@ -341,7 +340,7 @@ private:
         {
             for (int id = initialId; ; ++id) {
                 auto path = Catalog->GetSplitChangelogPath(CellGuid, id);
-                if (!isexist(~path)) {
+                if (NFS::Exists(path)) {
                     return id == initialId ? NonexistingSegmentId : id - 1;
                 }
             }
@@ -408,7 +407,7 @@ private:
             TInsertCookie cookie(std::make_pair(cellGuid, id));
             if (BeginInsert(&cookie)) {
                 auto path = Catalog->GetSplitChangelogPath(store->GetCellGuid(), id);
-                if (!isexist(~path)) {
+                if (!NFS::Exists(path)) {
                     cookie.Cancel(TError(
                         NHydra::EErrorCode::NoSuchChangelog,
                         "No such changelog %s:%d",
@@ -583,7 +582,7 @@ private:
             auto it = SplitChangelogMap.find(key);
             if (it == SplitChangelogMap.end()) {
                 auto path = Catalog->GetSplitChangelogPath(cellGuid, changelogId);
-                if (!isexist(~path)) {
+                if (!NFS::Exists(path)) {
                     return nullptr;
                 }
                 auto changelog = Catalog->Dispatcher->OpenChangelog(
