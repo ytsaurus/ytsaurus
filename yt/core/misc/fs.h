@@ -49,6 +49,7 @@ std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth = 1);
 struct TDiskSpaceStatistics
 {
     i64 TotalSpace;
+    i64 FreeSpace;
     i64 AvailableSpace;
 };
 

@@ -163,18 +163,19 @@ std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 {
     TDiskSpaceStatistics result;
-
+    bool ok;
 #ifdef _win_
-    bool ok = GetDiskFreeSpaceEx(
+    ok = GetDiskFreeSpaceEx(
         ~path,
         (PULARGE_INTEGER) &result.AvailableSpace,
         (PULARGE_INTEGER) &result.TotalSpace,
-        (PULARGE_INTEGER) NULL) != 0;
+        (PULARGE_INTEGER) &result.FreeSpace) != 0;
 #else
     struct statfs fsData;
-    bool ok = statfs(~path, &fsData) == 0;
+    ok = statfs(~path, &fsData) == 0;
     result.TotalSpace = (i64) fsData.f_blocks * fsData.f_bsize;
     result.AvailableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
+    result.FreeSpace = (i64) fsData.f_bfree * fsData.f_bsize;
 #endif
 
     if (!ok) {
