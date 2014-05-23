@@ -37,17 +37,6 @@ static const int Permissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void RemoveFileOrThrow(const Stroka& fileName)
-{
-    if (!NFS::Remove(fileName)) {
-        THROW_ERROR_EXCEPTION("Error deleting %s", ~fileName.Quote());
-    }
-}
-
-} // namespace
-
 DECLARE_ENUM(ELocationQueue,
     (Data)
     (Meta)
@@ -323,8 +312,8 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
                 // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
                 LOG_WARNING("Chunk meta file %s is empty",
                     ~chunkMetaFileName.Quote());
-                RemoveFileOrThrow(chunkDataFileName);
-                RemoveFileOrThrow(chunkMetaFileName);
+                NFS::Remove(chunkDataFileName);
+                NFS::Remove(chunkMetaFileName);
                 continue;
             }
             TChunkDescriptor descriptor;
@@ -334,11 +323,11 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         } else if (!hasMeta) {
             LOG_WARNING("Missing meta file, removing data file %s",
                 ~chunkDataFileName.Quote());
-            RemoveFileOrThrow(chunkDataFileName);
+            NFS::Remove(chunkDataFileName);
         } else if (!hasData) {
             LOG_WARNING("Missing data file, removing meta file %s",
                 ~chunkMetaFileName.Quote());
-            RemoveFileOrThrow(chunkMetaFileName);
+            NFS::Remove(chunkMetaFileName);
         }
     }
 

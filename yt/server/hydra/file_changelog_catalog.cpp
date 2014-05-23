@@ -761,13 +761,8 @@ private:
     void MarkMultiplexedChangelogClean(int changelogId)
     {
         auto path = GetMultiplexedChangelogPath(changelogId);
-        if (!Rename(path, path + CleanSuffix) ||
-            !Rename(path + IndexSuffix, path + IndexSuffix + CleanSuffix))
-        {
-            THROW_ERROR_EXCEPTION("Error marking multiplexed changelog %s as clean",
-                ~path.Quote());
-        }
-
+        NFS::Rename(path, path + CleanSuffix);
+        NFS::Rename(path + IndexSuffix, path + IndexSuffix + CleanSuffix);
         LOG_INFO("Multiplexed changelog %d is clean", changelogId);
     }
 

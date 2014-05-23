@@ -167,15 +167,11 @@ TFuture<void> TJournalChunk::RemoveFiles()
         LOG_DEBUG("Started removing journal chunk files (ChunkId: %s)",
             ~ToString(id));
 
-        if (!NFS::Remove(dataFileName)) {
-            LOG_ERROR("Failed to remove journal data file %s",
-                ~dataFileName.Quote());
-            location->Disable();
-        }
-
-        if (!NFS::Remove(indexFileName)) {
-            LOG_ERROR("Failed to remove journal index file %s",
-                ~indexFileName.Quote());
+        try {
+            NFS::Remove(dataFileName);
+            NFS::Remove(indexFileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error removing journal chunk files");
             location->Disable();
         }
 

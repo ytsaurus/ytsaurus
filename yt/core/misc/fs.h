@@ -15,20 +15,11 @@ namespace NFS {
 //! File suffix for temporary files.
 const char* const TempFileSuffix = "~";
 
-//! Removes file.
-/*!
- * \param name File name
- * \return True when succeeds
- */
-bool Remove(const Stroka& name);
+//! Removes a given file. Throws on failure.
+void Remove(const Stroka& path);
 
-//! Renames file.
-/*!
- * \param oldName Old name
- * \param newName New name
- * \return True when succeeds
- */
-bool Rename(const Stroka& oldName, const Stroka& newName);
+//! Renames a given file. Throws on failure.
+void Rename(const Stroka& oldPath, const Stroka& newPath);
 
 //! Returns name of file.
 Stroka GetFileName(const Stroka& path);

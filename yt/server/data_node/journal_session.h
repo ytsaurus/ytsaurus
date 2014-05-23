@@ -38,8 +38,6 @@ public:
 
     virtual TAsyncError FlushBlock(int blockIndex) override;
 
-    virtual void Ping() override;
-
     virtual void Cancel(const TError& error) override;
 
     virtual TFuture<TErrorOr<IChunkPtr>> Finish(

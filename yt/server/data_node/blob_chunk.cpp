@@ -304,15 +304,11 @@ TFuture<void> TBlobChunk::RemoveFiles()
         LOG_DEBUG("Started removing blob chunk files (ChunkId: %s)",
             ~ToString(id));
 
-        if (!NFS::Remove(dataFileName)) {
-            LOG_ERROR("Failed to remove blob data file %s",
-                ~dataFileName.Quote());
-            location->Disable();
-        }
-
-        if (!NFS::Remove(metaFileName)) {
-            LOG_ERROR("Failed to remove blob meta file %s",
-                ~metaFileName.Quote());
+        try {
+            NFS::Remove(dataFileName);
+            NFS::Remove(metaFileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error removing blob chunk files");
             location->Disable();
         }
 

@@ -108,9 +108,7 @@ TError TDiskHealthChecker::DoRunCheck()
             file.Read(readData.data(), Config->TestSize);
         }
 
-        if (!NFS::Remove(fileName)) {
-            THROW_ERROR_EXCEPTION("Error removing test file");
-        }
+        NFS::Remove(fileName);
 
         if (memcmp(readData.data(), writeData.data(), Config->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");

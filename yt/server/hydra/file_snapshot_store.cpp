@@ -442,11 +442,7 @@ public:
     TSnapshotParams ConfirmSnapshot(int snapshotId)
     {
         auto path = GetSnapshotPath(snapshotId);
-        if (!Rename(path + TempFileSuffix, path)) {
-            LOG_FATAL("Error renaming snapshot %s",
-                ~path.Quote());
-        }
-
+        NFS::Rename(path + TempFileSuffix, path);
         return RegisterSnapshot(snapshotId);
     }
 

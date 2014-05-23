@@ -326,10 +326,7 @@ private:
 
     void DoCleanupSnapshot(int snapshotId)
     {
-        auto localPath = GetLocalPath(snapshotId);
-        if (!NFS::Remove(localPath)) {
-            LOG_ERROR("Error removing temporary snapshot file");
-        }
+        NFS::Remove(GetLocalPath(snapshotId));
     }
 
     TSnapshotParams DoGetSnapshotParams(int snapshotId)

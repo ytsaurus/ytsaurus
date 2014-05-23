@@ -38,30 +38,43 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool Remove(const Stroka& name)
+void Remove(const Stroka& path)
 {
+    bool ok;
 #ifdef _win_
-    return DeleteFileA(~name);
+    ok = DeleteFileA(~path);
 #else
     struct stat sb;
-
-    if (int result = lstat(~name, &sb))
-        return result == 0;
-
-    if (!S_ISDIR(sb.st_mode))
-        return ::remove(~name) == 0;
-
-    return ::rmdir(~name) == 0;
+    ok = lstat(~path, &sb) == 0;
+    if (ok) {
+        if (S_ISDIR(sb.st_mode)) {
+            ok = ::rmdir(~path) == 0;
+        } else {
+            ok = ::remove(~path) == 0;
+        }
+    }
 #endif
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Cannot remove %s",
+            ~path.Quote())
+            << TError::FromSystem();
+    }   
 }
 
-bool Rename(const Stroka& oldName, const Stroka& newName)
+void Rename(const Stroka& oldPath, const Stroka& newPath)
 {
+    bool ok;
 #if defined(_win_)
-    return MoveFileEx(~oldName, ~newName, MOVEFILE_REPLACE_EXISTING) != 0;
+    ok = MoveFileEx(~oldPath, ~newPath, MOVEFILE_REPLACE_EXISTING) != 0;
 #else
-    return ::rename(~oldName, ~newName) == 0;
+    ok = ::rename(~oldPath, ~newPath) == 0;
 #endif
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Cannot rename %s into %s",
+            ~oldPath.Quote(),
+            ~newPath.Quote())
+            << TError::FromSystem();
+    }
 }
 
 Stroka GetFileName(const Stroka& path)
@@ -112,11 +125,9 @@ void CleanTempFiles(const Stroka& path)
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.has_suffix(TempFileSuffix)) {
-            Stroka fileName = NFS::CombinePaths(path, entry);
+            auto fileName = NFS::CombinePaths(path, entry);
             LOG_INFO("Removing file %s", ~fileName.Quote());
-            if (!NFS::Remove(~fileName)) {
-                LOG_ERROR("Error removing file %s", ~fileName.Quote());
-            }
+            NFS::Remove(fileName);
         }
     }
 }

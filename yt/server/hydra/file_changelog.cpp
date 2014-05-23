@@ -418,15 +418,8 @@ public:
 
         changelog->Close();
 
-        if (!NFS::Remove(path)) {
-            THROW_ERROR_EXCEPTION("Error removing changelog data file %s",
-                ~path.Quote());
-        }
-
-        if (!NFS::Remove(path + IndexSuffix)) {
-            THROW_ERROR_EXCEPTION("Error removing changelog index file %s",
-                ~path.Quote());
-        }
+        NFS::Remove(path);
+        NFS::Remove(path + IndexSuffix);
     }
 
 private:

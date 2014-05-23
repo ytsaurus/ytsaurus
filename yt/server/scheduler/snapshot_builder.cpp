@@ -34,7 +34,6 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NFS;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NConcurrency;
@@ -67,8 +66,8 @@ TAsyncError TSnapshotBuilder::Run()
     LOG_INFO("Snapshot builder started");
 
     try {
-        ForcePath(Config->SnapshotTempPath);
-        CleanTempFiles(Config->SnapshotTempPath);
+        NFS::ForcePath(Config->SnapshotTempPath);
+        NFS::CleanTempFiles(Config->SnapshotTempPath);
     } catch (const std::exception& ex) {
         return MakeFuture(TError(ex));
     }
@@ -80,8 +79,8 @@ TAsyncError TSnapshotBuilder::Run()
 
         TJob job;
         job.Operation = operation;
-        job.FileName = CombinePaths(Config->SnapshotTempPath, ToString(operation->GetId()));
-        job.TempFileName = job.FileName + TempFileSuffix;
+        job.FileName = NFS::CombinePaths(Config->SnapshotTempPath, ToString(operation->GetId()));
+        job.TempFileName = job.FileName + NFS::TempFileSuffix;
         Jobs.push_back(job);
 
         LOG_INFO("Snapshot job registered (OperationId: %s)",
@@ -117,7 +116,7 @@ void TSnapshotBuilder::Build(const TJob& job)
 
     // Move temp file into regular file atomically.
     {
-        Rename(job.TempFileName, job.FileName);
+        NFS::Rename(job.TempFileName, job.FileName);
     }
 }
 

@@ -139,22 +139,14 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
         }
 
         chunkMetaFile.Close();
+
+        NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName);
+        NFS::Rename(FileName + NFS::TempFileSuffix, FileName);
     } catch (const std::exception& ex) {
-        return MakeFuture(
-            TError("Failed to write chunk meta to %s", ~chunkMetaFileName.Quote())
+        return MakeFuture(TError(
+            "Failed to write chunk meta to %s",
+            ~chunkMetaFileName.Quote())
             << ex);
-    }
-
-    if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        return MakeFuture(TError(
-            "Error renaming temp chunk meta file %s",
-            ~chunkMetaFileName.Quote()));
-    }
-
-    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        return MakeFuture(TError(
-            "Error renaming temp chunk file %s",
-            ~FileName.Quote()));
     }
 
     ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());
@@ -166,13 +158,14 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
 
 void TFileWriter::Abort()
 {
-    if (!IsOpen) {
+    if (!IsOpen)
         return;
-    }
+
     IsClosed = true;
     IsOpen = false;
 
     DataFile.reset();
+
     NFS::Remove(FileName + NFS::TempFileSuffix);
 }
 

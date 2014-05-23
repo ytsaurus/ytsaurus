@@ -24,17 +24,10 @@ namespace {
 void ReplaceFile(const Stroka& source, const Stroka& destination)
 {
     if (isexist(~destination)) {
-        if (!NFS::Remove(~destination)) {
-            LOG_FATAL("Failed to remove %s",
-                ~destination.Quote());
-        }
+        NFS::Remove(destination);
     }
 
-    if (!NFS::Rename(~source, ~destination)) {
-        LOG_FATAL("Failed to rename %s into %s",
-            ~source.Quote(),
-            ~destination.Quote());
-    }
+    NFS::Rename(source, destination);
 }
 
 template <class T>
