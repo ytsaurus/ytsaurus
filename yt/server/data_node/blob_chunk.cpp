@@ -296,7 +296,7 @@ i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
 
 void TBlobChunk::DoRemove()
 {
-    EvictChunkReader();
+    EvictReader();
 
     auto this_ = MakeStrong(this);
     Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
@@ -304,7 +304,7 @@ void TBlobChunk::DoRemove()
     }));
 }
 
-void TBlobChunk::EvictChunkReader()
+void TBlobChunk::EvictReader()
 {
     auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
     readerCache->EvictReader(this);

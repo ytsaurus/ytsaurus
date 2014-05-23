@@ -40,7 +40,7 @@ protected:
         const TChunkDescriptor& descriptor,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
-    void EvictChunkReader();
+    void EvictReader();
 
 private:
     virtual void DoRemove() override;
