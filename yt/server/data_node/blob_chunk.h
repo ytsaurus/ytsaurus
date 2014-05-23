@@ -1,11 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "chunk.h"
+#include "chunk_detail.h"
 
 #include <core/misc/cache.h>
-
-#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -14,15 +12,9 @@ namespace NDataNode {
 
 //! A base for both TStoredBlobChunk and TCachedBlobChunk.
 class TBlobChunk
-    : public IChunk
+    : public TChunk
 {
 public:
-    virtual const TChunkId& GetId() const override;
-    virtual TLocationPtr GetLocation() const override;
-    virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const override;
-
-    virtual Stroka GetFileName() const override;
-
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
@@ -35,22 +27,12 @@ public:
 
     virtual TRefCountedChunkMetaPtr GetCachedMeta() const override;
 
-    virtual bool TryAcquireReadLock() override;
-    virtual void ReleaseReadLock() override;
-    virtual bool IsReadLockAcquired() const override;
-
-    virtual TFuture<void> ScheduleRemoval() override;
-
 protected:
-    TChunkId Id_;
-    TLocationPtr Location_;
-    NChunkClient::NProto::TChunkInfo Info_;
-
     TBlobChunk(
         TLocationPtr location,
         const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& meta,
+        const NChunkClient::NProto::TChunkInfo& info,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
     TBlobChunk(
@@ -58,17 +40,16 @@ protected:
         const TChunkDescriptor& descriptor,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
-    ~TBlobChunk();
-
     void EvictChunkReader();
 
 private:
-    void DoRemoveChunk();
+    virtual void DoRemove() override;
 
     TAsyncError ReadMeta(i64 priority);
     void DoReadMeta(TPromise<TError> promise);
 
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
+
     i64 ComputePendingReadSize(int firstBlockIndex, int blockCount);
 
     void DoReadBlocks(
@@ -78,17 +59,9 @@ private:
         TPromise<TError> promise,
         std::vector<TSharedRef>* blocks);
 
-    TSpinLock SpinLock_;
     TRefCountedChunkMetaPtr Meta_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     
-
-    int ReadLockCounter_ = 0;
-    bool RemovalScheduled_ = false;
-    TPromise<void> RemovedEvent_;
-
-    NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,8 +74,8 @@ public:
     TStoredBlobChunk(
         TLocationPtr location,
         const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& meta,
+        const NChunkClient::NProto::TChunkInfo& info,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
     TStoredBlobChunk(
@@ -125,8 +98,8 @@ public:
     TCachedBlobChunk(
         TLocationPtr location,
         const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& meta,
+        const NChunkClient::NProto::TChunkInfo& info,
         TChunkCachePtr chunkCache,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 

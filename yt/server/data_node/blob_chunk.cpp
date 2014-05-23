@@ -33,55 +33,27 @@ static NProfiling::TRateCounter DiskReadThroughputCounter("/disk_read_throughput
 TBlobChunk::TBlobChunk(
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkMeta& chunkMeta,
-    const TChunkInfo& chunkInfo,
+    const TChunkMeta& meta,
+    const TChunkInfo& info,
     TNodeMemoryTracker* memoryUsageTracker)
-    : Id_(id)
-    , Location_(location)
-    , Info_(chunkInfo)
-    , MemoryUsageTracker_(memoryUsageTracker)
+    : TChunk(
+        location,
+        id,
+        info,
+        memoryUsageTracker)
 {
-    InitializeCachedMeta(chunkMeta);
+    InitializeCachedMeta(meta);
 }
 
 TBlobChunk::TBlobChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
     TNodeMemoryTracker* memoryUsageTracker)
-    : Id_(descriptor.Id)
-    , Location_(location)
-    , MemoryUsageTracker_(memoryUsageTracker)
-{
-    Info_.set_disk_space(descriptor.DiskSpace);
-    Info_.clear_meta_checksum();
-}
-
-TBlobChunk::~TBlobChunk()
-{
-    if (Meta_) {
-        MemoryUsageTracker_->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
-    }
-}
-
-const TChunkId& TBlobChunk::GetId() const
-{
-    return Id_;
-}
-
-TLocationPtr TBlobChunk::GetLocation() const
-{
-    return Location_;
-}
-
-const TChunkInfo& TBlobChunk::GetInfo() const
-{
-    return Info_;
-}
-
-Stroka TBlobChunk::GetFileName() const
-{
-    return Location_->GetChunkFileName(Id_);
-}
+    : TChunk(
+        location,
+        descriptor,
+        memoryUsageTracker)
+{ }
 
 IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
     i64 priority,
@@ -322,78 +294,7 @@ i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
     return result;
 }
 
-bool TBlobChunk::TryAcquireReadLock()
-{
-    int lockCount;
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (RemovedEvent_) {
-            LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
-                ~ToString(Id_));
-            return false;
-        }
-
-        lockCount = ++ReadLockCounter_;
-    }
-
-    LOG_DEBUG("Chunk read lock acquired (ChunkId: %s, LockCount: %d)",
-        ~ToString(Id_),
-        lockCount);
-
-    return true;
-}
-
-void TBlobChunk::ReleaseReadLock()
-{
-    bool scheduleRemoval = false;
-    int lockCount;
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(ReadLockCounter_ > 0);
-        lockCount = --ReadLockCounter_;
-        if (ReadLockCounter_ == 0 && !RemovalScheduled_ && RemovedEvent_) {
-            scheduleRemoval = RemovalScheduled_ = true;
-        }
-    }
-
-    LOG_DEBUG("Chunk read lock released (ChunkId: %s, LockCount: %d)",
-        ~ToString(Id_),
-        lockCount);
-
-    if (scheduleRemoval) {
-        DoRemoveChunk();
-    }
-}
-
-bool TBlobChunk::IsReadLockAcquired() const
-{
-    return ReadLockCounter_ > 0;
-}
-
-TFuture<void> TBlobChunk::ScheduleRemoval()
-{
-    bool scheduleRemoval = false;
-
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (RemovedEvent_) {
-            return RemovedEvent_;
-        }
-
-        RemovedEvent_ = NewPromise();
-        if (ReadLockCounter_ == 0 && !RemovalScheduled_) {
-            scheduleRemoval = RemovalScheduled_ = true;
-        }
-    }
-
-    if (scheduleRemoval) {
-        DoRemoveChunk();
-    }
-
-    return RemovedEvent_;
-}
-
-void TBlobChunk::DoRemoveChunk()
+void TBlobChunk::DoRemove()
 {
     EvictChunkReader();
 
@@ -414,14 +315,14 @@ void TBlobChunk::EvictChunkReader()
 TStoredBlobChunk::TStoredBlobChunk(
     TLocationPtr location,
     const TChunkId& chunkId,
-    const TChunkMeta& chunkMeta,
-    const TChunkInfo& chunkInfo,
+    const TChunkMeta& meta,
+    const TChunkInfo& info,
     TNodeMemoryTracker* memoryUsageTracker)
     : TBlobChunk(
         location,
         chunkId,
-        chunkMeta,
-        chunkInfo,
+        meta,
+        info,
         memoryUsageTracker)
 { }
 
@@ -440,15 +341,15 @@ TStoredBlobChunk::TStoredBlobChunk(
 TCachedBlobChunk::TCachedBlobChunk(
     TLocationPtr location,
     const TChunkId& chunkId,
-    const TChunkMeta& chunkMeta,
-    const TChunkInfo& chunkInfo,
+    const TChunkMeta& meta,
+    const TChunkInfo& info,
     TChunkCachePtr chunkCache,
     TNodeMemoryTracker* memoryUsageTracker)
     : TBlobChunk(
         location,
         chunkId,
-        chunkMeta,
-        chunkInfo,
+        meta,
+        info,
         memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
     , ChunkCache_(chunkCache)
