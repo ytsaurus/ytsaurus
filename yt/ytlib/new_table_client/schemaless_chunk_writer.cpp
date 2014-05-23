@@ -273,7 +273,10 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
         reorderedRows.push_back(ReorderRow(row));
     }
 
-    return TSchemalessMultiChunkWriter::Write(reorderedRows);
+    auto result = TSchemalessMultiChunkWriter::Write(reorderedRows);
+    MemoryPool_.Clear();
+
+    return result;
 }
 
 TUnversionedRow TReorderingSchemalessMultiChunkWriter::ReorderRow(const TUnversionedRow& row)
@@ -300,7 +303,7 @@ TUnversionedRow TReorderingSchemalessMultiChunkWriter::ReorderRow(const TUnversi
     }
 
     result.SetCount(valueCount);
-    return row;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

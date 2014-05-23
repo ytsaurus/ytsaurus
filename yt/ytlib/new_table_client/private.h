@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/schema.pb.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <core/logging/log.h>
 
@@ -29,7 +29,7 @@ int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns);
 
-TColumnFilter CreateColumnFilter(const NChunkClient::NProto::TChannel& protoChannel, TNameTablePtr nameTable);
+TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& protoChannel, TNameTablePtr nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

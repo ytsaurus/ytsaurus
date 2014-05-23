@@ -76,10 +76,8 @@ const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
 TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, ValueCount_);
-    ::memcpy(row.Begin(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-
-    int valueCount = KeyColumnCount_;
-    for (int i = KeyColumnCount_; i < ValueCount_; ++i) {
+    int valueCount = 0;
+    for (int i = 0; i < ValueCount_; ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
@@ -120,10 +118,9 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     CurrentPointer_ += ReadVarUInt32(CurrentPointer_, &ValueCount_);
     YCHECK(ValueCount_ >= KeyColumnCount_);
 
+    const char* ptr = CurrentPointer_;
     for (int i = 0; i < KeyColumnCount_; ++i) {
-        CurrentPointer_ += ReadValue(CurrentPointer_, Key_.Begin() + i);
-        YCHECK(IdMapping_[Key_[i].Id] >= 0);
-        Key_[i].Id = IdMapping_[Key_[i].Id];
+        ptr += ReadValue(ptr, Key_.Begin() + i);
     }
 
     return true;

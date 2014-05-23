@@ -41,19 +41,18 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkK
     }
 }
 
-TColumnFilter CreateColumnFilter(const NChunkClient::NProto::TChannel& protoChannel, TNameTablePtr nameTable)
+TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& channel, TNameTablePtr nameTable)
 {
-    TChannel channel = NYT::FromProto<TChannel>(protoChannel);
+    TColumnFilter columnFilter;
+    if (channel.IsUniversal()) {
+        return columnFilter;
+    }
 
     // Ranges are not supported since 0.17
     YCHECK(channel.GetRanges().empty());
 
-    TColumnFilter columnFilter;
-    if (channel.IsUniversal()) {
-        columnFilter.All = true;
-        return columnFilter;
-    }
 
+    columnFilter.All = false;
     for (auto column : channel.GetColumns()) {
         auto id = nameTable->GetIdOrRegisterName(column);
         columnFilter.Indexes.push_back(id);
