@@ -365,6 +365,7 @@ void TMemory::DisableOOM() const
 
 TEvent TMemory::GetOOMEvent() const
 {
+#ifdef _linux_
     const auto filename = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
     auto fd = ::open(~filename, O_WRONLY | O_CLOEXEC);
 
@@ -374,6 +375,9 @@ TEvent TMemory::GetOOMEvent() const
     Set("cgroup.event_control", data);
 
     return TEvent(eventFd, fd);
+#else
+    return TEvent();
+#endif
 }
 
 TMemory::TStatistics::TStatistics()
