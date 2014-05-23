@@ -148,13 +148,7 @@ class TestTables(YTEnvSetup):
         assert read("//tmp/table[a : b , b : c]") == [v1, v2, v3, v4]
 
         # combination of row and key selectors
-        assert read("//tmp/table{i}[aa: (b, 10)]") == [{"i" : 5}]
-        assert read("//tmp/table{a: o}[(b, 0): (c, 0)]") == \
-            [
-                {"i": 5, "d" : 20.},
-                {"i": 20,"d" : 20.},
-                {"i": -100, "d" : 10.}
-            ]
+        assert read('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]
 
         # limits of different types
         assert read("//tmp/table[#0:zz]") == [v1, v2, v3, v4, v5]
@@ -173,32 +167,6 @@ class TestTables(YTEnvSetup):
         assert read("//tmp/table{a, a}") == [{"a" : 1}]
         assert read("//tmp/table{c, b}") == [{"b" : 3, "c" : 5}]
         assert read("//tmp/table{zzzzz}") == [{}] # non existent column
-
-        # range columns
-        # closed ranges
-        with pytest.raises(YtError): read("//tmp/table{a:a}")  # left = right
-        with pytest.raises(YtError): read("//tmp/table{b:a}")  # left > right
-
-        assert read("//tmp/table{aa:b}") == [{"aa" : 2}]  # (+, +)
-        assert read("//tmp/table{aa:bx}") == [{"aa" : 2, "b" : 3, "bb" : 4}]  # (+, -)
-        assert read("//tmp/table{aaa:b}") == [{}]  # (-, +)
-        assert read("//tmp/table{aaa:bx}") == [{"b" : 3, "bb" : 4}] # (-, -)
-
-        # open ranges
-        # from left
-        assert read("//tmp/table{:aa}") == [{"a" : 1}] # +
-        assert read("//tmp/table{:aaa}") == [{"a" : 1, "aa" : 2}] # -
-
-        # from right
-        assert read("//tmp/table{bb:}") == [{"bb" : 4, "c" : 5}] # +
-        assert read("//tmp/table{bz:}") == [{"c" : 5}] # -
-        assert read("//tmp/table{xxx:}") == [{}]
-
-        # fully open
-        assert read("//tmp/table{:}") == [{"a" :1, "aa": 2,  "b": 3, "bb" : 4, "c": 5}]
-
-        # mixed column keys
-        assert read("//tmp/table{aa, a:bb}") == [{"a" : 1, "aa" : 2, "b": 3}]
 
     def test_shared_locks_two_chunks(self):
         create("table", "//tmp/table")
@@ -554,7 +522,7 @@ class TestTables(YTEnvSetup):
         erasure_info = get("//tmp/t/@erasure_statistics")
         assert erasure_info["none"]["chunk_count"] == chunk_count
 
-    @pytest.mark.skip
+    @pytest.mark.skipif('True') # map is not converted to new  chunks yet.
     @only_linux
     def test_statistics2(self):
         tableA = "//tmp/a"
