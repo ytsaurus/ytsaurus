@@ -20,6 +20,7 @@ set( SRCS
   ${BASE}/blob_reader_cache.cpp
   ${BASE}/blob_session.cpp
   ${BASE}/journal_session.cpp
+  ${BASE}/journal_dispatcher.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
   ${BASE}/local_chunk_reader.cpp
@@ -47,6 +48,7 @@ set( HDRS
   ${BASE}/session.h
   ${BASE}/blob_session.h
   ${BASE}/journal_session.h
+  ${BASE}/journal_dispatcher.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
   ${BASE}/local_chunk_reader.h

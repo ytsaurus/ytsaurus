@@ -8,8 +8,9 @@
 
 #include <core/profiling/scoped_timer.h>
 
+#include <core/misc/fs.h>
+
 #include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -26,7 +27,7 @@ using namespace NChunkClient::NProto;
 static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
-static NProfiling::TRateCounter DiskReadThroughputCounter("/disk_read_throughput");
+static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,13 +64,8 @@ IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
-
             LOG_DEBUG("Meta cache hit (ChunkId: %s)", ~ToString(Id_));
-
-            return MakeFuture(TGetMetaResult(
-                tags
-                ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags))
-                : Meta_));
+            return MakeFuture(TGetMetaResult(FilterCachedMeta(tags)));
         }
     }
 
@@ -84,11 +80,7 @@ IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
             if (!error.IsOK()) {
                 return error;
             }
-
-            YCHECK(Meta_);
-            return tags_
-                ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags_))
-                : Meta_;
+            return FilterCachedMeta(tags);
         }).AsyncVia(invoker));
 }
 
@@ -137,16 +129,16 @@ void TBlobChunk::DoReadBlocks(
     auto blockStore = bootstrap->GetBlockStore();
     auto readerCache = bootstrap->GetBlobReaderCache();
 
-    auto readerOrError = readerCache->GetReader(this);
-    if (!readerOrError.IsOK()) {
+    TFileReaderPtr reader;
+    try {
+        reader = readerCache->GetReader(this);
+    } catch (const std::exception& ex) {
         if (pendingSize >= 0) {
             blockStore->UpdatePendingReadSize(-pendingSize);
         }
-        promise.Set(readerOrError);
+        promise.Set(ex);
         return;
     }
-
-    const auto& reader = readerOrError.Value();
 
     if (pendingSize < 0) {
         InitializeCachedMeta(reader->GetChunkMeta());
@@ -170,19 +162,19 @@ void TBlobChunk::DoReadBlocks(
         NProfiling::TScopedTimer timer;
         TSharedRef block;
         try {
-            LOG_DEBUG("Started reading chunk block (BlockId: %s, LocationId: %s)",
+            LOG_DEBUG("Started reading blob chunk block (BlockId: %s, LocationId: %s)",
                 ~ToString(blockId),
                 ~Location_->GetId());
             
             block = reader->ReadBlock(blockIndex);
 
-            LOG_DEBUG("Finished reading chunk block (BlockId: %s, LocationId: %s)",
+            LOG_DEBUG("Finished reading blob chunk block (BlockId: %s, LocationId: %s)",
                 ~ToString(blockId),
                 ~Location_->GetId());
         } catch (const std::exception& ex) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error reading chunk block %s",
+                "Error reading blob chunk block %s",
                 ~ToString(blockId))
                 << ex;
             Location_->Disable();
@@ -194,13 +186,13 @@ void TBlobChunk::DoReadBlocks(
         (*blocks)[blockIndex - firstBlockIndex] = block;
 
         auto readTime = timer.GetElapsed();
-        i64 blockSize = block.Size();
+        i64 readSize = block.Size();
 
         auto& locationProfiler = Location_->Profiler();
-        locationProfiler.Enqueue("/block_read_size", blockSize);
-        locationProfiler.Enqueue("/block_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/block_read_speed", blockSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskReadThroughputCounter, blockSize);
+        locationProfiler.Enqueue("/blob_block_read_size", readSize);
+        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
+        locationProfiler.Enqueue("/blob_block_read_throughput", readSize * 1000000 / (1 + readTime.MicroSeconds()));
+        DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, readSize);
     }
 
     blockStore->UpdatePendingReadSize(-pendingSize);
@@ -237,15 +229,15 @@ void TBlobChunk::DoReadMeta(TPromise<TError> promise)
     NChunkClient::TFileReaderPtr reader;
     PROFILE_TIMING ("/meta_read_time") {
         auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
-        auto result = readerCache->GetReader(this);
-        if (!result.IsOK()) {
+        try {
+            reader = readerCache->GetReader(this);
+        } catch (const std::exception& ex) {
             ReleaseReadLock();
-            LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
+            LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %s)",
                 ~ToString(Id_));
-            promise.Set(result);
+            promise.Set(ex);
             return;
         }
-        reader = result.Value();
     }
 
     InitializeCachedMeta(reader->GetChunkMeta());
@@ -294,20 +286,39 @@ i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
     return result;
 }
 
-void TBlobChunk::DoRemove()
+void TBlobChunk::EvictFromCache()
 {
-    EvictReader();
-
-    auto this_ = MakeStrong(this);
-    Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
-        this_->RemovedEvent_.Set();
-    }));
+    auto* bootstrap = Location_->GetBootstrap();
+    auto readerCache = bootstrap->GetBlobReaderCache();
+    readerCache->EvictReader(this);
 }
 
-void TBlobChunk::EvictReader()
+TFuture<void> TBlobChunk::RemoveFiles()
 {
-    auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
-    readerCache->EvictReader(this);
+    auto dataFileName = GetFileName();
+    auto metaFileName = dataFileName + ChunkMetaSuffix;
+    auto id = Id_;
+    auto location = Location_;
+
+    return BIND([=] () {
+        LOG_DEBUG("Started removing blob chunk files (ChunkId: %s)",
+            ~ToString(id));
+
+        if (!NFS::Remove(dataFileName)) {
+            LOG_ERROR("Failed to remove blob data file %s",
+                ~dataFileName.Quote());
+            location->Disable();
+        }
+
+        if (!NFS::Remove(metaFileName)) {
+            LOG_ERROR("Failed to remove blob meta file %s",
+                ~metaFileName.Quote());
+            location->Disable();
+        }
+
+        LOG_DEBUG("Finished removing blob chunk files (ChunkId: %s)",
+            ~ToString(id));
+    }).AsyncVia(location->GetWriteInvoker()).Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,8 +384,8 @@ TCachedBlobChunk::~TCachedBlobChunk()
     // This check ensures that we don't remove any chunks from cache upon shutdown.
     if (!ChunkCache_.IsExpired()) {
         LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~ToString(GetId()));
-        EvictChunkReader();
-        Location_->ScheduleChunkRemoval(this);
+        EvictFromCache();
+        RemoveFiles();
     }
 }
 

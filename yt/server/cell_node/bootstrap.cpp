@@ -51,6 +51,7 @@
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/block_store.h>
 #include <server/data_node/blob_reader_cache.h>
+#include <server/data_node/journal_dispatcher.h>
 #include <server/data_node/location.h>
 #include <server/data_node/data_node_service.h>
 #include <server/data_node/master_connector.h>
@@ -185,6 +186,8 @@ void TBootstrap::Run()
         throttlingMasterChannel));
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
+
+    JournalDispatcher = New<TJournalDispatcher>(Config->DataNode, "JournalFlush");
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
@@ -465,6 +468,11 @@ TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
 TBlobReaderCachePtr TBootstrap::GetBlobReaderCache() const
 {
     return BlobReaderCache;
+}
+
+TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
+{
+    return JournalDispatcher;
 }
 
 NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const

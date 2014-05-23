@@ -32,6 +32,8 @@ protected:
     NChunkClient::NProto::TChunkInfo Info_;
     NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;
 
+    TRefCountedChunkMetaPtr Meta_;
+
     TSpinLock SpinLock_;
     TPromise<void> RemovedEvent_;
     int ReadLockCounter_ = 0;
@@ -50,7 +52,11 @@ protected:
 
     ~TChunk();
 
-    virtual void DoRemove() = 0;
+    void DoRemove();
+    virtual void EvictFromCache() = 0;
+    virtual TFuture<void> RemoveFiles() = 0;
+
+    TRefCountedChunkMetaPtr FilterCachedMeta(const std::vector<int>* tags) const;
 
 };
 

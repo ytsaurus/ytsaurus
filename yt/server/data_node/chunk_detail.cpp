@@ -5,6 +5,8 @@
 
 #include <server/cell_node/bootstrap.h>
 
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -43,9 +45,8 @@ TChunk::TChunk(
 
 TChunk::~TChunk()
 {
-    auto cachedMeta = GetCachedMeta();
-    if (cachedMeta) {
-        MemoryUsageTracker_->Release(EMemoryConsumer::ChunkMeta, cachedMeta->SpaceUsed());
+    if (Meta_) {
+        MemoryUsageTracker_->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     }
 }
 
@@ -138,6 +139,24 @@ TFuture<void> TChunk::ScheduleRemoval()
     }
 
     return RemovedEvent_;
+}
+
+void TChunk::DoRemove()
+{
+    EvictFromCache();
+
+    auto this_ = MakeStrong(this);
+    RemoveFiles().Subscribe(BIND([=] () {
+        this_->RemovedEvent_.Set();
+    }));
+}
+
+TRefCountedChunkMetaPtr TChunk::FilterCachedMeta(const std::vector<int>* tags) const
+{
+    YCHECK(Meta_);
+    return tags
+        ? New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, *tags))
+        : Meta_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

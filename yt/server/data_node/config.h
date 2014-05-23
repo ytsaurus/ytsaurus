@@ -6,6 +6,8 @@
 
 #include <ytlib/chunk_client/config.h>
 
+#include <server/hydra/config.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -127,8 +129,17 @@ public:
     //! Block cache size (in bytes).
     i64 BlockCacheSize;
 
-    //! Maximum number opened files in cache.
-    int MaxCachedReaders;
+    //! Maximum number of cached blob chunks readers.
+    int BlobReaderCacheSize;
+
+    //! Maximum number of cached opened journals.
+    int JournalCacheSize;
+
+    //! Configuration used for opening all journal chunks.
+    NHydra::TFileChangelogConfigPtr JournalChunks;
+
+    //! Maximum bytes to read from a journal per single read request.
+    i64 MaxBytesPerJournalRead;
 
     //! Upload session timeout.
     /*!
@@ -210,9 +221,17 @@ public:
         RegisterParameter("block_cache_size", BlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
-        RegisterParameter("max_cached_readers", MaxCachedReaders)
+        RegisterParameter("blob_reader_cache_size", BlobReaderCacheSize)
             .GreaterThan(0)
-            .Default(10);
+            .Default(256);
+        RegisterParameter("journal_cache_size", JournalCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+        RegisterParameter("journal_chunks", JournalChunks)
+            .DefaultNew();
+        RegisterParameter("max_bytes_per_journal_read", MaxBytesPerJournalRead)
+            .GreaterThan(0)
+            .Default((i64) 64 * 1024 * 1024);
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)

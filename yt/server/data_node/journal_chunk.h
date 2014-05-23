@@ -31,8 +31,15 @@ public:
 
     virtual TRefCountedChunkMetaPtr GetCachedMeta() const override;
 
-protected:
-    virtual void DoRemove() override;
+private:
+    virtual void EvictFromCache() override;
+    virtual TFuture<void> RemoveFiles() override;
+
+    void DoReadBlocks(
+        int firstBlockIndex,
+        int blockCount,
+        TPromise<TError> promise,
+        std::vector<TSharedRef>* blocks);
 
 };
 

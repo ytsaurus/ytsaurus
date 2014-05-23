@@ -16,22 +16,19 @@ class TBlobReaderCache
     : public TRefCounted
 {
 public:
-    //! Constructs a new instance.
     explicit TBlobReaderCache(TDataNodeConfigPtr config);
     ~TBlobReaderCache();
-
-    typedef TErrorOr<NChunkClient::TFileReaderPtr> TGetReaderResult;
 
     //! Returns a (cached) blob chunk reader.
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
      *  A rule of thumb is to invoke it from IO thread only.
      *
-     *  If chunk file does not exist then |nullptr| is returned.
-     *
      *  The returned reader is already open.
+     *  
+     *  This method throws on failure.
      */
-    TGetReaderResult GetReader(IChunkPtr chunk);
+    NChunkClient::TFileReaderPtr GetReader(IChunkPtr chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the files.
     /*!

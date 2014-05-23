@@ -386,41 +386,6 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     return descriptors;
 }
 
-TFuture<void> TLocation::ScheduleChunkRemoval(IChunk* chunk)
-{
-    const auto& id = chunk->GetId();
-
-    Stroka dataFileName = GetChunkFileName(id);
-    Stroka metaFileName = dataFileName + ChunkMetaSuffix;
-
-    LOG_INFO("Chunk removal scheduled (ChunkId: %s)",
-        ~ToString(id));
-
-    auto promise = NewPromise();
-    GetWriteInvoker()->Invoke(BIND([=] () mutable {
-        LOG_DEBUG("Started removing chunk files (ChunkId: %s)",
-            ~ToString(id));
-
-        if (!NFS::Remove(dataFileName)) {
-            LOG_ERROR("Failed to remove data file %s",
-                ~dataFileName.Quote());
-            Disable();
-        }
-
-        if (!NFS::Remove(metaFileName)) {
-            LOG_ERROR("Failed to remove meta file %s",
-                ~metaFileName.Quote());
-            Disable();
-        }
-
-        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)",
-            ~ToString(id));
-        promise.Set();
-    }));
-
-    return promise;
-}
-
 void TLocation::OnHealthCheckFailed()
 {
     switch (Type) {

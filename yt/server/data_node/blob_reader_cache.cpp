@@ -48,10 +48,10 @@ class TBlobReaderCache::TImpl
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
-        : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
+        : TSizeLimitedCache<TChunkId, TCachedReader>(config->BlobReaderCacheSize)
     { }
 
-    TGetReaderResult Get(IChunkPtr chunk)
+    TFileReaderPtr GetReader(IChunkPtr chunk)
     {
         YCHECK(chunk->IsReadLockAcquired());
 
@@ -62,11 +62,11 @@ public:
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
-            LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
+            LOG_DEBUG("Started opening blob chunk reader (LocationId: %s, ChunkId: %s)",
                 ~location->GetId(),
                 ~ToString(chunkId));
 
-            PROFILE_TIMING ("/chunk_reader_open_time") {
+            PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
                     auto reader = New<TCachedReader>(chunkId, fileName);
                     reader->Open();
@@ -74,27 +74,30 @@ public:
                 } catch (const std::exception& ex) {
                     auto error = TError(
                         NChunkClient::EErrorCode::IOError,
-                        "Error opening chunk %s",
+                        "Error opening blob chunk %s",
                         ~ToString(chunkId))
                         << ex;
                     cookie.Cancel(error);
                     chunk->GetLocation()->Disable();
-                    return error;
+                    THROW_ERROR_EXCEPTION(error);
                 }
             }
 
-            LOG_DEBUG("Finished opening chunk reader (LocationId: %s, ChunkId: %s)",
+            LOG_DEBUG("Finished opening blob chunk reader (LocationId: %s, ChunkId: %s)",
                 ~chunk->GetLocation()->GetId(),
                 ~ToString(chunkId));
         }
 
-        return cookie.GetValue().Get();
+        auto resultOrError = cookie.GetValue().Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+        return resultOrError.Value();
     }
 
-    void Evict(IChunk* chunk)
+    void EvictReader(IChunk* chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,14 +109,14 @@ TBlobReaderCache::TBlobReaderCache(TDataNodeConfigPtr config)
 TBlobReaderCache::~TBlobReaderCache()
 { }
 
-TBlobReaderCache::TGetReaderResult TBlobReaderCache::GetReader(IChunkPtr chunk)
+TFileReaderPtr TBlobReaderCache::GetReader(IChunkPtr chunk)
 {
-    return Impl_->Get(chunk);
+    return Impl_->GetReader(chunk);
 }
 
 void TBlobReaderCache::EvictReader(IChunk* chunk)
 {
-    Impl_->Evict(chunk);
+    Impl_->EvictReader(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,14 +40,12 @@ protected:
         const TChunkDescriptor& descriptor,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
-    void EvictReader();
+    virtual void EvictFromCache() override;
+    virtual TFuture<void> RemoveFiles() override;
 
 private:
-    virtual void DoRemove() override;
-
     TAsyncError ReadMeta(i64 priority);
     void DoReadMeta(TPromise<TError> promise);
-
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
 
     i64 ComputePendingReadSize(int firstBlockIndex, int blockCount);
@@ -59,7 +57,7 @@ private:
         TPromise<TError> promise,
         std::vector<TSharedRef>* blocks);
 
-    TRefCountedChunkMetaPtr Meta_;
+
     NChunkClient::NProto::TBlocksExt BlocksExt_;
     
 };
