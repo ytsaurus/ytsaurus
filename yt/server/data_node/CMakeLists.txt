@@ -17,7 +17,7 @@ set( SRCS
   ${BASE}/peer_block_table.cpp
   ${BASE}/peer_block_updater.cpp
   ${BASE}/private.cpp
-  ${BASE}/reader_cache.cpp
+  ${BASE}/blob_reader_cache.cpp
   ${BASE}/blob_session.cpp
   ${BASE}/journal_session.cpp
   ${BASE}/session_manager.cpp
@@ -43,7 +43,7 @@ set( HDRS
   ${BASE}/peer_block_updater.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/reader_cache.h
+  ${BASE}/blob_reader_cache.h
   ${BASE}/session.h
   ${BASE}/blob_session.h
   ${BASE}/journal_session.h

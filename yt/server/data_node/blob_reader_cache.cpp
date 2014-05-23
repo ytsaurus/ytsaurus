@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "private.h"
 #include "config.h"
 #include "chunk.h"
@@ -20,7 +20,7 @@ static auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReaderCache::TCachedReader
+class TBlobReaderCache::TCachedReader
     : public TCacheValueBase<TChunkId, TCachedReader>
     , public TFileReader
 {
@@ -43,7 +43,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReaderCache::TImpl
+class TBlobReaderCache::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
@@ -99,19 +99,19 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReaderCache::TReaderCache(TDataNodeConfigPtr config)
+TBlobReaderCache::TBlobReaderCache(TDataNodeConfigPtr config)
     : Impl_(New<TImpl>(config))
 { }
 
-TReaderCache::~TReaderCache()
+TBlobReaderCache::~TBlobReaderCache()
 { }
 
-TReaderCache::TGetReaderResult TReaderCache::GetReader(IChunkPtr chunk)
+TBlobReaderCache::TGetReaderResult TBlobReaderCache::GetReader(IChunkPtr chunk)
 {
     return Impl_->Get(chunk);
 }
 
-void TReaderCache::EvictReader(IChunk* chunk)
+void TBlobReaderCache::EvictReader(IChunk* chunk)
 {
     Impl_->Evict(chunk);
 }

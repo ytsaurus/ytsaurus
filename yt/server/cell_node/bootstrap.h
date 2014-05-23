@@ -61,7 +61,7 @@ public:
     NDataNode::TSessionManagerPtr GetSessionManager() const;
     NDataNode::TBlockStorePtr GetBlockStore() const;
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
-    NDataNode::TReaderCachePtr GetReaderCache() const;
+    NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
@@ -107,7 +107,7 @@ private:
     NDataNode::TBlockStorePtr BlockStore;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
-    NDataNode::TReaderCachePtr ReaderCache;
+    NDataNode::TBlobReaderCachePtr BlobReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;

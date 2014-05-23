@@ -2,7 +2,7 @@
 #include "location.h"
 #include "private.h"
 #include "chunk.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "config.h"
 #include "disk_health_checker.h"
 #include "master_connector.h"

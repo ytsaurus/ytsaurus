@@ -50,7 +50,7 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/block_store.h>
-#include <server/data_node/reader_cache.h>
+#include <server/data_node/blob_reader_cache.h>
 #include <server/data_node/location.h>
 #include <server/data_node/data_node_service.h>
 #include <server/data_node/master_connector.h>
@@ -184,7 +184,7 @@ void TBootstrap::Run()
         NChunkClient::TChunkServiceProxy::GetServiceName(),
         throttlingMasterChannel));
 
-    ReaderCache = New<TReaderCache>(Config->DataNode);
+    BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
@@ -462,9 +462,9 @@ TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
     return PeerBlockTable;
 }
 
-TReaderCachePtr TBootstrap::GetReaderCache() const
+TBlobReaderCachePtr TBootstrap::GetBlobReaderCache() const
 {
-    return ReaderCache;
+    return BlobReaderCache;
 }
 
 NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const

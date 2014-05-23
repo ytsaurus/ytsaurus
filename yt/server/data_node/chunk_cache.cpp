@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_cache.h"
 #include "private.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "location.h"
 #include "blob_chunk.h"
 #include "block_store.h"

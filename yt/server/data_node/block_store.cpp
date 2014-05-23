@@ -4,7 +4,7 @@
 #include "chunk.h"
 #include "config.h"
 #include "chunk_registry.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "location.h"
 
 #include <ytlib/chunk_client/file_reader.h>

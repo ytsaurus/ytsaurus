@@ -2,7 +2,7 @@
 #include "blob_chunk.h"
 #include "private.h"
 #include "location.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "chunk_cache.h"
 #include "block_store.h"
 
@@ -135,7 +135,7 @@ void TBlobChunk::DoReadBlocks(
 {
     auto* bootstrap = Location_->GetBootstrap();
     auto blockStore = bootstrap->GetBlockStore();
-    auto readerCache = bootstrap->GetReaderCache();
+    auto readerCache = bootstrap->GetBlobReaderCache();
 
     auto readerOrError = readerCache->GetReader(this);
     if (!readerOrError.IsOK()) {
@@ -236,7 +236,7 @@ void TBlobChunk::DoReadMeta(TPromise<TError> promise)
 
     NChunkClient::TFileReaderPtr reader;
     PROFILE_TIMING ("/meta_read_time") {
-        auto readerCache = Location_->GetBootstrap()->GetReaderCache();
+        auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
         auto result = readerCache->GetReader(this);
         if (!result.IsOK()) {
             ReleaseReadLock();
@@ -306,7 +306,7 @@ void TBlobChunk::DoRemove()
 
 void TBlobChunk::EvictChunkReader()
 {
-    auto readerCache = Location_->GetBootstrap()->GetReaderCache();
+    auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
     readerCache->EvictReader(this);
 }
 
