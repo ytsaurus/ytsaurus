@@ -714,7 +714,7 @@ TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     std::unique_ptr<TUserJobIO> userJobIO,
-    NJobAgent::TJobId jobId)
+    NJobAgent::TJobId& jobId)
 {
     return New<TUserJob>(
         host,

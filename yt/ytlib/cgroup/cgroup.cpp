@@ -59,7 +59,7 @@ TCGroup::~TCGroup()
 
 void TCGroup::Create()
 {
-    LOG_INFO("Create cgroup %s", ~FullPath_.Quote());
+    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
     if (Mkdir(FullPath_.data(), 0755) != 0) {
@@ -72,7 +72,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroy cgroup %s", ~FullPath_.Quote());
+    LOG_INFO("Destroying cgroup %s", ~FullPath_.Quote());
 
 #ifdef _linux_
     YCHECK(Created_);
@@ -88,7 +88,7 @@ void TCGroup::AddCurrentProcess()
 {
 #ifdef _linux_
     auto pid = getpid();
-    LOG_INFO("Add process %d to cgroup %s", pid, ~FullPath_.Quote());
+    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
 
     auto path = NFS::CombinePaths(FullPath_, "tasks");
     TFileOutput output(TFile(path, OpenMode::ForAppend));
