@@ -180,6 +180,9 @@ TException&& operator <<= (TException&& ex, const TError& error)
 typedef TFuture<TError>  TAsyncError;
 typedef TPromise<TError> TAsyncErrorPromise;
 
+//! A pre-set |TError| future with OK value.
+extern TFuture<TError> OKFuture;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

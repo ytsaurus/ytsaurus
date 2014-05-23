@@ -7,6 +7,12 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TFuture<void> VoidFuture  = MakeFuture();
+TFuture<bool> TrueFuture = MakeFuture<bool>(true);
+TFuture<bool> FalseFuture = MakeFuture<bool>(false);
+
+///////////////////////////////////////////////////////////////////////////////
+
 TPromise<void> NewPromise()
 {
     return TPromise<void>(New< NYT::NDetail::TPromiseState<void> >(false));

@@ -26,7 +26,7 @@ bool TMemoryWriter::WriteBlock(const TSharedRef& block)
 TAsyncError TMemoryWriter::GetReadyEvent()
 {
     YCHECK(!IsClosed_);
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 TAsyncError TMemoryWriter::Close(const TChunkMeta& chunkMeta)
@@ -34,7 +34,7 @@ TAsyncError TMemoryWriter::Close(const TChunkMeta& chunkMeta)
     YCHECK(!IsClosed_);
     ChunkMeta_ = chunkMeta;
     IsClosed_ = true;
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const

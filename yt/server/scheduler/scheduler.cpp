@@ -394,7 +394,8 @@ public:
         LOG_INFO("Operation suspended (OperationId: %s)",
             ~ToString(operation->GetId()));
 
-        return MakeFuture(TError());
+
+        return OKFuture;
     }
 
     TAsyncError ResumeOperation(TOperationPtr operation)
@@ -411,7 +412,7 @@ public:
         LOG_INFO("Operation resumed (OperationId: %s)",
             ~ToString(operation->GetId()));
 
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
 

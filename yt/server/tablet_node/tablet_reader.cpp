@@ -29,7 +29,6 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerRead = 1024;
-static const auto PresetResult = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +51,7 @@ public:
         , Timestamp_(timestamp)
         , AutomatonInvoker_(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
         , Pool_(TTabletReaderPoolTag())
-        , ReadyEvent_(PresetResult)
+        , ReadyEvent_(OKFuture)
         , Opened_(false)
         , Refilling_(false)
     { }
@@ -258,7 +257,7 @@ protected:
         ExhaustedSessions_.clear();
 
         if (!refillCollector) {
-            ReadyEvent_ = PresetResult;
+            ReadyEvent_ = OKFuture;
             return;
         }
 

@@ -27,8 +27,7 @@ public:
         for (auto& session : Sessions_) {
             session.ReadyEvent = session.Reader->Open(schema);
         }
-        static auto result = MakeFuture(TError());
-        return result;
+        return OKFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override

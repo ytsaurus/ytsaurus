@@ -43,7 +43,7 @@ class TEmptySchemafulReader
 {
     virtual TAsyncError Open(const TTableSchema& /*schema*/) override
     {
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* /*rows*/) override
@@ -53,7 +53,7 @@ class TEmptySchemafulReader
 
     virtual TAsyncError GetReadyEvent() override
     {
-        return MakeFuture(TError());
+        return OKFuture;
     }
 };
 

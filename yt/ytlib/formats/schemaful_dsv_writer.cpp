@@ -210,8 +210,6 @@ void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto PresetResult = MakeFuture(TError());
-
 TSchemafulDsvWriter::TSchemafulDsvWriter(
     IAsyncOutputStreamPtr stream,
     TSchemafulDsvFormatConfigPtr config)
@@ -233,12 +231,12 @@ TAsyncError TSchemafulDsvWriter::Open(
         ColumnIdMapping_.push_back(id);
     }
 
-    return PresetResult;
+    return OKFuture;
 }
 
 TAsyncError TSchemafulDsvWriter::Close()
 {
-    return PresetResult;
+    return OKFuture;
 }
 
 bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)

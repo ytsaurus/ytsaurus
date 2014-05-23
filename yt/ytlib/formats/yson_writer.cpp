@@ -13,8 +13,6 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto PresetResult = MakeFuture(TError());
-
 TSchemafulYsonWriter::TSchemafulYsonWriter(
     IAsyncOutputStreamPtr stream,
     TYsonFormatConfigPtr config)
@@ -31,12 +29,12 @@ TAsyncError TSchemafulYsonWriter::Open(
     const TNullable<TKeyColumns>& /*keyColumns*/)
 {
     Schema_ = schema;
-    return PresetResult;
+    return OKFuture;
 }
 
 TAsyncError TSchemafulYsonWriter::Close()
 {
-    return PresetResult;
+    return OKFuture;
 }
 
 bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)

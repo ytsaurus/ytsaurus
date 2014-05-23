@@ -131,7 +131,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
 
 TAsyncError TVersionedChunkWriter::Open()
 {
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
@@ -161,7 +161,7 @@ TAsyncError TVersionedChunkWriter::Close()
 {
     if (RowCount_ == 0) {
         // Empty chunk.
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))

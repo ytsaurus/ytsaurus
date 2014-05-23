@@ -55,6 +55,17 @@ TPromise<void> MakePromise();
 //! Constructs a future that gets set when a given #delay elapses.
 TFuture<void> MakeDelayed(TDuration delay);
 
+// A bunch of widely-used preset futures.
+ 
+//! A pre-set |void| future.
+extern TFuture<void> VoidFuture;
+
+//! A pre-set |bool| future with |true| value.
+extern TFuture<bool> TrueFuture;
+
+//! A pre-set |bool| future with |false| value.
+extern TFuture<bool> FalseFuture;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents a read-only view of an asynchronous computation.

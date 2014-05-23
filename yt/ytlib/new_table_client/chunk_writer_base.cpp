@@ -43,14 +43,14 @@ TChunkWriterBase::TChunkWriterBase(
 TAsyncError TChunkWriterBase::Open()
 {
     BlockWriter_.reset(CreateBlockWriter());
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 TAsyncError TChunkWriterBase::Close()
 {
     if (RowCount_ == 0) {
         // Empty chunk.
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     return BIND(&TChunkWriterBase::DoClose, MakeStrong(this))

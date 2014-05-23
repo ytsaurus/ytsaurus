@@ -59,7 +59,7 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     , UploadReplicationFactor_(std::min(Options_->ReplicationFactor, Config_->UploadReplicationFactor))
     , Progress_(0)
     , Closing_(false)
-    , ReadyEvent_(MakeFuture(TError()))
+    , ReadyEvent_(OKFuture)
     , CompletionError_(NewPromise<TError>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
     , Logger(ChunkWriterLogger)

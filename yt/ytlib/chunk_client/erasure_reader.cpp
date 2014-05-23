@@ -580,7 +580,7 @@ TAsyncError TRepairReader::RepairIfNeeded()
     YCHECK(HasNextBlock());
 
     if (!RepairedBlocksQueue_.empty()) {
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     WindowIndex_ += 1;
@@ -695,7 +695,7 @@ public:
         if (IndexToWriter_.empty()) {
             YCHECK(Readers_.empty());
             YCHECK(Writers_.empty());
-            return MakeFuture(TError());
+            return OKFuture;
         }
 
         return BIND(&TRepairAllPartsSession::DoRun, MakeStrong(this))

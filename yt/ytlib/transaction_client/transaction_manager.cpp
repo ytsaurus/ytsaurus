@@ -207,7 +207,7 @@ public:
 
             LOG_INFO("Trivial transaction committed (TransactionId: %s)",
                 ~ToString(Id_));
-            return MakeFuture(TError());
+            return OKFuture;
         }
 
         auto coordinatorCellGuid = Type_ == ETransactionType::Master
@@ -316,7 +316,7 @@ public:
                 THROW_ERROR Error_;
             }
             if (ParticipantGuids_.find(cellGuid) != ParticipantGuids_.end()) {
-                return MakeFuture(TError());
+                return OKFuture;
             }
         }
 
@@ -544,7 +544,7 @@ private:
         YCHECK(Ping_);
         SendPing();
 
-        return MakeFuture(TError());
+        return OKFuture;
     }
 
     TError OnTabletParticipantAdded(const TCellGuid& cellGuid, TTabletServiceProxy::TRspStartTransactionPtr rsp)

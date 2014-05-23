@@ -398,7 +398,7 @@ TAsyncError TErasureWriter::OnClosed(TError error)
     Groups_.clear();
     Blocks_.clear();
 
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -84,8 +84,6 @@ IRowsetPtr CreateRowset(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto PresetResult = MakeFuture(TError());
-
 class TSchemafulRowsetWriter
     : public TRowsetBase
     , public ISchemafulWriter
@@ -106,14 +104,14 @@ public:
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
         Schema_ = schema;
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual TAsyncError Close() override
     {
         Result_.Set(IRowsetPtr(this));
         Result_.Reset();
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -126,7 +124,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        return PresetResult;
+        return OKFuture;
     }
 
 private:

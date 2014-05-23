@@ -88,8 +88,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto PresetResult = MakeFuture(TError());
-
 template <class TBlockReader>
 TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,

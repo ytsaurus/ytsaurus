@@ -28,8 +28,6 @@ static const size_t ReaderUnalignedChunkSize = 16384;
 
 static const size_t WriterInitialBufferCapacity = 1024;
 
-static const auto PresetResult = MakeFuture(TError());
-
 static_assert(sizeof (i64) == SerializationAlignment, "Wrong serialization alignment");
 static_assert(sizeof (double) == SerializationAlignment, "Wrong serialization alignment");
 static_assert(sizeof (TUnversionedValue) == 2 * sizeof (i64), "Wrong TUnversionedValue size");
@@ -49,13 +47,13 @@ public:
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
         Writer_->WriteTableSchema(schema);
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual TAsyncError Close() override
     {
         Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
@@ -67,7 +65,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        return PresetResult;
+        return OKFuture;
     }
 
 private:
@@ -374,7 +372,7 @@ public:
         if (schema != actualSchema) {
             return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
         }
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
@@ -396,7 +394,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        return PresetResult;
+        return OKFuture;
     }
 
 private:

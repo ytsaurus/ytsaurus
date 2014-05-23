@@ -110,7 +110,7 @@ private:
                     Handler_->OnError(error);
                 }
             }
-            return MakeFuture(TError());
+            return OKFuture;
         }
 
         virtual void Terminate(const TError& /*error*/) override

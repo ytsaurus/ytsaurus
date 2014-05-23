@@ -260,9 +260,6 @@ void TSupportsPermissions::ValidatePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TFuture<bool> TrueFuture = MakeFuture(true);
-static TFuture<bool> FalseFuture = MakeFuture(false);
-
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
     IServiceContextPtr context)

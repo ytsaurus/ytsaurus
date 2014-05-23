@@ -164,8 +164,7 @@ public:
     virtual TAsyncError Open() override
     {
         Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_);
-        static auto result = MakeFuture(TError());
-        return result;
+        return OKFuture;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -203,8 +202,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override
     {
-        static auto presetResult = MakeFuture(TError());
-        return presetResult;
+        return OKFuture;
     }
 
 private:

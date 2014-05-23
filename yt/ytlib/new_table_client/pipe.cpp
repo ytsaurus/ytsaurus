@@ -13,10 +13,6 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto PresetResult = MakeFuture(TError());
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TSchemafulPipe::TData
     : public TIntrinsicRefCounted
 {
@@ -59,7 +55,7 @@ class TSchemafulPipe::TReader
 public:
     explicit TReader(TDataPtr data)
         : Data_(std::move(data))
-        , ReadyEvent_(PresetResult)
+        , ReadyEvent_(OKFuture)
     { }
 
     virtual TAsyncError Open(const TTableSchema& schema) override
@@ -145,7 +141,7 @@ public:
     {
         Data_->Schema = schema;
         Data_->WriterOpened.Set();
-        return PresetResult;
+        return OKFuture;
     }
 
     virtual TAsyncError Close() override

@@ -150,7 +150,7 @@ TAsyncError TChunkWriter::Open(
         YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
     }
     Open(nameTable, schema, *keyColumns);
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 void TChunkWriter::Open(

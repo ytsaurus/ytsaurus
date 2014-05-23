@@ -33,7 +33,7 @@ TFileWriter::TFileWriter(
     , IsClosed(false)
     , DataSize(0)
     , ChecksumOutput(&NullOutput)
-    , Result(MakeFuture(TError()))
+    , Result(OKFuture)
 { }
 
 void TFileWriter::Open()
@@ -160,7 +160,7 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
     ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());
     ChunkInfo.set_disk_space(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
 
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 

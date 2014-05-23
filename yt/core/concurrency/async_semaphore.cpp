@@ -6,8 +6,6 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto PresetResult = MakeFuture();
-
 TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
     : TotalSlots_(totalSlots)
     , FreeSlots_(totalSlots)
@@ -97,7 +95,7 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
 
     if (IsReady()) {
         YCHECK(!ReadyEvent_);
-        return PresetResult;
+        return VoidFuture;
     } else if (!ReadyEvent_) {
         ReadyEvent_ = NewPromise();
     }
@@ -111,7 +109,7 @@ TFuture<void> TAsyncSemaphore::GetFreeEvent()
 
     if (FreeSlots_ == TotalSlots_) {
         YCHECK(!FreeEvent_);
-        return PresetResult;
+        return VoidFuture;
     } else if (!FreeEvent_) {
         FreeEvent_ = NewPromise();
     }
