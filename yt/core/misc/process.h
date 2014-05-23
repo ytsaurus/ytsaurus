@@ -31,13 +31,12 @@ private:
     int Pipe_[2];
     int ChildPipe_[2];
     std::vector<char> Path_;
-    std::vector<std::vector<char>> Holder_;
+    std::vector<std::vector<char>> StringHolder_;
     std::vector<char*> Args_;
     std::vector<char*> Env_;
 
     const char* GetPath() const;
-    // TODO(babenko): rename (or better get rid of)
-    char* Copy(const char* arg);
+    char* Capture(const char* arg);
 
     int DoSpawn();
 
