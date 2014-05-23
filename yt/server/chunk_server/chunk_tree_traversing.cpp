@@ -9,6 +9,7 @@
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -21,6 +22,8 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NTableClient::NProto;
 using namespace NVersionedTableClient;
+
+using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +41,18 @@ TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
 TOwningKey GetMaxKey(const TChunk* chunk)
 {
-    // XXX(psushin): check chunk version.
-    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
     TOwningKey key;
-    FromProto(&key, boundaryKeysExt.end());
+    if (chunk->ChunkMeta().version() == ETableChunkFormat::Old) {
+        // Deprecated chunks.
+        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.end());
+    } else {
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.max());
+    }
+
     return GetKeySuccessor(key.Get());
 }
 
@@ -70,10 +80,18 @@ TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 
 TOwningKey GetMinKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
-        chunk->ChunkMeta().extensions());
     TOwningKey key;
-    FromProto(&key, boundaryKeysExt.start());
+    if (chunk->ChunkMeta().version() == ETableChunkFormat::Old) {
+        // Deprecated chunks.
+        auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.start());
+    } else {
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+            chunk->ChunkMeta().extensions());
+        FromProto(&key, boundaryKeysExt.min());
+    }
+
     return key;
 }
 

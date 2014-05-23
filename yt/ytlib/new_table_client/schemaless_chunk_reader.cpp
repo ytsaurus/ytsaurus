@@ -51,6 +51,7 @@ using namespace NYPath;
 using namespace NYTree;
 
 using NChunkClient::TReadLimit;
+using NChunkClient::TChannel;
 using NRpc::IChannelPtr;
 using NTableClient::TTableYPathProxy;
 
@@ -183,8 +184,11 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     } else {
         for (auto id : ColumnFilter_.Indexes) {
             auto name = NameTable_->GetName(id);
-            auto chunkNameId = ChunkNameTable_->GetId(name);
-            IdMapping_[chunkNameId] = id;
+            auto chunkNameId = ChunkNameTable_->FindId(name);
+            if (chunkNameId) {
+                IdMapping_[chunkNameId.Get()] = id;
+            }
+
         }
     }
 }
@@ -305,8 +309,7 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
     }
 
     while (rows->size() < rows->capacity()) {
-        auto nextRowIndex = CurrentRowIndex_ + 1;
-        if (UpperLimit_.HasRowIndex() && nextRowIndex == UpperLimit_.GetRowIndex()) {
+        if (UpperLimit_.HasRowIndex() && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
             return false;
         }
 
@@ -314,8 +317,8 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
             return false;
         }
 
-        CurrentRowIndex_ = nextRowIndex;
         ++RowCount_;
+        ++CurrentRowIndex_;
         rows->push_back(BlockReader_->GetRow(&MemoryPool_));
         
         if (!BlockReader_->NextRow()) {
@@ -346,9 +349,6 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     i64 tableRowIndex,
     TNullable<int> partitionTag)
 {
-    Cout << "LOWER " << ToString(lowerLimit) << Endl;
-    Cout << "UPPER " << ToString(upperLimit) << Endl;
-
     return New<TSchemalessChunkReader>(
         config, 
         underlyingReader, 
@@ -441,7 +441,12 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
     IAsyncReaderPtr asyncReader)
 {
-    Cout << "SPEC " << chunkSpec.DebugString() << Endl;
+    using NYT::FromProto;
+
+    auto channel = chunkSpec.has_channel()
+            ? FromProto<TChannel>(chunkSpec.channel())
+            : TChannel::Universal();
+
     return CreateSchemalessChunkReader(
         Config_, 
         asyncReader, 
@@ -450,7 +455,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
         chunkSpec.chunk_meta(),
         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit(),
-        CreateColumnFilter(chunkSpec.channel(), NameTable_),
+        CreateColumnFilter(channel, NameTable_),
         chunkSpec.table_row_index(),
         chunkSpec.has_partition_tag() ? MakeNullable(chunkSpec.partition_tag()) : Null);
 }
