@@ -20,7 +20,6 @@ public:
     //! Basic constructor.
     TSyncFileChangelog(
         const Stroka& fileName,
-        int id,
         TFileChangelogConfigPtr config);
 
     ~TSyncFileChangelog();
@@ -37,10 +36,7 @@ public:
 
     //! Creates a new changelog.
     //! Throws an exception on failure.
-    void Create(const TChangelogCreateParams& params);
-
-    //! Returns the changelog id.
-    int GetId() const;
+    void Create(const TSharedRef& meta);
 
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;
@@ -48,9 +44,8 @@ public:
     //! Returns an approximate byte size of a changelog.
     i64 GetDataSize() const;
 
-    //! Returns the number of records in the previous changelog;
-    //! mostly for validation purposes.
-    int GetPrevRecordCount() const;
+    //! Returns the meta blob.
+    TSharedRef GetMeta() const;
 
     //! Returns |true| if the changelog is sealed, i.e.
     //! no further appends are possible.
@@ -82,7 +77,7 @@ public:
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 

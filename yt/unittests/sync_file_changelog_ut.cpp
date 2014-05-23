@@ -4,6 +4,7 @@
 #include <server/hydra/config.h>
 #include <server/hydra/changelog.h>
 #include <server/hydra/sync_file_changelog.h>
+#include <server/hydra/sync_file_changelog_impl.h>
 
 #include <core/profiling/scoped_timer.h>
 
@@ -45,12 +46,9 @@ protected:
             fileChangelogConfig = DefaultFileChangelogConfig;
         }
 
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, fileChangelogConfig);
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), fileChangelogConfig);
 
-        TChangelogCreateParams changelogParams;
-        changelogParams.PrevRecordCount = 0;
-
-        changelog->Create(changelogParams);
+        changelog->Create(TSharedRef());
         auto records = MakeRecords<TRecordType>(0, recordCount);
         changelog->Append(0, records);
         changelog->Flush();
@@ -71,13 +69,13 @@ protected:
 
     i64 GetFileSize() const
     {
-        TFile changeLogFile(TemporaryFile->Name(), RdWr);
-        return changeLogFile.GetLength();
+        TFile file(TemporaryFile->Name(), RdWr);
+        return file.GetLength();
     }
 
     TSyncFileChangelogPtr OpenChangelog() const
     {
-        TSyncFileChangelogPtr changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, DefaultFileChangelogConfig);
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), DefaultFileChangelogConfig);
         changelog->Open();
         return changelog;
     }
@@ -135,15 +133,15 @@ protected:
         if (newFileSize > GetFileSize())
         {
             // Add trash to file
-            TFile changeLogFile(TemporaryFile->Name(), RdWr);
-            changeLogFile.Seek(0, sEnd);
-            TBlob data(newFileSize - changeLogFile.GetLength());
+            TFile file(TemporaryFile->Name(), RdWr);
+            file.Seek(0, sEnd);
+            TBlob data(newFileSize - file.GetLength());
             std::fill(data.Begin(), data.End(), -1);
-            changeLogFile.Write(data.Begin(), data.Size());
+            file.Write(data.Begin(), data.Size());
         } else {
             // Truncate file.
-            TFile changeLogFile(TemporaryFile->Name(), RdWr);
-            changeLogFile.Resize(newFileSize);
+            TFile file(TemporaryFile->Name(), RdWr);
+            file.Resize(newFileSize);
         }
 
         auto changelog = OpenChangelog();
@@ -161,10 +159,12 @@ protected:
     void TestSealedTrimmed(i64 sealedRecordCount)
     {
         {
-            TFile changeLogFile(TemporaryFile->Name(), RdWr);
-            // Hack changelog to change sealed record count
-            changeLogFile.Seek(16, sSet);
-            WritePod(changeLogFile, sealedRecordCount);
+            TChangelogHeader header;
+            TFile file(TemporaryFile->Name(), RdWr);
+            ReadPod(file, header);
+            header.SealedRecordCount = sealedRecordCount;
+            file.Seek(0, sSet);
+            WritePod(file, header);
         }
 
         auto changelog = OpenChangelog();
@@ -183,17 +183,44 @@ protected:
 
 TEST_F(TSyncFileChangelogTest, EmptyChangelog)
 {
-    ASSERT_NO_THROW({
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
-        changelog->Create(TChangelogCreateParams());
-    });
-
-    ASSERT_NO_THROW({
-        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), 0, New<TFileChangelogConfig>());
+    {
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        changelog->Create(TSharedRef());
+    }
+    {
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
         changelog->Open();
-    });
+    }
 }
 
+TSharedRef GenerateBlob(size_t size)
+{
+    auto blob = TSharedRef::Allocate(size);
+    for (int i = 0; i < size; ++i) {
+        blob.Begin()[i] = static_cast<char>(i % 256);
+    }
+    return blob;
+}
+
+TEST_F(TSyncFileChangelogTest, Meta)
+{
+    auto meta = GenerateBlob(1000);
+    auto record = GenerateBlob(2000);
+
+    {
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        changelog->Create(meta);
+        changelog->Append(0, std::vector<TSharedRef>(1, record));
+        changelog->Flush();
+    }
+    {
+        auto changelog = New<TSyncFileChangelog>(TemporaryFile->Name(), New<TFileChangelogConfig>());
+        changelog->Open();
+        EXPECT_TRUE(TRef::AreBitwiseEqual(meta, changelog->GetMeta()));
+        EXPECT_EQ(1, changelog->GetRecordCount());
+        EXPECT_TRUE(TRef::AreBitwiseEqual(record, changelog->Read(0, 1, std::numeric_limits<i64>::max())[0]));
+    }
+}
 
 TEST_F(TSyncFileChangelogTest, Finalized)
 {

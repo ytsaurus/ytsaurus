@@ -9,13 +9,11 @@ namespace NHydra {
 
 IChangelogPtr CreateFileChangelog(
     const Stroka& path,
-    int id,
-    const TChangelogCreateParams& params,
+    const TSharedRef& meta,
     TFileChangelogConfigPtr config);
 
 IChangelogPtr OpenFileChangelog(
     const Stroka& path,
-    int id,
     TFileChangelogConfigPtr config);
 
 IChangelogStorePtr CreateFileChangelogStore(

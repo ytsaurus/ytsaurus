@@ -62,6 +62,7 @@ public:
     explicit TFileChangelogCatalog(TFileChangelogCatalogConfigPtr config)
         : Config(config)
         , ChangelogCache(New<TChangelogCache>(this))
+        , MultiplexedChangelogId(-1)
     { }
 
     void Start()
@@ -108,9 +109,9 @@ public:
 
                 MultiplexedChangelog = CreateFileChangelog(
                     GetMultiplexedChangelogPath(newId),
-                    newId,
-                    TChangelogCreateParams(),
+                    TSharedRef(),
                     Config->Multiplexed);
+                MultiplexedChangelogId = newId;
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error starting changelog catalog") << ex;
@@ -204,21 +205,18 @@ private:
         TChangelog(
             TFileChangelogCatalog* catalog,
             TStorePtr store,
-            IChangelogPtr splitChangelog)
-            : TCacheValueBase(std::make_pair(store->GetCellGuid(), splitChangelog->GetId()))
+            IChangelogPtr splitChangelog,
+            int changelogId)
+            : TCacheValueBase(std::make_pair(store->GetCellGuid(), changelogId))
             , Catalog(catalog)
             , Store(store)
             , SplitChangelog(splitChangelog)
+            , ChangelogId(changelogId)
         { }
 
         TStorePtr GetStore() const
         {
             return Store;
-        }
-
-        virtual int GetId() const override
-        {
-            return SplitChangelog->GetId();
         }
 
         virtual int GetRecordCount() const override
@@ -231,9 +229,9 @@ private:
             return SplitChangelog->GetDataSize();
         }
 
-        virtual int GetPrevRecordCount() const override
+        virtual TSharedRef GetMeta() const override
         {
-            return SplitChangelog->GetPrevRecordCount();
+            return SplitChangelog->GetMeta();
         }
 
         virtual bool IsSealed() const override
@@ -249,7 +247,7 @@ private:
 
             // Construct the multiplexed data record.
             TMultiplexedRecord record;
-            record.Header.Version = TVersion(SplitChangelog->GetId(), recordId);
+            record.Header.Version = TVersion(ChangelogId, recordId);
             record.Header.CellGuid = Store->GetCellGuid();
             record.Data = data;
 
@@ -297,6 +295,7 @@ private:
         TFileChangelogCatalog* Catalog;
         TStorePtr Store;
         IChangelogPtr SplitChangelog;
+        int ChangelogId;
 
         TFuture<void> LastAppendResult;
 
@@ -322,12 +321,12 @@ private:
 
         virtual IChangelogPtr CreateChangelog(
             int id,
-            const TChangelogCreateParams& params) override
+            const TSharedRef& meta) override
         {
             return Catalog->ChangelogCache->CreateChangelog(
                 this,
                 id,
-                params);
+                meta);
         }
 
         virtual IChangelogPtr TryOpenChangelog(int id) override
@@ -366,7 +365,7 @@ private:
         IChangelogPtr CreateChangelog(
             TStore* store,
             int id,
-            const TChangelogCreateParams& params)
+            const TSharedRef& meta)
         {
             auto cellGuid = store->GetCellGuid();
             TInsertCookie cookie(std::make_pair(cellGuid, id));
@@ -381,14 +380,14 @@ private:
             try {
                 auto splitChangelog = CreateFileChangelog(
                     path,
-                    id,
-                    params,
+                    meta,
                     Catalog->Config->Split);
 
                 auto changelog = New<TChangelog>(
                     Catalog,
                     store,
-                    splitChangelog);
+                    splitChangelog,
+                    id);
 
                 cookie.EndInsert(changelog);
             } catch (const std::exception& ex) {
@@ -418,13 +417,13 @@ private:
                     try {
                         auto splitChangelog = OpenFileChangelog(
                             path,
-                            id,
                             Catalog->Config->Split);
 
                         auto changelog = New<TChangelog>(
                             Catalog,
                             store,
-                            splitChangelog);
+                            splitChangelog,
+                            id);
 
                         cookie.EndInsert(changelog);
                     } catch (const std::exception& ex) {
@@ -519,7 +518,6 @@ private:
             auto multiplexedChangelogPath = Catalog->GetMultiplexedChangelogPath(changelogId);
             auto multiplexedChangelog = OpenFileChangelog(
                 multiplexedChangelogPath,
-                changelogId,
                 Catalog->Config->Multiplexed);
             if (!multiplexedChangelog) {
                 THROW_ERROR_EXCEPTION("Missing multiplexed changelog %d", changelogId);
@@ -592,7 +590,6 @@ private:
                 }
                 auto changelog = OpenFileChangelog(
                     path,
-                    changelogId,
                     Catalog->Config->Split);
                 it = SplitChangelogMap.insert(std::make_pair(
                     key,
@@ -615,8 +612,11 @@ private:
     //! Protects a section of members.
     TSpinLock SpinLock;
 
-    // ! The current multiplexed changelog.
+    //! The current multiplexed changelog.
     IChangelogPtr MultiplexedChangelog;
+
+    //! The id of #MultiplexedChangelog.
+    int MultiplexedChangelogId;
 
     //! The set of changelogs whose records were added into the current multiplexed changelog.
     //! Safeguards marking multiplexed changelogs as clean.
@@ -654,9 +654,8 @@ private:
         if (MultiplexedChangelog->GetRecordCount() >= Config->Multiplexed->MaxChangelogRecordCount ||
             MultiplexedChangelog->GetDataSize() >= Config->Multiplexed->MaxChangelogDataSize)
         {
-            int multiplexedChangelogId = MultiplexedChangelog->GetId();
             LOG_INFO("Started rotating multiplexed changelog %d",
-                multiplexedChangelogId);
+                MultiplexedChangelogId);
                
             auto multiplexedFlushResult = MultiplexedChangelog->Flush();
 
@@ -684,7 +683,7 @@ private:
             multiplexedCleanAwaiter->Complete(BIND(
                 &TFileChangelogCatalog::OnMultiplexedChangelogClean,
                 MakeStrong(this),
-                multiplexedChangelogId));
+                MultiplexedChangelogId));
         }
 
         return appendResult;
@@ -720,13 +719,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        int oldId = MultiplexedChangelog->GetId();
-        int newId = oldId + 1;
+        int oldId = MultiplexedChangelogId;
+        int newId = MultiplexedChangelogId + 1;
 
         auto newMultiplexedChangelog = CreateFileChangelog(
             GetMultiplexedChangelogPath(newId),
-            newId,
-            TChangelogCreateParams(),
+            TSharedRef(),
             Config->Multiplexed);
 
         TGuard<TSpinLock> guard(SpinLock);
@@ -738,6 +736,7 @@ private:
 
         // Deal with backlog.
         MultiplexedChangelog = newMultiplexedChangelog;
+        MultiplexedChangelogId = newId;
 
         auto appendResult = MakeFuture(); // pre-set in case MultiplexedBacklogQueue is empty
         for (const auto& record : MultiplexedBacklogQueue) {

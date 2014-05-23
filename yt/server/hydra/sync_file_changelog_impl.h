@@ -23,33 +23,34 @@ namespace NHydra {
 struct TChangelogHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x323030304C435459ull; // YTCL0003
+    static const ui64 ExpectedSignature = 0x333030304C435459ull; // YTCL0003
 
     //! Indicates that the changelog is not yet sealed.
     static const i32 NotSealedRecordCount = -2;
 
     ui64 Signature;
-    i32 ChangelogId;
-    i32 PrevRecordCount;
+    i32 HeaderSize; // with padding
+    i32 MetaSize;
     i32 SealedRecordCount;
+    i32 Padding = 0;
 
     TChangelogHeader()
         : Signature(-1)
-        , ChangelogId(-1)
+        , HeaderSize(-1)
+        , MetaSize(-1)
     { }
 
     TChangelogHeader(
-        int changelogId,
-        int prevRecordCount,
+        int metaSize,
         int sealedRecordCount)
         : Signature(ExpectedSignature)
-        , ChangelogId(changelogId)
-        , PrevRecordCount(prevRecordCount)
+        , HeaderSize(sizeof (TChangelogHeader) + AlignUp(metaSize))
+        , MetaSize(metaSize)
         , SealedRecordCount(sealedRecordCount)
     { }
 };
 
-static_assert(sizeof(TChangelogHeader) == 20, "Binary size of TLogHeader has changed.");
+static_assert(sizeof (TChangelogHeader) == 24, "Binary size of TChangelogHeader has changed.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +76,7 @@ struct TChangelogRecordHeader
     { }
 };
 
-static_assert(sizeof(TChangelogRecordHeader) == 16, "Binary size of TRecordHeader has changed.");
+static_assert(sizeof (TChangelogRecordHeader) == 16, "Binary size of TChangelogRecordHeader has changed.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,25 +86,20 @@ struct TChangelogIndexHeader
     static const ui64 ExpectedSignature = 0x32303030494C5459ull; // YTLI0002
 
     ui64 Signature;
-    int ChangeLogId;
-    int IndexSize;
+    i32 IndexRecordCount;
 
     TChangelogIndexHeader()
         : Signature(0)
-        , ChangeLogId(-1)
-        , IndexSize(-1)
+        , IndexRecordCount(-1)
     { }
 
-    TChangelogIndexHeader(
-        int changeLogId,
-        int indexSize)
+    explicit TChangelogIndexHeader(int indexRecordCount)
         : Signature(ExpectedSignature)
-        , ChangeLogId(changeLogId)
-        , IndexSize(indexSize)
+        , IndexRecordCount(indexRecordCount)
     { }
 };
 
-static_assert(sizeof(TChangelogIndexHeader) == 16, "Binary size of TLogIndexHeader has changed.");
+static_assert(sizeof(TChangelogIndexHeader) == 12, "Binary size of TChangelogIndexHeader has changed.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,20 +107,23 @@ struct TChangelogIndexRecord
 {
     i64 FilePosition;
     i32 RecordId;
+    i32 Padding;
 
     //! This initializer is only needed to read TLogIndexRecord.
     TChangelogIndexRecord()
         : FilePosition(-1)
         , RecordId(-1)
+        , Padding(0)
     { }
 
     TChangelogIndexRecord(int recordIndex, i64 filePosition)
         : FilePosition(filePosition)
         , RecordId(recordIndex)
+        , Padding(0)
     { }
 };
 
-static_assert(sizeof(TChangelogIndexRecord) == 12, "Binary size of TLogIndexRecord has changed.");
+static_assert(sizeof(TChangelogIndexRecord) == 16, "Binary size of TLogIndexRecord has changed.");
 
 #pragma pack(pop)
 
@@ -138,19 +137,17 @@ class TSyncFileChangelog::TImpl
 public:
     TImpl(
         const Stroka& fileName,
-        int id,
         TFileChangelogConfigPtr config);
 
     TFileChangelogConfigPtr GetConfig();
 
     void Open();
     void Close();
-    void Create(const TChangelogCreateParams& params);
+    void Create(const TSharedRef& meta);
 
-    int GetId() const;
+    TSharedRef GetMeta() const;
     int GetRecordCount() const;
     i64 GetDataSize() const;
-    int GetPrevRecordCount() const;
     bool IsSealed() const;
 
     void Append(
@@ -212,16 +209,15 @@ private:
     //! Rewrites index header.
     void UpdateIndexHeader();
 
-    //! Reads maximal correct prefix of index, truncate bad index records.
-    void ReadIndex();
+    //! Reads the maximal valid prefix of index, truncates bad index records.
+    void ReadIndex(const TChangelogHeader& header);
 
     //! Reads piece of changelog containing both #firstRecordId and #lastRecordId.
     TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId, i64 maxBytes = -1);
 
     //! Reads changelog starting from the last indexed record until the end of file.
-    void ReadChangelogUntilEnd();
+    void ReadChangelogUntilEnd(const TChangelogHeader& header);
 
-    const int Id_;
     const Stroka FileName_;
     const Stroka IndexFileName_;
     const TFileChangelogConfigPtr Config_;
@@ -233,12 +229,11 @@ private:
     i64 CurrentFilePosition_;
     TInstant LastFlushed_;
 
-    //! Used to verify integrity of a sequence of changelogs.
-    int PrevRecordCount_;
-
+    TSharedRef Meta_;
+    
     std::vector<TChangelogIndexRecord> Index_;
 
-    std::unique_ptr<TBufferedFile> LogFile_;
+    std::unique_ptr<TBufferedFile> DataFile_;
     std::unique_ptr<TFile> IndexFile_;
 
     //! Auxiliary data.

@@ -50,14 +50,14 @@ protected:
 
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.
-    void SyncChangelog(IChangelogPtr changelog);
+    void SyncChangelog(IChangelogPtr changelog, int changelogId);
 
     //! Applies records from a given changes up to a given one.
     /*!
      *  The current segment id should match that of #changeLog.
      *  The methods ensures that no mutation is applied twice.
      */
-    void ReplayChangelog(IChangelogPtr changelog, int targetRecordId);
+    void ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId);
 
     //! Computes the previous record count parameter for a given segment id.
     /*!

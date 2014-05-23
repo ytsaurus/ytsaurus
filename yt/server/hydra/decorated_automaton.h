@@ -154,7 +154,7 @@ private:
 
     void Reset();
 
-    void DoRotateChangelog(IChangelogPtr changelog);
+    void DoRotateChangelog(IChangelogPtr changelog, int changelogId);
 
     void SaveSnapshot(TOutputStream* output);
     void MaybeStartSnapshotBuilder();

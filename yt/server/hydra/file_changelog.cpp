@@ -559,11 +559,6 @@ public:
         , DataSize_(changelog->GetDataSize())
     { }
 
-    virtual int GetId() const override
-    {
-        return SyncChangelog_->GetId();
-    }
-
     virtual int GetRecordCount() const override
     {
         return RecordCount_;
@@ -574,9 +569,9 @@ public:
         return DataSize_;
     }
 
-    virtual int GetPrevRecordCount() const override
+    virtual TSharedRef GetMeta() const override
     {
-        return SyncChangelog_->GetPrevRecordCount();
+        return SyncChangelog_->GetMeta();
     }
 
     virtual bool IsSealed() const override
@@ -644,15 +639,13 @@ private:
 
 IChangelogPtr CreateFileChangelog(
     const Stroka& path,
-    int id,
-    const TChangelogCreateParams& params,
+    const TSharedRef& meta,
     TFileChangelogConfigPtr config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(
         path,
-        id,
         config);
-    syncChangelog->Create(params);
+    syncChangelog->Create(meta);
     return New<TFileChangelog>(
         config,
         syncChangelog);
@@ -660,12 +653,10 @@ IChangelogPtr CreateFileChangelog(
 
 IChangelogPtr OpenFileChangelog(
     const Stroka& path,
-    int id,
     TFileChangelogConfigPtr config)
 {
     auto syncChangelog = New<TSyncFileChangelog>(
         path,
-        id,
         config);
     syncChangelog->Open();
     return New<TFileChangelog>(
@@ -682,8 +673,9 @@ class TCachedFileChangelog
 public:
     explicit TCachedFileChangelog(
         TFileChangelogConfigPtr config,
-        TSyncFileChangelogPtr changelog)
-        : TCacheValueBase(changelog->GetId())
+        TSyncFileChangelogPtr changelog,
+        int id)
+        : TCacheValueBase(id)
         , TFileChangelog(config, changelog)
     { }
 
@@ -720,7 +712,7 @@ public:
 
     virtual IChangelogPtr CreateChangelog(
         int id,
-        const TChangelogCreateParams& params) override
+        const TSharedRef& meta) override
     {
         TInsertCookie cookie(id);
         if (!BeginInsert(&cookie)) {
@@ -733,12 +725,12 @@ public:
         try {
             auto changelog = New<TSyncFileChangelog>(
                 path,
-                id,
                 Config_);
-            changelog->Create(params);
+            changelog->Create(meta);
             cookie.EndInsert(New<TCachedFileChangelog>(
                 Config_,
-                changelog));
+                changelog,
+                id));
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error creating changelog %d", id);
         }
@@ -760,12 +752,12 @@ public:
                 try {
                     auto changelog = New<TSyncFileChangelog>(
                         path,
-                        id,
                         Config_);
                     changelog->Open();
                     cookie.EndInsert(New<TCachedFileChangelog>(
                         Config_,
-                        changelog));
+                        changelog,
+                        id));
                 } catch (const std::exception& ex) {
                     LOG_FATAL(ex, "Error opening changelog %d", id);
                 }

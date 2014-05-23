@@ -11,6 +11,7 @@
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service_proxy.h>
+#include <ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {
 namespace NHydra {
@@ -102,44 +103,52 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         ~ToString(targetVersion));
 
     auto initialVersion = DecoratedAutomaton->GetAutomatonVersion();
-    for (int segmentId = initialVersion.SegmentId;
-         segmentId <= targetVersion.SegmentId;
-         ++segmentId)
+    for (int changelogId = initialVersion.SegmentId;
+         changelogId <= targetVersion.SegmentId;
+         ++changelogId)
     {
-        bool isLast = segmentId == targetVersion.SegmentId;
-        auto changelog = ChangelogStore->TryOpenChangelog(segmentId);
+        bool isLast = changelogId == targetVersion.SegmentId;
+        auto changelog = ChangelogStore->TryOpenChangelog(changelogId);
         if (!changelog) {
             LOG_INFO("Changelog %d is missing and will be created",
-                segmentId);
+                changelogId);
 
             YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
-            TChangelogCreateParams params;
-            params.PrevRecordCount = expectedPrevRecordCount;
-            changelog = ChangelogStore->CreateChangelog(segmentId, params);
 
-            TVersion newLoggedVersion(segmentId, 0);
+            NProto::TChangelogMeta meta;
+            meta.set_prev_record_count(expectedPrevRecordCount);
+            
+            TSharedRef metaBlob;
+            YCHECK(SerializeToProto(meta, &metaBlob));
+
+            changelog = ChangelogStore->CreateChangelog(changelogId, metaBlob);
+
+            TVersion newLoggedVersion(changelogId, 0);
             // NB: Equality is only possible when segmentId == 0.
             YCHECK(DecoratedAutomaton->GetLoggedVersion() <= newLoggedVersion);
             DecoratedAutomaton->SetLoggedVersion(newLoggedVersion);
         }
 
+        NProto::TChangelogMeta meta;
+        YCHECK(DeserializeFromProto(&meta, changelog->GetMeta()));
+
         LOG_FATAL_IF(
             expectedPrevRecordCount != UnknownPrevRecordCount &&
-            changelog->GetPrevRecordCount() != expectedPrevRecordCount,
+            meta.prev_record_count() != expectedPrevRecordCount,
             "PrevRecordCount mismatch in changelog %d: expected: %d, found %d",
-            segmentId,
+            changelogId,
             expectedPrevRecordCount,
-            changelog->GetPrevRecordCount());
+            meta.prev_record_count());
 
         if (!IsLeader()) {
-            SyncChangelog(changelog);
+            SyncChangelog(changelog, changelogId);
         }
 
         if (!isLast && !changelog->IsSealed()) {
             WaitFor(changelog->Flush());
             if (changelog->IsSealed()) {
                 LOG_WARNING("Changelog %d is already sealed",
-                    changelog->GetId());
+                    changelogId);
             } else {
                 WaitFor(changelog->Seal(changelog->GetRecordCount()));
             }
@@ -148,7 +157,7 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         // Check if the current state contains some mutations that are redundant.
         // If so, clear the state and restart recovery.
         auto currentVersion = DecoratedAutomaton->GetAutomatonVersion();
-        YCHECK(currentVersion.SegmentId == changelog->GetId());
+        YCHECK(currentVersion.SegmentId == changelogId);
         if (currentVersion.RecordId > changelog->GetRecordCount()) {
             DecoratedAutomaton->Clear();
             THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected in this segment, forcing clean restart",
@@ -157,7 +166,7 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         }
 
         int targetRecordId = isLast ? targetVersion.RecordId : changelog->GetRecordCount();
-        ReplayChangelog(changelog, targetRecordId);
+        ReplayChangelog(changelog, changelogId, targetRecordId);
 
         if (!isLast) {
             DecoratedAutomaton->RotateChangelogDuringRecovery();
@@ -169,11 +178,9 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
     YCHECK(DecoratedAutomaton->GetAutomatonVersion() == targetVersion);
 }
 
-void TRecovery::SyncChangelog(IChangelogPtr changelog)
+void TRecovery::SyncChangelog(IChangelogPtr changelog, int changelogId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto changelogId = changelog->GetId();
 
     THydraServiceProxy proxy(CellManager->GetPeerChannel(LeaderId));
     proxy.SetDefaultTimeout(Config->RpcTimeout);
@@ -228,14 +235,14 @@ void TRecovery::SyncChangelog(IChangelogPtr changelog)
     }
 }
 
-void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
+void TRecovery::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(DecoratedAutomaton->GetAutomatonVersion().SegmentId == changelog->GetId());
+    YCHECK(DecoratedAutomaton->GetAutomatonVersion().SegmentId == changelogId);
 
     if (changelog->GetRecordCount() < targetRecordId) {
         LOG_FATAL("Not enough records in changelog %d: expected %d, actual %d",
-            changelog->GetId(),
+            changelogId,
             targetRecordId,
             changelog->GetRecordCount());
     }
@@ -250,7 +257,7 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
         LOG_INFO("Trying to read records %d-%d from changelog %d",
             startRecordId,
             targetRecordId - 1,
-            changelog->GetId());
+            changelogId);
 
         auto recordsData = changelog->Read(
             startRecordId,
@@ -261,12 +268,12 @@ void TRecovery::ReplayChangelog(IChangelogPtr changelog, int targetRecordId)
         LOG_INFO("Finished reading records %d-%d from changelog %d",
             startRecordId,
             startRecordId + recordsRead - 1,
-            changelog->GetId());
+            changelogId);
 
         LOG_INFO("Applying records %d-%d from changelog %d",
             startRecordId,
             startRecordId + recordsRead - 1,
-            changelog->GetId());
+            changelogId);
 
         for (const auto& data : recordsData)  {
             DecoratedAutomaton->ApplyMutationDuringRecovery(data);

@@ -15,6 +15,7 @@
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
+#include <ytlib/hydra/hydra_manager.pb.h>
 
 #include <server/misc/snapshot_builder_detail.h>
 
@@ -529,12 +530,13 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
         BIND(
             &TDecoratedAutomaton::DoRotateChangelog,
             MakeStrong(this),
-            GetCurrentChangelog())
+            GetCurrentChangelog(),
+            LoggedVersion_.SegmentId)
         .AsyncVia(GetHydraIOInvoker())
         .Run();
 }
 
-void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog)
+void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog, int changelogId)
 {
     VERIFY_THREAD_AFFINITY(IOThread);
 
@@ -545,7 +547,7 @@ void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog)
     
     if (changelog->IsSealed()) {
         LOG_WARNING("Changelog %d is already sealed",
-            changelog->GetId());
+            changelogId);
     } else {
         WaitFor(changelog->Seal(changelog->GetRecordCount()));
     }
@@ -553,11 +555,15 @@ void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog)
     if (CurrentChangelog_ != changelog)
         return;
 
-    TChangelogCreateParams params;
-    params.PrevRecordCount = changelog->GetRecordCount();
+    NProto::TChangelogMeta meta;
+    meta.set_prev_record_count(changelog->GetRecordCount());
+
+    TSharedRef metaBlob;
+    YCHECK(SerializeToProto(meta, &metaBlob));
+
     auto newChangelog = CurrentChangelog_ = ChangelogStore_->CreateChangelog(
-        changelog->GetId() + 1,
-        params);
+        changelogId + 1,
+        metaBlob);
 
     SwitchTo(AutomatonInvoker_);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -567,8 +573,8 @@ void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog)
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        YCHECK(LoggedVersion_.SegmentId == changelog->GetId());
-        LoggedVersion_ = TVersion(newChangelog->GetId(), 0);
+        YCHECK(LoggedVersion_.SegmentId == changelogId);
+        LoggedVersion_ = TVersion(changelogId + 1, 0);
     }
 
     LOG_INFO("Changelog rotated");

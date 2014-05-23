@@ -46,22 +46,6 @@ void ValidateSignature(const T& header)
         header.Signature);
 }
 
-template <class TFile, class THeader>
-void AtomicWriteHeader(
-    const Stroka& fileName,
-    const THeader& header,
-    std::unique_ptr<TFile>* fileHolder)
-{
-    Stroka tempFileName(fileName + NFS::TempFileSuffix);
-    TFile tempFile(tempFileName, WrOnly|CreateAlways);
-    WritePod(tempFile, header);
-    tempFile.Close();
-
-    ReplaceFile(tempFileName, fileName);
-    fileHolder->reset(new TFile(fileName, RdWr));
-    (*fileHolder)->Seek(0, sEnd);
-}
-
 struct TRecordInfo
 {
     TRecordInfo()
@@ -104,56 +88,61 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
     return TRecordInfo(header.RecordId, readSize);
 }
 
-// Calculates maximal correct prefix of index.
-size_t GetMaxCorrectIndexPrefix(
+// Computes the length of the maximal valid prefix of index records sequence.
+size_t ComputeValidIndexPrefix(
     const std::vector<TChangelogIndexRecord>& index,
-    TBufferedFile* changelogFile)
+    const TChangelogHeader& header,
+    TBufferedFile* file)
 {
     // Check adequacy of index.
-    size_t correctPrefixLength = 0;
-    for (int i = 0; i < index.size(); ++i) {
+    size_t result = 0;
+    for (int i = 0; i < index.size(); ++i) {\
+        const auto& record = index[i];
         bool correct;
         if (i == 0) {
-            correct = index[i].FilePosition == sizeof(TChangelogHeader) && index[i].RecordId == 0;
-        } else {
             correct =
-                index[i].FilePosition > index[i - 1].FilePosition &&
-                index[i].RecordId > index[i - 1].RecordId;
+                record.FilePosition == header.HeaderSize &&
+                record.RecordId == 0;
+        } else {
+            const auto& prevRecord = index[i - 1];
+            correct =
+                record.FilePosition > prevRecord.FilePosition &&
+                record.RecordId > prevRecord.RecordId;
         }
         if (!correct) {
             break;
         }
-        correctPrefixLength += 1;
+        ++result;
     }
 
-    // Truncate excess index records
-    i64 fileLength = changelogFile->GetLength();
-    while (correctPrefixLength > 0 && index[correctPrefixLength - 1].FilePosition > fileLength) {
-        correctPrefixLength -= 1;
+    // Truncate records
+    i64 fileLength = file->GetLength();
+    while (result > 0 && index[result - 1].FilePosition > fileLength) {
+        --result;
     }
 
-    if (correctPrefixLength == 0) {
+    if (result == 0) {
         return 0;
     }
 
-    // Truncate last index record if changelog file is corrupted
-    changelogFile->Seek(index[correctPrefixLength - 1].FilePosition, sSet);
-    TCheckedReader<TBufferedFile> changelogReader(*changelogFile);
+    // Truncate last index record if changelog file is corrupt.
+    file->Seek(index[result - 1].FilePosition, sSet);
+    TCheckedReader<TBufferedFile> changelogReader(*file);
     if (!ReadRecord(changelogReader)) {
-        correctPrefixLength -= 1;
+        --result;
     }
 
-    return correctPrefixLength;
+    return result;
 }
 
 // This method uses forward iterator instead of reverse because they work faster.
 // Asserts if last not greater element is absent.
-bool RecordIdComparator(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
+bool CompareRecordIds(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
 {
     return lhs.RecordId < rhs.RecordId;
 }
 
-bool FilePositionComparator(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
+bool CompareFilePositions(const TChangelogIndexRecord& lhs, const TChangelogIndexRecord& rhs)
 {
     return lhs.FilePosition < rhs.FilePosition;
 }
@@ -204,10 +193,8 @@ typename std::vector<T>::const_iterator FirstGreater(
 
 TSyncFileChangelog::TImpl::TImpl(
     const Stroka& path,
-    int id,
     TFileChangelogConfigPtr config)
-    : Id_(id)
-    , FileName_(path)
+    : FileName_(path)
     , IndexFileName_(path + IndexSuffix)
     , Config_(config)
     , IsOpen_(false)
@@ -216,11 +203,8 @@ TSyncFileChangelog::TImpl::TImpl(
     , CurrentBlockSize_(-1)
     , CurrentFilePosition_(-1)
     , LastFlushed_(TInstant::Now())
-    , PrevRecordCount_(-1)
     , Logger(HydraLogger)
 {
-    YCHECK(Id_ >= 0);
-
     Logger.AddTag(Sprintf("Path: %s", ~path));
 }
 
@@ -229,30 +213,62 @@ TFileChangelogConfigPtr TSyncFileChangelog::TImpl::GetConfig()
     return Config_;
 }
 
-void TSyncFileChangelog::TImpl::Create(const TChangelogCreateParams& params)
+void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 {
     YCHECK(!IsOpen_);
 
     LOG_DEBUG("Creating changelog");
 
-    PrevRecordCount_ = params.PrevRecordCount;
+    Meta_ = meta;
     RecordCount_ = 0;
     IsOpen_ = true;
 
     {
         TGuard<TMutex> guard(Mutex_);
 
+        // Data file.
+        i64 currentFilePosition;
         {
-            TChangelogHeader header(Id_, PrevRecordCount_, TChangelogHeader::NotSealedRecordCount);
-            AtomicWriteHeader(FileName_, header, &LogFile_);
+            auto tempFileName = FileName_ + NFS::TempFileSuffix;
+            TFile tempFile(tempFileName, WrOnly|CreateAlways);
+
+            TChangelogHeader header(
+                Meta_.Size(),
+                TChangelogHeader::NotSealedRecordCount);
+            WritePod(tempFile, header);
+
+            WritePadded(tempFile, Meta_);
+
+            currentFilePosition = tempFile.GetPosition();
+            YCHECK(currentFilePosition == header.HeaderSize);
+
+            tempFile.Flush();
+            tempFile.Close();
+
+            ReplaceFile(tempFileName, FileName_);
+
+            DataFile_ = std::make_unique<TBufferedFile>(FileName_, RdWr);
+            DataFile_->Seek(0, sEnd);
         }
 
+        // Index file.
         {
-            TChangelogIndexHeader header(Id_, 0);
-            AtomicWriteHeader(IndexFileName_, header, &IndexFile_);
+            auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
+            TFile tempFile(tempFileName, WrOnly|CreateAlways);
+
+            TChangelogIndexHeader header(0);
+            WritePod(tempFile, header);
+
+            tempFile.Flush();
+            tempFile.Close();
+
+            ReplaceFile(tempFileName, IndexFileName_);
+
+            IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
+            IndexFile_->Seek(0, sEnd);
         }
 
-        CurrentFilePosition_ = sizeof(TChangelogHeader);
+        CurrentFilePosition_ = currentFilePosition;
         CurrentBlockSize_ = 0;
     }
 
@@ -268,21 +284,22 @@ void TSyncFileChangelog::TImpl::Open()
     {
         TGuard<TMutex> guard(Mutex_);
 
-        LogFile_.reset(new TBufferedFile(FileName_, RdWr|Seq));
+        DataFile_.reset(new TBufferedFile(FileName_, RdWr|Seq));
 
-        // Read and check header of changelog.
+        // Read and check changelog header.
         TChangelogHeader header;
-        ReadPod(*LogFile_, header);
+        ReadPod(*DataFile_, header);
         ValidateSignature(header);
-        YCHECK(header.ChangelogId == Id_);
 
-        PrevRecordCount_ = header.PrevRecordCount;
+        // Read meta.
+        Meta_ = TSharedRef::Allocate(header.MetaSize);
+        ReadPadded(*DataFile_, Meta_);
+
         IsOpen_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
 
-        ReadIndex();
-
-        ReadChangelogUntilEnd();
+        ReadIndex(header);
+        ReadChangelogUntilEnd(header);
 
         if (IsSealed() && SealedRecordCount_ != RecordCount_) {
             THROW_ERROR_EXCEPTION(
@@ -305,7 +322,7 @@ void TSyncFileChangelog::TImpl::Close()
 
     {
         TGuard<TMutex> guard(Mutex_);
-        LogFile_->Close();
+        DataFile_->Close();
         IndexFile_->Close();
     }
 
@@ -341,8 +358,8 @@ void TSyncFileChangelog::TImpl::DoAppend(const TRef& record)
     TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
 
     int readSize = 0;
-    readSize += AppendPodPadded(*LogFile_, header);
-    readSize += AppendPadded(*LogFile_, record);
+    readSize += AppendPodPadded(*DataFile_, header);
+    readSize += AppendPadded(*DataFile_, record);
 
     ProcessRecord(recordId, readSize);
 }
@@ -401,14 +418,9 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     return records;
 }
 
-int TSyncFileChangelog::TImpl::GetId() const
+TSharedRef TSyncFileChangelog::TImpl::GetMeta() const
 {
-    return Id_;
-}
-
-int TSyncFileChangelog::TImpl::GetPrevRecordCount() const
-{
-    return PrevRecordCount_;
+    return Meta_;
 }
 
 int TSyncFileChangelog::TImpl::GetRecordCount() const
@@ -453,7 +465,7 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
                 ? envelope.LowerBound
                 : envelope.UpperBound;
             auto indexPosition =
-                std::lower_bound(Index_.begin(), Index_.end(), cutBound, RecordIdComparator) -
+                std::lower_bound(Index_.begin(), Index_.end(), cutBound, CompareRecordIds) -
                 Index_.begin();
             Index_.resize(indexPosition);
         }
@@ -477,9 +489,9 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
             IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
             UpdateIndexHeader();
 
-            LogFile_->Resize(CurrentFilePosition_);
-            LogFile_->Flush();
-            LogFile_->Seek(0, sEnd);
+            DataFile_->Resize(CurrentFilePosition_);
+            DataFile_->Flush();
+            DataFile_->Seek(0, sEnd);
         }
     }
 
@@ -509,7 +521,7 @@ void TSyncFileChangelog::TImpl::Flush()
 
     {
         TGuard<TMutex> guard(Mutex_);
-        LogFile_->Flush();
+        DataFile_->Flush();
         IndexFile_->Flush();
         LastFlushed_ = TInstant::Now();
     }
@@ -547,9 +559,9 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
     RecordCount_ += 1;
 }
 
-void TSyncFileChangelog::TImpl::ReadIndex()
+void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 {
-    // Read an existing index.
+    // Read the existing index.
     {
         TMappedFileInput indexStream(IndexFileName_);
 
@@ -557,10 +569,10 @@ void TSyncFileChangelog::TImpl::ReadIndex()
         TChangelogIndexHeader indexHeader;
         ReadPod(indexStream, indexHeader);
         ValidateSignature(indexHeader);
-        YCHECK(indexHeader.IndexSize >= 0);
+        YCHECK(indexHeader.IndexRecordCount >= 0);
 
         // Read index records.
-        for (int i = 0; i < indexHeader.IndexSize; ++i) {
+        for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
             TChangelogIndexRecord indexRecord;
             ReadPod(indexStream, indexRecord);
             if (IsSealed() && indexRecord.RecordId >= SealedRecordCount_) {
@@ -571,8 +583,8 @@ void TSyncFileChangelog::TImpl::ReadIndex()
     }
     // Compute the maximum correct prefix and truncate the index.
     {
-        auto correctPrefixSize = GetMaxCorrectIndexPrefix(Index_, &(*LogFile_));
-        LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains incorrect records");
+        auto correctPrefixSize = ComputeValidIndexPrefix(Index_, header, &*DataFile_);
+        LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
         Index_.resize(correctPrefixSize);
 
         IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec));
@@ -583,46 +595,45 @@ void TSyncFileChangelog::TImpl::ReadIndex()
 
 void TSyncFileChangelog::TImpl::UpdateLogHeader()
 {
-    i64 oldPosition = LogFile_->GetPosition();
-    LogFile_->Seek(0, sSet);
+    i64 oldPosition = DataFile_->GetPosition();
+    DataFile_->Seek(0, sSet);
     TChangelogHeader header(
-        Id_,
-        PrevRecordCount_,
+        Meta_.Size(),
         SealedRecordCount_);
-    WritePod(*LogFile_, header);
-    LogFile_->Seek(oldPosition, sSet);
+    WritePod(*DataFile_, header);
+    DataFile_->Seek(oldPosition, sSet);
 }
 
 void TSyncFileChangelog::TImpl::UpdateIndexHeader()
 {
     i64 oldPosition = IndexFile_->GetPosition();
     IndexFile_->Seek(0, sSet);
-    TChangelogIndexHeader header(Id_, Index_.size());
+    TChangelogIndexHeader header(Index_.size());
     WritePod(*IndexFile_, header);
     IndexFile_->Seek(oldPosition, sSet);
 }
 
-void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
+void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd(const TChangelogHeader& header)
 {
     // Extract changelog properties from index.
-    i64 fileLength = LogFile_->GetLength();
+    i64 fileLength = DataFile_->GetLength();
     CurrentBlockSize_ = 0;
     if (Index_.empty()) {
         RecordCount_ = 0;
-        CurrentFilePosition_ = sizeof(TChangelogHeader);
+        CurrentFilePosition_ = header.HeaderSize;
     } else {
         // Record count would be set below.
         CurrentFilePosition_ = Index_.back().FilePosition;
     }
 
     // Seek to proper position in file, initialize checkable reader.
-    LogFile_->Seek(CurrentFilePosition_, sSet);
-    TCheckedReader<TBufferedFile> logFileReader(*LogFile_);
+    DataFile_->Seek(CurrentFilePosition_, sSet);
+    TCheckedReader<TBufferedFile> dataReader(*DataFile_);
 
     TNullable<TRecordInfo> recordInfo;
     if (!Index_.empty()) {
         // Skip first record.
-        recordInfo = ReadRecord(logFileReader);
+        recordInfo = ReadRecord(dataReader);
         // It should be correct because we have already check index.
         YASSERT(recordInfo);
         RecordCount_ = Index_.back().RecordId + 1;
@@ -631,7 +642,7 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
 
     while (CurrentFilePosition_ < fileLength) {
         // Record size also counts size of record header.
-        recordInfo = ReadRecord(logFileReader);
+        recordInfo = ReadRecord(dataReader);
         if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
             // Broken changelog case.
             if (!recordInfo || recordInfo->Id != RecordCount_) {
@@ -643,8 +654,8 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd()
                     RecordCount_,
                     CurrentFilePosition_);
             }
-            LogFile_->Resize(CurrentFilePosition_);
-            LogFile_->Seek(0, sEnd);
+            DataFile_->Resize(CurrentFilePosition_);
+            DataFile_->Seek(0, sEnd);
             break;
         }
         ProcessRecord(recordInfo->Id, recordInfo->TotalSize);
@@ -662,12 +673,12 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     TGuard<TMutex> guard(Mutex_);
 
     TEnvelopeData result;
-    result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), RecordIdComparator);
+    result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), CompareRecordIds);
     
-    auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1), RecordIdComparator);
+    auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1), CompareRecordIds);
     if (maxBytes != -1) {
         i64 maxFilePosition = result.LowerBound.FilePosition + maxBytes;
-        it = std::min(it, FirstGreater(Index_, TChangelogIndexRecord(-1, maxFilePosition), FilePositionComparator));
+        it = std::min(it, FirstGreater(Index_, TChangelogIndexRecord(-1, maxFilePosition), CompareFilePositions));
     }
     result.UpperBound =
         it != Index_.end() ?
@@ -677,7 +688,7 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
     struct TSyncChangelogEnvelopeTag { };
     result.Blob = TSharedRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
 
-    size_t bytesRead = LogFile_->Pread(
+    size_t bytesRead = DataFile_->Pread(
         result.Blob.Begin(),
         result.GetLength(),
         result.GetStartPosition());

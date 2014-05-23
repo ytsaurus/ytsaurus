@@ -15,18 +15,14 @@ namespace NHydra {
 struct IChangelog
     : public virtual TRefCounted
 {
-    //! Returns the changelog id.
-    virtual int GetId() const = 0;
+    //! Returns the meta blob.
+    virtual TSharedRef GetMeta() const = 0;
 
     //! Returns the number of records in the changelog.
     virtual int GetRecordCount() const = 0;
 
     //! Returns an approximate byte size in a changelog.
     virtual i64 GetDataSize() const = 0;
-
-    //! Returns the number of records in the previous changelog;
-    //! mostly for validation purposes.
-    virtual int GetPrevRecordCount() const = 0;
 
     //! Returns |true| if the changelog is sealed, i.e.
     //! no further appends are possible.
@@ -79,14 +75,6 @@ DEFINE_REFCOUNTED_TYPE(IChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Parameters used for creating new changelogs.
-struct TChangelogCreateParams
-{
-    TChangelogCreateParams();
-
-    int PrevRecordCount;
-};
-
 //! Manages a collection of changelogs within a cell.
 struct IChangelogStore
     : public virtual TRefCounted
@@ -97,7 +85,7 @@ struct IChangelogStore
     //! Synchronously creates a new changelog.
     virtual IChangelogPtr CreateChangelog(
         int id,
-        const TChangelogCreateParams& params) = 0;
+        const TSharedRef& meta) = 0;
 
     //! Synchronously opens an existing changelog.
     //! Returns |nullptr| if not changelog is found.

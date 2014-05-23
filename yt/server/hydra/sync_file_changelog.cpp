@@ -10,11 +10,9 @@ namespace NHydra {
 
 TSyncFileChangelog::TSyncFileChangelog(
     const Stroka& fileName,
-    int id,
     TFileChangelogConfigPtr config)
-    : Impl(new TImpl(
+    : Impl_(new TImpl(
         fileName,
-        id,
         config))
 { }
 
@@ -23,64 +21,59 @@ TSyncFileChangelog::~TSyncFileChangelog()
 
 TFileChangelogConfigPtr TSyncFileChangelog::GetConfig()
 {
-    return Impl->GetConfig();
+    return Impl_->GetConfig();
 }
 
 void TSyncFileChangelog::Open()
 {
-    Impl->Open();
+    Impl_->Open();
 }
 
 void TSyncFileChangelog::Close()
 {
-    Impl->Close();
+    Impl_->Close();
 }
 
-void TSyncFileChangelog::Create(const TChangelogCreateParams& params)
+void TSyncFileChangelog::Create(const TSharedRef& meta)
 {
-    Impl->Create(params);
-}
-
-int TSyncFileChangelog::GetId() const
-{
-    return Impl->GetId();
+    Impl_->Create(meta);
 }
 
 int TSyncFileChangelog::GetRecordCount() const
 {
-    return Impl->GetRecordCount();
+    return Impl_->GetRecordCount();
 }
 
 i64 TSyncFileChangelog::GetDataSize() const
 {
-    return Impl->GetDataSize();
+    return Impl_->GetDataSize();
 }
 
-int TSyncFileChangelog::GetPrevRecordCount() const
+TSharedRef TSyncFileChangelog::GetMeta() const
 {
-    return Impl->GetPrevRecordCount();
+    return Impl_->GetMeta();
 }
 
 bool TSyncFileChangelog::IsSealed() const
 {
-    return Impl->IsSealed();
+    return Impl_->IsSealed();
 }
 
 void TSyncFileChangelog::Append(
     int firstRecordId,
     const std::vector<TSharedRef>& records)
 {
-    Impl->Append(firstRecordId, records);
+    Impl_->Append(firstRecordId, records);
 }
 
 void TSyncFileChangelog::Flush()
 {
-    Impl->Flush();
+    Impl_->Flush();
 }
 
 TInstant TSyncFileChangelog::GetLastFlushed()
 {
-    return Impl->GetLastFlushed();
+    return Impl_->GetLastFlushed();
 }
 
 std::vector<TSharedRef> TSyncFileChangelog::Read(
@@ -88,17 +81,17 @@ std::vector<TSharedRef> TSyncFileChangelog::Read(
     int maxRecords,
     i64 maxBytes)
 {
-    return Impl->Read(firstRecordId, maxRecords, maxBytes);
+    return Impl_->Read(firstRecordId, maxRecords, maxBytes);
 }
 
 void TSyncFileChangelog::Seal(int recordCount)
 {
-    Impl->Seal(recordCount);
+    Impl_->Seal(recordCount);
 }
 
 void TSyncFileChangelog::Unseal()
 {
-    Impl->Unseal();
+    Impl_->Unseal();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
