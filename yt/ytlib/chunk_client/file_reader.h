@@ -46,6 +46,7 @@ public:
     //! Synchronously reads a given block from the file.
     TSharedRef ReadBlock(int blockIndex);
 
+    //! Returns null but may be overridden in derived classes.
     virtual TChunkId GetChunkId() const override;
 
 private:
