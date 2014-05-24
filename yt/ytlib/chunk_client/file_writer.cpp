@@ -181,7 +181,7 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
     return ChunkMeta;
 }
 
-const std::vector<int> TFileWriter::GetWrittenIndexes() const
+IWriter::TReplicaIndexes TFileWriter::GetWrittenReplicaIndexes() const
 {
     YUNIMPLEMENTED();
 }

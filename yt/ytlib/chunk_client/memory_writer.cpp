@@ -42,7 +42,7 @@ const TChunkInfo& TMemoryWriter::GetChunkInfo() const
     YUNIMPLEMENTED();
 }
 
-const std::vector<int> TMemoryWriter::GetWrittenIndexes() const
+IWriter::TReplicaIndexes TMemoryWriter::GetWrittenReplicaIndexes() const
 {
     YUNIMPLEMENTED();
 }

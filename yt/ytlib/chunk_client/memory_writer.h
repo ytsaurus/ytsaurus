@@ -21,7 +21,7 @@ public:
 
     // Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
-    virtual const std::vector<int> GetWrittenIndexes() const override;
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override;
 
     // Possible to call after #AsyncClose.
     std::vector<TSharedRef>& GetBlocks();

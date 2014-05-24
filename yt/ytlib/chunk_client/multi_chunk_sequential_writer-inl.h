@@ -305,7 +305,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
         ~ToString(currentSession.ChunkId));
 
     std::vector<TChunkReplica> replicas;
-    for (int index : asyncWriter->GetWrittenIndexes()) {
+    for (int index : asyncWriter->GetWrittenReplicaIndexes()) {
         replicas.push_back(currentSession.Replicas[index]);
     }
 

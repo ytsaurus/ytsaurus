@@ -276,7 +276,7 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     LOG_DEBUG("Chunk closed (ChunkId: %s)", ~ToString(session.ChunkId));
 
     std::vector<TChunkReplica> replicas;
-    for (int index : session.UnderlyingWriter->GetWrittenIndexes()) {
+    for (int index : session.UnderlyingWriter->GetWrittenReplicaIndexes()) {
         replicas.push_back(session.Replicas[index]);
     }
 

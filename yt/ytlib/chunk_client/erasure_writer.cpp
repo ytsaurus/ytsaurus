@@ -137,9 +137,9 @@ public:
         TErasureWriterConfigPtr config,
         NErasure::ICodec* codec,
         const std::vector<IWriterPtr>& writers)
-            : Config_(config)
-            , Codec_(codec)
-            , Writers_(writers)
+        : Config_(config)
+        , Codec_(codec)
+        , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
@@ -171,10 +171,9 @@ public:
         return ChunkInfo_;
     }
 
-    virtual const std::vector<int> GetWrittenIndexes() const override
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override
     {
-        std::vector<int> result;
-        result.reserve(Codec_->GetTotalPartCount());
+        TReplicaIndexes result;
         for (int i = 0; i < Codec_->GetTotalPartCount(); ++i) {
             result.push_back(i);
         }

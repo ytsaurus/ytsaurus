@@ -40,13 +40,14 @@ struct IWriter
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
-    //! Return indices of alive nodes.
+    typedef SmallVector<int, TypicalReplicaCount> TReplicaIndexes;
+
+    //! Return the indices of replicas that were successfully written.
     /*!
      *  Can only be called when the writer is successfully closed.
-     *
-     *  Only remote writers implement this method.
+     *  Not every writer implements this method.
      */
-    virtual const std::vector<int> GetWrittenIndexes() const = 0;
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IWriter)

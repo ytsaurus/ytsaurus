@@ -131,7 +131,7 @@ public:
     virtual TAsyncError Close(const TChunkMeta& chunkMeta) override;
 
     virtual const TChunkInfo& GetChunkInfo() const override;
-    virtual const std::vector<int> GetWrittenIndexes() const override;
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override;
 
 private:
     friend class TGroup;
@@ -897,11 +897,11 @@ const TChunkInfo& TReplicationWriter::GetChunkInfo() const
     return ChunkInfo_;
 }
 
-const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
+IWriter::TReplicaIndexes TReplicationWriter::GetWrittenReplicaIndexes() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    std::vector<int> result;
+    TReplicaIndexes result;
     for (auto node : Nodes_) {
         if (node->IsAlive()) {
             result.push_back(node->Index);
