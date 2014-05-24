@@ -104,7 +104,7 @@ void TJournalChunk::DoReadBlocks(
         auto readBlocks = changelog->Read(
             firstBlockIndex,
             blockCount,
-            config->DataNode->MaxBytesPerJournalRead);
+            config->DataNode->JournalDispatcher->MaxBytesPerRead);
 
         auto readTime = timer.GetElapsed();
 

@@ -106,6 +106,106 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
+class TBlobDispatcherConfig
+    : public TYsonSerializable
+{
+public:
+    //! Maximum number of cached blob chunks readers.
+    int ReaderCacheSize;
+
+    TBlobDispatcherConfig()
+    {
+        RegisterParameter("reader_cache_size", ReaderCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+    }
+};
+
+class TMultiplexedJournalConfig
+    : public NHydra::TFileChangelogConfig
+{
+public:
+    //! A path where multiplexed journals are stored.
+    Stroka Path;
+
+    //! Multiplexed journal record count limit.
+    /*!
+     *  When this limit is reached, the current multiplexed journal is rotated.
+     */
+    int MaxRecordCount;
+
+    //! Multiplexed journal data size limit, in bytes.
+    /*!
+     *  See #MaxRecordCount.
+     */
+    i64 MaxDataSize;
+
+    TMultiplexedJournalConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("max_record_count", MaxRecordCount)
+            .Default(1000000)
+            .GreaterThan(0);
+        RegisterParameter("max_data_size", MaxDataSize)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexedJournalConfig)
+
+class TJournalDispatcherConfig
+    : public TYsonSerializable
+{
+public:
+    //! Multiplexed journal configuration.
+    NHydra::TFileChangelogConfigPtr Multiplexed;
+
+    //! Split (per chunk) journal configuration.
+    NHydra::TFileChangelogConfigPtr Split;
+
+    //! Maximum number of cached split changelogs.
+    int MaxCachedChangelogs;
+
+    //! Maximum bytes of multiplexed journal to read during
+    //! a single iteration of replay.
+    i64 ReplayBufferSize;
+
+    //! Maximum bytes to read from a journal per single read request.
+    i64 MaxBytesPerRead;
+
+    //! Maximum number of cached opened journals.
+    int ReaderCacheSize;
+
+    TJournalDispatcherConfig()
+    {
+        RegisterParameter("multiplexed", Multiplexed);
+        RegisterParameter("split", Split)
+            .DefaultNew();
+        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
+            .GreaterThan(0)
+            .Default(256);
+        RegisterParameter("replay_buffer_size", ReplayBufferSize)
+            .GreaterThan(0)
+            .Default(256 * 1024 * 1024);
+        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
+            .GreaterThan(0)
+            .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("reader_cache_size", ReaderCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+
+        RegisterInitializer([&] () {
+            // Expect many splits -- adjust configuration.
+            Split->FlushBufferSize = (i64) 16 * 1024 * 1024;
+            Split->FlushPeriod = TDuration::Seconds(15);
+        });
+    }
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TJournalDispatcherConfig)
+
 //! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
@@ -129,17 +229,11 @@ public:
     //! Block cache size (in bytes).
     i64 BlockCacheSize;
 
-    //! Maximum number of cached blob chunks readers.
-    int BlobReaderCacheSize;
+    //! Blob dispatcher configuration.
+    TBlobDispatcherConfigPtr BlobDispatcher;
 
-    //! Maximum number of cached opened journals.
-    int JournalCacheSize;
-
-    //! Configuration used for opening all journal chunks.
-    NHydra::TFileChangelogConfigPtr JournalChunks;
-
-    //! Maximum bytes to read from a journal per single read request.
-    i64 MaxBytesPerJournalRead;
+    //! Journal dispatcher configuration.
+    TJournalDispatcherConfigPtr JournalDispatcher;
 
     //! Upload session timeout.
     /*!
@@ -221,17 +315,10 @@ public:
         RegisterParameter("block_cache_size", BlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
-        RegisterParameter("blob_reader_cache_size", BlobReaderCacheSize)
-            .GreaterThan(0)
-            .Default(256);
-        RegisterParameter("journal_cache_size", JournalCacheSize)
-            .GreaterThan(0)
-            .Default(256);
-        RegisterParameter("journal_chunks", JournalChunks)
+        RegisterParameter("blob_dispatcher", BlobDispatcher)
             .DefaultNew();
-        RegisterParameter("max_bytes_per_journal_read", MaxBytesPerJournalRead)
-            .GreaterThan(0)
-            .Default((i64) 64 * 1024 * 1024);
+        RegisterParameter("journal_dispatcher", JournalDispatcher)
+            .DefaultNew();
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)

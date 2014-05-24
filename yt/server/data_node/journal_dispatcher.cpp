@@ -103,7 +103,7 @@ public:
     explicit TImpl(
         TDataNodeConfigPtr config,
         const Stroka& threadName)
-        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->JournalCacheSize)
+        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->JournalDispatcher->ReaderCacheSize)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>(threadName))
     { }
@@ -127,7 +127,7 @@ public:
                 try {
                     auto changelog = ChangelogDispatcher_->OpenChangelog(
                         fileName,
-                        Config_->JournalChunks);
+                        Config_->JournalDispatcher->Split);
                     auto cachedChangelog = New<TCachedChangelog>(chunkId, changelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
@@ -170,7 +170,7 @@ public:
                     auto changelog = ChangelogDispatcher_->CreateChangelog(
                         fileName,
                         TSharedRef(), // TODO(babenko): journal meta
-                        Config_->JournalChunks);
+                        Config_->JournalDispatcher->Split);
                     auto cachedChangelog = New<TCachedChangelog>(chunkId, changelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {

@@ -48,7 +48,7 @@ class TBlobReaderCache::TImpl
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
-        : TSizeLimitedCache<TChunkId, TCachedReader>(config->BlobReaderCacheSize)
+        : TSizeLimitedCache<TChunkId, TCachedReader>(config->BlobDispatcher->ReaderCacheSize)
     { }
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
