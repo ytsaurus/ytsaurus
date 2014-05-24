@@ -73,14 +73,12 @@ private:
 
     typedef std::vector<TSlot> TWindow;
 
-    TError Error;
-    TWindow Window;
-    int WindowStartIndex;
-    int WriteIndex;
-    i64 Size;
-
-    Stroka FileName;
-    NChunkClient::TFileWriterPtr Writer;
+    TError Error_;
+    TWindow Window_;
+    int WindowStartIndex_;
+    int WriteIndex_;
+    i64 Size_;
+    NChunkClient::TFileWriterPtr Writer_;
 
 
     bool IsInWindow(int blockIndex);
@@ -91,15 +89,15 @@ private:
     void MarkAllSlotsWritten();
 
     void OpenFile();
-    void DoOpenFile();
+    void DoOpenWriter();
 
     TAsyncError AbortWriter();
     TError DoAbortWriter();
     TError OnWriterAborted(TError error);
 
-    TAsyncError CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TError DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TErrorOr<IChunkPtr> OnFileClosed(TError error);
+    TAsyncError CloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TError DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TErrorOr<IChunkPtr> OnWriterClosed(TError error);
 
     void EnqueueWrites();
     TError DoWriteBlock(const TSharedRef& block, int blockIndex);

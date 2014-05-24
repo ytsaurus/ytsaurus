@@ -3,6 +3,8 @@
 #include "public.h"
 #include "session_detail.h"
 
+#include <server/hydra/public.h>
+
 #include <server/cell_node/public.h>
 
 namespace NYT {
@@ -44,6 +46,14 @@ public:
         const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
 
 private:
+    NHydra::IChangelogPtr Changelog_;
+    TFuture<void> LastAppendResult_;
+
+
+    void DoCreateChangelog();
+
+    IChunkPtr CloseSession();
+
 
 };
 

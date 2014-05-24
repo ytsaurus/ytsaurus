@@ -41,16 +41,16 @@ public:
     DEFINE_SIGNAL(void(IChunkPtr chunk), Completed);
 
 protected:
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-    TChunkId ChunkId;
-    EWriteSessionType Type;
-    bool SyncOnClose;
-    TLocationPtr Location;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
+    TChunkId ChunkId_;
+    EWriteSessionType Type_;
+    bool SyncOnClose_;
+    TLocationPtr Location_;
 
-    IInvokerPtr WriteInvoker;
+    IInvokerPtr WriteInvoker_;
 
-    TLeaseManager::TLease Lease;
+    TLeaseManager::TLease Lease_;
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;

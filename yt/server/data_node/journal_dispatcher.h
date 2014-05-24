@@ -23,18 +23,23 @@ public:
 
     //! Returns a (cached) changelog corresponding to a given journal chunk.
     /*!
-     *  This call is thread-safe but may block since it actually opens the journal.
-     *  A rule of thumb is to invoke it from IO thread only.
-     *
+     *  This call is thread-safe but may block since it actually opens the files.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr GetChangelog(TJournalChunkPtr chunk);
+    NHydra::IChangelogPtr GetChangelog(IChunkPtr chunk);
+
+    //! Creates a new changelog corresponding to a given journal session.
+    /*!
+     *  This call is thread-safe but may block since it actually creates the files.
+     *  This method throws on failure.
+     */
+    NHydra::IChangelogPtr CreateChangelog(ISessionPtr session);
 
     //! Evicts the changelog from the cache.
-    void EvictChangelog(TJournalChunkPtr chunk);
+    void EvictChangelog(IChunkPtr chunk);
 
 private:
-    class TCachedJournal;
+    class TCachedChangelog;
     class TImpl;
 
     TIntrusivePtr<TImpl> Impl_;

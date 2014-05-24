@@ -32,13 +32,13 @@ TSession::TSession(
     NChunkClient::EWriteSessionType type,
     bool syncOnClose,
     TLocationPtr location)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , ChunkId(chunkId)
-    , Type(type)
-    , SyncOnClose(syncOnClose)
-    , Location(location)
-    , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
+    : Config_(config)
+    , Bootstrap_(bootstrap)
+    , ChunkId_(chunkId)
+    , Type_(type)
+    , SyncOnClose_(syncOnClose)
+    , Location_(location)
+    , WriteInvoker_(CreateSerializedInvoker(Location_->GetWriteInvoker()))
     , Logger(DataNodeLogger)
     , Profiler(location->Profiler())
 {
@@ -46,39 +46,39 @@ TSession::TSession(
     YCHECK(location);
 
     Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
-        ~Location->GetId(),
-        ~ToString(ChunkId)));
+        ~Location_->GetId(),
+        ~ToString(ChunkId_)));
 
-    Location->UpdateSessionCount(+1);
+    Location_->UpdateSessionCount(+1);
 }
 
 TSession::~TSession()
 {
-    Location->UpdateSessionCount(-1);
+    Location_->UpdateSessionCount(-1);
 }
 
 void TSession::Ping()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TLeaseManager::RenewLease(Lease);
+    TLeaseManager::RenewLease(Lease_);
 }
 
 const TChunkId& TSession::GetChunkId() const
 {
-    return ChunkId;
+    return ChunkId_;
 }
 
 EWriteSessionType TSession::GetType() const
 {
-    return Type;
+    return Type_;
 }
 
 TLocationPtr TSession::GetLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Location;
+    return Location_;
 }
 
 void TSession::Start(TLeaseManager::TLease lease)
@@ -86,16 +86,16 @@ void TSession::Start(TLeaseManager::TLease lease)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_DEBUG("Session started (SessionType: %s)",
-        ~ToString(Type));
+        ~ToString(Type_));
 
-    Lease = lease;
+    Lease_ = lease;
 }
 
 void TSession::CloseLease()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TLeaseManager::CloseLease(Lease);
+    TLeaseManager::CloseLease(Lease_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,8 +2,9 @@
 #include "journal_dispatcher.h"
 #include "private.h"
 #include "config.h"
-#include "journal_chunk.h"
+#include "chunk.h"
 #include "location.h"
+#include "session.h"
 
 #include <core/misc/cache.h>
 
@@ -22,13 +23,13 @@ static auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalDispatcher::TCachedJournal
-    : public TCacheValueBase<TChunkId, TCachedJournal>
+class TJournalDispatcher::TCachedChangelog
+    : public TCacheValueBase<TChunkId, TCachedChangelog>
     , public IChangelog
 {
 public:
-    TCachedJournal(const TChunkId& chunkId, IChangelogPtr changelog)
-        : TCacheValueBase<TChunkId, TCachedJournal>(chunkId)
+    TCachedChangelog(const TChunkId& chunkId, IChangelogPtr changelog)
+        : TCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
         , Changelog_(changelog)
     { }
 
@@ -96,18 +97,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalDispatcher::TImpl
-    : public TSizeLimitedCache<TChunkId, TCachedJournal>
+    : public TSizeLimitedCache<TChunkId, TCachedChangelog>
 {
 public:
     explicit TImpl(
         TDataNodeConfigPtr config,
         const Stroka& threadName)
-        : TSizeLimitedCache<TChunkId, TCachedJournal>(config->JournalCacheSize)
+        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->JournalCacheSize)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>(threadName))
     { }
 
-    IChangelogPtr GetJournal(TJournalChunkPtr chunk)
+    IChangelogPtr GetChangelog(IChunkPtr chunk)
     {
         YCHECK(chunk->IsReadLockAcquired());
 
@@ -124,9 +125,11 @@ public:
 
             PROFILE_TIMING ("/journal_chunk_open_time") {
                 try {
-                    auto changelog = ChangelogDispatcher_->OpenChangelog(fileName, Config_->JournalChunks);
-                    auto journal = New<TCachedJournal>(chunkId, changelog);
-                    cookie.EndInsert(journal);
+                    auto changelog = ChangelogDispatcher_->OpenChangelog(
+                        fileName,
+                        Config_->JournalChunks);
+                    auto cachedChangelog = New<TCachedChangelog>(chunkId, changelog);
+                    cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
                     auto error = TError(
                         NChunkClient::EErrorCode::IOError,
@@ -134,13 +137,13 @@ public:
                         ~ToString(chunkId))
                         << ex;
                     cookie.Cancel(error);
-                    chunk->GetLocation()->Disable();
+                    location->Disable();
                     THROW_ERROR_EXCEPTION(error);
                 }
             }
 
             LOG_DEBUG("Finished opening journal chunk (LocationId: %s, ChunkId: %s)",
-                ~chunk->GetLocation()->GetId(),
+                ~location->GetId(),
                 ~ToString(chunkId));
         }
 
@@ -149,7 +152,50 @@ public:
         return resultOrError.Value();
     }
 
-    void EvictChangelog(TJournalChunkPtr chunk)
+    IChangelogPtr CreateChangelog(ISessionPtr session)
+    {
+        auto location = session->GetLocation();
+        auto& Profiler = location->Profiler();
+
+        auto chunkId = session->GetChunkId();
+        TInsertCookie cookie(chunkId);
+        if (BeginInsert(&cookie)) {
+            auto fileName = location->GetChunkFileName(chunkId);
+            LOG_DEBUG("Started creating journal chunk (LocationId: %s, ChunkId: %s)",
+                ~location->GetId(),
+                ~ToString(chunkId));
+
+            PROFILE_TIMING ("/journal_chunk_create_time") {
+                try {
+                    auto changelog = ChangelogDispatcher_->CreateChangelog(
+                        fileName,
+                        TSharedRef(), // TODO(babenko): journal meta
+                        Config_->JournalChunks);
+                    auto cachedChangelog = New<TCachedChangelog>(chunkId, changelog);
+                    cookie.EndInsert(cachedChangelog);
+                } catch (const std::exception& ex) {
+                    auto error = TError(
+                        NChunkClient::EErrorCode::IOError,
+                        "Error creating journal chunk %s",
+                        ~ToString(chunkId))
+                        << ex;
+                    cookie.Cancel(error);
+                    location->Disable();
+                    THROW_ERROR_EXCEPTION(error);
+                }
+            }
+
+            LOG_DEBUG("Finished creating journal chunk (LocationId: %s, ChunkId: %s)",
+                ~location->GetId(),
+                ~ToString(chunkId));
+        }
+
+        auto resultOrError = cookie.GetValue().Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+        return resultOrError.Value();
+    }
+
+    void EvictChangelog(IChunkPtr chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
@@ -171,12 +217,17 @@ TJournalDispatcher::TJournalDispatcher(
 TJournalDispatcher::~TJournalDispatcher()
 { }
 
-IChangelogPtr TJournalDispatcher::GetChangelog(TJournalChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::GetChangelog(IChunkPtr chunk)
 {
-    return Impl_->GetJournal(chunk);
+    return Impl_->GetChangelog(chunk);
 }
 
-void TJournalDispatcher::EvictChangelog(TJournalChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::CreateChangelog(ISessionPtr session)
+{
+    return Impl_->CreateChangelog(session);
+}
+
+void TJournalDispatcher::EvictChangelog(IChunkPtr chunk)
 {
     Impl_->EvictChangelog(chunk);
 }
