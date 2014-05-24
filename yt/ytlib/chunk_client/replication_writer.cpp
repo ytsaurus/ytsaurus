@@ -18,6 +18,7 @@
 #include <core/logging/tagged_logger.h>
 
 #include <core/misc/async_stream_state.h>
+#include <core/misc/nullable.h>
 
 #include <deque>
 
@@ -171,7 +172,7 @@ private:
     int BlockCount_;
 
     //! Returned from node in Finish.
-    TChunkInfo ChunkInfo_;
+    TNullable<TChunkInfo> ChunkInfo_;
 
     NLog::TTaggedLogger Logger;
 
@@ -722,13 +723,13 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
         chunkInfo.disk_space());
 
     // If ChunkInfo is set.
-    if (ChunkInfo_.has_disk_space()) {
-        if (ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum() ||
-            ChunkInfo_.disk_space() != chunkInfo.disk_space())
+    if (ChunkInfo_) {
+        if (ChunkInfo_->meta_checksum() != chunkInfo.meta_checksum() ||
+            ChunkInfo_->disk_space() != chunkInfo.disk_space())
         {
             LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~node->Descriptor.GetDefaultAddress(),
-                ~ChunkInfo_.DebugString(),
+                ~ChunkInfo_->DebugString(),
                 ~chunkInfo.DebugString());
         }
     } else {
@@ -894,7 +895,7 @@ const TChunkInfo& TReplicationWriter::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return ChunkInfo_;
+    return *ChunkInfo_;
 }
 
 IWriter::TReplicaIndexes TReplicationWriter::GetWrittenReplicaIndexes() const
