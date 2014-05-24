@@ -128,26 +128,23 @@ void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
 IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
     auto it = ChunkMap_.find(chunkId);
-    return it == ChunkMap_.end() ? NULL : it->second;
+    return it == ChunkMap_.end() ? nullptr : it->second;
 }
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
-    auto promise = NewPromise();
-    chunk->ScheduleRemoval().Subscribe(
-        BIND([=] () mutable {
-            // NB: No result check here, the location might got disabled.
-            ChunkMap_.erase(chunk->GetId());
-
+    return chunk->ScheduleRemoval().Apply(
+        BIND([=] () {
             auto location = chunk->GetLocation();
+            if (!location->IsEnabled())
+                return;
+
+            YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
             location->UpdateChunkCount(-1);
             location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
-
             ChunkRemoved_.Fire(chunk);
-            promise.Set();
         })
         .Via(Bootstrap_->GetControlInvoker()));
-    return promise;
 }
 
 TLocationPtr TChunkStore::GetNewChunkLocation()
