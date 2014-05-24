@@ -20,33 +20,31 @@ struct IWriter
     //! Starts a new upload session.
     virtual void Open() = 0;
 
+    //! Enqueues another block to be written.
+    /*!
+     *  If |false| is returned then the block was accepted but the window is already full.
+     *  The client must call #GetReadyEvent and wait for the result to be set.
+     */
     virtual bool WriteBlock(const TSharedRef& block) = 0;
+
+    //! Returns an asynchronous flag used to backpressure the upload.
     virtual TAsyncError GetReadyEvent() = 0;
 
     //! Called when the client has added all blocks and is
     //! willing to finalize the upload.
-    /*!
-     *  The call completes immediately but returns a result that gets
-     *  set when the session is complete.
-     *
-     *  Should be called only once.
-     *  Calling #WriteBlock afterwards is an error.
-     */
     virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 
     //! Returns the chunk info.
     /*!
      *  This method can only be called when the writer is successfully closed.
-     *
-     * \note Thread affinity: ClientThread.
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
     //! Return indices of alive nodes.
     /*!
-     * Can only be called when the writer is successfully closed.
+     *  Can only be called when the writer is successfully closed.
      *
-     * This method used in replication writer and unimplemented in other cases.
+     *  Only remote writers implement this method.
      */
     virtual const std::vector<int> GetWrittenIndexes() const = 0;
 };
