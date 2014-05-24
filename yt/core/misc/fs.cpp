@@ -70,6 +70,11 @@ void Remove(const Stroka& path)
     }   
 }
 
+void RemoveRecursive(const Stroka& path)
+{
+    RemoveDirWithContents(path);
+}
+
 void Rename(const Stroka& oldPath, const Stroka& newPath)
 {
     bool ok;

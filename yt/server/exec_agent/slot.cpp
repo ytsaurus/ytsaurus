@@ -6,8 +6,6 @@
 
 #include <core/ytree/yson_producer.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NExecAgent {
 
@@ -71,7 +69,7 @@ void TSlot::DoClean()
     try {
         if (NFS::Exists(SandboxPath)) {
             if (UserId == EmptyUserId) {
-                RemoveDirWithContents(SandboxPath);
+                NFS::RemoveRecursive(SandboxPath);
             } else {
                 RunCleaner(SandboxPath);
             }

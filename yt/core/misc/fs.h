@@ -21,6 +21,9 @@ bool Exists(const Stroka& path);
 //! Removes a given file or directory. Throws on failure.
 void Remove(const Stroka& path);
 
+//! Removes a given directory recursively. Throws on failure.
+void RemoveRecursive(const Stroka& path);
+
 //! Renames a given file or directory. Throws on failure.
 void Rename(const Stroka& oldPath, const Stroka& newPath);
 

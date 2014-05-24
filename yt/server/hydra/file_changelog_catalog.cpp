@@ -15,8 +15,6 @@
 
 #include <ytlib/hydra/version.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -172,7 +170,7 @@ public:
 
         try {
             auto path = GetSplitPath(cellGuid);
-            RemoveDirWithContents(path);
+            NFS::RemoveRecursive(path);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error removing changelog store %s",
                 ~ToString(cellGuid));
