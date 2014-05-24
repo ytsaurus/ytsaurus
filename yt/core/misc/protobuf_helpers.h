@@ -69,6 +69,30 @@ inline void FromProto(
     *original = serialized;
 }
 
+template <class T>
+inline void ToProto(
+    int* serialized,
+    T original,
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, TEnumBase<T>*>,
+        int
+    >::TType = 0)
+{
+    *serialized = static_cast<int>(original);
+}
+
+template <class T>
+inline void FromProto(
+    T* original,
+    int serialized,
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, TEnumBase<T>*>,
+        int
+    >::TType = 0)
+{
+    *original = T(serialized);
+}
+
 template <class TSerialized, class TOriginal>
 TSerialized ToProto(const TOriginal& original)
 {
