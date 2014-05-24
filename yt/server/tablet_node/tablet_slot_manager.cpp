@@ -107,17 +107,17 @@ public:
 
     bool IsOutOfMemory() const
     {
-        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker.GetUsed(NCellNode::EMemoryConsumer::Tablet) >
+            tracker->GetUsed(NCellNode::EMemoryConsumer::Tablet) >
             Config_->MemoryLimit;
     }
 
     bool IsRotationForced(i64 passiveUsage) const
     {
-        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         return
-            tracker.GetUsed(NCellNode::EMemoryConsumer::Tablet) - passiveUsage >
+            tracker->GetUsed(NCellNode::EMemoryConsumer::Tablet) - passiveUsage >
             Config_->MemoryLimit * Config_->ForcedRotationsMemoryRatio;
     }
 

@@ -54,7 +54,7 @@ public:
     NExecAgent::TSlotManagerPtr GetSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
-    TNodeMemoryTracker& GetMemoryUsageTracker();
+    TNodeMemoryTracker* GetMemoryUsageTracker();
     NDataNode::TChunkStorePtr GetChunkStore() const;
     NDataNode::TChunkCachePtr GetChunkCache() const;
     NDataNode::TChunkRegistryPtr GetChunkRegistry() const;

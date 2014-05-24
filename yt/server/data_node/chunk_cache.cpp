@@ -75,7 +75,7 @@ public:
                 Location_,
                 descriptor,
                 Bootstrap_->GetChunkCache(),
-                &Bootstrap_->GetMemoryUsageTracker());
+                Bootstrap_->GetMemoryUsageTracker());
             Put(chunk);
         }
 
@@ -261,7 +261,7 @@ private:
                 chunkMeta,
                 chunkWriter->GetChunkInfo(),
                 Bootstrap_->GetChunkCache(),
-                &Bootstrap_->GetMemoryUsageTracker());
+                Bootstrap_->GetMemoryUsageTracker());
             cookie.EndInsert(chunk);
             Register(chunk);
         } catch (const std::exception& ex) {

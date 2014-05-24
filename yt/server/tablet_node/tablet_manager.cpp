@@ -1193,11 +1193,11 @@ private:
 
     void OnStoreMemoryUsageUpdated(i64 delta)
     {
-        auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         if (delta >= 0) {
-            tracker.Acquire(EMemoryConsumer::Tablet, delta);
+            tracker->Acquire(EMemoryConsumer::Tablet, delta);
         } else {
-            tracker.Release(EMemoryConsumer::Tablet, -delta);
+            tracker->Release(EMemoryConsumer::Tablet, -delta);
         }
     }
 

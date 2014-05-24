@@ -446,7 +446,7 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
         ChunkId_,
         Writer_->GetChunkMeta(),
         Writer_->GetChunkInfo(),
-        &Bootstrap_->GetMemoryUsageTracker());
+        Bootstrap_->GetMemoryUsageTracker());
 
     LOG_INFO("Session finished");
 

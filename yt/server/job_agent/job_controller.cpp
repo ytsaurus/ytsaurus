@@ -88,8 +88,8 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_removal_slots(Config->ResourceLimits->RemovalSlots);
     result.set_repair_slots(Config->ResourceLimits->RepairSlots);
 
-    const auto& tracker = Bootstrap->GetMemoryUsageTracker();
-    result.set_memory(tracker.GetFree() + tracker.GetUsed(EMemoryConsumer::Job));
+    const auto* tracker = Bootstrap->GetMemoryUsageTracker();
+    result.set_memory(tracker->GetFree() + tracker->GetUsed(EMemoryConsumer::Job));
 
     return result;
 }
@@ -108,7 +108,7 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 
 void TJobController::StartWaitingJobs()
 {
-    auto& tracker = Bootstrap->GetMemoryUsageTracker();
+    auto* tracker = Bootstrap->GetMemoryUsageTracker();
 
     for (const auto& pair : Jobs) {
         auto job = pair.second;
@@ -117,16 +117,16 @@ void TJobController::StartWaitingJobs()
 
         auto usedResources = GetResourceUsage(false);
         {
-            auto memoryToRelease = tracker.GetUsed(EMemoryConsumer::Job) - usedResources.memory();
+            auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
             YCHECK(memoryToRelease >= 0);
-            tracker.Release(EMemoryConsumer::Job, memoryToRelease);
+            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
         }
 
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
         if (Dominates(spareResources, jobResources)) {
-            auto error = tracker.TryAcquire(EMemoryConsumer::Job, jobResources.memory());
+            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
                 LOG_INFO("Starting job (JobId: %s)", ~ToString(job->GetId()));
@@ -234,8 +234,8 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
     }
 
     if (delta.memory() > 0) {
-        auto& tracker = Bootstrap->GetMemoryUsageTracker();
-        auto error = tracker.TryAcquire(EMemoryConsumer::Job, delta.memory());
+        auto* tracker = Bootstrap->GetMemoryUsageTracker();
+        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
         if (!error.IsOK()) {
             job->Abort(TError(
                 NExecAgent::EErrorCode::ResourceOverdraft,

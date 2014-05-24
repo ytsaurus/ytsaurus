@@ -169,7 +169,7 @@ private:
                 "TotalMemoryUsage: %" PRId64 ", TabletMemoryUsage: %" PRId64 ", "
                 "MemoryLimit: %" PRId64 ")",
                 ~ToString(candidate.TabletId),
-                Bootstrap_->GetMemoryUsageTracker().GetUsed(NCellNode::EMemoryConsumer::Tablet),
+                Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::Tablet),
                 candidate.MemoryUsage,
                 Bootstrap_->GetConfig()->TabletNode->MemoryLimit);
 

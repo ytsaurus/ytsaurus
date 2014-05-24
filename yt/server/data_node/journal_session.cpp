@@ -79,7 +79,7 @@ IChunkPtr TJournalSession::CloseSession()
         ChunkId_,
         TChunkMeta(), // TODO(babenko)
         TChunkInfo(), // TODO(babenko)
-        &Bootstrap_->GetMemoryUsageTracker());
+        Bootstrap_->GetMemoryUsageTracker());
 
     Completed_.Fire(chunk);
 
