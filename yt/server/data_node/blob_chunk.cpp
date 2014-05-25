@@ -32,28 +32,28 @@ static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_t
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobChunk::TBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
     const TChunkMeta& meta,
-    const TChunkInfo& info,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkInfo& info)
     : TChunk(
+        bootstrap,
         location,
         id,
-        info,
-        memoryUsageTracker)
+        info)
 {
     InitializeCachedMeta(meta);
 }
 
 TBlobChunk::TBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkDescriptor& descriptor,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkDescriptor& descriptor)
     : TChunk(
+        bootstrap,
         location,
-        descriptor,
-        memoryUsageTracker)
+        descriptor)
 { }
 
 IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
@@ -74,7 +74,7 @@ IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
-    auto invoker = Location_->GetBootstrap()->GetControlInvoker();
+    auto invoker = Bootstrap_->GetControlInvoker();
     return ReadMeta(priority).Apply(
         BIND([=] (TError error) -> TGetMetaResult {
             if (!error.IsOK()) {
@@ -93,7 +93,7 @@ TAsyncError TBlobChunk::ReadBlocks(
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
-    auto blockStore = Location_->GetBootstrap()->GetBlockStore();
+    auto blockStore = Bootstrap_->GetBlockStore();
 
     i64 pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
     if (pendingSize >= 0) {
@@ -125,9 +125,8 @@ void TBlobChunk::DoReadBlocks(
     TPromise<TError> promise,
     std::vector<TSharedRef>* blocks)
 {
-    auto* bootstrap = Location_->GetBootstrap();
-    auto blockStore = bootstrap->GetBlockStore();
-    auto readerCache = bootstrap->GetBlobReaderCache();
+    auto blockStore = Bootstrap_->GetBlockStore();
+    auto readerCache = Bootstrap_->GetBlobReaderCache();
 
     TFileReaderPtr reader;
     try {
@@ -223,7 +222,7 @@ void TBlobChunk::DoReadMeta(TPromise<TError> promise)
 
     NChunkClient::TFileReaderPtr reader;
     PROFILE_TIMING ("/meta_read_time") {
-        auto readerCache = Location_->GetBootstrap()->GetBlobReaderCache();
+        auto readerCache = Bootstrap_->GetBlobReaderCache();
         try {
             reader = readerCache->GetReader(this);
         } catch (const std::exception& ex) {
@@ -256,9 +255,9 @@ void TBlobChunk::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& me
     BlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
     Meta_ = New<TRefCountedChunkMeta>(meta);
 
-    MemoryUsageTracker_->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+    tracker->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
 }
-
 
 i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
 {
@@ -283,8 +282,7 @@ i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
 
 void TBlobChunk::EvictFromCache()
 {
-    auto* bootstrap = Location_->GetBootstrap();
-    auto readerCache = bootstrap->GetBlobReaderCache();
+    auto readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 }
 
@@ -315,59 +313,56 @@ TFuture<void> TBlobChunk::RemoveFiles()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoredBlobChunk::TStoredBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& chunkId,
+    const TChunkId& id,
     const TChunkMeta& meta,
-    const TChunkInfo& info,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkInfo& info)
     : TBlobChunk(
+        bootstrap,
         location,
-        chunkId,
+        id,
         meta,
-        info,
-        memoryUsageTracker)
+        info)
 { }
 
 TStoredBlobChunk::TStoredBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkDescriptor& descriptor,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkDescriptor& descriptor)
     : TBlobChunk(
+        bootstrap,
         location,
-        descriptor,
-        memoryUsageTracker)
+        descriptor)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedBlobChunk::TCachedBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& chunkId,
+    const TChunkId& id,
     const TChunkMeta& meta,
-    const TChunkInfo& info,
-    TChunkCachePtr chunkCache,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkInfo& info)
     : TBlobChunk(
+        bootstrap,
         location,
-        chunkId,
+        id,
         meta,
-        info,
-        memoryUsageTracker)
+        info)
     , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
-    , ChunkCache_(chunkCache)
 { }
 
 TCachedBlobChunk::TCachedBlobChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkDescriptor& descriptor,
-    TChunkCachePtr chunkCache,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkDescriptor& descriptor)
     : TBlobChunk(
+        bootstrap,
         location,
-        descriptor,
-        memoryUsageTracker)
+        descriptor)
     , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
-    , ChunkCache_(chunkCache)
+    , ChunkCache_(Bootstrap_->GetChunkCache())
 { }
 
 TCachedBlobChunk::~TCachedBlobChunk()

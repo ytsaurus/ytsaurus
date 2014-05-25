@@ -43,10 +43,10 @@ void TJournalSession::Start(TLeaseManager::TLease lease)
     TSession::Start(lease);
 
     Chunk_ = New<TJournalChunk>(
+        Bootstrap_,
         Location_,
         ChunkId_,
-        TChunkInfo(), // TODO(babenko)
-        Bootstrap_->GetMemoryUsageTracker());
+        TChunkInfo()); // TODO(babenko)
 
     WriteInvoker_->Invoke(
         BIND(&TJournalSession::DoCreateChangelog, MakeStrong(this)));

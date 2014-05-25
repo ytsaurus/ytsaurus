@@ -123,11 +123,6 @@ i64 TLocation::GetTotalSpace() const
     }
 }
 
-TBootstrap* TLocation::GetBootstrap() const
-{
-    return Bootstrap;
-}
-
 i64 TLocation::GetUsedSpace() const
 {
     return UsedSpace;

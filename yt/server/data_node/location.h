@@ -58,9 +58,6 @@ public:
     //! Never throws.
     i64 GetTotalSpace() const;
 
-    //! Returns the bootstrap.
-    NCellNode::TBootstrap* GetBootstrap() const;
-
     //! Returns the number of bytes used at the location.
     /*!
      *  \note

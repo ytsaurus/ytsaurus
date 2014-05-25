@@ -27,16 +27,16 @@ public:
 
 protected:
     TBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& chunkId,
+        const TChunkId& id,
         const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const NChunkClient::NProto::TChunkInfo& info);
 
     TBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkDescriptor& descriptor);
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;
@@ -68,16 +68,16 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& chunkId,
+        const TChunkId& id,
         const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const NChunkClient::NProto::TChunkInfo& info);
 
     TStoredBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkDescriptor& descriptor);
 
 };
 
@@ -92,18 +92,16 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& chunkId,
+        const TChunkId& id,
         const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info,
-        TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const NChunkClient::NProto::TChunkInfo& info);
 
     TCachedBlobChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        TChunkCachePtr chunkCache,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkDescriptor& descriptor);
 
     ~TCachedBlobChunk();
 

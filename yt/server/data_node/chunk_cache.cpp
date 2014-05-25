@@ -72,10 +72,9 @@ public:
         auto descriptors = Location_->Initialize();
         for (const auto& descriptor : descriptors) {
             auto chunk = New<TCachedBlobChunk>(
+                Bootstrap_,
                 Location_,
-                descriptor,
-                Bootstrap_->GetChunkCache(),
-                Bootstrap_->GetMemoryUsageTracker());
+                descriptor);
             Put(chunk);
         }
 
@@ -256,12 +255,11 @@ private:
 
             LOG_INFO("Chunk is downloaded into cache");
             auto chunk = New<TCachedBlobChunk>(
+                Bootstrap_,
                 Location_,
                 chunkId,
                 chunkMeta,
-                chunkWriter->GetChunkInfo(),
-                Bootstrap_->GetChunkCache(),
-                Bootstrap_->GetMemoryUsageTracker());
+                chunkWriter->GetChunkInfo());
             cookie.EndInsert(chunk);
             Register(chunk);
         } catch (const std::exception& ex) {

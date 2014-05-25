@@ -21,23 +21,23 @@ static auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkInfo& info,
-    TNodeMemoryTracker* memoryUsageTracker)
-    : Id_(id)
+    const TChunkInfo& info)
+    : Bootstrap_(bootstrap)
     , Location_(location)
+    , Id_(id)
     , Info_(info)
-    , MemoryUsageTracker_(memoryUsageTracker)
 { }
 
 TChunk::TChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkDescriptor& descriptor,
-    TNodeMemoryTracker* memoryUsageTracker)
-    : Id_(descriptor.Id)
+    const TChunkDescriptor& descriptor)
+    : Bootstrap_(bootstrap)
+    , Id_(descriptor.Id)
     , Location_(location)
-    , MemoryUsageTracker_(memoryUsageTracker)
 {
     Info_.set_disk_space(descriptor.DiskSpace);
     Info_.clear_meta_checksum();
@@ -46,7 +46,8 @@ TChunk::TChunk(
 TChunk::~TChunk()
 {
     if (Meta_) {
-        MemoryUsageTracker_->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        tracker->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     }
 }
 

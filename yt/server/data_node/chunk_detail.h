@@ -27,10 +27,10 @@ public:
     virtual TFuture<void> ScheduleRemoval() override;
 
 protected:
-    TChunkId Id_;
+    NCellNode::TBootstrap* Bootstrap_;
     TLocationPtr Location_;
+    TChunkId Id_;
     NChunkClient::NProto::TChunkInfo Info_;
-    NCellNode::TNodeMemoryTracker* MemoryUsageTracker_;
 
     TRefCountedChunkMetaPtr Meta_;
 
@@ -40,15 +40,15 @@ protected:
     bool RemovalScheduled_ = false;
 
     TChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkInfo& info,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkId& id,
+        const NChunkClient::NProto::TChunkInfo& info);
 
     TChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkDescriptor& descriptor,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkDescriptor& descriptor);
 
     ~TChunk();
 

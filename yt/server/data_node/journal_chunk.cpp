@@ -51,15 +51,15 @@ const auto SharedJournalChunkMeta = GetSharedJournalChunkMeta();
 ////////////////////////////////////////////////////////////////////////////////
 
 TJournalChunk::TJournalChunk(
+    TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& chunkId,
-    const TChunkInfo& info,
-    TNodeMemoryTracker* memoryUsageTracker)
+    const TChunkId& id,
+    const TChunkInfo& info)
     : TChunk(
+        bootstrap,
         location,
-        chunkId,
-        info,
-        memoryUsageTracker)
+        id,
+        info)
 {
     Meta_ = New<TRefCountedChunkMeta>(SharedJournalChunkMeta);
     RecordCount_ = 0;
@@ -111,10 +111,8 @@ void TJournalChunk::DoReadBlocks(
     TPromise<TError> promise,
     std::vector<TSharedRef>* blocks)
 {
-    auto* bootstrap = Location_->GetBootstrap();
-    auto config = bootstrap->GetConfig();
-
-    auto dispatcher = bootstrap->GetJournalDispatcher();
+    auto config = Bootstrap_->GetConfig();
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
         auto changelog = dispatcher->GetChangelog(this);
@@ -172,8 +170,7 @@ void TJournalChunk::DoReadBlocks(
 
 void TJournalChunk::EvictFromCache()
 {
-    auto* bootstrap = Location_->GetBootstrap();
-    auto dispatcher = bootstrap->GetJournalDispatcher();
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
     dispatcher->EvictChangelog(this);
 }
 

@@ -53,9 +53,9 @@ void TChunkStore::Initialize()
         auto descriptors = location->Initialize();
         for (const auto& descriptor : descriptors) {
             auto chunk = New<TStoredBlobChunk>(
+                Bootstrap_,
                 location,
-                descriptor,
-                Bootstrap_->GetMemoryUsageTracker());
+                descriptor);
             RegisterExistingChunk(chunk);
         }
 

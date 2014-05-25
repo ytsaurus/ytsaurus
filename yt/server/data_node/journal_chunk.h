@@ -13,10 +13,10 @@ class TJournalChunk
 {
 public:
     TJournalChunk(
+        NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkInfo& info,
-        NCellNode::TNodeMemoryTracker* memoryUsageTracker);
+        const TChunkId& id,
+        const NChunkClient::NProto::TChunkInfo& info);
 
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,

@@ -444,11 +444,11 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
     LOG_INFO("Session finished");
 
     auto chunk = New<TStoredBlobChunk>(
+        Bootstrap_,
         Location_,
         ChunkId_,
         Writer_->GetChunkMeta(),
-        Writer_->GetChunkInfo(),
-        Bootstrap_->GetMemoryUsageTracker());
+        Writer_->GetChunkInfo());
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(chunk);
 
