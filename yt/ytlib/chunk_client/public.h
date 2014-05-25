@@ -50,6 +50,7 @@ DECLARE_ENUM(EChunkType,
     ((Unknown) (0))
     ((File)    (1))
     ((Table)   (2))
+    ((Journal) (3))
 );
 
 DECLARE_ENUM(EErrorCode,

@@ -78,6 +78,12 @@ message TErasurePlacementExt
     required int64 parity_last_block_size = 5;
 }
 
+message TJournalExt
+{
+    required int32 record_count = 1;
+    required bool sealed = 2;
+}
+
 // TChunkMeta is stored in *.meta files on data nodes
 // and passed around (possibly with a different extension subset).
 message TChunkMeta
