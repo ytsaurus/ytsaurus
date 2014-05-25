@@ -24,7 +24,7 @@ DECLARE_ENUM(ELocationType,
     (Cache)
 );
 
-//! Describes a physical location of chunks at a chunk holder.
+//! Describes a physical location of chunks.
 class TLocation
     : public TRefCounted
 {

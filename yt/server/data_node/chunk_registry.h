@@ -9,7 +9,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A facade for locating chunks that are fully uploaded to the chunk holder.
+//! A facade for locating chunks.
 /*!
  *  Uploaded chunks can be registered either at TChunkStore or at TChunkCache.
  *  This class provides a single entry point for locating these chunks.
