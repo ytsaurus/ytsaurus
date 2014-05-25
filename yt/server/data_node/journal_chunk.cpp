@@ -144,11 +144,6 @@ void TJournalChunk::DoReadBlocks(
     }
 }
 
-TRefCountedChunkMetaPtr TJournalChunk::GetCachedMeta() const
-{
-    return Meta_;
-}
-
 void TJournalChunk::EvictFromCache()
 {
     auto* bootstrap = Location_->GetBootstrap();

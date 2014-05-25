@@ -199,11 +199,6 @@ void TBlobChunk::DoReadBlocks(
     promise.Set(TError());
 }
 
-TRefCountedChunkMetaPtr TBlobChunk::GetCachedMeta() const
-{
-    return Meta_;
-}
-
 TAsyncError TBlobChunk::ReadMeta(i64 priority)
 {
     if (!TryAcquireReadLock()) {

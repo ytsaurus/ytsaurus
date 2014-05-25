@@ -76,12 +76,6 @@ struct IChunk
         i64 priority,
         std::vector<TSharedRef>* blocks) = 0;
 
-    //! Returns chunk meta.
-    /*!
-        If chunk meta not cached, returns |nullptr|.
-     */
-    virtual TRefCountedChunkMetaPtr GetCachedMeta() const = 0;
-
     //! Tries to acquire a read lock and increments the lock counter.
     /*!
      *  Succeeds if removal is not scheduled yet.

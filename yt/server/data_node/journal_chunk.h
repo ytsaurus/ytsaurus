@@ -29,8 +29,6 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-    virtual TRefCountedChunkMetaPtr GetCachedMeta() const override;
-
 private:
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;
