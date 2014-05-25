@@ -42,6 +42,12 @@ void TJournalSession::Start(TLeaseManager::TLease lease)
 {
     TSession::Start(lease);
 
+    Chunk_ = New<TJournalChunk>(
+        Location_,
+        ChunkId_,
+        TChunkInfo(), // TODO(babenko)
+        Bootstrap_->GetMemoryUsageTracker());
+
     WriteInvoker_->Invoke(
         BIND(&TJournalSession::DoCreateChangelog, MakeStrong(this)));
 }
@@ -74,16 +80,9 @@ IChunkPtr TJournalSession::CloseSession()
 {
     CloseLease();
 
-    auto chunk = New<TJournalChunk>(
-        Location_,
-        ChunkId_,
-        TChunkMeta(), // TODO(babenko)
-        TChunkInfo(), // TODO(babenko)
-        Bootstrap_->GetMemoryUsageTracker());
+    Finished_.Fire(TError());
 
-    Completed_.Fire(chunk);
-
-    return chunk;
+    return Chunk_;
 }
 
 TAsyncError TJournalSession::PutBlocks(
@@ -140,7 +139,11 @@ TAsyncError TJournalSession::FlushBlock(int blockIndex)
             blockIndex);
     }
 
-    return LastAppendResult_.Apply(BIND([] () { return TError(); }));
+    auto this_ = MakeStrong(this);
+    return LastAppendResult_.Apply(BIND([this, this_, blockIndex] () {
+        Chunk_->SetRecordCount(blockIndex);
+        return TError();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

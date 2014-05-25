@@ -73,8 +73,7 @@ private:
         bool syncOnClose);
 
     void OnSessionLeaseExpired(ISessionPtr session);
-    void OnSessionCompleted(ISession* session, IChunkPtr chunk);
-    void OnSessionFailed(ISession* session, const TError& error);
+    void OnSessionFinished(ISession* session, const TError& error);
 
     void RegisterSession(ISessionPtr session);
     void UnregisterSession(ISessionPtr session);

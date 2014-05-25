@@ -65,8 +65,7 @@ struct ISession
     virtual void Ping() = 0;
 
 
-    DECLARE_INTERFACE_SIGNAL(void(const TError& error), Failed);
-    DECLARE_INTERFACE_SIGNAL(void(IChunkPtr chunk), Completed);
+    DECLARE_INTERFACE_SIGNAL(void(const TError& error), Finished);
 
 };
 

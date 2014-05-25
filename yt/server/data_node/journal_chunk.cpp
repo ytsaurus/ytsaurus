@@ -6,7 +6,11 @@
 
 #include <core/misc/fs.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <core/profiling/scoped_timer.h>
+
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/private.h>
@@ -31,10 +35,24 @@ static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TChunkMeta GetSharedJournalChunkMeta()
+{
+    TChunkMeta meta;
+    meta.set_type(EChunkType::Journal);
+    return meta;
+}
+
+const auto SharedJournalChunkMeta = GetSharedJournalChunkMeta();
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJournalChunk::TJournalChunk(
     TLocationPtr location,
     const TChunkId& chunkId,
-    const TChunkMeta& meta,
     const TChunkInfo& info,
     TNodeMemoryTracker* memoryUsageTracker)
     : TChunk(
@@ -43,13 +61,21 @@ TJournalChunk::TJournalChunk(
         info,
         memoryUsageTracker)
 {
-    Meta_ = New<TRefCountedChunkMeta>(meta);
+    Meta_ = New<TRefCountedChunkMeta>(SharedJournalChunkMeta);
+    RecordCount_ = 0;
+    Sealed_ = false;
 }
 
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
-    i64 priority,
+    i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
+    // Update TJournalExt.
+    TJournalExt journalExt;
+    journalExt.set_record_count(RecordCount_);
+    journalExt.set_sealed(Sealed_);
+    SetProtoExtension(Meta_->mutable_extensions(), journalExt);
+
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
 }
 
@@ -173,6 +199,20 @@ TFuture<void> TJournalChunk::RemoveFiles()
         LOG_DEBUG("Finished removing journal chunk files (ChunkId: %s)",
             ~ToString(id));
     }).AsyncVia(location->GetWriteInvoker()).Run();
+}
+
+void TJournalChunk::SetRecordCount(int recordCount)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    RecordCount_ = recordCount;
+}
+
+void TJournalChunk::SetSealed(bool value)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Sealed_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

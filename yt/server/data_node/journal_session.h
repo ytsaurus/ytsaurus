@@ -46,6 +46,7 @@ public:
         const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
 
 private:
+    TJournalChunkPtr Chunk_;
     NHydra::IChangelogPtr Changelog_;
     TFuture<void> LastAppendResult_;
 

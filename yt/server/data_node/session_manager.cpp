@@ -94,11 +94,8 @@ ISessionPtr TSessionManager::StartSession(
         type,
         syncOnClose);
 
-    session->SubscribeCompleted(
-        BIND(&TSessionManager::OnSessionCompleted, MakeStrong(this), session.Get())
-            .Via(Bootstrap_->GetControlInvoker()));
-    session->SubscribeFailed(
-        BIND(&TSessionManager::OnSessionFailed, MakeStrong(this), session.Get())
+    session->SubscribeFinished(
+        BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), session.Get())
             .Via(Bootstrap_->GetControlInvoker()));
 
     RegisterSession(session);
@@ -166,17 +163,7 @@ void TSessionManager::OnSessionLeaseExpired(ISessionPtr session)
     session->Cancel(TError("Session lease expired"));
 }
 
-void TSessionManager::OnSessionCompleted(ISession* session, IChunkPtr chunk)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    
-    auto chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->RegisterNewChunk(chunk);
-
-    UnregisterSession(session);
-}
-
-void TSessionManager::OnSessionFailed(ISession* session, const TError& /*error*/)
+void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error*/)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

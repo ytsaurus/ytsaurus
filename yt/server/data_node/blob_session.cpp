@@ -386,7 +386,7 @@ TError TBlobSession::OnWriterAborted(TError error)
     LOG_INFO(error, "Session canceled");
 
     ReleaseSpace();
-    Failed_.Fire(error);
+    Finished_.Fire(error);
 
     return error;
 }
@@ -437,9 +437,11 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
 
     if (!error.IsOK()) {
         LOG_WARNING(error, "Session has failed to finish");
-        Failed_.Fire(error);
+        Finished_.Fire(error);
         return error;
     }
+
+    LOG_INFO("Session finished");
 
     auto chunk = New<TStoredBlobChunk>(
         Location_,
@@ -447,10 +449,11 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
         Writer_->GetChunkMeta(),
         Writer_->GetChunkInfo(),
         Bootstrap_->GetMemoryUsageTracker());
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->RegisterNewChunk(chunk);
 
-    LOG_INFO("Session finished");
+    Finished_.Fire(TError());
 
-    Completed_.Fire(chunk);
     return IChunkPtr(chunk);
 }
 

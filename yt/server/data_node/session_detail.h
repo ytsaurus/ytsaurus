@@ -37,8 +37,7 @@ public:
     virtual void Start(TLeaseManager::TLease lease) override;
     virtual void Ping() override;
 
-    DEFINE_SIGNAL(void(const TError& error), Failed);
-    DEFINE_SIGNAL(void(IChunkPtr chunk), Completed);
+    DEFINE_SIGNAL(void(const TError& error), Finished);
 
 protected:
     TDataNodeConfigPtr Config_;

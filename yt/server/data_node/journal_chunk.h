@@ -15,7 +15,6 @@ public:
     TJournalChunk(
         TLocationPtr location,
         const TChunkId& chunkId,
-        const NChunkClient::NProto::TChunkMeta& meta,
         const NChunkClient::NProto::TChunkInfo& info,
         NCellNode::TNodeMemoryTracker* memoryUsageTracker);
 
@@ -29,7 +28,14 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
+
+    void SetRecordCount(int recordCount);
+    void SetSealed(bool value);
+
 private:
+    std::atomic<int> RecordCount_;
+    std::atomic<bool> Sealed_;
+
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;
 
