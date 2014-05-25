@@ -38,12 +38,14 @@ public:
         int replicaCount,
         const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
         int targetCount,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList GetRemovalTargets(
         TChunkPtrWithIndex chunkWithIndex,
@@ -57,7 +59,8 @@ public:
 
     TNode* AllocateBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillFactor);
+        double maxFillFactor,
+        NObjectClient::EObjectType chunkType);
 
 private:
     TChunkManagerConfigPtr Config;
@@ -82,26 +85,33 @@ private:
         int targetCount,
         const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
         int targetCount,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNode* GetBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillFactor);
+        double maxFillFactor,
+        NObjectClient::EObjectType chunkType);
 
     static bool IsFull(TNode* node);
 
+    static bool AcceptsChunkType(TNode* node, NObjectClient::EObjectType type);
+
     static bool IsValidWriteTarget(
         TNode* node,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
     
     bool IsValidBalancingTarget(
         TNode* node,
-        TChunkPtrWithIndex chunkWithIndex) const;
+        TChunkPtrWithIndex chunkWithIndex,
+        NObjectClient::EObjectType chunkType) const;
     
     bool IsValidRemovalTarget(TNode* node);
 

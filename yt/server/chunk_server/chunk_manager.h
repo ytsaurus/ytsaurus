@@ -50,7 +50,8 @@ public:
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
-        const TNullable<Stroka>& preferredHostName);
+        const TNullable<Stroka>& preferredHostName,
+        NObjectClient::EObjectType chunkType);
 
     TChunk* CreateChunk(NObjectServer::EObjectType type);
     TChunkList* CreateChunkList();

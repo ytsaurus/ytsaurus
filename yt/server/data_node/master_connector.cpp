@@ -33,6 +33,8 @@
 #include <server/tablet_node/tablet_slot_manager.h>
 #include <server/tablet_node/tablet_slot.h>
 
+#include <server/data_node/journal_dispatcher.h>
+
 #include <server/cell_node/bootstrap.h>
 
 #include <util/random/random.h>
@@ -48,6 +50,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NTabletNode;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +244,14 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     auto tabletSlotManager = Bootstrap->GetTabletSlotManager();
     result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());
+    
+    result.add_accepted_chunk_types(EObjectType::Chunk);
+    result.add_accepted_chunk_types(EObjectType::ErasureChunk);
+    
+    auto journalDispatcher = Bootstrap->GetJournalDispatcher();
+    if (journalDispatcher->AcceptsChunks()) {
+        result.add_accepted_chunk_types(EObjectType::JournalChunk);
+    }
 
     return result;
 }

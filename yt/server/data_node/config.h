@@ -121,6 +121,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TBlobDispatcherConfig)
+
 class TMultiplexedJournalConfig
     : public NHydra::TFileChangelogConfig
 {

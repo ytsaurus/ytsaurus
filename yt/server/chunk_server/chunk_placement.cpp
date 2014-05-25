@@ -16,6 +16,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
@@ -104,13 +105,15 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int targetCount,
     const TNodeSet* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    EObjectType chunkType)
 {
     auto targets = GetWriteTargets(
         targetCount,
         forbiddenNodes,
         preferredHostName,
-        EWriteSessionType::User);
+        EWriteSessionType::User,
+        chunkType);
 
     for (auto* target : targets) {
         AddSessionHint(target, sessionType);
@@ -128,14 +131,15 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int targetCount,
     const TNodeSet* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    EObjectType chunkType)
 {
     TNodeList targets;
 
     if (preferredHostName) {
         auto nodeTracker = Bootstrap->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && IsValidWriteTarget(preferredNode, sessionType)) {
+        if (preferredNode && IsValidWriteTarget(preferredNode, sessionType, chunkType)) {
             targets.push_back(preferredNode);
         }
     }
@@ -143,7 +147,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     for (auto* node : LoadRankToNode) {
         if (targets.size() == targetCount)
             break;
-        if (!IsValidWriteTarget(node, sessionType))
+        if (!IsValidWriteTarget(node, sessionType, chunkType))
             continue;
         if (!targets.empty() && targets[0] == node)
             continue; // skip preferred node
@@ -162,12 +166,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
     int targetCount,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    EObjectType chunkType)
 {
     auto targets = GetWriteTargets(
         chunk,
         targetCount,
-        sessionType);
+        sessionType,
+        chunkType);
 
     for (auto* target : targets) {
         AddSessionHint(target, sessionType);
@@ -179,7 +185,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
 TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
     int targetCount,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    EObjectType chunkType)
 {
     TNodeSet forbiddenNodes;
 
@@ -205,7 +212,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         }
     }
 
-    return GetWriteTargets(targetCount, &forbiddenNodes, Null, sessionType);
+    return GetWriteTargets(targetCount, &forbiddenNodes, Null, sessionType, chunkType);
 }
 
 TNodeList TChunkPlacement::GetRemovalTargets(
@@ -265,11 +272,13 @@ bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
     TChunkPtrWithIndex chunkWithIndex,
-    double maxFillFactor)
+    double maxFillFactor,
+    EObjectType chunkType)
 {
     auto* target = GetBalancingTarget(
         chunkWithIndex,
-        maxFillFactor);
+        maxFillFactor,
+        chunkType);
 
     if (target) {
         AddSessionHint(target, EWriteSessionType::Replication);
@@ -280,7 +289,8 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
 
 TNode* TChunkPlacement::GetBalancingTarget(
     TChunkPtrWithIndex chunkWithIndex,
-    double maxFillFactor)
+    double maxFillFactor,
+    EObjectType chunkType)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     for (const auto& pair : FillFactorToNode) {
@@ -288,7 +298,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
         if (GetFillFactor(node) > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunkWithIndex)) {
+        if (IsValidBalancingTarget(node, chunkWithIndex, chunkType)) {
             return node;
         }
     }
@@ -297,7 +307,8 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
 bool TChunkPlacement::IsValidWriteTarget(
     TNode* node,
-    EWriteSessionType sessionType)
+    EWriteSessionType sessionType,
+    EObjectType chunkType)
 {
     if (node->GetState() != ENodeState::Online) {
         // Do not write anything to nodes before first heartbeat.
@@ -305,6 +316,11 @@ bool TChunkPlacement::IsValidWriteTarget(
     }
 
     if (IsFull(node)) {
+        // Do not write anything to full nodes.
+        return false;
+    }
+
+    if (AcceptsChunkType(node, chunkType)) {
         // Do not write anything to full nodes.
         return false;
     }
@@ -318,9 +334,12 @@ bool TChunkPlacement::IsValidWriteTarget(
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chunkWithIndex) const
+bool TChunkPlacement::IsValidBalancingTarget(
+    TNode* node,
+    TChunkPtrWithIndex chunkWithIndex,
+    EObjectType chunkType) const
 {
-    if (!IsValidWriteTarget(node, EWriteSessionType::Replication)) {
+    if (!IsValidWriteTarget(node, EWriteSessionType::Replication, chunkType)) {
         // Balancing implies upload, after all.
         return false;
     }
@@ -384,6 +403,16 @@ double TChunkPlacement::GetFillFactor(TNode* node) const
 bool TChunkPlacement::IsFull(TNode* node)
 {
     return node->Statistics().full();
+}
+
+bool TChunkPlacement::AcceptsChunkType(TNode* node, EObjectType type)
+{
+    for (auto acceptedType : node->Statistics().accepted_chunk_types()) {
+        if (acceptedType == type) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)

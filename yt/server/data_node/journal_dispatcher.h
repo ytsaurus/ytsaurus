@@ -21,6 +21,9 @@ public:
         const Stroka& threadName);
     ~TJournalDispatcher();
 
+    //! Returns |true| if new journal chunks are accepted.
+    bool AcceptsChunks() const;
+
     //! Returns a (cached) changelog corresponding to a given journal chunk.
     /*!
      *  This call is thread-safe but may block since it actually opens the files.

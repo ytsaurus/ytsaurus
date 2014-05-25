@@ -108,6 +108,11 @@ public:
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>(threadName))
     { }
 
+    bool AcceptsChunks() const
+    {
+        return Config_->JournalDispatcher->Multiplexed != nullptr;
+    }
+
     IChangelogPtr GetChangelog(IChunkPtr chunk)
     {
         YCHECK(chunk->IsReadLockAcquired());
@@ -154,6 +159,10 @@ public:
 
     IChangelogPtr CreateChangelog(ISessionPtr session)
     {
+        if (!AcceptsChunks()) {
+            THROW_ERROR_EXCEPTION("No new journal chunks are accepted");
+        }
+
         auto location = session->GetLocation();
         auto& Profiler = location->Profiler();
 
@@ -216,6 +225,11 @@ TJournalDispatcher::TJournalDispatcher(
 
 TJournalDispatcher::~TJournalDispatcher()
 { }
+
+bool TJournalDispatcher::AcceptsChunks() const
+{
+    return Impl_->AcceptsChunks();
+}
 
 IChangelogPtr TJournalDispatcher::GetChangelog(IChunkPtr chunk)
 {

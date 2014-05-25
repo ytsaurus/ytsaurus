@@ -289,13 +289,15 @@ public:
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
-        const TNullable<Stroka>& preferredHostName)
+        const TNullable<Stroka>& preferredHostName,
+        EObjectType chunkType)
     {
         return ChunkPlacement->AllocateWriteTargets(
             replicaCount,
             nullptr,
             preferredHostName,
-            EWriteSessionType::User);
+            EWriteSessionType::User,
+            chunkType);
     }
 
     TChunk* CreateChunk(EObjectType type)
@@ -1287,15 +1289,15 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
     account->ValidateDiskSpaceLimit();
 
-    auto type = GetType();
-    bool isErasure = (type == EObjectType::ErasureChunk);
+    auto chunkType = GetType();
+    bool isErasure = (chunkType == EObjectType::ErasureChunk);
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
 
     auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
     auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
     int replicationFactor = isErasure ? 1 : requestExt->replication_factor();
 
-    auto* chunk = Owner->CreateChunk(type);
+    auto* chunk = Owner->CreateChunk(chunkType);
     chunk->SetReplicationFactor(replicationFactor);
     chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt->movable());
@@ -1312,7 +1314,10 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
             : requestExt->upload_replication_factor();
 
-        auto targets = Owner->AllocateWriteTargets(uploadReplicationFactor, preferredHostName);
+        auto targets = Owner->AllocateWriteTargets(
+            uploadReplicationFactor,
+            preferredHostName,
+            chunkType);
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
@@ -1439,9 +1444,10 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 
 TNodeList TChunkManager::AllocateWriteTargets(
     int replicaCount,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<Stroka>& preferredHostName,
+    EObjectType chunkType)
 {
-    return Impl->AllocateWriteTargets(replicaCount, preferredHostName);
+    return Impl->AllocateWriteTargets(replicaCount, preferredHostName, chunkType);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(

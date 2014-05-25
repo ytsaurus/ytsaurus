@@ -105,6 +105,7 @@ private:
                         .Item("total_chunk_count").Value(statistics.total_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(statistics.full())
+                        .Item("accepted_chunk_types").Value(FromProto<EObjectType, std::vector<EObjectType>>(statistics.accepted_chunk_types()))
                         .Item("locations").DoListFor(statistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                             fluent
                                 .Item().BeginMap()

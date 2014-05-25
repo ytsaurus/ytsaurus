@@ -12,10 +12,12 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/erasure/codec.h>
+
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
-
-#include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -438,6 +440,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 {
     auto* chunk = chunkWithIndex.GetPtr();
     int index = chunkWithIndex.GetIndex();
+    auto chunkType = TypeFromId(chunk->GetId());
 
     if (!IsObjectAlive(chunk)) {
         return EJobScheduleFlags::Purged;
@@ -463,7 +466,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     auto targets = ChunkPlacement->AllocateWriteTargets(
         chunk,
         replicasNeeded,
-        EWriteSessionType::Replication);
+        EWriteSessionType::Replication,
+        chunkType);
     if (targets.empty()) {
         return EJobScheduleFlags::None;
     }
@@ -497,12 +501,16 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
 {
     TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
     auto* chunk = chunkWithIndex.GetPtr();
+    auto chunkType = TypeFromId(chunk->GetId());
 
     if (chunk->GetRefreshScheduled()) {
         return EJobScheduleFlags::Purged;
     }
 
-    auto* target = ChunkPlacement->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
+    auto* target = ChunkPlacement->AllocateBalancingTarget(
+        chunkWithIndex,
+        maxFillFactor,
+        chunkType);
     if (!target) {
         return EJobScheduleFlags::None;
     }
@@ -578,6 +586,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         return EJobScheduleFlags::Purged;
     }
 
+    auto chunkType = TypeFromId(chunk->GetId());
+
     auto codecId = chunk->GetErasureCodec();
     auto* codec = NErasure::GetCodec(codecId);
     auto totalPartCount = codec->GetTotalPartCount();
@@ -599,7 +609,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     auto targets = ChunkPlacement->AllocateWriteTargets(
         chunk,
         erasedIndexCount,
-        EWriteSessionType::Repair);
+        EWriteSessionType::Repair,
+        chunkType);
     if (targets.empty()) {
         return EJobScheduleFlags::None;
     }
