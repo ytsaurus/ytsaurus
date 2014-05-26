@@ -96,9 +96,6 @@ import http_config as http
 def set_proxy(proxy):
     http.PROXY = proxy
 
+# For debug purpose
 CLIENT = None
-
-if http.PROXY:
-    set_proxy(http.PROXY)
-
 

@@ -4,7 +4,7 @@ from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value
 from errors import YtError, YtResponseError
 from version import VERSION
-from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy, get_session, get_api
+from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, check_proxy, get_session, get_api
 from command import parse_commands
 
 from yt.yson.convert import json_to_yson
@@ -116,7 +116,8 @@ def get_hosts(client=None):
         proxy = client.proxy
     else:
         proxy = config.http.PROXY
-    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(proxy), config.HOSTS))
+    check_proxy(proxy)
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, config.HOSTS))
 
 def get_host_for_heavy_operation(client=None):
     client = get_value(client, config.CLIENT)
@@ -154,7 +155,7 @@ def make_request(command_name, params,
             proxy = config.http.PROXY
         else:
             proxy = client.proxy
-    proxy = get_proxy(proxy)
+    check_proxy(proxy)
 
     if client is None:
         client_provider = config
