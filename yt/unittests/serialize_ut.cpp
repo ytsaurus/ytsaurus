@@ -47,6 +47,21 @@ TEST(TCustomTypeSerializationTest, TInstant)
     EXPECT_EQ(value, deserializedValue);
 }
 
+TEST(TCustomTypeSerializationTest, TNullable)
+{
+    {
+        TNullable<int> value(10);
+        auto yson = ConvertToYsonString(value);
+        EXPECT_EQ(10, ConvertTo<TNullable<int>>(yson));
+    }
+    {
+        TNullable<int> value = Null;
+        auto yson = ConvertToYsonString(value);
+        EXPECT_EQ(Stroka("#"), yson.Data());
+        EXPECT_EQ(value, ConvertTo<TNullable<int>>(yson));
+    }
+}
+
 TEST(TSerializationTest, PackRefs)
 {
     std::vector<TSharedRef> refs;
