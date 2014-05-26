@@ -219,139 +219,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EOperationStatus,
-    (Normal)
-    (BelowMinShare)
-    (BelowFairShare)
-);
-
-class TOperationElement
-    : public TSchedulableElementBase
-{
-public:
-    explicit TOperationElement(
-        TFairShareStrategyConfigPtr config,
-        TFairShareOperationSpecPtr spec,
-        TFairShareOperationRuntimeParamsPtr runtimeParams,
-        ISchedulerStrategyHost* host,
-        TOperationPtr operation)
-        : TSchedulerElementBase(host)
-        , TSchedulableElementBase(host)
-        , Operation_(operation)
-        , Spec_(spec)
-        , RuntimeParams_(runtimeParams)
-        , Pool_(nullptr)
-        , Starving_(false)
-        , ResourceUsage_(ZeroNodeResources())
-        , ResourceUsageDiscount_(ZeroNodeResources())
-        , NonpreemptableResourceUsage_(ZeroNodeResources())
-        , Config(config)
-    { }
-
-
-    virtual void PrescheduleJob(bool starvingOnly) override
-    {
-        TSchedulableElementBase::PrescheduleJob(starvingOnly);
-
-        if (starvingOnly && !Starving_) {
-            Attributes_.Active = false;
-        }
-
-        if (Operation_->GetState() != EOperationState::Running) {
-            Attributes_.Active = false;
-        }
-    }
-
-    virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override;
-
-    virtual void EndHeartbeat() override
-    { }
-
-    virtual TInstant GetStartTime() const override
-    {
-        return Operation_->GetStartTime();
-    }
-
-    virtual double GetWeight() const override
-    {
-        return RuntimeParams_->Weight;
-    }
-
-    virtual double GetMinShareRatio() const override
-    {
-        return Spec_->MinShareRatio;
-    }
-
-    virtual double GetMaxShareRatio() const override
-    {
-        return Spec_->MaxShareRatio;
-    }
-
-    virtual TNodeResources GetDemand() const override
-    {
-        if (Operation_->GetSuspended()) {
-            return ZeroNodeResources();
-        }
-        auto controller = Operation_->GetController();
-        return ResourceUsage_ + controller->GetNeededResources();
-    }
-
-    virtual const TNodeResources& ResourceLimits() const
-    {
-        return InfiniteNodeResources();
-    }
-
-
-    EOperationStatus GetStatus() const
-    {
-        if (Operation_->GetState() != EOperationState::Running) {
-            return EOperationStatus::Normal;
-        }
-
-        auto controller = Operation_->GetController();
-        if (controller->GetPendingJobCount() == 0) {
-            return EOperationStatus::Normal;
-        }
-
-        double usageRatio = GetUsageRatio();
-        double demandRatio = GetDemandRatio();
-
-        double tolerance =
-            demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
-            ? 1.0
-            : Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance);
-
-        if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
-            return EOperationStatus::Normal;
-        }
-
-        return usageRatio < Attributes_.AdjustedMinShareRatio
-               ? EOperationStatus::BelowMinShare
-               : EOperationStatus::BelowFairShare;
-    }
-
-
-    DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationSpecPtr, Spec);
-    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationRuntimeParamsPtr, RuntimeParams);
-    DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
-
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, NonpreemptableJobs);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
-
-private:
-    TFairShareStrategyConfigPtr Config;
-
-};
-
-////////////////////////////////////////////////////////////////////
-
 class TCompositeSchedulerElement
     : public virtual TSchedulerElementBase
 {
@@ -807,6 +674,165 @@ private:
 
         ResourceLimits_ = Min(combinedLimits, perTypeLimits);        
     }
+
+};
+
+
+////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EOperationStatus,
+    (Normal)
+    (BelowMinShare)
+    (BelowFairShare)
+);
+
+class TOperationElement
+    : public TSchedulableElementBase
+{
+public:
+    explicit TOperationElement(
+        TFairShareStrategyConfigPtr config,
+        TFairShareOperationSpecPtr spec,
+        TFairShareOperationRuntimeParamsPtr runtimeParams,
+        ISchedulerStrategyHost* host,
+        TOperationPtr operation)
+        : TSchedulerElementBase(host)
+        , TSchedulableElementBase(host)
+        , Operation_(operation)
+        , Spec_(spec)
+        , RuntimeParams_(runtimeParams)
+        , Pool_(nullptr)
+        , Starving_(false)
+        , ResourceUsage_(ZeroNodeResources())
+        , ResourceUsageDiscount_(ZeroNodeResources())
+        , NonpreemptableResourceUsage_(ZeroNodeResources())
+        , Config(config)
+    { }
+
+
+    virtual void PrescheduleJob(bool starvingOnly) override
+    {
+        TSchedulableElementBase::PrescheduleJob(starvingOnly);
+
+        if (starvingOnly && !Starving_) {
+            Attributes_.Active = false;
+        }
+
+        if (Operation_->GetState() != EOperationState::Running) {
+            Attributes_.Active = false;
+        }
+    }
+
+    virtual bool ScheduleJob(ISchedulingContext* context, bool starvingOnly) override
+    {
+        if (starvingOnly && !Starving_) {
+            return false;
+        }
+
+        auto node = context->GetNode();
+        auto controller = Operation_->GetController();
+
+        // Compute job limits from node limits and pool limits.
+        auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
+        auto* pool = Pool_;
+        while (pool) {
+            auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
+            jobLimits = Min(jobLimits, poolLimits);
+            pool = pool->GetParent();
+        }
+
+        auto job = controller->ScheduleJob(context, jobLimits);
+        if (job) {
+            return true;
+        } else {
+            Attributes_.Active = false;
+            return false;
+        }
+    }
+
+    virtual void EndHeartbeat() override
+    { }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return Operation_->GetStartTime();
+    }
+
+    virtual double GetWeight() const override
+    {
+        return RuntimeParams_->Weight;
+    }
+
+    virtual double GetMinShareRatio() const override
+    {
+        return Spec_->MinShareRatio;
+    }
+
+    virtual double GetMaxShareRatio() const override
+    {
+        return Spec_->MaxShareRatio;
+    }
+
+    virtual TNodeResources GetDemand() const override
+    {
+        if (Operation_->GetSuspended()) {
+            return ZeroNodeResources();
+        }
+        auto controller = Operation_->GetController();
+        return ResourceUsage_ + controller->GetNeededResources();
+    }
+
+    virtual const TNodeResources& ResourceLimits() const
+    {
+        return InfiniteNodeResources();
+    }
+
+
+    EOperationStatus GetStatus() const
+    {
+        if (Operation_->GetState() != EOperationState::Running) {
+            return EOperationStatus::Normal;
+        }
+
+        auto controller = Operation_->GetController();
+        if (controller->GetPendingJobCount() == 0) {
+            return EOperationStatus::Normal;
+        }
+
+        double usageRatio = GetUsageRatio();
+        double demandRatio = GetDemandRatio();
+
+        double tolerance =
+            demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
+            ? 1.0
+            : Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance);
+
+        if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
+            return EOperationStatus::Normal;
+        }
+
+        return usageRatio < Attributes_.AdjustedMinShareRatio
+               ? EOperationStatus::BelowMinShare
+               : EOperationStatus::BelowFairShare;
+    }
+
+
+    DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
+    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationSpecPtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationRuntimeParamsPtr, RuntimeParams);
+    DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobList, NonpreemptableJobs);
+    DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
+
+private:
+    TFairShareStrategyConfigPtr Config;
 
 };
 
@@ -1579,35 +1605,6 @@ private:
     }
 
 };
-
-bool TOperationElement::ScheduleJob(
-    ISchedulingContext* context,
-    bool starvingOnly)
-{
-    if (starvingOnly && !Starving_) {
-        return false;
-    }
-
-    auto node = context->GetNode();
-    auto controller = Operation_->GetController();
-
-    // Compute job limits from node limits and pool limits.
-    auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-    auto* pool = Pool_;
-    while (pool) {
-        auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
-        jobLimits = Min(jobLimits, poolLimits);
-        pool = pool->GetParent();
-    }
-
-    auto job = controller->ScheduleJob(context, jobLimits);
-    if (job) {
-        return true;
-    } else {
-        Attributes_.Active = false;
-        return false;
-    }
-}
 
 std::unique_ptr<ISchedulerStrategy> CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
