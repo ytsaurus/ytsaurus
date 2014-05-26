@@ -370,6 +370,7 @@ public:
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
+            ELogEventType::OperationAborted,
             error);
 
         return operation->GetFinished();
@@ -639,14 +640,8 @@ public:
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
+            ELogEventType::OperationFailed,
             error);
-
-        LogEventFluently(ELogEventType::OperationFailed)
-            .Item("operation_id").Value(operation->GetId())
-            .Item("spec").Value(operation->GetSpec())
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("error").Value(error);
     }
 
 
@@ -778,6 +773,7 @@ private:
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
+            ELogEventType::OperationAborted,
             TError("Operation transaction has expired or was aborted"));
     }
 
@@ -789,6 +785,7 @@ private:
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
+            ELogEventType::OperationFailed,
             TError("Scheduler transaction has expired or was aborted"));
     }
 
@@ -1529,6 +1526,7 @@ private:
         TOperationPtr operation,
         EOperationState intermediateState,
         EOperationState finalState,
+        ELogEventType logEventType,
         const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1571,6 +1569,13 @@ private:
         if (controller) {
             controller->Abort();
         }
+
+        LogEventFluently(logEventType)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("error").Value(error);
 
         FinishOperation(operation);
     }
