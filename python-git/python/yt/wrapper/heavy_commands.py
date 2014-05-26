@@ -10,12 +10,13 @@ from driver import get_host_for_heavy_operation
 import time
 from datetime import datetime
 
-def make_heavy_request(command_name, stream, path, params, create_object, use_retries):
-    path = to_table(path)
+def make_heavy_request(command_name, stream, path, params, create_object, use_retries, client=None):
+    path = to_table(path, client=client)
 
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
     with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
-                             attributes={"title": title}):
+                             attributes={"title": title},
+                             client=client):
         create_object(path.name)
         if use_retries:
             started = False
@@ -30,13 +31,13 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     current_time = datetime.now()
                     try: 
-                        with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT):
+                        with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT, client=client):
                             params["path"] = path.get_json()
                             _make_transactional_request(
                                 command_name,
                                 params,
                                 data=chunk,
-                                proxy=get_host_for_heavy_operation(),
+                                proxy=get_host_for_heavy_operation(client=client),
                                 retry_unavailable_proxy=False)
                         break
                     except (YtNetworkError, YtError) as err:
@@ -53,4 +54,4 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
-                proxy=get_host_for_heavy_operation())
+                proxy=get_host_for_heavy_operation(client=client))
