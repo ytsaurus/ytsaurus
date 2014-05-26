@@ -587,7 +587,7 @@ private:
             if (OOMEvent.Fired()) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
-                KilallByUid(uid);
+                KillAll(BIND(GetPidsByUid, uid));
                 return;
             }
 
@@ -610,7 +610,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            KilallByUid(uid);
+            KillAll(BIND(GetPidsByUid, uid));
         }
     }
 
@@ -655,6 +655,7 @@ private:
     {
         if (cgroup.IsCreated()) {
             try {
+                KillAll(BIND(&NCGroup::TCGroup::GetTasks, &cgroup));
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());

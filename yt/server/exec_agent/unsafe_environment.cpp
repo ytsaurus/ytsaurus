@@ -155,7 +155,7 @@ public:
 
         if (uid > 0) {
             try {
-                KilallByUid(uid);
+                KillAll(BIND(GetPidsByUid, uid));
             } catch (const std::exception& ex) {
                 LOG_FATAL(TError(ex));
             }

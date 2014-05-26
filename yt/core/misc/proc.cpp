@@ -120,22 +120,19 @@ i64 GetUserRss(int uid)
 }
 
 // The caller must be sure that it has root privileges.
-void KilallByUid(int uid)
+void KillAll(TCallback<std::vector<int>()> pidsGetter)
 {
-    YCHECK(uid > 0);
-
-    auto pidsToKill = GetPidsByUid(uid);
+    auto pidsToKill = pidsGetter.Run();
     if (pidsToKill.empty()) {
         return;
     }
 
     while (true) {
-        auto pids = GetPidsByUid(uid);
+        auto pids = pidsGetter.Run();
         if (pids.empty())
             break;
 
-        LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
-            uid,
+        LOG_DEBUG("Killing processes (PIDs: [%s])",
             ~JoinToString(pids));
 
         // We are forking here in order not to give the root privileges to the parent process ever,
@@ -359,9 +356,9 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 
 #else
 
-void KilallByUid(int uid)
+void KillAll(TCallback<std::vector<int>()> pidsGetter)
 {
-    UNUSED(uid);
+    UNUSED(pidsGetter);
     YUNIMPLEMENTED();
 }
 

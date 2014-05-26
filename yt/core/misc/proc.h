@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <core/actions/callback.h>
 #include <core/misc/error.h>
 
 #ifdef _linux_
@@ -20,7 +21,7 @@ std::vector<int> GetPidsByUid(int uid);
  */
 i64 GetProcessRss(int pid = -1);
 
-void KilallByUid(int uid);
+void KillAll(TCallback<std::vector<int>()> pidsGetter);
 
 TError StatusToError(int status);
 
