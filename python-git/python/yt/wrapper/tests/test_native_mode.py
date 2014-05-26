@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from yt.wrapper.client import Yt
 import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
@@ -514,6 +515,18 @@ class TestNativeMode(YtTestBase, YTEnv):
             yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
+
+    def test_client(self):
+        client = Yt(yt.config.http.PROXY)
+        assert client.get("/")
+        client.create("table", "//tmp/in")
+        client.write_table("//tmp/in", ["a=b\n"])
+        assert client.exists("//tmp/in")
+        client.run_map("cat", "//tmp/in", "//tmp/out")
+        assert client.exists("//tmp/out")
+        with client.Transaction():
+            yt.set("//@attr", 10)
+            assert yt.exists("//@attr")
 
 
 # Map method for test operations with python entities

@@ -6,12 +6,12 @@ from yt.yson import loads, YsonString
 
 import copy
 
-def parse_ypath(path):
+def parse_ypath(path, client=None):
     attributes = {}
     if isinstance(path, YsonString):
         attributes = copy.deepcopy(path.attributes)
 
-    result = loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().json()}))
+    result = loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().json()}, client=client))
     result.attributes = update(attributes, result.attributes)
 
     return result

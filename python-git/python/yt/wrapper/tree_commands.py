@@ -15,7 +15,7 @@ from copy import deepcopy
 
 import __builtin__
 
-def get(path, attributes=None, format=None, ignore_opaque=False, spec=None):
+def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, client=None):
     """
     Gets the tree growning from path.
     attributes -- attributes to provide for each node in the response.
@@ -30,9 +30,10 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None):
             "attributes": get_value(attributes, []),
             "ignore_opaque": bool_to_string(ignore_opaque)
         },
-        format=format)
+        format=format,
+        client=client)
 
-def set(path, value):
+def set(path, value, client=None):
     """
     Sets the value by path. Value should json-able object.
     """
@@ -42,24 +43,26 @@ def set(path, value):
             "path": prepare_path(path),
             "input_format": "yson"
         },
-        data=yson.dumps(value))
+        data=yson.dumps(value),
+        client=client)
 
-def copy(source_path, destination_path, preserve_account=None):
+def copy(source_path, destination_path, preserve_account=None, client=None):
     params = {"source_path": prepare_path(source_path),
               "destination_path": prepare_path(destination_path)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
-    return _make_transactional_request("copy", params)
+    return _make_transactional_request("copy", params, client=client)
 
-def move(source_path, destination_path):
+def move(source_path, destination_path, client=None):
     _make_transactional_request(
         "move",
         {
             "source_path": prepare_path(source_path),
             "destination_path": prepare_path(destination_path)
-        })
+        },
+        client=client)
 
-def link(target_path, link_path, recursive=False, ignore_existing=False):
+def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
     return _make_transactional_request(
         "link",
         {
@@ -67,10 +70,11 @@ def link(target_path, link_path, recursive=False, ignore_existing=False):
             "link_path": prepare_path(link_path),
             "recursive": bool_to_string(recursive),
             "ignore_existing": bool_to_string(ignore_existing),
-        })
+        },
+        client=client)
 
 
-def list(path, max_size=1000, format=None, absolute=False, attributes=None):
+def list(path, max_size=1000, format=None, absolute=False, attributes=None, client=None):
     """
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
@@ -87,28 +91,31 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
             "max_size": max_size,
             "attributes": get_value(attributes, [])
         },
-        format=format)
+        format=format,
+        client=client)
     if absolute and format is None:
         result = map(join, result)
     return result
 
-def exists(path):
+def exists(path, client=None):
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
             {"path": prepare_path(path)},
-            format=None))
+            format=None,
+            client=client))
 
-def remove(path, recursive=False, force=False):
+def remove(path, recursive=False, force=False, client=None):
     _make_transactional_request(
         "remove",
         {
             "path": prepare_path(path),
             "recursive": bool_to_string(recursive),
             "force": bool_to_string(force)
-        })
+        },
+        client=client)
 
-def create(type, path=None, recursive=False, ignore_existing=False, attributes=None):
+def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
     params = {
         "type": type,
         "recursive": bool_to_string(recursive),
@@ -117,33 +124,33 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     }
     if path is not None:
         params["path"] = prepare_path(path)
-    return _make_formatted_transactional_request("create", params, format=None)
+    return _make_formatted_transactional_request("create", params, format=None, client=client)
 
-def mkdir(path, recursive=None):
+def mkdir(path, recursive=None, client=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
-    return create("map_node", path, recursive=recursive, ignore_existing=recursive)
+    return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
 
 # TODO: maybe remove this methods
-def get_attribute(path, attribute, default=None):
+def get_attribute(path, attribute, default=None, client=None):
     if default is not None and attribute not in list_attributes(path):
         return default
-    return get("%s/@%s" % (path, attribute))
+    return get("%s/@%s" % (path, attribute), client=client)
 
-def has_attribute(path, attribute):
-    return exists("%s/@%s" % (path, attribute))
+def has_attribute(path, attribute, client=None):
+    return exists("%s/@%s" % (path, attribute), client=client)
 
-def set_attribute(path, attribute, value):
-    return set("%s/@%s" % (path, attribute), value)
+def set_attribute(path, attribute, value, client=None):
+    return set("%s/@%s" % (path, attribute), value, client=client)
 
-def list_attributes(path, attribute_path=""):
-    return list("%s/@%s" % (path, attribute_path))
+def list_attributes(path, attribute_path="", client=None):
+    return list("%s/@%s" % (path, attribute_path), client=client)
 
-def get_type(path):
-    return get_attribute(path, "type")
+def get_type(path, client=None):
+    return get_attribute(path, "type", client=client)
 
 
-def find_free_subpath(path):
+def find_free_subpath(path, client=None):
     """
     Searches free node started with path.
     Path can have form {dir}/{prefix}.
@@ -156,10 +163,10 @@ def find_free_subpath(path):
     char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
     while True:
         name = "%s%s" % (path, "".join(random.sample(char_set, LENGTH)))
-        if not exists(name):
+        if not exists(name, client=client):
             return name
 
-def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None):
+def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
     """
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
@@ -168,7 +175,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
     # Deprecated. Default value "/" should be removed. 
     if not root and not config.PREFIX:
         root = "/"
-    root = to_name(root)
+    root = to_name(root, client=client)
     attributes = get_value(attributes, [])
 
     request_attributes = deepcopy(flatten(get_value(attributes, [])))
@@ -180,7 +187,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
 
     def safe_get(path):
         try:
-            return get(path, attributes=request_attributes)
+            return get(path, attributes=request_attributes, client=client)
         except YtResponseError as rsp:
             if rsp.is_access_denied():
                 logger.warning("Cannot traverse %s, access denied" % path)
@@ -223,12 +230,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
     walk(root, safe_get(root), 0, True)
     return result
 
-def remove_with_empty_dirs(path, force=True):
+def remove_with_empty_dirs(path, force=True, client=None):
     """ Removes path and all empty dirs that appear after deletion.  """
-    path = to_name(path)
+    path = to_name(path, client=client)
     while True:
         try:
-            remove(path, recursive=True, force=True)
+            remove(path, recursive=True, force=True, client=client)
         except YtResponseError as error:
             if error.is_access_denied():
                 logger.warning("Cannot remove %s, access denied", path)
