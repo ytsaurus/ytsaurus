@@ -9,7 +9,7 @@ import time
 import simplejson as json
 from datetime import timedelta, datetime
 
-def lock(path, mode=None, waitable=False, wait_for=None):
+def lock(path, mode=None, waitable=False, wait_for=None, client=None):
     """
     Try to lock the path.
 
@@ -22,10 +22,11 @@ def lock(path, mode=None, waitable=False, wait_for=None):
     lock_id = _make_transactional_request(
         "lock",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "mode": get_value(mode, "exclusive"),
             "waitable": bool_to_string(waitable)
-        })
+        },
+        client=client)
     if not lock_id:
         return None
     else:
@@ -35,7 +36,7 @@ def lock(path, mode=None, waitable=False, wait_for=None):
         now = datetime.now()
         acquired = False
         while datetime.now() - now < wait_for:
-            if get("#%s/@state" % lock_id) == "acquired":
+            if get("#%s/@state" % lock_id, client=client) == "acquired":
                 acquired = True
                 break
             time.sleep(1.0)
