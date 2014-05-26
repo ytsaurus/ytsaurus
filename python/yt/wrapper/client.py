@@ -9,7 +9,7 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
-from transaction import Transaction, PingableTransaction
+from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 
 class Yt(object):
@@ -188,3 +188,5 @@ class Yt(object):
     def PingableTransaction(self, *args, **kwargs):
         return PingableTransaction(*args, client=self, **kwargs)
 
+    def PingTransaction(self, *args, **kwargs):
+        return PingTransaction(*args, client=self, **kwargs)

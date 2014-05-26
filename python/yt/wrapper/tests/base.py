@@ -1,5 +1,3 @@
-#from yt.wrapper.client import Yt
-
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -29,8 +27,10 @@ class YtTestBase(object):
         reload(yt.config)
         reload(yt)
 
-        yt.config.set_proxy("localhost:%d" % cls.env._ports["proxy"][0])
+        # For debug purpose
+        #from yt.wrapper.client import Yt
         #yt.config.CLIENT = Yt("localhost:%d" % cls.env._ports["proxy"][0])
+        yt.config.set_proxy("localhost:%d" % cls.env._ports["proxy"][0])
         yt.config.http.USE_TOKEN = False
         yt.config.http.RETRY_VOLATILE_COMMANDS = True
 
