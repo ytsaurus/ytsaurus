@@ -73,6 +73,43 @@ TEST(CGroup, AddCurrentProcess)
     ASSERT_EQ(pid, waitedpid);
 }
 
+TEST(CGroup, DestroyBeforeRemove)
+{
+    TBlockIO group("some");
+    group.Create();
+
+    auto addedEvent = eventfd(0, 0);
+    auto triedRemoveEvent = eventfd(0, 0);
+
+    auto pid = fork();
+    ASSERT_TRUE(pid >= 0);
+
+    if (pid == 0) {
+        group.AddCurrentProcess();
+
+        i64 value = 1024;
+        ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
+
+        ASSERT_EQ(sizeof(value), ::read(triedRemoveEvent, &value, sizeof(value)));
+        exit(0);
+    }
+
+    i64 value;
+    ASSERT_EQ(sizeof(value), ::read(addedEvent, &value, sizeof(value)));
+    EXPECT_THROW(group.Destroy(), std::exception);
+
+    value = 1;
+    ASSERT_EQ(sizeof(value), ::write(triedRemoveEvent, &value, sizeof(value)));
+
+    auto waitedpid = waitpid(pid, nullptr, 0);
+
+    group.Destroy();
+    ASSERT_EQ(pid, waitedpid);
+
+    ASSERT_EQ(0, close(addedEvent));
+    ASSERT_EQ(0, close(triedRemoveEvent));
+}
+
 TEST(CGroup, GetCpuAccStat)
 {
     TCpuAccounting group("some");
