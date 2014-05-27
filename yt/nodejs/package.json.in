@@ -25,11 +25,11 @@
     "profiler": "1.2.1"
   },
   "devDependencies": {
-    "chai": "*",
-    "sinon": "*",
-    "sinon-chai": "*",
-    "mocha": "*",
-    "nock": "*",
+    "chai": "1.9.1",
+    "sinon": "1.9.1",
+    "sinon-chai": "2.5.0",
+    "mocha": "1.18.2",
+    "nock": "0.27.3",
     "webkit-devtools-agent": "*"
   },
   "engines": {
