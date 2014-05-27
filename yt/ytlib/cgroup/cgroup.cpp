@@ -358,12 +358,12 @@ void TMemory::SetLimit(i64 bytes) const
     Set("memory.limit_in_bytes", ToString(bytes));
 }
 
-void TMemory::DisableOOM() const
+void TMemory::DisableOom() const
 {
     Set("memory.oom_control", "1");
 }
 
-TEvent TMemory::GetOOMEvent() const
+TEvent TMemory::GetOomEvent() const
 {
 #ifdef _linux_
     const auto filename = NFS::CombinePaths(GetFullPath(), "memory.oom_control");

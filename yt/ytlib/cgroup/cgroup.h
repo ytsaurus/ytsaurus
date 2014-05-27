@@ -128,8 +128,8 @@ public:
     TStatistics GetStatistics();
 
     void SetLimit(i64 bytes) const;
-    void DisableOOM() const;
-    TEvent GetOOMEvent() const;
+    void DisableOom() const;
+    TEvent GetOomEvent() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -75,7 +75,7 @@ TEST(CGroup, AddCurrentProcess)
     ASSERT_EQ(pid, waitedpid);
 }
 
-TEST(CGroup, DestroyBeforeRemove)
+TEST(CGroup, UnableToDestoryNotEmptyCGroup)
 {
     TBlockIO group("some");
     group.Create();
@@ -213,7 +213,8 @@ TEST(CurrentProcessCGroup, BadInput)
     EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
 }
 
-class TEvent : public NCGroup::TEvent
+class TEvent
+    : public NCGroup::TEvent
 {
 public:
     TEvent(int eventFd, int fd = -1)

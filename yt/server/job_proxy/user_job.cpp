@@ -122,8 +122,8 @@ public:
             CreateCGroup(Memory);
 
             Memory.SetLimit(UserJobSpec.memory_limit());
-            Memory.DisableOOM();
-            OOMEvent = Memory.GetOOMEvent();
+            Memory.DisableOom();
+            OomEvent = Memory.GetOomEvent();
         }
 
         ProcessStartTime = TInstant::Now();
@@ -161,7 +161,7 @@ public:
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
-            OOMEvent.Destroy();
+            OomEvent.Destroy();
             DestroyCGroup(Memory);
         }
 
@@ -584,22 +584,24 @@ private:
         }
 
         try {
-            if (OOMEvent.Fired()) {
+            i64 memoryLimit = UserJobSpec.memory_limit();
+            auto statistics = Memory.GetStatistics();
+            LOG_DEBUG("Get memory usage (JobId %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+                ~ToString(JobId),
+                statistics.TotalUsageInBytes,
+                memoryLimit);
+
+            if (OomEvent.Fired()) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
+                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
+                    << TErrorAttribute("usage_in_bytes", statistics.TotalUsageInBytes)
+                    << TErrorAttribute("limit", memoryLimit));
                 KillAll(BIND(GetPidsByUid, uid));
                 return;
             }
 
-            i64 memoryLimit = UserJobSpec.memory_limit();
-            auto stats = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
-                ~ToString(JobId),
-                stats.TotalUsageInBytes,
-                memoryLimit);
-
-            if (stats.TotalUsageInBytes > MemoryUsage) {
-                i64 delta = stats.TotalUsageInBytes - MemoryUsage;
+            if (statistics.TotalUsageInBytes > MemoryUsage) {
+                i64 delta = statistics.TotalUsageInBytes - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;
@@ -699,7 +701,7 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
-    NCGroup::TEvent OOMEvent;
+    NCGroup::TEvent OomEvent;
 };
 
 TJobPtr CreateUserJob(
