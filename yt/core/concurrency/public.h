@@ -33,6 +33,9 @@ class TFiber;
 template <class TSignature>
 class TCoroutine;
 
+template <class T>
+class TNonBlockingQueue;
+
 typedef size_t TThreadId;
 const size_t InvalidThreadId = 0;
 

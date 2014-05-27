@@ -14,8 +14,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
 
@@ -416,40 +416,106 @@ void TSequentialMultiChunkReaderBase::OnError()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-void TNontemplateParallelMultiChunkReaderBase::OnReaderBlocked()
+TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
+    TMultiChunkReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
+    NRpc::IChannelPtr masterChannel,
+    IBlockCachePtr blockCache,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const std::vector<NProto::TChunkSpec>& chunkSpecs)
+    : TMultiChunkReaderBase(
+        config,
+        options,
+        masterChannel,
+        blockCache,
+        nodeDirectory,
+        chunkSpecs)
+    , ReadySessions_(New<TSessionQueue>())
+    , FinishedReaderCount_(0)
+{ }
+
+TError TParallelMultiChunkReaderBase::DoOpen()
+{
+    OpenPrefetchChunks();
+    return WaitForReadyReader();
+}
+
+void TParallelMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
+{
+    UNUSED(chunkIndex);
+    TSession session;
+    session.ChunkReader = chunkReader;
+    session.ChunkSpecIndex = chunkIndex;
+
+    ReadySessions_->Enqueue(MakeNullable(session));
+}
+
+void TParallelMultiChunkReaderBase::OnReaderBlocked()
 {
     BIND(
-        &TSequentialMultiChunkReaderBase::WaitForCurrentReader,
-        MakeStrong(this))
-    .Via(TDispatcher::Get()->GetReaderInvoker())
+        &TParallelMultiChunkReaderBase::WaitForReader,
+        MakeStrong(this),
+        CurrentSession_)
+    .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 
+    CurrentSession_.Reset();
+
     ReadyEvent_ = BIND(
-        &TSequentialMultiChunkReaderBase::WaitForReadyReader,
+        &TParallelMultiChunkReaderBase::WaitForReadyReader,
         MakeStrong(this))
     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
     .Run();
 }
 
-void TSequentialMultiChunkReaderBase::OnReaderFinished()
+void TParallelMultiChunkReaderBase::OnReaderFinished()
 {
-    OpenNextChunk();
- 
-    ++FinishedReaderCount_;
+    TMultiChunkReaderBase::OnReaderFinished();
 
-    if (FinishedReaderCount_ < ChunkSpecs_.size()) {
+    ++FinishedReaderCount_;
+    if (FinishedReaderCount_ == ChunkSpecs_.size()) {
+        ReadySessions_->Enqueue(Null);
+        CompletionError_.TrySet(TError());
+        ReadyEvent_ = CompletionError_.ToFuture();
+    } else {
         ReadyEvent_ = BIND(
-            &TSequentialMultiChunkReaderBase::WaitForReadyReader,
+            &TParallelMultiChunkReaderBase::WaitForReadyReader,
             MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
-    } else {
-        CompletionError_.TrySet(TError());
-        ReadyEvent_ = CompletionError_.ToFuture();
     }
 }
-*/
+
+void TParallelMultiChunkReaderBase::OnError()
+{
+    // Someone may wait for this future.
+    ReadySessions_->Enqueue(Null);
+}
+
+TError TParallelMultiChunkReaderBase::WaitForReadyReader()
+{
+    auto asyncReadySesion = ReadySessions_->Dequeue();
+    auto readySession = WaitFor(asyncReadySesion);
+
+    if (readySession) {
+        CurrentSession_ = readySession.Get();
+        OnReaderSwitched();
+    }
+
+    return CompletionError_.IsSet() ? CompletionError_.Get() : TError();
+}
+
+void TParallelMultiChunkReaderBase::WaitForReader(TSession session)
+{
+    auto error = WaitFor(session.ChunkReader->GetReadyEvent());
+    if (error.IsOK()) {
+        ReadySessions_->Enqueue(session);
+        return;
+    }
+
+    CompletionError_.TrySet(error);
+    RegisterFailedChunk(CurrentSession_.ChunkSpecIndex);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

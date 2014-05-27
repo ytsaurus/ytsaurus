@@ -9,6 +9,7 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <core/concurrency/non_blocking_queue.h>
 #include <core/concurrency/public.h>
 
 #include <core/logging/tagged_logger.h>
@@ -157,31 +158,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-class TNontemplateParallelMultiChunkReaderBase
-{
-public:
-
-private:
-};
-*/
+DECLARE_REFCOUNTED_CLASS(TReaderQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-bool Read(std::vector<TUnversionedRow>* rows)
+class TParallelMultiChunkReaderBase
+    : public TMultiChunkReaderBase
 {
-    if (CompletionError_.IsSet())
-        return false;
+public:
+    TParallelMultiChunkReaderBase(
+        TMultiChunkReaderConfigPtr config,
+        TMultiChunkReaderOptionsPtr options,
+        NRpc::IChannelPtr masterChannel,
+        IBlockCachePtr blockCache,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
-    auto readerFinished = !CurrentReader->Read(rows);
-    if (rows->empty()) {
-        return OnEmptyRead(readerFinished);
-    } else {
-        return true;
-    }
-}
-*/
+private:
+    typedef NConcurrency::TNonBlockingQueue<TNullable<TSession>> TSessionQueue;
+    typedef TIntrusivePtr<TSessionQueue> TSessionQueuePtr;
+
+
+    TSessionQueuePtr ReadySessions_;
+    int FinishedReaderCount_;
+
+
+    virtual TError DoOpen() override;
+
+    virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) override;
+
+    virtual void OnReaderBlocked() override;
+
+    virtual void OnReaderFinished() override;
+
+    virtual void OnError() override;
+
+    TError WaitForReadyReader();
+
+    void WaitForReader(TSession session);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
