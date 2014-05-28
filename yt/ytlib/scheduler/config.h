@@ -8,6 +8,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/new_table_client/config.h>
+
 #include <ytlib/formats/format.h>
 
 #include <ytlib/node_tracker_client/public.h>
@@ -29,8 +31,13 @@ class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //ToDo(psushin): deprecate.
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
+
+    NVersionedTableClient::TTableReaderConfigPtr NewTableReader;
+    NVersionedTableClient::TTableWriterConfigPtr NewTableWriter;
+
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
@@ -39,6 +46,12 @@ public:
             .DefaultNew();
         RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
+
+        RegisterParameter("new_table_reader", NewTableReader)
+            .DefaultNew();
+        RegisterParameter("new_table_writer", NewTableWriter)
+            .DefaultNew();
+
         RegisterParameter("error_file_writer", ErrorFileWriter)
             .DefaultNew();
 
