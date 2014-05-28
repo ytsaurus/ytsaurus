@@ -183,16 +183,6 @@ if(YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(python/yt/bindings)
 endif()
 
-install(
-  FILES scripts/colorize-log.py
-  DESTINATION bin
-  PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-  RENAME ycl
-)
-
 add_custom_target( package touch package-stamp
   COMMAND mkdir -p ARTIFACTS
   COMMAND dch
@@ -231,6 +221,14 @@ add_custom_target(
 )
 
 add_custom_target(
+  install-debian-yandex-yt-standalone
+  ${CMAKE_COMMAND}
+    -DCOMPONENT=standalone
+    -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+  COMMENT "Installing for package 'yandex-yt-standalone'..."
+)
+
+add_custom_target(
   install-debian-yandex-yt-http-proxy
   ${CMAKE_COMMAND}
     -DCOMPONENT=nodejs
@@ -249,6 +247,13 @@ add_custom_target(
 if(YT_USE_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 endif()
+
+# XXX(sandello): Note that trailing slash is crucial.
+install(
+  DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/standalone/
+  DESTINATION /etc
+  COMPONENT standalone
+)
 
 # TODO(sandello): Move these properties closer to target definitions.
 set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
@@ -280,8 +285,8 @@ set_target_properties(package PROPERTIES FOLDER "Misc")
 set_target_properties(version PROPERTIES FOLDER "Misc")
 
 set_target_properties(unittester PROPERTIES FOLDER "YT")
-set_target_properties(yt PROPERTIES FOLDER "YT")
 set_target_properties(ytcore PROPERTIES FOLDER "YT")
+set_target_properties(yt PROPERTIES FOLDER "YT")
 set_target_properties(ytlib PROPERTIES FOLDER "YT")
 set_target_properties(ytserver PROPERTIES FOLDER "YT")
 set_target_properties(ytserver_lib PROPERTIES FOLDER "YT")
