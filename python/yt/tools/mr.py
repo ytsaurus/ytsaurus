@@ -3,9 +3,10 @@ import yt.logger as logger
 import sh
 import subprocess
 import simplejson as json
+from urllib import quote_plus
 
 class Mr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies, proxy_port, fetch_info_from_http, cache=True, mr_user="tmp"):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, cache=True, mr_user="tmp", fastbone=False, opts=None):
         self.binary = binary
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
@@ -18,6 +19,8 @@ class Mr(object):
         self.cache = {}
         self.use_cache = cache
         self.mr_user = mr_user
+        self.opts = opts
+        self.fastbone = fastbone
 
         self.supports_shared_transactions = \
             subprocess.call("{} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
@@ -94,4 +97,16 @@ class Mr(object):
             return 0
         return int(obj)
 
-    
+    def get_read_range_command(self, table):
+        if self.proxies:
+            return 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
+        else:
+            fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+            shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
+            return 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
+                        .format(fastbone_str, table, shared_tx_str)
+
+    def get_write_command(self, table):
+        fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+        return "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
+                .format(self.opts, self.mr_user, self.server, fastbone_str, table)
