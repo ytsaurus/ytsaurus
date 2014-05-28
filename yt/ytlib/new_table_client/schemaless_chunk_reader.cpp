@@ -141,7 +141,9 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , TableRowIndex_(tableRowIndex)
     , PartitionTag_(partitionTag)
     , ChunkMeta_(masterMeta)
-{ }
+{
+    Logger.AddTag(Sprintf("SchemalessChunkReader: %p", this));
+}
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence() 
 {
@@ -201,7 +203,8 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
 
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TBlockIndexExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TKeyColumnsExt>::Value
+        TProtoExtensionTag<NTableClient::NProto::TKeyColumnsExt>::Value,
+        TProtoExtensionTag<TBoundaryKeysExt>::Value
     };
 
     DownloadChunkMeta(extensionTags);
@@ -216,8 +219,11 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     }
 
     auto blockIndexExt = GetProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
 
-    int beginIndex = std::max(GetBeginBlockIndex(BlockMetaExt_), GetBeginBlockIndex(blockIndexExt));
+    int beginIndex = std::max(
+        GetBeginBlockIndex(BlockMetaExt_),
+        GetBeginBlockIndex(blockIndexExt, boundaryKeysExt));
     int endIndex = std::min(GetEndBlockIndex(BlockMetaExt_), GetEndBlockIndex(blockIndexExt));
 
     return CreateBlockSequence(beginIndex, endIndex);
@@ -241,12 +247,16 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
 {
+    std::vector<TSequentialReader::TBlockInfo> blocks;
+
+    if (beginIndex >= BlockMetaExt_.entries_size()) {
+        return blocks;
+    }
+
     CurrentBlockIndex_ = beginIndex;
     auto& blockMeta = BlockMetaExt_.entries(CurrentBlockIndex_);
 
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
-
-    std::vector<TSequentialReader::TBlockInfo> blocks;
     for (int index = CurrentBlockIndex_; index < endIndex; ++index) {
         TSequentialReader::TBlockInfo blockInfo;
         blockInfo.Index = index;

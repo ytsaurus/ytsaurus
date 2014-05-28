@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
   ${BASE}/cached_versioned_chunk_meta.cpp
+  ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/chunk_reader_base.cpp
   ${BASE}/chunk_writer_base.cpp

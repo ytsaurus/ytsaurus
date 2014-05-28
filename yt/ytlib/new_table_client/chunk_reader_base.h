@@ -35,6 +35,8 @@ public:
     virtual TFuture<void> GetFetchingCompletedEvent();
 
 protected:
+    mutable NLog::TTaggedLogger Logger;
+
     TChunkReaderConfigPtr Config_;
 
     NChunkClient::TReadLimit LowerLimit_;
@@ -52,7 +54,9 @@ protected:
 
 
     int GetBeginBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;
-    int GetBeginBlockIndex(const NProto::TBlockIndexExt& blockIndex) const;
+    int GetBeginBlockIndex(
+        const NProto::TBlockIndexExt& blockIndex,
+        const NProto::TBoundaryKeysExt& boundaryKeys) const;
 
     int GetEndBlockIndex(const NProto::TBlockMetaExt& blockMeta) const;
     int GetEndBlockIndex(const NProto::TBlockIndexExt& blockIndex) const;

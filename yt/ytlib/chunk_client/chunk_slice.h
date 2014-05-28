@@ -44,16 +44,16 @@ private:
     TRefCountedChunkSpecPtr ChunkSpec;
     int PartIndex;
 
-    TReadLimit StartLimit;
-    TReadLimit EndLimit;
+    TReadLimit LowerLimit;
+    TReadLimit UpperLimit;
     NProto::TSizeOverrideExt SizeOverrideExt;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
     friend TChunkSlicePtr CreateChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
-        const TNullable<NVersionedTableClient::TOwningKey>& startKey,
-        const TNullable<NVersionedTableClient::TOwningKey>& endKey);
+        const TNullable<NVersionedTableClient::TOwningKey>& lowerKey,
+        const TNullable<NVersionedTableClient::TOwningKey>& upperKey);
 
     // XXX(sandello): Do we really need codecId here?
     friend std::vector<TChunkSlicePtr> CreateErasureChunkSlices(

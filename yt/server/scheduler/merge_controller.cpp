@@ -18,8 +18,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_splits_fetcher.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -32,22 +31,16 @@ namespace NScheduler {
 using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
-using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
-
-using NVersionedTableClient::TOwningKey;
-using NChunkClient::TReadRange;
-using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -923,8 +916,8 @@ protected:
     {
         EEndpointType Type;
         TRefCountedChunkSpecPtr ChunkSpec;
-        TOwningKey StartBoundaryKey;
-        TOwningKey EndBoundaryKey;
+        TOwningKey MinBoundaryKey;
+        TOwningKey MaxBoundaryKey;
         bool IsTeleport;
 
         void Persist(TPersistenceContext& context)
@@ -932,16 +925,16 @@ protected:
             using NYT::Persist;
             Persist(context, Type);
             Persist(context, ChunkSpec);
-            Persist(context, StartBoundaryKey);
-            Persist(context, EndBoundaryKey);
+            Persist(context, MinBoundaryKey);
+            Persist(context, MaxBoundaryKey);
             Persist(context, IsTeleport);
         }
 
         const TOwningKey& GetKey() const
         {
             return Type == EEndpointType::Left
-                ? StartBoundaryKey
-                : EndBoundaryKey;
+                ? MinBoundaryKey
+                : MaxBoundaryKey;
         }
     };
 
@@ -1026,14 +1019,12 @@ protected:
     {
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
         for (const auto& chunk : chunks) {
-            // XXX(psushin): handle new chunks.
-            auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
-
             TKeyEndpoint leftEndpoint;
             leftEndpoint.Type = EEndpointType::Left;
             leftEndpoint.ChunkSpec = chunk;
-            FromProto(&leftEndpoint.StartBoundaryKey, boundaryKeysExt.start());
-            FromProto(&leftEndpoint.EndBoundaryKey, boundaryKeysExt.end());
+
+            GetBoundaryKeys(chunk->chunk_meta(), &leftEndpoint.MinBoundaryKey, &leftEndpoint.MaxBoundaryKey);
+
             leftEndpoint.IsTeleport = false;
             Endpoints.push_back(leftEndpoint);
 
@@ -1088,12 +1079,12 @@ private:
                     return cmpResult < 0;
                 }
 
-                cmpResult = CompareRows(lhs.StartBoundaryKey, rhs.StartBoundaryKey, prefixLength);
+                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey, prefixLength);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
 
-                cmpResult = CompareRows(lhs.EndBoundaryKey, rhs.EndBoundaryKey, prefixLength);
+                cmpResult = CompareRows(lhs.MaxBoundaryKey, rhs.MaxBoundaryKey, prefixLength);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }

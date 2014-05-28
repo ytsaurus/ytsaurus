@@ -215,14 +215,15 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
 
 void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
+    auto currentSession = CurrentSession_;
+    CurrentSession_.Reset();
+    
     ReadyEvent_ = BIND(
         &TNontemplateMultiChunkWriterBase::DoSwitchSession,
         MakeStrong(this),
-        CurrentSession_)
+        currentSession)
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
     .Run();
-
-    CurrentSession_.Reset();
 }
 
 void TNontemplateMultiChunkWriterBase::DoSwitchSession(const TSession& session)
