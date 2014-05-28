@@ -1,45 +1,34 @@
 ﻿#include "stdafx.h"
+
 #include "merge_job.h"
-#include "private.h"
-#include "job_detail.h"
+
 #include "config.h"
+#include "job_detail.h"
+#include "private.h"
 
-#include <ytlib/hydra/peer_channel.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/table_chunk_writer.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/private.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schemaless_chunk_reader.h>
+#include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
-#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
-#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
+#include <ytlib/transaction_client/public.h>
 
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/yson_string.h>
-
-#include <core/yson/lexer.h>
-
-#include <server/chunk_server/public.h>
 
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NYTree;
-using namespace NTableClient;
+using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NVersionedTableClient;
 using namespace NChunkClient::NProto;
-using namespace NChunkServer;
-using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
-
-using NVersionedTableClient::TKey;
-using NTableClient::TTableWriterOptionsPtr;
+using namespace NScheduler::NProto;
+using namespace NTransactionClient;
+using namespace NVersionedTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,67 +37,66 @@ static auto& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <typename> class TMultiChunkReader>
 class TMergeJob
     : public TJob
 {
 public:
-    typedef TMultiChunkReader<TTableChunkReader> TReader;
-    typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
-
-    explicit TMergeJob(IJobHost* host)
+    explicit TMergeJob(IJobHost* host, bool parallelReader)
         : TJob(host)
-        , JobSpec(host->GetJobSpec())
-        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , JobSpec_(host->GetJobSpec())
+        , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , TotalRowCount_(0)
     {
         auto config = host->GetConfig();
 
-        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+
+        if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
+            const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            KeyColumns_ = FromProto<Stroka>(mergeJobSpec.key_columns());
+            LOG_INFO("Ordered merge produces sorted output");
+        }
 
         std::vector<TChunkSpec> chunkSpecs;
-        for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {
+        for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {
             for (const auto& chunkSpec : inputSpec.chunks()) {
                 chunkSpecs.push_back(chunkSpec);
             }
         }
 
-        auto readerProvider = New<TTableChunkReaderProvider>(
-            chunkSpecs,
-            config->JobIO->TableReader,
-            host->GetUncompressedBlockCache());
+        TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        Reader = CreateSyncReader(New<TReader>(
-            config->JobIO->TableReader,
+        auto nameTable = New<TNameTable>();
+
+        auto readerFactory = parallelReader
+            ? CreateSchemalessParallelMultiChunkReader
+            : CreateSchemalessSequentialMultiChunkReader;
+
+        Reader_ = readerFactory(
+            config->JobIO->NewTableReader,
+            New<TMultiChunkReaderOptions>(),
             host->GetMasterChannel(),
             host->GetCompressedBlockCache(),
             host->GetNodeDirectory(),
             std::move(chunkSpecs),
-            readerProvider));
-
-        if (JobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
-            const auto& mergeJobSpec = JobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            KeyColumns = FromProto<Stroka>(mergeJobSpec.key_columns());
-            LOG_INFO("Ordered merge produces sorted output");
-        }
+            nameTable,
+            TKeyColumns());
 
         // ToDo(psushin): estimate row count for writer.
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
-        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        options->KeyColumns = KeyColumns;
 
-        auto writerProvider = New<TTableChunkWriterProvider>(
-            config->JobIO->TableWriter,
-            options);
-
-        Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
-            config->JobIO->TableWriter,
+        Writer_ = CreateSchemalessMultiChunkWriter(
+            config->JobIO->NewTableWriter,
             options,
-            writerProvider,
+            nameTable,
+            KeyColumns_,
             host->GetMasterChannel(),
             transactionId,
-            chunkListId));
+            chunkListId,
+            true); // Allow value reordering if key columns are present.
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -116,56 +104,43 @@ public:
         PROFILE_TIMING ("/merge_time") {
             LOG_INFO("Initializing");
 
-            yhash_map<TStringBuf, int> keyColumnToIndex;
-
             {
-                if (KeyColumns) {
-                    for (int i = 0; i < KeyColumns->size(); ++i) {
-                        TStringBuf name(~KeyColumns->at(i), KeyColumns->at(i).size());
-                        keyColumnToIndex[name] = i;
-                    }
-                }
-
-                Reader->Open();
+                auto error = WaitFor(Reader_->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            } {
+                auto error = WaitFor(Writer_->Open());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
+
             PROFILE_TIMING_CHECKPOINT("init");
 
             LOG_INFO("Merging");
             {
-                NYson::TStatelessLexer lexer;
-                // Unsorted write - use dummy key.
-                struct TKeyMemoryPoolTag {};
-                TChunkedMemoryPool keyMemoryPool { TKeyMemoryPoolTag() };
+                std::vector<TUnversionedRow> rows;
+                rows.reserve(10000);
 
-                int keyColumnCount = KeyColumns ? KeyColumns->size() : 0;
-                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
+                while (Reader_->Read(&rows)) {
+                    if (rows.empty()) {
+                        auto error = WaitFor(Reader_->GetReadyEvent());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+                        continue;
+                    }
 
-                while (const auto* row = Reader->GetRow()) {
-                    if (KeyColumns) {
-                        ResetRowValues(&key);
-
-                        for (const auto& pair : *row) {
-                            auto it = keyColumnToIndex.find(pair.first);
-                            if (it != keyColumnToIndex.end()) {
-                                key[it->second] = MakeKeyPart(pair.second, lexer);
-                            }
-                        }
-
-                        if (SchedulerJobSpecExt.enable_sort_verification()) {
-                            Writer->WriteRow(*row);
-                        } else {
-                            Writer->WriteRowUnsafe(*row, key);
-                        }
-                    } else {
-                        Writer->WriteRowUnsafe(*row);
+                    if (!Writer_->Write(rows)) {
+                        auto error = WaitFor(Writer_->GetReadyEvent());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(error);
                     }
                 }
+
+                YCHECK(rows.empty());
             }
+
             PROFILE_TIMING_CHECKPOINT("merge");
 
             LOG_INFO("Finalizing");
             {
-                Writer->Close();
+                auto error = WaitFor(Writer_->Close());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
@@ -176,50 +151,52 @@ public:
 
     virtual double GetProgress() const override
     {
-        i64 total = Reader->GetSessionRowCount();
-        if (total == 0) {
-            LOG_WARNING("GetProgress: empty total");
+        if (TotalRowCount_ == 0) {
+            LOG_WARNING("Job progress: empty total");
             return 0;
         } else {
-            double progress = (double) Reader->GetSessionRowIndex() / total;
-            LOG_DEBUG("GetProgress: %lf", progress);
+            i64 rowCount = Reader_->GetDataStatistics().row_count();
+            double progress = (double) rowCount / TotalRowCount_;
+            LOG_DEBUG("Job progress: %lf, read row count: %" PRId64, progress, rowCount);
             return progress;
         }
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        return Reader->GetFailedChunkIds();
+        return Reader_->GetFailedChunkIds();
     }
 
     virtual TJobStatistics GetStatistics() const override
     {
         TJobStatistics result;
         result.set_time(GetElapsedTime().MilliSeconds());
-        ToProto(result.mutable_input(), Reader->GetDataStatistics());
-        ToProto(result.add_output(), Writer->GetDataStatistics());
+        ToProto(result.mutable_input(), Reader_->GetDataStatistics());
+        ToProto(result.add_output(), Writer_->GetDataStatistics());
         return result;
     }
 
 private:
-    const TJobSpec& JobSpec;
-    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+    const TJobSpec& JobSpec_;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt_;
 
-    ISyncReaderPtr Reader;
-    ISyncWriterUnsafePtr Writer;
+    ISchemalessMultiChunkReaderPtr Reader_;
+    ISchemalessMultiChunkWriterPtr Writer_;
 
-    TNullable<TKeyColumns> KeyColumns;
+    TKeyColumns KeyColumns_;
+
+    i64 TotalRowCount_;
 
 };
 
 IJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
+    return New<TMergeJob>(host, false);
 }
 
 IJobPtr CreateUnorderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TOldMultiChunkParallelReader> >(host);
+    return New<TMergeJob>(host, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
