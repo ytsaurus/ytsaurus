@@ -10,6 +10,7 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 class TUnorderedSchemafulReader
     : public ISchemafulReader
 {
