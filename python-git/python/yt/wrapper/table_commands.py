@@ -787,6 +787,10 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     def get_input_name(table):
         return to_table(table).get_json()
 
+    # TODO(ignat): use base string in other places
+    if isinstance(source_table, basestring):
+        source_table = [source_table]
+
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None, client=client))
 
     # TODO(ignat): provide atomicity of attribute copying
