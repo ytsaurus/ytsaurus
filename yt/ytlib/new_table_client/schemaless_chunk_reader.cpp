@@ -498,6 +498,29 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
+    TMultiChunkReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
+    IChannelPtr masterChannel,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
+    const std::vector<TChunkSpec>& chunkSpecs,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns)
+{
+    return New<TSchemalessMultiChunkReader<TParallelMultiChunkReaderBase>>(
+        config,
+        options,
+        masterChannel,
+        blockCache,
+        nodeDirectory,
+        chunkSpecs,
+        nameTable,
+        keyColumns);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemalessTableReader
     : public ISchemalessTableReader
     , public TTransactionListener
