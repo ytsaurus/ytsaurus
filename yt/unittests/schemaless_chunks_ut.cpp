@@ -3,6 +3,8 @@
 
 #include "versioned_table_client_ut.h"
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
@@ -24,10 +26,13 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 
 using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::ZeroDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka A("a");
+const int HugeRowCount = 1000000;
+const int SmallRowCount = 100;
 
 class TSchemalessChunksTest
     : public TVersionedTableClientTestBase
@@ -93,7 +98,7 @@ protected:
             std::move(MemoryWriter->GetBlocks()));
     }
 
-    std::vector<TUnversionedRow> CreateManyRows(int startIndex = 0, int endIndex = 1000000)
+    std::vector<TUnversionedRow> CreateManyRows(int startIndex = 0, int endIndex = HugeRowCount)
     {
         std::vector<TUnversionedRow> rows;
         for (int i = startIndex; i < endIndex; ++i) {
@@ -112,6 +117,12 @@ protected:
     void WriteManyRows()
     {
         ChunkWriter->Write(CreateManyRows());
+        FinishWriter();
+    }
+
+    void WriteFewRows()
+    {
+        ChunkWriter->Write(CreateManyRows(0, SmallRowCount));
         FinishWriter();
     }
 
@@ -136,6 +147,48 @@ TEST_F(TSchemalessChunksTest, ReadAllUnsorted)
         columnFilter);
 
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    auto it = expected.begin();
+
+    std::vector<TUnversionedRow> actual;
+    actual.reserve(997);
+
+    while (chunkReader->Read(&actual)) {
+        if (actual.empty()) {
+            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            continue;
+        }
+        std::vector<TUnversionedRow> ex(it, it + actual.size());
+        CheckResult(ex, actual);
+        it += actual.size();
+    }
+}
+
+TEST_F(TSchemalessChunksTest, EmptyRead)
+{
+    WriteFewRows();
+    std::vector<TUnversionedRow> expected;
+
+    TColumnFilter columnFilter;
+    columnFilter.All = true;
+
+    TReadLimit lowerLimit;
+    lowerLimit.SetRowIndex(SmallRowCount);
+
+    auto chunkReader = CreateSchemalessChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        NameTable,
+        TKeyColumns(),
+        MasterMeta,
+        lowerLimit,
+        TReadLimit(),
+        columnFilter);
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    EXPECT_TRUE(chunkReader->GetFetchingCompletedEvent().IsSet());
+    EXPECT_EQ(ZeroDataStatistics(), chunkReader->GetDataStatistics());
 
     auto it = expected.begin();
 

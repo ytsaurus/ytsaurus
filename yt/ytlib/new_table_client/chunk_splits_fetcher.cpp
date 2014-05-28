@@ -11,10 +11,9 @@
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/private.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/private.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -30,8 +29,6 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
-
-using NTableClient::NProto::TOldBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -85,13 +82,10 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         i64 chunkDataSize;
         GetStatistics(*chunk, &chunkDataSize);
 
-        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
+        TOwningKey minKey, maxKey;
+        GetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey);
 
-        if (chunkDataSize < ChunkSliceSize_ || NTableClient::CompareKeys(
-            boundaryKeys.start(),
-            boundaryKeys.end(),
-            KeyColumns_.size()) == 0)
-        {
+        if (chunkDataSize < ChunkSliceSize_ || CompareRows(minKey, maxKey, KeyColumns_.size()) == 0) {
             ChunkSplits_.push_back(chunk);
         } else {
             requestedChunkIndexes.push_back(index);

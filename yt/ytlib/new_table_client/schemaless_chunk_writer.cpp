@@ -204,7 +204,12 @@ bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows
 
     // Return true if current writer is ready for more data and
     // we didn't switch to the next chunk.
-    return CurrentWriter_->Write(rows) && !TrySwitchSession();
+    bool readyForMore = CurrentWriter_->Write(rows);
+    bool switched = false;
+    if (readyForMore) {
+        switched = TrySwitchSession();
+    }
+    return readyForMore && !switched;
 }
 
 IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateChunkWriter(IWriterPtr underlyingWriter)

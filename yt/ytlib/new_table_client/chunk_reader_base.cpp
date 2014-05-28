@@ -3,6 +3,7 @@
 #include "chunk_reader_base.h"
 
 #include "config.h"
+#include "private.h"
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -28,7 +29,8 @@ TChunkReaderBase::TChunkReaderBase(
     const NChunkClient::TReadLimit& upperLimit,
     NChunkClient::IAsyncReaderPtr underlyingReader,
     const NChunkClient::NProto::TMiscExt& misc)
-    : Config_(config)
+    : Logger(TableReaderLogger)
+    , Config_(config)
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
     , UnderlyingReader_(underlyingReader)
@@ -106,6 +108,14 @@ int TChunkReaderBase::GetBeginBlockIndex(const TBlockMetaExt& blockMeta) const
     auto& blockMetaEntries = blockMeta.entries();
     int beginBlockIndex = 0;
     if (LowerLimit_.HasRowIndex()) {
+        if (LowerLimit_.GetRowIndex() >= Misc_.row_count()) {
+            LOG_DEBUG(
+                "Lower limit overstep chunk boundaries (LowerLimit: %s, RowCount: %" PRId64 ")",
+                ~ToString(LowerLimit_),
+                Misc_.row_count());
+            return blockMeta.entries_size();
+        }
+
         // To make search symmetrical with blockIndex we ignore last block.
         typedef decltype(blockMetaEntries.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
@@ -130,12 +140,23 @@ int TChunkReaderBase::GetBeginBlockIndex(const TBlockMetaExt& blockMeta) const
     return beginBlockIndex;
 }
 
-int TChunkReaderBase::GetBeginBlockIndex(const TBlockIndexExt& blockIndex) const
+int TChunkReaderBase::GetBeginBlockIndex(const TBlockIndexExt& blockIndex, const TBoundaryKeysExt& boundaryKeys) const
 {
     auto& blockIndexEntries = blockIndex.entries();
     int beginBlockIndex = 0;
 
     if (LowerLimit_.HasKey()) {
+        TOwningKey maxKey;
+        FromProto(&maxKey, boundaryKeys.max());
+        if (LowerLimit_.GetKey() > maxKey) {
+            LOG_DEBUG(
+                "Lower limit overstep chunk boundaries (LowerLimit: %s, MaxKey: %s)",
+                ~ToString(LowerLimit_),
+                ~ToString(maxKey));
+
+            return blockIndex.entries_size();
+        }
+
         typedef decltype(blockIndexEntries.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockIndexEntries.end() - 1);
         auto rend = std::reverse_iterator<TIter>(blockIndexEntries.begin());
@@ -215,17 +236,24 @@ int TChunkReaderBase::GetEndBlockIndex(const TBlockIndexExt& blockIndex) const
 
 TDataStatistics TChunkReaderBase::GetDataStatistics() const
 {
-    TDataStatistics dataStatistics;
-    dataStatistics.set_chunk_count(1);
-    dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-    dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
 
-    return dataStatistics;
+    if (SequentialReader_) {
+        TDataStatistics dataStatistics;
+        dataStatistics.set_chunk_count(1);
+        dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
+        dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+        return dataStatistics;
+    } else {
+        return ZeroDataStatistics();
+    }
 }
 
 TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
 {
-    return SequentialReader_->GetFetchingCompletedEvent();
+    if (SequentialReader_)
+        return SequentialReader_->GetFetchingCompletedEvent();
+    else
+        return MakeFuture();
 }
 
 
