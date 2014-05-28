@@ -150,7 +150,7 @@ class PrintOperationInfo(object):
         self.state = None
         self.progress = None
 
-        creation_time_str = get_attribute(os.path.join(OPERATIONS_PATH, self.operation), "creation_time")
+        creation_time_str = get_attribute(os.path.join(OPERATIONS_PATH, self.operation), "creation_time", client=client)
         creation_time = dateutil.parser.parse(creation_time_str).replace(tzinfo=None)
 
         creation_time = creation_time.replace(tzinfo=tz.tzutc())
@@ -225,7 +225,7 @@ def get_stderrs(operation, only_failed_jobs, limit=None, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return ""
-    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj, attributes=["error"])
+    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj, attributes=["error"], client=client)
     if only_failed_jobs:
         jobs_with_stderr = filter(lambda obj: "error" in obj.attributes, jobs_with_stderr)
 

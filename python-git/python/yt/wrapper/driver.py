@@ -271,7 +271,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
     else:
         params["output_format"] = format.json()
 
-    result = make_request(command_name, params)
+    result = make_request(command_name, params, **kwargs)
 
     if format is None:
         return json_to_yson(json.loads(result))
