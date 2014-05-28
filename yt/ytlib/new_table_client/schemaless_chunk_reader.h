@@ -56,6 +56,9 @@ struct ISchemalessMultiChunkReader
     , ISchemalessReader
 {
     virtual i64 GetTableRowIndex() const = 0;
+
+    //! Table index of the last read row group.
+    virtual int GetTableIndex() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
