@@ -137,10 +137,10 @@ def package(options):
         with open("ytversion") as handle:
             version = handle.read().strip()
 
-        teamcity_interact("setParameter", name="yt.package_version", value=version)
-
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
+        teamcity_interact("setParameter", name="yt.package_version", value=version)
+        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
         artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
         if artifacts:
@@ -322,13 +322,22 @@ def clean_failed_tests(options, n=5):
 def teamcity_escape(s):
     s = re.sub("(['\\[\\]|])", "|\\1", s)
     s = s.replace("\n", "|n").replace("\r", "|r")
+    s = "'" + s + "'"
     return s
 
 
-def teamcity_interact(*args, **kwargs):
+def teamcity_interact(message, *args, **kwargs):
+
     r = " ".join(itertools.chain(
-        (str(x) for x in args),
-        ("{0}='{1}'".format(str(k), teamcity_escape(str(v))) for k, v in kwargs.iteritems())))
+        [message],
+        (
+            teamcity_escape(str(x))
+            for x in args
+        ),
+        (
+            "{0}={1}".format(str(k), teamcity_escape(str(v)))
+            for k, v in kwargs.iteritems())
+        ))
     r = "##teamcity[" + r + "]\n"
     sys.stdout.flush()
     sys.stderr.write(r)
