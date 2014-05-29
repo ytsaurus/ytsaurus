@@ -124,7 +124,8 @@ public:
     void ResetHints();
     
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
-    bool HasSpareSession(NChunkClient::EWriteSessionType sessionType) const;
+
+    int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     void AddTabletSlotHint();

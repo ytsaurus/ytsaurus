@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "schemed_dsv_parser.h"
-#include "schemed_dsv_table.h"
+#include "schemaful_dsv_parser.h"
+#include "schemaful_dsv_table.h"
 #include "parser.h"
 
 #include <ytlib/table_client/public.h>
@@ -13,22 +13,22 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedDsvParser
+class TSchemafulDsvParser
     : public IParser
 {
 public:
-    TSchemedDsvParser(
+    TSchemafulDsvParser(
         IYsonConsumer* consumer,
-        TSchemedDsvFormatConfigPtr config);
+        TSchemafulDsvFormatConfigPtr config);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
 
 private:
     IYsonConsumer* Consumer_;
-    TSchemedDsvFormatConfigPtr Config_;
+    TSchemafulDsvFormatConfigPtr Config_;
 
-    TSchemedDsvTable Table_;
+    TSchemafulDsvTable Table_;
 
     bool NewRecordStarted_;
     bool ExpectingEscapedChar_;
@@ -46,9 +46,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemedDsvParser::TSchemedDsvParser(
+TSchemafulDsvParser::TSchemafulDsvParser(
         IYsonConsumer* consumer,
-        TSchemedDsvFormatConfigPtr config)
+        TSchemafulDsvFormatConfigPtr config)
     : Consumer_(consumer)
     , Config_(config)
     , Table_(Config_)
@@ -59,7 +59,7 @@ TSchemedDsvParser::TSchemedDsvParser(
     , TableIndex_(0)
 { }
 
-void TSchemedDsvParser::Read(const TStringBuf& data)
+void TSchemafulDsvParser::Read(const TStringBuf& data)
 {
     auto current = data.begin();
     while (current != data.end()) {
@@ -67,7 +67,7 @@ void TSchemedDsvParser::Read(const TStringBuf& data)
     }
 }
 
-const char* TSchemedDsvParser::Consume(const char* begin, const char* end)
+const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 {
     // Process escaping symbols.
     if (!ExpectingEscapedChar_ && *begin == Config_->EscapingSymbol) {
@@ -126,7 +126,7 @@ const char* TSchemedDsvParser::Consume(const char* begin, const char* end)
     return next + 1;
 }
 
-void TSchemedDsvParser::SwitchTable(int newTableIndex)
+void TSchemafulDsvParser::SwitchTable(int newTableIndex)
 {
     static const Stroka key = FormatEnum(NTableClient::EControlAttribute(
         NTableClient::EControlAttribute::TableIndex));
@@ -142,7 +142,7 @@ void TSchemedDsvParser::SwitchTable(int newTableIndex)
     }
 }
 
-void TSchemedDsvParser::Finish()
+void TSchemafulDsvParser::Finish()
 {
     if (NewRecordStarted_ || !CurrentToken_.Empty() || ExpectingEscapedChar_) {
         THROW_ERROR_EXCEPTION("Row is not finished (row index %d)", RowIndex_);
@@ -152,30 +152,30 @@ void TSchemedDsvParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseSchemedDsv(
+void ParseSchemafulDsv(
     TInputStream* input,
     IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config)
+    TSchemafulDsvFormatConfigPtr config)
 {
-    auto parser = CreateParserForSchemedDsv(consumer, config);
+    auto parser = CreateParserForSchemafulDsv(consumer, config);
     Parse(input, parser.get());
 }
 
-void ParseSchemedDsv(
+void ParseSchemafulDsv(
     const TStringBuf& data,
     IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config)
+    TSchemafulDsvFormatConfigPtr config)
 {
-    auto parser = CreateParserForSchemedDsv(consumer, config);
+    auto parser = CreateParserForSchemafulDsv(consumer, config);
     parser->Read(data);
     parser->Finish();
 }
 
-std::unique_ptr<IParser> CreateParserForSchemedDsv(
+std::unique_ptr<IParser> CreateParserForSchemafulDsv(
     IYsonConsumer* consumer,
-    TSchemedDsvFormatConfigPtr config)
+    TSchemafulDsvFormatConfigPtr config)
 {
-    return std::unique_ptr<IParser>(new TSchemedDsvParser(consumer, config));
+    return std::unique_ptr<IParser>(new TSchemafulDsvParser(consumer, config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

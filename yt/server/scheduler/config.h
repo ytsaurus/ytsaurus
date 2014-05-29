@@ -4,11 +4,13 @@
 
 #include <ytlib/chunk_client/config.h>
 
+#include <core/rpc/config.h>
+
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/api/config.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <ytlib/ypath/public.h>
 
 #include <core/ytree/yson_serializable.h>
 
@@ -20,7 +22,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     // The following settings can be overridden in operation spec.
@@ -52,14 +54,24 @@ public:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
+class TEventLogConfig
+    : public NTableClient::TBufferedTableWriterConfig
+{
+public:
+    NYPath::TYPath Path;
+
+    TEventLogConfig()
+    {
+        RegisterParameter("path", Path)
+            .Default("//sys/scheduler/event_log");
+    }
+};
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
-    //! Interval between consecutive master connection attempts.
-    TDuration ConnectRetryPeriod;
+    TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
     TDuration NodeHearbeatTimeout;
@@ -69,6 +81,8 @@ public:
     TDuration OperationsUpdatePeriod;
 
     TDuration WatchersUpdatePeriod;
+
+    TDuration ClusterDirectoryUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
 
@@ -116,6 +130,9 @@ public:
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
 
+    //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
+    double SliceDataSizeMultiplier;
+
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
@@ -156,6 +173,7 @@ public:
     NYTree::INodePtr SortedMergeOperationSpec;
     NYTree::INodePtr MapReduceOperationSpec;
     NYTree::INodePtr SortOperationSpec;
+    NYTree::INodePtr RemoteCopyOperationSpec;
 
     //! Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
@@ -178,9 +196,11 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
+    TEventLogConfigPtr EventLog;
+
     TSchedulerConfig()
     {
-        RegisterParameter("connect_retry_period", ConnectRetryPeriod)
+        RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
             .Default(TDuration::Seconds(60));
@@ -189,6 +209,8 @@ public:
         RegisterParameter("operations_update_period", OperationsUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
@@ -234,6 +256,10 @@ public:
         RegisterParameter("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
+
+        RegisterParameter("slice_data_size_multiplier", SliceDataSizeMultiplier)
+            .Default(0.51)
+            .GreaterThan(0.0);
 
         RegisterParameter("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)
@@ -293,6 +319,8 @@ public:
             .Default(nullptr);
         RegisterParameter("sort_operation_spec", SortOperationSpec)
             .Default(nullptr);
+        RegisterParameter("remote_copy_operation_spec", RemoteCopyOperationSpec)
+            .Default(nullptr);
 
         RegisterParameter("max_job_count", MaxJobCount)
             .Default(20000)
@@ -324,6 +352,8 @@ public:
             .DefaultNew();
 
         RegisterParameter("fetcher", Fetcher)
+            .DefaultNew();
+        RegisterParameter("event_log", EventLog)
             .DefaultNew();
     }
 };

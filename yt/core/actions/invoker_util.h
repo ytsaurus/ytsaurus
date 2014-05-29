@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "invoker.h"
 
 namespace NYT {

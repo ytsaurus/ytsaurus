@@ -313,7 +313,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
         ~ToString(chunkId),
         startBlockIndex,
         blockCount,
-        ~target.Address);
+        ~target.GetDefaultAddress());
 
     auto session = GetSession(chunkId);
     session
@@ -325,7 +325,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
                 context->Reply(TError(
                     NChunkClient::EErrorCode::PipelineFailed,
                     "Error putting blocks to %s",
-                    ~target.Address)
+                    ~target.GetDefaultAddress())
                     << error);
             }
         }));
@@ -862,6 +862,7 @@ void TDataNodeService::MakeChunkSplits(
         miscExt.row_count() *
         miscExt.uncompressed_data_size() /
         indexExt.items_size()));
+    YCHECK(dataSizeBetweenSamples > 0);
 
     using NChunkClient::TReadLimit;
     auto comparer = [&] (
@@ -909,6 +910,12 @@ void TDataNodeService::MakeChunkSplits(
             return comparer(limit, indexRow, false) < 0;
         });
 
+    if (std::distance(beginIt, endIt) < 2) {
+        // Too small distance between given read limits.
+        splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+        return;
+    }
+
     TChunkSpec* currentSplit;
     TOldBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
@@ -925,6 +932,8 @@ void TDataNodeService::MakeChunkSplits(
     createNewSplit();
 
     auto samplesLeft = std::distance(beginIt, endIt) - 1;
+    YCHECK(samplesLeft > 0);
+
     while (samplesLeft > 0) {
         ++beginIt;
         --samplesLeft;

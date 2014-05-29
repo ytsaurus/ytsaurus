@@ -15,11 +15,11 @@ TRowBuffer::TRowBuffer(
     i64 unalignedPoolChunkSize,
     double maxPoolSmallBlockRatio)
     : AlignedPool_(
-    	TAlignedRowBufferPoolTag(),
+        TAlignedRowBufferPoolTag(),
         alignedPoolChunkSize,
         maxPoolSmallBlockRatio)
     , UnalignedPool_(
-    	TUnalignedRowBufferPoolTag(),
+        TUnalignedRowBufferPoolTag(),
         unalignedPoolChunkSize,
         maxPoolSmallBlockRatio)
 { }

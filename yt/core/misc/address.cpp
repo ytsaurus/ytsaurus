@@ -471,7 +471,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
 
     {
         TGuard<TSpinLock> guard(LocalHostLock);
-    	GetLocalHostNameFailed = true;
+        GetLocalHostNameFailed = true;
     }
 
     THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: no matching addrinfo entry found");

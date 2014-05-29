@@ -11,8 +11,6 @@ using namespace NVersionedTableClient;
 NLog::TLogger TableReaderLogger("TableReader");
 NLog::TLogger TableWriterLogger("TableWriter");
 
-const int FormatVersion = 1;
-
 const size_t MaxKeySize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////

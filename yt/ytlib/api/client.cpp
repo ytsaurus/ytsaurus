@@ -892,6 +892,15 @@ IClientPtr CreateClient(
         options);
 }
 
+IClientPtr CreateClient(
+    IConnectionPtr connection,
+    const Stroka user)
+{
+    TClientOptions options;
+    options.User = user;
+    return CreateClient(connection, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction

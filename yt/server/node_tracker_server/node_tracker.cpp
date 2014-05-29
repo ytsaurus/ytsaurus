@@ -290,11 +290,11 @@ private:
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
-        const auto& address = descriptor.Address;
+        const auto& address = descriptor.GetDefaultAddress();
 
         // Kick-out any previous incarnation.
         {
-            auto* existingNode = FindNodeByAddress(descriptor.Address);
+            auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %s, ExistingId: %d)",
                     ~address,
@@ -646,7 +646,7 @@ private:
     TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
     {
         PROFILE_TIMING ("/node_register_time") {
-            const auto& address = descriptor.Address;
+            const auto& address = descriptor.GetDefaultAddress();
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 

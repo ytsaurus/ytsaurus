@@ -12,7 +12,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     yhash_map<Stroka, NYTree::INodePtr> Services;
@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     yhash_map<Stroka, TMethodConfigPtr> Methods;
@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMethodConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TNullable<bool> RequestHeavy;
@@ -72,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(TMethodConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRetryingChannelConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Time to wait between consequent attempts.
@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBalancingChannelConfigBase
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Timeout for Discovery requests.
@@ -146,7 +146,7 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannelConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Maximum allowed number of requests per second.
@@ -165,7 +165,7 @@ DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResponseKeeperConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! For how long responses are kept in memory.

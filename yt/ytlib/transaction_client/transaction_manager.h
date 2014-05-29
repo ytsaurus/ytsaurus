@@ -21,16 +21,7 @@ namespace NTransactionClient {
 class TTransaction
     : public TRefCounted
 {
-private:
-    friend class TTransactionManager;
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
 public:
-    explicit TTransaction(TIntrusivePtr<TImpl> impl);
-    ~TTransaction();
-
-
     //! Commits the transaction asynchronously.
     /*!
      *  Should not be called more than once.
@@ -88,6 +79,16 @@ public:
      */
     DECLARE_SIGNAL(void(), Aborted);
 
+private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
+
+    friend class TTransactionManager;
+
+// TODO(ignat): fix this hack
+public:
+    explicit TTransaction(TIntrusivePtr<TImpl> impl);
+    ~TTransaction();
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
@@ -128,11 +129,6 @@ struct TTransactionAttachOptions
 class TTransactionManager
     : public TRefCounted
 {
-private:
-    friend class TTransaction;
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
 public:
     //! Initializes an instance.
     /*!
@@ -178,6 +174,10 @@ public:
     //! Asynchronously aborts all active transactions.
     void AbortAll();
 
+private:
+    friend class TTransaction;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManager)

@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <core/actions/future.h>
+
 #include <core/misc/sync.h>
 
 #include <util/stream/input.h>

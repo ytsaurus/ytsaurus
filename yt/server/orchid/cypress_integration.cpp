@@ -10,6 +10,8 @@
 
 #include <core/ytree/ypath.pb.h>
 
+#include <ytlib/orchid/private.h>
+
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
 #include <core/rpc/caching_channel_factory.h>

@@ -140,7 +140,7 @@ private:
         if (Terminated_) {
             guard.Release();
             if (result.IsOK()) {
-	            auto channel = result.Value();
+                auto channel = result.Value();
                 channel->Terminate(TerminationError);
             }
             return;

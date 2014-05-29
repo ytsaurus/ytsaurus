@@ -6,6 +6,7 @@
 #include "chunk_list_pool.h"
 #include "job_resources.h"
 #include "serialize.h"
+#include "event_log.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/id_generator.h>
@@ -58,6 +59,7 @@ public:
         TOperation* operation);
 
     virtual void Initialize() override;
+    virtual void Essentiate() override;
     virtual TFuture<TError> Prepare() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
     virtual TFuture<TError> Revive() override;
@@ -74,18 +76,20 @@ public:
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
-    virtual TCancelableContextPtr GetCancelableContext() override;
-    virtual IInvokerPtr GetCancelableControlInvoker() override;
-    virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
+    virtual TCancelableContextPtr GetCancelableContext() const override;
+    virtual IInvokerPtr GetCancelableControlInvoker() const override;
+    virtual IInvokerPtr GetCancelableBackgroundInvoker() const override;
 
-    virtual int GetPendingJobCount() override;
-    virtual int GetTotalJobCount() override;
-    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
+    virtual int GetPendingJobCount() const override;
+    virtual int GetTotalJobCount() const override;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const override;
 
-    virtual void BuildProgress(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildResult(NYson::IYsonConsumer* consumer) override;
-    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildProgress(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
+    virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
+
+    virtual bool NeedsAllChunkParts() const override;
 
     virtual void Persist(TPersistenceContext& context) override;
 
@@ -108,7 +112,9 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
-    NRpc::IChannelPtr AuthenticatedMasterChannel;
+    NApi::IClientPtr AuthenticatedMasterClient;
+    NApi::IClientPtr AuthenticatedInputMasterClient;
+    NApi::IClientPtr AuthenticatedOutputMasterClient;
     mutable NLog::TTaggedLogger Logger;
 
     TCancelableContextPtr CancelableContext;
@@ -128,19 +134,21 @@ protected:
     bool Running;
 
 
-    // Totals.
+    // These totals are approximate.
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
     i64 TotalInputValueCount;
 
+    // These totals are exact.
     int TotalIntermeidateChunkCount;
-    int TotalIntermediateDataSize;
-    int TotalIntermediateRowCount;
+    i64 TotalIntermediateDataSize;
+    i64 TotalIntermediateRowCount;
 
+    // These totals are exact.
     int TotalOutputChunkCount;
-    int TotalOutputDataSize;
-    int TotalOutputRowCount;
+    i64 TotalOutputDataSize;
+    i64 TotalOutputRowCount;
 
     int UnavailableInputChunkCount;
 
@@ -300,7 +308,7 @@ protected:
             , MemoryReserveEnabled(true)
         { }
 
-        explicit TJoblet(TTaskPtr task, int jobIndex)
+        TJoblet(TTaskPtr task, int jobIndex)
             : Task(task)
             , JobIndex(jobIndex)
             , StartRowIndex(-1)
@@ -325,7 +333,6 @@ protected:
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
         void Persist(TPersistenceContext& context);
-
     };
 
     struct TCompletedJob
@@ -584,15 +591,20 @@ protected:
 
 
     // Initialization.
-    void Essentiate();
     virtual void DoInitialize();
+    virtual void InitializeTransactions();
 
 
     // Preparation.
     TError DoPrepare();
-    void GetObjectIds();
+    void GetInputObjectIds();
+    void GetOutputObjectIds();
     void ValidateInputTypes();
-    void RequestInputs();
+    void ValidateOutputTypes();
+    void ValidateFileTypes();
+    void RequestInputObjects();
+    void RequestOutputObjects();
+    void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
     void CollectTotals();
@@ -602,6 +614,12 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
+    // Initialize transactions
+    void StartAsyncSchedulerTransaction();
+    void StartSyncSchedulerTransaction();
+    void StartIOTransactions();
+    virtual void StartInputTransaction(NObjectClient::TTransactionId parentTransactionId);
+    virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
 
     // Completion.
     TError DoCommit();
@@ -609,7 +627,7 @@ protected:
 
 
     // Revival.
-    void DoReviveFromSnapshot();
+    void DoRevive();
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
@@ -685,7 +703,7 @@ protected:
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor,
-         const NChunkClient::TChunkReplicaList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
@@ -701,8 +719,16 @@ protected:
 
     // Unsorted helpers.
 
-    // Enables sorted output from user jobs.
+    //! Enables sorted output from user jobs.
     virtual bool IsSortedOutputSupported() const;
+    
+    //! Enables fetching all input replicas (not only data)
+    virtual bool IsParityReplicasFetchEnabled() const;
+
+    //! If |true| then all jobs started within the operation must
+    //! preserve row count. This invariant is checked for each completed job.
+    //! Should a violation be discovered, the operation fails. 
+    virtual bool IsRowCountPreserved() const;
 
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);
@@ -788,6 +814,9 @@ protected:
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
+    TFluentLogEvent LogEventFluently(ELogEventType eventType);
+    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -800,7 +829,7 @@ private:
         : public virtual TRefCounted
     {
     public:
-        explicit TInputChunkScratcher(TOperationControllerBase* controller);
+        TInputChunkScratcher(TOperationControllerBase* controller, NRpc::IChannelPtr masterChannel);
 
         //! Starts periodic polling.
         /*!
@@ -851,28 +880,9 @@ private:
 
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
 
+    NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
+        const NObjectClient::TTransactionId& transactionId);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-template <class TSpec>
-TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation, NYTree::INodePtr specTemplateNode)
-{
-    auto specNode = specTemplateNode
-        ? NYTree::UpdateNode(specTemplateNode, operation->GetSpec())
-        : operation->GetSpec();
-    auto spec = New<TSpec>();
-    try {
-        spec->Load(specNode);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
-    }
-    return spec;
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -60,16 +60,21 @@ public:
         double maxFillFactor);
 
 private:
-    typedef ymultimap<double, TNode*> TFactorToNode;
-    typedef yhash_map<TNode*, TFactorToNode::iterator> TNodeToFactorIt;
-
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     std::vector<TNode*> LoadRankToNode;
 
-    TFactorToNode FillFactorToNode;
-    TNodeToFactorIt NodeToFillFactorIt;
+    typedef ymultimap<double, TNode*> TFillFactorToNode;
+    typedef yhash_map<TNode*, TFillFactorToNode::iterator> TNodeToFillFactorIt;
+
+    //! Enables traversing nodes by increasing fill factor, which is useful for finding balancing targets.
+    //! Nodes with the number of replication write sessions exceeding the limits are omitted.
+    TFillFactorToNode FillFactorToNode;
+
+    //! Provides backpointers from nodes to positions in #FillFactorToNode.
+    TNodeToFillFactorIt NodeToFillFactorIt;
+
 
     static int GetLoadFactor(TNode* node);
 

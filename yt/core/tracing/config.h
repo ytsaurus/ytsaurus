@@ -10,7 +10,7 @@ namespace NTracing {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraceManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Address where all trace events are pushed to.

@@ -4,6 +4,8 @@
 #include "schemaful_writer.h"
 #include "row_buffer.h"
 
+#include <core/actions/future.h>
+
 #include <core/misc/ring_queue.h>
 
 namespace NYT {

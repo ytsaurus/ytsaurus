@@ -194,6 +194,26 @@ private:
                     .BeginMap()
                         .Item("opaque").Value(true)
                     .EndMap());
+            
+            CreateNode(
+                "//sys/tokens",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            CreateNode(
+                "//sys/clusters",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
 
             CreateNode(
                 "//sys/scheduler/instances",
@@ -208,6 +228,11 @@ private:
                 "//sys/scheduler/orchid",
                 transactionId,
                 EObjectType::Orchid);
+
+            CreateNode(
+                "//sys/scheduler/event_log",
+                transactionId,
+                EObjectType::Table);
 
             CreateNode(
                 "//sys/operations",

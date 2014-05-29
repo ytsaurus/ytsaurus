@@ -354,13 +354,23 @@ class TLexerBase
 {
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > > TBaseStream;
-    std::vector<char> Buffer;
-    int BufferLimit;
+    std::vector<char> Buffer_;
+    TNullable<i64> MemoryLimit_;
+
+    void CheckMemoryLimit()
+    {
+        if (MemoryLimit_ && Buffer_.capacity() > *MemoryLimit_) {
+            THROW_ERROR_EXCEPTION(
+                "Memory limit exceeded while parsing YSON stream: allocated %" PRId64 ", limit %" PRId64,
+                Buffer_.capacity(),
+                *MemoryLimit_);
+        }
+    }
 
 public:
-    TLexerBase(const TBlockStream& blockStream, int bufferLimit = -1)
+    TLexerBase(const TBlockStream& blockStream, TNullable<i64> memoryLimit) 
         : TBaseStream(blockStream)
-        , BufferLimit(bufferLimit)
+        , MemoryLimit_(memoryLimit)
     { }
     
 protected:
@@ -370,14 +380,14 @@ protected:
     template <bool AllowFinish>
     bool ReadNumeric(TStringBuf* value)
     {
-        Buffer.clear();
+        Buffer_.clear();
         bool isDouble = false;
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-                Buffer.push_back(ch);
+                Buffer_.push_back(ch);
             } else if (ch == '.' || ch == 'e' || ch == 'E') {
-                Buffer.push_back(ch);
+                Buffer_.push_back(ch);
                 isDouble = true;
             } else if (isalpha(ch)) {
                 THROW_ERROR_EXCEPTION("Unexpected %s in numeric literal",
@@ -386,16 +396,17 @@ protected:
             } else {
                 break;
             }
+            CheckMemoryLimit();
             TBaseStream::Advance(1);
         }
 
-        *value = TStringBuf(Buffer.data(), Buffer.size());
+        *value = TStringBuf(Buffer_.data(), Buffer_.size());
         return isDouble;
     }
 
     void ReadQuotedString(TStringBuf* value)
     {
-        Buffer.clear();
+        Buffer_.clear();
         while (true) {
             if (TBaseStream::IsEmpty()) {
                 TBaseStream::Refresh();
@@ -403,54 +414,48 @@ protected:
             char ch = *TBaseStream::Begin();
             TBaseStream::Advance(1);
             if (ch != '"') {
-                if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
-                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
-                }
-                Buffer.push_back(ch);
+                Buffer_.push_back(ch);
             } else {
                 // We must count the number of '\' at the end of StringValue
                 // to check if it's not \"
                 int slashCount = 0;
-                int length = Buffer.size();
-                while (slashCount < length && Buffer[length - 1 - slashCount] == '\\') {
+                int length = Buffer_.size();
+                while (slashCount < length && Buffer_[length - 1 - slashCount] == '\\') {
                     ++slashCount;
                 }
                 if (slashCount % 2 == 0) {
                     break;
                 } else {
-                    if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
-                        THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
-                    }
-                    Buffer.push_back(ch);
+                    Buffer_.push_back(ch);
                 }
             }            
+            CheckMemoryLimit();
         }
 
-        auto unquotedValue = UnescapeC(Buffer.data(), Buffer.size());
-        Buffer.clear();
-        Buffer.insert(Buffer.end(), unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
-        *value = TStringBuf(Buffer.data(), Buffer.size());
+        auto unquotedValue = UnescapeC(Buffer_.data(), Buffer_.size());
+        Buffer_.clear();
+        Buffer_.insert(Buffer_.end(), unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
+        CheckMemoryLimit();
+        *value = TStringBuf(Buffer_.data(), Buffer_.size());
     }
 
     template <bool AllowFinish>
     void ReadUnquotedString(TStringBuf* value)
     {
-        Buffer.clear();
+        Buffer_.clear();
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isalpha(ch) || isdigit(ch) ||
                 ch == '_' || ch == '-' || ch == '%' || ch == '.')
             {
-                if (BufferLimit != -1 && Buffer.size() >= BufferLimit) {
-                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
-                }
-                Buffer.push_back(ch);
+                Buffer_.push_back(ch);
             } else {
                 break;
             }
+            CheckMemoryLimit();
             TBaseStream::Advance(1);
         }
-        *value = TStringBuf(Buffer.data(), Buffer.size());
+        *value = TStringBuf(Buffer_.data(), Buffer_.size());
     }
 
     void ReadUnquotedString(TStringBuf* value)
@@ -478,7 +483,7 @@ protected:
             TBaseStream::Advance(length);
         } else { // reading in Buffer
             size_t needToRead = length;
-            Buffer.clear();
+            Buffer_.clear();
             while (needToRead) {
                 if (TBaseStream::IsEmpty()) {
                     TBaseStream::Refresh();
@@ -486,15 +491,12 @@ protected:
                 }
                 size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
 
-                if (BufferLimit != -1 && Buffer.size() + readingBytes > BufferLimit) {
-                    THROW_ERROR_EXCEPTION("Buffer size limit exceeded");
-                }
-
-                Buffer.insert(Buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
+                Buffer_.insert(Buffer_.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
+                CheckMemoryLimit();
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);
             }
-            *value = TStringBuf(Buffer.data(), Buffer.size());
+            *value = TStringBuf(Buffer_.data(), Buffer_.size());
         }
     }
     

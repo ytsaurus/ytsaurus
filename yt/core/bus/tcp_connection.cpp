@@ -81,7 +81,9 @@ TTcpConnection::TTcpConnection(
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
 
-    Logger.AddTag(Sprintf("ConnectionId: %s", ~ToString(id)));
+    Logger.AddTag(Sprintf("ConnectionId: %s, Address: %s",
+        ~ToString(id),
+        ~Address));
 
     auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType));
     Profiler.TagIds().push_back(tagId);
@@ -211,7 +213,7 @@ void TTcpConnection::SyncOpen()
 {
     AtomicSet(State, EState::Open);
 
-    LOG_DEBUG("Connection established (Address: %s)", ~Address);
+    LOG_DEBUG("Connection established");
 
     // Flush messages that were enqueued when the connection was still opening.
     ProcessOutcomingMessages();

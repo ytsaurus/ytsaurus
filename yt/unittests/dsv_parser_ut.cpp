@@ -231,7 +231,7 @@ TEST_F(TTskvParserTest, Escaping)
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t,\\_and_\n"));
+        EXPECT_CALL(Mock, OnKeyedItem("key_with_\t,\r_and_\n"));
         EXPECT_CALL(Mock, OnStringScalar("value_with_\t,\\_and_\r\n"));
         EXPECT_CALL(Mock, OnKeyedItem("another_key"));
         EXPECT_CALL(Mock, OnStringScalar("another_value"));
@@ -241,7 +241,7 @@ TEST_F(TTskvParserTest, Escaping)
         "t\\s\\kv\n"
         "tskv" "\t" "a\\=b"  "="  "c\\=d or e=f" "\n" // Note: unescaping is less strict
         "tskv" "\t"
-        "key_with_\\t,\\\\_and_\\n"
+        "key_with_\\t,\r_and_\\n"
         "="
         "value_with_\\t,\\\\_and_\\r\\n"
         "\t"

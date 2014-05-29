@@ -470,6 +470,10 @@ IClientPtr CreateClient(
     IConnectionPtr connection,
     const TClientOptions& options = TClientOptions());
 
+IClientPtr CreateClient(
+    IConnectionPtr connection,
+    const Stroka user);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NApi

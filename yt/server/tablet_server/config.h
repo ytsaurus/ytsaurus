@@ -10,7 +10,7 @@ namespace NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration PeerFailoverTimeout;

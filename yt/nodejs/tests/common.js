@@ -81,7 +81,7 @@ chai.Assertion.addMethod("yt_error_body", function() {
         body.should.have.property("inner_errors");
         body.inner_errors.should.be.an("object");
         body.inner_errors.should.be.instanceof(Array);
-    } catch(ex) {
+    } catch (ex) {
         assert.fail(
             "this._obj.body is not a well-formed JSON",
             "this._obj.body is a well-formed JSON",

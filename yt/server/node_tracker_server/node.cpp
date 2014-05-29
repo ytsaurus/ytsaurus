@@ -70,7 +70,7 @@ const TNodeDescriptor& TNode::GetDescriptor() const
 
 const Stroka& TNode::GetAddress() const
 {
-    return Descriptor_.Address;
+    return Descriptor_.GetDefaultAddress();
 }
 
 const TNodeConfigPtr& TNode::GetConfig() const
@@ -81,7 +81,7 @@ const TNodeConfigPtr& TNode::GetConfig() const
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, Descriptor_.Address);
+    Save(context, Descriptor_.Addresses());
     Save(context, State_);
     Save(context, Statistics_);
     Save(context, Alerts_);
@@ -96,7 +96,15 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, Descriptor_.Address);
+    TNodeDescriptor::TAddressMap addresses;
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 41) {
+        Load(context, addresses);
+    } else {
+        Load(context, addresses[NNodeTrackerClient::DefaultNetworkName]);
+    }
+    Descriptor_ = TNodeDescriptor(addresses);
+
     Load(context, State_);
     Load(context, Statistics_);
     // COMPAT(babenko)
@@ -185,17 +193,15 @@ void TNode::AddSessionHint(EWriteSessionType sessionType)
     }
 }
 
-bool TNode::HasSpareSession(EWriteSessionType sessionType) const
+int TNode::GetSessionCount(EWriteSessionType sessionType) const
 {
     switch (sessionType) {
         case EWriteSessionType::User:
-            return true;
+            return Statistics_.total_user_session_count() + HintedUserSessionCount_;
         case EWriteSessionType::Replication:
-            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ <
-                   Statistics_.max_replication_session_count();
+            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_;
         case EWriteSessionType::Repair:
-            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_ <
-                   Statistics_.max_repair_session_count();
+            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
         default:
             YUNREACHABLE();
     }
@@ -204,9 +210,9 @@ bool TNode::HasSpareSession(EWriteSessionType sessionType) const
 int TNode::GetTotalSessionCount() const
 {
     return
-        Statistics_.total_user_session_count() + HintedUserSessionCount_ +
-        Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ +
-        Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
+        GetSessionCount(EWriteSessionType::User) +
+        GetSessionCount(EWriteSessionType::Replication) +
+        GetSessionCount(EWriteSessionType::Repair);
 }
 
 TNode::TTabletSlot* TNode::FindTabletSlot(TTabletCell* cell)

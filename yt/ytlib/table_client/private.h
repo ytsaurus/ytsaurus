@@ -15,8 +15,6 @@ namespace NTableClient {
 extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
 
-extern const int FormatVersion;
-
 extern const size_t MaxKeySize;
 
 NVersionedTableClient::TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& lexer);

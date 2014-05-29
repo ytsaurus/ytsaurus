@@ -145,6 +145,11 @@ TObjectId ReplaceTypeInId(
     return result;
 }
 
+TCellId GetCellId(const TObjectId& id, EObjectType type)
+{
+    return (id.Parts[1] - type) >> 16;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectClient

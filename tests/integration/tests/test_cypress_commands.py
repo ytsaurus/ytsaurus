@@ -658,3 +658,8 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//sys/chunks/@count') == 0
         assert get('//sys/underreplicated_chunks/@count') == 0
         assert get('//sys/overreplicated_chunks/@count') == 0
+
+    def test_list_attributes(self):
+        create('map_node', '//tmp/map', attributes={'user_attr1': 10})
+        set('//tmp/map/@user_attr2', 'abc')
+        assert sorted(get('//tmp/map/@user_attributes_names')) == sorted(['user_attr1', 'user_attr2'])

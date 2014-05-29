@@ -16,7 +16,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFormatDefaultsConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NFormats::TFormat Structured;
@@ -42,7 +42,7 @@ typedef TIntrusivePtr<TFormatDefaultsConfig> TFormatDefaultsConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutorConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NDriver::TDriverConfigPtr Driver;

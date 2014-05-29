@@ -131,7 +131,7 @@ public:
         for (const auto& reader : Readers) {
             dataStatistics += reader->GetProvider()->GetDataStatistics();
         }
-        return dataStatistics;   
+        return dataStatistics;
     }
 
     virtual int GetTableIndex() const override

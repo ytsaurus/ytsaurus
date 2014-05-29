@@ -111,7 +111,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
 
     if (!rsp->IsOK()) {
         LOG_WARNING("Failed to get chunk splits from node (Address: %s, NodeId: %d)",
-            ~NodeDirectory_->GetDescriptor(nodeId).Address,
+            ~NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);

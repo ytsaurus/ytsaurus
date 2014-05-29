@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "rowset.h"
 
+#include <core/actions/future.h>
+
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/unversioned_row.h>

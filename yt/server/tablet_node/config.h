@@ -24,7 +24,7 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int MaxMemoryStoreKeyCount;
@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration DefaultTransactionTimeout;
@@ -125,7 +125,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     i64 AlignedPoolChunkSize;
@@ -166,7 +166,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreFlusherConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int ThreadPoolSize;
@@ -191,7 +191,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 
 class TStoreCompactorConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int ThreadPoolSize;
@@ -220,7 +220,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 class TPartitionBalancerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NChunkClient::TFetcherConfigPtr SamplesFetcher;
@@ -254,7 +254,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletNodeConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Maximum number of tablet managers to run.

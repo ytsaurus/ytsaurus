@@ -12,6 +12,7 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectory)
+DECLARE_REFCOUNTED_CLASS(TClusterDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 

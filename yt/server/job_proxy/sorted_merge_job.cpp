@@ -55,7 +55,7 @@ public:
 
         {
             std::vector<TTableChunkSequenceReaderPtr> readers;
-             auto options = New<TChunkReaderOptions>();
+            auto options = New<TChunkReaderOptions>();
             options->ReadKey = true;
 
             for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {

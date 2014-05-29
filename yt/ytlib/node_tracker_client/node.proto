@@ -45,9 +45,16 @@ message TNodeResources
 }
 
 // Describes a cluster node.
+message TAddressDescriptor
+{
+    required string network = 1;
+    required string address = 2;
+}
+
 message TNodeDescriptor
 {
     required string address = 2;
+    repeated TAddressDescriptor addresses = 3;
 }
 
 // Provides a mapping from node ids to descriptors.

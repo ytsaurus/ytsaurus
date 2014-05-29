@@ -762,7 +762,9 @@ private:
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
-            error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded);
+            error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
+            error.FindMatching(NNodeTrackerClient::EErrorCode::InvalidNetwork) ||
+            error.FindMatching(NChunkClient::EErrorCode::AddressNotFound);
     }
 
     void ThrowIfFinished()

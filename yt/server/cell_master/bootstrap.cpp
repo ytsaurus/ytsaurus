@@ -371,7 +371,7 @@ void TBootstrap::Run()
     RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
     RpcServer->RegisterService(CreateObjectService(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
-    RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
+    RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
     RpcServer->RegisterService(CreateJobTrackerService(this));
     RpcServer->RegisterService(CreateChunkService(this));
 

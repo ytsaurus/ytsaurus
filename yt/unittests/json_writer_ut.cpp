@@ -74,6 +74,32 @@ TEST(TJsonWriterTest, DoubleMap)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, ListFragmentWithEntity)
+{
+    TStringStream outputStream;
+    auto consumer = CreateJsonConsumer(&outputStream, NYson::EYsonType::ListFragment);
+
+    consumer->OnListItem();
+    consumer->OnBeginAttributes();
+        consumer->OnKeyedItem("x");
+        consumer->OnStringScalar("y");
+    consumer->OnEndAttributes();
+    consumer->OnEntity();
+    consumer->OnListItem();
+    consumer->OnBeginMap();
+        consumer->OnKeyedItem("hello");
+        consumer->OnStringScalar("world");
+    consumer->OnEndMap();
+    consumer->OnListItem();
+    consumer->OnBeginMap();
+        consumer->OnKeyedItem("foo");
+        consumer->OnStringScalar("bar");
+    consumer->OnEndMap();
+
+    Stroka output = "{\"$attributes\":{\"x\":\"y\"},\"$value\":null}\n{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TJsonWriterTest, Entity)
 {
     TStringStream outputStream;
@@ -119,6 +145,33 @@ TEST(TJsonWriterTest, NonAsciiString)
 
     Stroka output = SurroundWithQuotes("\xC3\xBF\\u0000\xC2\x80");
     EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->EncodeUtf8 = false;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    Stroka s = Stroka("\xC3\xBF", 2);
+    consumer->OnStringScalar(s);
+
+    Stroka output = SurroundWithQuotes(Stroka("\xC3\xBF", 2));
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->EncodeUtf8 = false;
+    auto consumer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    Stroka s = Stroka("\xFF", 1);
+    EXPECT_ANY_THROW(
+        consumer->OnStringScalar(s);
+    );
 }
 
 TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
@@ -348,6 +401,24 @@ TEST(TJsonWriterTest, AlwaysAttributes)
                 "}"
             "}"
         "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, SpecialKeys)
+{
+    TStringStream outputStream;
+    auto writer = CreateJsonConsumer(&outputStream);
+
+    writer->OnBeginMap();
+        writer->OnKeyedItem("$value");
+        writer->OnStringScalar("foo");
+        writer->OnKeyedItem("$$attributes");
+        writer->OnStringScalar("bar");
+        writer->OnKeyedItem("$other");
+        writer->OnIntegerScalar(42);
+    writer->OnEndMap();
+
+    Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$$other\":42}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

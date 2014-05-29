@@ -12,7 +12,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Maximum number to objects to destroy per a single GC mutation.

@@ -83,6 +83,13 @@ void TMapReduceCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemoteCopyCommand::DoExecute()
+{
+    StartOperation(EOperationType::RemoteCopy);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAbortOperationCommand::DoExecute()
 {
     TSchedulerServiceProxy proxy(Context_->GetClient()->GetSchedulerChannel());

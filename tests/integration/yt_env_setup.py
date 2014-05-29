@@ -19,10 +19,11 @@ def _working_dir(test_name):
 
 class YTEnvSetup(YTEnv):
     @classmethod
-    def setup_class(cls):
+    def setup_class(cls, test_name=None):
         logging.basicConfig(level=logging.INFO)
 
-        test_name = cls.__name__
+        if test_name is None:
+            test_name = cls.__name__
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel

@@ -32,7 +32,6 @@ public:
             GetRefCountedTrackerCookie<TTag>())
     { }
 
-
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);
 
@@ -79,6 +78,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to inl
 inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
     // Fast path.

@@ -10,7 +10,7 @@ namespace NTabletClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCacheConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration SuccessExpirationTime;

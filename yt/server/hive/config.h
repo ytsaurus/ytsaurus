@@ -10,7 +10,7 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THiveManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Interval period consequent Ping requests to remote Hive instances.
@@ -31,7 +31,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
 
 class TTransactionSupervisorConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TTransactionSupervisorConfig()

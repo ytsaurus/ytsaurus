@@ -14,7 +14,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
-    const TOperationId& operationId,
+    const TOperationId& id,
     EOperationType type,
     const NHydra::TMutationId& mutationId,
     TTransactionPtr userTransaction,
@@ -23,7 +23,7 @@ TOperation::TOperation(
     TInstant startTime,
     EOperationState state,
     bool suspended)
-    : OperationId_(operationId)
+    : Id_(id)
     , Type_(type)
     , MutationId_(mutationId)
     , State_(state)
@@ -35,8 +35,23 @@ TOperation::TOperation(
     , StderrCount_(0)
     , MaxStderrCount_(0)
     , CleanStart_(false)
+    , StartedPromise(NewPromise<TOperationStartResult>())
     , FinishedPromise(NewPromise())
 { }
+
+TFuture<TOperationStartResult> TOperation::GetStarted()
+{
+    return StartedPromise;
+}
+
+void TOperation::SetStarted(const TError& error)
+{
+    if (error.IsOK()) {
+        StartedPromise.Set(MakeStrong(this));
+    } else {
+        StartedPromise.Set(error);
+    }
+}
 
 TFuture<void> TOperation::GetFinished()
 {

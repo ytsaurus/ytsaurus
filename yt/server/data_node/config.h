@@ -12,7 +12,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPeerBlockTableConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int MaxPeersPerBlock;
@@ -31,7 +31,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
 class TLocationConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Location root path.
@@ -78,7 +78,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TLocationConfig)
 
 class TDiskHealthCheckerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent checks.
@@ -106,7 +106,7 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Period between consequent incremental heartbeats.
@@ -192,14 +192,11 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
-    //! Maximum number of concurrent replication write sessions the node is willing to handle.
-    int MaxReplicationSessions;
-
-    //! Maximum number of concurrent repair write sessions the node is willing to handle.
-    int MaxRepairSessions;
-
     //! Number of writer threads per location.
     int WriteThreadCount;
+
+    //! Maximum number of concurrent balancing write sessions.
+    int MaxWriteSessions;
 
 
     TDataNodeConfig()
@@ -257,14 +254,11 @@ public:
             .DefaultNew();
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
-        RegisterParameter("max_replication_sessions", MaxReplicationSessions)
-            .Default(16)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_repair_sessions", MaxRepairSessions)
-            .Default(16)
-            .GreaterThanOrEqual(0);
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
+            .GreaterThanOrEqual(1);
+        RegisterParameter("max_write_sessions", MaxWriteSessions)
+            .Default(1000)
             .GreaterThanOrEqual(1);
     }
 };

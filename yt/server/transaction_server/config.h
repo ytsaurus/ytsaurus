@@ -10,7 +10,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration DefaultTransactionTimeout;
@@ -32,7 +32,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration CalibrationPeriod;

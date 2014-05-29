@@ -1,15 +1,18 @@
-#include "stdafx.h"
+#pragma once
+
+#include "public.h"
 #include "common.h"
 
 namespace NYT {
-namespace NOrchid {
+namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger OrchidLogger("Orchid");
+extern const char* const SystemLoggingCategory;
+extern const char* const DefaultStderrWriterName;
+extern const ELogLevel DefaultStderrMinLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NOrchid
+} // namespace NLog
 } // namespace NYT
-

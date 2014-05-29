@@ -17,6 +17,7 @@ set( SRCS
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
   ${BASE}/progress_counter.cpp
+  ${BASE}/remote_copy_controller.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_service.cpp
   ${BASE}/serialize.cpp
@@ -44,6 +45,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/progress_counter.h
   ${BASE}/public.h
+  ${BASE}/remote_copy_controller.h
   ${BASE}/scheduler.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_strategy.h
@@ -51,6 +53,7 @@ set( HDRS
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h
+  ${BASE}/event_log.h
 )
 
 list(APPEND YT_SOURCE_FILES

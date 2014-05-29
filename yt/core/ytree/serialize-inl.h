@@ -15,6 +15,8 @@
 
 #include <numeric>
 
+#include <numeric>
+
 namespace NYT {
 namespace NYTree {
 
@@ -135,6 +137,19 @@ void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer
     for (auto it : GetSortedIterators(items)) {
         consumer->OnKeyedItem(it->first);
         Serialize(it->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
+// map
+template <class T>
+void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(items);
+    for (const auto& pair : sortedItems) {
+        consumer->OnKeyedItem(pair->first);
+        Serialize(pair->second, consumer);
     }
     consumer->OnEndMap();
 }

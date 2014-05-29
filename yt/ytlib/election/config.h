@@ -12,7 +12,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Cell id.
@@ -35,7 +35,6 @@ public:
         });
     }
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TCellConfig)
 

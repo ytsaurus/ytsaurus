@@ -67,8 +67,13 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
     if "verbose" in arguments:
         verbose = arguments["verbose"]
         del arguments["verbose"]
-
     verbose = verbose is None or verbose
+
+    if "driver" in arguments:
+        driver = arguments["driver"]
+        del arguments["driver"]
+    else:
+        driver = get_driver()
 
     user = None
     if "user" in arguments:
@@ -83,7 +88,7 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
     if verbose:
         print >>sys.stderr, str(datetime.now()), command_name, arguments
     result = make_request(
-        get_driver(),
+        driver,
         Request(command_name=command_name,
                 arguments=arguments,
                 input_stream=input_stream,
@@ -307,6 +312,9 @@ def erase(path, **kwargs):
 
 def sort(**kwargs):
     return start_op('sort', **kwargs)
+
+def remote_copy(**kwargs):
+    return start_op('remote_copy', **kwargs)
 
 def abort_op(op, **kwargs):
     kwargs["operation_id"] = op

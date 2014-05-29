@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/ytree/yson_serializable.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -10,7 +11,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     NYson::EYsonFormat Format;
@@ -25,7 +26,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDsvFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     char RecordSeparator;
@@ -83,11 +84,13 @@ DECLARE_ENUM(EJsonAttributesMode,
 );
 
 class TJsonFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
+    bool EncodeUtf8;
+    i64 MemoryLimit;
 
     TJsonFormatConfig()
     {
@@ -95,13 +98,17 @@ public:
             .Default(EJsonFormat::Text);
         RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
+        RegisterParameter("encode_utf8", EncodeUtf8)
+            .Default(true);
+
+        MemoryLimit = NTableClient::MaxRowWeightLimit;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrFormatConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     bool HasSubkey;
@@ -197,8 +204,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemedDsvFormatConfig
-    : public TYsonSerializable
+class TSchemafulDsvFormatConfig
+    : public NYTree::TYsonSerializable
 {
 public:
     char RecordSeparator;
@@ -221,7 +228,7 @@ public:
     Stroka MissingValueSentinel;
 
 
-    TSchemedDsvFormatConfig()
+    TSchemafulDsvFormatConfig()
     {
         RegisterParameter("record_separator", RecordSeparator)
             .Default('\n');

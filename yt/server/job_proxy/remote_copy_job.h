@@ -1,14 +1,15 @@
-#pragma once
+﻿#pragma once
+
+#include "public.h"
 
 namespace NYT {
+namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSignature>
-class TCallback;
-
-typedef TCallback<void()> TClosure;
+TJobPtr CreateRemoteCopyJob(IJobHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NJobProxy
+} // namespace NYTNYT

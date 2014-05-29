@@ -67,7 +67,7 @@ exports.ask = function ask(method, path, headers, verify, callback)
 
                         var bodyFormatted = JSON.stringify(bodyParsed, null, 2);
                         __DBG("*** HTTP Response Body:\n" + bodyFormatted + "\n***");
-                    } catch(err) {
+                    } catch (err) {
                         __DBG("*** HTTP Response Body:\n" + body + "\n***");
                     }
                 }
@@ -76,7 +76,7 @@ exports.ask = function ask(method, path, headers, verify, callback)
 
                 verify(rsp);
                 callback();
-            } catch(err) {
+            } catch (err) {
                 callback(err);
             }
         });

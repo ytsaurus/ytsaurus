@@ -42,6 +42,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <ytlib/hive/cluster_directory.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/job_proxy/config.h>
@@ -50,6 +52,7 @@
 #include <server/scheduler/scheduler_service.h>
 #include <server/scheduler/job_tracker_service.h>
 #include <server/scheduler/config.h>
+
 
 namespace NYT {
 namespace NCellScheduler {
@@ -104,6 +107,8 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateBusServer(BusServer);
 
+    ClusterDirectory = New<NHive::TClusterDirectory>(MasterClient->GetConnection());
+
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -136,7 +141,7 @@ void TBootstrap::Run()
     
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    rpcServer->RegisterService(New<TOrchidService>(
+    rpcServer->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
 
@@ -183,6 +188,11 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
 TSchedulerPtr TBootstrap::GetScheduler() const
 {
     return Scheduler;
+}
+
+NHive::TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
+{
+    return ClusterDirectory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

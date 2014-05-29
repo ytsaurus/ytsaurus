@@ -27,14 +27,15 @@ public:
         IYsonConsumer* consumer,
         EYsonType parsingMode,
         bool enableLinePositionInfo,
-        int bufferLimit)
+        TNullable<i64> memoryLimit = Null) 
         : ParserCoroutine_(BIND(
             [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
                 ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
                     TBlockReader<TParserCoroutine>(self, begin, end, finish),
                     consumer,
                     parsingMode,
-                    enableLinePositionInfo, bufferLimit);
+                    enableLinePositionInfo,
+                    memoryLimit);
             }))
     { }
 
@@ -64,8 +65,8 @@ TYsonParser::TYsonParser(
     IYsonConsumer *consumer,
     EYsonType type,
     bool enableLinePositionInfo,
-    int bufferLimit)
-    : Impl(new TImpl(consumer, type, enableLinePositionInfo, bufferLimit))
+    TNullable<i64> memoryLimit)
+    : Impl(new TImpl(consumer, type, enableLinePositionInfo, memoryLimit))
 { }
 
 TYsonParser::~TYsonParser()
@@ -92,11 +93,11 @@ public:
     TImpl(
         IYsonConsumer *consumer,
         bool enableLinePositionInfo,
-        int bufferLimit)
+        TNullable<i64> memoryLimit)
         : Impl(
             enableLinePositionInfo
-            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer, bufferLimit)) 
-            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer, bufferLimit)))
+            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer, memoryLimit)) 
+            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer, memoryLimit)))
     { }
 
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) 
@@ -110,8 +111,8 @@ public:
 TStatelessYsonParser::TStatelessYsonParser(
     IYsonConsumer *consumer,
     bool enableLinePositionInfo,
-    int bufferLimit)
-    : Impl(new TImpl(consumer, enableLinePositionInfo, bufferLimit))
+    TNullable<i64> memoryLimit)
+    : Impl(new TImpl(consumer, enableLinePositionInfo, memoryLimit))
 { }
 
 TStatelessYsonParser::~TStatelessYsonParser()
@@ -129,13 +130,14 @@ void ParseYsonStringBuffer(
     IYsonConsumer* consumer,
     EYsonType type,
     bool enableLinePositionInfo,
-    int bufferLimit)
+    TNullable<i64> memoryLimit)
 {
     ParseYsonStreamImpl<IYsonConsumer, TStringReader>(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,
-        enableLinePositionInfo, bufferLimit);
+        enableLinePositionInfo,
+        memoryLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

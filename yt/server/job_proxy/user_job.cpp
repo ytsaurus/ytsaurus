@@ -87,7 +87,7 @@ public:
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
-        , IsInitCompleted(false)
+        , InitCompleted(false)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
     {
@@ -104,6 +104,8 @@ public:
         LOG_DEBUG("Starting job process");
 
         InitPipes();
+
+        InitCompleted = true;
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -147,7 +149,7 @@ public:
 
     virtual double GetProgress() const override
     {
-        return IsInitCompleted ? JobIO->GetProgress() : 0;
+        return InitCompleted ? JobIO->GetProgress() : 0;
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
@@ -209,17 +211,17 @@ private:
         createPipe(pipe);
 
         // Configure stderr pipe.
-        TOutputStream* stdErrOutput;
+        TOutputStream* stderrOutput;
         if (UserJobSpec.has_stderr_transaction_id()) {
             auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
             ErrorOutput = JobIO->CreateErrorOutput(
                 stderrTransactionId,
                 UserJobSpec.max_stderr_size());
-            stdErrOutput = ErrorOutput.get();
+            stderrOutput = ErrorOutput.get();
         } else {
-            stdErrOutput = &NullErrorOutput;
+            stderrOutput = &NullErrorOutput;
         }
-        OutputPipes.push_back(New<TOutputPipe>(pipe, stdErrOutput, STDERR_FILENO));
+        OutputPipes.push_back(New<TOutputPipe>(pipe, stderrOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
         {
@@ -562,7 +564,7 @@ private:
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
 
-    volatile bool IsInitCompleted;
+    volatile bool InitCompleted;
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;

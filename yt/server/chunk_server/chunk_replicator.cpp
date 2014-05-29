@@ -241,7 +241,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         int replicaCount = result.ReplicaCount[index];
         int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
         
-        if (replicaCount == 1 && decommissionedReplicaCount > 0) {
+        if (replicaCount >= 1 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
             const auto& replicas = decommissionedReplicas[index];
             result.DecommissionedRemovalRequests.append(replicas.begin(), replicas.end());
@@ -685,7 +685,7 @@ void TChunkReplicator::ScheduleNewJobs(
         while (it != queue.end()) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
-            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
+            if (runningReplicationSize > Config->MaxReplicationJobsSize)
                 break;
 
             auto jt = it++;
@@ -709,7 +709,7 @@ void TChunkReplicator::ScheduleNewJobs(
         while (it != RepairQueue.end()) {
             if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
                 break;
-            if (runningRepairSize > Config->MaxTotalRepairJobsSize)
+            if (runningRepairSize > Config->MaxRepairJobsSize)
                 break;
 
             auto jt = it++;
@@ -763,7 +763,7 @@ void TChunkReplicator::ScheduleNewJobs(
         for (auto chunkWithIndex : chunksToBalance) {
             if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
-            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
+            if (runningReplicationSize > Config->MaxReplicationJobsSize)
                 break;
 
             TJobPtr job;
@@ -787,7 +787,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     if (statistics.Status & EChunkStatus::Lost) {
         YCHECK(LostChunks_.insert(chunk).second);
-        if (chunk->GetVital()) {
+        if (chunk->GetVital() && chunk->GetReplicationFactor() > 1) {
             YCHECK(LostVitalChunks_.insert(chunk).second);
         }
     }
@@ -992,6 +992,14 @@ bool TChunkReplicator::IsEnabled()
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto nodeTracker = Bootstrap->GetNodeTracker();
+
+    if (Config->DisableChunkReplicator) {
+        if (!LastEnabled || LastEnabled.Get()) {
+            LOG_INFO("Chunk replicator disabled by configuration settings");
+            LastEnabled = false;
+        }
+        return false;
+    }
 
     if (Config->SafeOnlineNodeCount) {
         int needOnline = *Config->SafeOnlineNodeCount;

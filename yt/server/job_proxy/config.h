@@ -23,7 +23,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     // Filled by exec agent.

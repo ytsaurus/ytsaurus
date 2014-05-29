@@ -45,6 +45,7 @@ target_link_libraries ( ytcore
   ytext-jerasure
   ytext-json
   ytext-httpserver
+  ytext-yajl
   protobuf
 )
 

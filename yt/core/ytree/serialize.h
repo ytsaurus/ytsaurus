@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "ephemeral_node_factory.h"
 #include "yson_producer.h"
 
@@ -9,12 +10,6 @@
 #include <core/misc/small_vector.h>
 
 #include <core/yson/writer.h>
-
-namespace NYT {
-
-class TYsonSerializable;
-
-} // namespace NYT
 
 namespace NYT {
 namespace NYTree {

@@ -182,7 +182,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         CurrentUncompressedSize += channel->GetDataSize();
     }
 
-    CurrentSize = static_cast<int>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
+    CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 
     while (BuffersHeap.front()->GetDataSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock();

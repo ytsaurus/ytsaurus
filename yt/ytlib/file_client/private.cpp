@@ -9,8 +9,6 @@ namespace NFileClient {
 NLog::TLogger FileReaderLogger("FileReader");
 NLog::TLogger FileWriterLogger("FileWriter");
 
-const int FormatVersion = 1;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileClient

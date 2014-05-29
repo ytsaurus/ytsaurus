@@ -387,9 +387,9 @@ def teamcity_step(name, funcname):
 
 @contextlib.contextmanager
 def cwd(*args):
+    old_path = os.getcwd()
+    new_path = os.path.join(*args)
     try:
-        old_path = os.getcwd()
-        new_path = os.path.join(*args)
         teamcity_message("Changing current directory to {0}".format(new_path))
         os.chdir(new_path)
         yield

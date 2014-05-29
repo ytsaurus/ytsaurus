@@ -33,7 +33,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(operation);
 
     Logger.AddTag(Sprintf("OperationId: %s",
-        ~ToString(operation->GetOperationId())));
+        ~ToString(operation->GetId())));
 }
 
 void TSnapshotDownloader::Run()
@@ -42,7 +42,7 @@ void TSnapshotDownloader::Run()
 
     auto client = Bootstrap->GetMasterClient();
 
-    auto snapshotPath = GetSnapshotPath(Operation->GetOperationId());
+    auto snapshotPath = GetSnapshotPath(Operation->GetId());
     auto reader = client->CreateFileReader(
         snapshotPath,
         TFileReaderOptions(),

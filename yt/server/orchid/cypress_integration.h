@@ -10,7 +10,7 @@ namespace NOrchid {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOrchidManifest
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
     Stroka RemoteAddress;
     Stroka RemoteRoot;

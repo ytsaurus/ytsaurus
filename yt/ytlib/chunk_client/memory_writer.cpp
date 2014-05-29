@@ -1,5 +1,7 @@
 #include "memory_writer.h"
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NChunkClient {
 

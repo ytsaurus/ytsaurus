@@ -35,8 +35,13 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(const NProto::TChunkSpec& chunkSpec);
-bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId);
+bool IsUnavailable(
+    const NProto::TChunkSpec& chunkSpec,
+    bool checkParityParts = false);
+bool IsUnavailable(
+    const TChunkReplicaList& replicas,
+    NErasure::ECodec codecId,
+    bool checkParityParts = false);
 
 //! Extracts various chunk statistics by first looking at
 //! TSizeOverrideExt (if present) and then at TMiscExt.

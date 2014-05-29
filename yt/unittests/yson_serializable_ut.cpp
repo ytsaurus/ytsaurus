@@ -22,6 +22,8 @@ DECLARE_ENUM(ETestEnum,
     (Value2)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTestSubconfig
     : public TYsonSerializable
 {
@@ -40,6 +42,8 @@ struct TTestSubconfig
 };
 
 typedef TIntrusivePtr<TTestSubconfig> TTestSubconfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TTestConfig
     : public TYsonSerializable
@@ -66,6 +70,8 @@ public:
 
 typedef TIntrusivePtr<TTestConfig> TTestConfigPtr;
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
@@ -77,7 +83,7 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
 }
 
-TEST(TConfigTest, Complete)
+TEST(TYsonSerializableTest, Complete)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -155,7 +161,7 @@ TEST(TConfigTest, Complete)
     TestCompleteSubconfig(it2->second.Get());
 }
 
-TEST(TConfigTest, MissingParameter)
+TEST(TYsonSerializableTest, MissingParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -177,7 +183,7 @@ TEST(TConfigTest, MissingParameter)
     EXPECT_EQ(0, config->SubconfigMap.size());
 }
 
-TEST(TConfigTest, MissingSubconfig)
+TEST(TYsonSerializableTest, MissingSubconfig)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -196,7 +202,7 @@ TEST(TConfigTest, MissingSubconfig)
     EXPECT_EQ(0, config->SubconfigMap.ysize());
 }
 
-TEST(TConfigTest, Options)
+TEST(TYsonSerializableTest, Options)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -218,7 +224,7 @@ TEST(TConfigTest, Options)
     }
 }
 
-TEST(TConfigTest, MissingRequiredParameter)
+TEST(TYsonSerializableTest, MissingRequiredParameter)
 {
     auto configNode = BuildYsonNodeFluently()
         .BeginMap()
@@ -232,7 +238,7 @@ TEST(TConfigTest, MissingRequiredParameter)
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
-TEST(TConfigTest, IncorrectNodeType)
+TEST(TYsonSerializableTest, IncorrectNodeType)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -246,7 +252,7 @@ TEST(TConfigTest, IncorrectNodeType)
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
-TEST(TConfigTest, ArithmeticOverflow)
+TEST(TYsonSerializableTest, ArithmeticOverflow)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -270,7 +276,7 @@ TEST(TConfigTest, ArithmeticOverflow)
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
-TEST(TConfigTest, Validate)
+TEST(TYsonSerializableTest, Validate)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -285,7 +291,7 @@ TEST(TConfigTest, Validate)
     EXPECT_THROW(config->Validate(), std::exception);
 }
 
-TEST(TConfigTest, ValidateSubconfig)
+TEST(TYsonSerializableTest, ValidateSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -303,7 +309,7 @@ TEST(TConfigTest, ValidateSubconfig)
     EXPECT_THROW(config->Validate(), std::exception);
 }
 
-TEST(TConfigTest, ValidateSubconfigList)
+TEST(TYsonSerializableTest, ValidateSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -323,7 +329,7 @@ TEST(TConfigTest, ValidateSubconfigList)
     EXPECT_THROW(config->Validate(), std::exception);
 }
 
-TEST(TConfigTest, ValidateSubconfigMap)
+TEST(TYsonSerializableTest, ValidateSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
@@ -343,7 +349,7 @@ TEST(TConfigTest, ValidateSubconfigMap)
     EXPECT_THROW(config->Validate(), std::exception);
 }
 
-TEST(TConfigTest, Save)
+TEST(TYsonSerializableTest, Save)
 {
     auto config = New<TTestConfig>();
 
@@ -377,7 +383,7 @@ TEST(TConfigTest, Save)
         ConvertToNode(TYsonString(output.Data()))));
 }
 
-TEST(TConfigTest, TestConfigUpdate)
+TEST(TYsonSerializableTest, TestConfigUpdate)
 {
     auto config = New<TTestConfig>();
     {
@@ -394,6 +400,45 @@ TEST(TConfigTest, TestConfigUpdate)
         auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int_\"=150}}")));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
     }
+}
+
+TEST(TYsonSerializableTest, NoDefaultNewAliasing)
+{
+    auto config1 = New<TTestConfig>();
+    auto config2 = New<TTestConfig>();
+    EXPECT_NE(config1->Subconfig, config2->Subconfig);
+}
+
+TEST(TYsonSerializableTest, Reconfigure)
+{
+    auto config = New<TTestConfig>();
+    auto subconfig = config->Subconfig;
+
+    EXPECT_EQ("x", config->MyString);
+    EXPECT_EQ(200, subconfig->MyInt);
+
+    auto configNode1 = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("my_string").Value("y")
+        .EndMap();
+    ReconfigureYsonSerializable(config, configNode1);
+
+    EXPECT_EQ("y", config->MyString);
+    EXPECT_EQ(subconfig, config->Subconfig);
+    EXPECT_EQ(200, subconfig->MyInt);
+
+    auto configNode2 = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("my_string").Value("z")
+            .Item("sub").BeginMap()
+                .Item("my_int").Value(95)
+            .EndMap()
+        .EndMap();
+    ReconfigureYsonSerializable(config, configNode2);
+
+    EXPECT_EQ("z", config->MyString);
+    EXPECT_EQ(subconfig, config->Subconfig);
+    EXPECT_EQ(95, subconfig->MyInt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

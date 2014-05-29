@@ -21,15 +21,10 @@ public:
 
     void Shutdown();
 
-    int GetConfigVersion();
-    int GetConfigRevision();
+    int GetVersion() const;
+    ELogLevel GetMinLevel(const Stroka& category) const;
 
-    void GetLoggerConfig(
-        const Stroka& category,
-        ELogLevel* minLevel,
-        int* configVersion);
-
-    void Enqueue(const TLogEvent& event);
+    void Enqueue(TLogEvent&& event);
 
     void Reopen();
 

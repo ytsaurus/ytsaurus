@@ -116,48 +116,39 @@ void TSequentialReader::OnGotBlocks(
         static_cast<int>(blocks.size()));
 
     TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
-        &TSequentialReader::DecompressBlock,
+        &TSequentialReader::DecompressBlocks,
         MakeWeak(this),
         firstSequenceIndex,
-        0,
         readResult));
 }
 
-void TSequentialReader::DecompressBlock(
-    int firstSequenceIndex,
+void TSequentialReader::DecompressBlocks(
     int blockIndex,
     const IAsyncReader::TReadResult& readResult)
 {
-    int globalIndex = firstSequenceIndex + blockIndex;
-
-    LOG_DEBUG("Started decompressing block (BlockIndex: %d)", globalIndex);
-
     const auto& blocks = readResult.Value();
-    const auto& block = blocks[blockIndex];
-    auto data = Codec->Decompress(block);
-    BlockWindow[globalIndex].Set(data);
+    for (int i = 0; i < blocks.size(); ++i, ++blockIndex) {
+        LOG_DEBUG("Started decompressing block (BlockIndex: %d)", blockIndex + i);
 
-    UncompressedDataSize_ += data.Size();
-    CompressedDataSize_ += block.Size();
+        const auto& block = blocks[i];
+        auto data = Codec->Decompress(block);
+        BlockWindow[blockIndex].Set(data);
 
-    i64 delta = data.Size() - BlockSequence[globalIndex].Size;
+        UncompressedDataSize_ += data.Size();
+        CompressedDataSize_ += block.Size();
 
-    if (delta > 0) {
-        AsyncSemaphore.Acquire(delta);
-    } else {
-        AsyncSemaphore.Release(-delta);
-    }
+        i64 delta = data.Size() - BlockSequence[blockIndex].Size;
 
-    LOG_DEBUG("Finished decompressing block (BlockIndex: %d)", globalIndex);
+        if (delta > 0) {
+            AsyncSemaphore.Acquire(delta);
+        } else {
+            AsyncSemaphore.Release(-delta);
+        }
 
-    ++blockIndex;
-    if (blockIndex < blocks.size()) {
-        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
-            &TSequentialReader::DecompressBlock,
-            MakeWeak(this),
-            firstSequenceIndex,
+        LOG_DEBUG("Finished decompressing block %d (CompressedSize: %" PRId64 ", UncompressedSize: %" PRId64 ")", 
             blockIndex,
-            readResult));
+            static_cast<i64>(block.Size()),
+            static_cast<i64>(data.Size()));
     }
 }
 

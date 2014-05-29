@@ -38,6 +38,8 @@
 
 #include <server/hydra/file_changelog.h>
 
+#include <tclap/CmdLine.h>
+
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>

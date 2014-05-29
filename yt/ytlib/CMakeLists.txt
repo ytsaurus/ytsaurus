@@ -38,6 +38,19 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
+set( SRCS
+  ${BASE}/shutdown.cpp
+)
+set( HDRS
+  ${BASE}/shutdown.h
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -54,7 +67,9 @@ add_library( ytlib STATIC
   shutdown.cpp
 )
 
-target_link_libraries( ytlib ytcore )
+target_link_libraries ( ytlib
+  ytcore
+)
 
 if (YT_BUILD_ENABLE_LLVM)
   llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86)

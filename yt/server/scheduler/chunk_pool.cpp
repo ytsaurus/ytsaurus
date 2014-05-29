@@ -19,6 +19,8 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
+static auto& Logger = OperationLogger;
+
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripeStatistics::TChunkStripeStatistics()
@@ -59,7 +61,7 @@ void AddStripeToList(
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (descriptor.Address == *address && locality > 0) {
+                if (descriptor.GetDefaultAddress() == *address && locality > 0) {
                     list->LocalDataSize += locality;
                     isLocal = true;
                 }
@@ -427,8 +429,10 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && 
-            GetPendingJobCount() == 0 && 
+        return
+            Finished && 
+            GetPendingJobCount() == 0 &&
+            SuspendedStripeCount == 0 && 
             JobCounter.GetRunning() == 0;
     }
 
@@ -567,7 +571,7 @@ private:
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
-                AddressToLocality[descriptor.Address] += localityDelta;
+                AddressToLocality[descriptor.GetDefaultAddress()] += localityDelta;
             }
         }
     }
@@ -678,11 +682,12 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished &&
-               LostCookies.empty() &&
-               SuspendedDataSize == 0 &&
-               PendingGlobalStripes.empty() &&
-               JobCounter.GetRunning() == 0;
+        return
+            Finished &&
+            LostCookies.empty() &&
+            SuspendedDataSize == 0 &&
+            PendingGlobalStripes.empty() &&
+            JobCounter.GetRunning() == 0;
     }
 
     virtual int GetTotalJobCount() const override
@@ -1003,7 +1008,7 @@ private:
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
                     // NB: do not check that stripe is unique, it may have already been inserted,
                     // since different replicas may reside on the same node during rebalancing.
                     entry.StripeIndexes.insert(stripeIndex);
@@ -1027,7 +1032,7 @@ private:
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
                     const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
                     auto it = entry.StripeIndexes.find(stripeIndex);
                     if (it != entry.StripeIndexes.end()) {
                         entry.StripeIndexes.erase(it);
@@ -1373,8 +1378,9 @@ private:
 
         virtual bool IsCompleted() const override
         {
-            return Owner->Finished &&
-                   JobCounter.GetCompleted() == Runs.size();
+            return
+                Owner->Finished &&
+                JobCounter.GetCompleted() == Runs.size();
         }
 
         virtual int GetTotalJobCount() const override

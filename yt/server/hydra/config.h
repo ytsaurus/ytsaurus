@@ -18,7 +18,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Minimum total index records size between consecutive index records.
@@ -96,7 +96,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TMultiplexedFileChangelogConfig)
 
 class TFileChangelogCatalogConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A path where changelogs are stored.
@@ -140,7 +140,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TFileChangelogCatalogConfig)
 
 class TLocalSnapshotStoreConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A path where snapshots are stored.
@@ -160,7 +160,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
 
 class TRemoteSnapshotStoreConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! A temporary path where snapshots are written before being uploaded.
@@ -185,7 +185,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
 class TSnapshotDownloaderConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration RpcTimeout;
@@ -204,7 +204,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TSnapshotDownloaderConfig)
 
 class TChangelogDownloaderConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration RpcTimeout;
@@ -223,7 +223,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TChangelogDownloaderConfig)
 
 class TFollowerTrackerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration PingInterval;
@@ -241,7 +241,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TFollowerTrackerConfig)
 
 class TLeaderCommitterConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration MaxBatchDelay;
@@ -278,7 +278,7 @@ public:
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitterConfig)
 
 class TDistributedHydraManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Default timeout for control RPC requests.

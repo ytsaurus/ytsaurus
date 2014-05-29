@@ -7,6 +7,11 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+// XXX(babenko): fix snapshot bloat caused by remote copy
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <core/misc/protobuf_helpers.h>
+
 #include <core/erasure/codec.h>
 
 #include <server/cell_master/serialize.h>
@@ -116,6 +121,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
+
+    // XXX(babenko): fix snapshot bloat caused by remote copy
+    RemoveProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_.mutable_extensions());
+    RemoveProtoExtension<NChunkClient::NProto::TErasurePlacementExt>(ChunkMeta_.mutable_extensions());
+    RemoveProtoExtension<NVersionedTableClient::NProto::TSamplesExt>(ChunkMeta_.mutable_extensions());
+    RemoveProtoExtension<NTableClient::NProto::TIndexExt>(ChunkMeta_.mutable_extensions());
+
     SetReplicationFactor(Load<i16>(context));
     // COMPAT(psushin)
     if (context.GetVersion() >= 20) {

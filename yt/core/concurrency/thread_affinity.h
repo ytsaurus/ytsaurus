@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "thread.h"
 
 #include <core/misc/preprocessor.h>
 

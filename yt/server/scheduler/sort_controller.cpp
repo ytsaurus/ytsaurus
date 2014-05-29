@@ -354,7 +354,6 @@ protected:
         TSortControllerBase* Controller;
         std::unique_ptr<IChunkPool> ChunkPool;
 
-
         virtual bool IsMemoryReserveEnabled() const override
         {
             return Controller->IsMemoryReserveEnabled(Controller->PartitionJobCounter);
@@ -1282,6 +1281,19 @@ protected:
 
     virtual void DoOperationCompleted() override
     {
+        if (IsRowCountPreserved()) {
+            i64 totalInputRowCount = 0;
+            for (auto partition : Partitions) {
+                totalInputRowCount += partition->ChunkPoolOutput->GetTotalRowCount();
+            }
+            if (totalInputRowCount != TotalOutputRowCount) {
+                OnOperationFailed(TError(
+                    "Input/output row count mismatch in sort operation: %" PRId64 " != %" PRId64,
+                    totalInputRowCount,
+                    TotalOutputRowCount));
+            }
+        }
+
         YCHECK(CompletedPartitionCount == Partitions.size());
         TOperationControllerBase::DoOperationCompleted();
     }
@@ -1656,7 +1668,6 @@ private:
     //! |PartitionCount - 1| separating keys.
     std::vector<TOwningKey> PartitionKeys;
 
-
     // Custom bits of preparation pipeline.
 
     virtual void DoInitialize() override
@@ -1838,7 +1849,8 @@ private:
             // Check for same keys.
             if (PartitionKeys.empty() || CompareRows(*sampleKey, PartitionKeys.back()) != 0) {
                 AddPartition(*sampleKey);
-                ++sampleIndex;            } else {
+                ++sampleIndex;
+            } else {
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
@@ -1870,6 +1882,7 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
@@ -2065,6 +2078,11 @@ private:
         return result;
     }
 
+    virtual bool IsRowCountPreserved() const
+    {
+        return true;
+    }
+
     virtual TNodeResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
@@ -2080,7 +2098,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64 ", R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
@@ -2115,7 +2133,7 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
@@ -2136,9 +2154,7 @@ IOperationControllerPtr CreateSortController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortOperationSpec>(
-        operation,
-        config->SortOperationSpec);
+    auto spec = ParseOperationSpec<TSortOperationSpec>(operation->GetSpec());
     return New<TSortController>(config, spec, host, operation);
 }
 
@@ -2163,7 +2179,7 @@ public:
         , ReduceStartRowIndex(0)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) override
+    void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -2625,7 +2641,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
@@ -2657,7 +2673,7 @@ private:
             UnavailableInputChunkCount);
     }
 
-    virtual void BuildProgress(IYsonConsumer* consumer) override
+    virtual void BuildProgress(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildProgress(consumer);
         BuildYsonMapFluently(consumer)
@@ -2678,9 +2694,7 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(
-        operation,
-        config->MapReduceOperationSpec);
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec());
     return New<TMapReduceController>(config, spec, host, operation);
 }
 

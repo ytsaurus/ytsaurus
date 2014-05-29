@@ -6,7 +6,7 @@
 #include <core/misc/preprocessor.h>
 #include <core/misc/error.pb.h>
 
-#include <core/actions/future.h>
+#include <core/actions/callback.h>
 
 #include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>

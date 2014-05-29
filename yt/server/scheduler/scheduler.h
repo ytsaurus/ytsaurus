@@ -52,8 +52,7 @@ public:
     TExecNodePtr GetNode(const Stroka& address);
     TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
-    typedef TErrorOr<TOperationPtr> TStartResult;
-    TFuture<TStartResult> StartOperation(
+    TFuture<TOperationStartResult> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
         const NHydra::TMutationId& mutationId,

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include "public.h"
+
+#include <core/concurrency/thread.h>
 
 #include <core/concurrency/public.h>
 
@@ -62,12 +64,6 @@ struct TLogEvent
     const char* Function;
 
 };
-
-struct ILogWriter;
-typedef TIntrusivePtr<ILogWriter> ILogWriterPtr;
-
-class TLogger;
-class TLogManager;
 
 ////////////////////////////////////////////////////////////////////////////////
 

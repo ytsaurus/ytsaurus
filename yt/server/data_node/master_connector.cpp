@@ -238,9 +238,6 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_total_replication_session_count(sessionManager->GetSessionCount(EWriteSessionType::Replication));
     result.set_total_repair_session_count(sessionManager->GetSessionCount(EWriteSessionType::Repair));
 
-    result.set_max_replication_session_count(Config->MaxReplicationSessions);
-    result.set_max_repair_session_count(Config->MaxRepairSessions);
-
     auto tabletSlotManager = Bootstrap->GetTabletSlotManager();
     result.set_available_tablet_slots(tabletSlotManager->GetAvailableTabletSlotCount());
     result.set_used_tablet_slots(tabletSlotManager->GetUsedTableSlotCount());

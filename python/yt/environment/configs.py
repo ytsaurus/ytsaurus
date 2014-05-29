@@ -10,32 +10,27 @@ def get_logging_pattern():
     rules = [
         {
             min_level = Info;
-            writers = [ file ];
-            categories  = [ "*" ];
+            writers = [ info ];
         };
         {
             min_level = Debug;
-            writers = [ raw ];
-            categories  = [ "*" ];
+            writers = [ debug ];
         };
         {
             min_level = Error;
             writers = [ stderr ];
-            categories  = [ "*" ];
         };
     ];
     writers = {
         stderr = {
-            type = Stderr;
-            pattern = "$(datetime) $(level) $(category) $(message)";
+            type = stderr;
         };
-        file = {
-            type = File;
+        info = {
+            type = file;
             file_name = "{path}/{name}.log";
-            pattern = "$(datetime) $(level) $(category) $(message)";
         };
-        raw = {
-            type = raw;
+        debug = {
+            type = file;
             file_name = "{path}/{name}.debug.log";
         };
     };
@@ -43,11 +38,7 @@ def get_logging_pattern():
 """)
 
 def get_tracing_config():
-    return yson.loads(
-"""
-{
-}
-""")
+    return {}
 
 def get_master_config():
     return yson.loads(
@@ -143,6 +134,13 @@ def get_scheduler_config():
         environment = {
              PYTHONUSERBASE = "/tmp"
         };
+
+        enable_snapshot_loading = true;
+        snapshot_timeout = 1000;
+    };
+
+    transaction_manager = {
+        ping_period = 500;
     };
 
     logging = { };
@@ -219,27 +217,20 @@ def get_node_config():
         rules = [
             {
                 min_level = info;
-                writers = [ file ];
-                categories  = [ "*" ];
+                writers = [ info ];
             };
             {
                 min_level = debug;
-                writers = [ raw ];
-                categories  = [ "*" ];
+                writers = [ debug ];
             };
         ];
         writers = {
-            stderr = {
-                type = stderr;
-                pattern = "$(datetime) $(level) $(category) $(message)";
-            };
-            file = {
+            info = {
                 type = file;
                 file_name = "{path}/{name}.log";
-                pattern = "$(datetime) $(level) $(category) $(message)";
             };
-            raw = {
-                type = raw;
+            debug = {
+                type = file;
                 file_name = "{path}/{name}.debug.log";
             };
         }

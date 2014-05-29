@@ -43,7 +43,7 @@ public:
 private:
     TTcpDispatcher();
 
-    DECLARE_SINGLETON_FRIEND(TTcpDispatcher)
+    DECLARE_SINGLETON_FRIEND(TTcpDispatcher);
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
     friend class TTcpBusServerBase;

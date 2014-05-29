@@ -41,7 +41,7 @@ deb_without_test: deb_clean
 
 deb_clean:
 	find . -name '*.pyc' -delete
-	sudo rm -rf tests Yt.egg-info yt/wrapper/tests/sandbox/*
+	sudo rm -rf tests yt/wrapper/tests/sandbox/*
 	sudo rm -rf build/ dist/ docs/ MANIFEST *.spec *.egg *.egg-info
 
 clean: deb_clean

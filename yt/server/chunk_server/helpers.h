@@ -47,6 +47,11 @@ void SerializeOwningNodesPaths(
     TChunkTree* chunkTree,
     NYson::IYsonConsumer* consumer);
 
+void SerializeOwningNodesPaths(
+    NCypressServer::TCypressManagerPtr cypressManager,
+    TChunkTree* chunkTree,
+    NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

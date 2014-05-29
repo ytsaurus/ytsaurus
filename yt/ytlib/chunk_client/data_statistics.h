@@ -20,6 +20,8 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
 
 const TDataStatistics& ZeroDataStatistics();
 
+Stroka ToString(const TDataStatistics& statistics);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

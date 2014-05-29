@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/schemed_dsv_writer.h>
+#include <ytlib/formats/schemaful_dsv_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -9,13 +9,13 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, Simple)
+TEST(TSchemafulDsvWriterTest, Simple)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->Columns.push_back("b");
-    TSchemedDsvConsumer consumer(&outputStream, config);
+    TSchemafulDsvConsumer consumer(&outputStream, config);
 
     consumer.OnListItem();
     consumer.OnBeginMap();
@@ -50,13 +50,13 @@ TEST(TSchemedDsvWriterTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, TableIndex)
+TEST(TSchemafulDsvWriterTest, TableIndex)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->EnableTableIndex = true;
-    TSchemedDsvConsumer consumer(&outputStream, config);
+    TSchemafulDsvConsumer consumer(&outputStream, config);
 
     consumer.OnListItem();
     consumer.OnBeginMap();
@@ -94,13 +94,13 @@ TEST(TSchemedDsvWriterTest, TableIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, FailMode)
+TEST(TSchemafulDsvWriterTest, FailMode)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
-    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::Fail;
-    TSchemedDsvConsumer consumer(&outputStream, config);
+    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::Fail;
+    TSchemafulDsvConsumer consumer(&outputStream, config);
 
     consumer.OnListItem();
     consumer.OnBeginMap();
@@ -120,14 +120,14 @@ TEST(TSchemedDsvWriterTest, FailMode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvWriterTest, PrintSentinelMode)
+TEST(TSchemafulDsvWriterTest, PrintSentinelMode)
 {
     TStringStream outputStream;
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
-    config->MissingValueMode = TSchemedDsvFormatConfig::EMissingValueMode::PrintSentinel;
+    config->MissingValueMode = TSchemafulDsvFormatConfig::EMissingValueMode::PrintSentinel;
     config->MissingValueSentinel = "null";
-    TSchemedDsvConsumer consumer(&outputStream, config);
+    TSchemafulDsvConsumer consumer(&outputStream, config);
 
     consumer.OnListItem();
     consumer.OnBeginMap();

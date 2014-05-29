@@ -7,107 +7,77 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  A client may subscribe to the list (adding a new handler to it),
+ *  A client may subscribe to a list (adding a new handler to it),
  *  unsubscribe from it (removing an earlier added handler),
- *  and fire it thus invoking the handlers added so far.
- *
- *  Handlers' return values are ignored (so typically they must return |void|).
+ *  and fire it thus invoking the callbacks added so far.
  *
  *  Lists are thread-safe.
  */
 template <class TSignature>
 class TCallbackList
+{ };
+
+template <class... TArgs>
+class TCallbackList<void(TArgs...)>
 {
 public:
+    typedef NYT::TCallback<void(TArgs...)> TCallback;
+
     //! Adds a new handler to the list.
     /*!
      * \param callback A handler to be added.
      */
-    void Subscribe(const TCallback<TSignature>& callback)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        Callbacks_.push_back(callback);
-    }
+    void Subscribe(const TCallback& callback);
 
     //! Removes a handler from the list.
     /*!
      * \param callback A handler to be removed.
      * \return True if #callback was in the list of handlers.
      */
-    bool Unsubscribe(const TCallback<TSignature>& callback)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
-            if (*it == callback) {
-                Callbacks_.erase(it);
-                return true;
-            }
-        }
-        return false;
-    }
+    bool Unsubscribe(const TCallback& callback);
 
     //! Clears the list of handlers.
-    void Clear()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        Callbacks_.clear();
-    }
+    void Clear();
 
-    //! Invokes all handlers in the list.
-    template <class... TArgs>
-    void Fire(TArgs&&... args) const
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (Callbacks_.empty())
-            return;
-
-        std::vector<TCallback<TSignature>> callbacks(Callbacks_);
-        guard.Release();
-
-        for (const auto& callback : callbacks) {
-            // NB: Don't forward, pass as is. Makes sense when more than one handler is attached.
-            callback.Run(args...);
-        }
-    }
+    //! Runs all callbacks in the list.
+    void Fire(const TArgs&... args) const;
 
 private:
     mutable TSpinLock SpinLock_;
-    std::vector<TCallback<TSignature>> Callbacks_;
-
+    std::vector<TCallback> Callbacks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_SIGNAL(signature, name) \
+#define DEFINE_SIGNAL(TSignature, name) \
 protected: \
-    ::NYT::TCallbackList<signature> name##_; \
+    ::NYT::TCallbackList<TSignature> name##_; \
 public: \
-    void Subscribe##name(const ::NYT::TCallback<signature>& callback) \
+    void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
         name##_.Subscribe(callback); \
     } \
     \
-    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
+    void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
         name##_.Unsubscribe(callback); \
     }
 
-#define DECLARE_SIGNAL(signature, name) \
-    void Subscribe##name(const ::NYT::TCallback<signature>& callback); \
-    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback);
+#define DECLARE_SIGNAL(TSignature, name) \
+    void Subscribe##name(const ::NYT::TCallback<TSignature>& callback); \
+    void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback);
 
-#define DECLARE_INTERFACE_SIGNAL(signature, name) \
-    virtual void Subscribe##name(const ::NYT::TCallback<signature>& callback) = 0; \
-    virtual void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) = 0;
+#define DECLARE_INTERFACE_SIGNAL(TSignature, name) \
+    virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0; \
+    virtual void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0;
 
-#define DELEGATE_SIGNAL(declaringType, signature, name, delegateTo) \
-    void declaringType::Subscribe##name(const ::NYT::TCallback<signature>& callback) \
+#define DELEGATE_SIGNAL(declaringType, TSignature, name, delegateTo) \
+    void declaringType::Subscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
         (delegateTo).Subscribe##name(callback); \
     } \
     \
-    void declaringType::Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
+    void declaringType::Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
         (delegateTo).Unsubscribe##name(callback); \
     }
@@ -116,3 +86,6 @@ public: \
 
 } // namespace NYT
 
+#define SIGNAL_INL_H_
+#include "signal-inl.h"
+#undef SIGNAL_INL_H_

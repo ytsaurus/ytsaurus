@@ -15,10 +15,10 @@ TTaggedLogger::TTaggedLogger(const TTaggedLogger& other)
     , Tags(other.Tags)
 { }
 
-Stroka TTaggedLogger::GetCategory() const
+const Stroka& TTaggedLogger::GetCategory() const
 {
     if (!InnerLogger)
-        return "";
+        return Empty;
 
     return InnerLogger->GetCategory();
 }
@@ -31,14 +31,14 @@ bool TTaggedLogger::IsEnabled(ELogLevel level) const
     return InnerLogger->IsEnabled(level);
 }
 
-void TTaggedLogger::Write(const TLogEvent& event)
+void TTaggedLogger::Write(TLogEvent&& event)
 {
     if (!InnerLogger)
         return;
 
     auto eventCopy = event;
     eventCopy.Message = GetTaggedMessage(event.Message);
-    InnerLogger->Write(eventCopy);
+    InnerLogger->Write(std::move(eventCopy));
 }
 
 void TTaggedLogger::AddTag(const Stroka& tag)

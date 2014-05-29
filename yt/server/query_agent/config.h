@@ -25,7 +25,7 @@ DEFINE_REFCOUNTED_TYPE(TQueryChunkReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryAgentConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     int ThreadPoolSize;

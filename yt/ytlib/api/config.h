@@ -44,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TMasterConnectionConfigPtr Master;

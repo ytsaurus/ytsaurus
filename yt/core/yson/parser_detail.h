@@ -20,8 +20,8 @@ private:
     TConsumer* Consumer;
 
 public:
-    TParser(const TBlockStream& blockStream, TConsumer* consumer, int bufferLimit) 
-        : TBase(blockStream, bufferLimit)
+    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit) 
+        : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
     { }
     
@@ -299,15 +299,15 @@ void ParseYsonStreamImpl(
     IYsonConsumer* consumer, 
     EYsonType parsingMode, 
     bool enableLinePositionInfo,
-    int bufferLimit)
+    TNullable<i64> memoryLimit)
 {
     if (enableLinePositionInfo) {
         typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
-        TImpl impl(blockStream, consumer, bufferLimit);
+        TImpl impl(blockStream, consumer, memoryLimit);
         impl.DoParse(parsingMode);
     } else {
         typedef NDetail::TParser<TConsumer, TBlockStream, false> TImpl;
-        TImpl impl(blockStream, consumer, bufferLimit);
+        TImpl impl(blockStream, consumer, memoryLimit);
         impl.DoParse(parsingMode);
     }
 }
@@ -330,8 +330,8 @@ private:
     TParser Parser;
 
 public:
-    TStatelessYsonParserImpl(TConsumer* consumer, int bufferLimit)
-        : Parser(TStringReader(), consumer, bufferLimit)
+    TStatelessYsonParserImpl(TConsumer* consumer, TNullable<i64> memoryLimit)
+        : Parser(TStringReader(), consumer, memoryLimit)
     { }
     
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override

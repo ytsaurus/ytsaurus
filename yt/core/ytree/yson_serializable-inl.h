@@ -24,17 +24,24 @@
 #include <util/datetime/base.h>
 
 namespace NYT {
-namespace NConfig {
+namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 template <class T, class = void>
 struct TLoadHelper
 {
     static void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
-        UNUSED(path);
-        Deserialize(parameter, node);
+        try {
+            Deserialize(parameter, node);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error reading parameter %s",
+                ~path)
+                << ex;
+        }
     }
 };
 
@@ -42,7 +49,7 @@ struct TLoadHelper
 template <class T>
 struct TLoadHelper<
     TIntrusivePtr<T>,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T&, TYsonSerializable&> >::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TYsonSerializable&>>::TType
 >
 {
     static void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
@@ -91,7 +98,7 @@ struct TLoadHelper<yhash_set<T>, void>
     static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto listNode = node->AsList();
-        int  size = listNode->GetChildCount();
+        int size = listNode->GetChildCount();
         for (int i = 0; i < size; ++i) {
             T value;
             TLoadHelper<T>::Load(
@@ -122,6 +129,25 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
     }
 };
 
+// map
+template <class T>
+struct TLoadHelper<std::map<Stroka, T>, void>
+{
+    static void Load(std::map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
+    {
+        auto mapNode = node->AsMap();
+        for (const auto& pair : mapNode->GetChildren()) {
+            const auto& key = pair.first;
+            T value;
+            TLoadHelper<T>::Load(
+                value,
+                pair.second,
+                path + "/" + NYPath::ToYPathLiteral(key));
+            parameter.insert(std::make_pair(key, std::move(value)));
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // all
@@ -138,7 +164,7 @@ inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const NYPath::TYPath& path,
     const F& func,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TYsonSerializable*>, int>::TType = 0)
 {
     func(*parameter, path);
 }
@@ -187,7 +213,7 @@ template <class T, class F>
 inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const F& func,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TYsonSerializable*>, int>::TType = 0)
 {
     func(*parameter);
 }
@@ -221,63 +247,60 @@ inline void InvokeForComposites(
 ////////////////////////////////////////////////////////////////////////////////
 
 // all
-inline bool IsPresent(const void* /* parameter */)
+inline bool HasValue(const void* /* parameter */)
 {
     return true;
 }
 
 // TIntrusivePtr
 template <class T>
-inline bool IsPresent(TIntrusivePtr<T>* parameter)
+inline bool HasValue(TIntrusivePtr<T>* parameter)
 {
     return (bool) (*parameter);
 }
 
 // TNullable
 template <class T>
-inline bool IsPresent(TNullable<T>* parameter)
+inline bool HasValue(TNullable<T>* parameter)
 {
     return parameter->HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NDetail
+
 template <class T>
-TParameter<T>::TParameter(T& parameter)
+TYsonSerializableLite::TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
     , Description(nullptr)
 { }
 
 template <class T>
-void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
+void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
-        try {
-            TLoadHelper<T>::Load(Parameter, node, path);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter %s", ~path)
-                << ex;
-        }
-    } else {
-        if (!DefaultValue) {
-            THROW_ERROR_EXCEPTION("Missing required parameter %s", ~path);
-        }
+        NYT::NYTree::NDetail::TLoadHelper<T>::Load(Parameter, node, path);
+    } else if (!DefaultValue) {
+        THROW_ERROR_EXCEPTION("Missing required parameter %s",
+            ~path);
     }
 }
 
 template <class T>
-void TParameter<T>::Validate(const NYPath::TYPath& path) const
+void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) const
 {
     for (const auto& validator : Validators) {
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
+            THROW_ERROR_EXCEPTION("Validation failed at %s",
+                path.empty() ? "/" : ~path)
                 << ex;
         }
     }
 
-    InvokeForComposites(
+    NYT::NYTree::NDetail::InvokeForComposites(
         &Parameter,
         path,
         [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
@@ -288,13 +311,13 @@ void TParameter<T>::Validate(const NYPath::TYPath& path) const
 }
 
 template <class T>
-void TParameter<T>::SetDefaults()
+void TYsonSerializableLite::TParameter<T>::SetDefaults()
 {
     if (DefaultValue) {
         Parameter = *DefaultValue;
     }
 
-    InvokeForComposites(
+    NYT::NYTree::NDetail::InvokeForComposites(
         &Parameter,
         [] (TIntrusivePtr<TYsonSerializable> obj) {
             if (obj) {
@@ -304,26 +327,27 @@ void TParameter<T>::SetDefaults()
 }
 
 template <class T>
-void TParameter<T>::Save(NYson::IYsonConsumer* consumer) const
+void TYsonSerializableLite::TParameter<T>::Save(NYson::IYsonConsumer* consumer) const
 {
+    using NYTree::Serialize;
     Serialize(Parameter, consumer);
 }
 
 template <class T>
-bool TParameter<T>::IsPresent() const
+bool TYsonSerializableLite::TParameter<T>::HasValue() const
 {
-    return NConfig::IsPresent(&Parameter);
+    return NYT::NYTree::NDetail::HasValue(&Parameter);
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::Describe(const char* description)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Describe(const char* description)
 {
     Description = description;
     return *this;
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::Default(const T& defaultValue)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Default(const T& defaultValue)
 {
     DefaultValue = defaultValue;
     Parameter = defaultValue;
@@ -331,13 +355,13 @@ TParameter<T>& TParameter<T>::Default(const T& defaultValue)
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::DefaultNew()
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::DefaultNew()
 {
     return Default(New<typename T::TUnderlying>());
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::CheckThat(TValidator validator)
 {
     Validators.push_back(std::move(validator));
     return *this;
@@ -348,13 +372,13 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 
 #define DEFINE_VALIDATOR(method, condition, error) \
     template <class T> \
-    TParameter<T>& TParameter<T>::method \
+    TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::method \
     { \
         return CheckThat(BIND([=] (const T& parameter) { \
             using ::ToString; \
             TNullable<TValueType> nullableParameter(parameter); \
             if (nullableParameter) { \
-                const TValueType& actual = nullableParameter.Get(); \
+                const auto& actual = nullableParameter.Get(); \
                 if (!(condition)) { \
                     THROW_ERROR error; \
                 } \
@@ -402,17 +426,13 @@ DEFINE_VALIDATOR(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
-NConfig::TParameter<T>& TYsonSerializableLite::RegisterParameter(
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
     const Stroka& parameterName,
     T& value)
 {
-    auto parameter = New< NConfig::TParameter<T> >(value);
-    YCHECK(Parameters.insert(std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
+    auto parameter = New<TParameter<T>>(value);
+    YCHECK(Parameters.insert(std::make_pair(parameterName, parameter)).second);
     return *parameter;
 }
 
@@ -486,3 +506,4 @@ bool ReconfigureYsonSerializable(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+} // namespace NYTree

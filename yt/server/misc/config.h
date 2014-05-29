@@ -15,7 +15,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TAddressResolverConfigPtr AddressResolver;

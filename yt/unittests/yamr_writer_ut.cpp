@@ -100,19 +100,6 @@ TEST(TYamrWriterTest, WritingWithoutSubkey)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TYamrWriterTest, NonStringValues)
-{
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    TYamrConsumer consumer(&outputStream, config);
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("subkey");
-        EXPECT_THROW(consumer.OnDoubleScalar(0.1), std::exception);
-}
-
 TEST(TYamrWriterTest, SkippedKey)
 {
     TStringStream outputStream;
@@ -344,6 +331,24 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYamrWriterTest, IntegerAndDoubleValues)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    TYamrConsumer consumer(&outputStream, config);
+
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnIntegerScalar(1);
+        consumer.OnKeyedItem("value");
+        consumer.OnDoubleScalar(1.5);
+    consumer.OnEndMap();
+
+    Stroka output("1\t1.5\n");
+
+    EXPECT_EQ(output, outputStream.Str());
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -250,7 +250,7 @@ TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
     if (!Enabled_ || counter.Path.empty()) {
         return counter.Value += delta;
     }
-   
+
     auto now = GetCpuInstant();
 
     auto result = (counter.Value += delta);
@@ -318,29 +318,28 @@ void TProfiler::DoAggregate(
         auto avg = counter.Sum / counter.SampleCount;
         counter.Reset();
         counter.Deadline = now + counter.Interval;
-        guard.Release();
-	    switch (counter.Mode) {
-    	    case EAggregateMode::All:
-        	    Enqueue(counter.Path + "/min", min, counter.TagIds);
-            	Enqueue(counter.Path + "/max", max, counter.TagIds);
+        switch (counter.Mode) {
+            case EAggregateMode::All:
+                Enqueue(counter.Path + "/min", min, counter.TagIds);
+                Enqueue(counter.Path + "/max", max, counter.TagIds);
                 Enqueue(counter.Path + "/avg", avg, counter.TagIds);
                 break;
 
             case EAggregateMode::Min:
-	            Enqueue(counter.Path, min, counter.TagIds);
-    	        break;
-
-        	case EAggregateMode::Max:
-            	Enqueue(counter.Path, max, counter.TagIds);
+                Enqueue(counter.Path, min, counter.TagIds);
                 break;
 
-	        case EAggregateMode::Avg:
-    	        Enqueue(counter.Path, avg, counter.TagIds);
-        	    break;
+            case EAggregateMode::Max:
+                Enqueue(counter.Path, max, counter.TagIds);
+                break;
+
+            case EAggregateMode::Avg:
+                Enqueue(counter.Path, avg, counter.TagIds);
+                break;
 
             default:
-	            YUNREACHABLE();
-	    }
+                YUNREACHABLE();
+        }
     }
 }
 

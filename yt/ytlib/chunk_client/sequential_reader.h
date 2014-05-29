@@ -83,8 +83,7 @@ private:
         const std::vector<int>& blockIndexes,
         int groupSize);
 
-    void DecompressBlock(
-        int firstSequenceIndex,
+    void DecompressBlocks(
         int blockIndex,
         const IAsyncReader::TReadResult& readResult);
 

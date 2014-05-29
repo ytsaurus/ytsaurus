@@ -64,7 +64,7 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 Stroka TChunkReplicaAddressFormatter::Format(TChunkReplica replica) const
 {
     const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
-    return Sprintf("%s/%d", ~descriptor.Address, replica.GetIndex());
+    return Sprintf("%s/%d", ~descriptor.GetDefaultAddress(), replica.GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

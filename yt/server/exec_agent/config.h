@@ -15,7 +15,7 @@ namespace NExecAgent {
 
 //! Describes configuration of a single environment.
 class TEnvironmentConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     Stroka Type;
@@ -34,7 +34,7 @@ public:
 
 //! Describes configuration for a collection of named environments.
 class TEnvironmentManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TEnvironmentManagerConfig()
@@ -56,7 +56,7 @@ public:
 };
 
 class TSlotManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     //! Root path for slot directories.
@@ -101,7 +101,7 @@ public:
 };
 
 class TExecAgentConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TSlotManagerConfigPtr SlotManager;

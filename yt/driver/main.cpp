@@ -21,6 +21,8 @@
 
 #include <ytlib/shutdown.h>
 
+#include <ytlib/shutdown.h>
+
 #include <server/exec_agent/config.h>
 
 #include <util/stream/pipe.h>

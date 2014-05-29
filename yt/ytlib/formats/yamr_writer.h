@@ -71,6 +71,9 @@ private:
     EValueType ValueType;
     NTableClient::EControlAttribute ControlAttribute;
 
+    // To store Integer and Double values converted to strings.
+    std::vector<Stroka> StringStorage_;
+
     void WriteRow();
     void WriteInLenvalMode(const TStringBuf& value);
 

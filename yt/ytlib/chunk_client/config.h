@@ -18,7 +18,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Timeout for a block request.
@@ -90,7 +90,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TClientBlockCacheConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! The maximum number of bytes that block are allowed to occupy.
@@ -110,7 +110,7 @@ DEFINE_REFCOUNTED_TYPE(TClientBlockCacheConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSequentialReaderConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Prefetch window size (in bytes).
@@ -141,7 +141,7 @@ DEFINE_REFCOUNTED_TYPE(TSequentialReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Maximum window size (in bytes).
@@ -203,7 +203,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     i64 ErasureWindowSize;
@@ -221,7 +221,7 @@ DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TEncodingWriterConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     i64 EncodeWindowSize;
@@ -244,8 +244,8 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TEncodingWriterOptions
-    : public virtual TYsonSerializable
+struct TEncodingWriterOptions
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     NCompression::ECodec CompressionCodec;
@@ -262,7 +262,7 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TDispatcherConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     int CompressionPoolSize;
@@ -381,7 +381,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TFetcherConfig
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     NRpc::TRetryingChannelConfigPtr NodeChannel;

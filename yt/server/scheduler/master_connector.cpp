@@ -28,6 +28,8 @@
 
 #include <core/ypath/token.h>
 
+#include <ytlib/api/config.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
@@ -42,11 +44,17 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/hive/cluster_directory.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 #include <server/cell_scheduler/config.h>
+
+#include <server/object_server/object_manager.h>
+
 
 namespace NYT {
 namespace NScheduler {
@@ -56,6 +64,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NHydra;
@@ -80,6 +89,7 @@ public:
         : Config(config)
         , Bootstrap(bootstrap)
         , Proxy(Bootstrap->GetMasterClient()->GetMasterChannel())
+        , ClusterDirectory(Bootstrap->GetClusterDirectory())
         , Connected(false)
     { }
 
@@ -101,7 +111,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto id = operation->GetOperationId();
+        auto id = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %s)",
             ~ToString(id));
 
@@ -148,7 +158,7 @@ public:
         YCHECK(Connected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
-        auto id = operation->GetOperationId();
+        auto id = operation->GetId();
         LOG_INFO("Resetting reviving operation node (OperationId: %s)",
             ~ToString(id));
 
@@ -182,7 +192,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto id = operation->GetOperationId();
+        auto id = operation->GetId();
         LOG_INFO("Flushing operation node (OperationId: %s)",
             ~ToString(id));
 
@@ -203,20 +213,20 @@ public:
     }
 
 
-    void CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
+    void CreateJobNode(TJobPtr job, const TChunkId& stderrChunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StderrChunkId: %s)",
-            ~ToString(job->GetOperation()->GetOperationId()),
+        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
+            ~ToString(job->GetOperation()->GetId()),
             ~ToString(job->GetId()),
-            ~ToString(stdErrChunkId));
+            ~ToString(stderrChunkId));
 
         auto* list = GetUpdateList(job->GetOperation());
         TJobRequest request;
         request.Job = job;
-        request.StderrChunkId = stdErrChunkId;
+        request.StderrChunkId = stderrChunkId;
         list->JobRequests.push_back(request);
     }
 
@@ -229,7 +239,7 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Attaching live preview chunk tree (OperationId: %s, ChunkListId: %s, ChildId: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~ToString(chunkListId),
             ~ToString(childId));
 
@@ -249,7 +259,7 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %s, ChunkListId: %s, ChildrenCount: %d)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~ToString(chunkListId),
             static_cast<int>(childrenIds.size()));
 
@@ -298,6 +308,7 @@ private:
     NCellScheduler::TBootstrap* Bootstrap;
 
     TObjectServiceProxy Proxy;
+    NHive::TClusterDirectoryPtr ClusterDirectory;
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
@@ -310,6 +321,7 @@ private:
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
     TPeriodicExecutorPtr WatchersExecutor;
     TPeriodicExecutorPtr SnapshotExecutor;
+    TPeriodicExecutorPtr ClusterDirectoryExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -380,7 +392,7 @@ private:
             TDelayedExecutor::Submit(
                 BIND(&TImpl::StartConnecting, MakeStrong(this))
                     .Via(Bootstrap->GetControlInvoker()),
-                Config->ConnectRetryPeriod);
+                Config->ConnectRetryBackoffTime);
             return;
         }
 
@@ -430,7 +442,7 @@ private:
         {
             auto localHostName = TAddressResolver::Get()->GetLocalHostName();
             int port = Owner->Bootstrap->GetConfig()->RpcPort;
-            ServiceAddresss = BuildServiceAddress(localHostName, port);
+            ServiceAddress = BuildServiceAddress(localHostName, port);
         }
 
         TErrorOr<TMasterHandshakeResult> Run()
@@ -440,6 +452,7 @@ private:
                 StartLockTransaction();
                 TakeLock();
                 AssumeControl();
+                UpdateClusterDirectory();
                 ListOperations();
                 RequestOperationAttributes();
                 CheckOperationTransactions();
@@ -455,7 +468,7 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner;
-        Stroka ServiceAddresss;
+        Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
@@ -463,7 +476,7 @@ private:
         void RegisterInstance()
         {
             auto batchReq = Owner->StartBatchRequest(false);
-            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddresss);
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddress);
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -476,7 +489,7 @@ private:
                 req->set_ignore_existing(true);
                 req->set_type(EObjectType::Orchid);
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_address", ServiceAddresss);
+                attributes->Set("remote_address", ServiceAddress);
                 ToProto(req->mutable_node_attributes(), *attributes);
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
@@ -498,7 +511,7 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddresss));
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddress));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);
@@ -559,6 +572,12 @@ private:
 
             auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        }
+
+        void UpdateClusterDirectory()
+        {
+            Owner->Bootstrap->GetClusterDirectory()->UpdateSelf();
+            Owner->OnGotClusters(WaitFor(Owner->GetClusters()));
         }
 
         // - Request operations and their states.
@@ -658,11 +677,34 @@ private:
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
                                 LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s, TransactionId: %s)",
-                                    ~ToString(operation->GetOperationId()),
+                                    ~ToString(operation->GetId()),
                                     ~ToString(transaction->GetId()));
                             }
                         }));
+//            auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, false);
+//
+//            auto getRspName = [] (TOperationPtr operation) {
+//                return "ping_op_tx:" + ToString(operation->GetId());
+//            };
+//
+//            auto setCleanStart = [] (TOperationPtr operation) {
+//                if (!operation->GetCleanStart()) {
+//                    operation->SetCleanStart(true);
+//                }
+//                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
+//                    ~ToString(operation->GetId()));
+//            };
+//
+//            for (auto operation : Result.Operations) {
+//                auto schedulePing = [&] (ITransactionPtr transaction) {
+//                    if (transaction) {
+//                        auto req = TTransactionYPathProxy::Ping(FromObjectId(transaction->GetId()));
+//                        return batchRequest.AddRequestForTransaction(req, getRspName(operation), transaction->GetId());
+//                    }
+//                    return false;
                 };
+
+                operation->SetState(EOperationState::Reviving);
 
                 // NB: Async transaction is not checked.
                 checkTransaction(operation, operation->GetUserTransaction());
@@ -672,6 +714,29 @@ private:
             }
 
             WaitFor(awaiter->Complete());
+//                schedulePing(operation->GetUserTransaction());
+//                if (!schedulePing(operation->GetSyncSchedulerTransaction()) ||
+//                    !schedulePing(operation->GetInputTransaction()) ||
+//                    !schedulePing(operation->GetOutputTransaction()))
+//                {
+//                    setCleanStart(operation);
+//                }
+//            }
+//
+//            auto batchResponse = batchRequest.Execute();
+//            for (const auto& operation : Result.Operations) {
+//                auto responses = batchResponse.FindResponses(getRspName(operation));
+//                if (!responses) {
+//                    setCleanStart(operation);
+//                    continue;
+//                }
+//                for (const auto& rsp : batchResponse.GetResponses(getRspName(operation))) {
+//                    if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
+//                        setCleanStart(operation);
+//                        break;
+//                    }
+//                }
+//            }
         }
 
         // - Check snapshots for existence and validate versions.
@@ -688,7 +753,7 @@ private:
 
         bool DownloadSnapshot(TOperationPtr operation)
         {
-            const auto& operationId = operation->GetOperationId();
+            const auto& operationId = operation->GetId();
             auto snapshotPath = GetSnapshotPath(operationId);
 
             auto batchReq = Owner->StartBatchRequest();
@@ -709,7 +774,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting snapshot version");
 
             int version = ConvertTo<int>(TYsonString(rsp->value()));
-                
+
             LOG_INFO("Snapshot found (OperationId: %s, Version: %d)",
                 ~ToString(operationId),
                 version);
@@ -764,8 +829,8 @@ private:
 
                 if (operation->GetCleanStart()) {
                     LOG_INFO("Aborting operation transactions (OperationId: %s)",
-                        ~ToString(operation->GetOperationId()));
-                        
+                        ~ToString(operation->GetId()));
+
                     // NB: Don't touch user transaction.
                     scheduleAbort(operation->GetSyncSchedulerTransaction());
                     operation->SetSyncSchedulerTransaction(nullptr);
@@ -777,7 +842,7 @@ private:
                     operation->SetOutputTransaction(nullptr);
                 } else {
                     LOG_INFO("Reusing operation transactions (OperationId: %s)",
-                        ~ToString(operation->GetOperationId()));
+                        ~ToString(operation->GetId()));
                 }
             }
 
@@ -791,7 +856,7 @@ private:
 
             for (auto operation : Result.Operations) {
                 if (operation->GetCleanStart()) {
-                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetId()));
                     req->set_force(true);
                     batchReq->AddRequest(req, "remove_snapshot");
                 }
@@ -968,6 +1033,13 @@ private:
             Config->WatchersUpdatePeriod,
             EPeriodicExecutorMode::Manual);
         WatchersExecutor->Start();
+
+        ClusterDirectoryExecutor = New<TPeriodicExecutor>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateClusterDirectory, MakeWeak(this)),
+            Config->ClusterDirectoryUpdatePeriod,
+            EPeriodicExecutorMode::Manual);
+        ClusterDirectoryExecutor->Start();
     }
 
     void StopRefresh()
@@ -985,6 +1057,11 @@ private:
         if (WatchersExecutor) {
             WatchersExecutor->Stop();
             WatchersExecutor.Reset();
+        }
+
+        if (ClusterDirectoryExecutor) {
+            ClusterDirectoryExecutor->Stop();
+            ClusterDirectoryExecutor.Reset();
         }
     }
 
@@ -1010,139 +1087,129 @@ private:
 
     void RefreshTransactions()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
+        // TODO(ignat): uncomment and remove MultiCellBatchRequest
+        //VERIFY_THREAD_AFFINITY(ControlThread);
+        //YCHECK(Connected);
 
-        // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> watchSet;
-        auto watchTransaction = [&] (TTransactionPtr transaction) {
-            if (transaction) {
-                watchSet.insert(transaction->GetId());
-            }
-        };
+        //// Collect all transactions that are used by currently running operations.
+        //yhash_set<TTransactionId> watchSet;
+        //auto watchTransaction = [&] (TTransactionPtr transaction) {
+        //    if (transaction) {
+        //        watchSet.insert(transaction->GetId());
+        //    }
+        //};
 
-        auto operations = Bootstrap->GetScheduler()->GetOperations();
-        for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Running)
-                continue;
+        //auto operations = Bootstrap->GetScheduler()->GetOperations();
+        //for (auto operation : operations) {
+        //    if (operation->GetState() != EOperationState::Running)
+        //        continue;
 
-            watchTransaction(operation->GetUserTransaction());
-            watchTransaction(operation->GetSyncSchedulerTransaction());
-            watchTransaction(operation->GetAsyncSchedulerTransaction());
-            watchTransaction(operation->GetInputTransaction());
-            watchTransaction(operation->GetOutputTransaction());
-        }
+        //    watchTransaction(operation->GetUserTransaction());
+        //    watchTransaction(operation->GetSyncSchedulerTransaction());
+        //    watchTransaction(operation->GetAsyncSchedulerTransaction());
+        //    watchTransaction(operation->GetInputTransaction());
+        //    watchTransaction(operation->GetOutputTransaction());
+        //}
 
-        // Invoke GetId verbs for these transactions to see if they are alive.
-        std::vector<TTransactionId> transactionIdsList;
-        auto batchReq = StartBatchRequest();
-        for (const auto& id : watchSet) {
-            auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
-            transactionIdsList.push_back(id);
-            batchReq->AddRequest(checkReq, "check_tx");
-        }
+        //yhash_set<TTransactionId> deadTransactionIds;
 
-        LOG_INFO("Refreshing transactions");
+        //// Invoke GetId verbs for these transactions to see if they are alive.
+        //auto batchRequest = TMultiCellBatchRequest(ClusterDirectory, false);
 
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnTransactionsRefreshed, MakeStrong(this), transactionIdsList)
-                .Via(CancelableControlInvoker));
+        //std::vector<TTransactionId> transactionIds;
+        //for (const auto& id, watchSet) {
+        //    auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
+        //    if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
+        //        transactionIds.push_back(id);
+        //    } else {
+        //        deadTransactionIds.insert(id);
+        //    }
+        //}
+
+        //LOG_INFO("Refreshing transactions");
+
+        //TransactionRefreshExecutor->ScheduleNext();
+
+        //auto batchResponse = batchRequest.Execute(CancelableControlInvoker);
+        //if (!batchResponse.IsOK()) {
+        //    LOG_ERROR(batchResponse, "Error refreshing transactions");
+        //    return;
+        //}
+
+        //for (int index = 0; index < static_cast<int>(batchResponse.GetSize()); ++index) {
+        //    if (!batchResponse.GetResponse(index)->IsOK()) {
+        //        YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
+        //    }
+        //}
+
+        //LOG_INFO("Transactions refreshed");
+
+        //auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+        //    if (!transaction) {
+        //        return true;
+        //    }
+
+        //    if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
+        //        return true;
+        //    }
+
+        //    return false;
+        //};
+
+        //auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+        //    if (isTransactionAlive(operation, transaction)) {
+        //        return true;
+        //    }
+
+        //    LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
+        //        ~ToString(operation->GetId()),
+        //        ~ToString(transaction->GetId()));
+        //    return false;
+        //};
+
+        //auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+        //    if (isTransactionAlive(operation, transaction)) {
+        //        return true;
+        //    }
+
+        //    LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
+        //        ~ToString(operation->GetId()),
+        //        ~ToString(transaction->GetId()));
+        //    return false;
+        //};
+
+        //// Check every operation's transactions and raise appropriate notifications.
+        //for (auto operation : operations) {
+        //    if (operation->GetState() != EOperationState::Running)
+        //        continue;
+
+        //    if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
+        //        UserTransactionAborted_.Fire(operation);
+        //    }
+
+        //    if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
+        //        !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
+        //        !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
+        //        !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
+        //    {
+        //        SchedulerTransactionAborted_.Fire(operation);
+        //    }
+        //}
     }
-
-    void OnTransactionsRefreshed(
-        const std::vector<TTransactionId>& transactionIds,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        TransactionRefreshExecutor->ScheduleNext();
-
-        if (!batchRsp->IsOK()) {
-            LOG_ERROR(*batchRsp, "Error refreshing transactions");
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Transactions refreshed");
-
-        // Collect the list of dead transactions.
-        auto rsps = batchRsp->GetResponses("check_tx");
-        yhash_set<TTransactionId> deadTransactionIds;
-        for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
-            if (!batchRsp->GetResponse(index)->IsOK()) {
-                YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
-            }
-        }
-
-        auto isTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
-            if (!transaction) {
-                return true;
-            }
-
-            if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
-                return true;
-            }
-
-            return false;
-        };
-
-        auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
-            if (isTransactionAlive(operation, transaction)) {
-                return true;
-            }
-
-            LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
-                ~ToString(operation->GetOperationId()),
-                ~ToString(transaction->GetId()));
-            return false;
-        };
-
-        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
-            if (isTransactionAlive(operation, transaction)) {
-                return true;
-            }
-
-            LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
-                ~ToString(operation->GetOperationId()),
-                ~ToString(transaction->GetId()));
-            return false;
-        };
-
-        // Check every operation's transactions and raise appropriate notifications.
-        auto operations = Bootstrap->GetScheduler()->GetOperations();
-        for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Running)
-                continue;
-
-            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
-                UserTransactionAborted_.Fire(operation);
-            }
-
-            if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
-                !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
-            {
-                SchedulerTransactionAborted_.Fire(operation);
-            }
-        }
-    }
-
 
     TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
         LOG_DEBUG("Operation update list registered (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
         TUpdateList list(Bootstrap->GetMasterClient()->GetMasterChannel(), operation);
-        auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
+        auto pair = UpdateLists.insert(std::make_pair(operation->GetId(), list));
         YCHECK(pair.second);
         return &pair.first->second;
     }
 
     TUpdateList* FindUpdateList(TOperationPtr operation)
     {
-        auto it = UpdateLists.find(operation->GetOperationId());
+        auto it = UpdateLists.find(operation->GetId());
         return it == UpdateLists.end() ? nullptr : &it->second;
     }
 
@@ -1156,8 +1223,8 @@ private:
     void RemoveUpdateList(TOperationPtr operation)
     {
         LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
-        YCHECK(UpdateLists.erase(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
+        YCHECK(UpdateLists.erase(operation->GetId()));
     }
 
     void ClearUpdateLists()
@@ -1168,10 +1235,10 @@ private:
 
     TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
     {
-        auto it = WatcherLists.find(operation->GetOperationId());
+        auto it = WatcherLists.find(operation->GetId());
         if (it == WatcherLists.end()) {
             it = WatcherLists.insert(std::make_pair(
-                operation->GetOperationId(),
+                operation->GetId(),
                 TWatcherList(operation))).first;
         }
         return &it->second;
@@ -1179,7 +1246,7 @@ private:
 
     TWatcherList* FindWatcherList(TOperationPtr operation)
     {
-        auto it = WatcherLists.find(operation->GetOperationId());
+        auto it = WatcherLists.find(operation->GetId());
         return it == WatcherLists.end() ? nullptr : &it->second;
     }
 
@@ -1202,7 +1269,7 @@ private:
                 finishedOperations.push_back(operation);
             } else {
                 LOG_DEBUG("Updating operation node (OperationId: %s)",
-                    ~ToString(operation->GetOperationId()));
+                    ~ToString(operation->GetId()));
 
                 auto batchReq = StartBatchRequest(&list);
                 PrepareOperationUpdate(&list, batchReq);
@@ -1236,7 +1303,7 @@ private:
         }
 
         LOG_DEBUG("Operation node updated (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
     void OnOperationNodesUpdated()
@@ -1255,7 +1322,7 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         auto state = operation->GetState();
-        auto operationPath = GetOperationPath(operation->GetOperationId());
+        auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
 
         // Set state.
@@ -1325,7 +1392,7 @@ private:
             for (const auto& request : requests) {
                 auto job = request.Job;
                 auto operation = job->GetOperation();
-                auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
+                auto jobPath = GetJobPath(operation->GetId(), job->GetId());
 
                 {
                     auto req = TYPathProxy::Set(jobPath);
@@ -1340,9 +1407,9 @@ private:
                 }
 
                 if (request.StderrChunkId != NullChunkId) {
-                    auto stdErrPath = GetStderrPath(operation->GetOperationId(), job->GetId());
+                    auto stderrPath = GetStderrPath(operation->GetId(), job->GetId());
 
-                    auto req = TCypressYPathProxy::Create(stdErrPath);
+                    auto req = TCypressYPathProxy::Create(stderrPath);
                     GenerateMutationId(req);
                     req->set_type(EObjectType::File);
 
@@ -1400,7 +1467,7 @@ private:
         TOperationPtr operation,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         if (!batchRsp->IsOK()) {
             return TError(
@@ -1440,7 +1507,7 @@ private:
             for (auto rsp : rsps) {
                 if (!rsp->IsOK()) {
                     LOG_WARNING(
-                        rsp->GetError(), 
+                        rsp->GetError(),
                         "Error updating live preview (OperationId: %s)",
                         ~ToString(operationId));
                 }
@@ -1456,7 +1523,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
         auto error = batchRsp->GetCumulativeError();
 
         if (!error.IsOK()) {
@@ -1480,7 +1547,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         auto error = batchRsp->GetCumulativeError();
 
@@ -1505,7 +1572,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto operationId = operation->GetOperationId();
+        auto operationId = operation->GetId();
 
         auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
@@ -1592,7 +1659,7 @@ private:
 
         if (!batchRsp->IsOK()) {
             LOG_ERROR(*batchRsp, "Error updating operation watchers (OperationId: %s)",
-                ~ToString(operation->GetOperationId()));
+                ~ToString(operation->GetId()));
             return;
         }
 
@@ -1608,7 +1675,7 @@ private:
         }
 
         LOG_INFO("Operation watchers updated (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
+            ~ToString(operation->GetId()));
     }
 
 
@@ -1630,6 +1697,55 @@ private:
         SnapshotExecutor->ScheduleNext();
     }
 
+    void UpdateClusterDirectory()
+    {
+        auto this_ = MakeStrong(this);
+        GetClusters()
+            .Subscribe(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) {
+                OnGotClusters(rsp);
+                OnClusterDirectoryUpdated();
+            }).Via(CancelableControlInvoker));
+    }
+
+    void OnClusterDirectoryUpdated()
+    {
+        ClusterDirectoryExecutor->ScheduleNext();
+    }
+
+    TFuture<TYPathProxy::TRspGetPtr> GetClusters()
+    {
+        return Proxy.Execute(TYPathProxy::Get("//sys/clusters"));
+    }
+
+    void OnGotClusters(TYPathProxy::TRspGetPtr rsp)
+    {
+        if (rsp->IsOK()) {
+            try {
+                auto clustersNode = ConvertToNode(TYsonString(rsp->value()))->AsMap();
+
+                for (auto name : ClusterDirectory->GetClusterNames()) {
+                    if (!clustersNode->FindChild(name)) {
+                        ClusterDirectory->RemoveCluster(name);
+                    }
+                }
+
+                for (const auto& pair : clustersNode->GetChildren()) {
+                    const auto& clusterName = pair.first;
+                    auto clusterNode = pair.second->AsMap();
+
+                    auto cellId = ConvertTo<TCellId>(clusterNode->GetChild("cell_id"));
+
+                    auto connectionConfig = New<NApi::TConnectionConfig>(); 
+                    connectionConfig->Load(clusterNode->GetChild("connection"));
+
+                    ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId);
+                }
+                LOG_DEBUG("Cell directory updated successfully");
+            } catch (const std::exception& ex) {
+                LOG_ERROR(TError("Cannot update cell directory") << ex);
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1668,9 +1784,9 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
+void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stderrChunkId)
 {
-    return Impl->CreateJobNode(job, stdErrChunkId);
+    return Impl->CreateJobNode(job, stderrChunkId);
 }
 
 void TMasterConnector::AttachToLivePreview(

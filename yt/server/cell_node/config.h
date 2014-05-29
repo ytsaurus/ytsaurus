@@ -51,12 +51,16 @@ public:
     NObjectServer::TMasterCacheServiceConfigPtr MasterCache;
 
 
+    yhash_map<Stroka, Stroka> Addresses;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_expiration_period", OrchidCacheExpirationPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);
+        RegisterParameter("addresses", Addresses)
+            .Default();
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
         RegisterParameter("cluster_connection", ClusterConnection)

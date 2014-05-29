@@ -11,8 +11,6 @@ namespace NFileClient {
 extern NLog::TLogger FileReaderLogger;
 extern NLog::TLogger FileWriterLogger;
 
-extern const int FormatVersion;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileClient

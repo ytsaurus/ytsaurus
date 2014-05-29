@@ -13,9 +13,12 @@
 //==============================================================================
 */
 
+//#include "public.h"
+
 #include <core/misc/mpl.h>
 
 namespace NYT {
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // This defines a set of MPL functors which are used to augment #Bind()

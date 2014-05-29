@@ -312,7 +312,7 @@ public:
             auto replica = replicas[RandomNumber(replicas.size())];
             auto descriptor = nodeDirectory->GetDescriptor(replica);
 
-            groups[descriptor.Address].push_back(split);
+            groups[descriptor.GetDefaultAddress()].push_back(split);
         }
 
         result.reserve(groups.size());
@@ -332,7 +332,7 @@ public:
         auto replica = replicas[RandomNumber(replicas.size())];
 
         auto descriptor = fragment.GetContext()->GetNodeDirectory()->GetDescriptor(replica);
-        auto address = descriptor.Address;
+        auto address = descriptor.GetDefaultAddress();
         auto channel = NodeChannelFactory_->CreateChannel(address);
 
         TQueryServiceProxy proxy(channel);

@@ -10,7 +10,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration StatisticsFlushPeriod;

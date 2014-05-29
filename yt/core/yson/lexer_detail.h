@@ -53,16 +53,16 @@ private:
     static EReadStartCase GetStartState(char ch)
     {
 #define NN EReadStartCase::None
-#define BS EReadStartCase::BinaryString	
-#define BI EReadStartCase::BinaryInteger	
-#define BD EReadStartCase::BinaryDouble	
+#define BS EReadStartCase::BinaryString
+#define BI EReadStartCase::BinaryInteger
+#define BD EReadStartCase::BinaryDouble
 #define SP NN 
         //EReadStartCase::Space
 #define DM EReadStartCase::DigitOrMinus
 #define ST EReadStartCase::String
 #define PL EReadStartCase::Plus
 #define QU EReadStartCase::Quote
-	
+
         static const ui8 lookupTable[] = 
         {
             NN,BS,BI,BD,NN,NN,NN,NN,NN,SP,SP,SP,SP,SP,NN,NN,
@@ -114,7 +114,7 @@ private:
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN
         };
-		
+
 #undef NN
 #undef BS
 #undef BI
@@ -128,8 +128,8 @@ private:
     }
 
 public:
-    TLexer(const TBlockStream& blockStream) 
-        : TBase(blockStream)
+    TLexer(const TBlockStream& blockStream, TNullable<i64> memoryLimit) 
+        : TBase(blockStream, memoryLimit)
     { }
 
     void GetToken(TToken* token)
@@ -263,7 +263,7 @@ private:
 
 public:
     TStatelesYsonLexerImpl()
-        : Lexer(TStringReader())
+        : Lexer(TStringReader(), Null)
     { }
     
     size_t GetToken(const TStringBuf& data, TToken* token) override

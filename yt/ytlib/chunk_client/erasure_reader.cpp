@@ -1,8 +1,12 @@
 #include "erasure_reader.h"
 #include "async_writer.h"
 #include "async_reader.h"
+#include "block_cache.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_replica.h"
+#include "config.h"
 #include "dispatcher.h"
+#include "replication_reader.h"
 
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
@@ -10,6 +14,8 @@
 
 #include <core/erasure/codec.h>
 #include <core/erasure/helpers.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <numeric>
 
@@ -208,7 +214,7 @@ private:
                 RETURN_IF_ERROR(metaOrError);
 
                 auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
-                PartInfos_ = FromProto<TPartInfo>(extension.part_infos());
+                PartInfos_ = NYT::FromProto<TPartInfo>(extension.part_infos());
 
                 // Check that part infos are correct.
                 YCHECK(PartInfos_.front().start() == 0);
@@ -786,6 +792,109 @@ TAsyncError RepairErasedParts(
         writers,
         onProgress);
     return session->Run();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::vector<IAsyncReaderPtr> CreateErasurePartsReaders(
+    TReplicationReaderConfigPtr config,
+    IBlockCachePtr blockCache,
+    NRpc::IChannelPtr masterChannel,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas_,
+    const NErasure::ICodec* codec,
+    int partCount,
+    const Stroka& networkName)
+{
+    YCHECK(IsErasureChunkId(chunkId));
+    
+    TChunkReplicaList replicas = replicas_;
+    std::sort(
+        replicas.begin(),
+        replicas.end(),
+        [] (TChunkReplica lhs, TChunkReplica rhs) {
+            return lhs.GetIndex() < rhs.GetIndex();
+        });
+
+    std::vector<IAsyncReaderPtr> readers;
+    readers.reserve(partCount);
+
+    {
+        auto it = replicas.begin();
+        while (it != replicas.end() && it->GetIndex() < partCount) {
+            auto jt = it;
+            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
+                ++jt;
+            }
+
+            TChunkReplicaList partReplicas(it, jt);
+            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
+            auto reader = CreateReplicationReader(
+                config,
+                blockCache,
+                masterChannel,
+                nodeDirectory,
+                Null,
+                partId,
+                partReplicas,
+                networkName);
+            readers.push_back(reader);
+
+            it = jt;
+        }
+    }
+    YCHECK(readers.size() == partCount);
+
+    return readers;
+}
+
+} // anonymous namespace
+
+std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
+    TReplicationReaderConfigPtr config,
+    IBlockCachePtr blockCache,
+    NRpc::IChannelPtr masterChannel,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TChunkId& chunkId,
+    const TChunkReplicaList& seedReplicas,
+    const NErasure::ICodec* codec,
+    const Stroka& networkName)
+{
+    return CreateErasurePartsReaders(
+        config,
+        blockCache,
+        masterChannel,
+        nodeDirectory,
+        chunkId,
+        seedReplicas,
+        codec,
+        codec->GetDataPartCount(),
+        networkName);
+}
+
+std::vector<IAsyncReaderPtr> CreateErasureAllPartsReaders(
+    TReplicationReaderConfigPtr config,
+    IBlockCachePtr blockCache,
+    NRpc::IChannelPtr masterChannel,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TChunkId& chunkId,
+    const TChunkReplicaList& seedReplicas,
+    const NErasure::ICodec* codec,
+    const Stroka& networkName)
+{
+    return CreateErasurePartsReaders(
+        config,
+        blockCache,
+        masterChannel,
+        nodeDirectory,
+        chunkId,
+        seedReplicas,
+        codec,
+        codec->GetTotalPartCount(),
+        networkName);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -67,7 +67,7 @@ TDsvParser::TDsvParser(
     , Config(config)
     , WrapWithMap(wrapWithMap)
     , LastCharacter(Config->RecordSeparator)
-    , Table(config)
+    , Table(config, false)
     , NewRecordStarted(!wrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)

@@ -234,7 +234,7 @@ TAsyncError TSession::SendBlocks(
 
     Ping();
 
-    TProxy proxy(ChannelFactory->CreateChannel(target.Address));
+    TProxy proxy(ChannelFactory->CreateChannel(target.GetDefaultAddress()));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
@@ -662,6 +662,11 @@ TSessionPtr TSessionManager::StartSession(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (static_cast<int>(SessionMap.size()) >= Config->MaxWriteSessions) {
+        THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %d has been reached",
+            Config->MaxWriteSessions);
+    }
+    
     auto chunkStore = Bootstrap->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation();
 

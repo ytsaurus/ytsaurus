@@ -6,6 +6,7 @@
 #include "small_key.h"
 
 #include <core/misc/varint.h>
+#include <core/misc/ref_counted_tracker.h>
 
 #include <core/yson/lexer.h>
 

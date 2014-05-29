@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import to_yson_type
 
 import time
 import os

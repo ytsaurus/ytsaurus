@@ -55,7 +55,7 @@ public:
         , StartRowIndex(0)
     { }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) override
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TOperationControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -304,7 +304,7 @@ private:
 
     // Progress reporting.
 
-    virtual Stroka GetLoggingProgress() override
+    virtual Stroka GetLoggingProgress() const override
     {
         return Sprintf(
             "Jobs = {T: %" PRId64", R: %" PRId64", C: %" PRId64", P: %d, F: %" PRId64", A: %" PRId64"}, "
@@ -361,7 +361,7 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapOperationSpec>(operation, config->MapOperationSpec);
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
     return New<TMapController>(config, spec, host, operation);
 }
 

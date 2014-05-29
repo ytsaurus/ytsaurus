@@ -14,7 +14,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
    
 class TThroughputThrottlerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TThroughputThrottlerConfig()

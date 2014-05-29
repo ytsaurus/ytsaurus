@@ -39,6 +39,8 @@ message TReqFetch
 	optional NChunkClient.NProto.TChannel channel = 7;
 	optional NChunkClient.NProto.TReadLimit lower_limit = 8;
 	optional NChunkClient.NProto.TReadLimit upper_limit = 9;
+	
+    optional bool fetch_parity_replicas = 10 [default = false];
 }
 
 message TRspFetch

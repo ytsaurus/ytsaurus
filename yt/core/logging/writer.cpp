@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "writer.h"
 #include "log.h"
+#include "private.h"
 
 #include <core/misc/fs.h>
 
@@ -11,7 +12,6 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char* const SystemLoggingCategory = "Logging";
 static TLogger Logger(SystemLoggingCategory);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,21 +31,47 @@ TLogEvent GetBannerEvent()
 
 } // namespace
 
-TStreamLogWriter::TStreamLogWriter(
-    TOutputStream* stream,
-    Stroka pattern)
-    : Stream(stream)
-    , Pattern(pattern)
+TStreamLogWriter::TStreamLogWriter(TOutputStream* stream)
+    : Stream_(stream)
+    , Buffer_(new TMessageBuffer())
 { }
 
 void TStreamLogWriter::Write(const TLogEvent& event)
 {
-    *Stream << FormatEvent(event, Pattern) << Endl;
+    if (!Stream_) {
+        return;
+    }
+
+    auto* buffer = Buffer_.get();
+    buffer->Reset();
+
+    FormatDateTime(buffer, event.DateTime);
+    buffer->AppendChar('\t');
+    FormatLevel(buffer, event.Level);
+    buffer->AppendChar('\t');
+    buffer->AppendString(~event.Category);
+    buffer->AppendChar('\t');
+    FormatMessage(buffer, event.Message);
+    if (event.ThreadId != NConcurrency::InvalidThreadId) {
+        buffer->AppendChar('\t');
+        buffer->AppendNumber(event.ThreadId, 16);
+    }
+    if (event.FiberId != NConcurrency::InvalidFiberId) {
+        buffer->AppendChar('\t');
+        buffer->AppendNumber(event.FiberId, 16);
+    }
+    if (event.TraceId != NTracing::InvalidTraceId) {
+        buffer->AppendChar('\t');
+        buffer->AppendNumber(event.TraceId, 16);
+    }
+    buffer->AppendChar('\n');
+
+    Stream_->Write(buffer->GetData(), buffer->GetBytesWritten());
 }
 
 void TStreamLogWriter::Flush()
 {
-    Stream->Flush();
+    Stream_->Flush();
 }
 
 void TStreamLogWriter::Reload()
@@ -56,106 +82,97 @@ void TStreamLogWriter::CheckSpace(i64 minSpace)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStderrLogWriter::TStderrLogWriter(const Stroka& pattern)
-    : TStreamLogWriter(&StdErrStream(), pattern)
+TStderrLogWriter::TStderrLogWriter()
+    : TStreamLogWriter(&StdErrStream())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdoutLogWriter::TStdoutLogWriter(const Stroka& pattern)
-    : TStreamLogWriter(&StdOutStream(), pattern)
+TStdoutLogWriter::TStdoutLogWriter()
+    : TStreamLogWriter(&StdOutStream())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileLogWriterBase::TFileLogWriterBase(const Stroka& fileName)
-    : FileName(fileName)
-    , Initialized(false)
+TFileLogWriter::TFileLogWriter(const Stroka& fileName)
+    : FileName_(fileName)
+    , Initialized_(false)
 {
-    AtomicSet(NotEnoughSpace, false);
+    AtomicSet(NotEnoughSpace_, false);
+    EnsureInitialized();
 }
 
-void TFileLogWriterBase::ReopenFile()
-{
-    NFS::ForcePath(NFS::GetDirectoryName(FileName));
-    File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-    FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
-    FileOutput->SetFinishPropagateMode(true);
-    *FileOutput << Endl;
-}
-
-void TFileLogWriterBase::CheckSpace(i64 minSpace)
+void TFileLogWriter::CheckSpace(i64 minSpace)
 {
     try {
-        auto statistics = NFS::GetDiskSpaceStatistics(FileName);
+        auto statistics = NFS::GetDiskSpaceStatistics(FileName_);
         if (statistics.AvailableSpace < minSpace) {
-            AtomicSet(NotEnoughSpace, true);
+            AtomicSet(NotEnoughSpace_, true);
             LOG_ERROR(
                 "Disable log writer: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
-                ~FileName,
+                ~FileName_,
                 statistics.AvailableSpace,
                 minSpace);
         }
     } catch (const std::exception& ex) {
-        AtomicSet(NotEnoughSpace, true);
+        AtomicSet(NotEnoughSpace_, true);
             LOG_ERROR(
                 ex,
                 "Disable log writer: space check failed (FileName: %s)",
-                ~FileName);
+                ~FileName_);
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TFileLogWriter::TFileLogWriter(
-    Stroka fileName,
-    Stroka pattern)
-    : TFileLogWriterBase(fileName)
-    , Pattern(pattern)
+void TFileLogWriter::ReopenFile()
 {
-    EnsureInitialized();
+    NFS::ForcePath(NFS::GetDirectoryName(FileName_));
+    File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+    FileOutput_.reset(new TBufferedFileOutput(*File_, BufferSize));
+    FileOutput_->SetFinishPropagateMode(true);
 }
 
-void TFileLogWriter::EnsureInitialized()
+void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
 {
-    if (Initialized)
+    if (Initialized_) {
         return;
+    }
 
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
-    Initialized = true;
+    Initialized_ = true;
 
-    if (NotEnoughSpace)
+    if (NotEnoughSpace_) {
         return;
+    }
 
     try {
         ReopenFile();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName_.Quote());
         return;
     }
 
-    LogWriter = New<TStreamLogWriter>(FileOutput.get(), Pattern);
+    Stream_ = FileOutput_.get();
+
+    if (writeTrailingNewline) {
+        *FileOutput_ << Endl;
+    }
     Write(GetBannerEvent());
 }
 
 void TFileLogWriter::Write(const TLogEvent& event)
 {
-    if (LogWriter && !NotEnoughSpace) {
-        try {
-            LogWriter->Write(event);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to write to log file %s", ~FileName.Quote());
-        }
+    if (Stream_ && !NotEnoughSpace_) {
+        TStreamLogWriter::Write(event);
     }
 }
 
 void TFileLogWriter::Flush()
 {
-    if (LogWriter && !NotEnoughSpace) {
+    if (Stream_ && !NotEnoughSpace_) {
         try {
-            LogWriter->Flush();
+            FileOutput_->Flush();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName.Quote());
+            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName_.Quote());
         }
     }
 }
@@ -164,106 +181,16 @@ void TFileLogWriter::Reload()
 {
     Flush();
 
-    if (File) {
+    if (File_) {
         try {
-            File->Close();
+            File_->Close();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to close log file %s", ~FileName.Quote());
+            LOG_ERROR(ex, "Failed to close log file %s", ~FileName_.Quote());
         }
     }
 
-    Initialized = false;
-    EnsureInitialized();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
-    : TFileLogWriterBase(fileName)
-    , Buffer(new TMessageBuffer())
-{
-    EnsureInitialized();
-}
-
-void TRawFileLogWriter::EnsureInitialized()
-{
-    if (Initialized)
-        return;
-
-    // No matter what, let's pretend we're initialized to avoid subsequent attempts.
-    Initialized = true;
-
-    if (NotEnoughSpace)
-        return;
-
-    try {
-        ReopenFile();
-        *FileOutput << Endl;
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
-    }
-
-    Write(GetBannerEvent());
-}
-
-void TRawFileLogWriter::Write(const TLogEvent& event)
-{
-    if (!FileOutput || NotEnoughSpace) {
-        return;
-    }
-
-    auto* buffer = Buffer.get();
-    buffer->Reset();
-
-    FormatDateTime(buffer, event.DateTime);
-    buffer->AppendChar('\t');
-    FormatLevel(buffer, event.Level);
-    buffer->AppendChar('\t');
-    buffer->AppendString(~event.Category);
-    buffer->AppendChar('\t');
-    FormatMessage(buffer, event.Message);
-    buffer->AppendChar('\t');
-    if (event.ThreadId != NConcurrency::InvalidThreadId) {
-        buffer->AppendNumber(event.ThreadId, 16);
-    }
-    buffer->AppendChar('\t');
-    if (event.FiberId != NConcurrency::InvalidFiberId) {
-        buffer->AppendNumber(event.FiberId, 16);
-    }
-    buffer->AppendChar('\t');
-    if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendNumber(event.TraceId, 16);
-    }
-    buffer->AppendChar('\n');
-
-    FileOutput->Write(buffer->GetData(), buffer->GetBytesWritten());
-}
-
-void TRawFileLogWriter::Flush()
-{
-    if (FileOutput && !NotEnoughSpace) {
-        try {
-            FileOutput->Flush();
-        } catch (const std::exception& ex) {
-            LOG_ERROR("Failed to write to log file %s", ~FileName.Quote());
-        }
-    }
-}
-
-void TRawFileLogWriter::Reload()
-{
-    Flush();
-
-    if (File) {
-        try {
-            File->Close();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to close log file %s", ~FileName.Quote());
-        }
-    }
-
-    Initialized = false;
-    EnsureInitialized();
+    Initialized_ = false;
+    EnsureInitialized(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

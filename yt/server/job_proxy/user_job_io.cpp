@@ -82,9 +82,11 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
     auto writer = CreateSyncWriter<TTableChunkWriterProvider>(asyncWriter);
 
-    TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(Outputs.size() == index);
-    Outputs.push_back(asyncWriter);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        YCHECK(Outputs.size() == index);
+        Outputs.push_back(asyncWriter);
+    }
 
     return writer;
 }

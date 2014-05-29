@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "schemed_dsv_table.h"
+#include "schemaful_dsv_table.h"
 
 #include <core/misc/blob.h>
 #include <core/misc/nullable.h>
@@ -20,13 +20,13 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Note: only tabular format is supported.
-class TSchemedDsvConsumer
+class TSchemafulDsvConsumer
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TSchemedDsvConsumer(
+    explicit TSchemafulDsvConsumer(
         TOutputStream* stream,
-        TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -44,9 +44,9 @@ public:
 
 private:
     TOutputStream* Stream_;
-    TSchemedDsvFormatConfigPtr Config_;
+    TSchemafulDsvFormatConfigPtr Config_;
 
-    TSchemedDsvTable Table_;
+    TSchemafulDsvTable Table_;
 
     std::set<TStringBuf> Keys_;
     std::map<TStringBuf, TStringBuf> Values_;
@@ -83,7 +83,7 @@ class TSchemafulDsvWriter
 public:
     explicit TSchemafulDsvWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
-        TSchemedDsvFormatConfigPtr config = New<TSchemedDsvFormatConfig>());
+        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
     virtual TAsyncError Open(
         const NVersionedTableClient::TTableSchema& schema,
@@ -103,7 +103,7 @@ private:
     void WriteRaw(char ch);
 
     NConcurrency::IAsyncOutputStreamPtr Stream_;
-    TSchemedDsvFormatConfigPtr Config_;
+    TSchemafulDsvFormatConfigPtr Config_;
 
     std::vector<int> ColumnIdMapping_;
     TBlob Buffer_;

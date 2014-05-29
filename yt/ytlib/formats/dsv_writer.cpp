@@ -19,7 +19,7 @@ TDsvConsumerBase::TDsvConsumerBase(
     TDsvFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
-    , Table(config)
+    , Table(config, true)
 {
     YCHECK(Stream);
     YCHECK(Config);

@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/yson_consumer-mock.h>
+#include <ytlib/formats/schemaful_dsv_parser.h>
 
-#include <ytlib/formats/schemed_dsv_parser.h>
+#include <core/ytree/yson_consumer-mock.h>
 
 namespace NYT {
 namespace NFormats {
@@ -15,7 +15,7 @@ using ::testing::NiceMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvParserTest, Simple)
+TEST(TSchemafulDsvParserTest, Simple)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -39,16 +39,16 @@ TEST(TSchemedDsvParserTest, Simple)
         "5\t6\n"
         "100\tmax\\tignat\n";
 
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->Columns.push_back("b");
 
-    ParseSchemedDsv(input, &Mock, config);
+    ParseSchemafulDsv(input, &Mock, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSchemedDsvParserTest, TableIndex)
+TEST(TSchemafulDsvParserTest, TableIndex)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -90,11 +90,11 @@ TEST(TSchemedDsvParserTest, TableIndex)
         "0\ty\n"
         "0\tz\n";
 
-    auto config = New<TSchemedDsvFormatConfig>();
+    auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns.push_back("a");
     config->EnableTableIndex = true;
 
-    ParseSchemedDsv(input, &Mock, config);
+    ParseSchemafulDsv(input, &Mock, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

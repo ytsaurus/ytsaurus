@@ -2,11 +2,11 @@
 #include "config.h"
 #include "node.h"
 
-#include <core/misc/address.h>
-
 #include <core/logging/log_manager.h>
 
 #include <core/tracing/trace_manager.h>
+
+#include <core/misc/address.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "invoker.h"
+#include "public.h"
 
 namespace NYT {
 
@@ -40,8 +39,6 @@ private:
     volatile bool Canceled;
 
 };
-
-typedef TIntrusivePtr<TCancelableContext> TCancelableContextPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -109,6 +109,7 @@ struct ISchedulableElement
 
     virtual double GetUsageRatio() const = 0;
     virtual double GetDemandRatio() const = 0;
+    virtual double GetSatisfactionRatio() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -166,6 +167,13 @@ public:
         i64 dominantDemand = GetResource(demand, attributes.DominantResource);
         i64 dominantLimit = GetResource(limits, attributes.DominantResource);
         return dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
+    }
+
+    virtual double GetSatisfactionRatio() const override
+    {
+        double fairShareRatio = Attributes().FairShareRatio;
+        double usageRatio = GetUsageRatio();
+        return fairShareRatio < RatioComparisonPrecision ? 1.0 : usageRatio / fairShareRatio;
     }
 
 };
@@ -529,30 +537,29 @@ protected:
 
     const std::vector<ISchedulableElementPtr> GetSortedChildren()
     {
-        PROFILE_TIMING ("/fair_share_sort_time") {
-            std::vector<ISchedulableElementPtr> sortedChildren;
-            for (const auto& child : Children) {
-                sortedChildren.push_back(child);
-            }
-
-            switch (Mode) {
-                case ESchedulingMode::Fifo:
-                    SortChildrenFifo(&sortedChildren);
-                    break;
-                case ESchedulingMode::FairShare:
-                    SortChildrenFairShare(&sortedChildren);
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-
-            // Update ranks.
-            for (int rank = 0; rank < static_cast<int>(sortedChildren.size()); ++rank) {
-                sortedChildren[rank]->Attributes().Rank = rank;
-            }
-
-            return sortedChildren;
+        std::vector<ISchedulableElementPtr> sortedChildren;
+        sortedChildren.reserve(Children.size());
+        for (const auto& child : Children) {
+            sortedChildren.push_back(child);
         }
+
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                SortChildrenFifo(&sortedChildren);
+                break;
+            case ESchedulingMode::FairShare:
+                SortChildrenFairShare(&sortedChildren);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+
+        // Update ranks.
+        for (int rank = 0; rank < static_cast<int>(sortedChildren.size()); ++rank) {
+            sortedChildren[rank]->Attributes().Rank = rank;
+        }
+
+        return sortedChildren;
     }
 
     void SortChildrenFifo(std::vector<ISchedulableElementPtr>* sortedChildren)
@@ -598,14 +605,14 @@ protected:
     }
 
 
-    bool IsNeedy(ISchedulableElementPtr element) const
+    static bool IsNeedy(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
         return minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio;
     }
 
-    double GetUsageToMinShareRatio(ISchedulableElementPtr element) const
+    static double GetUsageToMinShareRatio(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
@@ -620,7 +627,7 @@ protected:
         // Avoid division by zero.
         return usageRatio / std::max(weight, RatioComparisonPrecision);
     }
-
+    
 
     void SetMode(ESchedulingMode mode)
     {
@@ -710,6 +717,15 @@ public:
         auto result = ZeroNodeResources();
         for (const auto& child : Children) {
             result += child->GetDemand();
+        }
+        return result;
+    }
+
+    virtual double GetSatisfactionRatio() const override
+    {
+        double result = TSchedulableElementBase::GetSatisfactionRatio();
+        for (const auto& child : Children) {
+            result = std::min(result, child->GetSatisfactionRatio());
         }
         return result;
     }
@@ -949,7 +965,8 @@ public:
         const auto& attributes = element->Attributes();
         return Sprintf(
             "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf, "
+            "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
+            "Starving: %s, Weight: %lf, "
             "PreemptableRunningJobs: %" PRISZT "}",
             ~ToString(element->GetStatus()),
             element->GetPool()->Attributes().Rank,
@@ -958,6 +975,7 @@ public:
             attributes.DemandRatio,
             element->GetUsageRatio(),
             attributes.FairShareRatio,
+            element->GetSatisfactionRatio(),
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
             ~FormatBool(element->GetStarving()),
@@ -1042,7 +1060,7 @@ private:
             return ConvertTo<TFairShareOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
-                ~ToString(operation->GetOperationId()));
+                ~ToString(operation->GetId()));
             return New<TFairShareOperationSpec>();
         }
     }
@@ -1087,7 +1105,7 @@ private:
             BIND(&TFairShareStrategy::HandleOperationRuntimeParams, this, operation));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~pool->GetId());
     }
 
@@ -1101,7 +1119,7 @@ private:
         IncreasePoolUsage(pool, -operationElement->ResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
-            ~ToString(operation->GetOperationId()),
+            ~ToString(operation->GetId()),
             ~pool->GetId());
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
@@ -1115,7 +1133,7 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static auto runtimeParamsTemplate = New<TFairShareOperationRuntimeParams>();
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetOperationId()));
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
         TAttributeFilter attributeFilter(
             EAttributeFilterMode::MatchingOnly,
             runtimeParamsTemplate->GetRegisteredKeys());
@@ -1132,7 +1150,7 @@ private:
             return;
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
-        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
+        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetId())));
 
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
         if (!rsp->IsOK()) {
@@ -1421,7 +1439,7 @@ private:
         if (!element->GetStarving()) {
             element->SetStarving(true);
             LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
-                ~ToString(element->GetOperation()->GetOperationId()),
+                ~ToString(element->GetOperation()->GetId()),
                 ~ToString(status));
         }
     }
@@ -1431,7 +1449,7 @@ private:
         if (element->GetStarving()) {
             element->SetStarving(false);
             LOG_INFO("Operation is no longer starving (OperationId: %s)",
-                ~ToString(element->GetOperation()->GetOperationId()));
+                ~ToString(element->GetOperation()->GetId()));
         }
     }
 
@@ -1517,7 +1535,8 @@ private:
             .Item("max_share_ratio").Value(attributes.MaxShareRatio)
             .Item("usage_ratio").Value(element->GetUsageRatio())
             .Item("demand_ratio").Value(attributes.DemandRatio)
-            .Item("fair_share_ratio").Value(attributes.FairShareRatio);
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio)
+            .Item("satisfaction_ratio").Value(element->GetSatisfactionRatio());
     }
 
 };

@@ -514,8 +514,7 @@ describe("YtCommand - output format selection", function() {
         ask("GET", V + "/download", {},
         function(rsp) {
             rsp.should.be.http2xx;
-            // XXX(sandello): Fix me.
-            rsp.should.have.content_type("text/plain");
+            rsp.should.have.content_type("application/octet-stream");
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].Traverse("/output_format").Print().should.eql('"yson"');
         }, done).end();

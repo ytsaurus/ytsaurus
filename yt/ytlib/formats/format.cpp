@@ -13,8 +13,8 @@
 #include "yamred_dsv_parser.h"
 #include "yamred_dsv_writer.h"
 
-#include "schemed_dsv_parser.h"
-#include "schemed_dsv_writer.h"
+#include "schemaful_dsv_parser.h"
+#include "schemaful_dsv_writer.h"
 
 #include "yson_parser.h"
 #include "yson_writer.h"
@@ -175,16 +175,16 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForYamredDsv(
     return std::unique_ptr<IYsonConsumer>(new TYamredDsvConsumer(output, config));
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForSchemedDsv(
+std::unique_ptr<IYsonConsumer> CreateConsumerForSchemafulDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
     if (dataType != EDataType::Tabular) {
-        THROW_ERROR_EXCEPTION("Schemed DSV is supported only for tabular data");
+        THROW_ERROR_EXCEPTION("Schemaful DSV only is only supported for tabular data");
     }
-    auto config = ConvertTo<TSchemedDsvFormatConfigPtr>(&attributes);
-    return std::unique_ptr<IYsonConsumer>(new TSchemedDsvConsumer(output, config));
+    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
+    return std::unique_ptr<IYsonConsumer>(new TSchemafulDsvConsumer(output, config));
 }
 
 std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
@@ -203,8 +203,10 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
             return CreateConsumerForYamr(dataType, format.Attributes(), output);
         case EFormatType::YamredDsv:
             return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
+        // COMPAT(babenko): schemed -> schemaful
         case EFormatType::SchemedDsv:
-            return CreateConsumerForSchemedDsv(dataType, format.Attributes(), output);
+        case EFormatType::SchemafulDsv:
+            return CreateConsumerForSchemafulDsv(dataType, format.Attributes(), output);
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %s",
                 ~FormatEnum(format.GetType()).Quote());
@@ -225,7 +227,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const IAttributeDictionary& attributes,
     IAsyncOutputStreamPtr output)
 {
-    auto config = ConvertTo<TSchemedDsvFormatConfigPtr>(&attributes);
+    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
     return New<TSchemafulDsvWriter>(output, config);
 }
 
@@ -238,7 +240,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
         case EFormatType::Yson:
             return CreateSchemafulWriterForYson(format.Attributes(), output);
         // TODO(babenko): schemaful
-        case EFormatType::SchemedDsv:
+        case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %s",
@@ -290,17 +292,17 @@ TYsonProducer CreateProducerForYamredDsv(
     });
 }
 
-TYsonProducer CreateProducerForSchemedDsv(
+TYsonProducer CreateProducerForSchemafulDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TInputStream* input)
 {
     if (dataType != EDataType::Tabular) {
-        THROW_ERROR_EXCEPTION("Schemed DSV is supported only for tabular data");
+        THROW_ERROR_EXCEPTION("Schemaful DSV is supported only for tabular data");
     }
-    auto config = ConvertTo<TSchemedDsvFormatConfigPtr>(&attributes);
+    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
     return BIND([=] (IYsonConsumer* consumer) {
-        ParseSchemedDsv(input, consumer, config);
+        ParseSchemafulDsv(input, consumer, config);
     });
 }
 
@@ -335,8 +337,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
             return CreateProducerForYamr(dataType, format.Attributes(), input);
         case EFormatType::YamredDsv:
             return CreateProducerForYamredDsv(dataType, format.Attributes(), input);
-        case EFormatType::SchemedDsv:
-            return CreateProducerForSchemedDsv(dataType, format.Attributes(), input);
+        case EFormatType::SchemafulDsv:
+            return CreateProducerForSchemafulDsv(dataType, format.Attributes(), input);
         default:
             THROW_ERROR_EXCEPTION("Unsupported input format %s",
                 ~FormatEnum(format.GetType()).Quote());
@@ -366,9 +368,10 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForYamredDsv(consumer, config);
         }
-        case EFormatType::SchemedDsv: {
-            auto config = ConvertTo<TSchemedDsvFormatConfigPtr>(&format.Attributes());
-            return CreateParserForSchemedDsv(consumer, config);
+        case EFormatType::SchemedDsv:
+        case EFormatType::SchemafulDsv: {
+            auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&format.Attributes());
+            return CreateParserForSchemafulDsv(consumer, config);
         }
         default:
             THROW_ERROR_EXCEPTION("Unsupported input format %s",

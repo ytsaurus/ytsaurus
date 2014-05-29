@@ -1,7 +1,8 @@
 #include "stdafx.h"
-#include "json_writer.h"
 #include "config.h"
 #include "helpers.h"
+#include "json_writer.h"
+#include "utf8_decoder.h"
 
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/null_yson_consumer.h>
@@ -63,6 +64,8 @@ private:
     int InAttributesBalance;
     bool HasAttributes;
     int Depth;
+
+    TUtf8Transcoder Utf8Transcoder_;
 };
 
 class TJsonConsumer
@@ -94,6 +97,7 @@ TJsonConsumerImpl::TJsonConsumerImpl(TOutputStream* output,
     , Config(config)
     , Type(type)
     , Depth(0)
+    , Utf8Transcoder_(Config->EncodeUtf8)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
@@ -142,6 +146,11 @@ void TJsonConsumerImpl::LeaveNode()
     HasUnfoldedStructureStack.pop_back();
 
     Depth -= 1;
+
+    if (Depth == 0 && Type == NYson::EYsonType::ListFragment && InAttributesBalance == 0) {
+        JsonWriter->Reset();
+        Output->Write("\n");
+    }
 }
 
 bool TJsonConsumerImpl::IsWriteAllowed()
@@ -218,7 +227,11 @@ void TJsonConsumerImpl::OnBeginMap()
 void TJsonConsumerImpl::OnKeyedItem(const TStringBuf& name)
 {
     if (IsWriteAllowed()) {
-        WriteStringScalar(name);
+        if (IsSpecialJsonKey(name)) {
+            WriteStringScalar(Stroka("$") + name);
+        } else {
+            WriteStringScalar(name);
+        }
     }
 }
 
@@ -227,16 +240,6 @@ void TJsonConsumerImpl::OnEndMap()
     if (IsWriteAllowed()) {
         JsonWriter->CloseMap();
         LeaveNode();
-    }
-
-    if (Depth == 0 && Type == NYson::EYsonType::ListFragment) {
-        JsonWriter->Flush();
-        Output->Write("\n");
-
-        UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
-            Output,
-            Config->Format == EJsonFormat::Pretty));
-        JsonWriter = UnderlyingJsonWriter.get();
     }
 }
 
@@ -262,15 +265,12 @@ void TJsonConsumerImpl::OnEndAttributes()
 TJsonConsumerImpl::TJsonConsumerImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
     : JsonWriter(jsonWriter)
     , Config(config)
+    , Utf8Transcoder_(Config->EncodeUtf8)
 { }
 
 void TJsonConsumerImpl::WriteStringScalar(const TStringBuf &value)
 {
-    if (IsAscii(value)) {
-        JsonWriter->Write(value);
-    } else {
-        JsonWriter->Write(ByteStringToUtf8(value));
-    }
+    JsonWriter->Write(Utf8Transcoder_.Encode(value));
 }
 
 void TJsonConsumerImpl::Flush()

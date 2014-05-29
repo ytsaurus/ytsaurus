@@ -10,7 +10,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TElectionManagerConfig
-    : public TYsonSerializable
+    : public NYTree::TYsonSerializable
 {
 public:
     TDuration VotingRoundInterval;

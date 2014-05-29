@@ -544,6 +544,7 @@ private:
             chunkReader->MakeCurrentRow();
             // Check end validator.
             if (!chunkReader->ValidateRow()) {
+                --chunkReader->CurrentRowIndex;
                 chunkReader->Initializer.Reset();
                 chunkReader->ReaderState.FinishOperation();
                 return;
@@ -573,6 +574,7 @@ private:
 
             YCHECK(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
             if (StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
+                ++chunkReader->StartRowIndex;
                 // This quick check is aimed to improve potential performance issue and
                 // eliminate unnecessary calls to Subscribe and BIND.
                 if (!chunkReader->DoFetchNextRow()) {
@@ -824,13 +826,14 @@ void TTableChunkReader::ClearKey()
 
 bool TTableChunkReader::DoFetchNextRow()
 {
-    CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
-
-    if (CurrentRowIndex == EndRowIndex) {
+    if (CurrentRowIndex + 1 == EndRowIndex) {
         LOG_DEBUG("Chunk reader finished");
         IsFinished = true;
         return true;
     }
+
+    ++CurrentRowIndex;
+    ++Provider->RowIndex_;
 
     CurrentRow.clear();
     ClearKey();
@@ -875,8 +878,9 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 
     MakeCurrentRow();
 
-    if (ValidateRow() && Provider) {
-            ++Provider->RowIndex_;
+    if (!ValidateRow()) {
+        --Provider->RowIndex_;
+        --CurrentRowIndex;
     }
 
     if (RowState.HasRunningOperation())
@@ -967,12 +971,11 @@ i64 TTableChunkReader::GetSessionRowCount() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReader::GetDataStatistics() const
 {
-
     NChunkClient::NProto::TDataStatistics result;
     result.set_chunk_count(1);
 
     if (SequentialReader) {
-        result.set_row_count(GetSessionRowIndex());
+        result.set_row_count(GetSessionRowIndex() + 1);
         result.set_uncompressed_data_size(SequentialReader->GetUncompressedDataSize());
         result.set_compressed_data_size(SequentialReader->GetCompressedDataSize());
     } else {
@@ -1011,7 +1014,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     const NChunkClient::TSequentialReaderConfigPtr& config,
     const TChunkReaderOptionsPtr& options,
     TNullable<i64> startTableRowIndex)
-    : RowIndex_(-1)
+    : RowIndex_(0)
     , RowCount_(0)
     , Config(config)
     , Options(options)
@@ -1071,9 +1074,8 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 
 NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatistics() const
 {
-    auto dataStatistics = DataStatistics;
-
     TGuard<TSpinLock> guard(SpinLock);
+    auto dataStatistics = DataStatistics;
     for (const auto& reader : ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }

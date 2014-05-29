@@ -64,6 +64,12 @@ TObjectId ReplaceTypeInId(
     const TObjectId& id,
     EObjectType type);
 
+
+//! Extract cell id from object id.
+TCellId GetCellId(
+    const TObjectId& id,
+    EObjectType type);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectClient

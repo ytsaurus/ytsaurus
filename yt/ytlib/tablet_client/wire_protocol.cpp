@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "wire_protocol.h"
 
+#include <core/actions/future.h>
+
 #include <core/misc/error.h>
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/chunked_output_stream.h>

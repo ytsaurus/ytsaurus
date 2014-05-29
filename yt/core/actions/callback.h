@@ -13,7 +13,7 @@
 //==============================================================================
 */
 // NOTE: Header files that do not require the full definition of #TCallback<> or
-// #TClosure should include "callback_forward.h" instead of this file.
+// #TClosure should include "public.h" instead of this file.
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -101,7 +101,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "callback_forward.h"
+#include "public.h"
 #include "callback_internal.h"
 
 #include <core/misc/mpl.h>
@@ -112,23 +112,10 @@
 
 namespace NYT {
 
-// TODO(sandello): Replace these with a proper include with forward decls.
-template <class T>
-class TFuture;
-
-template <>
-class TFuture<void>;
-
-template <class T>
-class TPromise;
-
-template <>
-class TPromise<void>;
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 class TErrorOr;
-
-struct IInvoker;
 
 template <class T>
 TPromise<T> NewPromise();
@@ -145,16 +132,8 @@ TPromise<T> NewPromise();
 // only one type: the function signature.
 //
 // If you are thinking of forward declaring #TCallback<> in your own header
-// file,
-// please include "callback_forward.h" instead.
+// file, please include "public.h" instead.
 //
-
-template <class TSignature>
-class TCallback;
-
-// Syntactic sugar to make Callbacks<void()> easier to declare since it
-// will be used in a lot of APIs with delayed execution.
-typedef TCallback<void()> TClosure;
 
 namespace NDetail {
 
@@ -246,7 +225,7 @@ public:
     {
         auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
         return invokeFunction(
-        	BindState.Get(),
+            BindState.Get(),
             std::forward<TArgs>(args)...);
     }
 

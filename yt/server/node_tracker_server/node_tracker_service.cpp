@@ -57,7 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
     auto requestCellGuid = FromProto<TGuid>(request->cell_guid());
     const auto& statistics = request->statistics();
-    const auto& address = descriptor.Address;
+    const auto& address = descriptor.GetDefaultAddress();
 
     context->SetRequestInfo("Address: %s, CellGuid: %s, %s",
         ~address,

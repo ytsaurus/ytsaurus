@@ -108,7 +108,6 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     // Move callback to the stack frame to ensure that we hold it as hold as it runs.
     auto callback = std::move(action->Callback);
-
     try {
         TCurrentInvokerGuard guard(this);
         callback.Run();
@@ -238,7 +237,6 @@ void TSchedulerThread::ThreadMain()
         }
 
         OnThreadShutdown();
-
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
             ~ThreadName);
     } catch (const std::exception& ex) {

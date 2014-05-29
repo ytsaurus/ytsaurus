@@ -27,6 +27,7 @@ protected:
     template <class TBlockTag>
     TSharedRef Run(
         TConverter converter,
+        // TODO(ignat): change bool to enum
         bool compress,
         const TSharedRef& ref)
     {
@@ -83,13 +84,7 @@ private:
             "Compression",
             compress ? "Compress" : "Decompress");
     }
-
-
 };
-
-namespace {
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,33 +121,23 @@ class TSnappyCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Run<TCompressedBlockTag>(
-            NCompression::SnappyCompress,
-            true,
-            block);
+        return Run<TCompressedBlockTag>(NCompression::SnappyCompress, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TCompressedBlockTag>(
-            NCompression::SnappyCompress,
-            true,
-            blocks);
+        return Run<TCompressedBlockTag>(NCompression::SnappyCompress, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TDecompressedBlockTag>(
-            NCompression::SnappyDecompress,
-            false,
-            block);
+        return Run<TDecompressedBlockTag>(NCompression::SnappyDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
     {
         return ECodec::Snappy;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,26 +153,17 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Run<TCompressedBlockTag>(
-            Compressor_,
-            true,
-            block);
+        return Run<TCompressedBlockTag>(Compressor_, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TCompressedBlockTag>(
-            Compressor_,
-            false,
-            blocks);
+        return Run<TCompressedBlockTag>(Compressor_, false, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TDecompressedBlockTag>(
-            NCompression::ZlibDecompress,
-            false,
-            block);
+        return Run<TDecompressedBlockTag>(NCompression::ZlibDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -204,7 +180,6 @@ public:
 private:
     NCompression::TConverter Compressor_;
     int Level_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,19 +203,12 @@ public:
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TCompressedBlockTag>(
-            Compressor_,
-            true,
-            blocks,
-            Lz4CompressionBound);
+        return Run<TCompressedBlockTag>(Compressor_, true, blocks, Lz4CompressionBound);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TDecompressedBlockTag>(
-            NCompression::Lz4Decompress,
-            false,
-            block);
+        return Run<TDecompressedBlockTag>(NCompression::Lz4Decompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -251,7 +219,6 @@ public:
 private:
     NCompression::TConverter Compressor_;
     ECodec CodecId_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,10 +249,7 @@ public:
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TDecompressedBlockTag>(
-            NCompression::QuickLzDecompress,
-            false,
-            block);
+        return Run<TDecompressedBlockTag>(NCompression::QuickLzDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -295,7 +259,6 @@ public:
 
 private:
     NCompression::TConverter Compressor_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

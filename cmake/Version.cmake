@@ -19,6 +19,8 @@ set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
 set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
 set(YT_VERSION "${YT_VERSION}~${YT_BUILD_NUMBER}")
 set(YT_VERSION "${YT_VERSION}+${YT_BUILD_VCS_NUMBER}")
+# underscore is forbidden in the version
+STRING(REGEX REPLACE "_" "-" YT_VERSION ${YT_VERSION})
 
 # Get the build name and hostname
 find_program(_HOSTNAME NAMES hostname)

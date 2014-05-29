@@ -75,7 +75,7 @@ message TPartInfo
     // Number of first block in whole chunk
     required int32 start = 1;
 
-    // Sizes of blocks. It is necessary to repair.
+    // Sizes of blocks. Needed for repair.
     repeated int64 block_sizes = 2;
 }
 

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "schemed_dsv_writer.h"
+#include "schemaful_dsv_writer.h"
 
 #include <core/misc/error.h>
 
@@ -15,9 +15,9 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemedDsvConsumer::TSchemedDsvConsumer(
+TSchemafulDsvConsumer::TSchemafulDsvConsumer(
         TOutputStream* stream,
-        TSchemedDsvFormatConfigPtr config)
+        TSchemafulDsvFormatConfigPtr config)
     : Stream_(stream)
     , Config_(config)
     , Table_(Config_)
@@ -32,7 +32,7 @@ TSchemedDsvConsumer::TSchemedDsvConsumer(
     }
 }
 
-void TSchemedDsvConsumer::OnDoubleScalar(double value)
+void TSchemafulDsvConsumer::OnDoubleScalar(double value)
 {
     if (State_ == EState::None) {
         return;         
@@ -48,56 +48,56 @@ void TSchemedDsvConsumer::OnDoubleScalar(double value)
     }
 }
 
-void TSchemedDsvConsumer::OnBeginList()
+void TSchemafulDsvConsumer::OnBeginList()
 {
-    THROW_ERROR_EXCEPTION("Lists are not supported by schemed DSV");
+    THROW_ERROR_EXCEPTION("Lists are not supported by schemaful DSV");
 }
 
-void TSchemedDsvConsumer::OnListItem()
+void TSchemafulDsvConsumer::OnListItem()
 {
     YASSERT(State_ == EState::None);
 }
 
-void TSchemedDsvConsumer::OnEndList()
+void TSchemafulDsvConsumer::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TSchemedDsvConsumer::OnBeginAttributes()
+void TSchemafulDsvConsumer::OnBeginAttributes()
 {
     if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Attributes are not supported by schemed DSV");
+        THROW_ERROR_EXCEPTION("Attributes are not supported by schemaful DSV");
     }
 
     YASSERT(State_ == EState::None);
     State_ = EState::ExpectAttributeName;
 }
 
-void TSchemedDsvConsumer::OnEndAttributes()
+void TSchemafulDsvConsumer::OnEndAttributes()
 {
     YASSERT(State_ == EState::ExpectEndAttributes);
     State_ = EState::ExpectEntity;
 }
 
-void TSchemedDsvConsumer::OnBeginMap()
+void TSchemafulDsvConsumer::OnBeginMap()
 {
     if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Embedded maps are not supported by schemed DSV");
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by schemaful DSV");
     }
     YASSERT(State_ == EState::None);
 }
 
-void TSchemedDsvConsumer::OnEntity()
+void TSchemafulDsvConsumer::OnEntity()
 {
     if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Entities are not supported by schemed DSV");
+        THROW_ERROR_EXCEPTION("Entities are not supported by schemaful DSV");
     }
 
     YASSERT(State_ == EState::ExpectEntity);
     State_ = EState::None;
 }
 
-void TSchemedDsvConsumer::OnIntegerScalar(i64 value)
+void TSchemafulDsvConsumer::OnIntegerScalar(i64 value)
 {
     if (State_ == EState::None) {
         return;         
@@ -125,7 +125,7 @@ void TSchemedDsvConsumer::OnIntegerScalar(i64 value)
     State_ = EState::ExpectEndAttributes;
 }
 
-void TSchemedDsvConsumer::OnStringScalar(const TStringBuf& value)
+void TSchemafulDsvConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (State_ == EState::ExpectValue) {
         Values_[CurrentKey_] = value;
@@ -136,7 +136,7 @@ void TSchemedDsvConsumer::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TSchemedDsvConsumer::OnKeyedItem(const TStringBuf& key)
+void TSchemafulDsvConsumer::OnKeyedItem(const TStringBuf& key)
 {
     if (State_ ==  EState::ExpectAttributeName) {
         ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(key));
@@ -150,16 +150,16 @@ void TSchemedDsvConsumer::OnKeyedItem(const TStringBuf& key)
     }
 }
 
-void TSchemedDsvConsumer::OnEndMap()
+void TSchemafulDsvConsumer::OnEndMap()
 {
     YASSERT(State_ == EState::None);
 
     WriteRow();
 }
 
-void TSchemedDsvConsumer::WriteRow()
+void TSchemafulDsvConsumer::WriteRow()
 {
-    typedef TSchemedDsvFormatConfig::EMissingValueMode EMissingValueMode;
+    typedef TSchemafulDsvFormatConfig::EMissingValueMode EMissingValueMode;
 
     if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingValueMode::Fail) {
         THROW_ERROR_EXCEPTION("Some column is missing in row");
@@ -194,7 +194,7 @@ void TSchemedDsvConsumer::WriteRow()
     }
 }
 
-void TSchemedDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
+void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
 {
     if (Config_->EnableEscaping) {
         WriteEscaped(
@@ -214,7 +214,7 @@ static auto PresetResult = MakeFuture(TError());
 
 TSchemafulDsvWriter::TSchemafulDsvWriter(
     IAsyncOutputStreamPtr stream,
-    TSchemedDsvFormatConfigPtr config)
+    TSchemafulDsvFormatConfigPtr config)
     : Stream_(stream)
     , Config_(config)
 { }

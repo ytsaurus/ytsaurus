@@ -35,7 +35,9 @@ DECLARE_ENUM(EFormatType,
     (Dsv)
     (Yamr)
     (YamredDsv)
+    // COMPAT(babenko): schemed -> schemaful
     (SchemedDsv)
+    (SchemafulDsv)
 );
 
 class TFormat

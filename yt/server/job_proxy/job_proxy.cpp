@@ -3,6 +3,7 @@
 #include "job_proxy.h"
 #include "user_job.h"
 #include "sorted_merge_job.h"
+#include "remote_copy_job.h"
 #include "merge_job.h"
 #include "simple_sort_job.h"
 #include "partition_sort_job.h"
@@ -261,6 +262,10 @@ TJobResult TJobProxy::DoRun()
 
             case NScheduler::EJobType::Partition:
                 Job = CreatePartitionJob(this);
+                break;
+            
+            case NScheduler::EJobType::RemoteCopy:
+                Job = CreateRemoteCopyJob(this);
                 break;
 
             default:

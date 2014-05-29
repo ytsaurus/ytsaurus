@@ -258,11 +258,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             switch (State_) {
                 case EState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction is already committed");
+                    THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %s)", ~ToString(Id_));
                     break;
 
                 case EState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction is already aborted");
+                    THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %s)", ~ToString(Id_));
                     break;
 
                 case EState::Active:

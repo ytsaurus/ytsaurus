@@ -4,6 +4,8 @@
 
 #include <core/misc/property.h>
 
+#include <core/actions/future.h>
+
 #include <ytlib/hydra/public.h>
 
 #include <ytlib/transaction_client/public.h>
