@@ -98,18 +98,20 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     , EnableTableIndex_(enableTableIndex)
     , TableIndex_(0)
 {
+    YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
+
+    YCHECK(rowsPerSession > 0);
 
     SessionHolder_.reserve(readers.size());
     SessionHeap_.reserve(readers.size());
 
     for (const auto& reader : readers) {
-        TSession session;
+        SessionHolder_.push_back(TSession());
+        auto& session = SessionHolder_.back();
         session.Reader = reader;
         session.Rows.reserve(rowsPerSession);
         session.CurrentRowIndex = 0;
-
-        SessionHolder_.push_back(session);
     }
 }
 
