@@ -609,7 +609,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "type") {
         BuildYsonFluently(consumer)
-            .Value(CamelCaseToUnderscoreCase(ToString(TypeFromId(GetId()))));
+            .Value(TypeFromId(GetId()));
         return true;
     }
 
