@@ -6,7 +6,7 @@ import simplejson as json
 from urllib import quote_plus
 
 class Mr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, cache=True, mr_user="tmp", fastbone=False, opts=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="userdata", fastbone=False, opts=""):
         self.binary = binary
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
@@ -17,7 +17,6 @@ class Mr(object):
         self.fetch_info_from_http = fetch_info_from_http
 
         self.cache = {}
-        self.use_cache = cache
         self.mr_user = mr_user
         self.opts = opts
         self.fastbone = fastbone
@@ -42,8 +41,8 @@ class Mr(object):
         records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
 
-    def get_field_from_server(self, table, field):
-        if not self.use_cache or table not in self.cache:
+    def get_field_from_server(self, table, field, allow_cache):
+        if not allow_cache or table not in self.cache:
             output = subprocess.check_output(
                 "{} -server {} -list -prefix {} -jsonoutput"\
                     .format(self.binary, self.server, table),
@@ -59,27 +58,27 @@ class Mr(object):
         
         return self.cache[table].get(field, None)
 
-    def records_count(self, table):
+    def records_count(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Records"))
         else:
-            return self._as_int(self.get_field_from_server(table, "records"))
+            return self._as_int(self.get_field_from_server(table, "records", allow_cache=allow_cache))
     
-    def data_size(self, table):
+    def data_size(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Size"))
         else:
-            return self._as_int(self.get_field_from_server(table, "size"))
+            return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
-    def is_sorted(self, table):
+    def is_sorted(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
         else:
-            return self.get_field_from_server(table, "sorted") == 1
+            return self.get_field_from_server(table, "sorted", allow_cache=allow_cache) == 1
     
-    def is_empty(self, table):
+    def is_empty(self, table, allow_cache=False):
         if not self.fetch_info_from_http:
-            count = self.get_field_from_server(table, "records")
+            count = self.get_field_from_server(table, "records", allow_cache=allow_cache)
             return count is None or count == 0
         """ Parse whether table is empty from html """
         http_content = sh.curl("{}/debug?info=table&table={}".format(self.http_server, table)).stdout
@@ -103,10 +102,10 @@ class Mr(object):
         else:
             fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
             shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
-            return 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
-                        .format(fastbone_str, table, shared_tx_str)
+            return '{} USER=yt MR_USER={} ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
+                        .format(self.opts, self.mr_user, fastbone_str, table, shared_tx_str)
 
     def get_write_command(self, table):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
-        return "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
+        return "{} USER=yt MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
                 .format(self.opts, self.mr_user, self.server, fastbone_str, table)

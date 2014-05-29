@@ -124,8 +124,12 @@ def get_api(proxy, version=None):
     location = "api" if version is None else "api/" + version
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
 
-def get_token():
-    token = http_config.TOKEN
+def get_token(client=None):
+    token = None
+    if client is not None:
+        token = client.token
+    if token is None:
+        token = http_config.TOKEN
     if token is None:
         token_path = http_config.TOKEN_PATH
         if token_path is None:
