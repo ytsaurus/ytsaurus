@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "location.h"
 #include "private.h"
-#include "chunk.h"
+#include "blob_chunk.h"
+#include "journal_chunk.h"
 #include "blob_reader_cache.h"
 #include "config.h"
 #include "disk_health_checker.h"
@@ -15,6 +16,8 @@
 
 #include <ytlib/election/public.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 
@@ -26,6 +29,7 @@ using namespace NYPath;
 using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NElection;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,23 +49,23 @@ TLocation::TLocation(
     TLocationConfigPtr config,
     TBootstrap* bootstrap)
     : Profiler_(DataNodeProfiler.GetPathPrefix() + "/" + ToYPathLiteral(id))
-    , Type(type)
-    , Id(id)
-    , Config(config)
-    , Bootstrap(bootstrap)
-    , Enabled(false)
-    , AvailableSpace(0)
-    , UsedSpace(0)
-    , SessionCount(0)
-    , ChunkCount(0)
-    , ReadQueue(New<TFairShareActionQueue>(Sprintf("Read:%s", ~Id), ELocationQueue::GetDomainNames()))
-    , DataReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Data)))
-    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))
-    , WriteQueue(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Sprintf("Write:%s", ~Id)))
-    , WriteInvoker(WriteQueue->GetInvoker())
+    , Type_(type)
+    , Id_(id)
+    , Config_(config)
+    , Bootstrap_(bootstrap)
+    , Enabled_(false)
+    , AvailableSpace_(0)
+    , UsedSpace_(0)
+    , SessionCount_(0)
+    , ChunkCount_(0)
+    , ReadQueue_(New<TFairShareActionQueue>(Sprintf("Read:%s", ~Id_), ELocationQueue::GetDomainNames()))
+    , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Data)))
+    , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Meta)))
+    , WriteQueue_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Sprintf("Write:%s", ~Id_)))
+    , WriteInvoker_(WriteQueue_->GetInvoker())
     , Logger(DataNodeLogger)
 {
-    Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
+    Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
 }
 
 TLocation::~TLocation()
@@ -69,12 +73,12 @@ TLocation::~TLocation()
 
 ELocationType TLocation::GetType() const
 {
-    return Type;
+    return Type_;
 }
 
 const Stroka& TLocation::GetId() const
 {
-    return Id;
+    return Id_;
 }
 
 void TLocation::UpdateUsedSpace(i64 size)
@@ -82,8 +86,8 @@ void TLocation::UpdateUsedSpace(i64 size)
     if (!IsEnabled())
         return;
 
-    UsedSpace += size;
-    AvailableSpace -= size;
+    UsedSpace_ += size;
+    AvailableSpace_ -= size;
 }
 
 i64 TLocation::GetAvailableSpace() const
@@ -96,18 +100,18 @@ i64 TLocation::GetAvailableSpace() const
 
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
-        AvailableSpace = statistics.AvailableSpace;
+        AvailableSpace_ = statistics.AvailableSpace;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to compute available space");
         const_cast<TLocation*>(this)->Disable();
-        AvailableSpace = 0;
+        AvailableSpace_ = 0;
         return 0;
     }
 
     i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
-    AvailableSpace = std::min(AvailableSpace, remainingQuota);
+    AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
 
-    return AvailableSpace;
+    return AvailableSpace_;
 }
 
 i64 TLocation::GetTotalSpace() const
@@ -125,12 +129,12 @@ i64 TLocation::GetTotalSpace() const
 
 i64 TLocation::GetUsedSpace() const
 {
-    return UsedSpace;
+    return UsedSpace_;
 }
 
 i64 TLocation::GetQuota() const
 {
-    return Config->Quota.Get(std::numeric_limits<i64>::max());
+    return Config_->Quota.Get(std::numeric_limits<i64>::max());
 }
 
 double TLocation::GetLoadFactor() const
@@ -142,7 +146,7 @@ double TLocation::GetLoadFactor() const
 
 Stroka TLocation::GetPath() const
 {
-    return Config->Path;
+    return Config_->Path;
 }
 
 void TLocation::UpdateSessionCount(int delta)
@@ -150,12 +154,12 @@ void TLocation::UpdateSessionCount(int delta)
     if (!IsEnabled())
         return;
 
-    SessionCount += delta;
+    SessionCount_ += delta;
 }
 
 int TLocation::GetSessionCount() const
 {
-    return SessionCount;
+    return SessionCount_;
 }
 
 void TLocation::UpdateChunkCount(int delta)
@@ -163,12 +167,12 @@ void TLocation::UpdateChunkCount(int delta)
     if (!IsEnabled())
         return;
 
-    ChunkCount += delta;
+    ChunkCount_ += delta;
 }
 
 int TLocation::GetChunkCount() const
 {
-    return ChunkCount;
+    return ChunkCount_;
 }
 
 Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
@@ -181,44 +185,44 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
 
 bool TLocation::IsFull() const
 {
-    return GetAvailableSpace() < Config->LowWatermark;
+    return GetAvailableSpace() < Config_->LowWatermark;
 }
 
 bool TLocation::HasEnoughSpace(i64 size) const
 {
-    return GetAvailableSpace() - size >= Config->HighWatermark;
+    return GetAvailableSpace() - size >= Config_->HighWatermark;
 }
 
 IPrioritizedInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return DataReadInvoker;
+    return DataReadInvoker_;
 }
 
 IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return MetaReadInvoker;
+    return MetaReadInvoker_;
 }
 
 IInvokerPtr TLocation::GetWriteInvoker()
 {
-    return WriteInvoker;
+    return WriteInvoker_;
 }
 
 bool TLocation::IsEnabled() const
 {
-    return Enabled.load();
+    return Enabled_.load();
 }
 
 void TLocation::Disable()
 {
-    if (Enabled.exchange(false)) {
+    if (Enabled_.exchange(false)) {
         ScheduleDisable();
     }
 }
 
 void TLocation::ScheduleDisable()
 {
-    Bootstrap->GetControlInvoker()->Invoke(
+    Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TLocation::DoDisable, MakeStrong(this)));
 }
 
@@ -226,10 +230,10 @@ void TLocation::DoDisable()
 {
     LOG_ERROR("Location disabled");
 
-    AvailableSpace = 0;
-    UsedSpace = 0;
-    SessionCount = 0;
-    ChunkCount = 0;
+    AvailableSpace_ = 0;
+    UsedSpace_ = 0;
+    SessionCount_ = 0;
+    ChunkCount_ = 0;
 
     Disabled_.Fire();
 }
@@ -238,7 +242,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     try {
         auto descriptors = DoInitialize();
-        Enabled.store(true);
+        Enabled_.store(true);
         return descriptors;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Location has failed to initialize");
@@ -256,8 +260,8 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     // Others must not be able to list chunk store and chunk cache dirs.
     NFS::ForcePath(path, Permissions);
 
-    if (Config->MinDiskSpace) {
-        i64 minSpace = Config->MinDiskSpace.Get();
+    if (Config_->MinDiskSpace) {
+        i64 minSpace = Config_->MinDiskSpace.Get();
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
             THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %" PRId64 ", actual %" PRId64,
@@ -268,17 +272,15 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     NFS::CleanTempFiles(path);
 
-    yhash_set<Stroka> recognizedFileNames;
     yhash_set<TChunkId> chunkIds;
-    auto allFileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
-    for (const auto& fileName : allFileNames) {
+    auto fileNames = NFS::EnumerateFiles(path, std::numeric_limits<int>::max());
+    for (const auto& fileName : fileNames) {
         if (fileName == CellGuidFileName)
             continue;
 
         TChunkId chunkId;
         auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
         if (TChunkId::FromString(strippedFileName, &chunkId)) {
-            recognizedFileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
             chunkIds.insert(chunkId);
         } else {
             LOG_ERROR("Unrecognized file %s",
@@ -288,38 +290,29 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     std::vector<TChunkDescriptor> descriptors;
     for (const auto& chunkId : chunkIds) {
-        auto chunkDataFileName = GetChunkFileName(chunkId);
-        auto chunkMetaFileName = chunkDataFileName + ChunkMetaSuffix;
+        auto fileName = GetChunkFileName(chunkId);
 
-        bool hasMeta = recognizedFileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != recognizedFileNames.end();
-        bool hasData = recognizedFileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != recognizedFileNames.end();
+        TNullable<TChunkDescriptor> maybeDescriptor;
+        auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
+        switch (chunkType) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                maybeDescriptor = TBlobChunk::TryGetDescriptor(chunkId, fileName);
+                break;
 
-        YCHECK(hasMeta || hasData);
+            case EObjectType::JournalChunk:
+                maybeDescriptor = TJournalChunk::TryGetDescriptor(chunkId, fileName);
+                break;
 
-        if (hasMeta && hasData) {
-            i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
-            i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
-            if (chunkMetaSize == 0) {
-                // EXT4 specific thing.
-                // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-                LOG_WARNING("Chunk meta file %s is empty",
-                    ~chunkMetaFileName.Quote());
-                NFS::Remove(chunkDataFileName);
-                NFS::Remove(chunkMetaFileName);
-                continue;
-            }
-            TChunkDescriptor descriptor;
-            descriptor.Id = chunkId;
-            descriptor.Info.set_disk_space(chunkDataSize + chunkMetaSize);
-            descriptors.push_back(descriptor);
-        } else if (!hasMeta) {
-            LOG_WARNING("Missing meta file, removing data file %s",
-                ~chunkDataFileName.Quote());
-            NFS::Remove(chunkDataFileName);
-        } else if (!hasData) {
-            LOG_WARNING("Missing data file, removing meta file %s",
-                ~chunkMetaFileName.Quote());
-            NFS::Remove(chunkMetaFileName);
+            default:
+                LOG_WARNING("Invalid type %s of chunk %s, skipped",
+                    ~FormatEnum(chunkType).Quote(),
+                    ~ToString(chunkId));
+                break;
+        }
+
+        if (maybeDescriptor) {
+            descriptors.push_back(*maybeDescriptor);
         }
     }
 
@@ -334,16 +327,16 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
             THROW_ERROR_EXCEPTION("Failed to parse cell GUID %s",
                 ~cellGuidString.Quote());
         }
-        if (cellGuid != Bootstrap->GetCellGuid()) {
+        if (cellGuid != Bootstrap_->GetCellGuid()) {
             THROW_ERROR_EXCEPTION("Wrong cell GUID: expected %s, found %s",
-                ~ToString(Bootstrap->GetCellGuid()),
+                ~ToString(Bootstrap_->GetCellGuid()),
                 ~ToString(cellGuid));
         }
     } else {
         LOG_INFO("Cell GUID file is not found, creating");
         TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TFileOutput cellGuidFile(file);
-        cellGuidFile.Write(ToString(Bootstrap->GetCellGuid()));
+        cellGuidFile.Write(ToString(Bootstrap_->GetCellGuid()));
     }
 
     // Force subdirectories.
@@ -352,24 +345,24 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     }
 
     // Initialize and start health checker.
-    HealthChecker = New<TDiskHealthChecker>(
-        Bootstrap->GetConfig()->DataNode->DiskHealthChecker,
+    HealthChecker_ = New<TDiskHealthChecker>(
+        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
         GetWriteInvoker());
 
     // Run first health check before initialization is complete to sort out read-only drives.
-    auto error = HealthChecker->RunCheck().Get();
+    auto error = HealthChecker_->RunCheck().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
-    HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
-    HealthChecker->Start();
+    HealthChecker_->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
+    HealthChecker_->Start();
 
     return descriptors;
 }
 
 void TLocation::OnHealthCheckFailed()
 {
-    switch (Type) {
+    switch (Type_) {
         case ELocationType::Store:
             Disable();
             break;

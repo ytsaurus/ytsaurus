@@ -199,6 +199,26 @@ void TJournalChunk::SetSealed(bool value)
     Sealed_ = value;
 }
 
+TNullable<TChunkDescriptor> TJournalChunk::TryGetDescriptor(
+    const TChunkId& id,
+    const Stroka& fileName)
+{
+    if (!NFS::Exists(fileName)) {
+        auto indexFileName = fileName + IndexSuffix;
+        if (NFS::Exists(indexFileName)) {
+            LOG_WARNING("Missing data file, removing index file %s",
+                ~indexFileName.Quote());
+            NFS::Remove(indexFileName);
+        }
+        return Null;
+    }
+
+    TChunkDescriptor descriptor;
+    descriptor.Id = id;
+    descriptor.Info.set_disk_space(0);
+    return descriptor;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDataNode

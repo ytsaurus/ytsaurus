@@ -48,6 +48,49 @@ TBlobChunk::TBlobChunk(
     }
 }
 
+TNullable<TChunkDescriptor> TBlobChunk::TryGetDescriptor(
+    const TChunkId& id,
+    const Stroka& fileName)
+{
+    auto dataFileName = fileName;
+    auto metaFileName = fileName + ChunkMetaSuffix;
+
+    bool hasData = NFS::Exists(dataFileName);
+    bool hasMeta = NFS::Exists(metaFileName);
+
+    if (hasMeta && hasData) {
+        i64 dataSize = NFS::GetFileSize(dataFileName);
+        i64 metaSize = NFS::GetFileSize(metaFileName);
+        if (metaSize == 0) {
+            // EXT4 specific thing.
+            // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
+            LOG_WARNING("Chunk meta file %s is empty",
+                ~metaFileName.Quote());
+            NFS::Remove(dataFileName);
+            NFS::Remove(metaFileName);
+            return Null;
+        }
+
+        TChunkDescriptor descriptor;
+        descriptor.Id = id;
+        descriptor.Info.set_disk_space(dataSize + metaSize);
+        return descriptor;
+    }  if (!hasMeta && hasData) {
+        LOG_WARNING("Missing meta file, removing data file %s",
+            ~dataFileName.Quote());
+        NFS::Remove(dataFileName);
+        return Null;
+    } else if (!hasData && hasMeta) {
+        LOG_WARNING("Missing data file, removing meta file %s",
+            ~dataFileName.Quote());
+        NFS::Remove(metaFileName);
+        return Null;
+    } else {
+        // Has nothing :)
+        return Null;
+    }
+}
+
 IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
     i64 priority,
     const std::vector<int>* tags)

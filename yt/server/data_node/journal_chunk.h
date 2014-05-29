@@ -32,6 +32,10 @@ public:
     void SetRecordCount(int recordCount);
     void SetSealed(bool value);
 
+    static TNullable<TChunkDescriptor> TryGetDescriptor(
+        const TChunkId& id,
+        const Stroka& fileName);
+
 private:
     std::atomic<int> RecordCount_;
     std::atomic<bool> Sealed_;

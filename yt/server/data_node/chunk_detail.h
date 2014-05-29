@@ -10,6 +10,13 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Chunk properties that can be obtained during the filesystem scan.
+struct TChunkDescriptor
+{
+    TChunkId Id;
+    NChunkClient::NProto::TChunkInfo Info;
+};
+
 //! A base for any IChunk implementation.
 class TChunk
     : public IChunk

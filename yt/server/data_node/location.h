@@ -26,13 +26,6 @@ DECLARE_ENUM(ELocationType,
     (Cache)
 );
 
-//! Chunk properties that can be obtained during the filesystem scan.
-struct TChunkDescriptor
-{
-    TChunkId Id;
-    NChunkClient::NProto::TChunkInfo Info;
-};
-
 //! Describes a physical location of chunks.
 class TLocation
     : public TRefCounted
@@ -114,7 +107,7 @@ public:
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWriteInvoker();
 
-    //! Returns True iff the location is enabled.
+    //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
     //! Marks the location as disabled.
@@ -130,28 +123,29 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
 
 private:
-    ELocationType Type;
-    Stroka Id;
-    TLocationConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    ELocationType Type_;
+    Stroka Id_;
+    TLocationConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    std::atomic<bool> Enabled;
+    std::atomic<bool> Enabled_;
 
-    mutable i64 AvailableSpace;
-    i64 UsedSpace;
-    int SessionCount;
-    int ChunkCount;
+    mutable i64 AvailableSpace_;
+    i64 UsedSpace_;
+    int SessionCount_;
+    int ChunkCount_;
 
-    NConcurrency::TFairShareActionQueuePtr ReadQueue;
-    IPrioritizedInvokerPtr DataReadInvoker;
-    IPrioritizedInvokerPtr MetaReadInvoker;
+    NConcurrency::TFairShareActionQueuePtr ReadQueue_;
+    IPrioritizedInvokerPtr DataReadInvoker_;
+    IPrioritizedInvokerPtr MetaReadInvoker_;
 
-    NConcurrency::TThreadPoolPtr WriteQueue;
-    IInvokerPtr WriteInvoker;
+    NConcurrency::TThreadPoolPtr WriteQueue_;
+    IInvokerPtr WriteInvoker_;
 
-    TDiskHealthCheckerPtr HealthChecker;
+    TDiskHealthCheckerPtr HealthChecker_;
 
     mutable NLog::TTaggedLogger Logger;
+
 
     std::vector<TChunkDescriptor> DoInitialize();
     void OnHealthCheckFailed();
