@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/chunk_reader_base.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/name_table.cpp
+  ${BASE}/partitioner.cpp
   ${BASE}/pipe.cpp
   ${BASE}/public.cpp
   ${BASE}/private.cpp
@@ -44,6 +45,7 @@ set( HDRS
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/name_table.h
+  ${BASE}/partitioner.h
   ${BASE}/pipe.h
   ${BASE}/private.h
   ${BASE}/public.h

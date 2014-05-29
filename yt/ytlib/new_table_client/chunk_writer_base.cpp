@@ -26,19 +26,20 @@ using NYT::ToProto;
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IChunkWriterPtr asyncWriter,
+    IWriterPtr asyncWriter,
     // We pass key columns here in order to use TChunkWriterBase and
-    // TSortedChunkWriterBase as template base interchangeably.
+    // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
     : Config_(config)
-    , Options_(options)
     , KeyColumns_(keyColumns)
-    , EncodingChunkWriter_(New<TEncodingChunkWriter>(Config_, Options_, asyncWriter))
+    , RowCount_(0)
+    , DataWeight_(0)
+    , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
+    , BlockMetaExtSize_(0)
 { }
 
 TFuture<void> TChunkWriterBase::Open()
 {
-    BlockWriter_.reset(CreateBlockWriter());
     return VoidFuture;
 }
 
@@ -62,20 +63,19 @@ TFuture<void> TChunkWriterBase::GetReadyEvent()
 i64 TChunkWriterBase::GetMetaSize() const
 {
     // Other meta parts are negligible.
-    return BlockMetaExtSize_ + SamplesExtSize_;
+    return BlockMetaExtSize_;
 }
 
 i64 TChunkWriterBase::GetDataSize() const
 {
-    return EncodingChunkWriter_->GetDataStatistics().compressed_data_size() +
-        (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
+    return EncodingChunkWriter_->GetDataStatistics().compressed_data_size();
 }
 
 TChunkMeta TChunkWriterBase::GetMasterMeta() const
 {
     TChunkMeta meta;
-    FillCommonMeta(&meta);
     SetProtoExtension(meta.mutable_extensions(), EncodingChunkWriter_->MiscExt());
+    FillCommonMeta(&meta);
     return meta;
 }
 
@@ -89,19 +89,88 @@ TDataStatistics TChunkWriterBase::GetDataStatistics() const
     return EncodingChunkWriter_->GetDataStatistics();
 }
 
-void TChunkWriterBase::OnRow(TVersionedRow row)
+void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
+{
+    meta->set_type(EChunkType::Table);
+    meta->set_version(GetFormatVersion());
+}
+
+void TChunkWriterBase::RegisterBlock(TBlock& block)
+{
+    block.Meta.set_chunk_row_count(RowCount_);
+
+    BlockMetaExtSize_ += block.Meta.ByteSize();
+    BlockMetaExt_.add_entries()->Swap(&block.Meta);
+
+    EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+}
+
+void TChunkWriterBase::PrepareChunkMeta()
+{
+    auto& miscExt = EncodingChunkWriter_->MiscExt();
+    miscExt.set_sorted(false);
+    miscExt.set_row_count(RowCount_);
+    miscExt.set_data_weight(DataWeight_);
+
+    auto& meta = EncodingChunkWriter_->Meta();
+    FillCommonMeta(&meta);
+
+    SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
+}
+
+TError TChunkWriterBase::DoClose()
+{
+    PrepareChunkMeta();
+
+    return EncodingChunkWriter_->Close();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSequentialChunkWriterBase::TSequentialChunkWriterBase(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    IAsyncWriterPtr asyncWriter,
+    // We pass key columns here in order to use TSequentialChunkWriterBase and
+    // TSortedChunkWriterBase as a template base interchangably.
+    const TKeyColumns& keyColumns)
+    : TChunkWriterBase(config, options, asyncWriter)
+    , KeyColumns_(keyColumns)
+    , SamplesExtSize_(0)
+    , AverageSampleSize_(0.0)
+{ }
+
+TAsyncError TSequentialChunkWriterBase::Open()
+{
+    BlockWriter_.reset(CreateBlockWriter());
+    return TChunkWriterBase::Open();
+}
+
+i64 TSequentialChunkWriterBase::GetMetaSize() const
+{
+    // Other meta parts are negligible.
+    return TChunkWriterBase::GetMetaSize() + SamplesExtSize_;
+}
+
+i64 TSequentialChunkWriterBase::GetDataSize() const
+{
+    return TChunkWriterBase::GetDataSize() +
+        (BlockWriter_ ? BlockWriter_->GetBlockSize() : 0);
+}
+
+void TSequentialChunkWriterBase::OnRow(TVersionedRow row)
 {
     DataWeight_ += GetDataWeight(row);
     OnRow(row.BeginKeys(), row.EndKeys());
 }
 
-void TChunkWriterBase::OnRow(TUnversionedRow row)
+void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 {
     DataWeight_ += GetDataWeight(row);
     OnRow(row.Begin(), row.End());
 }
 
-void TChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
+void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     double avgRowSize = EncodingChunkWriter_->GetCompressionRatio() * GetUncompressedSize() / RowCount_;
     double sampleProbability = Config_->SampleRate * avgRowSize / AverageSampleSize_;
@@ -121,7 +190,7 @@ void TChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedV
     BlockWriter_.reset(CreateBlockWriter());
 }
 
-void TChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end)
+void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     auto entry = SerializeToString(begin, end);
     SamplesExt_.add_entries(entry);
@@ -129,54 +198,35 @@ void TChunkWriterBase::EmitSample(const TUnversionedValue* begin, const TUnversi
     AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
-void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
-{
-    meta->set_type(static_cast<int>(EChunkType::Table));
-    meta->set_version(static_cast<int>(GetFormatVersion()));
-}
-
-void TChunkWriterBase::OnBlockFinish()
+void TSequentialChunkWriterBase::OnBlockFinish()
 { }
 
-void TChunkWriterBase::FinishBlock()
+void TSequentialChunkWriterBase::FinishBlock()
 {
     OnBlockFinish();
 
     auto block = BlockWriter_->FlushBlock();
-    block.Meta.set_chunk_row_count(RowCount_);
-
-    BlockMetaExtSize_ += block.Meta.ByteSize();
-
-    BlockMetaExt_.add_blocks()->Swap(&block.Meta);
-    EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+    RegisterBlock(block);
 }
 
-void TChunkWriterBase::OnClose()
-{ }
+void TSequentialChunkWriterBase::PrepareChunkMeta()
+{
+    TChunkWriterBase::PrepareChunkMeta();
 
-void TChunkWriterBase::DoClose()
+    auto& meta = EncodingChunkWriter_->Meta();
+    SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
+}
+
+TError TSequentialChunkWriterBase::DoClose()
 {
     if (BlockWriter_->GetRowCount() > 0) {
         FinishBlock();
     }
 
-    OnClose();
-
-    auto& meta = EncodingChunkWriter_->Meta();
-    FillCommonMeta(&meta);
-
-    SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
-    SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
-
-    auto& miscExt = EncodingChunkWriter_->MiscExt();
-    miscExt.set_sorted(true);
-    miscExt.set_row_count(RowCount_);
-    miscExt.set_data_weight(DataWeight_);
-
-    EncodingChunkWriter_->Close();
+    return TChunkWriterBase::DoClose();
 }
 
-i64 TChunkWriterBase::GetUncompressedSize() const 
+i64 TSequentialChunkWriterBase::GetUncompressedSize() const
 {
     i64 size = EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     if (BlockWriter_) {
@@ -192,24 +242,24 @@ TSortedChunkWriterBase::TSortedChunkWriterBase(
     TChunkWriterOptionsPtr options,
     NChunkClient::IChunkWriterPtr chunkWriter,
     TKeyColumns keyColumns)
-    : TChunkWriterBase(config, options, chunkWriter, keyColumns)
+    : TChunkWriterBase(config, options, asyncWriter, keyColumns)
 { }
 
 TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const
 {
-    auto meta = TChunkWriterBase::GetMasterMeta();
+    auto meta = TSequentialChunkWriterBase::GetMasterMeta();
     SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
     return meta;
 }
 
 TChunkMeta TSortedChunkWriterBase::GetSchedulerMeta() const
 {
-    return TChunkWriterBase::GetMasterMeta();
+    return TSequentialChunkWriterBase::GetMasterMeta();
 }
 
 i64 TSortedChunkWriterBase::GetMetaSize() const
 {
-    return TChunkWriterBase::GetMetaSize() + BlockIndexExtSize_;
+    return TSequentialChunkWriterBase::GetMetaSize() + BlockIndexExtSize_;
 }
 
 void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
@@ -220,7 +270,7 @@ void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnvers
         ToProto(BoundaryKeysExt_.mutable_min(), LastKey_);
     }
 
-    TChunkWriterBase::OnRow(begin, end);
+    TSequentialChunkWriterBase::OnRow(begin, end);
 }
 
 void TSortedChunkWriterBase::OnBlockFinish()
@@ -228,11 +278,16 @@ void TSortedChunkWriterBase::OnBlockFinish()
     ToProto(BlockIndexExt_.add_entries(), LastKey_);
     BlockIndexExtSize_ = BlockIndexExt_.ByteSize();
 
-    TChunkWriterBase::OnBlockFinish();
+    TSequentialChunkWriterBase::OnBlockFinish();
 }
 
-void TSortedChunkWriterBase::OnClose()
+void TSortedChunkWriterBase::PrepareChunkMeta()
 {
+    TSequentialChunkWriterBase::PrepareChunkMeta();
+
+    auto& miscExt = EncodingChunkWriter_->MiscExt();
+    miscExt.set_sorted(true);
+
     ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
     auto& meta = EncodingChunkWriter_->Meta();
@@ -243,8 +298,6 @@ void TSortedChunkWriterBase::OnClose()
     SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
-
-    TChunkWriterBase::OnClose();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

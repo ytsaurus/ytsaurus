@@ -1,5 +1,6 @@
 package NYT.NVersionedTableClient.NProto;
 
+import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/schema.proto";
 
@@ -32,6 +33,8 @@ message TBlockMeta
     repeated int32 fixed_column_sizes = 4;
     optional int32 variable_buffer_offset = 5;
     optional int32 end_of_key_flags_offset = 6;
+
+    optional int32 partition_index = 7 [default = 0];
 
     extensions 100 to max;
 }
@@ -75,6 +78,11 @@ message TBoundaryKeysExt
 message TSamplesExt
 {
     repeated bytes entries = 1;
+}
+
+message TPartitionsExt
+{
+    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

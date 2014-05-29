@@ -15,6 +15,8 @@ class TChunkWriterConfig
 public:
     i64 BlockSize;
 
+    i64 MaxBufferSize;
+
     double SampleRate;
 
     TChunkWriterConfig()
@@ -22,6 +24,10 @@ public:
         // Block less than 1M is nonsense.
         RegisterParameter("block_size", BlockSize)
             .GreaterThanOrEqual((i64) 1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024);
+
+        RegisterParameter("max_buffer_size", MaxBufferSize)
+            .GreaterThanOrEqual((i64) 5 * 1024 * 1024)
             .Default((i64) 16 * 1024 * 1024);
 
         RegisterParameter("sample_rate", SampleRate)
