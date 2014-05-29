@@ -120,7 +120,7 @@ class YTEnv(object):
 
         self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", cell_id=0, ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -151,7 +151,7 @@ class YTEnv(object):
 
         try:
             logging.info("Configuring...")
-            self._run_masters(masters_count, master_name)
+            self._run_masters(masters_count, master_name, cell_id)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
             self._prepare_driver(driver_name)
@@ -257,7 +257,7 @@ class YTEnv(object):
             os.makedirs(dirname)
         self.pids_file = open(self._pids_filename, 'wt')
 
-    def _prepare_masters(self, masters_count, master_name):
+    def _prepare_masters(self, masters_count, master_name, cell_id):
         if masters_count == 0:
              return
 
@@ -278,6 +278,7 @@ class YTEnv(object):
 
             config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
+            config["object_manager"]["cell_id"] = cell_id
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
             config['snapshots']['path'] = os.path.join(current, 'snapshots')
             config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
@@ -291,7 +292,7 @@ class YTEnv(object):
 
             self.configs[master_name].append(config)
             self.config_paths[master_name].append(config_path)
-            self.log_paths[master_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[master_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_masters(self, master_name):
         self._run_ytserver("master", master_name)
@@ -316,9 +317,8 @@ class YTEnv(object):
         self._wait_for(masters_ready, name=master_name)
         logging.info('Leader is %d', self.leader_id)
 
-
-    def _run_masters(self, masters_count, master_name):
-        self._prepare_masters(masters_count, master_name)
+    def _run_masters(self, masters_count, master_name, cell_id):
+        self._prepare_masters(masters_count, master_name, cell_id)
         self.start_masters(master_name)
 
 
@@ -374,7 +374,7 @@ class YTEnv(object):
 
             self.configs[node_name].append(config)
             self.config_paths[node_name].append(config_path)
-            self.log_paths[node_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[node_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_nodes(self, node_name):
         self._run_ytserver("node", node_name)
@@ -441,13 +441,11 @@ class YTEnv(object):
             config['cluster_connection']['master']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
-            config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
-
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
             config['monitoring_port'] = self._ports[scheduler_name][2 * i + 1]
-
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
-
+            
+            config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
             config['tracing'] = init_tracing(config['rpc_port'])
 
             self.modify_scheduler_config(config)
@@ -457,7 +455,7 @@ class YTEnv(object):
 
             self.configs[scheduler_name].append(config)
             self.config_paths[scheduler_name].append(config_path)
-            self.log_paths[scheduler_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[scheduler_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_schedulers(self, scheduler_name):
         self._run_ytserver("scheduler", scheduler_name)
@@ -505,7 +503,7 @@ class YTEnv(object):
 
         self.configs[console_driver_name].append(config)
         self.config_paths[console_driver_name].append(config_path)
-        self.log_paths[console_driver_name].append(config['logging']['writers']['file']['file_name'])
+        self.log_paths[console_driver_name].append(config['logging']['writers']['debug']['file_name'])
 
 
     def _prepare_proxy(self, has_proxy, proxy_name):
@@ -556,7 +554,6 @@ class YTEnv(object):
         self._prepare_proxy(has_proxy, proxy_name)
         if has_proxy:
             self.start_proxy(proxy_name)
-
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0

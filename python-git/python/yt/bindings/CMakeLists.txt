@@ -29,7 +29,6 @@ include_directories(
   ${PYTHON_INCLUDE_DIR}
 )
 
-
 add_library( yt-driver-python SHARED
   ${BASE}/driver.cpp
   ${SRCS}
