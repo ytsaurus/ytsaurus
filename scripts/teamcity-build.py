@@ -156,7 +156,7 @@ def package(options):
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
         teamcity_interact("setParameter", name="yt.package_version", value=version)
-        teamcity_interact("buildStatus", text="Package: {0}\n{{build.status.text}}".format(version))
+        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
         artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
         if artifacts:
