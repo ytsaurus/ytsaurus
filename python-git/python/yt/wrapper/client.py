@@ -13,8 +13,9 @@ from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 
 class Yt(object):
-    def __init__(self, proxy):
+    def __init__(self, proxy, token=None):
         self.proxy = proxy
+        self.token = token
         self._transaction_stack = []
 
     def _add_transaction(self, transaction_id, ping_ancestor_transactions):

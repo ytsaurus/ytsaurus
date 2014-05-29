@@ -205,7 +205,7 @@ def make_request(command_name, params,
     if params:
         headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
 
-    token = get_token()
+    token = get_token(client=client)
     if token is not None:
         headers["Authorization"] = "OAuth " + token
 
