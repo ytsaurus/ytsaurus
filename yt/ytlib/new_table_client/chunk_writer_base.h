@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "block_writer.h"
 #include "chunk_meta_extensions.h"
 #include "unversioned_row.h"
 
@@ -38,12 +39,51 @@ public:
 
 protected:
     TChunkWriterConfigPtr Config_;
-    TChunkWriterOptionsPtr Options_;
     TKeyColumns KeyColumns_;
     i64 RowCount_ = 0;
 
+    i64 DataWeight_ = 0;
+
     NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
 
+    NProto::TBlockMetaExt BlockMetaExt_;
+    i64 BlockMetaExtSize_;
+
+
+    void RegisterBlock(TBlock& block);
+
+    void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
+
+    virtual void PrepareChunkMeta();
+
+    virtual TError DoClose();
+
+    virtual ETableChunkFormat GetFormatVersion() const = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*!
+ *  Writes one block at a time.
+ */
+class TSequentialChunkWriterBase
+    : public TChunkWriterBase
+{
+public:
+    TSequentialChunkWriterBase(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
+        NChunkClient::IAsyncWriterPtr asyncWriter,
+        const TKeyColumns& keyColumns = TKeyColumns());
+
+    virtual TAsyncError Open() override;
+
+    virtual i64 GetMetaSize() const override;
+    virtual i64 GetDataSize() const override;
+
+protected:
+    TKeyColumns KeyColumns_;
 
     void OnRow(TUnversionedRow row);
     void OnRow(TVersionedRow row);
@@ -51,9 +91,9 @@ protected:
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end);
 
     virtual void OnBlockFinish();
-    virtual void OnClose();
 
-    virtual ETableChunkFormat GetFormatVersion() const = 0;
+    virtual void PrepareChunkMeta() override;
+
     virtual IBlockWriter* CreateBlockWriter() = 0;
 
 private:
@@ -66,16 +106,11 @@ private:
     i64 SamplesExtSize_ = 0;
     double AverageSampleSize_ = 0;
 
-    i64 DataWeight_ = 0;
-
-
-    void DoClose();
+    TError DoClose();
 
     void EmitSample(const TUnversionedValue* begin, const TUnversionedValue* end);
 
     void FinishBlock();
-
-    void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
 
     i64 GetUncompressedSize() const;
 
@@ -84,7 +119,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkWriterBase
-    : public TChunkWriterBase
+    : public TSequentialChunkWriterBase
 {
 
 public:
@@ -110,9 +145,9 @@ protected:
 
     virtual void OnRow(const TUnversionedValue* begin, const TUnversionedValue* end) override;
     virtual void OnBlockFinish() override;
-    virtual void OnClose() override;
+    virtual void PrepareChunkMeta() override;
 
-    using TChunkWriterBase::OnRow;
+    using TSequentialChunkWriterBase::OnRow;
 
 };
 

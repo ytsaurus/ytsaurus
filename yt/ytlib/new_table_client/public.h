@@ -115,6 +115,8 @@ struct  IBlockWriter;
 
 class TBlockWriter;
 
+struct IPartitioner;
+
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 DECLARE_REFCOUNTED_CLASS(TChunkSplitsFetcher)
 

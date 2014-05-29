@@ -6,6 +6,7 @@
 #include "chunk_writer_base.h"
 #include "config.h"
 #include "name_table.h"
+#include "partitioner.h"
 #include "schemaless_block_writer.h"
 
 #include <ytlib/chunk_client/chunk_writer.h>
@@ -24,6 +25,8 @@
 
 // TTableYPathProxy
 #include <ytlib/table_client/table_ypath_proxy.h>
+// TKeyColumnsExt
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -37,6 +40,7 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -45,6 +49,8 @@ using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
+
+using NNodeTrackerClient::TNodeDirectoryPtr;
 
 using NHydra::GenerateMutationId;
 
@@ -74,7 +80,7 @@ private:
     virtual ETableChunkFormat GetFormatVersion() const override;
     virtual IBlockWriter* CreateBlockWriter() override;
 
-    virtual void OnClose() override;
+    virtual void PrepareChunkMeta() override;
 
 };
 
@@ -111,15 +117,15 @@ ETableChunkFormat TSchemalessChunkWriter<TBase>::GetFormatVersion() const
 }
 
 template <class TBase>
-void TSchemalessChunkWriter<TBase>::OnClose()
+void TSchemalessChunkWriter<TBase>::PrepareChunkMeta()
 {
+    TBase::PrepareChunkMeta();
+
     auto& meta = TBase::EncodingChunkWriter_->Meta();
     TNameTableExt nameTableExt;
     ToProto(&nameTableExt, NameTable_);
 
     SetProtoExtension(meta.mutable_extensions(), nameTableExt);
-
-    TBase::OnClose();
 }
 
 template <class TBase>
@@ -139,10 +145,224 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     NChunkClient::IChunkWriterPtr chunkWriter)
 {
     if (keyColumns.empty()) {
-        return New<TSchemalessChunkWriter<TChunkWriterBase>>(config, options, nameTable, chunkWriter);
+        return New<TSchemalessChunkWriter<TSequentialChunkWriterBase>>(config, options, nameTable, chunkWriter);
     } else {
         return New<TSchemalessChunkWriter<TSortedChunkWriterBase>>(config, options, nameTable, chunkWriter, keyColumns);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPartitionChunkWriter
+    : public ISchemalessChunkWriter
+    , public TChunkWriterBase
+{
+public:
+    TPartitionChunkWriter(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
+        TNameTablePtr nameTable,
+        IAsyncWriterPtr asyncWriter,
+        const TKeyColumns& keyColumns,
+        IPartitioner* partitioner);
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+
+    virtual i64 GetDataSize() const override;
+
+    virtual TChunkMeta GetSchedulerMeta() const override;
+
+    virtual i64 GetMetaSize() const override;
+
+private:
+    TNameTablePtr NameTable_;
+    TKeyColumns KeyColumns_;
+
+    TPartitionsExt PartitionsExt_;
+
+    IPartitioner* Partitioner_;
+
+    std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
+
+    i64 CurrentBufferSize_;
+
+    int LargestPartitionIndex_;
+    i64 LargestPartitionSize_;
+
+
+    void WriteRow(TUnversionedRow row);
+
+    void InitLargestPartition();
+    void FlushBlock(int partitionIndex);
+
+    virtual TError DoClose() override;
+    virtual void PrepareChunkMeta() override;
+
+    virtual ETableChunkFormat GetFormatVersion() const override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionChunkWriter::TPartitionChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    IAsyncWriterPtr asyncWriter,
+    const TKeyColumns& keyColumns,
+    IPartitioner* partitioner)
+    : TChunkWriterBase(config, options, asyncWriter)
+    , NameTable_(nameTable)
+    , KeyColumns_(keyColumns)
+    , Partitioner_(partitioner)
+    , CurrentBufferSize_(0)
+    , LargestPartitionIndex_(0)
+    , LargestPartitionSize_(0)
+{
+    int partitionCount = Partitioner_->GetPartitionCount();
+    BlockWriters_.reserve(partitionCount);
+
+    for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
+        BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter());
+
+        auto* partitionAttributes = PartitionsExt_.add_partitions();
+        partitionAttributes->set_row_count(0);
+        partitionAttributes->set_uncompressed_data_size(0);
+    }
+}
+
+bool TPartitionChunkWriter::Write(const std::vector<TUnversionedRow> &rows)
+{
+    for (auto& row : rows) {
+        WriteRow(row);
+    }
+
+    return EncodingChunkWriter_->IsReady();
+}
+
+void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
+{
+    ++RowCount_;
+    DataWeight_ += GetDataWeight(row);
+
+    auto partitionIndex = Partitioner_->GetPartitionIndex(row);
+    auto& blockWriter = BlockWriters_[partitionIndex];
+
+    i64 oldSize = blockWriter->GetBlockSize();
+    blockWriter->WriteRow(row);
+
+    i64 newSize = blockWriter->GetBlockSize();
+
+    i64 sizeDelta = newSize - oldSize;
+    CurrentBufferSize_ += sizeDelta;
+
+    auto* partitionAttributes = PartitionsExt_.mutable_partitions(partitionIndex);
+    partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
+    partitionAttributes->set_uncompressed_data_size(partitionAttributes->uncompressed_data_size() + sizeDelta);
+
+    if (newSize > LargestPartitionSize_) {
+        LargestPartitionIndex_ = partitionIndex;
+        LargestPartitionSize_ = newSize;
+    }
+
+    if (LargestPartitionSize_ >= Config_->BlockSize || CurrentBufferSize_ >= Config_->MaxBufferSize) {
+        FlushBlock(LargestPartitionIndex_);
+        BlockWriters_[LargestPartitionIndex_].reset(new THorizontalSchemalessBlockWriter());
+
+        CurrentBufferSize_ -= LargestPartitionSize_;
+        InitLargestPartition();
+    }
+}
+
+void TPartitionChunkWriter::FlushBlock(int partitionIndex)
+{
+    auto& blockWriter = BlockWriters_[partitionIndex];
+    auto block = blockWriter->FlushBlock();
+    block.Meta.set_partition_index(partitionIndex);
+
+    RegisterBlock(block);
+}
+
+void TPartitionChunkWriter::InitLargestPartition()
+{
+    LargestPartitionIndex_ = 0;
+    LargestPartitionSize_ = BlockWriters_.front()->GetBlockSize();
+    for (int partitionIndex = 1; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
+        auto& blockWriter = BlockWriters_[partitionIndex];
+        if (blockWriter->GetBlockSize() > LargestPartitionSize_) {
+            LargestPartitionSize_ = blockWriter->GetBlockSize();
+            LargestPartitionIndex_ = partitionIndex;
+        }
+    }
+}
+
+i64 TPartitionChunkWriter::GetDataSize() const
+{
+    return TChunkWriterBase::GetDataSize() + CurrentBufferSize_;
+}
+
+TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
+{
+    auto meta = TChunkWriterBase::GetSchedulerMeta();
+    SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
+    return meta;
+}
+
+i64 TPartitionChunkWriter::GetMetaSize() const
+{
+    return TChunkWriterBase::GetMetaSize() + 2 * sizeof(i64) * BlockWriters_.size();
+}
+
+TError TPartitionChunkWriter::DoClose()
+{
+    for (int partitionIndex = 0; partitionIndex < BlockWriters_.size(); ++partitionIndex) {
+        if (BlockWriters_[partitionIndex]->GetRowCount() > 0) {
+            FlushBlock(partitionIndex);
+        }
+    }
+
+    return TChunkWriterBase::DoClose();
+}
+
+void TPartitionChunkWriter::PrepareChunkMeta()
+{
+    TChunkWriterBase::PrepareChunkMeta();
+
+    auto& meta = EncodingChunkWriter_->Meta();
+
+    SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
+
+    TKeyColumnsExt keyColumnsExt;
+    NYT::ToProto(keyColumnsExt.mutable_names(), KeyColumns_);
+    SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
+
+    TNameTableExt nameTableExt;
+    ToProto(&nameTableExt, NameTable_);
+    SetProtoExtension(meta.mutable_extensions(), nameTableExt);
+}
+
+ETableChunkFormat TPartitionChunkWriter::GetFormatVersion() const
+{
+    return ETableChunkFormat::SchemalessHorizontal;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    NChunkClient::IAsyncWriterPtr asyncWriter,
+    IPartitioner* partitioner)
+{
+    return New<TPartitionChunkWriter>(
+        config,
+        options,
+        nameTable,
+        asyncWriter,
+        keyColumns,
+        partitioner);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,40 +442,48 @@ IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateChunkWriter(IWriterPtr un
 struct TReorderingSchemalessWriterPoolTag { };
 
 class TReorderingSchemalessMultiChunkWriter
-    : public TSchemalessMultiChunkWriter
+    : public ISchemalessMultiChunkWriter
 {
 public:
     TReorderingSchemalessMultiChunkWriter(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
-        IChannelPtr masterChannel,
-        const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId);
+        TNameTablePtr nameTable,
+        ISchemalessMultiChunkWriterPtr underlyingWriter);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
 
 private:
+    TKeyColumns KeyColumns_;
+    TNameTablePtr NameTable_;
+    ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
+
     std::vector<int> IdMapping_;
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedValue> EmptyKey_;
 
+
     TUnversionedRow ReorderRow(const TUnversionedRow& row);
+
+    virtual TAsyncError Open() override;
+    virtual TAsyncError GetReadyEvent() override;
+    virtual TAsyncError Close() override;
+
+    virtual void SetProgress(double progress) override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunks() const override;
+    virtual TNodeDirectoryPtr GetNodeDirectory() const override;
+    virtual TDataStatistics GetDataStatistics() const override;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
-    : TSchemalessMultiChunkWriter(config, options, nameTable, keyColumns, masterChannel, transactionId, parentChunkListId)
+    TNameTablePtr nameTable,
+    ISchemalessMultiChunkWriterPtr underlyingWriter)
+    : KeyColumns_(keyColumns)
+    , NameTable_(nameTable)
+    , UnderlyingWriter_(underlyingWriter)
     , MemoryPool_(TReorderingSchemalessWriterPoolTag())
 { 
     for (int i = 0; i < KeyColumns_.size(); ++i) {
@@ -278,7 +506,7 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
         reorderedRows.push_back(ReorderRow(row));
     }
 
-    auto result = TSchemalessMultiChunkWriter::Write(reorderedRows);
+    auto result = UnderlyingWriter_->Write(reorderedRows);
     MemoryPool_.Clear();
 
     return result;
@@ -311,6 +539,41 @@ TUnversionedRow TReorderingSchemalessMultiChunkWriter::ReorderRow(const TUnversi
     return result;
 }
 
+TAsyncError TReorderingSchemalessMultiChunkWriter::Open()
+{
+    return UnderlyingWriter_->Open();
+}
+
+TAsyncError TReorderingSchemalessMultiChunkWriter::GetReadyEvent()
+{
+    return UnderlyingWriter_->GetReadyEvent();
+}
+
+TAsyncError TReorderingSchemalessMultiChunkWriter::Close()
+{
+    return UnderlyingWriter_->Close();
+}
+
+void TReorderingSchemalessMultiChunkWriter::SetProgress(double progress)
+{
+    UnderlyingWriter_->SetProgress(progress);
+}
+
+const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunks() const
+{
+    return UnderlyingWriter_->GetWrittenChunks();
+}
+
+TNodeDirectoryPtr TReorderingSchemalessMultiChunkWriter::GetNodeDirectory() const
+{
+    return UnderlyingWriter_->GetNodeDirectory();
+}
+
+TDataStatistics TReorderingSchemalessMultiChunkWriter::GetDataStatistics() const
+{
+    return UnderlyingWriter_->GetDataStatistics();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
@@ -323,24 +586,19 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const NChunkClient::TChunkListId& parentChunkListId,
     bool reorderValues)
 {
+    auto writer = New<TSchemalessMultiChunkWriter>(
+        config,
+        options,
+        nameTable,
+        keyColumns,
+        masterChannel,
+        transactionId,
+        parentChunkListId);
+
     if (reorderValues && !keyColumns.empty())
-        return New<TReorderingSchemalessMultiChunkWriter>(
-            config, 
-            options, 
-            nameTable, 
-            keyColumns, 
-            masterChannel, 
-            transactionId, 
-            parentChunkListId);
+        return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
     else
-        return New<TSchemalessMultiChunkWriter>(
-            config, 
-            options, 
-            nameTable, 
-            keyColumns, 
-            masterChannel, 
-            transactionId, 
-            parentChunkListId);
+        return writer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,6 +32,14 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     const TKeyColumns& keyColumns,
     NChunkClient::IChunkWriterPtr chunkWriter);
 
+ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    NChunkClient::IAsyncWriterPtr asyncWriter,
+    IPartitioner* partitioner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessMultiChunkWriter
@@ -44,10 +52,8 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  
  *  /param reorderValues - set to true if key columns may not come in order, or be absent.
  */
-
 ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
