@@ -35,6 +35,7 @@
 #include <ytlib/table_client/private.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/private.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
@@ -690,15 +691,6 @@ private:
                     type);
             }
 
-            // XXX(psushin): implement splitting for new chunks.
-            // TODO(babenko): replace "1" with some mnemonic name
-            if (meta.version() != 1) {
-                // Only old chunks support splitting now.
-                THROW_ERROR_EXCEPTION("Invalid version of chunk %v: expected: 1, actual %v",
-                    chunkId,
-                    meta.version());
-            }
-
             auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
             if (!miscExt.sorted()) {
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted",
@@ -713,163 +705,195 @@ private:
                     keyColumnsExt.names_size());
             }
 
-            for (int i = 0; i < keyColumns.size(); ++i) {
-                const auto& value = keyColumnsExt.names(i);
-                if (keyColumns[i] != value) {
-                    THROW_ERROR_EXCEPTION("Invalid key column in chunk %v: expected %Qv, actual %Qv",
-                        chunkId,
-                        keyColumns[i],
-                        value);
-                }
-            }
+    switch (meta.version()) {
+        case ETableChunkFormat::Old:
+            MakeOldChunkSplits(
+                chunkSpec,
+                splittedChunk,
+                minSplitSize,
+                keyColumns.size(),
+                miscExt,
+                chunkMeta);
+            break;
 
-            auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
-            if (indexExt.items_size() == 1) {
-                // Only one index entry available - no need to split.
-                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-                return;
-            }
+        case ETableChunkFormat::SchemalessHorizontal:
+        case ETableChunkFormat::VersionedSimple:
+            // ToDo(psushin): implement splitting.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            break;
 
-            auto backIt = --indexExt.items().end();
-            auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
-                static_cast<double>(backIt->row_index()) /
-                miscExt.row_count() *
-                miscExt.uncompressed_data_size() /
-                indexExt.items_size()));
-            YCHECK(dataSizeBetweenSamples > 0);
-
-            using NChunkClient::TReadLimit;
-            auto comparer = [&] (
-                const TReadLimit& limit,
-                const TIndexRow& indexRow,
-                bool isStartLimit) -> int
-            {
-                if (!limit.HasRowIndex() && !limit.HasKey()) {
-                    return isStartLimit ? -1 : 1;
-                }
-
-                auto result = 0;
-                if (limit.HasRowIndex()) {
-                    auto diff = limit.GetRowIndex() - indexRow.row_index();
-                    // Sign function.
-                    result += (diff > 0) - (diff < 0);
-                }
-
-                if (limit.HasKey()) {
-                    TOwningKey indexKey;
-                    FromProto(&indexKey, indexRow.key());
-                    result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
-                }
-
-                if (result == 0) {
-                    return isStartLimit ? -1 : 1;
-                }
-
-                return (result > 0) - (result < 0);
-            };
-
-            auto beginIt = std::lower_bound(
-                indexExt.items().begin(),
-                indexExt.items().end(),
-                TReadLimit(chunkSpec->lower_limit()),
-                [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
-                    return comparer(limit, indexRow, true) > 0;
-                });
-
-            auto endIt = std::upper_bound(
-                beginIt,
-                indexExt.items().end(),
-                TReadLimit(chunkSpec->upper_limit()),
-                [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
-                    return comparer(limit, indexRow, false) < 0;
-                });
-
-            if (std::distance(beginIt, endIt) < 2) {
-                // Too small distance between given read limits.
-                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-                return;
-            }
-
-            TChunkSpec* currentSplit;
-            TOldBoundaryKeysExt boundaryKeysExt;
-            i64 endRowIndex = beginIt->row_index();
-            i64 startRowIndex;
-            i64 dataSize;
-
-            auto createNewSplit = [&] () {
-                currentSplit = splittedChunk->add_chunk_specs();
-                currentSplit->CopyFrom(*chunkSpec);
-                boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
-                startRowIndex = endRowIndex;
-                dataSize = 0;
-            };
-            createNewSplit();
-
-            auto samplesLeft = std::distance(beginIt, endIt) - 1;
-            YCHECK(samplesLeft > 0);
-
-            while (samplesLeft > 0) {
-                ++beginIt;
-                --samplesLeft;
-                dataSize += dataSizeBetweenSamples;
-
-                auto nextIter = beginIt + 1;
-                if (nextIter == endIt) {
-                    break;
-                }
-
-                if (samplesLeft * dataSizeBetweenSamples < minSplitSize) {
-                    break;
-                }
-
-                if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
-                    continue;
-                }
-
-                if (dataSize > minSplitSize) {
-                    auto key = beginIt->key();
-
-                    *boundaryKeysExt.mutable_end() = key;
-
-                    // Sanity check.
-                    YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
-                    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
-
-                    endRowIndex = beginIt->row_index();
-
-                    TSizeOverrideExt sizeOverride;
-                    sizeOverride.set_row_count(endRowIndex - startRowIndex);
-                    sizeOverride.set_uncompressed_data_size(dataSize);
-                    SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
-
-                    key = GetKeySuccessor(key);
-                    TOwningKey limitKey;
-                    FromProto(&limitKey, key);
-
-                    ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
-
-                    createNewSplit();
-                    *boundaryKeysExt.mutable_start() = key;
-                    ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
-                }
-            }
-
-            // Sanity check.
-            YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
-            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
-            endRowIndex = (--endIt)->row_index();
-
-            TSizeOverrideExt sizeOverride;
-            sizeOverride.set_row_count(endRowIndex - startRowIndex);
-            sizeOverride.set_uncompressed_data_size(
-                dataSize +
-                (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
-            SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
+        default: {
+            auto error = TError("Unsupported chunk version (ChunkId: %v; ChunkFormat: %v)",
+                chunkId,
+                ETableChunkFormat(chunkMeta.version()));
+            LOG_WARNING(error);
+            ToProto(splittedChunk->mutable_error(), error);
+            return;
+        }
+    }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
             ToProto(splittedChunk->mutable_error(), error);
         }
+}
+
+void TDataNodeService::MakeOldChunkSplits(
+    const TChunkSpec* chunkSpec,
+    TRspGetChunkSplits::TChunkSplits* splittedChunk,
+    i64 minSplitSize,
+    int keyColumnCount,
+    const TMiscExt& miscExt,
+    const TChunkMeta& chunkMeta)
+{
+    auto indexExt = GetProtoExtension<TIndexExt>(chunkMeta.extensions());
+    if (indexExt.items_size() == 1) {
+        // Only one index entry available - no need to split.
+        splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+        return;
+    }
+        auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
+        if (indexExt.items_size() == 1) {
+            // Only one index entry available - no need to split.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            return;
+        }
+
+        auto backIt = --indexExt.items().end();
+        auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
+            static_cast<double>(backIt->row_index()) /
+            miscExt.row_count() *
+            miscExt.uncompressed_data_size() /
+            indexExt.items_size()));
+        YCHECK(dataSizeBetweenSamples > 0);
+
+        using NChunkClient::TReadLimit;
+        auto comparer = [&] (
+            const TReadLimit& limit,
+            const TIndexRow& indexRow,
+            bool isStartLimit) -> int
+        {
+            if (!limit.HasRowIndex() && !limit.HasKey()) {
+                return isStartLimit ? -1 : 1;
+            }
+
+            auto result = 0;
+            if (limit.HasRowIndex()) {
+                auto diff = limit.GetRowIndex() - indexRow.row_index();
+                // Sign function.
+                result += (diff > 0) - (diff < 0);
+            }
+
+        if (limit.HasKey()) {
+            TOwningKey indexKey;
+            FromProto(&indexKey, indexRow.key());
+            result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
+        }
+
+            if (result == 0) {
+                return isStartLimit ? -1 : 1;
+            }
+
+            return (result > 0) - (result < 0);
+        };
+
+        auto beginIt = std::lower_bound(
+            indexExt.items().begin(),
+            indexExt.items().end(),
+            TReadLimit(chunkSpec->lower_limit()),
+            [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
+                return comparer(limit, indexRow, true) > 0;
+            });
+
+        auto endIt = std::upper_bound(
+            beginIt,
+            indexExt.items().end(),
+            TReadLimit(chunkSpec->upper_limit()),
+            [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
+                return comparer(limit, indexRow, false) < 0;
+            });
+
+        if (std::distance(beginIt, endIt) < 2) {
+            // Too small distance between given read limits.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            return;
+        }
+
+        TChunkSpec* currentSplit;
+        TOldBoundaryKeysExt boundaryKeysExt;
+        i64 endRowIndex = beginIt->row_index();
+        i64 startRowIndex;
+        i64 dataSize;
+
+        auto createNewSplit = [&] () {
+            currentSplit = splittedChunk->add_chunk_specs();
+            currentSplit->CopyFrom(*chunkSpec);
+            boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
+            startRowIndex = endRowIndex;
+            dataSize = 0;
+        };
+        createNewSplit();
+
+        auto samplesLeft = std::distance(beginIt, endIt) - 1;
+        YCHECK(samplesLeft > 0);
+
+        while (samplesLeft > 0) {
+            ++beginIt;
+            --samplesLeft;
+            dataSize += dataSizeBetweenSamples;
+
+            auto nextIter = beginIt + 1;
+            if (nextIter == endIt) {
+                break;
+            }
+
+            if (samplesLeft * dataSizeBetweenSamples < minSplitSize) {
+                break;
+            }
+
+            if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
+                continue;
+            }
+
+            if (dataSize > minSplitSize) {
+                auto key = beginIt->key();
+
+                *boundaryKeysExt.mutable_end() = key;
+
+                // Sanity check.
+                YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
+                SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
+
+                endRowIndex = beginIt->row_index();
+
+                TSizeOverrideExt sizeOverride;
+                sizeOverride.set_row_count(endRowIndex - startRowIndex);
+                sizeOverride.set_uncompressed_data_size(dataSize);
+                SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
+
+                key = GetKeySuccessor(key);
+                TOwningKey limitKey;
+                FromProto(&limitKey, key);
+
+                ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
+
+                createNewSplit();
+                *boundaryKeysExt.mutable_start() = key;
+                ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
+            }
+        }
+
+        // Sanity check.
+        YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
+        SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
+        endRowIndex = (--endIt)->row_index();
+
+        TSizeOverrideExt sizeOverride;
+        sizeOverride.set_row_count(endRowIndex - startRowIndex);
+        sizeOverride.set_uncompressed_data_size(
+            dataSize +
+            (std::distance(beginIt, endIt)) * dataSizeBetweenSamples);
+        SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), sizeOverride);
     }
 
 
