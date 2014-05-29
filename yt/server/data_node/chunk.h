@@ -13,15 +13,6 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Chunk properties that can be obtained by the filesystem scan.
-struct TChunkDescriptor
-{
-    TChunkId Id;
-    i64 DiskSpace;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRefCountedChunkMeta
     : public TIntrinsicRefCounted
     , public NChunkClient::NProto::TChunkMeta

@@ -1190,21 +1190,6 @@ private:
         }
 
         // Use the size reported by the node, but check it for consistency first.
-        if (!chunk->IsErasure()) {
-            if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-                auto error = TError("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, NodeId: %d, Address: %s)",
-                    ~ToString(chunkWithIndex),
-                    ~FormatBool(cached),
-                    ~chunk->ChunkInfo().DebugString(),
-                    ~chunkAddInfo.chunk_info().DebugString(),
-                    nodeId,
-                    ~node->GetAddress());
-                LOG_ERROR(error);
-                // TODO(babenko): return error to node
-                return;
-            }
-            chunk->ChunkInfo() = chunkAddInfo.chunk_info();
-        }
 
         AddChunkReplica(
             node,

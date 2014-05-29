@@ -80,8 +80,6 @@ public:
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
     SmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
 
-    bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
-    
     bool IsConfirmed() const;
     void ValidateConfirmed();
 

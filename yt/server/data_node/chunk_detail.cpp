@@ -31,18 +31,6 @@ TChunk::TChunk(
     , Info_(info)
 { }
 
-TChunk::TChunk(
-    TBootstrap* bootstrap,
-    TLocationPtr location,
-    const TChunkDescriptor& descriptor)
-    : Bootstrap_(bootstrap)
-    , Id_(descriptor.Id)
-    , Location_(location)
-{
-    Info_.set_disk_space(descriptor.DiskSpace);
-    Info_.clear_meta_checksum();
-}
-
 TChunk::~TChunk()
 {
     if (Meta_) {

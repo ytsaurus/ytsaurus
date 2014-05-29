@@ -35,21 +35,6 @@ static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TChunkMeta GetSharedJournalChunkMeta()
-{
-    TChunkMeta meta;
-    meta.set_type(EChunkType::Journal);
-    return meta;
-}
-
-const auto SharedJournalChunkMeta = GetSharedJournalChunkMeta();
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
@@ -61,7 +46,9 @@ TJournalChunk::TJournalChunk(
         id,
         info)
 {
-    Meta_ = New<TRefCountedChunkMeta>(SharedJournalChunkMeta);
+    Meta_ = New<TRefCountedChunkMeta>();
+    Meta_->set_type(EChunkType::Journal);
+
     RecordCount_ = 0;
     Sealed_ = false;
 }

@@ -45,20 +45,18 @@ public:
     i64 GetDataSize() const;
 
 private:
-    Stroka FileName;
-    bool SyncOnClose;
+    Stroka FileName_;
+    bool SyncOnClose_;
 
-    bool IsOpen;
-    bool IsClosed;
-    i64 DataSize;
-    std::unique_ptr<TFile> DataFile;
-    NChunkClient::NProto::TChunkInfo ChunkInfo;
-    NChunkClient::NProto::TBlocksExt BlocksExt;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    bool IsOpen_;
+    bool IsClosed_;
+    i64 DataSize_;
+    std::unique_ptr<TFile> DataFile_;
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    TChecksumOutput ChecksumOutput;
-
-    TAsyncError Result;
+    TAsyncError Result_;
 
     bool EnsureOpen();
 

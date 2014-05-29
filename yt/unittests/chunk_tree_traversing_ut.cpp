@@ -153,7 +153,6 @@ std::unique_ptr<TChunk> CreateChunk(
     
     NChunkClient::NProto::TChunkInfo chunkInfo;
     chunkInfo.set_disk_space(0);
-    chunkInfo.set_meta_checksum(0);
 
     chunk->ChunkMeta() = chunkMeta;
     chunk->ChunkInfo() = chunkInfo;

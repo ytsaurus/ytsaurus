@@ -310,7 +310,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
-            descriptor.DiskSpace = chunkDataSize + chunkMetaSize;
+            descriptor.Info.set_disk_space(chunkDataSize + chunkMetaSize);
             descriptors.push_back(descriptor);
         } else if (!hasMeta) {
             LOG_WARNING("Missing meta file, removing data file %s",

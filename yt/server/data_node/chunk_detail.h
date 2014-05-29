@@ -45,11 +45,6 @@ protected:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
-    TChunk(
-        NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor);
-
     ~TChunk();
 
     void DoRemove();

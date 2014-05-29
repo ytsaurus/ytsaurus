@@ -30,13 +30,8 @@ protected:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info);
-
-    TBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const NChunkClient::NProto::TChunkInfo& info,
+        const NChunkClient::NProto::TChunkMeta* meta);
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;
@@ -71,13 +66,8 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info);
-
-    TStoredBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const NChunkClient::NProto::TChunkInfo& info,
+        const NChunkClient::NProto::TChunkMeta* meta = nullptr);
 
 };
 
@@ -95,13 +85,8 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        const NChunkClient::NProto::TChunkMeta& meta,
-        const NChunkClient::NProto::TChunkInfo& info);
-
-    TCachedBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const NChunkClient::NProto::TChunkInfo& info,
+        const NChunkClient::NProto::TChunkMeta* meta = nullptr);
 
     ~TCachedBlobChunk();
 

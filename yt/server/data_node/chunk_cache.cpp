@@ -74,7 +74,8 @@ public:
             auto chunk = New<TCachedBlobChunk>(
                 Bootstrap_,
                 Location_,
-                descriptor);
+                descriptor.Id,
+                descriptor.Info);
             Put(chunk);
         }
 
@@ -258,8 +259,8 @@ private:
                 Bootstrap_,
                 Location_,
                 chunkId,
-                chunkMeta,
-                chunkWriter->GetChunkInfo());
+                chunkWriter->GetChunkInfo(),
+                &chunkMeta);
             cookie.EndInsert(chunk);
             Register(chunk);
         } catch (const std::exception& ex) {

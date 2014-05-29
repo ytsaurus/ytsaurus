@@ -35,26 +35,18 @@ TBlobChunk::TBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkMeta& meta,
-    const TChunkInfo& info)
+    const TChunkInfo& info,
+    const TChunkMeta* meta)
     : TChunk(
         bootstrap,
         location,
         id,
         info)
 {
-    InitializeCachedMeta(meta);
+    if (meta) {
+        InitializeCachedMeta(*meta);
+    }
 }
-
-TBlobChunk::TBlobChunk(
-    TBootstrap* bootstrap,
-    TLocationPtr location,
-    const TChunkDescriptor& descriptor)
-    : TChunk(
-        bootstrap,
-        location,
-        descriptor)
-{ }
 
 IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
     i64 priority,
@@ -316,24 +308,14 @@ TStoredBlobChunk::TStoredBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkMeta& meta,
-    const TChunkInfo& info)
+    const TChunkInfo& info,
+    const TChunkMeta* meta)
     : TBlobChunk(
         bootstrap,
         location,
         id,
-        meta,
-        info)
-{ }
-
-TStoredBlobChunk::TStoredBlobChunk(
-    TBootstrap* bootstrap,
-    TLocationPtr location,
-    const TChunkDescriptor& descriptor)
-    : TBlobChunk(
-        bootstrap,
-        location,
-        descriptor)
+        info,
+        meta)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,25 +324,14 @@ TCachedBlobChunk::TCachedBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkMeta& meta,
-    const TChunkInfo& info)
+    const TChunkInfo& info,
+    const TChunkMeta* meta)
     : TBlobChunk(
         bootstrap,
         location,
         id,
-        meta,
-        info)
-    , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
-{ }
-
-TCachedBlobChunk::TCachedBlobChunk(
-    TBootstrap* bootstrap,
-    TLocationPtr location,
-    const TChunkDescriptor& descriptor)
-    : TBlobChunk(
-        bootstrap,
-        location,
-        descriptor)
+        info,
+        meta)
     , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
     , ChunkCache_(Bootstrap_->GetChunkCache())
 { }

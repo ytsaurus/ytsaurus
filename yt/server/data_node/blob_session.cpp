@@ -447,8 +447,8 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
         Bootstrap_,
         Location_,
         ChunkId_,
-        Writer_->GetChunkMeta(),
-        Writer_->GetChunkInfo());
+        Writer_->GetChunkInfo(),
+        &Writer_->GetChunkMeta());
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(chunk);
 

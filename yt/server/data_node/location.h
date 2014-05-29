@@ -10,6 +10,8 @@
 
 #include <core/profiling/profiler.h>
 
+#include <ytlib/chunk_client/chunk_info.pb.h>
+
 #include <server/cell_node/public.h>
 
 #include <atomic>
@@ -23,6 +25,13 @@ DECLARE_ENUM(ELocationType,
     (Store)
     (Cache)
 );
+
+//! Chunk properties that can be obtained during the filesystem scan.
+struct TChunkDescriptor
+{
+    TChunkId Id;
+    NChunkClient::NProto::TChunkInfo Info;
+};
 
 //! Describes a physical location of chunks.
 class TLocation

@@ -192,24 +192,6 @@ void TChunk::ValidateConfirmed()
     }
 }
 
-bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const
-{
-    if (ChunkInfo_.disk_space() == UnknownDiskSpace)
-        return true;
-
-    if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
-        ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
-    {
-        return false;
-    }
-
-    if (ChunkInfo_.disk_space() != chunkInfo.disk_space()) {
-        return false;
-    }
-
-    return true;
-}
-
 bool TChunk::GetMovable() const
 {
     return Flags.Movable;

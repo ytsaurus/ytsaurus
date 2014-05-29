@@ -55,7 +55,8 @@ void TChunkStore::Initialize()
             auto chunk = New<TStoredBlobChunk>(
                 Bootstrap_,
                 location,
-                descriptor);
+                descriptor.Id,
+                descriptor.Info);
             RegisterExistingChunk(chunk);
         }
 

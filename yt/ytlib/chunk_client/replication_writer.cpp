@@ -171,8 +171,8 @@ private:
     //! Number of blocks that are already added via #AddBlock.
     int BlockCount_;
 
-    //! Returned from node in Finish.
-    TNullable<TChunkInfo> ChunkInfo_;
+    //! Returned from node on Finish.
+    TChunkInfo ChunkInfo_;
 
     NLog::TTaggedLogger Logger;
 
@@ -722,19 +722,7 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
         ~node->Descriptor.GetDefaultAddress(),
         chunkInfo.disk_space());
 
-    // If ChunkInfo is set.
-    if (ChunkInfo_) {
-        if (ChunkInfo_->meta_checksum() != chunkInfo.meta_checksum() ||
-            ChunkInfo_->disk_space() != chunkInfo.disk_space())
-        {
-            LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~node->Descriptor.GetDefaultAddress(),
-                ~ChunkInfo_->DebugString(),
-                ~chunkInfo.DebugString());
-        }
-    } else {
-        ChunkInfo_ = chunkInfo;
-    }
+    ChunkInfo_ = chunkInfo;
 }
 
 void TReplicationWriter::OnSessionFinished()
@@ -895,7 +883,7 @@ const TChunkInfo& TReplicationWriter::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return *ChunkInfo_;
+    return ChunkInfo_;
 }
 
 IWriter::TReplicaIndexes TReplicationWriter::GetWrittenReplicaIndexes() const
