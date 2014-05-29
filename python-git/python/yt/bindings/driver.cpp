@@ -37,6 +37,8 @@
 namespace NYT {
 namespace NPython {
 
+///////////////////////////////////////////////////////////////////////////////
+
 using namespace NFormats;
 using namespace NDriver;
 using namespace NYson;
