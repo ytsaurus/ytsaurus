@@ -64,6 +64,16 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     bool reorderValues = false);
 
+ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    NRpc::IChannelPtr masterChannel,
+    const NTransactionClient::TTransactionId& transactionId,
+    const NChunkClient::TChunkListId& parentChunkListId,
+    std::unique_ptr<IPartitioner> partitioner);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
