@@ -320,7 +320,7 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (AcceptsChunkType(node, chunkType)) {
+    if (!AcceptsChunkType(node, chunkType)) {
         // Do not write anything to full nodes.
         return false;
     }
