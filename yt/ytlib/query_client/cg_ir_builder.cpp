@@ -56,15 +56,13 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         return value;
     }
 
-    if (name.isTriviallyEmpty()) {
-        name = value->getName();
-    }
+    Twine resultingName(name.isTriviallyEmpty() ? value->getName() : name);
 
     // Otherwise, capture |value| in the parent context.
     YCHECK(Parent_);
     YCHECK(ClosurePtr_);
 
-    Value* valueInParent = Parent_->ViaClosure(value, name);
+    Value* valueInParent = Parent_->ViaClosure(value, resultingName);
 
     // Check if we have already captured this value.
     auto it = Mapping_.find(valueInParent);
@@ -84,11 +82,11 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
                 CreatePointerCast(
                     CreateConstGEP1_32(ClosurePtr_, indexInClosure),
                     value->getType()->getPointerTo()->getPointerTo(),
-                    name + ".closureSlotPtr"
+                    resultingName + ".closureSlotPtr"
                 ),
-                name + ".inParentPtr"
+                resultingName + ".inParentPtr"
             ),
-            name);
+            resultingName);
 
         restoreIP(currentIP);
 
