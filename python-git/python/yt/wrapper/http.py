@@ -116,16 +116,20 @@ def make_get_request_with_retries(url):
         description=url)
     return response.json()
 
-def get_proxy(proxy):
+def check_proxy(proxy):
     require(proxy, YtError("You should specify proxy"))
-    return proxy
 
 def get_api(proxy, version=None):
+    check_proxy(proxy)
     location = "api" if version is None else "api/" + version
-    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(proxy), location))
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, location))
 
-def get_token():
-    token = http_config.TOKEN
+def get_token(client=None):
+    token = None
+    if client is not None:
+        token = client.token
+    if token is None:
+        token = http_config.TOKEN
     if token is None:
         token_path = http_config.TOKEN_PATH
         if token_path is None:

@@ -92,24 +92,10 @@ def set_mapreduce_mode():
 import errors_config as errors
 import http_config as http
 
-from http import get_api
-from command import parse_commands
-
+# This function is deprecated
 def set_proxy(proxy):
-    global COMMANDS, API_PATH, API_VERSION
-
     http.PROXY = proxy
-    _api = get_api(http.PROXY)
-    if "v2" in _api:
-        COMMANDS = parse_commands(get_api(http.PROXY, version="v2"))
-        API_PATH = "api/v2"
-        API_VERSION = 2
-        http.RETRY_VOLATILE_COMMANDS = True
-    else:
-        die("Old versions of API is not supported")
 
-
-if http.PROXY:
-    set_proxy(http.PROXY)
-
+# For debug purpose
+CLIENT = None
 

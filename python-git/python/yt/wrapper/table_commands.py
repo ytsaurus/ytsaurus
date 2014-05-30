@@ -27,20 +27,21 @@ import exceptions
 import simplejson as json
 from cStringIO import StringIO
 
-""" Auxiliary methods """
-def _filter_empty_tables(tables):
+# Auxiliary methods
+
+def _filter_empty_tables(tables, client=None):
     filtered = []
     for table in tables:
-        if not exists(table.name):
+        if not exists(table.name, client=client):
             logger.warning("Warning: input table '%s' does not exist", table.name)
         else:
             filtered.append(table)
     return filtered
 
-def _prepare_source_tables(tables):
-    tables = map(to_table, flatten(tables))
+def _prepare_source_tables(tables, client=None):
+    tables = map(lambda table: to_table(table, client=client), flatten(tables))
     if config.TREAT_UNEXISTING_AS_EMPTY:
-        tables = _filter_empty_tables(tables)
+        tables = _filter_empty_tables(tables, client=client)
     return tables
 
 def _check_columns(columns, type):
@@ -69,13 +70,13 @@ def _prepare_sort_by(sort_by):
     _check_columns(sort_by, "sort")
     return sort_by
 
-def _prepare_files(files):
+def _prepare_files(files, client=None):
     if files is None:
         return []
 
     file_paths = []
     for file in flatten(files):
-        file_paths.append(smart_upload_file(file))
+        file_paths.append(smart_upload_file(file, client=client))
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
@@ -110,10 +111,10 @@ def _prepare_format(format):
             YtError("You should specify format"))
     return format
 
-def _prepare_binary(binary, operation_type, input_format=None, output_format=None, reduce_by=None):
+def _prepare_binary(binary, operation_type, input_format=None, output_format=None, reduce_by=None, client=None):
     if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
         binary, binary_file, files = py_wrapper.wrap(binary, operation_type, input_format, output_format, reduce_by)
-        uploaded_files = _prepare_files([binary_file] + files)
+        uploaded_files = _prepare_files([binary_file] + files, client=client)
         if config.REMOVE_TEMP_FILES:
             for file in files:
                 os.remove(file)
@@ -121,14 +122,14 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
     else:
         return binary, []
 
-def _prepare_destination_tables(tables, replication_factor, compression_codec):
+def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
         if config.THROW_ON_EMPTY_DST_LIST:
             raise YtError("Destination tables are absent")
         return []
     tables = map(to_table, flatten(tables))
     for table in tables:
-        if exists(table.name):
+        if exists(table.name, client=client):
             compression_codec_ok = (compression_codec is None) or (compression_codec == get_attribute(table.name, "compression_codec"))
             replication_factor_ok = (replication_factor is None) or (replication_factor == get_attribute(table.name, "replication_factor"))
             require(compression_codec_ok and replication_factor_ok,
@@ -136,23 +137,23 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
                             "or compression codec" % table))
         else:
             create_table(table.name, ignore_existing=True,
-                         replication_factor=replication_factor, compression_codec=compression_codec)
+                         replication_factor=replication_factor, compression_codec=compression_codec, client=client)
     return tables
 
-def _remove_locks(table):
-    for lock_obj in get_attribute(table, "locks", []):
+def _remove_locks(table, client=None):
+    for lock_obj in get_attribute(table, "locks", [], client=client):
         if lock_obj["mode"] != "snapshot":
-            if exists("//sys/transactions/" + lock_obj["transaction_id"]):
-                abort_transaction(lock_obj["transaction_id"])
+            if exists("//sys/transactions/" + lock_obj["transaction_id"], client=client):
+                abort_transaction(lock_obj["transaction_id"], client=client)
 
-def _remove_tables(tables):
+def _remove_tables(tables, client=None):
     for table in tables:
         if exists(table) and get_type(table) == "table" and not table.append:
             if config.FORCE_DROP_DST:
-                _remove_locks(table)
-            remove(table)
+                _remove_locks(table, client=client)
+            remove(table, client=client)
 
-def _add_user_command_spec(op_type, binary, format, input_format, output_format, files, file_paths, local_files, yt_files, memory_limit, reduce_by, spec):
+def _add_user_command_spec(op_type, binary, format, input_format, output_format, files, file_paths, local_files, yt_files, memory_limit, reduce_by, spec, client=None):
     if binary is None:
         return spec, []
 
@@ -164,9 +165,9 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         require(file_paths is None, "You cannot specify yt_files and file_paths simultaneously")
         file_paths = yt_files
 
-    files = _prepare_files(files)
+    files = _prepare_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
-    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by)
+    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by, client=client)
     spec = update(
         {
             op_type: {
@@ -214,17 +215,18 @@ def _add_table_writer_spec(job_types, table_writer, spec):
             spec = update({job_type: {"table_writer": table_writer}}, spec)
     return spec
 
-def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
+def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False, client=None):
     def _run_operation(finalizer):
-        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose)
-        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
+        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose, client=client)
+        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer, client=client)
 
     if config.DETACHED:
         _run_operation(finalizer)
     else:
         transaction = PingableTransaction(
             config.OPERATION_TRANSACTION_TIMEOUT,
-            attributes={"title": "Python wrapper: envelope transaction of operation"})
+            attributes={"title": "Python wrapper: envelope transaction of operation"},
+            client=client)
 
         def finish_transaction():
             transaction.__exit__(*sys.exc_info())
@@ -234,36 +236,37 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
                 _run_operation(finalizer)
 
 """ Common table methods """
-def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):
-    """ Creates empty table, use recursive for automatically creation the path """
-    table = TablePath(path)
+def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None, client=None):
+    """Create empty table.
+    :param recursive: create the path automatically"""
+    table = TablePath(path, client=client)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
     if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
-    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing, attributes=attributes)
+    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing, attributes=attributes, client=client)
 
-def create_temp_table(path=None, prefix=None):
+def create_temp_table(path=None, prefix=None, client=None):
     """ Creates temporary table by given path with given prefix """
     if path is None:
         path = config.TEMP_TABLES_STORAGE
-        mkdir(path, recursive=True)
+        mkdir(path, recursive=True, client=client)
     else:
-        path = to_name(path)
+        path = to_name(path, client=client)
     require(exists(path), YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = os.path.join(path, prefix)
     else:
         if not path.endswith("/"):
             path = path + "/"
-    name = find_free_subpath(path)
-    create_table(name)
+    name = find_free_subpath(path, client=client)
+    create_table(name, client=client)
     return name
 
 
-def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None, compression_codec=None):
+def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None, compression_codec=None, client=None):
     """
     Writes rows from input_stream to table.
 
@@ -276,7 +279,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
 
     In both cases Transfer-Encoding is used.
     """
-    table = to_table(table)
+    table = to_table(table, client=client)
     format = _prepare_format(format)
 
     params = {}
@@ -298,7 +301,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                     YtError("Cannot write to existing path %s with set replication factor or compression codec" % path))
         else:
             create_table(path, ignore_existing=True,
-                         replication_factor=replication_factor, compression_codec=compression_codec)
+                         replication_factor=replication_factor, compression_codec=compression_codec, client=client)
 
     can_split_input = True
     if isinstance(input_stream, types.ListType):
@@ -324,18 +327,19 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
         table,
         params,
         prepare_table,
-        config.USE_RETRIES_DURING_WRITE and can_split_input)
+        config.USE_RETRIES_DURING_WRITE and can_split_input,
+        client=client)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
-        _remove_tables([table])
+        _remove_tables([table], client=client)
 
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=True):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=True, client=None):
     """
     Downloads file from path.
     Response type means the output format. By default it is line generator.
     """
-    table = to_table(table)
+    table = to_table(table, client=client)
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
@@ -352,13 +356,15 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             "read",
             params,
             proxy=get_host_for_heavy_operation(),
-            return_raw_response=True)
+            return_raw_response=True,
+            client=client)
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
     else:
-        title = "Python wrapper: read {0}".format(to_name(table))
+        title = "Python wrapper: read {0}".format(to_name(table, client=client))
         tx = PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
-                                 attributes={"title": title})
+                                 attributes={"title": title},
+                                 client=client)
         tx.__enter__()
 
         class Index(object):
@@ -405,7 +411,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 "read",
                 params,
                 proxy=get_host_for_heavy_operation(),
-                return_raw_response=True)
+                return_raw_response=True,
+                client=client)
             rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
@@ -416,14 +423,14 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             response = _make_transactional_request(
                 "read",
                 params,
-                proxy=get_host_for_heavy_operation(),
+                proxy=get_host_for_heavy_operation(client=client),
                 return_raw_response=True)
             for record in read_content(response, raw, format, get_value(response_type, "iter_lines")):
                 yield record
                 index.increment()
 
         try:
-            lock(table, mode="snapshot")
+            lock(table, mode="snapshot", client=client)
             index = Index(run_with_retries(get_start_row_index))
             if index.get() is None:
                 tx.__exit__(None, None, None)
@@ -437,98 +444,98 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 def _are_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and not source_tables[0].has_delimiters() and not destination_table.append
 
-def copy_table(source_table, destination_table, replace=True):
+def copy_table(source_table, destination_table, replace=True, client=None):
     """
     Copy table. Source table may be a list of tables. In this case tables would
     be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
-    source_tables = _prepare_source_tables(source_table)
+    source_tables = _prepare_source_tables(source_table, client=client)
     if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
         return
-    destination_table = to_table(destination_table)
+    destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
-        if replace and exists(destination_table.name) and to_name(source_tables[0]) != to_name(destination_table):
+        if replace and exists(destination_table.name, client=client) and to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
             # in copy destination should be absent
-            remove(destination_table.name)
+            remove(destination_table.name, client=client)
         dirname = os.path.dirname(destination_table.name)
         if dirname != "//":
-            mkdir(dirname, recursive=True)
-        copy(source_tables[0].name, destination_table.name)
+            mkdir(dirname, recursive=True, client=client)
+        copy(source_tables[0].name, destination_table.name, client=client)
     else:
         source_names = [table.name for table in source_tables]
         mode = "sorted" if (all(map(is_sorted, source_names)) and not destination_table.append) else "ordered"
-        run_merge(source_tables, destination_table, mode)
+        run_merge(source_tables, destination_table, mode, client=client)
 
-def move_table(source_table, destination_table, replace=True):
+def move_table(source_table, destination_table, replace=True, client=None):
     """
     Move table. Source table may be a list of tables. In this case tables would
     be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
-    source_tables = _prepare_source_tables(source_table)
+    source_tables = _prepare_source_tables(source_table, client=client)
     if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
         return
-    destination_table = to_table(destination_table)
+    destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
         if source_tables[0] == destination_table:
             return
-        if replace and exists(destination_table.name):
-            remove(destination_table.name)
-        move(source_tables[0].name, destination_table.name)
+        if replace and exists(destination_table.name, client=client):
+            remove(destination_table.name, client=client)
+        move(source_tables[0].name, destination_table.name, client=client)
     else:
-        copy_table(source_table, destination_table)
+        copy_table(source_table, destination_table, client=client)
         for table in source_tables:
-            if to_name(table) == to_name(destination_table):
+            if to_name(table, client=client) == to_name(destination_table, client=client):
                 continue
-            remove(table.name)
+            remove(table.name, client=client)
 
-def run_erase(table, spec=None, strategy=None):
+def run_erase(table, spec=None, strategy=None, client=None):
     """
     Erase table. It differs from remove command.
     Erase only remove given content. You can erase range
     of records in the table.
     """
-    table = to_table(table)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
+    table = to_table(table, client=client)
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
         return
     spec = update({"table_path": table.get_json()}, get_value(spec, {}))
     spec = _configure_spec(spec)
-    _make_operation_request("erase", spec, strategy)
+    _make_operation_request("erase", spec, strategy, client=client)
 
-def records_count(table):
+def records_count(table, client=None):
     """Return number of records in the table"""
-    table = to_name(table)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table):
+    table = to_name(table, client=client)
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table, client=client):
         return 0
-    return get_attribute(table, "row_count")
+    return get_attribute(table, "row_count", client=client)
 
-def is_empty(table):
+def is_empty(table, client=None):
     """Check table for the emptiness"""
-    return records_count(to_name(table)) == 0
+    return records_count(to_name(table, client=client), client=client) == 0
 
-def get_sorted_by(table, default=None):
+def get_sorted_by(table, default=None, client=None):
     if default is None:
         default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
-    return get_attribute(to_name(table), "sorted_by", default=default)
+    return get_attribute(to_name(table, client=client), "sorted_by", default=default, client=client)
 
-def is_sorted(table):
+def is_sorted(table, client=None):
     """Checks that table is sorted"""
     if config.USE_YAMR_SORT_REDUCE_COLUMNS:
-        return get_sorted_by(table, []) == ["key", "subkey"]
+        return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
+        return parse_bool(get_attribute(to_name(table, client=client), "sorted", default="false", client=client))
 
 def run_merge(source_table, destination_table, mode=None,
               strategy=None, table_writer=None,
               replication_factor=None, compression_codec=None,
-              job_count=None, spec=None):
+              job_count=None, spec=None, client=None):
     """
     Merge source tables and write it to destination table.
     Mode should be 'unordered', 'ordered', or 'sorted'.
     """
-    source_table = _prepare_source_tables(source_table)
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec))
+    source_table = _prepare_source_tables(source_table, client=client)
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
 
     spec = compose(
         _configure_spec,
@@ -539,24 +546,24 @@ def run_merge(source_table, destination_table, mode=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("merge", spec, strategy, finalizer=None)
+    _make_operation_request("merge", spec, strategy, finalizer=None, client=None)
 
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,
-             compression_codec=None, spec=None):
+             compression_codec=None, spec=None, client=None):
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
 
     sort_by = _prepare_sort_by(sort_by)
-    source_table = _prepare_source_tables(source_table)
+    source_table = _prepare_source_tables(source_table, client=client)
     for table in source_table:
         require(exists(table.name), YtError("Table %s should exist" % table))
-    if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
+    if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
         #(TODO) Hack detected: make something with it
         if len(source_table) > 0:
             run_merge(source_table, destination_table, "sorted",
-                      strategy=strategy, table_writer=table_writer, spec=spec)
+                      strategy=strategy, table_writer=table_writer, spec=spec, client=client)
         return
 
     if destination_table is None:
@@ -564,10 +571,10 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
         destination_table = source_table[0]
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
-        _remove_tables([destination_table])
+        _remove_tables([destination_table], client=client)
         return
 
     spec = compose(
@@ -578,25 +585,26 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("sort", spec, strategy, finalizer=None)
+    _make_operation_request("sort", spec, strategy, finalizer=None, client=client)
 
 """ Map and reduce methods """
 class Finalizer(object):
-    def __init__(self, files, output_tables):
+    def __init__(self, files, output_tables, client=None):
         self.files = files if files is not None else []
         self.output_tables = output_tables
+        self.client = client
 
     def __call__(self, state):
         if state == "completed":
-            for table in map(to_name, self.output_tables):
+            for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
         if config.DELETE_EMPTY_TABLES:
-            for table in map(to_name, self.output_tables):
-                if is_empty(table):
-                    remove_with_empty_dirs(table)
+            for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
+                if is_empty(table, client=self.client):
+                    remove_with_empty_dirs(table, client=self.client)
         if config.REMOVE_UPLOADED_FILES:
             for file in self.files:
-                remove(file, force=True)
+                remove(file, force=True, client=self.client)
 
     def check_for_merge(self, table):
         chunk_count = int(get_attribute(table, "chunk_count"))
@@ -610,13 +618,13 @@ class Finalizer(object):
 
         data_size_per_job = min(
                 16 * 1024 * config.MB,
-                int(500 * config.MB / float(get_attribute(table, "compression_ratio"))))
+                int(500 * config.MB / float(get_attribute(table, "compression_ratio", client=self.client))))
 
-        mode = "sorted" if is_sorted(table) else "unordered"
+        mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if config.MERGE_INSTEAD_WARNING:
             run_merge(src=table, dst=table, mode=mode,
-                      spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job})
+                      spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job}, client=self.client)
         else:
             logger.info("Chunks of output table {0} are too small. "
                         "This may cause suboptimal system performance. "
@@ -643,18 +651,19 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
                    reduce_combiner_files=None, reduce_combiner_file_paths=None,
                    reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
-                   reduce_combiner_memory_limit=None):
+                   reduce_combiner_memory_limit=None,
+                   client=None):
 
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
         run_map_reduce.files_to_remove += files
         return spec
 
-    source_table = _prepare_source_tables(source_table)
-    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
+    source_table = _prepare_source_tables(source_table, client=client)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
-        _remove_tables(destination_table)
+        _remove_tables(destination_table, client=client)
         return
 
     if sort_by is None:
@@ -672,21 +681,21 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             format, map_input_format, map_output_format,
             map_files, map_file_paths,
             map_local_files, map_yt_files,
-            mapper_memory_limit, None, _)),
+            mapper_memory_limit, None, _, client=client)),
         lambda _: memorize_files(*_add_user_command_spec("reducer", reducer,
             format, reduce_input_format, reduce_output_format,
             reduce_files, reduce_file_paths,
             reduce_local_files, reduce_yt_files,
-            reducer_memory_limit, reduce_by, _)),
+            reducer_memory_limit, reduce_by, _, client=client)),
         lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner,
             format, reduce_combiner_input_format, reduce_combiner_output_format,
             reduce_combiner_files, reduce_combiner_file_paths,
             reduce_combiner_local_files, reduce_combiner_yt_files,
-            reduce_combiner_memory_limit, reduce_by, _)),
+            reduce_combiner_memory_limit, reduce_by, _, client=client)),
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("map_reduce", spec, strategy, Finalizer(run_map_reduce.files_to_remove, destination_table))
+    _make_operation_request("map_reduce", spec, strategy, Finalizer(run_map_reduce.files_to_remove, destination_table, client=client), client=client)
 
 def run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
@@ -700,17 +709,18 @@ def run_operation(binary, source_table, destination_table,
                   memory_limit=None,
                   spec=None,
                   op_name=None,
-                  reduce_by=None):
+                  reduce_by=None,
+                  client=None):
     run_operation.files = []
     def memorize_files(spec, files):
         run_operation.files += files
         return spec
 
-    source_table = _prepare_source_tables(source_table)
+    source_table = _prepare_source_tables(source_table, client=client)
     if op_name == "reduce":
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
             are_input_tables_sorted =  all(
-                is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, []))
+                is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, [], client=client))
                 for table in source_table)
             if not are_input_tables_sorted:
                 if job_count is not None:
@@ -738,10 +748,10 @@ def run_operation(binary, source_table, destination_table,
     if op_name == "reduce":
         reduce_by = _prepare_reduce_by(reduce_by)
 
-    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
-        _remove_tables(destination_table)
+        _remove_tables(destination_table, client=client)
         return
 
     op_type = None
@@ -758,11 +768,11 @@ def run_operation(binary, source_table, destination_table,
             format, input_format, output_format,
             files, file_paths,
             local_files, yt_files,
-            memory_limit, reduce_by, _)),
+            memory_limit, reduce_by, _, client=client)),
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table))
+    _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table, client=client), client=client)
 
 def run_map(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "map"
@@ -773,30 +783,31 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, attributes=None, copy_all_attributes=False, strategy=None):
+                    network_name=None, spec=None, copy_attributes=False, strategy=None, client=None):
     def get_input_name(table):
         return to_table(table).get_json()
 
-    destination_table = unlist(_prepare_destination_tables(destination_table, None, None))
+    # TODO(ignat): use base string in other places
+    if isinstance(source_table, basestring):
+        source_table = [source_table]
 
-    if copy_all_attributes or attributes:
+    destination_table = unlist(_prepare_destination_tables(destination_table, None, None, client=client))
+
+    # TODO(ignat): provide atomicity of attribute copying
+    if copy_attributes:
         if len(source_table) != 1:
             raise YtError("Cannot copy attributes of multiple source tables")
 
-        remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name))
+        remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
         current_proxy = config.http.PROXY
 
         config.set_proxy(remote_proxy)
         src_attributes = get(source_table[0] + "/@")
 
         config.set_proxy(current_proxy)
-        if copy_all_attributes:
-            attributes = src_attributes.get("user_attributes_names", []) + ["compression_codec", "erasure_codec", "replication_factor"]
-        if attributes is None:
-            attributes = []
-
+        attributes = src_attributes.get("user_attribute_keys", []) + ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:
-            set_attribute(destination_table, attribute, src_attributes[attribute])
+            set_attribute(destination_table, attribute, src_attributes[attribute], client=client)
 
     spec = compose(
         _configure_spec,
@@ -808,18 +819,19 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         lambda _: get_value(spec, {})
     )(spec)
 
-    _make_operation_request("remote_copy", spec, strategy)
+    _make_operation_request("remote_copy", spec, strategy, client=client)
 
-def mount_table(path, first_tablet_index=None, last_tablet_index=None):
+def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+    # TODO(ignat): Add path preparetion
     params = {"path": path}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
 
-    make_request("mount_table", params)
+    make_request("mount_table", params, client=client)
 
-def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None):
+def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
     params = {"path": path}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
@@ -828,18 +840,18 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     if force is not None:
         params["force"] = bool_to_string(force)
 
-    make_request("unmount_table", params)
+    make_request("unmount_table", params, client=client)
 
-def remount_table(path, first_tablet_index=None, last_tablet_index=None):
+def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
     params = {"path": path}
     if first_tablet_index is not None:
         params["first_tablet_index"] = first_tablet_index
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
 
-    make_request("remount_table", params)
+    make_request("remount_table", params, client=client)
 
-def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None):
+def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
     params = {"path": path,
               "pivot_keys": pivot_keys}
     if first_tablet_index is not None:
@@ -847,9 +859,9 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
     if last_tablet_index is not None:
         params["last_tablet_index"] = last_tablet_index
 
-    make_request("reshard_table", params)
+    make_request("reshard_table", params, client=client)
 
-def select(query, timestamp=None, format=None, response_type=None, raw=True):
+def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
     format = _prepare_format(format)
     params = {
         "query": query,
@@ -861,7 +873,8 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True):
         "select",
         params,
         proxy=get_host_for_heavy_operation(),
-        return_raw_response=True)
+        return_raw_response=True,
+        client=client)
 
     return read_content(response, raw, format, get_value(response_type, "iter_lines"))
 

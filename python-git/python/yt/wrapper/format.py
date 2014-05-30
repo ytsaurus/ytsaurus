@@ -1,9 +1,10 @@
-import config
-from common import get_value, require, update
-from errors import YtError
+import format_config
+from common import get_value, require, filter_dict
+from errors import YtError, YtFormatError
 from yamr_record import Record
 import yt.yson as yson
 
+from abc import ABCMeta, abstractmethod
 import copy
 import struct
 import itertools
@@ -11,15 +12,20 @@ import simplejson as json
 from cStringIO import StringIO
 
 class Format(object):
-    """Format represented by raw description: name + attributes"""
+    """ YT data representations.
+
+        Abstract base class for different formats.
+    """
+    __metaclass__ = ABCMeta
+
     def __init__(self, name, attributes=None):
-        require(isinstance(name, str), YtError("Incorrect format %r" % name))
-
+        """
+        :param name: (string) format name
+        :param attributes: format parameters dictionary
+        """
+        require(isinstance(name, str), YtFormatError("Incorrect format %r" % name))
         self._name = yson.YsonString(name)
-
-        if attributes is None:
-            attributes = {}
-        self._name.attributes = attributes
+        self._name.attributes = get_value(attributes, {})
 
     def json(self):
         return yson.yson_to_json(self._name)
@@ -46,50 +52,85 @@ class Format(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def _escape(self, string, escape_dict):
+    @staticmethod
+    def _escape(string, escape_dict):
         string = string.replace("\\", "\\\\")
         for sym, escaped in escape_dict.items():
             string = string.replace(sym, escaped)
         return string
 
-    def _unescape(self, string, escape_dict):
+    @staticmethod
+    def _unescape(string, escape_dict):
         for sym, unescaped in escape_dict.items():
             string = string.replace(sym, unescaped)
         return string.replace("\\", "")
 
-    # deprecated
-    def is_read_row_supported(self):
-        return self.name() in ["dsv", "yamr", "yamred_dsv"]
+    @abstractmethod
+    def load_row(self, stream, unparsed=False):
+        """Read from the stream, parse (optionally) and return one row"""
+        pass
 
-    # deprecated
-    def read_row(self, stream):
-        return self.load_unparsed_row(stream)
+    @abstractmethod
+    def load_rows(self, stream):
+        """Read from the stream, parse and yield all rows"""
+        pass
 
-class DsvFormat(Format):
-    def __init__(self, enable_escaping=True):
-        self._enable_escaping = enable_escaping
-        super(DsvFormat, self).__init__(
-            "dsv",
-            attributes={
-                "enable_escaping": enable_escaping
-            })
+    @abstractmethod
+    def dump_row(self, row, stream):
+        """Serialize row and write it to the stream."""
+        pass
 
-    def _get_enable_escaping(self):
-        return self.attributes.get("enable_escaping", False)
+    @abstractmethod
+    def dump_rows(self, rows, stream):
+        """Serialize rows and write it to the stream"""
+        pass
 
-    def _set_enable_escaping(self, value):
-        self.attributes["enable_escaping"] = value
-
-    enable_escaping = property(_get_enable_escaping, _set_enable_escaping)
-
-    def load_unparsed_row(self, stream):
-        return stream.readline()
-
-    def load_row(self, stream):
-        return self._parse(self.load_unparsed_row(stream))
+    def dumps_row(self, row):
+        """Convert parsed row to string"""
+        stream = StringIO()
+        self.dump_row(row, stream)
+        return stream.getvalue()
 
     def loads_row(self, string):
-        return self._parse(string)
+        """Convert string to parsed row"""
+        stream = StringIO(string)
+        return self.load_row(stream)
+
+    @staticmethod
+    def _create_property(property_name):
+        get_func = lambda self: self.attributes[property_name]
+        set_func = lambda self, value: self.attributes.update({property_name: value})
+        return property(get_func, set_func)
+
+    @staticmethod
+    def _make_attributes(attributes, defaults, options):
+      result = defaults
+      result.update(get_value(attributes, {}))
+      result.update(filter_dict(lambda key, value: value is not None, options))
+      return result
+
+    def is_read_row_supported(self):
+        """..note: Deprecated."""
+        return self.name() in ("dsv", "yamr", "yamred_dsv")
+
+    def read_row(self, stream):
+        """..note: Deprecated."""
+        return self.load_row(stream, unparsed=True)
+
+class DsvFormat(Format):
+    def __init__(self, enable_escaping=None, attributes=None):
+        all_attributes = Format._make_attributes(attributes,
+                                                 {"enable_escaping": True},
+                                                 {"enable_escaping": enable_escaping})
+        super(DsvFormat, self).__init__("dsv", all_attributes)
+
+    enable_escaping = Format._create_property("enable_escaping")
+
+    def load_row(self, stream, unparsed=False):
+        line = stream.readline()
+        if unparsed:
+            return line
+        return self._parse(line)
 
     def load_rows(self, stream):
         for line in stream:
@@ -113,14 +154,12 @@ class DsvFormat(Format):
             stream.write(escape_value(str(item[1])))
             stream.write("\n" if i == length - 1 else "\t")
 
-    def dumps_row(self, row):
-        stream = StringIO()
-        self.dump_row(row, stream)
-        return stream.getvalue()
-
     def dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
+
+    def loads_row(self, string):
+        return self._parse(string)
 
     def _parse(self, string):
         def unescape_dsv_field(field):
@@ -157,16 +196,14 @@ class DsvFormat(Format):
         return dict(map(unescape_dsv_field, filter(None, string.strip("\n").split("\t"))))
 
 class YsonFormat(Format):
-    def __init__(self, format=None):
-        if format is None:
-            format = "text"
-        super(YsonFormat, self).__init__("yson", attributes={"format": format})
+    def __init__(self, format=None, attributes=None):
+        all_attributes = Format._make_attributes(attributes,
+                                                 {"format": "text"},
+                                                 {"format": format})
+        super(YsonFormat, self).__init__("yson", all_attributes)
 
-    def load_unparsed_row(self, stream):
-        raise YtError("load_unparsed_row is not supported in Yson")
-
-    def load_row(self, stream):
-        raise YtError("load_row is not supported in Yson")
+    def load_row(self, stream, unparsed=False):
+        raise YtFormatError("load_row is not supported in Yson")
 
     def load_rows(self, stream):
         return yson.load(stream, yson_type="list_fragment")
@@ -178,52 +215,39 @@ class YsonFormat(Format):
     def dump_rows(self, rows, stream):
         yson.dump(rows, stream, yson_type="list_fragment")
 
-
 class YamrFormat(Format):
-    def __init__(self, has_subkey=False, lenval=False, field_separator=None, record_separator=None):
-        super(YamrFormat, self).__init__(
-            "yamr",
-            attributes={
-                "fs": get_value(field_separator, '\t'),
-                "rs": get_value(record_separator, '\n'),
-                "has_subkey": has_subkey,
-                "lenval": lenval
-            })
+    def __init__(self, has_subkey=None, lenval=None, field_separator=None, record_separator=None, attributes=None):
+        defaults = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n'}
+        options = {"has_subkey": has_subkey, "lenval": lenval, "fs": field_separator, "rs": record_separator}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
+        super(YamrFormat, self).__init__("yamr", all_attributes)
 
-    def _get_has_subkey(self):
-        return self.attributes.get("has_subkey", False)
+    has_subkey = Format._create_property("has_subkey")
 
-    def _set_has_subkey(self, value):
-        self.attributes["has_subkey"] = value
+    lenval = Format._create_property("lenval")
 
-    has_subkey = property(_get_has_subkey, _set_has_subkey)
+    def load_row(self, stream, unparsed=False):
+        if unparsed:
+            if self.lenval:
+                fields = self._read_lenval(stream, unparsed=True)
+            else:
+                fields = stream.readline()
 
-    def _get_lenval(self):
-        return self.attributes.get("lenval", False)
+            if not fields:
+                return None
+            return fields
 
-    def _set_lenval(self, value):
-        self.attributes["lenval"] = value
-
-    lenval = property(_get_lenval, _set_lenval)
-
-    def load_unparsed_row(self, stream):
         if self.lenval:
-            return self._read_lenval(stream, unparsed=True)
+            fields = self._read_lenval(stream, unparsed=False)
+            if not fields:
+                return None
         else:
-            return stream.readline()
-
-    def load_row(self, stream):
-        if self.lenval:
-            fields = self._read_lenval(stream)
-        else:
-            fields = self._read_simple(stream)
-        if not fields:
-            return None
+            fields = stream.readline()
+            # empty string splits to non empty list, so this check should be here
+            if not fields:
+                return None
+            fields = fields.rstrip("\n").split("\t", self._get_field_count() - 1)
         return Record(*fields)
-
-    def loads_row(self, string):
-        stream = StringIO(string)
-        return self.load_row(stream)
 
     def load_rows(self, stream):
         while True:
@@ -238,7 +262,6 @@ class YamrFormat(Format):
             fields = [rec.key, rec.subkey, rec.value]
         else:
             fields = [rec.key, rec.value]
-
         if self.lenval:
             for field in fields:
                 stream.write(struct.pack("i", len(field)))
@@ -250,11 +273,6 @@ class YamrFormat(Format):
                     stream.write("\n")
                 else:
                     stream.write("\t")
-
-    def dumps_row(self, row):
-        stream = StringIO()
-        self.dump_row(row, stream)
-        return stream.getvalue()
 
     def dump_rows(self, rows, stream):
         for row in rows:
@@ -288,25 +306,16 @@ class YamrFormat(Format):
         else:
             return fields
 
-    def _read_simple(self, stream):
-        line = stream.readline()
-        if not line:
-            return []
-        return line.rstrip("\n").split("\t", self._get_field_count() - 1)
-
-
 class JsonFormat(Format):
-    def __init__(self):
-        super(JsonFormat, self).__init__("json")
+    def __init__(self, attributes=None):
+        attributes = get_value(attributes, {})
+        super(JsonFormat, self).__init__("json", attributes)
 
-    def load_unparsed_row(self, stream):
-        return stream.readline()
-
-    def load_row(self, stream):
-        return json.loads(stream.readline().rstrip("\n"))
-
-    def loads_row(self, string):
-        return json.loads(string)
+    def load_row(self, stream, unparsed=False):
+        row = stream.readline()
+        if unparsed:
+            return row
+        return json.loads(row.rstrip("\n"))
 
     def load_rows(self, stream):
         for line in stream:
@@ -316,64 +325,48 @@ class JsonFormat(Format):
         json.dump(row, stream)
         stream.write("\n")
 
-    def dumps_row(self, row):
-        return json.dumps(row)
-
     def dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
 
+    def dumps_row(self, row):
+        return json.dumps(row)
+
+    def loads_row(self, string):
+        return json.loads(string)
 
 class YamredDsvFormat(YamrFormat):
-    def __init__(self, key_column_names, subkey_column_names=None, has_subkey=False, lenval=False):
-        if subkey_column_names is None:
-            subkey_column_names = []
-        super(YamrFormat, self).__init__(
-            "yamred_dsv",
-            attributes={
-                "key_column_names": key_column_names,
-                "subkey_column_names": subkey_column_names,
-                "has_subkey": has_subkey,
-                "lenval": lenval
-            })
+    def __init__(self, key_column_names=None, subkey_column_names=None, has_subkey=None, lenval=None, attributes=None):
+        defaults = {"has_subkey": False, "lenval": False, "subkey_column_names": []}
+        options = {"key_column_names": key_column_names, "subkey_column_names": subkey_column_names,
+                   "has_subkey": has_subkey, "lenval": lenval}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
+        require(all_attributes.has_key("key_column_names"),
+                YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
+        super(YamredDsvFormat, self).__init__(attributes=all_attributes)
+        self._name = yson.to_yson_type("yamred_dsv", self.attributes)
+
 
 class SchemafulDsvFormat(Format):
-    def __init__(self, columns, enable_escaping=True):
-        super(SchemafulDsvFormat, self).__init__(
-            "schemaful_dsv",
-            attributes={
-                "columns": columns,
-                "enable_escaping": True
-            })
+    def __init__(self, columns=None, enable_escaping=None, attributes=None):
+        defaults = {"enable_escaping": True}
+        options = {"columns": columns, "enable_escaping": enable_escaping}
+        all_attributes = Format._make_attributes(attributes, defaults, options)
+        require(all_attributes.has_key("columns"),
+                YtFormatError("SchemafulDsvFormat require 'columns' attribute"))
+        super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes)
 
-    def _get_columns(self):
-        return self.attributes.get("columns", False)
+    columns = Format._create_property("columns")
 
-    def _set_columns(self, value):
-        self.attributes["columns"] = value
+    enable_escaping = Format._create_property("enable_escaping")
 
-    columns = property(_get_columns, _set_columns)
-
-    def _get_enable_escaping(self):
-        return self.attributes.get("enable_escaping", False)
-
-    def _set_enable_escaping(self, value):
-        self.attributes["enable_escaping"] = value
-
-    enable_escaping = property(_get_enable_escaping, _set_enable_escaping)
-
-
-    def load_unparsed_row(self, stream):
-        return stream.readline()
-
-    def load_row(self, stream):
+    def load_row(self, stream, unparsed=False):
         line = stream.readline()
+        if unparsed:
+            return line
         if not line:
             return None
         return self._parse(line)
-
-    def loads_row(self, string):
-        return self._parse(string)
 
     def load_rows(self, stream):
         for line in stream:
@@ -392,11 +385,6 @@ class SchemafulDsvFormat(Format):
             else:
                 stream.write("\t")
 
-    def dumps_row(self, row):
-        stream = StringIO()
-        self.dump_row(row, stream)
-        return stream.getvalue()
-
     def dump_rows(self, rows, stream):
         for row in rows:
             self.dump_row(row, stream)
@@ -412,42 +400,32 @@ class SchemafulDsvFormat(Format):
 
 # Deprecated
 class SchemedDsvFormat(SchemafulDsvFormat):
-    def __init__(self, columns):
-        super(SchemedDsvFormat, self).__init__(columns)
+    def __init__(self, columns, attributes=None):
+        super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes)
         self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
-def create_format(name, attributes=None):
-    if attributes is None:
-        attributes = {}
+def create_format(yson_name, attributes=None):
+    attributes = get_value(attributes, {})
 
-    name = yson.loads(name)
-    attributes = update(attributes, name.attributes)
-    name = str(name)
+    yson_string = yson.loads(yson_name)
+    attributes.update(yson_string.attributes)
+    name = str(yson_string)
 
-    if name == "yamr":
-        format = YamrFormat()
-    elif name == "dsv":
-        format = DsvFormat()
-    elif name == "yamred_dsv":
-        format = YamredDsvFormat(key_column_names=attributes["key_column_names"])
-    elif name == "schemaful_dsv":
-        format = SchemafulDsvFormat(columns=attributes["columns"])
-    elif name == "yson":
-        format = YsonFormat()
-    elif name == "json":
-        format = JsonFormat()
-    else:
-        raise YtError("Incorrect format " + name)
+    NAME_TO_FORMAT = {"yamr": YamrFormat,
+                      "dsv": DsvFormat,
+                      "yamred_dsv": YamredDsvFormat,
+                      "schemaful_dsv": SchemafulDsvFormat,
+                      "yson": YsonFormat,
+                      "json": JsonFormat}
+    try:
+        return NAME_TO_FORMAT[name](attributes=attributes)
+    except KeyError:
+        raise YtFormatError("Incorrect format " + name)
 
-    format.attributes = attributes
-    return format
-
-def dumps_row(self, row, format=None):
-    if format is None:
-        format = config.format.TABULAR_DATA_FORMAT
-    return format.dumps_row(row)
-
-def loads_row(self, string, format=None):
-    if format is None:
-        format = config.format.TABULAR_DATA_FORMAT
+def loads_row(string, format=None):
+    format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.loads_row(string)
+
+def dumps_row(row, format=None):
+    format = get_value(format, format_config.TABULAR_DATA_FORMAT)
+    return format.dumps_row(row)

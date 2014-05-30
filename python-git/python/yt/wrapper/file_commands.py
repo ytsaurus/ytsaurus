@@ -20,7 +20,7 @@ def md5sum(filename):
             h.update(buf)
     return h.hexdigest()
 
-def download_file(path, response_type=None, file_reader=None, offset=None, length=None):
+def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
     """
     Downloads file from path.
     Response type means the output format. By default it is line generator.
@@ -38,11 +38,11 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     response = _make_transactional_request(
         "download",
         params,
-        proxy=get_host_for_heavy_operation(),
+        proxy=get_host_for_heavy_operation(client=client),
         return_raw_response=True)
     return read_content(response, raw=True, format=None, response_type=response_type)
 
-def upload_file(stream, destination, file_writer=None):
+def upload_file(stream, destination, file_writer=None, client=None):
     """
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
@@ -61,9 +61,10 @@ def upload_file(stream, destination, file_writer=None):
         destination,
         params,
         lambda path: create("file", path, ignore_existing=True),
-        config.USE_RETRIES_DURING_UPLOAD)
+        config.USE_RETRIES_DURING_UPLOAD,
+        client=client)
 
-def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True):
+def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
     """
     Upload file specified by filename to destination path.
     If destination is not specified, than name is determined by placement strategy.
@@ -77,7 +78,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     def upload_with_check(path):
         require(not exists(path),
                 YtError("Cannot upload file to '{0}', node already exists".format(path)))
-        upload_file(open(filename), path)
+        upload_file(open(filename), path, client=client)
 
     require(os.path.isfile(filename),
             YtError("Upload: %s should be file" % filename))
@@ -89,14 +90,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     if destination is None:
         # create file storage dir and hash subdir
-        mkdir(os.path.join(config.FILE_STORAGE, "hash"), recursive=True)
+        mkdir(os.path.join(config.FILE_STORAGE, "hash"), recursive=True, client=client)
         prefix = os.path.join(config.FILE_STORAGE, os.path.basename(filename))
         destination = prefix
         if placement_strategy == "random":
-            destination = find_free_subpath(prefix)
-        if placement_strategy == "replace" and exists(prefix):
-            remove(destination)
-        if placement_strategy == "ignore" and exists(destination):
+            destination = find_free_subpath(prefix, client=client)
+        if placement_strategy == "replace" and exists(prefix, client=client):
+            remove(destination, client=client)
+        if placement_strategy == "ignore" and exists(destination, client=client):
             return
         if yt_filename is None:
             yt_filename = os.path.basename(filename)
@@ -124,13 +125,13 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
         if link_exists and broken:
             logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
-            remove(destination)
+            remove(destination, client=client)
             link_exists = False
         if not link_exists:
-            real_destination = find_free_subpath(prefix)
+            real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)
-            link(real_destination, destination, ignore_existing=True)
-            set_attribute(real_destination, "hash", md5)
+            link(real_destination, destination, ignore_existing=True, client=client)
+            set_attribute(real_destination, "hash", md5, client=client)
         else:
             logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
     else:
@@ -139,8 +140,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
     
     try:
-        set_attribute(destination, "file_name", yt_filename)
-        set_attribute(destination, "executable", bool_to_string(executable))
+        set_attribute(destination, "file_name", yt_filename, client=client)
+        set_attribute(destination, "executable", bool_to_string(executable), client=client)
     except YtResponseError as error:
         if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
             pass

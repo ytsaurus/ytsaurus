@@ -75,7 +75,7 @@ def process_tasks_from_list(list, action, limit=10000):
                 logger.info("Processing of value %s failed, it cancelled", str(value))
 
         except (Exception, KeyboardInterrupt):
-            logger.exception("Process interrupted or error occured, processing stopped")
+            logger.exception("Process interrupted or error occurred, processing stopped")
             if value is not None:
                 atomic_push(list, value)
             break
