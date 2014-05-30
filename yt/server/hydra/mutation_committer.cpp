@@ -66,8 +66,8 @@ public:
         , StartVersion_(startVersion)
         // The local flush is also counted.
         , FlushCount_(0)
-        , LocalFlushResult_(NewPromise())
-        , QuorumFlushResult_(NewPromise())
+        , LocalFlushResult_(NewPromise<TError>())
+        , QuorumFlushResult_(NewPromise<TError>())
         , Logger(Owner_->Logger)
     {
         Logger.AddTag(Sprintf("StartVersion: %s", ~ToString(StartVersion_)));
@@ -83,12 +83,12 @@ public:
         LOG_DEBUG("Mutation is batched at version %s", ~ToString(currentVersion));
     }
 
-    void SetLocalFlushResult(TFuture<void> result)
+    void SetLocalFlushResult(TAsyncError result)
     {
         LocalFlushResult_ = std::move(result);
     }
 
-    TFuture<void> GetQuorumFlushResult()
+    TAsyncError GetQuorumFlushResult()
     {
         return QuorumFlushResult_;
     }
@@ -178,7 +178,7 @@ private:
 
         Awaiter_->Cancel();
 
-        QuorumFlushResult_.Set();
+        QuorumFlushResult_.Set(TError());
 
         return true;
     }
@@ -207,8 +207,13 @@ private:
         }
     }
 
-    void OnLocalFlush()
+    void OnLocalFlush(TError error)
     {
+        // TODO(babenko): handle errors
+        if (!error.IsOK()) {
+            LOG_FATAL(error);
+        }
+
         LOG_DEBUG("Mutations are flushed locally");
 
         Owner_->Profiler.TimingCheckpoint(
@@ -246,8 +251,8 @@ private:
     int FlushCount_;
 
     TParallelAwaiterPtr Awaiter_;
-    TFuture<void> LocalFlushResult_;
-    TPromise<void> QuorumFlushResult_;
+    TAsyncError LocalFlushResult_;
+    TAsyncErrorPromise QuorumFlushResult_;
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
@@ -307,7 +312,7 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
         auto version = DecoratedAutomaton_->GetLoggedVersion();
 
         TSharedRef recordData;
-        TFuture<void> logResult;
+        TAsyncError logResult;
         auto commitResult = NewPromise<TErrorOr<TMutationResponse>>();
         DecoratedAutomaton_->LogMutationAtLeader(
             request,
@@ -337,12 +342,12 @@ void TLeaderCommitter::Flush()
     }
 }
 
-TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
+TAsyncError TLeaderCommitter::GetQuorumFlushResult()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TGuard<TSpinLock> guard(BatchSpinLock_);
-    return CurrentBatch_ ? CurrentBatch_->GetQuorumFlushResult() : MakeFuture();
+    return CurrentBatch_ ? CurrentBatch_->GetQuorumFlushResult() : OKFuture;
 }
 
 void TLeaderCommitter::SuspendLogging()
@@ -368,7 +373,7 @@ void TLeaderCommitter::ResumeLogging()
         auto version = DecoratedAutomaton_->GetAutomatonVersion();
 
         TSharedRef recordData;
-        TFuture<void> logResult;
+        TAsyncError logResult;
         DecoratedAutomaton_->LogMutationAtLeader(
             pendingMutation.Request,
             &recordData,
@@ -387,7 +392,7 @@ void TLeaderCommitter::ResumeLogging()
 void TLeaderCommitter::AddToBatch(
     TVersion version,
     const TSharedRef& recordData,
-    TFuture<void> localResult)
+    TAsyncError localResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
@@ -420,7 +425,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
         CurrentBatch_ = New<TBatch>(this, version);
 
         CurrentBatch_->GetQuorumFlushResult().Subscribe(
-            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_, TError())
+            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_)
                 .Via(EpochAutomatonInvoker_));
 
         YCHECK(!BatchTimeoutCookie_);
@@ -449,6 +454,9 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, TError error)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (!error.IsOK())
+        return;
 
     DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion());
 }
@@ -507,14 +515,11 @@ TAsyncError TFollowerCommitter::DoLogMutations(
             ~ToString(expectedVersion)));
     }
 
-    TFuture<void> logResult;
+    TAsyncError logResult;
     for (const auto& recordData : recordsData) {
         DecoratedAutomaton_->LogMutationAtFollower(recordData, &logResult);
     }
-
-    return logResult.Apply(BIND([] () -> TError {
-        return TError();
-    }));
+    return logResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

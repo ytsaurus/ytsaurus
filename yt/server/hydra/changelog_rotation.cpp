@@ -77,10 +77,13 @@ private:
     NLog::TTaggedLogger& Logger;
 
 
-    void OnQuorumFlushed()
+    void OnQuorumFlushed(TError error)
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
         YCHECK(Owner_->DecoratedAutomaton_->GetLoggedVersion() == Version_);
+
+        if (!error.IsOK())
+            return;
 
         if (BuildSnapshot_) {
             RequestSnapshotCreation();

@@ -2,6 +2,7 @@
 #include "journal_session.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
+#include "chunk_store.h"
 
 #include <server/hydra/changelog.h>
 
@@ -30,7 +31,7 @@ TJournalSession::TJournalSession(
         type,
         syncOnClose,
         location)
-    , LastAppendResult_(VoidFuture)
+    , LastAppendResult_(OKFuture)
 { }
 
 const TChunkInfo& TJournalSession::GetChunkInfo() const
@@ -42,20 +43,23 @@ void TJournalSession::Start(TLeaseManager::TLease lease)
 {
     TSession::Start(lease);
 
-    Chunk_ = New<TJournalChunk>(
-        Bootstrap_,
-        Location_,
-        ChunkId_,
-        TChunkInfo()); // TODO(babenko)
-
     WriteInvoker_->Invoke(
-        BIND(&TJournalSession::DoCreateChangelog, MakeStrong(this)));
+        BIND(&TJournalSession::DoStart, MakeStrong(this)));
 }
 
-void TJournalSession::DoCreateChangelog()
+void TJournalSession::DoStart()
 {
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    Changelog_ = dispatcher->CreateChangelog(this);
+    Chunk_ = dispatcher->CreateJournalChunk(ChunkId_, Location_);
+
+    Bootstrap_->GetControlInvoker()->Invoke(
+        BIND(&TJournalSession::OnStarted, MakeStrong(this)));
+}
+
+void TJournalSession::OnStarted()
+{
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->RegisterNewChunk(Chunk_);
 }
 
 void TJournalSession::Cancel(const TError& error)
@@ -80,6 +84,8 @@ IChunkPtr TJournalSession::CloseSession()
 {
     CloseLease();
 
+    Chunk_->ReleaseChangelog();
+
     Finished_.Fire(TError());
 
     return Chunk_;
@@ -94,7 +100,8 @@ TAsyncError TJournalSession::PutBlocks(
 
     Ping();
 
-    int recordCount = Changelog_->GetRecordCount();
+    auto changelog = Chunk_->GetChangelog();
+    int recordCount = changelog->GetRecordCount();
     
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
@@ -114,7 +121,7 @@ TAsyncError TJournalSession::PutBlocks(
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        LastAppendResult_ = Changelog_->Append(blocks[index]);
+        LastAppendResult_ = changelog->Append(blocks[index]);
     }
 
     return OKFuture;
@@ -130,7 +137,8 @@ TAsyncError TJournalSession::SendBlocks(
 
 TAsyncError TJournalSession::FlushBlock(int blockIndex)
 {
-    int recordCount = Changelog_->GetRecordCount();
+    auto changelog = Chunk_->GetChangelog();
+    int recordCount = changelog->GetRecordCount();
     
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
@@ -139,11 +147,7 @@ TAsyncError TJournalSession::FlushBlock(int blockIndex)
             blockIndex);
     }
 
-    auto this_ = MakeStrong(this);
-    return LastAppendResult_.Apply(BIND([this, this_, blockIndex] () {
-        Chunk_->SetRecordCount(blockIndex);
-        return TError();
-    }));
+    return LastAppendResult_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

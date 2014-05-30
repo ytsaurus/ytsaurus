@@ -91,7 +91,7 @@ public:
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    TFuture<void> GetQuorumFlushResult();
+    TAsyncError GetQuorumFlushResult();
 
     //! Temporarily suspends writing mutations to the changelog and keeps them in memory.
     /*!
@@ -122,7 +122,7 @@ private:
     void AddToBatch(
         TVersion version,
         const TSharedRef& recordData,
-        TFuture<void> localResult);
+        TAsyncError localResult);
     void FlushCurrentBatch();
 
     TDistributedHydraManagerConfigPtr Config_;

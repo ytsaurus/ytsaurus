@@ -32,6 +32,7 @@ set( SRCS
   ${BASE}/local_snapshot_service.cpp
   ${BASE}/local_snapshot_store.cpp
   ${BASE}/remote_snapshot_store.cpp
+  ${BASE}/lazy_changelog.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -73,6 +74,7 @@ set( HDRS
   ${BASE}/local_snapshot_service.h
   ${BASE}/local_snapshot_store.h
   ${BASE}/remote_snapshot_store.h
+  ${BASE}/lazy_changelog.h
 )
 
 list(APPEND YT_SOURCE_FILES

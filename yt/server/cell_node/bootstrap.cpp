@@ -187,7 +187,7 @@ void TBootstrap::Run()
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
-    JournalDispatcher = New<TJournalDispatcher>(Config->DataNode, "JournalFlush");
+    JournalDispatcher = New<TJournalDispatcher>(this, Config->DataNode->JournalDispatcher);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 

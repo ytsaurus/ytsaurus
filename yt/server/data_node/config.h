@@ -161,7 +161,7 @@ class TJournalDispatcherConfig
 {
 public:
     //! Multiplexed journal configuration.
-    NHydra::TFileChangelogConfigPtr Multiplexed;
+    TMultiplexedJournalConfigPtr Multiplexed;
 
     //! Split (per chunk) journal configuration.
     NHydra::TFileChangelogConfigPtr Split;

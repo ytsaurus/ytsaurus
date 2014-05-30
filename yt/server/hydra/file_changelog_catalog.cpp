@@ -237,7 +237,7 @@ private:
             return SplitChangelog->IsSealed();
         }
 
-        virtual TFuture<void> Append(const TSharedRef& data) override
+        virtual TAsyncError Append(const TSharedRef& data) override
         {
             // Put the record into the split changelog.
             int recordId = SplitChangelog->GetRecordCount();
@@ -253,7 +253,7 @@ private:
             return Catalog->Append(record, this);
         }
 
-        virtual TFuture<void> Flush() override
+        virtual TAsyncError Flush() override
         {
             return SplitChangelog->Flush();
         }
@@ -274,7 +274,7 @@ private:
                 maxBytes);
         }
 
-        virtual TFuture<void> Seal(int recordCount) override
+        virtual TAsyncError Seal(int recordCount) override
         {
             return SplitChangelog->Seal(recordCount);
         }
@@ -284,7 +284,7 @@ private:
             SplitChangelog->Unseal();
         }
 
-        TFuture<void> GetLastAppendResult()
+        TAsyncError GetLastAppendResult()
         {
             return LastAppendResult;
         }
@@ -295,7 +295,7 @@ private:
         IChangelogPtr SplitChangelog;
         int ChangelogId;
 
-        TFuture<void> LastAppendResult;
+        TAsyncError LastAppendResult;
 
     };
 
@@ -620,7 +620,7 @@ private:
     yhash_set<TChangelogPtr> ActiveChangelogs;
 
     //! If not null then rotation is in progress; set when records in |MultiplexedBacklogQueue| are flushed.
-    TPromise<void> MultiplexedBacklogPromise;
+    TAsyncErrorPromise MultiplexedBacklogPromise;
     
     //! Captures records enqueued while rotating.
     std::vector<TMultiplexedRecord> MultiplexedBacklogQueue;
@@ -630,7 +630,7 @@ private:
     TIntrusivePtr<TChangelogCache> ChangelogCache;
 
 
-    TFuture<void> Append(const TMultiplexedRecord& record, TChangelogPtr changelog)
+    TAsyncError Append(const TMultiplexedRecord& record, TChangelogPtr changelog)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -656,7 +656,7 @@ private:
                
             auto multiplexedFlushResult = MultiplexedChangelog->Flush();
 
-            MultiplexedBacklogPromise = NewPromise();
+            MultiplexedBacklogPromise = NewPromise<TError>();
             YCHECK(MultiplexedBacklogQueue.empty());
 
             // Wait for the last record in active changelogs to get flushed
@@ -686,7 +686,7 @@ private:
         return appendResult;
     }
 
-    TFuture<void> AppendToMultiplexedChangelog(const TMultiplexedRecord& record)
+    TAsyncError AppendToMultiplexedChangelog(const TMultiplexedRecord& record)
     {
         auto multiplexedData = TSharedRef::Allocate(
             record.Data.Size() +
@@ -703,18 +703,26 @@ private:
         return MultiplexedChangelog->Append(multiplexedData);
     }
 
-    void OnMultiplexedChangelogFlushed()
+    void OnMultiplexedChangelogFlushed(TError error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            LOG_FATAL(error);
+        }
 
         MultiplexedChangelog->Seal(MultiplexedChangelog->GetRecordCount())
             .Subscribe(BIND(&TFileChangelogCatalog::OnMultiplexedChangelogSealed, MakeStrong(this))
                 .Via(GetHydraIOInvoker()));
     }
 
-    void OnMultiplexedChangelogSealed()
+    void OnMultiplexedChangelogSealed(TError error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            LOG_FATAL(error);
+        }
 
         int oldId = MultiplexedChangelogId;
         int newId = MultiplexedChangelogId + 1;
@@ -735,7 +743,7 @@ private:
         MultiplexedChangelog = newMultiplexedChangelog;
         MultiplexedChangelogId = newId;
 
-        auto appendResult = MakeFuture(); // pre-set in case MultiplexedBacklogQueue is empty
+        auto appendResult = OKFuture; // pre-set in case MultiplexedBacklogQueue is empty
         for (const auto& record : MultiplexedBacklogQueue) {
             appendResult = AppendToMultiplexedChangelog(record);
         }
@@ -746,7 +754,7 @@ private:
 
         guard.Release();
 
-        appendResult.Subscribe(BIND([=] () mutable { backlogPromise.Set(); }));
+        appendResult.Subscribe(BIND([=] (TError error) mutable { backlogPromise.Set(error); }));
     }
 
     void OnMultiplexedChangelogClean(int multiplexedChangelogId)

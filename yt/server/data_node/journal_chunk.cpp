@@ -39,25 +39,27 @@ TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkInfo& info)
+    IChangelogPtr changelog)
     : TChunk(
         bootstrap,
         location,
         id,
-        info)
+        TChunkInfo())
+    , Changelog_(changelog)
 {
     Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(EChunkType::Journal);
 
-    RecordCount_ = 0;
-    Sealed_ = false;
+    YCHECK(Changelog_);
+    UpdateProperties();
 }
 
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
-    // Update TJournalExt.
+    UpdateProperties();
+
     TJournalExt journalExt;
     journalExt.set_record_count(RecordCount_);
     journalExt.set_sealed(Sealed_);
@@ -102,7 +104,7 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = dispatcher->GetChangelog(this);
+        auto changelog = dispatcher->OpenChangelog(this);
     
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %s:%d-%d, LocationId: %s)",
             ~ToString(Id_),
@@ -155,6 +157,14 @@ void TJournalChunk::DoReadBlocks(
     }
 }
 
+void TJournalChunk::UpdateProperties()
+{
+    if (Changelog_) {
+        RecordCount_ = Changelog_->GetRecordCount();
+        Sealed_ = Changelog_->IsSealed();
+    }
+}
+
 void TJournalChunk::EvictFromCache()
 {
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
@@ -163,40 +173,25 @@ void TJournalChunk::EvictFromCache()
 
 TFuture<void> TJournalChunk::RemoveFiles()
 {
-    auto dataFileName = GetFileName();
-    auto indexFileName = dataFileName + IndexSuffix;
-    auto id = Id_;
     auto location = Location_;
-
-    return BIND([=] () {
-        LOG_DEBUG("Started removing journal chunk files (ChunkId: %s)",
-            ~ToString(id));
-
-        try {
-            NFS::Remove(dataFileName);
-            NFS::Remove(indexFileName);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error removing journal chunk files");
-            location->Disable();
-        }
-
-        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %s)",
-            ~ToString(id));
-    }).AsyncVia(location->GetWriteInvoker()).Run();
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    return dispatcher->RemoveJournalChunk(this)
+        .Apply(BIND([=] (TError error) {
+            if (!error.IsOK()) {
+                location->Disable();
+            }
+        }));
 }
 
-void TJournalChunk::SetRecordCount(int recordCount)
+IChangelogPtr TJournalChunk::GetChangelog() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    RecordCount_ = recordCount;
+    return Changelog_;
 }
 
-void TJournalChunk::SetSealed(bool value)
+void TJournalChunk::ReleaseChangelog()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    Sealed_ = value;
+    UpdateProperties();
+    Changelog_.Reset();
 }
 
 TNullable<TChunkDescriptor> TJournalChunk::TryGetDescriptor(
@@ -215,7 +210,6 @@ TNullable<TChunkDescriptor> TJournalChunk::TryGetDescriptor(
 
     TChunkDescriptor descriptor;
     descriptor.Id = id;
-    descriptor.Info.set_disk_space(0);
     return descriptor;
 }
 

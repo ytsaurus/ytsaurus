@@ -70,12 +70,12 @@ public:
     void LogMutationAtLeader(
         const TMutationRequest& request,
         TSharedRef* recordData,
-        TFuture<void>* logResult,
+        TAsyncError* logResult,
         TPromise<TErrorOr<TMutationResponse>> commitResult);
 
     void LogMutationAtFollower(
         const TSharedRef& recordData,
-        TFuture<void>* logResult);
+        TAsyncError* logResult);
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 

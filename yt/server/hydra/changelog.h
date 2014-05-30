@@ -32,19 +32,19 @@ struct IChangelog
     /*!
      *  \param recordId Record ids must be contiguous.
      *  \param data Record data
-     *  \returns a future that gets set when the record
-     *  is actually flushed to a persistent storage.
+     *  \returns an asynchronous flag either indicating an error or
+     *  a successful flush of the just appended record.
      */
-    virtual TFuture<void> Append(const TSharedRef& data) = 0;
+    virtual TAsyncError Append(const TSharedRef& data) = 0;
 
     //! Asynchronously flushes all previously appended records.
     /*!
-     *  \returns a future that gets set when all the records
-     *  are actually flushed to a persistent storage.
+     *  \returns an asynchronous flag either indicating an error or
+     *  a successful flush of the just appended record.
      */
-    virtual TFuture<void> Flush() = 0;
+    virtual TAsyncError Flush() = 0;
 
-    //! Closes the changelog files.
+    //! Synchronously closes the changelog files.
     /*!
      *  Pending changes are not guaranteed to be flushed.
      */
@@ -52,6 +52,7 @@ struct IChangelog
 
     //! Synchronously reads records from the changelog.
     //! The call may return less records than requested.
+    //! This call throws on error.
     /*!
      *  \param firstRecordId The record id to start from.
      *  \param maxRecords A hint limits the number of records to read.
@@ -64,9 +65,13 @@ struct IChangelog
         i64 maxBytes) const = 0;
 
     //! Asynchronously seals the changelog flushing and truncating it if necessary.
-    virtual TFuture<void> Seal(int recordCount) = 0;
+    /*!
+     *  \returns an asynchronous flag either indicating an error or a success.
+     */
+    virtual TAsyncError Seal(int recordCount) = 0;
 
-    //! Resets seal flag. Mostly useful for administrative tools.
+    //! Synchronously resets seal flag.
+    //! Mostly useful for administrative tools.
     virtual void Unseal() = 0;
 
 };

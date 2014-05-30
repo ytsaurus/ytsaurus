@@ -15,6 +15,8 @@ public:
 
     void Shutdown();
 
+    IInvokerPtr GetInvoker();
+
     IChangelogPtr CreateChangelog(
         const Stroka& path,
         const TSharedRef& meta,

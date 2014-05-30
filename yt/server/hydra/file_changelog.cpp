@@ -55,7 +55,7 @@ public:
     }
 
 
-    TFuture<void> Append(TSharedRef data)
+    TAsyncError Append(TSharedRef data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -69,21 +69,21 @@ public:
     }
 
 
-    TFuture<void> AsyncFlush()
+    TAsyncError AsyncFlush()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
-            return MakeFuture();
+            return MakeFuture(TError());
         }
 
         FlushForced_ = true;
         return FlushPromise_;
     }
 
-    TFuture<void> AsyncSeal(int recordCount)
+    TAsyncError AsyncSeal(int recordCount)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -134,7 +134,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TPromise<void> promise;
+        TAsyncErrorPromise promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -155,7 +155,7 @@ public:
             FlushForced_ = false;
         }
 
-        promise.Set();
+        promise.Set(TError());
 
         return true;
     }
@@ -240,10 +240,10 @@ private:
 
     i64 ByteSize_ = 0;
 
-    TPromise<void> FlushPromise_ = NewPromise();
+    TAsyncErrorPromise FlushPromise_ = NewPromise<TError>();
     bool FlushForced_ = false;
 
-    TPromise<void> SealPromise_ = NewPromise();
+    TAsyncErrorPromise SealPromise_ = NewPromise<TError>();
     bool SealForced_ = false;
     int SealRecordCount_ = -1;
 
@@ -253,7 +253,7 @@ private:
 
     void SyncFlush()
     {
-        TPromise<void> flushPromise;
+        TAsyncErrorPromise flushPromise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -263,7 +263,7 @@ private:
 
             YCHECK(FlushPromise_);
             flushPromise = FlushPromise_;
-            FlushPromise_ = NewPromise();
+            FlushPromise_ = NewPromise<TError>();
             FlushForced_ = false;
         }
 
@@ -280,12 +280,12 @@ private:
             FlushQueue_.clear();
         }
 
-        flushPromise.Set();
+        flushPromise.Set(TError());
     }
 
     void SyncSeal()
     {
-        TPromise<void> sealPromise;
+        TAsyncErrorPromise sealPromise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (!SealForced_)
@@ -307,7 +307,7 @@ private:
             Changelog_->Seal(SealRecordCount_);
         }
 
-        sealPromise.Set();
+        sealPromise.Set(TError());
     }
 
 };
@@ -343,8 +343,12 @@ public:
         ActionQueue_->Shutdown();
     }
 
+    IInvokerPtr GetInvoker()
+    {
+        return ActionQueue_->GetInvoker();
+    }
 
-    TFuture<void> Append(
+    TAsyncError Append(
         TSyncFileChangelogPtr changelog,
         const TSharedRef& record)
     {
@@ -384,10 +388,10 @@ public:
         }
     }
 
-    TFuture<void> Flush(TSyncFileChangelogPtr changelog)
+    TAsyncError Flush(TSyncFileChangelogPtr changelog)
     {
         auto queue = FindQueue(changelog);
-        return queue ? queue->AsyncFlush() : MakeFuture();
+        return queue ? queue->AsyncFlush() : MakeFuture(TError());
     }
 
     void Close(TSyncFileChangelogPtr changelog)
@@ -396,13 +400,12 @@ public:
         changelog->Close();
     }
 
-    TFuture<void> Seal(TSyncFileChangelogPtr changelog, int recordCount)
+    TAsyncError Seal(TSyncFileChangelogPtr changelog, int recordCount)
     {
         auto queue = GetQueueAndLock(changelog);
         auto result = queue->AsyncSeal(recordCount);
         queue->Unlock();
         Wakeup();
-
         return result;
     }
 
@@ -565,15 +568,14 @@ public:
         return SyncChangelog_->IsSealed();
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TAsyncError Append(const TSharedRef& data) override
     {
         RecordCount_ += 1;
         DataSize_ += data.Size();
-
         return DispatcherImpl_->Append(SyncChangelog_, data);
     }
 
-    virtual TFuture<void> Flush() override
+    virtual TAsyncError Flush() override
     {
         return DispatcherImpl_->Flush(SyncChangelog_);
     }
@@ -595,7 +597,7 @@ public:
             maxBytes);
     }
 
-    virtual TFuture<void> Seal(int recordCount) override
+    virtual TAsyncError Seal(int recordCount) override
     {
         YCHECK(recordCount <= RecordCount_);
         RecordCount_.store(recordCount);
@@ -630,6 +632,16 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
     : Impl_(New<TImpl>(threadName))
 { }
+
+void TFileChangelogDispatcher::Shutdown()
+{
+    Impl_->Shutdown();
+}
+
+IInvokerPtr TFileChangelogDispatcher::GetInvoker()
+{
+    return Impl_->GetInvoker();
+}
 
 IChangelogPtr TFileChangelogDispatcher::CreateChangelog(
     const Stroka& path,

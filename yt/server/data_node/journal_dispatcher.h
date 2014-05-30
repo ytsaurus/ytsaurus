@@ -6,6 +6,8 @@
 
 #include <server/hydra/public.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -17,33 +19,43 @@ class TJournalDispatcher
 {
 public:
     TJournalDispatcher(
-        TDataNodeConfigPtr config,
-        const Stroka& threadName);
+        NCellNode::TBootstrap* bootstrap,
+        TJournalDispatcherConfigPtr config);
     ~TJournalDispatcher();
+
+    void Initialize();
 
     //! Returns |true| if new journal chunks are accepted.
     bool AcceptsChunks() const;
 
-    //! Returns a (cached) changelog corresponding to a given journal chunk.
+    //! Returns a (possibly cached) changelog corresponding to a given journal chunk.
     /*!
-     *  This call is thread-safe but may block since it actually opens the files.
+     *  This call is thread-safe but may block if the changelog is not cached.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr GetChangelog(IChunkPtr chunk);
+    NHydra::IChangelogPtr OpenChangelog(IChunkPtr chunk);
 
-    //! Creates a new changelog corresponding to a given journal session.
+    //! Creates a new journal chunk corresponding to a given journal session.
     /*!
-     *  This call is thread-safe but may block since it actually creates the files.
+     *  This call is thread-safe and cannot block. The actual creation happens in background.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr CreateChangelog(ISessionPtr session);
+    TJournalChunkPtr CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location);
+
+    //! Asynchronously removes a given journal chunk.
+    TAsyncError RemoveJournalChunk(IChunkPtr chunk);
 
     //! Evicts the changelog from the cache.
     void EvictChangelog(IChunkPtr chunk);
 
 private:
     class TCachedChangelog;
+    typedef TIntrusivePtr<TCachedChangelog> TCachedChangelogPtr;
+
     class TImpl;
+    typedef TIntrusivePtr<TImpl> TImplPtr;
+
+    class TMultiplexedReplay;
 
     TIntrusivePtr<TImpl> Impl_;
 

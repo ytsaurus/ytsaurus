@@ -3,6 +3,8 @@
 #include "public.h"
 #include "chunk_detail.h"
 
+#include <server/hydra/public.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -16,7 +18,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info);
+        NHydra::IChangelogPtr changelog);
 
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
@@ -28,17 +30,21 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-
-    void SetRecordCount(int recordCount);
-    void SetSealed(bool value);
+    NHydra::IChangelogPtr GetChangelog() const;
+    void ReleaseChangelog();
 
     static TNullable<TChunkDescriptor> TryGetDescriptor(
         const TChunkId& id,
         const Stroka& fileName);
 
 private:
+    NHydra::IChangelogPtr Changelog_;
+
     std::atomic<int> RecordCount_;
     std::atomic<bool> Sealed_;
+
+
+    void UpdateProperties();
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;

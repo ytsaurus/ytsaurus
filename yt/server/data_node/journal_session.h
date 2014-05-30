@@ -47,14 +47,13 @@ public:
 
 private:
     TJournalChunkPtr Chunk_;
-    NHydra::IChangelogPtr Changelog_;
-    TFuture<void> LastAppendResult_;
+    TAsyncError LastAppendResult_;
 
 
-    void DoCreateChangelog();
+    void DoStart();
+    void OnStarted();
 
     IChunkPtr CloseSession();
-
 
 };
 

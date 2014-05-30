@@ -428,7 +428,7 @@ void TDecoratedAutomaton::RotateChangelogDuringRecovery()
 void TDecoratedAutomaton::LogMutationAtLeader(
     const TMutationRequest& request,
     TSharedRef* recordData,
-    TFuture<void>* logResult,
+    TAsyncError* logResult,
     TPromise<TErrorOr<TMutationResponse>> commitResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -470,7 +470,7 @@ void TDecoratedAutomaton::LogMutationAtLeader(
 
 void TDecoratedAutomaton::LogMutationAtFollower(
     const TSharedRef& recordData,
-    TFuture<void>* logResult)
+    TAsyncError* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
