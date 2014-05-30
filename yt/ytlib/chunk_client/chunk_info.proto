@@ -7,7 +7,7 @@ message TChunkInfo
     // Exact full size (data size plus meta size).
     // For erasure chunks this is the sum for all parts.
     // For journal chunks this is zero.
-    required int64 disk_space = 1;
+    required int64 disk_space = 1 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
