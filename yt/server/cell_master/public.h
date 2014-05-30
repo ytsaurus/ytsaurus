@@ -9,22 +9,13 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCellConfig;
-typedef TIntrusivePtr<TMasterCellConfig> TMasterCellConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TMasterCellConfig)
+DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
 
-class TCellMasterConfig;
-typedef TIntrusivePtr<TCellMasterConfig> TCellMasterConfigPtr;
-
-class TMasterAutomaton;
-typedef TIntrusivePtr<TMasterAutomaton> TMasterAutomatonPtr;
-
-class TMasterAutomatonPart;
-
-class TMetaStateFacade;
-typedef TIntrusivePtr<TMetaStateFacade> TMetaStateFacadePtr;
-
-class TWorldInitializer;
-typedef TIntrusivePtr<TWorldInitializer> TWorldInitializerPtr;
+DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
+DECLARE_REFCOUNTED_CLASS(TMasterAutomatonPart)
+DECLARE_REFCOUNTED_CLASS(TMetaStateFacade)
+DECLARE_REFCOUNTED_CLASS(TWorldInitializer)
 
 class TBootstrap;
 

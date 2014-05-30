@@ -56,6 +56,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TMasterAutomaton)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterAutomatonPart
@@ -79,6 +81,8 @@ protected:
         TCallback<void(TLoadContext&)> loader);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TMasterAutomatonPart)
 
 ////////////////////////////////////////////////////////////////////////////////
 

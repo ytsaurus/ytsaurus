@@ -355,6 +355,7 @@ void TBootstrap::Run()
     BlockStore->Initialize();
     ChunkStore->Initialize();
     ChunkCache->Initialize();
+    JournalDispatcher->Initialize();
     SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();

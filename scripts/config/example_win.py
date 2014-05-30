@@ -125,6 +125,11 @@ class Holder(WinNode, Server):
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
+                'journal_dispatcher' : {
+                    'multiplexed' : {
+                        'path' : r'%(work_dir)s\multiplexed'
+                    }
+                },
                 'session_timeout' : 10000
             },
             'exec_agent' : {

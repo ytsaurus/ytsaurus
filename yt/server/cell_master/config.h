@@ -46,6 +46,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMasterCellConfig)
+
 class TCellMasterConfig
     : public TServerConfig
 {
@@ -121,6 +123,8 @@ public:
             .Default(10000);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
