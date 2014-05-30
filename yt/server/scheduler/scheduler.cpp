@@ -1117,6 +1117,9 @@ private:
             ~ToString(operation->GetId()));
 
         auto commitTransaction = [&] (TTransactionPtr transaction) {
+            if (!transaction) {
+                return;
+            }
             auto result = WaitFor(transaction->Commit());
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Operation has failed to commit");
             if (operation->GetState() != EOperationState::Completing) {

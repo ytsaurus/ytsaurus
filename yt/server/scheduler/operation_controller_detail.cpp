@@ -2612,6 +2612,7 @@ void TOperationControllerBase::RequestInputObjects()
         {
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
+            req->set_complement(table.ComplementFetch);
             req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
             InitializeFetchRequest(req.Get(), table.Path);
             SetTransactionId(req, Operation->GetInputTransaction());
@@ -3064,6 +3065,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
+    // TODO(ignat): we slice on two parts even id TotalInputDataSize very small.
     i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalInputDataSize / jobCount, 1.0));
 
     for (const auto& chunkSpec : CollectInputChunks()) {

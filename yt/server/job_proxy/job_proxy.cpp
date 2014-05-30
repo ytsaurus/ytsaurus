@@ -135,7 +135,6 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-
     auto result = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread->GetInvoker())
         .Run().Get();

@@ -209,10 +209,10 @@ bool TFetchChunkVisitor::OnChunk(
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (IsNontrivial(startLimit)) {
-        *chunkSpec->mutable_upper_limit() = startLimit.AsProto();
+        *chunkSpec->mutable_lower_limit() = startLimit.AsProto();
     }
     if (IsNontrivial(endLimit)) {
-        *chunkSpec->mutable_lower_limit() = endLimit.AsProto();
+        *chunkSpec->mutable_upper_limit() = endLimit.AsProto();
     }
 
     return true;

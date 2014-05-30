@@ -95,7 +95,7 @@ TEST_F(TLoggingTest, FileWriter)
         auto lines = ReadFile("test.log");
         EXPECT_EQ(2, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[1].substr(DateLength, lines[1].size()));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
     }
 
     writer->Reload();
@@ -105,10 +105,10 @@ TEST_F(TLoggingTest, FileWriter)
         auto lines = ReadFile("test.log");
         EXPECT_EQ(5, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[1].substr(DateLength));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength));
         EXPECT_EQ("\n", lines[2]);
         EXPECT_TRUE(lines[3].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[4].substr(DateLength));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[4].substr(DateLength));
     }
 
     NFs::Remove("test.log");
@@ -122,7 +122,7 @@ TEST_F(TLoggingTest, StreamWriter)
     WriteEvent(writer.Get());
 
     EXPECT_EQ(
-       "\tD\tcategory\tmessage\tba\n",
+       "\tD\tcategory\tmessage\tba\t\t\n",
        stringOutput.Str().substr(DateLength));
 }
 

@@ -52,16 +52,16 @@ void TStreamLogWriter::Write(const TLogEvent& event)
     buffer->AppendString(~event.Category);
     buffer->AppendChar('\t');
     FormatMessage(buffer, event.Message);
+    buffer->AppendChar('\t');
     if (event.ThreadId != NConcurrency::InvalidThreadId) {
-        buffer->AppendChar('\t');
         buffer->AppendNumber(event.ThreadId, 16);
     }
+    buffer->AppendChar('\t');
     if (event.FiberId != NConcurrency::InvalidFiberId) {
-        buffer->AppendChar('\t');
         buffer->AppendNumber(event.FiberId, 16);
     }
+    buffer->AppendChar('\t');
     if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendChar('\t');
         buffer->AppendNumber(event.TraceId, 16);
     }
     buffer->AppendChar('\n');

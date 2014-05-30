@@ -59,9 +59,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t_output1')
         create('table', '//tmp/t_output2')
 
-        count = 1000;
+        count = 1000
         original_data = [{'index': i} for i in xrange(count)]
-        write('//tmp/t_input', original_data);
+        write('//tmp/t_input', original_data)
 
         file = '//tmp/some_file.txt'
         create('file', file)
@@ -75,16 +75,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
             verbose=True)
 
         assert read('//tmp/t_output2') == [{'value': 42}]
-        assert read('//tmp/t_output1') == [{'index': i} for i in xrange(count)]
+        assert set(read('//tmp/t_output1')) == set([{'index': i} for i in xrange(count)])
 
     def test_first_after_second(self):
         create('table', '//tmp/t_input')
         create('table', '//tmp/t_output1')
         create('table', '//tmp/t_output2')
 
-        count = 10000;
+        count = 10000
         original_data = [{'index': i} for i in xrange(count)]
-        write('//tmp/t_input', original_data);
+        write('//tmp/t_input', original_data)
 
         file1 = '//tmp/some_file.txt'
         create('file', file1)
@@ -97,7 +97,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     command=command,
                     file=[file1],
                     verbose=True)
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
     @only_linux
     def test_in_equal_to_out(self):
@@ -141,7 +142,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         self._check_all_stderrs(op_id, 'stderr\n', 10)
 
@@ -156,7 +158,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         self._check_all_stderrs(op_id, 'stderr\n', 5)
 
@@ -176,7 +179,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                      fi;'''
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
         # that is last one.
