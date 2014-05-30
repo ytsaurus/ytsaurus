@@ -9,9 +9,12 @@ import time
 import simplejson as json
 from datetime import timedelta, datetime
 
-def lock(path, mode=None, waitable=False, wait_for=None):
+def lock(path, mode=None, waitable=False, wait_for=None, client=None):
     """
-    Tries to lock the path. Raise exception if node already under exclusive lock.
+    Try to lock the path.
+
+    :return: taken lock id or ``None`` if lock was not taken.
+    :raises YtError: Raise ``YtError`` if node already under exclusive lock.
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
@@ -19,10 +22,11 @@ def lock(path, mode=None, waitable=False, wait_for=None):
     lock_id = _make_transactional_request(
         "lock",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "mode": get_value(mode, "exclusive"),
             "waitable": bool_to_string(waitable)
-        })
+        },
+        client=client)
     if not lock_id:
         return None
     else:
@@ -32,7 +36,7 @@ def lock(path, mode=None, waitable=False, wait_for=None):
         now = datetime.now()
         acquired = False
         while datetime.now() - now < wait_for:
-            if get("#%s/@state" % lock_id) == "acquired":
+            if get("#%s/@state" % lock_id, client=client) == "acquired":
                 acquired = True
                 break
             time.sleep(1.0)
@@ -40,4 +44,3 @@ def lock(path, mode=None, waitable=False, wait_for=None):
             raise YtError("Timed out while waiting {0} milliseconds for lock {1}".format(wait_for.microseconds / 1000 + wait_for.seconds * 1000, lock_id))
 
     return lock_id
-

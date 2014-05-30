@@ -1,10 +1,11 @@
 import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid, bool_to_string
+from common import require, generate_uuid, bool_to_string, get_value
 from errors import YtError, YtResponseError
 from version import VERSION
-from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy, get_session
+from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, check_proxy, get_session, get_api
+from command import parse_commands
 
 from yt.yson.convert import json_to_yson
 
@@ -109,21 +110,31 @@ def read_content(response, raw, format, response_type):
         return format.load_rows(ResponseStream(response, response_type))
 
 
-def get_hosts():
-    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(config.http.PROXY), config.HOSTS))
+def get_hosts(client=None):
+    client = get_value(client, config.CLIENT)
+    if client is not None:
+        proxy = client.proxy
+    else:
+        proxy = config.http.PROXY
+    check_proxy(proxy)
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, config.HOSTS))
 
-def get_host_for_heavy_operation():
+def get_host_for_heavy_operation(client=None):
+    client = get_value(client, config.CLIENT)
     if config.USE_HOSTS:
-        hosts = get_hosts()
+        hosts = get_hosts(client=client)
         if hosts:
             return hosts[0]
-    return config.http.PROXY
+    if client is not None:
+        return client.proxy
+    else:
+        return config.http.PROXY
 
 
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_raw_response=False, verbose=False,
-                 retry_unavailable_proxy=True):
+                 retry_unavailable_proxy=True, client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     Option return_raw_response forces returning response of requests library
@@ -138,12 +149,28 @@ def make_request(command_name, params,
         logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
+    client = get_value(client, config.CLIENT)
     if proxy is None:
-        proxy = config.http.PROXY
-    require(proxy, YtError("You should specify proxy"))
+        if client is None:
+            proxy = config.http.PROXY
+        else:
+            proxy = client.proxy
+    check_proxy(proxy)
+
+    if client is None:
+        client_provider = config
+    else:
+        client_provider = client
+
+    if not hasattr(client_provider, "COMMANDS"):
+        require("v2" in get_api(proxy), "Old versions of API is not supported")
+        client_provider.COMMANDS = parse_commands(get_api(proxy, version="v2"))
+        client_provider.API_PATH = "api/v2"
+    commands = client_provider.COMMANDS
+    api_path = client_provider.API_PATH
 
     # Get command description
-    command = config.COMMANDS[command_name]
+    command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
     allow_retries = \
@@ -159,7 +186,7 @@ def make_request(command_name, params,
         params["trace"] = bool_to_string(config.TRACE)
 
     # prepare url
-    url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
+    url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
@@ -175,18 +202,10 @@ def make_request(command_name, params,
             data = json.dumps(escape_utf8(params))
             params = {}
 
-    if config.API_PATH == "api":
-        if "input_format" in params:
-            headers["X-YT-Input-Format"] = json.dumps(params["input_format"])
-            del params["input_format"]
-        if "output_format" in params:
-            headers["X-YT-Output-Format"] = json.dumps(params["output_format"])
-            del params["output_format"]
-
     if params:
         headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
 
-    token = get_token()
+    token = get_token(client=client)
     if token is not None:
         headers["Authorization"] = "OAuth " + token
 
@@ -252,7 +271,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
     else:
         params["output_format"] = format.json()
 
-    result = make_request(command_name, params)
+    result = make_request(command_name, params, **kwargs)
 
     if format is None:
         return json_to_yson(json.loads(result))

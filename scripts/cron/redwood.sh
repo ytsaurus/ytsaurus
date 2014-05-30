@@ -26,7 +26,7 @@ import_from_mr.py \
     --tables-queue "$IMPORT_QUEUE" \
     --destination-dir "$IMPORT_PATH" \
     --mapreduce-binary "/opt/cron/tools/mapreduce" \
-    --mr-server "redwood.yandex.ru" \
+    --mr-server "cedar00.search.yandex.net" \
     --compression-codec "gzip_best_compression" --erasure-codec "lrc_12_2_2" \
     --yt-pool "redwood_restricted" \
     --fastbone

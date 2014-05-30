@@ -24,10 +24,11 @@ class TablePath(object):
                  columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None,
-                 simplify=True):
+                 simplify=True,
+                 client=None):
         self._append = append
         if simplify:
-            self.name = parse_ypath(name)
+            self.name = parse_ypath(name, client=client)
             for key, value in self.name.attributes.items():
                 if "-" in key:
                     self.name.attributes[key.replace("-", "_")] = value
@@ -100,15 +101,15 @@ class TablePath(object):
     def __repr__(self):
         return str(self)
 
-def to_table(object):
+def to_table(object, client=None):
     if isinstance(object, TablePath):
         return object
     else:
-        return TablePath(object)
+        return TablePath(object, client=client)
 
-def to_name(object):
-    return to_table(object).name
+def to_name(object, client=None):
+    return to_table(object, client=client).name
 
-def prepare_path(object):
-    return to_table(object).get_json()
+def prepare_path(object, client=None):
+    return to_table(object, client=client).get_json()
 

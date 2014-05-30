@@ -13,6 +13,11 @@ from functools import wraps
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
+def resolve_test_paths(name):
+    path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
+    path_to_environment = os.path.join(path_to_sandbox, 'run')
+    return path_to_sandbox, path_to_environment
+
 def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")

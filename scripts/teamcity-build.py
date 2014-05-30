@@ -50,10 +50,16 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    options.build_enable_nodejs = os.environ.get("BUILD_ENABLE_NODEJS", "YES")
-    options.build_enable_python = os.environ.get("BUILD_ENABLE_PYTHON", "YES")
-    options.build_enable_perl = os.environ.get("BUILD_ENABLE_PERL", "YES")
-    options.build_enable_llvm = os.environ.get("BUILD_ENABLE_LLVM", "YES")
+    def checked_yes_no(s):
+        s = s.upper()
+        if s != "YES" and s != "NO":
+            raise RuntimeError("'{0}' must be either 'YES' or 'NO'".format(s))
+        return s
+
+    options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
+    options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_llvm = checked_yes_no(os.environ.get("BUILD_ENABLE_LLVM", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = re.sub(r"/0.\d\d$", "", options.branch)
@@ -64,7 +70,7 @@ def prepare(options):
     if codename not in ["lucid", "precise"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
-    options.repository = "yandex-" + codename
+    options.repositories = ["yt-" + codename, "yandex-" + codename]
 
     # Now determine the compiler.
     options.cc = run_captured(["which", options.cc])
@@ -147,16 +153,17 @@ def package(options):
         with open("ytversion") as handle:
             version = handle.read().strip()
 
-        teamcity_interact("setParameter", name="yt.package_version", value=version)
-
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
+        teamcity_interact("setParameter", name="yt.package_version", value=version)
+        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
         artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
         if artifacts:
-            run(["dupload", "--to", options.repository, "--nomail"] + artifacts)
-            teamcity_message("We have uploaded a package")
-            teamcity_interact("setParameter", name="yt.package_uploaded", value=1)
+            for repository in options.repositories:
+                run(["dupload", "--to", repository, "--nomail", "--force"] + artifacts)
+                teamcity_message("We have uploaded a package to " + repository)
+                teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
 
 @yt_register_build_step
@@ -191,6 +198,9 @@ def run_unit_tests(options):
 
 @yt_register_build_step
 def run_javascript_tests(options):
+    if options.build_enable_nodejs != "YES":
+        return
+
     try:
         run(
             ["./run_tests.sh", "-R", "xunit"],
@@ -200,7 +210,10 @@ def run_javascript_tests(options):
         raise StepFailedWithNonCriticalError(str(err))
 
 
-def run_python_tests(options, suite_name, suite_path):
+def run_pytest(options, suite_name, suite_path):
+    if options.build_enable_python != "YES":
+        return
+
     sandbox_current = "{0}/{1}".format(options.sandbox_directory, suite_name)
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
@@ -269,13 +282,21 @@ def kill_by_name(name):
 @yt_register_build_step
 def run_integration_tests(options):
     kill_by_name("ytserver")
-    run_python_tests(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
+    run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
-    run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory))
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory))
+
+
+@yt_register_build_step
+def run_perl_tests(options):
+    if options.build_enable_perl != "YES":
+        return
+    kill_by_name("ytserver")
+    run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
 @yt_register_cleanup_step
@@ -332,13 +353,22 @@ def clean_failed_tests(options, n=5):
 def teamcity_escape(s):
     s = re.sub("(['\\[\\]|])", "|\\1", s)
     s = s.replace("\n", "|n").replace("\r", "|r")
+    s = "'" + s + "'"
     return s
 
 
-def teamcity_interact(*args, **kwargs):
+def teamcity_interact(message, *args, **kwargs):
+
     r = " ".join(itertools.chain(
-        (str(x) for x in args),
-        ("{0}='{1}'".format(str(k), teamcity_escape(str(v))) for k, v in kwargs.iteritems())))
+        [message],
+        (
+            teamcity_escape(str(x))
+            for x in args
+        ),
+        (
+            "{0}={1}".format(str(k), teamcity_escape(str(v)))
+            for k, v in kwargs.iteritems())
+        ))
     r = "##teamcity[" + r + "]\n"
     sys.stdout.flush()
     sys.stderr.write(r)

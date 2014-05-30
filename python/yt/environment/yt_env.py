@@ -567,6 +567,12 @@ class YTEnv(object):
             current_wait_time += sleep_quantum
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
 
+    def get_master_addresses(self):
+        if len(self._master_addresses) == 0:
+            return []
+        if len(self._master_addresses) == 1:
+            return self._master_addresses.items()[0][1]
+
     # Unittest is painfull to integrate, so we simply reimplement some methods
     def assertItemsEqual(self, actual_seq, expected_seq):
         # It is simplified version of the same method of unittest.TestCase
