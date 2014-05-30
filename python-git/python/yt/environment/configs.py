@@ -198,7 +198,28 @@ def get_node_config():
             path = "";
         };
 
-        job_proxy_logging = { };
+        job_proxy_logging = {
+            rules = [
+                {
+                    min_level = info;
+                    writers = [ info ];
+                };
+                {
+                    min_level = debug;
+                    writers = [ debug ];
+                };
+            ];
+            writers = {
+                info = {
+                    type = file;
+                    file_name = "{path}/{name}.log";
+                };
+                debug = {
+                    type = file;
+                    file_name = "{path}/{name}.debug.log";
+                };
+            }
+        };
     };
 
     tablet_node = {
@@ -212,6 +233,8 @@ def get_node_config():
 
     query_agent = {
     };
+
+    tracing = { };
 
     logging = {
         rules = [
@@ -235,8 +258,6 @@ def get_node_config():
             };
         }
     };
-
-    tracing = { };
 }
 """)
 
