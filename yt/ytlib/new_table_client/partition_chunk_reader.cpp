@@ -8,6 +8,8 @@
 #include "schemaless_block_reader.h"
 #include "schema.h"
 
+#include <ytlib/chunk_client/multi_chunk_reader_base.h>
+
 // TKeyColumnsExt
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -186,14 +188,25 @@ void TPartitionChunkReader::InitNextBlock()
         KeyColumns_.size()));
 }
 
+void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
+{
+    IdMapping_.resize(chunkNameTable->GetSize());
+
+    for (int chunkNameId = 0; chunkNameId < chunkNameTable->GetSize(); ++chunkNameId) {
+        auto& name = chunkNameTable->GetName(chunkNameId);
+        YCHECK(NameTable_->GetIdOrRegisterName(name) == chunkNameId);
+        IdMapping_[chunkNameId] = chunkNameId;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IPartitionChunkReaderPtr CreatePartitionChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr underlyingReader,
+    IAsyncReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& masterMeta,
+    const TChunkMeta& masterMeta,
     int partitionTag)
 {
     return New<TPartitionChunkReader>(
@@ -207,6 +220,91 @@ IPartitionChunkReaderPtr CreatePartitionChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionMultiChunkReader
+    : public IPartitionMultiChunkReader
+    , public TParallelMultiChunkReaderBase
+{
+public:
+    TPartitionMultiChunkReader(
+        TMultiChunkReaderConfigPtr config,
+        TMultiChunkReaderOptionsPtr options,
+        IChannelPtr masterChannel,
+        IBlockCachePtr blockCache,
+        TNodeDirectoryPtr nodeDirectory,
+        const std::vector<TChunkSpec>& chunkSpecs,
+        TNameTablePtr nameTable,
+        const TKeyColumns& keyColumns);
+
+    virtual bool Read(
+        TValueIterator &valueInserter,
+        TRowPointerIterator &rowPointerInserter) override;
+
+private:
+    TMultiChunkReaderConfigPtr Config_;
+    TNameTablePtr NameTable_;
+    TKeyColumns KeyColumns_;
+
+    IPartitionChunkReaderPtr CurrentReader_;
+
+
+    virtual IChunkReaderBasePtr CreateTemplateReader(const TChunkSpec& chunkSpec, IAsyncReaderPtr asyncReader) override;
+    virtual void OnReaderSwitched() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionMultiChunkReader::TPartitionMultiChunkReader(
+    TMultiChunkReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
+    IChannelPtr masterChannel,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
+    const std::vector<TChunkSpec> &chunkSpecs,
+    TNameTablePtr nameTable,
+    const TKeyColumns &keyColumns)
+    : TParallelMultiChunkReaderBase(
+          config,
+          options,
+          masterChannel,
+          blockCache,
+          nodeDirectory,
+          chunkSpecs)
+    , Config_(config)
+    , NameTable_(nameTable)
+    , KeyColumns_(keyColumns)
+{ }
+
+bool TPartitionMultiChunkReader::Read(
+        TValueIterator &valueInserter,
+        TRowPointerIterator &rowPointerInserter)
+{
+
+}
+
+IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
+    const TChunkSpec& chunkSpec,
+    IAsyncReaderPtr asyncReader)
+{
+    YCHECK(!chunkSpec.has_channel());
+    YCHECK(!chunkSpec.has_lower_limit());
+    YCHECK(!chunkSpec.has_upper_limit());
+    YCHECK(chunkSpec.has_partition_tag());
+
+    return CreatePartitionChunkReader(
+        Config_,
+        asyncReader,
+        NameTable_,
+        KeyColumns_,
+        chunkSpec.chunk_meta(),
+        chunkSpec.partition_tag());
+}
+
+void TPartitionMultiChunkReader::OnReaderSwitched()
+{
+    CurrentReader_ = dynamic_cast<IPartitionChunkReader*>(CurrentSession_.ChunkReader.Get());
+    YCHECK(CurrentReader_);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
