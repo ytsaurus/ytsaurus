@@ -271,7 +271,7 @@ TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
         Controller->GetCancelableControlInvoker(),
         BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
         Controller->Config->ChunkScratchPeriod))
-    , Proxy(Controller->Host->GetMasterClient()->GetMasterChannel())
+    , Proxy(masterChannel)
     , Started(false)
     , Logger(Controller->Logger)
 { }

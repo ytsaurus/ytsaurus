@@ -75,7 +75,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             verbose=True)
 
         assert read('//tmp/t_output2') == [{'value': 42}]
-        assert set(read('//tmp/t_output1')) == set([{'index': i} for i in xrange(count)])
+        assert sorted([row.items() for row in read('//tmp/t_output1')]) == [[('index', i)] for i in xrange(count)]
 
     def test_first_after_second(self):
         create('table', '//tmp/t_input')
