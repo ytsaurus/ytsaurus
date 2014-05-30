@@ -9,24 +9,24 @@
 #include <core/misc/cache.h>
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/action_queue.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/tagged_logger.h>
-
-#include <util/system/thread.h>
-
-#include <util/generic/singleton.h>
 
 #include <atomic>
 
 namespace NYT {
 namespace NHydra {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = HydraLogger;
 static auto& Profiler = HydraProfiler;
 
-static const TDuration FlushThreadQuantum = TDuration::MilliSeconds(10);
+static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,18 +319,17 @@ class TFileChangelogDispatcher::TImpl
 {
 public:
     explicit TImpl(const Stroka& threadName)
-        : ThreadName_(threadName)
-        , Thread_(ThreadFunc, static_cast<void*>(this))
-        , WakeupEvent(Event::rManual)
-        , Started_(NewPromise())
-        // XXX(babenko): VS2013 Nov CTP does not have a proper ctor :(
-        // , Finished_(false)
+        : ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
+        , ActionQueue_(New<TActionQueue>(threadName))
+        , PeriodicExecutor_(New<TPeriodicExecutor>(
+            ActionQueue_->GetInvoker(),
+            ProcessQueuesCallback_,
+            FlushThreadQuantum))
         , RecordCounter_("/record_rate")
         , SizeCounter_("/record_throughput")
     {
-        Finished_ = false;
-        Thread_.Start();
-        Started_.Get();
+        ProcessQueuesCallbackPending_ = false;
+        PeriodicExecutor_->Start();
     }
 
     ~TImpl()
@@ -340,9 +339,8 @@ public:
 
     void Shutdown()
     {
-        Finished_ = true;
-        WakeupEvent.Signal();
-        Thread_.Join();
+        PeriodicExecutor_->Stop();
+        ActionQueue_->Shutdown();
     }
 
 
@@ -353,7 +351,7 @@ public:
         auto queue = GetQueueAndLock(changelog);
         auto result = queue->Append(record);
         queue->Unlock();
-        WakeupEvent.Signal();
+        Wakeup();
 
         Profiler.Increment(RecordCounter_);
         Profiler.Increment(SizeCounter_, record.Size());
@@ -403,7 +401,7 @@ public:
         auto queue = GetQueueAndLock(changelog);
         auto result = queue->AsyncSeal(recordCount);
         queue->Unlock();
-        WakeupEvent.Signal();
+        Wakeup();
 
         return result;
     }
@@ -421,15 +419,14 @@ public:
     }
 
 private:
-    Stroka ThreadName_;
+    TClosure ProcessQueuesCallback_;
+    std::atomic<bool> ProcessQueuesCallbackPending_;
+
+    TActionQueuePtr ActionQueue_;
+    TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
     yhash_map<TSyncFileChangelogPtr, TChangelogQueuePtr> QueueMap_;
-
-    TThread Thread_;
-    Event WakeupEvent;
-    TPromise<void> Started_;
-    std::atomic<bool> Finished_;
 
     NProfiling::TRateCounter RecordCounter_;
     NProfiling::TRateCounter SizeCounter_;
@@ -512,32 +509,22 @@ private:
     }
 
 
-    void ProcessQueues()
+    void Wakeup()
     {
-        FlushQueues();
-        SweepQueues();
-    }
-
-
-    static void* ThreadFunc(void* param)
-    {
-        auto* this_ = (TImpl*) param;
-        this_->ThreadMain();
-        return nullptr;
-    }
-
-    void ThreadMain()
-    {
-        NConcurrency::SetCurrentThreadName(~ThreadName_);
-        Started_.Set();
-
-        while (!Finished_) {
-            ProcessQueues();
-            WakeupEvent.Reset();
-            WakeupEvent.WaitT(FlushThreadQuantum);
+        if (!ProcessQueuesCallbackPending_.load(std::memory_order_relaxed)) {
+            bool expected = false;
+            if (ProcessQueuesCallbackPending_.compare_exchange_strong(expected, true)) {
+                ActionQueue_->GetInvoker()->Invoke(ProcessQueuesCallback_);
+            }
         }
     }
 
+    void ProcessQueues()
+    {
+        ProcessQueuesCallbackPending_ = false;
+        FlushQueues();
+        SweepQueues();
+    }
 
 };
 
