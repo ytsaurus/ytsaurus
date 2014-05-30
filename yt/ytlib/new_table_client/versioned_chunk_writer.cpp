@@ -242,6 +242,7 @@ void TVersionedChunkWriter::FinishBlock()
 {
     auto block = BlockWriter_->FlushBlock();
     block.Meta.set_chunk_row_count(RowCount_);
+    block.Meta.set_block_index(BlockMetaExt_.entries_size());
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
 

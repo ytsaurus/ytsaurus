@@ -28,13 +28,14 @@ message TBlockMeta
     required int32 row_count = 1;
     required int32 uncompressed_size = 2;
     required int64 chunk_row_count = 3;
+    required int32 block_index = 4;
 
     // ToDo: move to extension
-    repeated int32 fixed_column_sizes = 4;
-    optional int32 variable_buffer_offset = 5;
-    optional int32 end_of_key_flags_offset = 6;
+    repeated int32 fixed_column_sizes = 5;
+    optional int32 variable_buffer_offset = 6;
+    optional int32 end_of_key_flags_offset = 7;
 
-    optional int32 partition_index = 7 [default = 0];
+    optional int32 partition_index = 8 [default = 0];
 
     extensions 100 to max;
 }

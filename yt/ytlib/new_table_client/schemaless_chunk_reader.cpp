@@ -52,8 +52,11 @@ using namespace NYTree;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TChannel;
+
 using NRpc::IChannelPtr;
+
 using NTableClient::TTableYPathProxy;
+using NTableClient::NProto::TKeyColumnsExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +104,7 @@ private:
     TChunkMeta ChunkMeta_;
     TBlockMetaExt BlockMetaExt_;
 
-    virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() override;
+    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -190,7 +193,6 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
             if (chunkNameId) {
                 IdMapping_[chunkNameId.Get()] = id;
             }
-
         }
     }
 }
@@ -203,13 +205,13 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
 
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TBlockIndexExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TKeyColumnsExt>::Value,
+        TProtoExtensionTag<TKeyColumnsExt>::Value,
         TProtoExtensionTag<TBoundaryKeysExt>::Value
     };
 
     DownloadChunkMeta(extensionTags);
 
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
 
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns);

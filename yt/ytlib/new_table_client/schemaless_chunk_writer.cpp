@@ -353,7 +353,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NChunkClient::IAsyncWriterPtr asyncWriter,
+    IAsyncWriterPtr asyncWriter,
     IPartitioner* partitioner)
 {
     return New<TPartitionChunkWriter>(
@@ -379,9 +379,35 @@ public:
         const TKeyColumns& keyColumns,
         IChannelPtr masterChannel,
         const TTransactionId& transactionId,
-        const TChunkListId& parentChunkListId);
+        const TChunkListId& parentChunkListId)
+        : TMultiChunkWriterBase<ISchemalessChunkWriter>(
+              config,
+              options,
+              masterChannel,
+              transactionId,
+              parentChunkListId)
+        , Config_(config)
+        , Options_(options)
+        , NameTable_(nameTable)
+        , KeyColumns_(keyColumns)
+    { }
 
-    virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
+    {
+        if (!VerifyActive()) {
+            return false;
+        }
+
+        // Return true if current writer is ready for more data and
+        // we didn't switch to the next chunk.
+        bool readyForMore = CurrentWriter_->Write(rows);
+        bool switched = false;
+        if (readyForMore) {
+            switched = TrySwitchSession();
+        }
+        return readyForMore && !switched;
+    }
+
 
 protected:
     TTableWriterConfigPtr Config_;
@@ -389,53 +415,13 @@ protected:
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
 
-
-    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override;
+private:
+    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IChunkWriterPtr underlyingWriter) override
+    {
+        return CreateSchemalessChunkWriter(Config_, Options_, NameTable_, KeyColumns_, underlyingWriter);
+    }
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSchemalessMultiChunkWriter::TSchemalessMultiChunkWriter(
-    TTableWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
-    const TTransactionId& transactionId,
-    const TChunkListId& parentChunkListId)
-    : TMultiChunkWriterBase<ISchemalessChunkWriter>(
-          config,
-          options,
-          masterChannel,
-          transactionId,
-          parentChunkListId)
-    , Config_(config)
-    , Options_(options)
-    , NameTable_(nameTable)
-    , KeyColumns_(keyColumns)
-{ }
-
-bool TSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
-{
-    if (!VerifyActive()) {
-        return false;
-    }
-
-    // Return true if current writer is ready for more data and
-    // we didn't switch to the next chunk.
-    bool readyForMore = CurrentWriter_->Write(rows);
-    bool switched = false;
-    if (readyForMore) {
-        switched = TrySwitchSession();
-    }
-    return readyForMore && !switched;
-}
-
-IChunkWriterBasePtr TSchemalessMultiChunkWriter::CreateChunkWriter(IWriterPtr underlyingWriter)
-{
-    return CreateSchemalessChunkWriter(Config_, Options_, NameTable_, KeyColumns_, underlyingWriter);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -582,8 +568,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChannelPtr masterChannel,
-    const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkListId,
+    const TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId,
     bool reorderValues)
 {
     auto writer = New<TSchemalessMultiChunkWriter>(
@@ -603,6 +589,74 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionMultiChunkWriter
+    : public TSchemalessMultiChunkWriter
+{
+public:
+    TPartitionMultiChunkWriter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        TNameTablePtr nameTable,
+        const TKeyColumns& keyColumns,
+        IChannelPtr masterChannel,
+        const TTransactionId& transactionId,
+        const TChunkListId& parentChunkListId,
+        std::unique_ptr<IPartitioner> partitioner)
+        : TSchemalessMultiChunkWriter(
+              config,
+              options,
+              nameTable,
+              keyColumns,
+              masterChannel,
+              transactionId,
+              parentChunkListId)
+        , Partitioner_(std::move(partitioner))
+    { }
+
+private:
+    std::unique_ptr<IPartitioner> Partitioner_;
+
+    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IAsyncWriterPtr underlyingWriter) override
+    {
+        return CreatePartitionChunkWriter(
+            Config_,
+            Options_,
+            NameTable_,
+            KeyColumns_,
+            underlyingWriter,
+            Partitioner_.get());
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns,
+    IChannelPtr masterChannel,
+    const TTransactionId& transactionId,
+    const TChunkListId& parentChunkListId,
+    std::unique_ptr<IPartitioner> partitioner)
+{
+    YCHECK(!keyColumns.empty());
+    auto writer = New<TPartitionMultiChunkWriter>(
+        config,
+        options,
+        nameTable,
+        keyColumns,
+        masterChannel,
+        transactionId,
+        parentChunkListId,
+        std::move(partitioner));
+
+    return New<TReorderingSchemalessMultiChunkWriter>(keyColumns, nameTable, writer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemalessTableWriter
     : public ISchemalessWriter
     , public TTransactionListener
@@ -610,7 +664,7 @@ class TSchemalessTableWriter
 public:
     TSchemalessTableWriter(
         TTableWriterConfigPtr config,
-        const NYPath::TRichYPath& richPath,
+        const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         IChannelPtr masterChannel,
@@ -655,7 +709,7 @@ private:
 
 TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    const NYPath::TRichYPath& richPath,
+    const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChannelPtr masterChannel,
@@ -926,7 +980,7 @@ TError TSchemalessTableWriter::DoClose()
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    const NYPath::TRichYPath& richPath,
+    const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChannelPtr masterChannel,

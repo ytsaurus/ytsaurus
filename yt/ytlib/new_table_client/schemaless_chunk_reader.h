@@ -19,13 +19,6 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-struct IPartitionReader
-{
-    bool Read(std::vector<TUnversionedValue>* keyValues, std::vector<void*>* rowPointers);
-};
-*/
-
 struct ISchemalessChunkReader
     : public virtual NChunkClient::IChunkReaderBase
     , public ISchemalessReader
