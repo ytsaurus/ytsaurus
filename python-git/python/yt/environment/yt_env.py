@@ -276,9 +276,9 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
+            config["master"]["cell_id"] = cell_id
             config['master']['addresses'] = self._master_addresses[master_name]
             config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
-            config["object_manager"]["cell_id"] = cell_id
             config['changelogs']['path'] = os.path.join(current, 'changelogs')
             config['snapshots']['path'] = os.path.join(current, 'snapshots')
             config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
