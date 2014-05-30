@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from yt.wrapper.client import Yt
 import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
@@ -26,7 +27,7 @@ class TestNativeMode(YtTestBase, YTEnv):
     # Check equality of records in dsv format
     def check(self, recordsA, recordsB):
         def prepare(records):
-            return map(yt.line_to_record, sorted(list(records)))
+            return map(yt.loads_row, sorted(list(records)))
         self.assertEqual(prepare(recordsA), prepare(recordsB))
 
 
@@ -266,8 +267,8 @@ class TestNativeMode(YtTestBase, YTEnv):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, map(yt.record_to_line, [record]))
-        self.assertItemsEqual([record], map(yt.line_to_record, yt.read_table(table)))
+        yt.write_table(table, map(yt.dumps_row, [record]))
+        self.assertItemsEqual([record], map(yt.loads_row, yt.read_table(table)))
 
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -510,10 +511,22 @@ class TestNativeMode(YtTestBase, YTEnv):
         loading_time = usual_time - pause
 
         start = time.time()
-        with self.assertRaises(yt.YtWaitStrategyTimeoutError):
+        with self.assertRaises(yt.YtTimeoutError):
             yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
+
+    def test_client(self):
+        client = Yt(yt.config.http.PROXY)
+        assert client.get("/")
+        client.create("table", "//tmp/in")
+        client.write_table("//tmp/in", ["a=b\n"])
+        assert client.exists("//tmp/in")
+        client.run_map("cat", "//tmp/in", "//tmp/out")
+        assert client.exists("//tmp/out")
+        with client.Transaction():
+            yt.set("//@attr", 10)
+            assert yt.exists("//@attr")
 
 
 # Map method for test operations with python entities

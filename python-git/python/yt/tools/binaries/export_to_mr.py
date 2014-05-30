@@ -62,12 +62,12 @@ def export_table(object, args):
         else:
             limit = params.speed_limit / yt.get(user_slots_path)
 
-        use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
+        use_fastbone = "-opt net_table=fastbone" if params.fastbone else ""
 
         command = "pv -q -L {} | "\
             "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
                 .format(limit,
-                        args.opts,
+                        params.opts,
                         params.mr_user,
                         mr.server,
                         use_fastbone,
