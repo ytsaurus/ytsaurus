@@ -55,7 +55,6 @@
 
 #include <server/object_server/object_manager.h>
 
-
 namespace NYT {
 namespace NScheduler {
 
@@ -659,28 +658,10 @@ private:
             }
         }
 
-        // - Try to ping the previous incarnations of scheduler transactions.
-        void CheckOperationTransactions()
-        {
-            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
+        void onError(TOperationPtr operation, TTransactionPtr transaction, TError error) {
+        }
 
-            for (auto operation : Result.Operations) {
-                operation->SetState(EOperationState::Reviving);
-
-                auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
-                    if (!transaction)
-                        return;
-
-                    awaiter->Await(
-                        transaction->Ping(),
-                        BIND([&] (TError error) {
-                            if (!error.IsOK() && !operation->GetCleanStart()) {
-                                operation->SetCleanStart(true);
-                                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s, TransactionId: %s)",
-                                    ~ToString(operation->GetId()),
-                                    ~ToString(transaction->GetId()));
-                            }
-                        }));
+        void checkTransaction(TParallelAwaiterPtr awaiter, TOperationPtr operation, TTransactionPtr transaction) {
 //            auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, false);
 //
 //            auto getRspName = [] (TOperationPtr operation) {
@@ -702,9 +683,31 @@ private:
 //                        return batchRequest.AddRequestForTransaction(req, getRspName(operation), transaction->GetId());
 //                    }
 //                    return false;
-                };
+        };
 
+        // - Try to ping the previous incarnations of scheduler transactions.
+        void CheckOperationTransactions()
+        {
+            auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
+
+            for (auto operation : Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
+
+                auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
+                    if (!transaction)
+                        return;
+
+                    awaiter->Await(
+                        transaction->Ping(),
+                        BIND([=] (TError error) {
+                            if (!error.IsOK() && !operation->GetCleanStart()) {
+                                operation->SetCleanStart(true);
+                                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s, TransactionId: %s)",
+                                    ~ToString(operation->GetId()),
+                                    ~ToString(transaction->GetId()));
+                            }
+                        }));
+                };
 
                 // NB: Async transaction is not checked.
                 checkTransaction(operation, operation->GetUserTransaction());
@@ -938,7 +941,9 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto transactionManager = Bootstrap->GetMasterClient()->GetTransactionManager();
+        auto getTransactionManager = [&] (TOperationId id) {
+            return CreateClient(Bootstrap->GetClusterDirectory()->GetConnection(GetCellId(id, EObjectType::Transaction)))->GetTransactionManager();
+        };
 
         TTransactionPtr userTransaction;
         {
@@ -947,7 +952,7 @@ private:
             options.AutoAbort = false;
             options.Ping = false;
             options.PingAncestors = false;
-            userTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+            userTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
         }
 
         TTransactionPtr syncTransaction;
@@ -957,7 +962,7 @@ private:
             options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
-            syncTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+            syncTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
         }
 
 
@@ -968,7 +973,7 @@ private:
             options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
-            asyncTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+            asyncTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
         }
 
         TTransactionPtr inputTransaction;
@@ -978,7 +983,7 @@ private:
             options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
-            inputTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+            inputTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
         }
 
         TTransactionPtr outputTransaction;
@@ -988,7 +993,7 @@ private:
             options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
-            outputTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+            outputTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
         }
 
         auto operation = New<TOperation>(
@@ -1088,113 +1093,113 @@ private:
     void RefreshTransactions()
     {
         // TODO(ignat): uncomment and remove MultiCellBatchRequest
-        //VERIFY_THREAD_AFFINITY(ControlThread);
-        //YCHECK(Connected);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
 
-        //// Collect all transactions that are used by currently running operations.
-        //yhash_set<TTransactionId> watchSet;
-        //auto watchTransaction = [&] (TTransactionPtr transaction) {
-        //    if (transaction) {
-        //        watchSet.insert(transaction->GetId());
-        //    }
-        //};
+        // Collect all transactions that are used by currently running operations.
+        yhash_set<TTransactionId> watchSet;
+        auto watchTransaction = [&] (TTransactionPtr transaction) {
+            if (transaction) {
+                watchSet.insert(transaction->GetId());
+            }
+        };
 
-        //auto operations = Bootstrap->GetScheduler()->GetOperations();
-        //for (auto operation : operations) {
-        //    if (operation->GetState() != EOperationState::Running)
-        //        continue;
+        auto operations = Bootstrap->GetScheduler()->GetOperations();
+        for (auto operation : operations) {
+            if (operation->GetState() != EOperationState::Running)
+                continue;
 
-        //    watchTransaction(operation->GetUserTransaction());
-        //    watchTransaction(operation->GetSyncSchedulerTransaction());
-        //    watchTransaction(operation->GetAsyncSchedulerTransaction());
-        //    watchTransaction(operation->GetInputTransaction());
-        //    watchTransaction(operation->GetOutputTransaction());
-        //}
+            watchTransaction(operation->GetUserTransaction());
+            watchTransaction(operation->GetSyncSchedulerTransaction());
+            watchTransaction(operation->GetAsyncSchedulerTransaction());
+            watchTransaction(operation->GetInputTransaction());
+            watchTransaction(operation->GetOutputTransaction());
+        }
 
-        //yhash_set<TTransactionId> deadTransactionIds;
+        yhash_set<TTransactionId> deadTransactionIds;
 
-        //// Invoke GetId verbs for these transactions to see if they are alive.
-        //auto batchRequest = TMultiCellBatchRequest(ClusterDirectory, false);
+        // Invoke GetId verbs for these transactions to see if they are alive.
+        auto batchRequest = TMultiCellBatchRequest(ClusterDirectory, false);
 
-        //std::vector<TTransactionId> transactionIds;
-        //for (const auto& id, watchSet) {
-        //    auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
-        //    if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
-        //        transactionIds.push_back(id);
-        //    } else {
-        //        deadTransactionIds.insert(id);
-        //    }
-        //}
+        std::vector<TTransactionId> transactionIds;
+        for (const auto& id : watchSet) {
+            auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
+            if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
+                transactionIds.push_back(id);
+            } else {
+                deadTransactionIds.insert(id);
+            }
+        }
 
-        //LOG_INFO("Refreshing transactions");
+        LOG_INFO("Refreshing transactions");
 
-        //TransactionRefreshExecutor->ScheduleNext();
+        TransactionRefreshExecutor->ScheduleNext();
 
-        //auto batchResponse = batchRequest.Execute(CancelableControlInvoker);
-        //if (!batchResponse.IsOK()) {
-        //    LOG_ERROR(batchResponse, "Error refreshing transactions");
-        //    return;
-        //}
+        auto batchResponse = batchRequest.Execute(CancelableControlInvoker);
+        if (!batchResponse.IsOK()) {
+            LOG_ERROR(batchResponse, "Error refreshing transactions");
+            return;
+        }
 
-        //for (int index = 0; index < static_cast<int>(batchResponse.GetSize()); ++index) {
-        //    if (!batchResponse.GetResponse(index)->IsOK()) {
-        //        YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
-        //    }
-        //}
+        for (int index = 0; index < static_cast<int>(batchResponse.GetSize()); ++index) {
+            if (!batchResponse.GetResponse(index)->IsOK()) {
+                YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
+            }
+        }
 
-        //LOG_INFO("Transactions refreshed");
+        LOG_INFO("Transactions refreshed");
 
-        //auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
-        //    if (!transaction) {
-        //        return true;
-        //    }
+        auto isTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+            if (!transaction) {
+                return true;
+            }
 
-        //    if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
-        //        return true;
-        //    }
+            if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
+                return true;
+            }
 
-        //    return false;
-        //};
+            return false;
+        };
 
-        //auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
-        //    if (isTransactionAlive(operation, transaction)) {
-        //        return true;
-        //    }
+        auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
 
-        //    LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
-        //        ~ToString(operation->GetId()),
-        //        ~ToString(transaction->GetId()));
-        //    return false;
-        //};
+            LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
 
-        //auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
-        //    if (isTransactionAlive(operation, transaction)) {
-        //        return true;
-        //    }
+        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
 
-        //    LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
-        //        ~ToString(operation->GetId()),
-        //        ~ToString(transaction->GetId()));
-        //    return false;
-        //};
+            LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
 
-        //// Check every operation's transactions and raise appropriate notifications.
-        //for (auto operation : operations) {
-        //    if (operation->GetState() != EOperationState::Running)
-        //        continue;
+        // Check every operation's transactions and raise appropriate notifications.
+        for (auto operation : operations) {
+            if (operation->GetState() != EOperationState::Running)
+                continue;
 
-        //    if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
-        //        UserTransactionAborted_.Fire(operation);
-        //    }
+            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
+                UserTransactionAborted_.Fire(operation);
+            }
 
-        //    if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
-        //        !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
-        //        !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
-        //        !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
-        //    {
-        //        SchedulerTransactionAborted_.Fire(operation);
-        //    }
-        //}
+            if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
+            {
+                SchedulerTransactionAborted_.Fire(operation);
+            }
+        }
     }
 
     TUpdateList* CreateUpdateList(TOperationPtr operation)
@@ -1735,7 +1740,7 @@ private:
 
                     auto cellId = ConvertTo<TCellId>(clusterNode->GetChild("cell_id"));
 
-                    auto connectionConfig = New<NApi::TConnectionConfig>(); 
+                    auto connectionConfig = New<NApi::TConnectionConfig>();
                     connectionConfig->Load(clusterNode->GetChild("connection"));
 
                     ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId);
