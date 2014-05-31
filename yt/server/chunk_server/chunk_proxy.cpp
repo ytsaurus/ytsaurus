@@ -102,6 +102,8 @@ private:
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
+        attributes->push_back(TAttributeInfo("record_count", chunk->IsConfirmed() && miscExt->has_record_count()));
+        attributes->push_back(TAttributeInfo("sealed", chunk->IsConfirmed() && miscExt->has_sealed()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -309,9 +311,22 @@ private:
                     .Value(miscExt.min_timestamp());
                 return true;
             }
+
             if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.max_timestamp());
+                return true;
+            }
+
+            if (key == "record_count" && miscExt.has_record_count()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.record_count());
+                return true;
+            }
+
+            if (key == "sealed" && miscExt.has_sealed()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.sealed());
                 return true;
             }
         }
