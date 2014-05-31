@@ -41,7 +41,7 @@ TYsonProducer ConvertToProducer(T&& value)
             Consume(value, consumer);
         },
         std::forward<T>(value));
-    return TYsonProducer(callback, type);
+    return TYsonProducer(std::move(callback), type);
 }
 
 template <class T>
@@ -136,42 +136,52 @@ TTo ConvertTo(const TFrom& value)
     return ConvertTo<TTo>(ConvertToNode(value));
 }
 
-// Cannot inline this into CHECK_TYPE because
-// C++ has some issues expanding type argument.
-#define GET_VALUE(x) token.Get ## x ## Value()
-
-#define CHECK_TYPE(type) \
-    if (token.GetType() == ETokenType::type) { \
-        return GET_VALUE(type); \
-    } \
-    consideredTokens.push_back(ETokenType::type);
-
-#define CONVERT_TO_PLAIN_TYPE(type, tokenTypes) \
-    template <> \
-    inline type ConvertTo(const TYsonString& str) \
-    { \
-        using NYson::ETokenType; \
-        NYson::TTokenizer tokenizer(str.Data()); \
-        if (tokenizer.ParseNext()) { \
-            auto token = tokenizer.CurrentToken(); \
-            SmallVector<ETokenType, 2> consideredTokens; \
-            PP_FOR_EACH(CHECK_TYPE, tokenTypes); \
-            token.CheckType( \
-                std::vector<ETokenType>( \
-                    consideredTokens.begin(), \
-                    consideredTokens.end())); \
-        } \
-        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(tokenType) " from string %s", \
-            ~str.Data().Quote()); \
+template <>
+inline i64 ConvertTo(const TYsonString& str)
+{
+    NYson::TTokenizer tokenizer(str.Data());
+    tokenizer.ParseNext();
+    const auto& token = tokenizer.CurrentToken();
+    switch (token.GetType()) {
+        case NYson::ETokenType::Integer:
+            return token.GetIntegerValue();
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse integer from %s",
+                ~str.Data().Quote());
     }
+}
 
-CONVERT_TO_PLAIN_TYPE(i64, (Integer))
-CONVERT_TO_PLAIN_TYPE(double, (Double)(Integer))
-CONVERT_TO_PLAIN_TYPE(TStringBuf, (String))
+template <>
+inline double ConvertTo(const TYsonString& str)
+{
+    NYson::TTokenizer tokenizer(str.Data());
+    tokenizer.ParseNext();
+    const auto& token = tokenizer.CurrentToken();
+    switch (token.GetType()) {
+        case NYson::ETokenType::Integer:
+            return token.GetIntegerValue();
+        case NYson::ETokenType::Double:
+            return token.GetDoubleValue();
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse number from %s",
+                ~str.Data().Quote());
+    }
+}
 
-#undef CONVERT_TO_PLAIN_TYPE
-#undef CHECK_TYPE
-#undef GET_VALUE
+template <>
+inline Stroka ConvertTo(const TYsonString& str)
+{
+    NYson::TTokenizer tokenizer(str.Data());
+    tokenizer.ParseNext();
+    const auto& token = tokenizer.CurrentToken();
+    switch (token.GetType()) {
+        case NYson::ETokenType::String:
+            return Stroka(token.GetStringValue());
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse string from %s",
+                ~str.Data().Quote());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
