@@ -5,9 +5,6 @@
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_owner_type_handler.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -36,10 +33,8 @@ class TFileNodeTypeHandler
     : public TChunkOwnerTypeHandler<TFileNode>
 {
 public:
-    typedef TChunkOwnerTypeHandler<TFileNode> TBase;
-
     explicit TFileNodeTypeHandler(TBootstrap* bootstrap)
-        : TBase(bootstrap)
+        : TChunkOwnerTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() override
@@ -48,18 +43,16 @@ public:
     }
 
 protected:
-
     virtual void SetDefaultAttributes(
         IAttributeDictionary* attributes,
         TTransaction* transaction) override
     {
-        TBase::SetDefaultAttributes(attributes, transaction);
+        TChunkOwnerTypeHandler::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("compression_codec")) {
-            NCompression::ECodec codec = NCompression::ECodec::None;
-            attributes->SetYson(
+            attributes->Set(
                 "compression_codec",
-                TYsonString(FormatEnum(codec)));
+                NCompression::ECodec(NCompression::ECodec::None));
         }
     }
 
@@ -75,8 +68,8 @@ protected:
     }
 
     virtual std::unique_ptr<TFileNode> DoCreate(
-        const NCypressServer::TVersionedNodeId& id,
-        NTransactionServer::TTransaction* transaction,
+        const TVersionedNodeId& id,
+        TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -90,7 +83,7 @@ protected:
             chunk->ValidateConfirmed();
         }
 
-        auto node = TBase::DoCreate(id, transaction, request, response);
+        auto node = TChunkOwnerTypeHandler::DoCreate(id, transaction, request, response);
 
         if (chunk) {
             auto* chunkList = node->GetChunkList();
@@ -102,7 +95,7 @@ protected:
 
 };
 
-INodeTypeHandlerPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)
 {
     return New<TFileNodeTypeHandler>(bootstrap);
 }

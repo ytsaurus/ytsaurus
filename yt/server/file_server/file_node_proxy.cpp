@@ -3,15 +3,10 @@
 #include "file_node.h"
 #include "private.h"
 
-#include <core/misc/string.h>
-
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/read_limit.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_owner_node_proxy.h>
 
 namespace NYT {
@@ -22,8 +17,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NYTree;
-using namespace NYson;
 using namespace NTransactionServer;
+using namespace NCellMaster;
 
 using NChunkClient::TChannel;
 using NChunkClient::TReadLimit;
@@ -36,7 +31,7 @@ class TFileNodeProxy
 public:
     TFileNodeProxy(
         INodeTypeHandlerPtr typeHandler,
-        NCellMaster::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         TTransaction* transaction,
         TFileNode* trunkNode)
         : TBase(
@@ -59,8 +54,6 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        UNUSED(oldValue);
-
         if (key == "executable" && newValue) {
             ConvertTo<bool>(*newValue);
             return;
@@ -101,7 +94,7 @@ private:
 
 ICypressNodeProxyPtr CreateFileNodeProxy(
     INodeTypeHandlerPtr typeHandler,
-    NCellMaster::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     TTransaction* transaction,
     TFileNode* trunkNode)
 {
