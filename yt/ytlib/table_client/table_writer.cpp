@@ -121,7 +121,7 @@ TAsyncTableWriter::TAsyncTableWriter(
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
-    , Logger(TableWriterLogger)
+    , Logger(TableClientLogger)
     , CurrentWriterFacade(nullptr)
 {
     YCHECK(config);

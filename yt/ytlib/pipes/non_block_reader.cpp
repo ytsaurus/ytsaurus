@@ -20,7 +20,7 @@ TNonblockingReader::TNonblockingReader(int fd)
     , ReachedEOF_(false)
     , Closed_(false)
     , LastSystemError_(0)
-    , Logger(ReaderLogger)
+    , Logger(PipesLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 }

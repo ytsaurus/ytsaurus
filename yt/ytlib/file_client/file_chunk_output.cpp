@@ -51,7 +51,7 @@ TFileChunkOutput::TFileChunkOutput(
     , IsOpen(false)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
-    , Logger(FileWriterLogger)
+    , Logger(FileClientLogger)
 {
     YCHECK(config);
     YCHECK(masterChannel);

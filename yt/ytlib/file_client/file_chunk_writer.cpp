@@ -25,7 +25,7 @@ TFileChunkWriter::TFileChunkWriter(
     , Facade(this)
     , Size(0)
     , BlockCount(0)
-    , Logger(FileWriterLogger)
+    , Logger(FileClientLogger)
 { }
 
 TFileChunkWriter::~TFileChunkWriter()

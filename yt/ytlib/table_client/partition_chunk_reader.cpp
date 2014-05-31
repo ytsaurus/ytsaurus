@@ -49,7 +49,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , ChunkReader(chunkReader)
     , PartitionTag(partitionTag)
     , CodecId(codecId)
-    , Logger(TableReaderLogger)
+    , Logger(TableClientLogger)
 { }
 
 TAsyncError TPartitionChunkReader::AsyncOpen()

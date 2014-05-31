@@ -60,7 +60,7 @@ private:
 TAsyncReader::TImpl::TImpl(int fd)
     : Reader_(new NDetail::TNonblockingReader(fd))
     , ReadyPromise_()
-    , Logger(ReaderLogger)
+    , Logger(PipesLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 

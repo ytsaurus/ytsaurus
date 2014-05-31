@@ -49,7 +49,7 @@ TAsyncTableReader::TAsyncTableReader(
     , IsOpen(false)
     , IsReadStarted_(false)
     , ObjectProxy(masterChannel)
-    , Logger(TableReaderLogger)
+    , Logger(TableClientLogger)
 {
     YCHECK(masterChannel);
 

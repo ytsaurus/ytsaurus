@@ -53,7 +53,7 @@ TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
     , Progress(0)
     , CompleteChunkSize(0)
     , CloseChunksAwaiter(New<NConcurrency::TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
-    , Logger(ChunkWriterLogger)
+    , Logger(ChunkClientLogger)
 {
     YCHECK(config);
     YCHECK(masterChannel);

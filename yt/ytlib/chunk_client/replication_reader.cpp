@@ -78,7 +78,7 @@ public:
         , NetworkName_(networkName)
         , SessionType_(sessionType)
         , Throttler_(throttler)
-        , Logger(ChunkReaderLogger)
+        , Logger(ChunkClientLogger)
         , ObjectServiceProxy_(masterChannel)
         , ChunkServiceProxy_(masterChannel)
         , InitialSeedReplicas_(seedReplicas)
@@ -283,7 +283,7 @@ protected:
         , PassIndex_(0)
         , PeerIndex_(0)
         , StartTime_(TInstant::Now())
-        , Logger(ChunkReaderLogger)
+        , Logger(ChunkClientLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId_)));
     }

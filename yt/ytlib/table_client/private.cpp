@@ -8,10 +8,7 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger TableReaderLogger("TableReader");
-NLog::TLogger TableWriterLogger("TableWriter");
-
-const size_t MaxKeySize = 4 * 1024;
+NLog::TLogger TableClientLogger("TableClient");
 
 ////////////////////////////////////////////////////////////////////////////////
 

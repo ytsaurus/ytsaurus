@@ -437,7 +437,7 @@ TReplicationWriter::TReplicationWriter(
     , AliveNodeCount_(targets.size())
     , MinUploadReplicationFactor_(std::min(Config_->MinUploadReplicationFactor, AliveNodeCount_))
     , BlockCount_(0)
-    , Logger(ChunkWriterLogger)
+    , Logger(ChunkClientLogger)
 {
     YCHECK(!targets.empty());
 

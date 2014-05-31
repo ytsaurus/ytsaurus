@@ -18,7 +18,7 @@ TNonblockingWriter::TNonblockingWriter(int fd)
     , BytesWrittenTotal_(0)
     , Closed_(false)
     , LastSystemError_(0)
-    , Logger(WriterLogger)
+    , Logger(PipesLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 }

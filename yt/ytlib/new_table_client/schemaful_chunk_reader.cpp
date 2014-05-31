@@ -117,7 +117,7 @@ TChunkReader::TChunkReader(
     , UnderlyingReader(chunkReader)
     , IncludeAllColumns(false)
     , CurrentBlockIndex(0)
-    , Logger(TableReaderLogger)
+    , Logger(TableClientLogger)
 {
     YCHECK(timestamp == NullTimestamp);
     YCHECK(IsTrivial(lowerLimit));

@@ -15,7 +15,7 @@ namespace NFileClient {
 
 using namespace NChunkClient;
 
-static auto& Logger = FileReaderLogger;
+static auto& Logger = FileClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +31,7 @@ TFileChunkReader::TFileChunkReader(
     , StartOffset(startOffset)
     , EndOffset(endOffset)
     , Facade(this)
-    , Logger(FileReaderLogger)
+    , Logger(FileClientLogger)
 { }
 
 TAsyncError TFileChunkReader::AsyncOpen()

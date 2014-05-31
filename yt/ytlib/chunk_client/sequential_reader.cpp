@@ -28,7 +28,7 @@ TSequentialReader::TSequentialReader(
     , NextUnfetchedIndex(0)
     , FetchingCompleteEvent(NewPromise())
     , Codec(NCompression::GetCodec(codecId))
-    , Logger(ChunkReaderLogger)
+    , Logger(ChunkClientLogger)
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
 

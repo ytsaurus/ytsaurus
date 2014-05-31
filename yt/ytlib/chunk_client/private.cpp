@@ -10,8 +10,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkReaderLogger("ChunkReader");
-NLog::TLogger ChunkWriterLogger("ChunkWriter");
+NLog::TLogger ChunkClientLogger("ChunkClient");
 
 // For light requests (e.g. SendBlocks, GetBlocks, etc).
 NRpc::IChannelFactoryPtr LightNodeChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));

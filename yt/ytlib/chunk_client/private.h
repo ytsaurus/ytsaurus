@@ -9,8 +9,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ChunkReaderLogger;
-extern NLog::TLogger ChunkWriterLogger;
+extern NLog::TLogger ChunkClientLogger;
 
 extern NRpc::IChannelFactoryPtr HeavyNodeChannelFactory;
 extern NRpc::IChannelFactoryPtr LightNodeChannelFactory;

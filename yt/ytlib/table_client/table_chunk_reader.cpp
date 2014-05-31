@@ -39,7 +39,7 @@ using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableReaderLogger;
+static auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,7 +172,7 @@ public:
         , StartLimit(startLimit)
         , EndLimit(endLimit)
         , HasRangeRequest(false)
-        , Logger(TableReaderLogger)
+        , Logger(TableClientLogger)
     { }
 
     void Initialize()
@@ -634,7 +634,7 @@ public:
         : SequentialConfig(config)
         , ÑhunkReader(chunkReader)
         , TableReader(tableReader)
-        , Logger(TableReaderLogger)
+        , Logger(TableClientLogger)
     { }
 
     void Initialize()

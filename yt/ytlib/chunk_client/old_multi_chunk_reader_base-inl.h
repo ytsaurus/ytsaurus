@@ -45,7 +45,7 @@ TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
     , ReaderProvider(readerProvider)
     , LastPreparedReader(-1)
     , FetchingCompleteAwaiter(New<NConcurrency::TParallelAwaiter>(GetSyncInvoker()))
-    , Logger(ChunkReaderLogger)
+    , Logger(ChunkClientLogger)
 {
     if (ChunkSpecs.empty()) {
         return;

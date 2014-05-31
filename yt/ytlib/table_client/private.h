@@ -12,10 +12,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableReaderLogger;
-extern NLog::TLogger TableWriterLogger;
+extern NLog::TLogger TableClientLogger;
 
-extern const size_t MaxKeySize;
+const int FormatVersion = 1;
+const size_t MaxKeySize = 4 * 1024;
 
 NVersionedTableClient::TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& lexer);
 

@@ -62,7 +62,7 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     , ReadyEvent_(OKFuture)
     , CompletionError_(NewPromise<TError>())
     , CloseChunksAwaiter_(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
-    , Logger(ChunkWriterLogger)
+    , Logger(ChunkClientLogger)
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);

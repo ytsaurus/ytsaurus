@@ -73,7 +73,7 @@ TAsyncWriter::TImpl::TImpl(int fd)
     , ReadyPromise()
     , ClosePromise()
     , NeedToClose(false)
-    , Logger(WriterLogger)
+    , Logger(PipesLogger)
 {
     Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
 
