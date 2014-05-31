@@ -84,6 +84,7 @@ DECLARE_ENUM(EObjectType,
     // Dynamic nodes
     ((File)                       (400))
     ((Table)                      (401))
+    ((Journal)                    (423))
     ((ChunkMap)                   (402))
     ((LostChunkMap)               (403))
     ((OverreplicatedChunkMap)     (404))

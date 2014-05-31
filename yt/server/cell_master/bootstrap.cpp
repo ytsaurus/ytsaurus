@@ -76,6 +76,8 @@
 
 #include <server/table_server/table_node.h>
 
+#include <server/journal_server/journal_node.h>
+
 #include <server/orchid/cypress_integration.h>
 
 #include <server/security_server/security_manager.h>
@@ -105,8 +107,10 @@ using namespace NProfiling;
 using namespace NConcurrency;
 using namespace NFileServer;
 using namespace NTableServer;
+using namespace NJournalServer;
 using namespace NSecurityServer;
 using namespace NTabletServer;
+
 using NElection::TCellGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,6 +396,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateCellNodeMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
+    CypressManager->RegisterHandler(CreateJournalTypeHandler(this));
     CypressManager->RegisterHandler(CreateAccountMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateGroupMapTypeHandler(this));

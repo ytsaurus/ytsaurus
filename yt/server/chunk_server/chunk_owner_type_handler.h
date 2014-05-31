@@ -14,6 +14,8 @@
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/chunk_server/chunk_manager.h>
+
 #include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
