@@ -41,6 +41,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChunkReaderProvider)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChunkReaderFacade
@@ -106,6 +108,8 @@ private:
     void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TFileChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 

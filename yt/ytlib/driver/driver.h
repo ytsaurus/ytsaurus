@@ -135,6 +135,8 @@ struct IDriver
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IDriver)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates an implementation of IDriver with a given configuration.

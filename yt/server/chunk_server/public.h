@@ -46,12 +46,6 @@ using NNodeTrackerServer::TNodeSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
-
-class TJobList;
-typedef TIntrusivePtr<TJobList> TJobListPtr;
-
 class TChunkTree;
 class TChunkReplica;
 class TChunk;
@@ -65,17 +59,14 @@ class TPtrWithIndex;
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
 
-class TChunkManager;
-typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TJob)
+DECLARE_REFCOUNTED_CLASS(TJobList)
 
-class TChunkReplicator;
-typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkManager)
+DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
+DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 
-class TChunkPlacement;
-typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
-
-class TChunkManagerConfig;
-typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 
 //! Used as an expected upper bound in SmallVector.
 const int TypicalChunkParentCount = 2;

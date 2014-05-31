@@ -7,11 +7,9 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDriver;
-typedef TIntrusivePtr<IDriver> IDriverPtr;
+DECLARE_REFCOUNTED_STRUCT(IDriver)
 
-class TDriverConfig;
-typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TDriverConfig)
 
 struct TCommandDescriptor;
 

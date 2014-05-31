@@ -9,24 +9,14 @@ namespace NFileClient {
 
 const int FormatVersion = 1;
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TFileChunkOutput;
 
-class TFileChunkReader;
-typedef TIntrusivePtr<TFileChunkReader> TFileChunkReaderPtr;
+DECLARE_REFCOUNTED_CLASS(TFileChunkReader)
+DECLARE_REFCOUNTED_CLASS(TFileChunkReaderProvider)
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriterProvider)
 
-class TFileChunkReaderProvider;
-typedef TIntrusivePtr<TFileChunkReaderProvider> TFileChunkReaderProviderPtr;
-
-class TFileChunkWriter;
-typedef TIntrusivePtr<TFileChunkWriter> TFileChunkWriterPtr;
-
-class TFileChunkWriterProvider;
-typedef TIntrusivePtr<TFileChunkWriterProvider> TFileChunkWriterProviderPtr;
-
-class TFileChunkWriterConfig;
-typedef TIntrusivePtr<TFileChunkWriterConfig> TFileChunkWriterConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,11 +9,8 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICommand;
-typedef TIntrusivePtr<ICommand> ICommandPtr;
-
-struct ICommandContext;
-typedef TIntrusivePtr<ICommandContext> ICommandContextPtr;
+DECLARE_REFCOUNTED_STRUCT(ICommand)
+DECLARE_REFCOUNTED_STRUCT(ICommandContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -121,6 +121,8 @@ struct ICommandContext
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ICommandContext)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
@@ -128,6 +130,8 @@ struct ICommand
 {
     virtual void Execute(ICommandContextPtr context) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(ICommand)
 
 ////////////////////////////////////////////////////////////////////////////////
 

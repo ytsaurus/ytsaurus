@@ -32,21 +32,22 @@ struct IChunkVisitor
     virtual void OnFinish() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkTraverserCallbacks
     : public virtual TRefCounted
 {
     virtual bool IsPreemptable() const = 0;
-
     virtual IInvokerPtr GetInvoker() const = 0;
 
     virtual void OnPop(TChunkTree* node) = 0;
-    
     virtual void OnPush(TChunkTree* node) = 0;
-
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IChunkTraverserCallbacks)
 
 ////////////////////////////////////////////////////////////////////////////////
 

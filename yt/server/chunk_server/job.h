@@ -19,6 +19,7 @@ namespace NChunkServer {
 class TJob
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     //! Chunk id and index for for the job is running.
@@ -73,14 +74,19 @@ public:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TJob)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobList
     : public TRefCounted
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TJobList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
