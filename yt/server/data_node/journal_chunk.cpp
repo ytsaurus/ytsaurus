@@ -48,6 +48,7 @@ TJournalChunk::TJournalChunk(
 {
     Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(EChunkType::Journal);
+    Meta_->set_version(0);
 
     YCHECK(Changelog_);
     UpdateProperties();
