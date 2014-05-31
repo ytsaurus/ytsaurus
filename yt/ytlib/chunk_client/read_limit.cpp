@@ -84,6 +84,22 @@ void TReadLimit::SetRowIndex(i64 rowIndex)
     ReadLimit_.set_row_index(rowIndex);
 }
 
+i64 TReadLimit::GetRecordIndex() const
+{
+    YASSERT(HasRecordIndex());
+    return ReadLimit_.record_index();
+}
+
+bool TReadLimit::HasRecordIndex() const
+{
+    return ReadLimit_.has_record_index();
+}
+
+void TReadLimit::SetRecordIndex(i64 recordIndex)
+{
+    ReadLimit_.set_record_index(recordIndex);
+}
+
 i64 TReadLimit::GetOffset() const
 {
     YASSERT(HasOffset());
@@ -118,11 +134,7 @@ void TReadLimit::SetChunkIndex(i64 chunkIndex)
 
 bool TReadLimit::IsTrivial() const
 {
-    return
-        !ReadLimit_.has_chunk_index() &&
-        !ReadLimit_.has_row_index() &&
-        !ReadLimit_.has_key() &&
-        !ReadLimit_.has_offset();
+    return NChunkClient::IsTrivial(ReadLimit_);
 }
 
 void TReadLimit::Persist(NPhoenix::TPersistenceContext& context)
@@ -175,6 +187,11 @@ Stroka ToString(const TReadLimit& limit)
         append(ToString(limit.GetRowIndex()));
     }
 
+    if (limit.HasRecordIndex()) {
+        append("RecordIndex: ");
+        append(ToString(limit.GetRecordIndex()));
+    }
+
     if (limit.HasOffset()) {
         append("Offset: ");
         append(ToString(limit.GetOffset()));
@@ -188,28 +205,19 @@ Stroka ToString(const TReadLimit& limit)
     return result;
 }
 
-bool IsNontrivial(const TReadLimit& limit)
-{
-    return IsNontrivial(limit.AsProto());
-}
-
 bool IsTrivial(const TReadLimit& limit)
 {
-    return IsTrivial(limit.AsProto());
-}
-
-bool IsNontrivial(const NProto::TReadLimit& limit)
-{
-    return
-        limit.has_row_index() ||
-        limit.has_key() ||
-        limit.has_chunk_index() ||
-        limit.has_offset();
+    return limit.IsTrivial();
 }
 
 bool IsTrivial(const NProto::TReadLimit& limit)
 {
-    return !IsNontrivial(limit);
+    return
+        !limit.has_row_index() &&
+        !limit.has_record_index() &&
+        !limit.has_key() &&
+        !limit.has_offset() &&
+        !limit.has_chunk_index();
 }
 
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
@@ -222,73 +230,48 @@ void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit)
     *readLimit = protoReadLimit;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 {
-    int fieldCount = 0;
-    if (readLimit.HasRowIndex())   { fieldCount += 1; }
-    if (readLimit.HasKey())        { fieldCount += 1; }
-    if (readLimit.HasChunkIndex()) { fieldCount += 1; }
-    if (readLimit.HasOffset())     { fieldCount += 1; }
-
-    if (fieldCount == 0) {
-        THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
-    }
-    if (fieldCount >= 2) {
-        THROW_ERROR_EXCEPTION("Cannot serialize read limit with more than one field");
-    }
-
-    consumer->OnBeginMap();
-    if (readLimit.HasRowIndex()) {
-        consumer->OnKeyedItem("row_index");
-        consumer->OnIntegerScalar(readLimit.GetRowIndex());
-    } else if (readLimit.HasChunkIndex()) {
-        consumer->OnKeyedItem("chunk_index");
-        consumer->OnIntegerScalar(readLimit.GetChunkIndex());
-    } else if (readLimit.HasOffset()) {
-        consumer->OnKeyedItem("offset");
-        consumer->OnIntegerScalar(readLimit.GetOffset());
-    } else if (readLimit.HasKey()) {
-        consumer->OnKeyedItem("key");
-        Serialize(readLimit.GetKey(), consumer);
-    }
-    consumer->OnEndMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(readLimit.HasKey(), [&] (TFluentMap fluent) {
+                fluent.Item("key").Value(readLimit.GetKey());
+            })
+            .DoIf(readLimit.HasRowIndex(), [&] (TFluentMap fluent) {
+                fluent.Item("row_index").Value(readLimit.GetRowIndex());
+            })
+            .DoIf(readLimit.HasRecordIndex(), [&] (TFluentMap fluent) {
+                fluent.Item("record_index").Value(readLimit.GetRecordIndex());
+            })
+            .DoIf(readLimit.HasOffset(), [&] (TFluentMap fluent) {
+                fluent.Item("offset").Value(readLimit.GetOffset());
+            })
+            .DoIf(readLimit.HasChunkIndex(), [&] (TFluentMap fluent) {
+                fluent.Item("chunk_index").Value(readLimit.GetChunkIndex());
+            })
+        .EndMap();
 }
 
 void Deserialize(TReadLimit& readLimit, INodePtr node)
 {
-    if (node->GetType() != ENodeType::Map) {
-        THROW_ERROR_EXCEPTION("Unexpected read limit token type %s",
-            ~FormatEnum(node->GetType()).Quote());
+    readLimit = TReadLimit();
+    auto attributes = ConvertToAttributes(node);
+    if (attributes->Contains("key")) {
+        readLimit.SetKey(attributes->Get<TOwningKey>("key"));
     }
-
-    auto mapNode = node->AsMap();
-    if (mapNode->GetChildCount() > 1) {
-        THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1",
-            mapNode->GetChildCount());
+    if (attributes->Contains("row_index")) {
+        readLimit.SetRowIndex(attributes->Get<i64>("row_index"));
     }
-
-    if (auto child = mapNode->FindChild("row_index")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected row index token type %s",
-                ~FormatEnum(child->GetType()).Quote());
-        }
-        readLimit.SetRowIndex(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("chunk_index")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token type %s",
-                ~FormatEnum(child->GetType()).Quote());
-        }
-        readLimit.SetChunkIndex(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("offset")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token type %s",
-                ~FormatEnum(child->GetType()).Quote());
-        }
-        readLimit.SetOffset(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("key")) {
-        TOwningKey key;
-        Deserialize(key, child);
-        readLimit.SetKey(std::move(key));
+    if (attributes->Contains("record_index")) {
+        readLimit.SetRecordIndex(attributes->Get<i64>("record_index"));
+    }
+    if (attributes->Contains("offset")) {
+        readLimit.SetOffset(attributes->Get<i64>("offset"));
+    }
+    if (attributes->Contains("chunk_index")) {
+        readLimit.SetChunkIndex(attributes->Get<i64>("chunk_index"));
     }
 }
 

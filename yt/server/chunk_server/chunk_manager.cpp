@@ -873,8 +873,9 @@ private:
 
             size_t jobListCount = TSizeSerializer::Load(context);
             YCHECK(jobListCount == 0);
-
-            // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
+        }
+        // COMPAT(babenko): required to properly initialize partial sums for chunk lists.
+        if (context.GetVersion() < 100) {
             ScheduleRecomputeStatistics();
         }
     }
@@ -926,6 +927,9 @@ private:
             auto& rowCountSums = chunkList->RowCountSums();
             rowCountSums.clear();
 
+            auto& recordCountSums = chunkList->RecordCountSums();
+            recordCountSums.clear();
+
             auto& chunkCountSums = chunkList->ChunkCountSums();
             chunkCountSums.clear();
 
@@ -951,6 +955,7 @@ private:
 
                 if (childIndex + 1 < childrenCount) {
                     rowCountSums.push_back(statistics.RowCount + childStatistics.RowCount);
+                    recordCountSums.push_back(statistics.RecordCount + childStatistics.RecordCount);
                     chunkCountSums.push_back(statistics.ChunkCount + childStatistics.ChunkCount);
                     dataSizeSums.push_back(statistics.UncompressedDataSize + childStatistics.UncompressedDataSize);
                 }

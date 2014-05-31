@@ -29,8 +29,6 @@ using namespace NSecurityServer;
 
 static auto& Logger = ChunkServerLogger;
 
-const i64 TChunk::UnknownDiskSpace = -1;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkProperties::TChunkProperties()
@@ -58,10 +56,12 @@ TChunk::TChunk(const TChunkId& id)
     , ErasureCodec(NErasure::ECodec::None)
 {
     Zero(Flags);
-    ChunkInfo_.set_disk_space(UnknownDiskSpace);
+
+    ChunkInfo_.set_disk_space(-1);
+
     ChunkMeta_.set_type(EChunkType::Unknown);
-    ChunkMeta_.mutable_extensions();
     ChunkMeta_.set_version(-1);
+    ChunkMeta_.mutable_extensions();
 }
 
 TChunk::~TChunk()
@@ -69,11 +69,13 @@ TChunk::~TChunk()
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
+    YASSERT(IsConfirmed());
+
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
-    YASSERT(ChunkInfo_.disk_space() != TChunk::UnknownDiskSpace);
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
+    result.RecordCount = miscExt.record_count();
     result.UncompressedDataSize = miscExt.uncompressed_data_size();
     result.CompressedDataSize = miscExt.compressed_data_size();
     result.DataWeight = miscExt.data_weight();

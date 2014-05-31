@@ -208,10 +208,10 @@ bool TFetchChunkVisitor::OnChunk(
     }
 
     // Try to keep responses small -- avoid producing redundant limits.
-    if (IsNontrivial(startLimit)) {
+    if (!IsTrivial(startLimit)) {
         *chunkSpec->mutable_lower_limit() = startLimit.AsProto();
     }
-    if (IsNontrivial(endLimit)) {
+    if (!IsTrivial(endLimit)) {
         *chunkSpec->mutable_upper_limit() = endLimit.AsProto();
     }
 
@@ -556,7 +556,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
-
+    
     if (key == "erasure_statistics") {
         struct TExtractErasureCodec
         {

@@ -481,7 +481,7 @@ protected:
 
     // Unsorted helpers.
 
-    //! Returns True iff the chunk has nontrivial limits.
+    //! Returns |true| iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
     static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
     {
@@ -519,8 +519,8 @@ protected:
 
     bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
-        YCHECK(!IsNontrivial(chunkSpec.upper_limit()));
-        YCHECK(!IsNontrivial(chunkSpec.lower_limit()));
+        YCHECK(IsTrivial(chunkSpec.upper_limit()));
+        YCHECK(IsTrivial(chunkSpec.lower_limit()));
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 

@@ -44,6 +44,10 @@ message TMiscExt
     // Number of rows in this chunk (tables only).
     optional int64 row_count = 2 [default = 0];
 
+    // Number of records in this chunk (journals only).
+    optional int32 record_count = 12 [default = 0];
+
+    // ECompressionCodec
     optional int32 compression_codec = 3 [default = 0];
 
     // Indicates if the chunk contains a sorted rowset (tables only).
@@ -59,10 +63,7 @@ message TMiscExt
     optional int64 min_timestamp = 10 [default = 0];
     optional int64 max_timestamp = 11 [default = 0];
 
-    // Number of records in a journal chunk.
-    optional int32 record_count = 12;
-
-    // Is the journal chunk sealed?
+    // Is the chunk sealed (journals only)?
     optional bool sealed = 13;
 }
 
@@ -88,11 +89,13 @@ message TErasurePlacementExt
 // and passed around (possibly with a different extension subset).
 message TChunkMeta
 {
+    // EChunkType
     required int32 type = 1;
-    required NYT.NProto.TExtensionSet extensions = 2;
 
     // Format version validated by reader.
     required int32 version = 3;
+
+    required NYT.NProto.TExtensionSet extensions = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

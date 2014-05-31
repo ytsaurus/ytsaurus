@@ -31,7 +31,10 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     // Same as above but for chunk count sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, ChunkCountSums);
+    // Same as above but for data size sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, DataSizeSums);
+    // Same as above but for record count sums.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RecordCountSums);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
@@ -47,7 +50,7 @@ class TChunkList
     // Used to mark visited chunk lists with "unique" marks.
     DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
 
-    static TAtomic GenerateVisitMark();
+    static ui64 GenerateVisitMark();
 
 public:
     explicit TChunkList(const TChunkListId& id);

@@ -298,12 +298,12 @@ void ToProto(NProto::TRange* protoRange, const TRange& range)
 {
     protoRange->set_begin(range.Begin());
     protoRange->set_end(range.End());
-    protoRange->set_is_infinite(range.IsInfinite());
+    protoRange->set_infinite(range.IsInfinite());
 }
 
 void FromProto(TRange* range, const NProto::TRange& protoRange)
 {
-    *range = protoRange.is_infinite()
+    *range = protoRange.infinite()
         ? TRange(protoRange.begin())
         : TRange(protoRange.begin(), protoRange.end());
 }

@@ -38,6 +38,10 @@ public:
     bool HasRowIndex() const;
     void SetRowIndex(i64 rowIndex);
 
+    i64 GetRecordIndex() const;
+    bool HasRecordIndex() const;
+    void SetRecordIndex(i64 recordIndex);
+
     i64 GetOffset() const;
     bool HasOffset() const;
     void SetOffset(i64 offset);
@@ -64,10 +68,7 @@ private:
 
 Stroka ToString(const TReadLimit& limit);
 
-bool IsNontrivial(const TReadLimit& limit);
 bool IsTrivial(const TReadLimit& limit);
-
-bool IsNontrivial(const NProto::TReadLimit& limit);
 bool IsTrivial(const NProto::TReadLimit& limit);
 
 void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
