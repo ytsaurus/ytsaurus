@@ -124,6 +124,7 @@ private:
     class TChunkTypeHandlerBase;
     class TChunkTypeHandler;
     class TErasureChunkTypeHandler;
+    class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;
 
     TIntrusivePtr<TImpl> Impl;

@@ -169,6 +169,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkManager::TJournalChunkTypeHandler
+    : public TChunkTypeHandlerBase
+{
+public:
+    explicit TJournalChunkTypeHandler(TImpl* owner)
+        : TChunkTypeHandlerBase(owner)
+    { }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::JournalChunk;
+    }
+
+private:
+    virtual Stroka DoGetName(TChunk* chunk) override
+    {
+        return Sprintf("journal chunk %s", ~ToString(chunk->GetId()));
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TChunkListTypeHandler
     : public TObjectTypeHandlerWithMapBase<TChunkList>
 {
@@ -259,6 +282,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
