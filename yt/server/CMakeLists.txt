@@ -23,6 +23,7 @@ set( DIRS
   tablet_node
   tablet_server
   query_agent
+  journal_server
 )
 
 foreach( _d_ ${DIRS} )

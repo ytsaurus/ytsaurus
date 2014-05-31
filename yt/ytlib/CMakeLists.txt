@@ -23,6 +23,7 @@ set( DIRS
   hive
   formats
   api
+  journal_client
 )
 
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
