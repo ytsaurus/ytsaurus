@@ -132,7 +132,7 @@ protected:
     void DoTraverse()
     {
         int visitedChunkCount = 0;
-        while (!Preemptable_ || visitedChunkCount < MaxChunksPerAction) {
+        while (visitedChunkCount < MaxChunksPerAction || !Callbacks_->IsPreemptable()) {
             if (IsStackEmpty()) {
                 Shutdown();
                 Visitor_->OnFinish();
@@ -273,7 +273,7 @@ protected:
         }
 
         // Schedule continuation.
-        TraverserCallbacks_
+        Callbacks_
             ->GetInvoker()
             ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
@@ -406,7 +406,7 @@ protected:
 
     void PushStack(const TStackEntry& newEntry)
     {
-        TraverserCallbacks_->OnPush(newEntry.ChunkList);
+        Callbacks_->OnPush(newEntry.ChunkList);
         Stack_.push_back(newEntry);
     }
 
@@ -418,7 +418,7 @@ protected:
     void PopStack()
     {
         auto& entry = Stack_.back();
-        TraverserCallbacks_->OnPop(entry.ChunkList);
+        Callbacks_->OnPop(entry.ChunkList);
         Stack_.pop_back();
     }
 
@@ -428,23 +428,21 @@ protected:
         for (const auto& entry : Stack_) {
             nodes.push_back(entry.ChunkList);
         }
-        TraverserCallbacks_->OnShutdown(nodes);
+        Callbacks_->OnShutdown(nodes);
         Stack_.clear();
     }
 
-    IChunkTraverserCallbacksPtr TraverserCallbacks_;
+    IChunkTraverserCallbacksPtr Callbacks_;
     IChunkVisitorPtr Visitor_;
-    bool Preemptable_;
 
     std::vector<TStackEntry> Stack_;
 
 public:
     TChunkTreeTraverser(
-        IChunkTraverserCallbacksPtr traverserCallbacks,
+        IChunkTraverserCallbacksPtr callbacks,
         IChunkVisitorPtr visitor)
-        : TraverserCallbacks_(traverserCallbacks)
+        : Callbacks_(callbacks)
         , Visitor_(visitor)
-        , Preemptable_(TraverserCallbacks_->IsPreemptable())
     { }
 
     void Run(

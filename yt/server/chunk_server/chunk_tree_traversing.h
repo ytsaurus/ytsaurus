@@ -56,7 +56,7 @@ IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
 IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks();
 
 void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr traverserCallbacks,
+    IChunkTraverserCallbacksPtr callbacks,
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
