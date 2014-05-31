@@ -47,22 +47,14 @@ struct TTabletRangeOptions
 
 struct TTransactionalOptions
 {
-    TTransactionalOptions()
-        : PingAncestors(false)
-    { }
-
     //! Ignored when queried via transaction.
     NObjectClient::TTransactionId TransactionId;
-    bool PingAncestors;
+    bool PingAncestors = false;
 };
 
 struct TSuppressableAccessTrackingOptions
 {
-    TSuppressableAccessTrackingOptions()
-        : SuppressAccessTracking(false)
-    { }
-
-    bool SuppressAccessTracking;
+    bool SuppressAccessTracking = false;
 };
 
 struct TMutatingOptions
@@ -80,11 +72,7 @@ struct TMountTableOptions
 struct TUnmountTableOptions
     : public TTabletRangeOptions
 {
-    TUnmountTableOptions()
-        : Force(false)
-    { }
-
-    bool Force;
+    bool Force = false;
 };
 
 struct TRemountTableOptions
@@ -116,58 +104,37 @@ struct TCheckPermissionResult
 
 struct TTransactionStartOptions
 {
-    TTransactionStartOptions()
-        : AutoAbort(true)
-        , Ping(true)
-        , PingAncestors(false)
-        , Attributes(nullptr)
-    { }
-
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
-    NYTree::IAttributeDictionary* Attributes;
+    bool AutoAbort = true;
+    bool Ping = true;
+    bool PingAncestors = true;
+    NYTree::IAttributeDictionary* Attributes = nullptr;
 };
 
 struct TLookupRowsOptions
 {
-    TLookupRowsOptions()
-        : Timestamp(NTransactionClient::LastCommittedTimestamp)
-    { }
-
     NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
     bool SkipMissingRows = true;
 };
 
 struct TSelectRowsOptions
 {
-    TSelectRowsOptions()
-        : Timestamp(NTransactionClient::LastCommittedTimestamp)
-        , RowLimit(std::numeric_limits<i64>::max())
-    { }
-
     //! Ignored when queried via transaction.
-    NTransactionClient::TTimestamp Timestamp;
-    i64 RowLimit;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
+    i64 RowLimit = std::numeric_limits<i64>::max();
 };
 
 struct TGetNodeOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    TGetNodeOptions()
-        : Options(nullptr)
-        , IgnoreOpaque(false)
-    { }
-
-    NYTree::IAttributeDictionary* Options;
+    NYTree::IAttributeDictionary* Options = nullptr;
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
-    bool IgnoreOpaque;
+    bool IgnoreOpaque = false;
 };
 
 struct TSetNodeOptions
@@ -179,13 +146,8 @@ struct TRemoveNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TRemoveNodeOptions()
-        : Recursive(true)
-        , Force(false)
-    { }
-
-    bool Recursive;
-    bool Force;
+    bool Recursive = true;
+    bool Force = false;
 };
 
 struct TListNodesOptions
@@ -200,37 +162,23 @@ struct TCreateNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TCreateNodeOptions()
-        : Attributes(nullptr)
-        , Recursive(false)
-        , IgnoreExisting(false)
-    { }
-
-    NYTree::IAttributeDictionary* Attributes;
-    bool Recursive;
-    bool IgnoreExisting;
+    NYTree::IAttributeDictionary* Attributes = nullptr;
+    bool Recursive = false;
+    bool IgnoreExisting = false;
 };
 
 struct TLockNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TLockNodeOptions()
-        : Waitable(false)
-    { }
-
-    bool Waitable;
+    bool Waitable = false;
 };
 
 struct TCopyNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TCopyNodeOptions()
-        : PreserveAccount(false)
-    { }
-
-    bool PreserveAccount;
+    bool PreserveAccount = false;
 };
 
 struct TMoveNodeOptions
@@ -242,15 +190,9 @@ struct TLinkNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TLinkNodeOptions()
-        : Attributes(nullptr)
-        , Recursive(false)
-        , IgnoreExisting(false)
-    { }
-
-    NYTree::IAttributeDictionary* Attributes;
-    bool Recursive;
-    bool IgnoreExisting;
+    NYTree::IAttributeDictionary* Attributes = nullptr;
+    bool Recursive = false;
+    bool IgnoreExisting = false;
 };
 
 struct TNodeExistsOptions
@@ -261,11 +203,7 @@ struct TCreateObjectOptions
     : public TTransactionalOptions
     , public TMutatingOptions
 {
-    TCreateObjectOptions()
-        : Attributes(nullptr)
-    { }
-
-    NYTree::IAttributeDictionary* Attributes;
+    NYTree::IAttributeDictionary* Attributes = nullptr;
 };
 
 struct TFileReaderOptions
@@ -279,11 +217,7 @@ struct TFileReaderOptions
 struct TFileWriterOptions
     : public TTransactionalOptions
 {
-    TFileWriterOptions()
-        : Append(true)
-    { }
-
-    bool Append;
+    bool Append = true;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -392,7 +326,6 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TFileWriterOptions& options = TFileWriterOptions(),
         TFileWriterConfigPtr config = TFileWriterConfigPtr()) = 0;
-
 
     // TODO(babenko): scheduler commands
 
