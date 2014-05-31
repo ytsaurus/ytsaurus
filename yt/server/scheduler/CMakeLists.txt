@@ -13,7 +13,6 @@ set( SRCS
   ${BASE}/map_controller.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/merge_controller.cpp
-  ${BASE}/null_strategy.cpp
   ${BASE}/operation.cpp
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
@@ -44,7 +43,6 @@ set( HDRS
   ${BASE}/map_controller.h
   ${BASE}/master_connector.h
   ${BASE}/merge_controller.h
-  ${BASE}/null_strategy.h
   ${BASE}/operation.h
   ${BASE}/operation_controller.h
   ${BASE}/operation_controller_detail.h

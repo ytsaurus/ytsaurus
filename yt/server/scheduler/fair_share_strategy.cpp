@@ -17,6 +17,8 @@
 #include <core/logging/log.h>
 #include <core/logging/tagged_logger.h>
 
+#include <iostream>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -91,6 +93,8 @@ struct ISchedulerElement
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
     virtual TSchedulableAttributes& Attributes() = 0;
+
+    virtual void LogInfo(IYsonConsumer* consumer) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -128,6 +132,20 @@ public:
     virtual void PrescheduleJob(bool /*starvingOnly*/) override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+    }
+
+    void ConsumeAttributes(IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginAttributes()
+            .Item("dominant_resource").Value(Attributes_.DominantResource)
+            .Item("demand_ratio").Value(Attributes_.DemandRatio)
+            .Item("fair_share_ratio").Value(Attributes_.FairShareRatio)
+            .Item("adjusted_min_share_ratio").Value(Attributes_.AdjustedMinShareRatio)
+            .Item("max_share_ratio").Value(Attributes_.MaxShareRatio)
+            .Item("satisfaction_ratio").Value(Attributes_.SatisfactionRatio)
+            .Item("active").Value(Attributes_.Active)
+            .EndAttributes();
     }
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
@@ -381,7 +399,7 @@ protected:
             childAttributes.MaxShareRatio = std::min(
                 GetMinResourceRatio(limits, totalLimits),
                 child->GetMaxShareRatio());
-            
+
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
@@ -465,7 +483,7 @@ protected:
                 const auto& childAttributes = child->Attributes();
                 double result = fitFactor * child->GetWeight() / minWeight;
                 // Never give less than promised by min share.
-                result = std::max(result, childAttributes.AdjustedMinShareRatio);               
+                result = std::max(result, childAttributes.AdjustedMinShareRatio);
                 // Never give more than demanded.
                 result = std::min(result, childAttributes.DemandRatio);
                 // Never give more than max share allows.
@@ -537,7 +555,7 @@ protected:
 
         return bestChild;
     }
-    
+
 
     void SetMode(ESchedulingMode mode)
     {
@@ -637,6 +655,17 @@ public:
         ComputeResourceLimits();
     }
 
+    virtual void LogInfo(IYsonConsumer* consumer) const override
+    {
+        consumer->OnKeyedItem(Id);
+        ConsumeAttributes(consumer);
+        consumer->OnBeginMap();
+        for (const auto& child : Children) {
+            child->LogInfo(consumer);
+        }
+        consumer->OnEndMap();
+    }
+
 
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
 
@@ -672,7 +701,7 @@ private:
             perTypeLimits.set_memory(*Config->ResourceLimits->Memory);
         }
 
-        ResourceLimits_ = Min(combinedLimits, perTypeLimits);        
+        ResourceLimits_ = Min(combinedLimits, perTypeLimits);
     }
 
 };
@@ -692,8 +721,8 @@ class TOperationElement
 public:
     explicit TOperationElement(
         TFairShareStrategyConfigPtr config,
-        TFairShareOperationSpecPtr spec,
-        TFairShareOperationRuntimeParamsPtr runtimeParams,
+        TStrategyOperationSpecPtr spec,
+        TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
         : TSchedulerElementBase(host)
@@ -816,10 +845,16 @@ public:
                : EOperationStatus::BelowFairShare;
     }
 
+    virtual void LogInfo(IYsonConsumer* consumer) const override
+    {
+        consumer->OnKeyedItem(ToString(Operation_->GetId()));
+        ConsumeAttributes(consumer);
+        consumer->OnEntity();
+    }
 
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationSpecPtr, Spec);
-    DEFINE_BYVAL_RO_PROPERTY(TFairShareOperationRuntimeParamsPtr, RuntimeParams);
+    DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
+    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
@@ -851,6 +886,15 @@ public:
         Attributes_.AdjustedMinShareRatio = 1.0;
     }
 
+    virtual void LogInfo(IYsonConsumer* consumer) const override
+    {
+        consumer->OnListItem();
+        consumer->OnBeginMap();
+        for (const auto& child : Children) {
+            child->LogInfo(consumer);
+        }
+        consumer->OnEndMap();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -871,10 +915,7 @@ public:
         Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
-
-        auto* masterConnector = Host->GetMasterConnector();
-        masterConnector->AddGlobalWatcherRequester(BIND(&TFairShareStrategy::RequestPools, this));
-        masterConnector->AddGlobalWatcherHandler(BIND(&TFairShareStrategy::HandlePools, this));
+        Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, this));
 
         RootElement = New<TRootElement>(Host);
     }
@@ -892,6 +933,12 @@ public:
                 RootElement->Update();
             }
             LastUpdateTime = now;
+        }
+
+        // Run periodic logging.
+        if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
+            RootElement->LogInfo(Host->GetEventLogConsumer());
+            LastLogTime = now;
         }
 
         // Update starvation flags for all operations.
@@ -993,6 +1040,7 @@ public:
         }
 
         RootElement->EndHeartbeat();
+
     }
 
 
@@ -1090,7 +1138,7 @@ private:
 
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
-
+    TNullable<TInstant> LastLogTime;
 
     bool IsJobPreemptable(TJobPtr job)
     {
@@ -1120,20 +1168,20 @@ private:
     }
 
 
-    TFairShareOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
+    TStrategyOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
     {
         try {
-            return ConvertTo<TFairShareOperationSpecPtr>(specNode);
+            return ConvertTo<TStrategyOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
                 ~ToString(operation->GetId()));
-            return New<TFairShareOperationSpec>();
+            return New<TStrategyOperationSpec>();
         }
     }
 
-    TFairShareOperationRuntimeParamsPtr BuildInitialRuntimeParams(TFairShareOperationSpecPtr spec)
+    TOperationRuntimeParamsPtr BuildInitialRuntimeParams(TStrategyOperationSpecPtr spec)
     {
-        auto params = New<TFairShareOperationRuntimeParams>();
+        auto params = New<TOperationRuntimeParams>();
         params->Weight = spec->Weight;
         return params;
     }
@@ -1163,12 +1211,8 @@ private:
         pool->AddChild(operationElement);
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
-        Host->GetMasterConnector()->AddOperationWatcherRequester(
-            operation,
-            BIND(&TFairShareStrategy::RequestOperationRuntimeParams, this, operation));
-        Host->GetMasterConnector()->AddOperationWatcherHandler(
-            operation,
-            BIND(&TFairShareStrategy::HandleOperationRuntimeParams, this, operation));
+        Host->SubscribeOperationRuntimeParamsUpdated(
+            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetId()),
@@ -1193,23 +1237,9 @@ private:
         }
     }
 
-
-    void RequestOperationRuntimeParams(
+    void OnOperationRuntimeParamsUpdated(
         TOperationPtr operation,
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
-    {
-        static auto runtimeParamsTemplate = New<TFairShareOperationRuntimeParams>();
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
-        TAttributeFilter attributeFilter(
-            EAttributeFilterMode::MatchingOnly,
-            runtimeParamsTemplate->GetRegisteredKeys());
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
-        batchReq->AddRequest(req, "get_runtime_params");
-    }
-
-    void HandleOperationRuntimeParams(
-        TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        INodePtr update)
     {
         auto element = FindOperationElement(operation);
         if (!element)
@@ -1218,22 +1248,13 @@ private:
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetId())));
 
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error updating operation runtime parameters");
-            return;
-        }
-
         try {
-            auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-            auto attributesNode = ConvertToNode(operationNode->Attributes());
-            if (!ReconfigureYsonSerializable(element->GetRuntimeParams(), attributesNode))
-                return;
+            if (ReconfigureYsonSerializable(element->GetRuntimeParams(), update)) {
+                LOG_INFO("Operation runtime parameters updated");
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing operation runtime parameters");
         }
-
-        LOG_INFO("Operation runtime parameters updated");
     }
 
 
@@ -1323,7 +1344,7 @@ private:
         GetPoolParentElement(pool)->RemoveChild(pool);
 
         pool->SetParent(~parent);
-        
+
         GetPoolParentElement(pool)->AddChild(pool);
         if (parent) {
             IncreasePoolUsage(parent, pool->ResourceUsage());
@@ -1463,6 +1484,84 @@ private:
         }
     }
 
+    void OnPoolsUpdated(INodePtr poolsNode)
+    {
+        try {
+            // Build the set of potential orphans.
+            yhash_set<Stroka> orphanPoolIds;
+            for (const auto& pair : Pools) {
+                YCHECK(orphanPoolIds.insert(pair.first).second);
+            }
+
+            // Track ids appearing in various branches of the tree.
+            yhash_map<Stroka, TYPath> poolIdToPath;
+
+            // NB: std::function is needed by parseConfig to capture itself.
+            std::function<void(INodePtr, TPoolPtr)> parseConfig =
+                [&] (INodePtr configNode, TPoolPtr parent) {
+                    auto configMap = configNode->AsMap();
+                    for (const auto& pair : configMap->GetChildren()) {
+                        const auto& childId = pair.first;
+                        const auto& childNode = pair.second;
+                        auto childPath = childNode->GetPath();
+                        if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
+                            LOG_ERROR("Pool %s is defined both at %s and %s; skipping second occurrence",
+                                ~childId.Quote(),
+                                ~poolIdToPath[childId],
+                                ~childPath);
+                            continue;
+                        }
+
+                        // Parse config.
+                        auto configNode = ConvertToNode(childNode->Attributes());
+                        TPoolConfigPtr config;
+                        try {
+                            config = ConvertTo<TPoolConfigPtr>(configNode);
+                        } catch (const std::exception& ex) {
+                            LOG_ERROR(ex, "Error parsing configuration of pool %s; using defaults",
+                                ~childPath.Quote());
+                            config = New<TPoolConfig>();
+                        }
+
+                        auto pool = FindPool(childId);
+                        if (pool) {
+                            // Reconfigure existing pool.
+                            pool->SetConfig(config);
+                            YCHECK(orphanPoolIds.erase(childId) == 1);
+                        } else {
+                            // Create new pool.
+                            pool = New<TPool>(Host, childId);
+                            pool->SetConfig(config);
+                            RegisterPool(pool);
+                        }
+                        SetPoolParent(pool, parent);
+
+                        // Parse children.
+                        parseConfig(childNode, ~pool);
+                    }
+                };
+
+            // Run recursive descent parsing.
+            parseConfig(poolsNode, nullptr);
+
+            // Unregister orphan pools.
+            for (const auto& id : orphanPoolIds) {
+                auto pool = GetPool(id);
+                if (pool->IsEmpty()) {
+                    UnregisterPool(pool);
+                } else {
+                    pool->SetDefaultConfig();
+                    SetPoolParent(pool, nullptr);
+                }
+            }
+
+            RootElement->Update();
+
+            LOG_INFO("Pools updated");
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error updating pools");
+        }
+    }
 
     void CheckForStarvation(TOperationElementPtr element)
     {
@@ -1551,13 +1650,13 @@ private:
         while (!nonpreemptableJobs.empty()) {
             if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
                 break;
-            
+
             auto job = nonpreemptableJobs.back();
             YCHECK(!job->GetPreemptable());
 
             nonpreemptableJobs.pop_back();
             nonpreemptableResourceUsage -= job->ResourceUsage();
-            
+
             preemptableJobs.push_front(job);
 
             job->SetPreemptable(true);

@@ -712,7 +712,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TFairShareOperationSpec
+class TStrategyOperationSpec
     : public NYTree::TYsonSerializable
 {
 public:
@@ -726,7 +726,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
-    TFairShareOperationSpec()
+    TStrategyOperationSpec()
     {
         RegisterParameter("pool", Pool)
             .Default()
@@ -753,13 +753,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TFairShareOperationRuntimeParams
+class TOperationRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
 
-    TFairShareOperationRuntimeParams()
+    TOperationRuntimeParams()
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)

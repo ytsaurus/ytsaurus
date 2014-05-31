@@ -110,11 +110,11 @@ typedef TIntrusivePtr<TPoolResourceLimitsConfig> TPoolResourceLimitsConfigPtr;
 class TPoolConfig;
 typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
 
-class TFairShareOperationSpec;
-typedef TIntrusivePtr<TFairShareOperationSpec> TFairShareOperationSpecPtr;
+class TStrategyOperationSpec;
+typedef TIntrusivePtr<TStrategyOperationSpec> TStrategyOperationSpecPtr;
 
-class TFairShareOperationRuntimeParams;
-typedef TIntrusivePtr<TFairShareOperationRuntimeParams> TFairShareOperationRuntimeParamsPtr;
+class TOperationRuntimeParams;
+typedef TIntrusivePtr<TOperationRuntimeParams> TOperationRuntimeParamsPtr;
 
 class TSchedulerConnectionConfig;
 typedef TIntrusivePtr<TSchedulerConnectionConfig> TSchedulerConnectionConfigPtr;

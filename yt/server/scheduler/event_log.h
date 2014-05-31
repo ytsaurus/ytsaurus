@@ -35,6 +35,14 @@ typedef TFluentLogEventImpl<NYTree::TFluentYsonVoid> TFluentLogEvent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IEventLogHost
+{
+    virtual ~IEventLogHost()
+    { }
+
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
+};
+
 class TFluentEventLogger
 {
 public:

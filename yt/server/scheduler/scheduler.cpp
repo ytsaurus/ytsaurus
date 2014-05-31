@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "null_strategy.h"
 #include "fair_share_strategy.h"
 #include "operation_controller.h"
 #include "map_controller.h"
@@ -129,6 +128,13 @@ public:
     void Initialize()
     {
         InitStrategy();
+        
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestPools,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TThis::HandlePools,
+            Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TThis::RequestConfig,
@@ -533,10 +539,13 @@ public:
     // ISchedulerStrategyHost implementation
     DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
+    DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
+    
+    DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -789,7 +798,63 @@ private:
             TError("Scheduler transaction has expired or was aborted"));
     }
 
+    
+    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating pools");
 
+        auto req = TYPathProxy::Get("//sys/pools");
+        static auto poolConfigTemplate = New<TPoolConfig>();
+        static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_pools");
+    }
+
+    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error getting pools configuration");
+            return;
+        }
+
+        try {
+            auto poolsNode = ConvertToNode(TYsonString(rsp->value()));
+            PoolsUpdated_.Fire(poolsNode);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing pools configuration");
+        }
+    }
+    
+    void RequestOperationRuntimeParams(
+        TOperationPtr operation,
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
+        TAttributeFilter attributeFilter(
+            EAttributeFilterMode::MatchingOnly,
+            runtimeParamsTemplate->GetRegisteredKeys());
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_runtime_params");
+    }
+
+    void HandleOperationRuntimeParams(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating operation runtime parameters");
+            return;
+        }
+
+        auto operationNode = ConvertToNode(TYsonString(rsp->value()));
+        auto attributesNode = ConvertToNode(operationNode->Attributes());
+        
+        OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
+    }
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -1064,6 +1129,13 @@ private:
         }
 
         OperationRegistered_.Fire(operation);
+        
+        GetMasterConnector()->AddOperationWatcherRequester(
+            operation,
+            BIND(&TThis::RequestOperationRuntimeParams, Unretained(this), operation));
+        GetMasterConnector()->AddOperationWatcherHandler(
+            operation,
+            BIND(&TThis::HandleOperationRuntimeParams, Unretained(this), operation));
 
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetId()));
@@ -1391,16 +1463,7 @@ private:
 
     void InitStrategy()
     {
-        switch (Config_->Strategy) {
-            case ESchedulerStrategy::Null:
-                Strategy_ = CreateNullStrategy(this);
-                break;
-            case ESchedulerStrategy::FairShare:
-                Strategy_ = CreateFairShareStrategy(Config_, this);
-                break;
-            default:
-                YUNREACHABLE();
-        }
+        Strategy_ = CreateFairShareStrategy(Config_, this);
     }
 
     IOperationControllerPtr CreateController(TOperation* operation)

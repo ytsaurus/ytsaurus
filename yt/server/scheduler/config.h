@@ -29,6 +29,7 @@ public:
     double FairShareStarvationTolerance;
 
     TDuration FairShareUpdatePeriod;
+    TDuration FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
@@ -44,6 +45,9 @@ public:
             .Default(0.8);
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+            .Default(TDuration::MilliSeconds(1000));
+        
+        RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
@@ -96,8 +100,6 @@ public:
 
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerScratch;
-
-    ESchedulerStrategy Strategy;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -233,9 +235,6 @@ public:
             .Default(10000)
             .GreaterThan(0)
             .LessThan(100000);
-
-        RegisterParameter("strategy", Strategy)
-            .Default(ESchedulerStrategy::Null);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(100)

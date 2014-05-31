@@ -329,7 +329,7 @@ public:
         typedef TAttributes<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAttributes(NYson::IYsonConsumer* consumer, TParent parent)
+        TAttributes(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, std::move(parent))
         { }
 
@@ -453,6 +453,7 @@ public:
 
 typedef TFluentYsonBuilder::TList<TFluentYsonVoid> TFluentList;
 typedef TFluentYsonBuilder::TMap<TFluentYsonVoid> TFluentMap;
+typedef TFluentYsonBuilder::TAttributes<TFluentYsonVoid> TFluentAttributes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,6 +470,11 @@ static inline TFluentList BuildYsonListFluently(NYson::IYsonConsumer* consumer)
 static inline TFluentMap BuildYsonMapFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
+}
+
+static inline TFluentAttributes BuildYsonAttributesFluently(NYson::IYsonConsumer* consumer)
+{
+    return TFluentAttributes(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
