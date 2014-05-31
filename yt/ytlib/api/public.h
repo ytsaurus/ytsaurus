@@ -37,10 +37,15 @@ DECLARE_REFCOUNTED_STRUCT(ITransaction)
 DECLARE_REFCOUNTED_STRUCT(IFileReader)
 DECLARE_REFCOUNTED_STRUCT(IFileWriter)
 
+DECLARE_REFCOUNTED_STRUCT(IJournalReader)
+DECLARE_REFCOUNTED_STRUCT(IJournalWriter)
+
 DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TFileReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TFileWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TJournalReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TJournalWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

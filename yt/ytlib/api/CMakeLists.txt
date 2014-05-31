@@ -9,6 +9,8 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
+  ${BASE}/journal_reader.cpp
+  ${BASE}/journal_writer.cpp
   ${BASE}/rowset.cpp
 )
 set( HDRS
@@ -19,6 +21,8 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
+  ${BASE}/journal_reader.h
+  ${BASE}/journal_writer.h
   ${BASE}/connection.h
   ${BASE}/rowset.h
 )

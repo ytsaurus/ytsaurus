@@ -220,6 +220,16 @@ struct TFileWriterOptions
     bool Append = true;
 };
 
+struct TJournalReaderOptions
+    : public TSuppressableAccessTrackingOptions
+{
+    TNullable<i64> FirstRecordId;
+    TNullable<i64> RecordCount;
+};
+
+struct TJournalWriterOptions
+{ };
+
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -327,6 +337,7 @@ struct IClientBase
         const TFileWriterOptions& options = TFileWriterOptions(),
         TFileWriterConfigPtr config = TFileWriterConfigPtr()) = 0;
 
+
     // TODO(babenko): scheduler commands
 
 };
@@ -395,6 +406,18 @@ struct IClient
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
+
+
+    // Journals
+    virtual IJournalReaderPtr CreateJournalReader(
+        const NYPath::TYPath& path,
+        const TJournalReaderOptions& options = TJournalReaderOptions(),
+        TJournalReaderConfigPtr config = TJournalReaderConfigPtr()) = 0;
+
+    virtual IJournalWriterPtr CreateJournalWriter(
+        const NYPath::TYPath& path,
+        const TJournalWriterOptions& options = TJournalWriterOptions(),
+        TJournalWriterConfigPtr config = TJournalWriterConfigPtr()) = 0;
 
 };
 

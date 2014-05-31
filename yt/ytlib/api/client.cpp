@@ -4,6 +4,8 @@
 #include "connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
+#include "journal_reader.h"
+#include "journal_writer.h"
 #include "rowset.h"
 #include "config.h"
 
@@ -327,6 +329,31 @@ public:
     }
 
 
+    virtual IJournalReaderPtr CreateJournalReader(
+        const TYPath& path,
+        const TJournalReaderOptions& options,
+        TJournalReaderConfigPtr config) override
+    {
+        return NApi::CreateJournalReader(
+            this,
+            path,
+            options,
+            config);
+    }
+
+    virtual IJournalWriterPtr CreateJournalWriter(
+        const TYPath& path,
+        const TJournalWriterOptions& options,
+        TJournalWriterConfigPtr config) override
+    {
+        return NApi::CreateJournalWriter(
+            this,
+            path,
+            options,
+            config);
+    }
+
+
     IMPLEMENT_METHOD(void, AddMember, (
         const Stroka& group,
         const Stroka& member,
@@ -343,6 +370,7 @@ public:
         EPermission permission,
         const TCheckPermissionOptions& options),
         (user, path, permission, options))
+
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
