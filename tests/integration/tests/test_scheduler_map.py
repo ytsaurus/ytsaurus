@@ -44,15 +44,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        count = 1000 * 1000;
+        count = 1000 * 1000
         original_data = [{'index': i} for i in xrange(count)]
-        write('//tmp/t1', original_data);
+        write('//tmp/t1', original_data)
 
         command = 'cat'
         map(in_='//tmp/t1', out='//tmp/t2', command=command)
 
         new_data = read('//tmp/t2', verbose=False)
-        assert new_data == original_data
+        assert sorted(row.items() for row in new_data) == [[('index', i)] for i in xrange(count)]
 
     def test_two_inputs_at_the_same_time(self):
         create('table', '//tmp/t_input')

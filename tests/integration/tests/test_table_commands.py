@@ -303,7 +303,10 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get_chunks() == []
+        for chunk in get_chunks():
+            nodes = get("#%s/@owning_nodes" % chunk)
+            for t in ["//tmp/t", "//tmp/t2"]:
+                assert t not in nodes
 
     def test_copy_to_the_same_table(self):
         create('table', '//tmp/t')
@@ -330,7 +333,10 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get_chunks() == []
+        for chunk in get_chunks():
+            nodes = get("#%s/@owning_nodes" % chunk)
+            for t in ["//tmp/t", "//tmp/t2"]:
+                assert t not in nodes
 
     def test_copy_not_sorted(self):
         create('table', '//tmp/t1')
