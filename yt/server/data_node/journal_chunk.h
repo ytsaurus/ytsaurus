@@ -33,10 +33,6 @@ public:
     NHydra::IChangelogPtr GetChangelog() const;
     void ReleaseChangelog();
 
-    static TNullable<TChunkDescriptor> TryGetDescriptor(
-        const TChunkId& id,
-        const Stroka& fileName);
-
 private:
     NHydra::IChangelogPtr Changelog_;
 

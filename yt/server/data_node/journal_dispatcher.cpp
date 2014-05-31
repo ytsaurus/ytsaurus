@@ -98,7 +98,7 @@ public:
         return Config_->Multiplexed != nullptr;
     }
 
-    IChangelogPtr OpenChangelog(IChunkPtr chunk);
+    IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
 
     TJournalChunkPtr CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location);
 
@@ -573,7 +573,7 @@ private:
             if (!chunk) {
                 return nullptr;
             }
-            auto changelog = Owner_->OpenChangelog(chunk);
+            auto changelog = Owner_->OpenChangelog(chunk->GetLocation(), chunkId);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
                 TSplitEntry(changelog))).first;
@@ -606,17 +606,13 @@ void TJournalDispatcher::TImpl::Initialize()
     LOG_INFO("Journal dispatcher started");
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(IChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, const TChunkId& chunkId)
 {
-    YCHECK(chunk->IsReadLockAcquired());
-
-    auto location = chunk->GetLocation();
     auto& Profiler = location->Profiler();
 
-    auto chunkId = chunk->GetId();
     TInsertCookie cookie(chunkId);
     if (BeginInsert(&cookie)) {
-        auto fileName = chunk->GetFileName();
+        auto fileName = location->GetChunkFileName(chunkId);
         LOG_DEBUG("Started opening journal chunk (LocationId: %s, ChunkId: %s)",
             ~location->GetId(),
             ~ToString(chunkId));
@@ -774,9 +770,9 @@ bool TJournalDispatcher::AcceptsChunks() const
     return Impl_->AcceptsChunks();
 }
 
-IChangelogPtr TJournalDispatcher::OpenChangelog(IChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::OpenChangelog(TLocationPtr location, const TChunkId& chunkId)
 {
-    return Impl_->OpenChangelog(chunk);
+    return Impl_->OpenChangelog(location, chunkId);
 }
 
 TJournalChunkPtr TJournalDispatcher::CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location)

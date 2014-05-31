@@ -25,10 +25,6 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-    static TNullable<TChunkDescriptor> TryGetDescriptor(
-        const TChunkId& id,
-        const Stroka& fileName);
-
 protected:
     TBlobChunk(
         NCellNode::TBootstrap* bootstrap,

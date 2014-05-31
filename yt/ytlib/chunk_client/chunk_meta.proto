@@ -58,6 +58,12 @@ message TMiscExt
     // Min/max timestamps for versioned table chunks.
     optional int64 min_timestamp = 10 [default = 0];
     optional int64 max_timestamp = 11 [default = 0];
+
+    // Number of records in a journal chunk.
+    optional int32 record_count = 12;
+
+    // Is the journal chunk sealed?
+    optional bool sealed = 13;
 }
 
 message TPartInfo
@@ -76,12 +82,6 @@ message TErasurePlacementExt
     required int32 parity_block_count = 3;
     required int64 parity_block_size = 4;
     required int64 parity_last_block_size = 5;
-}
-
-message TJournalExt
-{
-    required int32 record_count = 1;
-    required bool sealed = 2;
 }
 
 // TChunkMeta is stored in *.meta files on data nodes

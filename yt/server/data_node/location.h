@@ -148,6 +148,9 @@ private:
 
 
     std::vector<TChunkDescriptor> DoInitialize();
+    TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
+
     void OnHealthCheckFailed();
     void ScheduleDisable();
     void DoDisable();

@@ -7,6 +7,7 @@
 #include "config.h"
 #include "disk_health_checker.h"
 #include "master_connector.h"
+#include "journal_dispatcher.h"
 
 #include <core/misc/fs.h>
 
@@ -17,6 +18,9 @@
 #include <ytlib/election/public.h>
 
 #include <ytlib/object_client/helpers.h>
+
+#include <server/hydra/changelog.h>
+#include <server/hydra/private.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -34,7 +38,7 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = DataNodeLogger;
-static const int Permissions = 0751;
+static const int ChunkFilesPermissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,7 +262,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     LOG_INFO("Scanning storage location");
 
     // Others must not be able to list chunk store and chunk cache dirs.
-    NFS::ForcePath(path, Permissions);
+    NFS::ForcePath(path, ChunkFilesPermissions);
 
     if (Config_->MinDiskSpace) {
         i64 minSpace = Config_->MinDiskSpace.Get();
@@ -290,18 +294,16 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     std::vector<TChunkDescriptor> descriptors;
     for (const auto& chunkId : chunkIds) {
-        auto fileName = GetChunkFileName(chunkId);
-
         TNullable<TChunkDescriptor> maybeDescriptor;
         auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
         switch (chunkType) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                maybeDescriptor = TBlobChunk::TryGetDescriptor(chunkId, fileName);
+                maybeDescriptor = TryGetBlobDescriptor(chunkId);
                 break;
 
             case EObjectType::JournalChunk:
-                maybeDescriptor = TJournalChunk::TryGetDescriptor(chunkId, fileName);
+                maybeDescriptor = TryGetJournalDescriptor(chunkId);
                 break;
 
             default:
@@ -341,7 +343,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     // Force subdirectories.
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)), Permissions);
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)), ChunkFilesPermissions);
     }
 
     // Initialize and start health checker.
@@ -358,6 +360,70 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     HealthChecker_->Start();
 
     return descriptors;
+}
+
+TNullable<TChunkDescriptor> TLocation::TryGetBlobDescriptor(const TChunkId& chunkId)
+{
+    auto fileName = GetChunkFileName(chunkId);
+    auto dataFileName = fileName;
+    auto metaFileName = fileName + ChunkMetaSuffix;
+
+    bool hasData = NFS::Exists(dataFileName);
+    bool hasMeta = NFS::Exists(metaFileName);
+
+    if (hasMeta && hasData) {
+        i64 dataSize = NFS::GetFileSize(dataFileName);
+        i64 metaSize = NFS::GetFileSize(metaFileName);
+        if (metaSize == 0) {
+            // EXT4 specific thing.
+            // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
+            LOG_WARNING("Chunk meta file %s is empty",
+                ~metaFileName.Quote());
+            NFS::Remove(dataFileName);
+            NFS::Remove(metaFileName);
+            return Null;
+        }
+
+        TChunkDescriptor descriptor;
+        descriptor.Id = chunkId;
+        descriptor.Info.set_disk_space(dataSize + metaSize);
+        return descriptor;
+    }  if (!hasMeta && hasData) {
+        LOG_WARNING("Missing meta file, removing data file %s",
+            ~dataFileName.Quote());
+        NFS::Remove(dataFileName);
+        return Null;
+    } else if (!hasData && hasMeta) {
+        LOG_WARNING("Missing data file, removing meta file %s",
+            ~dataFileName.Quote());
+        NFS::Remove(metaFileName);
+        return Null;
+    } else {
+        // Has nothing :)
+        return Null;
+    }
+}
+
+TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& chunkId)
+{
+    auto fileName = GetChunkFileName(chunkId);
+    if (!NFS::Exists(fileName)) {
+        auto indexFileName = fileName + NHydra::IndexSuffix;
+        if (NFS::Exists(indexFileName)) {
+            LOG_WARNING("Missing data file, removing index file %s",
+                ~indexFileName.Quote());
+            NFS::Remove(indexFileName);
+        }
+        return Null;
+    }
+
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    auto changelog = dispatcher->OpenChangelog(this, chunkId);
+
+    TChunkDescriptor descriptor;
+    descriptor.Id = chunkId;
+    descriptor.Info.set_sealed(changelog->IsSealed());
+    return descriptor;
 }
 
 void TLocation::OnHealthCheckFailed()

@@ -13,7 +13,6 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/hydra/changelog.h>
-#include <server/hydra/private.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -60,10 +59,10 @@ IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
 {
     UpdateProperties();
 
-    TJournalExt journalExt;
-    journalExt.set_record_count(RecordCount_);
-    journalExt.set_sealed(Sealed_);
-    SetProtoExtension(Meta_->mutable_extensions(), journalExt);
+    TMiscExt miscExt;
+    miscExt.set_record_count(RecordCount_);
+    miscExt.set_sealed(Sealed_);
+    SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
 }
@@ -104,7 +103,7 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = dispatcher->OpenChangelog(this);
+        auto changelog = dispatcher->OpenChangelog(Location_, Id_);
     
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %s:%d-%d, LocationId: %s)",
             ~ToString(Id_),
@@ -192,25 +191,6 @@ void TJournalChunk::ReleaseChangelog()
 {
     UpdateProperties();
     Changelog_.Reset();
-}
-
-TNullable<TChunkDescriptor> TJournalChunk::TryGetDescriptor(
-    const TChunkId& id,
-    const Stroka& fileName)
-{
-    if (!NFS::Exists(fileName)) {
-        auto indexFileName = fileName + IndexSuffix;
-        if (NFS::Exists(indexFileName)) {
-            LOG_WARNING("Missing data file, removing index file %s",
-                ~indexFileName.Quote());
-            NFS::Remove(indexFileName);
-        }
-        return Null;
-    }
-
-    TChunkDescriptor descriptor;
-    descriptor.Id = id;
-    return descriptor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

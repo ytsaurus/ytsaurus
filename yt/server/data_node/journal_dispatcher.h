@@ -33,7 +33,7 @@ public:
      *  This call is thread-safe but may block if the changelog is not cached.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr OpenChangelog(IChunkPtr chunk);
+    NHydra::IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
 
     //! Creates a new journal chunk corresponding to a given journal session.
     /*!

@@ -8,6 +8,9 @@ message TChunkInfo
     // For erasure chunks this is the sum for all parts.
     // For journal chunks this is zero.
     required int64 disk_space = 1 [default = 0];
+
+    // For journal chunks only.
+    optional bool sealed = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
