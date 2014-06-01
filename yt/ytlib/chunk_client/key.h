@@ -35,8 +35,6 @@ DECLARE_ENUM(EKeyPartType,
     ((MaxSentinel)(100))
 );
 
-extern const size_t MaxKeySize;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TStrType>
@@ -153,8 +151,7 @@ public:
     }
 
     //! Converts the part into protobuf.
-    //! Trims string part length to #maxSize if it exceeds the limit.
-    NProto::TKeyPart ToProto(size_t maxSize = 0) const
+    NProto::TKeyPart ToProto() const
     {
         NProto::TKeyPart keyPart;
         keyPart.set_type(Type_);
@@ -338,9 +335,7 @@ public:
 
     void SetValue(int index, const TStringBuf& value)
     {
-        // Strip long values.
-        int trimmedLegnth = std::min(MaxKeySize - sizeof(EKeyPartType), value.size());
-        auto storedValue = Buffer.PutData(TStringBuf(value.begin(), trimmedLegnth));
+        auto storedValue = Buffer.PutData(TStringBuf(value.begin(), value.size()));
         Parts[index].SetValue(storedValue);
     }
 
@@ -363,7 +358,6 @@ public:
         Parts.clear();
         Parts.resize(columnCount);
         Buffer.Clear();
-        Buffer.Reserve(columnCount * MaxKeySize);
     }
 
     size_t GetSize() const
@@ -372,20 +366,14 @@ public:
         FOREACH (const auto& part, Parts) {
             result += part.GetSize();
         }
-        return std::min(result, static_cast<size_t>(MaxKeySize));
+        return result;
     }
 
     NProto::TKey ToProto() const
     {
         NProto::TKey key;
-        size_t currentSize = 0;
         FOREACH (const auto& part, Parts) {
-            if (currentSize < MaxKeySize) {
-                *key.add_parts() = part.ToProto(MaxKeySize - currentSize);
-                currentSize += part.GetSize();
-            } else {
-                *key.add_parts() = TKeyPart<typename TBuffer::TStoredType>::CreateSentinel(EKeyPartType::Null).ToProto();
-            }
+            *key.add_parts() = part.ToProto();
         }
         return key;
     }
