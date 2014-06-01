@@ -15,6 +15,10 @@ class TJournalNode
     : public NChunkServer::TChunkOwnerBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(int, ReadConcern);
+    DEFINE_BYVAL_RW_PROPERTY(int, WriteConcern);
+
+public:
     explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
 
 };

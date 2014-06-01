@@ -102,6 +102,11 @@ public:
         return std::move(node);
     }
 
+    virtual void ValidateCreated(TCypressNodeBase* node) override
+    {
+        DoValidateCreated(dynamic_cast<TImpl*>(node));
+    }
+
     virtual void SetDefaultAttributes(
         NYTree::IAttributeDictionary* /*attributes*/,
         NTransactionServer::TTransaction* /*transaction*/) override
@@ -190,6 +195,9 @@ protected:
     {
         return std::unique_ptr<TImpl>(new TImpl(id));
     }
+
+    virtual void DoValidateCreated(TImpl* /*node*/)
+    { }
 
     virtual void DoDestroy(TImpl* /*node*/)
     { }

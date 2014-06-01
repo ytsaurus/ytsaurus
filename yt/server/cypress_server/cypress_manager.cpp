@@ -178,6 +178,8 @@ public:
             }        
         }
 
+        handler->ValidateCreated(trunkNode);
+
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
