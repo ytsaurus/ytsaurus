@@ -45,9 +45,10 @@ inline TStringBuf ConvertToStringBuf(const Py::String& pyString)
 
 inline Stroka ConvertToStroka(const Py::String& pyString)
 {
-    return Stroka(
-        PyString_AsString(pyString.ptr()),
-        PyString_Size(pyString.ptr()));
+    char* stringData;
+    Py_ssize_t length;
+    PyString_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    return Stroka(stringData, length);
 }
 
 inline Py::String ConvertToPythonString(const Stroka& string)
