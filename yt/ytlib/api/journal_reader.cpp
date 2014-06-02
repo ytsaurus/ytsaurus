@@ -1,55 +1,36 @@
 #include "stdafx.h"
 #include "journal_reader.h"
-//#include "connection.h"
 #include "config.h"
-//#include "private.h"
-//
-//#include <core/concurrency/scheduler.h>
-//
-//#include <core/ytree/ypath_proxy.h>
-//
-//#include <core/logging/tagged_logger.h>
-//
-//#include <ytlib/object_client/object_service_proxy.h>
-//
-//#include <ytlib/cypress_client/rpc_helpers.h>
-//
-//#include <ytlib/transaction_client/transaction_manager.h>
-//#include <ytlib/transaction_client/transaction_listener.h>
-//#include <ytlib/transaction_client/helpers.h>
-//
-//#include <ytlib/chunk_client/chunk_replica.h>
-//#include <ytlib/chunk_client/chunk_spec.h>
-//#include <ytlib/chunk_client/read_limit.h>
-//#include <ytlib/chunk_client/chunk_meta_extensions.h>
-//#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
-//#include <ytlib/chunk_client/dispatcher.h>
-//
-//#include <ytlib/file_client/file_chunk_reader.h>
-//#include <ytlib/file_client/file_ypath_proxy.h>
-//
-//#include <ytlib/node_tracker_client/node_directory.h>
+#include "private.h"
+
+#include <core/logging/tagged_logger.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/cypress_client/rpc_helpers.h>
+
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
+
+#include <ytlib/journal_client/journal_ypath_proxy.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NApi {
     
-//using namespace NRpc;
-//using namespace NYTree;
-//using namespace NConcurrency;
+using namespace NConcurrency;
 using namespace NYPath;
-//using namespace NChunkClient;
-//using namespace NFileClient;
-//using namespace NTransactionClient;
-//using namespace NNodeTrackerClient;
-//using namespace NObjectClient;
-//using namespace NCypressClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NJournalClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
 class TJournalReader
-    : public TTransactionListener
-    , public IFileReader
+    : public IJournalReader
 {
 public:
     TJournalReader(
@@ -61,21 +42,13 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(config ? config : New<TJournalReaderConfig>())
-        , IsFirstBlock_(true)
-        , IsFinished_(false)
-        , Size_(0)
+        //, IsFirstBlock_(true)
+        //, IsFinished_(false)
+        //, Size_(0)
         , Logger(ApiLogger)
     {
-        if (Options_.TransactionId != NullTransactionId) {
-            auto transactionManager = Client_->GetTransactionManager();
-            TTransactionAttachOptions attachOptions(Options_.TransactionId);
-            attachOptions.AutoAbort = false;
-            Transaction_ = transactionManager->Attach(attachOptions);
-        }
-
-        Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-            ~Path_,
-            ~ToString(Options_.TransactionId)));
+        Logger.AddTag(Sprintf("Path: %s",
+            ~Path_));
     }
 
     virtual TAsyncError Open() override
@@ -86,17 +59,12 @@ public:
             .Run();
     }
 
-    virtual TFuture<TErrorOr<TSharedRef>> Read() override
+    virtual TFuture<TErrorOr<std::vector<TSharedRef>>> Read() override
     {
         return BIND(&TJournalReader::DoRead, MakeStrong(this))
             .Guarded()
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
-    }
-
-    virtual i64 GetSize() const override
-    {
-        return Size_;
     }
 
 private:
@@ -105,58 +73,56 @@ private:
     TJournalReaderOptions Options_;
     TJournalReaderConfigPtr Config_;
 
-    bool IsFirstBlock_;
-    bool IsFinished_;
+    //bool IsFirstBlock_;
+    //bool IsFinished_;
 
-    TTransactionPtr Transaction_;
+    //TTransactionPtr Transaction_;
 
-    typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
-    TIntrusivePtr<TReader> Reader_;
+    //typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
+    //TIntrusivePtr<TReader> Reader_;
 
-    i64 Size_;
+    //i64 Size_;
 
     NLog::TTaggedLogger Logger;
 
 
     void DoOpen()
     {
-        LOG_INFO("Opening file reader");
+        LOG_INFO("Opening journal reader");
 
-        LOG_INFO("Fetching file info");
+        LOG_INFO("Fetching journal info");
 
         TObjectServiceProxy proxy(Client_->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TYPathProxy::Get(Path_ + "/@type");
-            SetTransactionId(req, Transaction_);
-            batchReq->AddRequest(req, "get_type");
+            auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
+            batchReq->AddRequest(req, "get_attrs");
         }
 
         {
-            auto req = TFileYPathProxy::Fetch(Path_);
-            i64 offset = Options_.Offset.Get(0);
-            if (Options_.Offset) {
-                req->mutable_lower_limit()->set_offset(offset);
+            auto req = TJournalYPathProxy::Fetch(Path_);
+            i64 firstRecordIndex = Options_.FirstRecordIndex.Get(0);
+            if (Options_.FirstRecordIndex) {
+                req->mutable_lower_limit()->set_record_index(firstRecordIndex);
             }
-            if (Options_.Length) {
-                req->mutable_upper_limit()->set_offset(offset + *Options_.Length);
+            if (Options_.RecordCount) {
+                req->mutable_upper_limit()->set_offset(firstRecordIndex + *Options_.RecordCount);
             }
-            SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             batchReq->AddRequest(req, "fetch");
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching file info");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching journal info");
 
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
+            auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspGetBasicAttributes>("get_attrs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
 
-            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-            if (type != EObjectType::File) {
+            auto type = EObjectType(rsp->type());
+            if (type != EObjectType::Journal) {
                 THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
                     ~Path_,
                     ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
@@ -166,66 +132,62 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
         {
-            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching file chunks");
+            auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspFetch>("fetch");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching journal chunks");
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            for (const auto& chunk : chunks) {
-                i64 dataSize;
-                GetStatistics(chunk, &dataSize);
-                Size_ += dataSize;
-            }
+            //for (const auto& chunk : chunks) {
+            //    i64 dataSize;
+            //    GetStatistics(chunk, &dataSize);
+            //    Size_ += dataSize;
+            //}
 
-            auto provider = New<TFileChunkReaderProvider>(Config_);
-            Reader_ = New<TReader>(
-                Config_,
-                Client_->GetMasterChannel(),
-                Client_->GetConnection()->GetBlockCache(),
-                nodeDirectory,
-                std::move(chunks),
-                provider);
+            //auto provider = New<TFileChunkReaderProvider>(Config_);
+            //Reader_ = New<TReader>(
+            //    Config_,
+            //    Client_->GetMasterChannel(),
+            //    Client_->GetConnection()->GetBlockCache(),
+            //    nodeDirectory,
+            //    std::move(chunks),
+            //    provider);
         }
 
-        {
-            auto result = WaitFor(Reader_->AsyncOpen());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        //{
+        //    auto result = WaitFor(Reader_->AsyncOpen());
+        //    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        //}
 
-        if (Transaction_) {
-            ListenTransaction(Transaction_);
-        }
-
-        LOG_INFO("File reader opened");
+        LOG_INFO("Journal reader opened");
     }
 
-    TSharedRef DoRead()
+    std::vector<TSharedRef> DoRead()
     {
-        CheckAborted();
+        YUNIMPLEMENTED();
+        //CheckAborted();
 
-        if (IsFinished_) {
-            return TSharedRef();
-        }
-        
-        if (!IsFirstBlock_ && !Reader_->FetchNext()) {
-            auto result = WaitFor(Reader_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        //if (IsFinished_) {
+        //    return TSharedRef();
+        //}
+        //
+        //if (!IsFirstBlock_ && !Reader_->FetchNext()) {
+        //    auto result = WaitFor(Reader_->GetReadyEvent());
+        //    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        //}
 
-        IsFirstBlock_ = false;
+        //IsFirstBlock_ = false;
 
-        auto* facade = Reader_->GetFacade();
-        if (facade) {
-            return facade->GetBlock();
-        } else {
-            IsFinished_ = true;
-            return TSharedRef();
-        }
+        //auto* facade = Reader_->GetFacade();
+        //if (facade) {
+        //    return facade->GetBlock();
+        //} else {
+        //    IsFinished_ = true;
+        //    return TSharedRef();
+        //}
     }
 
 };
-*/
 
 IJournalReaderPtr CreateJournalReader(
     IClientPtr client,
@@ -233,7 +195,11 @@ IJournalReaderPtr CreateJournalReader(
     const TJournalReaderOptions& options,
     TJournalReaderConfigPtr config)
 {
-    YUNIMPLEMENTED();
+    return New<TJournalReader>(
+        client,
+        path,
+        options,
+        config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -223,7 +223,7 @@ struct TFileWriterOptions
 struct TJournalReaderOptions
     : public TSuppressableAccessTrackingOptions
 {
-    TNullable<i64> FirstRecordId;
+    TNullable<i64> FirstRecordIndex;
     TNullable<i64> RecordCount;
 };
 
