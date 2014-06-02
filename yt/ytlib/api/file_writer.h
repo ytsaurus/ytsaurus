@@ -16,7 +16,8 @@ namespace NApi {
 struct IFileWriter
     : public virtual TRefCounted
 {
-    //! Opens the writer. No other method can be called prior to the success of this one.
+    //! Opens the writer.
+    //! No other method can be called prior to the success of this one.
     virtual TAsyncError Open() = 0;
 
     //! Writes the next portion of file data.
@@ -25,7 +26,8 @@ struct IFileWriter
      */
     virtual TAsyncError Write(const TRef& data) = 0;
 
-    //! Closes the writer and commits the upload transaction.
+    //! Closes the writer.
+    //! No other method can be called after this one.
     virtual TAsyncError Close() = 0;
 };
 
