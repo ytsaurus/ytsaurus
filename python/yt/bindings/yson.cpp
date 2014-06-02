@@ -9,8 +9,6 @@
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
 
-#include <iostream>
-
 namespace NYT {
 namespace NPython {
 
