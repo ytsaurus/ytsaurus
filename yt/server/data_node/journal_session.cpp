@@ -135,7 +135,7 @@ TAsyncError TJournalSession::SendBlocks(
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TAsyncError TJournalSession::FlushBlock(int blockIndex)
+TAsyncError TJournalSession::FlushBlocks(int blockIndex)
 {
     auto changelog = Chunk_->GetChangelog();
     int recordCount = changelog->GetRecordCount();

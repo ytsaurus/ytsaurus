@@ -113,7 +113,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks)
             .SetEnableReorder(true));
@@ -219,21 +219,41 @@ private:
         }
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int startBlockIndex = request->start_block_index();
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = static_cast<int>(request->Attachments().size());
+        int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool enableCaching = request->enable_caching();
+        bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("ChunkId: %s, StartBlock: %d, BlockCount: %d, EnableCaching: %s",
+        context->SetRequestInfo("Blocks: %s:%d-%d, EnableCaching: %s, FlushBlocks: %s",
             ~ToString(chunkId),
-            startBlockIndex,
-            request->Attachments().size(),
-            ~FormatBool(enableCaching));
+            firstBlockIndex,
+            lastBlockIndex,
+            ~FormatBool(enableCaching),
+            ~FormatBool(flushBlocks));
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
-        session->PutBlocks(startBlockIndex, request->Attachments(), enableCaching)
-            .Subscribe(BIND([=] (TError error) {
-                context->Reply(error);
+
+        // Put blocks.
+        auto asyncResult = session->PutBlocks(
+            firstBlockIndex,
+            request->Attachments(),
+            enableCaching);
+        
+        // Flush blocks if needed.
+        if (flushBlocks) {
+            asyncResult = asyncResult.Apply(BIND([=] (TError error) -> TAsyncError {
+                if (!error.IsOK()) {
+                    return MakeFuture(error);
+                }
+                return session->FlushBlocks(lastBlockIndex);
             }));
+        }
+
+        asyncResult.Subscribe(BIND([=] (TError error) {
+            context->Reply(error);
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
@@ -241,19 +261,20 @@ private:
         UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int startBlockIndex = request->start_block_index();
+        int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
+        int lastBlockIndex = firstBlockIndex + blockCount - 1;
         auto target = FromProto<TNodeDescriptor>(request->target());
 
-        context->SetRequestInfo("ChunkId: %s, StartBlock: %d, BlockCount: %d, TargetAddress: %s",
+        context->SetRequestInfo("Blocks: %s:%d-%d, TargetAddress: %s",
             ~ToString(chunkId),
-            startBlockIndex,
+            firstBlockIndex,
             blockCount,
             ~target.GetDefaultAddress());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
-        session->SendBlocks(startBlockIndex, blockCount, target)
+        session->SendBlocks(firstBlockIndex, blockCount, target)
             .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     context->Reply();
@@ -267,21 +288,21 @@ private:
             }));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlock)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
         UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int blockIndex = request->block_index();
 
-        context->SetRequestInfo("ChunkId: %s, Block: %d",
+        context->SetRequestInfo("Block: %s:%d",
             ~ToString(chunkId),
             blockIndex);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
-        session->FlushBlock(blockIndex)
+        session->FlushBlocks(blockIndex)
             .Subscribe(BIND([=] (TError error) {
                 context->Reply(error);
             }));
@@ -346,7 +367,7 @@ private:
             int attachmentIndex = 0;
             for (const auto& range : request->block_ranges()) {
                 // Fetch the actual data (either from cache or from disk).
-                LOG_DEBUG("Fetching block range (BlockIds: %s:%d-%d)",
+                LOG_DEBUG("Fetching block range (Blocks: %s:%d-%d)",
                     ~ToString(chunkId),
                     range.first_block_index(),
                     range.first_block_index() + range.block_count() - 1);

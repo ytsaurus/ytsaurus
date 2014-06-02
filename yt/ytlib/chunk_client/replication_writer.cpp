@@ -92,7 +92,7 @@ private:
     std::vector<bool> IsSentTo_;
 
     std::vector<TSharedRef> Blocks_;
-    int StartBlockIndex_;
+    int FirstBlockIndex_;
 
     i64 Size_;
 
@@ -188,7 +188,7 @@ private:
 
     void OnWindowShifted(int blockIndex);
 
-    void FlushBlock(TNodePtr node, int blockIndex);
+    void FlushBlocks(TNodePtr node, int blockIndex);
 
     void StartChunk(TNodePtr node);
 
@@ -218,7 +218,7 @@ TGroup::TGroup(
     TReplicationWriter* writer)
     : IsFlushing_(false)
     , IsSentTo_(nodeCount, false)
-    , StartBlockIndex_(startBlockIndex)
+    , FirstBlockIndex_(startBlockIndex)
     , Size_(0)
     , Writer_(writer)
     , Logger(writer->Logger)
@@ -232,12 +232,12 @@ void TGroup::AddBlock(const TSharedRef& block)
 
 int TGroup::GetStartBlockIndex() const
 {
-    return StartBlockIndex_;
+    return FirstBlockIndex_;
 }
 
 int TGroup::GetEndBlockIndex() const
 {
-    return StartBlockIndex_ + Blocks_.size() - 1;
+    return FirstBlockIndex_ + Blocks_.size() - 1;
 }
 
 i64 TGroup::GetSize() const
@@ -274,7 +274,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 
     auto req = node->HeavyProxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
-    req->set_start_block_index(StartBlockIndex_);
+    req->set_first_block_index(FirstBlockIndex_);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
     req->set_enable_caching(writer->Config_->EnableNodeCaching);
 
@@ -287,7 +287,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     WaitFor(writer->Throttler_->Throttle(Size_));
 
     LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
-        StartBlockIndex_,
+        FirstBlockIndex_,
         GetEndBlockIndex(),
         ~node->Descriptor.GetDefaultAddress());
 
@@ -325,7 +325,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
             req->SetTimeout(writer->Config_->NodeRpcTimeout + writer->Config_->NodeRpcTimeout);
             ToProto(req->mutable_chunk_id(), writer->ChunkId_);
-            req->set_start_block_index(StartBlockIndex_);
+            req->set_first_block_index(FirstBlockIndex_);
             req->set_block_count(Blocks_.size());
             ToProto(req->mutable_target(), dstNode->Descriptor);
 
@@ -333,7 +333,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 
             if (rsp->IsOK()) {
                 LOG_DEBUG("Blocks are sent (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
-                    StartBlockIndex_,
+                    FirstBlockIndex_,
                     GetEndBlockIndex(),
                     ~srcNode->Descriptor.GetDefaultAddress(),
                     ~dstNode->Descriptor.GetDefaultAddress());
@@ -391,7 +391,7 @@ void TGroup::Process()
     YCHECK(writer->IsInitComplete_);
 
     LOG_DEBUG("Processing blocks (Blocks: %d-%d)",
-        StartBlockIndex_,
+        FirstBlockIndex_,
         GetEndBlockIndex());
 
     TNodePtr nodeWithBlocks;
@@ -519,7 +519,7 @@ void TReplicationWriter::ShiftWindow()
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes_) {
         awaiter->Await(
-            BIND(&TReplicationWriter::FlushBlock, MakeWeak(this), node,lastFlushableBlock)
+            BIND(&TReplicationWriter::FlushBlocks, MakeWeak(this), node,lastFlushableBlock)
                 .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                 .Run());
     }
@@ -527,7 +527,7 @@ void TReplicationWriter::ShiftWindow()
         BIND(&TReplicationWriter::OnWindowShifted, MakeWeak(this), lastFlushableBlock));
 }
 
-void TReplicationWriter::FlushBlock(TNodePtr node, int blockIndex)
+void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -538,7 +538,7 @@ void TReplicationWriter::FlushBlock(TNodePtr node, int blockIndex)
         blockIndex,
         ~node->Descriptor.GetDefaultAddress());
 
-    auto req = node->LightProxy.FlushBlock();
+    auto req = node->LightProxy.FlushBlocks();
     ToProto(req->mutable_chunk_id(), ChunkId_);
     req->set_block_index(blockIndex);
 

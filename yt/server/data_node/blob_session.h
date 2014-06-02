@@ -45,7 +45,7 @@ public:
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
-    virtual TAsyncError FlushBlock(int blockIndex) override;
+    virtual TAsyncError FlushBlocks(int blockIndex) override;
 
     virtual void Cancel(const TError& error) override;
 

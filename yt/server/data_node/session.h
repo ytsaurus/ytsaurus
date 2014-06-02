@@ -53,13 +53,8 @@ struct ISession
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
-    //! Flushes a block and moves the window
-    /*!
-     * The operation is asynchronous. It returns a result that gets set
-     * when the actual flush happens. Once a block is flushed, the next block becomes
-     * the first one in the window.
-     */
-    virtual TAsyncError FlushBlock(int blockIndex) = 0;
+    //! Flushes blocks up to a given one.
+    virtual TAsyncError FlushBlocks(int blockIndex) = 0;
 
     //! Renews the lease.
     virtual void Ping() = 0;

@@ -128,6 +128,10 @@ TAsyncError TBlobSession::PutBlocks(
 
     Ping();
 
+    if (blocks.empty()) {
+        return OKFuture;
+    }
+
     auto blockStore = Bootstrap_->GetBlockStore();
 
     int blockIndex = startBlockIndex;
@@ -182,7 +186,7 @@ TAsyncError TBlobSession::PutBlocks(
 }
 
 TAsyncError TBlobSession::SendBlocks(
-    int startBlockIndex,
+    int firstBlockIndex,
     int blockCount,
     const TNodeDescriptor& target)
 {
@@ -195,10 +199,10 @@ TAsyncError TBlobSession::SendBlocks(
 
     auto req = proxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_start_block_index(startBlockIndex);
+    req->set_first_block_index(firstBlockIndex);
 
     i64 requestSize = 0;
-    for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
+    for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
         auto block = GetBlock(blockIndex);
         req->Attachments().push_back(block);
         requestSize += block.Size();
@@ -299,7 +303,7 @@ void TBlobSession::OnBlockWritten(int blockIndex, TError error)
     sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
 }
 
-TAsyncError TBlobSession::FlushBlock(int blockIndex)
+TAsyncError TBlobSession::FlushBlocks(int blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
     VERIFY_THREAD_AFFINITY(ControlThread);

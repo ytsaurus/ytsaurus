@@ -106,7 +106,7 @@ void TJournalChunk::DoReadBlocks(
     try {
         auto changelog = dispatcher->OpenChangelog(Location_, Id_);
     
-        LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %s:%d-%d, LocationId: %s)",
+        LOG_DEBUG("Started reading journal chunk blocks (Blocks: %s:%d-%d, LocationId: %s)",
             ~ToString(Id_),
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -131,7 +131,7 @@ void TJournalChunk::DoReadBlocks(
             }
         }
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %s:%d-%d, LocationId: %s, ActuallyReadBlocks: %d, ActuallyReadBytes: %" PRId64 ")",
+        LOG_DEBUG("Finished reading journal chunk blocks (Blocks: %s:%d-%d, LocationId: %s, ActuallyReadBlocks: %d, ActuallyReadBytes: %" PRId64 ")",
             ~ToString(Id_),
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
