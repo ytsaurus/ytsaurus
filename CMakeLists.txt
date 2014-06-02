@@ -184,6 +184,7 @@ if(YT_BUILD_ENABLE_PYTHON)
 endif()
 
 add_custom_target( package touch package-stamp
+  COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian ${CMAKE_BINARY_DIR}/debian
   COMMAND mkdir -p ARTIFACTS
   COMMAND dch
     --distributor "yandex"
@@ -193,6 +194,7 @@ add_custom_target( package touch package-stamp
     --force-distribution
     "Package version bump\; no source changes."
   COMMAND debuild
+    -e SOURCE_DIR=${CMAKE_SOURCE_DIR}
     --no-tgz-check
     --no-lintian
     --check-dirname-level 0
@@ -247,13 +249,6 @@ add_custom_target(
 if(YT_USE_FOLDERS)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 endif()
-
-# XXX(sandello): Note that trailing slash is crucial.
-install(
-  DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/standalone/
-  DESTINATION /etc
-  COMPONENT standalone
-)
 
 # TODO(sandello): Move these properties closer to target definitions.
 set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
