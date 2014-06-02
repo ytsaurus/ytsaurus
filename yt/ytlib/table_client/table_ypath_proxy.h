@@ -16,7 +16,7 @@ struct TTableYPathProxy
 {
     static Stroka GetServiceName()
     {
-        return "TableNode";
+        return "Table";
     }
 
     DEFINE_YPATH_PROXY_METHOD(NProto, GetMountInfo);
