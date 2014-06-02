@@ -119,7 +119,6 @@ private:
 
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
-    TTableChunkReaderProviderPtr Provider;
     TTableChunkReaderFacade Facade;
 
     volatile bool IsFinished;
@@ -179,7 +178,6 @@ private:
 class TTableChunkReaderProvider
     : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowCount);
 
 public:
@@ -201,6 +199,8 @@ public:
 
     bool KeepInMemory() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
+
+    i64 GetRowIndex() const;
 
 private:
     friend class TTableChunkReader;
