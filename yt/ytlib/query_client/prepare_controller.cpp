@@ -182,17 +182,7 @@ void TPrepareController::CheckAndPruneReferences()
                         columns.begin(),
                         columns.end(),
                         [&liveColumns] (const TColumnSchema& columnSchema) -> bool {
-                            if (liveColumns.find(columnSchema.Name) != liveColumns.end()) {
-                                LOG_DEBUG(
-                                    "Keeping column %s in the table schema",
-                                    ~columnSchema.Name.Quote());
-                                return false;
-                            } else {
-                                LOG_DEBUG(
-                                    "Pruning column %s from the table schema",
-                                    ~columnSchema.Name.Quote());
-                                return true;
-                            }
+                            return liveColumns.find(columnSchema.Name) == liveColumns.end();
                         }),
                     columns.end());
 
