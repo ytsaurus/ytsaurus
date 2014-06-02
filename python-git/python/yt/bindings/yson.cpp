@@ -170,7 +170,7 @@ public:
         TStringOutput stringOutput(result);
 
         DumpImpl(args_, kwargs_, &stringOutput);
-        return Py::String(~result);
+        return Py::String(~result, result.Size());
     }
 
     virtual ~yson_module()
