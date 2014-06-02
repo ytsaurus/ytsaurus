@@ -127,9 +127,9 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TYPathProxy::Get(Path_ + "/@type");
+            auto req = TFileYPathProxy::GetBasicAttributes(Path_);
             SetTransactionId(req, Transaction_);
-            batchReq->AddRequest(req, "get_type");
+            batchReq->AddRequest(req, "get_basic_attrs");
         }
 
         {
@@ -151,10 +151,10 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching file info");
 
         {
-            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
+            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
 
-            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            auto type = EObjectType(rsp->type());
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
                     ~Path_,

@@ -75,7 +75,7 @@ protected:
     std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;
 
 
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetId);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 
 

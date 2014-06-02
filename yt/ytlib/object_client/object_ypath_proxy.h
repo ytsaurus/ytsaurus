@@ -17,7 +17,7 @@ struct TObjectYPathProxy
         return "Object";
     }
 
-    DEFINE_YPATH_PROXY_METHOD(NProto, GetId);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetBasicAttributes);
     DEFINE_YPATH_PROXY_METHOD(NProto, CheckPermission);
 };
 

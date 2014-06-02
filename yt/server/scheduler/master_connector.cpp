@@ -1073,7 +1073,7 @@ private:
 
         std::vector<TTransactionId> transactionIds;
         for (const auto& id : watchSet) {
-            auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
+            auto checkReq = TObjectYPathProxy::GetBasicAttributesFromObjectId(id));
             if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
                 transactionIds.push_back(id);
             } else {

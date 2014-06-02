@@ -204,13 +204,14 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
     return GetUserAttributes();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetId)
+DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
     DeclareNonMutating();
 
     context->SetRequestInfo("");
 
-    ToProto(response->mutable_object_id(), GetId());
+    ToProto(response->mutable_id(), GetId());
+    response->set_type(Object->GetType());
 
     context->Reply();
 }
@@ -551,7 +552,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Set);

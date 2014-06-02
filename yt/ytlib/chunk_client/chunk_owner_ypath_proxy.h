@@ -4,6 +4,8 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
+#include <ytlib/object_client/object_ypath_proxy.h>
+
 #include <core/ytree/ypath_proxy.h>
 
 namespace NYT {
@@ -18,7 +20,7 @@ DECLARE_ENUM(EUpdateMode,
 );
 
 struct TChunkOwnerYPathProxy
-    : public NYTree::TYPathProxy
+    : public NObjectClient::TObjectYPathProxy
 {
     static Stroka GetServiceName()
     {

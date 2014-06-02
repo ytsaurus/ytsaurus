@@ -68,10 +68,10 @@ void TAsyncTableReader::Open()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(path + "/@type");
+        auto req = TTableYPathProxy::GetBasicAttributes(path);
         SetTransactionId(req, TransactionId);
         SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
-        batchReq->AddRequest(req, "get_type");
+        batchReq->AddRequest(req, "get_basic_attrs");
     }
 
     {
@@ -88,10 +88,10 @@ void TAsyncTableReader::Open()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
 
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
+        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attr");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
 
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+        auto type = EObjectType(rsp->type());
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
                 ~RichPath.GetPath(),

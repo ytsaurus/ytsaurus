@@ -2415,7 +2415,7 @@ void TOperationControllerBase::GetInputObjectIds()
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : InputTables) {
-        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+        auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
@@ -2447,7 +2447,7 @@ void TOperationControllerBase::GetOutputObjectIds()
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : OutputTables) {
-        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+        auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
         SetTransactionId(req, Operation->GetOutputTransaction());
         batchReq->AddRequest(req, "get_out_id");
     }

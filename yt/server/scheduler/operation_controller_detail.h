@@ -614,7 +614,7 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
-    // Initialize transactions
+    // Initialize transactions.
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
     void StartIOTransactions();
