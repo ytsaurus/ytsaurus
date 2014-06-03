@@ -200,12 +200,12 @@ void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
 {
     chunkSpec->CopyFrom(*chunkSlice.ChunkSpec);
 
-    if (IsNontrivial(chunkSlice.StartLimit)) {
-        ToProto(chunkSpec->mutable_lower_limit(), chunkSlice.StartLimit);
+    if (IsNontrivial(chunkSlice.LowerLimit)) {
+        ToProto(chunkSpec->mutable_lower_limit(), chunkSlice.LowerLimit);
     }
 
-    if (IsNontrivial(chunkSlice.EndLimit)) {
-        ToProto(chunkSpec->mutable_upper_limit(), chunkSlice.EndLimit);
+    if (IsNontrivial(chunkSlice.UpperLimit)) {
+        ToProto(chunkSpec->mutable_upper_limit(), chunkSlice.UpperLimit);
     }
 
     SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt);
