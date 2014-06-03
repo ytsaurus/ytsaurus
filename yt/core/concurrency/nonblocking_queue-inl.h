@@ -1,7 +1,7 @@
-#ifndef NON_BLOCKING_QUEUE_INL_H_
-#error "Direct inclusion of this file is not allowed, include non_blocking_queue-inl.h"
+#ifndef NONBLOCKING_QUEUE_INL_H_
+#error "Direct inclusion of this file is not allowed, include nonblocking_queue-inl.h"
 #endif
-#undef NON_BLOCKING_QUEUE_INL_H_
+#undef NONBLOCKING_QUEUE_INL_H_
 
 namespace NYT {
 namespace NConcurrency {
@@ -9,7 +9,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class T>
-void TNonBlockingQueue<T>::Enqueue(T&& value)
+void TNonblockingQueue<T>::Enqueue(T&& value)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (PromiseQueue_.empty()) {
@@ -22,7 +22,7 @@ void TNonBlockingQueue<T>::Enqueue(T&& value)
 }
 
 template<class T>
-TFuture<T> TNonBlockingQueue<T>::Dequeue()
+TFuture<T> TNonblockingQueue<T>::Dequeue()
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (ValueQueue_.empty()) {

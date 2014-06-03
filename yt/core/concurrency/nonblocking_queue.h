@@ -12,7 +12,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TNonBlockingQueue
+class TNonblockingQueue
     : public TRefCounted
 {
 public:
@@ -32,6 +32,6 @@ private:
 } // namespace NConcurrency
 } // namespace NYT
 
-#define NON_BLOCKING_QUEUE_INL_H_
-#include "non_blocking_queue-inl.h"
-#undef NON_BLOCKING_QUEUE_INL_H_
+#define NONBLOCKING_QUEUE_INL_H_
+#include "nonblocking_queue-inl.h"
+#undef NONBLOCKING_QUEUE_INL_H_

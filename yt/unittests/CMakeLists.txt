@@ -28,7 +28,7 @@ set( SRCS
   #${BASE}/meta_state_map_ut.cpp
   ${BASE}/mpl_ut.cpp
   ${BASE}/network_address_ut.cpp
-  ${BASE}/non_blocking_queue_ut.cpp
+  ${BASE}/nonblocking_queue_ut.cpp
   ${BASE}/nullable_ut.cpp
   ${BASE}/pattern_formatter_ut.cpp
   ${BASE}/phoenix_ut.cpp
