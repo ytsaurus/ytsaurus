@@ -17,8 +17,6 @@
 #include <core/logging/log.h>
 #include <core/logging/tagged_logger.h>
 
-#include <iostream>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -138,13 +136,13 @@ public:
     {
         BuildYsonFluently(consumer)
             .BeginAttributes()
-            .Item("dominant_resource").Value(Attributes_.DominantResource)
-            .Item("demand_ratio").Value(Attributes_.DemandRatio)
-            .Item("fair_share_ratio").Value(Attributes_.FairShareRatio)
-            .Item("adjusted_min_share_ratio").Value(Attributes_.AdjustedMinShareRatio)
-            .Item("max_share_ratio").Value(Attributes_.MaxShareRatio)
-            .Item("satisfaction_ratio").Value(Attributes_.SatisfactionRatio)
-            .Item("active").Value(Attributes_.Active)
+                .Item("dominant_resource").Value(Attributes_.DominantResource)
+                .Item("demand_ratio").Value(Attributes_.DemandRatio)
+                .Item("fair_share_ratio").Value(Attributes_.FairShareRatio)
+                .Item("adjusted_min_share_ratio").Value(Attributes_.AdjustedMinShareRatio)
+                .Item("max_share_ratio").Value(Attributes_.MaxShareRatio)
+                .Item("satisfaction_ratio").Value(Attributes_.SatisfactionRatio)
+                .Item("active").Value(Attributes_.Active)
             .EndAttributes();
     }
 
@@ -1040,7 +1038,6 @@ public:
         }
 
         RootElement->EndHeartbeat();
-
     }
 
 
