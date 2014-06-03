@@ -22,7 +22,11 @@ struct IPartitionReader
     typedef std::back_insert_iterator<std::vector<TUnversionedValue>> TValueIterator;
     typedef std::back_insert_iterator<std::vector<const char*>> TRowPointerIterator;
 
-    virtual bool Read(TValueIterator& valueInserter, TRowPointerIterator& rowPointerInserter) = 0;
+    virtual bool Read(
+        i64 maxRowCount,
+        TValueIterator& valueInserter,
+        TRowPointerIterator& rowPointerInserter,
+        i64* rowCount) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPartitionReader)

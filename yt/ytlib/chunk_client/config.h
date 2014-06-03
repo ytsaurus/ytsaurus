@@ -341,6 +341,7 @@ class TMultiChunkReaderConfig
 public:
     i64 MaxBufferSize;
 
+
     TMultiChunkReaderConfig()
     {
         RegisterParameter("max_buffer_size", MaxBufferSize)
@@ -361,7 +362,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkReaderOptions
-    : public virtual TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     bool KeepInMemory;

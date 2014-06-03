@@ -9,7 +9,7 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <core/concurrency/non_blocking_queue.h>
+#include <core/concurrency/nonblocking_queue.h>
 #include <core/concurrency/public.h>
 
 #include <core/logging/tagged_logger.h>
@@ -175,7 +175,7 @@ public:
         const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
 private:
-    typedef NConcurrency::TNonBlockingQueue<TNullable<TSession>> TSessionQueue;
+    typedef NConcurrency::TNonblockingQueue<TNullable<TSession>> TSessionQueue;
     typedef TIntrusivePtr<TSessionQueue> TSessionQueuePtr;
 
 
