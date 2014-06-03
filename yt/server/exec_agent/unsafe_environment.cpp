@@ -44,6 +44,7 @@ public:
     IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
+        int slotId,
         const Stroka& workingDirectory) override;
 
 private:
@@ -63,11 +64,13 @@ public:
     TUnsafeProxyController(
         const Stroka& proxyPath,
         const TJobId& jobId,
+        int slotId,
         const Stroka& workingDirectory,
         TUnsafeEnvironmentBuilder* envBuilder)
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
+        , SlotId(slotId)
         , Logger(ExecAgentLogger)
         , ProcessId(-1)
         , EnvironmentBuilder(envBuilder)
@@ -91,6 +94,8 @@ public:
         arguments.push_back(ProxyConfigFileName);
         arguments.push_back("--job-id");
         arguments.push_back(ToString(JobId));
+        arguments.push_back("--slot");
+        arguments.push_back(ToString(SlotId));
         arguments.push_back("--working-dir");
         arguments.push_back(WorkingDirectory);
         arguments.push_back("--close-all-fds");
@@ -126,11 +131,11 @@ public:
     }
 
     // Safe to call multiple times
-    void Kill(int uid, const TError& error) throw()
+    void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) throw()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO(error, "Killing job in unsafe environment (UID: %d)", uid);
+        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %s)", ~group.GetFullPath().Quote());
 
         SetError(error);
 
@@ -153,12 +158,10 @@ public:
         // Wait until job proxy finishes.
         OnExit.Get();
 
-        if (uid > 0) {
-            try {
-                KillAll(BIND(GetPidsByUid, uid));
-            } catch (const std::exception& ex) {
-                LOG_FATAL(TError(ex));
-            }
+        try {
+            KillAll(BIND(&NCGroup::TNonOwningCGroup::GetTasks, &group));
+        } catch (const std::exception& ex) {
+            LOG_FATAL(TError(ex));
         }
 
         LOG_INFO("Job killed");
@@ -216,6 +219,7 @@ private:
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     const TJobId JobId;
+    const int SlotId;
 
     NLog::TTaggedLogger Logger;
 
@@ -293,13 +297,15 @@ private:
 IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
     NYTree::INodePtr config,
     const TJobId& jobId,
+    int slotId,
     const Stroka& workingDirectory)
 {
 #ifndef _win_
-    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, this);
+    return New<TUnsafeProxyController>(ProxyPath, jobId, slotId, workingDirectory, this);
 #else
     UNUSED(config);
     UNUSED(workingDirectory);
+    UNUSED(slotId);
     return New<TUnsafeProxyController>(jobId);
 #endif
 }

@@ -45,8 +45,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCGroup
+class TNonOwningCGroup
     : private TNonCopyable
+{
+public:
+    TNonOwningCGroup(const Stroka& type, const Stroka& name);
+
+    void AddCurrentProcess();
+
+    void Set(const Stroka& name, const Stroka& value) const;
+
+    std::vector<int> GetTasks() const;
+    const Stroka& GetFullPath() const;
+
+    void EnsureExistance();
+
+protected:
+    Stroka FullPath_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCGroup
+    : public TNonOwningCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
@@ -54,19 +75,12 @@ protected:
 public:
     ~TCGroup();
 
-    void AddCurrentProcess();
-
     void Create();
     void Destroy();
 
-    void Set(const Stroka& name, const Stroka& value) const;
-
-    std::vector<int> GetTasks() const;
-    const Stroka& GetFullPath() const;
     bool IsCreated() const;
 
 private:
-    Stroka FullPath_;
     bool Created_;
 };
 

@@ -2,6 +2,8 @@
 #include "slot.h"
 #include "private.h"
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/misc/proc.h>
 
 #include <core/ytree/yson_producer.h>
@@ -22,6 +24,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
     , SlotId(slotId)
     , UserId(userId)
     , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", slotId)))
+    , ProcessGroup("freezer", "slot" + ToString(SlotId))
     , Logger(ExecAgentLogger)
 {
     Logger.AddTag(Sprintf("SlotId: %d", SlotId));
@@ -29,15 +32,19 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
 
 void TSlot::Initialize()
 {
+    try {
+        ProcessGroup.EnsureExistance();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to create process group %s",
+            ~ProcessGroup.GetFullPath().Quote()) << ex;
+    }
+
 #ifdef _linux_
     try {
-        if (UserId > 0) {
-            // Kill all processes of this pseudo-user for sanity reasons.
-            KillAll(BIND(GetPidsByUid, UserId));
-        }
+        KillAll(BIND(&NCGroup::TNonOwningCGroup::GetTasks, &ProcessGroup));
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
-        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d)", UserId);
+        LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
     }
 #endif
 
@@ -64,6 +71,16 @@ bool TSlot::IsFree() const
 int TSlot::GetUserId() const
 {
     return UserId;
+}
+
+int TSlot::GetSlotId() const
+{
+    return SlotId;
+}
+
+const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
+{
+    return ProcessGroup;
 }
 
 void TSlot::DoClean()

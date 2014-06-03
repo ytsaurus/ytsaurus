@@ -128,8 +128,60 @@ void TEvent::Swap(TEvent& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
+{ }
+
+void TNonOwningCGroup::AddCurrentProcess()
+{
+#ifdef _linux_
+    auto pid = getpid();
+    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
+
+    auto path = NFS::CombinePaths(FullPath_, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
+#endif
+}
+
+void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
+{
+    auto path = NFS::CombinePaths(FullPath_, name);
+    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    output << value;
+}
+
+std::vector<int> TNonOwningCGroup::GetTasks() const
+{
+    std::vector<int> results;
+#ifdef _linux_
+    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
+    for (const auto& value : values) {
+        int pid = FromString<int>(value);
+        results.push_back(pid);
+    }
+#endif
+    return results;
+}
+
+const Stroka& TNonOwningCGroup::GetFullPath() const
+{
+    return FullPath_;
+}
+
+void TNonOwningCGroup::EnsureExistance()
+{
+    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
+
+#ifdef _linux_
+    NFS::ForcePath(FullPath_, 0755);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+    : TNonOwningCGroup(type, name)
     , Created_(false)
 { }
 
@@ -146,12 +198,8 @@ TCGroup::~TCGroup()
 
 void TCGroup::Create()
 {
-    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
-
-#ifdef _linux_
-    NFS::ForcePath(FullPath_, 0755);
+    EnsureExistance();
     Created_ = true;
-#endif
 }
 
 void TCGroup::Destroy()
@@ -166,43 +214,6 @@ void TCGroup::Destroy()
     }
     Created_ = false;
 #endif
-}
-
-void TCGroup::AddCurrentProcess()
-{
-#ifdef _linux_
-    auto pid = getpid();
-    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
-
-    auto path = NFS::CombinePaths(FullPath_, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
-#endif
-}
-
-void TCGroup::Set(const Stroka& name, const Stroka& value) const
-{
-    auto path = NFS::CombinePaths(FullPath_, name);
-    TFileOutput output(TFile(path, OpenMode::WrOnly));
-    output << value;
-}
-
-std::vector<int> TCGroup::GetTasks() const
-{
-    std::vector<int> results;
-#ifdef _linux_
-    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
-    for (const auto& value : values) {
-        int pid = FromString<int>(value);
-        results.push_back(pid);
-    }
-#endif
-    return results;
-}
-
-const Stroka& TCGroup::GetFullPath() const
-{
-    return FullPath_;
 }
 
 bool TCGroup::IsCreated() const

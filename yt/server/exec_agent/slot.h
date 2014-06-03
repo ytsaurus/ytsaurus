@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/formats/format.h>
@@ -24,8 +26,10 @@ public:
 
     void Initialize();
 
+    int GetSlotId() const;
     bool IsFree() const;
     int GetUserId() const;
+    const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
 
     void Acquire();
     void InitSandbox();
@@ -61,6 +65,8 @@ private:
     Stroka SandboxPath;
 
     NConcurrency::TActionQueuePtr SlotThread;
+
+    NCGroup::TNonOwningCGroup ProcessGroup;
 
     NLog::TTaggedLogger Logger;
 
