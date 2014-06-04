@@ -211,9 +211,17 @@ class YTEnv(object):
 
     def _run_ytserver(self, service_name, name):
         for i in xrange(len(self.configs[name])):
+            cgroup = '/sys/fs/cgroup/freezer/{service_name}/{index}'.format(
+                    service_name=service_name, index=i)
+            try:
+                os.makedirs(cgroup, mode=0775)
+            except OSError, ex:
+                if ex.errno != 17:
+                    raise
             self._run([
                 'ytserver', "--" + service_name,
-                '--config', self.config_paths[name][i]],
+                '--config', self.config_paths[name][i],
+                '--cgroup', cgroup],
                 name, i)
 
     def _kill_previously_run_services(self):
