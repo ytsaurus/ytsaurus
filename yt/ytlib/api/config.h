@@ -93,7 +93,31 @@ DEFINE_REFCOUNTED_TYPE(TJournalReaderConfig)
 
 class TJournalWriterConfig
     : public TYsonSerializable
-{ };
+{
+public:
+    TDuration MaxBatchDelay;
+    i64 MaxBatchDataSize;
+    int MaxBatchRecordCount;
+    bool PreferLocalHost;
+    TDuration NodeRpcTimeout;
+    TDuration NodePingPeriod;
+
+    TJournalWriterConfig()
+    {
+        RegisterParameter("max_batch_delay", MaxBatchDelay)
+            .Default(TDuration::MilliSeconds(10));
+        RegisterParameter("max_batch_data_size", MaxBatchDataSize)
+            .Default((i64) 16 * 1024 * 1024);
+        RegisterParameter("max_batch_record_count", MaxBatchRecordCount)
+            .Default(100000);
+        RegisterParameter("prefer_local_host", PreferLocalHost)
+            .Default(true);
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("node_ping_period", NodeRpcTimeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
 
 DEFINE_REFCOUNTED_TYPE(TJournalWriterConfig)
 
