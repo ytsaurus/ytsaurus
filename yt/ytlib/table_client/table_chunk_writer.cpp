@@ -469,10 +469,9 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
     YASSERT(State.IsClosed());
 
-    static const int masterMetaTagsArray[] = {
+    static const yhash_set<int> masterMetaTags({
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value };
-    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
+        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value });
 
     auto meta = Meta;
     FilterProtoExtensions(

@@ -124,10 +124,9 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     NChunkClient::NProto::TChunkMeta loadedChunkMeta;
     Load(context, loadedChunkMeta);
 
-    static const int correctMetaTagsArray[] = {
+    static const yhash_set<int> correctMetaTags({
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value };
-    static const yhash_set<int> correctMetaTags(correctMetaTagsArray, correctMetaTagsArray + 2);
+        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value });
 
     FilterProtoExtensions(
         ChunkMeta_.mutable_extensions(),
