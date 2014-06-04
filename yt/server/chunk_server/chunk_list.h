@@ -21,6 +21,7 @@ class TChunkList
     , public NObjectServer::TStagedObject
     , public TRefTracked<TChunkList>
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
     // Accumulated sums of children row counts.
