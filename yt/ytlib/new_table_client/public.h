@@ -115,6 +115,8 @@ struct  IBlockWriter;
 
 class TBlockWriter;
 
+class THorizontalSchemalessBlockReader;
+
 struct IPartitioner;
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
@@ -133,9 +135,8 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkReader)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 
-DECLARE_REFCOUNTED_STRUCT(IPartitionReader)
-DECLARE_REFCOUNTED_STRUCT(IPartitionChunkReader)
-DECLARE_REFCOUNTED_STRUCT(IPartitionMultiChunkReader)
+DECLARE_REFCOUNTED_STRUCT(TPartitionChunkReader)
+DECLARE_REFCOUNTED_STRUCT(TPartitionMultiChunkReader)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemalessTableReader)
 

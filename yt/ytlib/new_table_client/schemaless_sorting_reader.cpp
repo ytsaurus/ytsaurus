@@ -2,38 +2,21 @@
 
 #include "schemaless_sorting_reader.h"
 
+#include "config.h"
 #include "partition_chunk_reader.h"
 #include "private.h"
+#include "schemaless_block_reader.h"
 
 #include <core/profiling/profiler.h>
 
+#include <core/concurrency/action_queue.h>
 #include <core/concurrency/scheduler.h>
-
-/*
-#include "config.h"
-#include "private.h"
-#include "small_key.h"
 
 #include <core/misc/heap.h>
 #include <core/misc/varint.h>
 
-#include <core/concurrency/action_queue.h>
-
-#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
-
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/partition_chunk_reader.h>
-
-#include <ytlib/new_table_client/unversioned_row.h>
-
-#include <core/rpc/channel.h>
-
-#include <ytlib/chunk_client/block_cache.h>
-
-#include <core/yson/lexer.h>
-
 #include <util/system/yield.h>
-*/
+
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -42,11 +25,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
-/*
-using NVersionedTableClient::TKey;
-using NVersionedTableClient::EValueType;
-using NVersionedTableClient::MakeUnversionedSentinelValue;
-*/
+using NRpc::IChannelPtr;
+using NNodeTrackerClient::TNodeDirectoryPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +53,7 @@ public:
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
-        std::vector<TChunkSpec>&& chunks,
+        std::vector<TChunkSpec> chunks,
         int estimatedRowCount,
         bool isApproximate)
         : KeyColumns_(keyColumns)
@@ -83,7 +63,10 @@ public:
         , EstimatedRowCount_(estimatedRowCount)
         , TotalRowCount_(0)
         , ReadRowCount_(0)
-        , CurrentKey_(TKey::Allocate(&KeyMemoryPool, KeyColumnCount_))
+        , KeyBuffer_(this)
+        , RowPtrBuffer_(this)
+        , Buckets_(this)
+        , BucketStart_(this)
         , SortComparer_(this)
         , MergeComparer_(this)
     {
@@ -94,13 +77,14 @@ public:
 
         auto options = New<TMultiChunkReaderOptions>();
         options->KeepInMemory = true;
-        Reader_ = CreatePartitionParallelMultiChunkReader(
+
+        Reader_ = New<TPartitionMultiChunkReader>(
             config,
             options,
             masterChannel,
             blockCache,
             nodeDirectory,
-            chunks,
+            std::move(chunks),
             nameTable,
             KeyColumns_);
     }
@@ -122,63 +106,73 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
-        YUNIMPLEMENTED();
+        MemoryPool_.Clear();
+        rows->clear();
+
+        if (ReadRowCount_ == TotalRowCount_) {
+            SortQueue_->Shutdown();
+            return false;
+        }
+
+        i64 sortedRowCount = SortedRowCount_;
+        for (int spinCounter = 1; ; ++spinCounter) {
+            if (sortedRowCount > ReadRowCount_) {
+                break;
+            }
+            if (spinCounter % SpinsBetweenYield == 0) {
+                ThreadYield();
+            } else {
+                SpinLockPause();
+            }
+
+            sortedRowCount = AtomicGet(SortedRowCount_);
+        }
+
+        while (ReadRowCount_ < sortedRowCount) {
+            auto sortedIndex = SortedIndexes_[ReadRowCount_];
+            const char* rowPtr = RowPtrBuffer_[sortedIndex];
+            rows->push_back(THorizontalSchemalessBlockReader::GetRow(rowPtr, &MemoryPool_));
+
+            ++ReadRowCount_;
+        }
+
+        YCHECK(!rows->empty());
+        return true;
     }
 
     virtual TAsyncError GetReadyEvent() override
     {
-        return Reader_->GetReadyEvent();
-    }
-
-
-/*    virtual const TRow* GetRow() override
-    {
-        DoNextRow();
-        return IsValid_ ? &CurrentRow : nullptr;
-    }
-
-    virtual const TKey& GetKey() const override
-    {
-        return CurrentKey_;
-    }
-
-    virtual i64 GetSessionRowCount() const override
-    {
-        return TotalRowCount_;
-    }
-
-    virtual i64 GetTableRowIndex() const override
-    {
         YUNREACHABLE();
-    }
-
-    virtual i64 GetSessionRowIndex() const override
-    {
-        return ReadRowCount_;
-    }
-
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return Reader->GetProvider()->GetDataStatistics();
-    }
-
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
-    {
-        return Reader->GetFailedChunkIds();
     }
 
     virtual int GetTableIndex() const override
     {
-        // When reading from partition chunk no row attributes are preserved.
         return 0;
     }
-*/
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        YCHECK(Reader_);
+        return Reader_->IsFetchingCompleted();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        YCHECK(Reader_);
+        return Reader_->GetDataStatistics();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        YCHECK(Reader_);
+        return Reader_->GetFailedChunkIds();
+    }
 
 private:
     class TComparerBase
     {
     public:
-        explicit TComparerBase(TSortingReader* reader)
+        explicit TComparerBase(TSchemalessSortingReader* reader)
             : KeyColumnCount_(reader->KeyColumnCount_)
             , KeyBuffer_(reader->KeyBuffer_)
         { }
@@ -210,7 +204,7 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TSortComparer(TSortingReader* reader)
+        explicit TSortComparer(TSchemalessSortingReader* reader)
             : TComparerBase(reader)
         { }
 
@@ -225,7 +219,7 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TMergeComparer(TSortingReader* reader)
+        explicit TMergeComparer(TSchemalessSortingReader* reader)
             : TComparerBase(reader)
             , Buckets_(reader->Buckets_)
         { }
@@ -262,6 +256,10 @@ private:
             std::vector<T>::push_back(std::move(value));
         }
 
+        using std::vector<T>::capacity;
+        using std::vector<T>::reserve;
+        using std::vector<T>::size;
+
     private:
         TSchemalessSortingReader* Reader_;
 
@@ -280,8 +278,10 @@ private:
     int KeyColumnCount_;
     TClosure OnNetworkReleased_;
 
-    IPartitionMultiChunkReaderPtr Reader_;
+    TPartitionMultiChunkReaderPtr Reader_;
     TActionQueuePtr SortQueue_;
+
+    TChunkedMemoryPool MemoryPool_;
 
     bool IsApproximate_;
 
@@ -292,12 +292,13 @@ private:
     TAtomic SortedRowCount_;
     int ReadRowCount_;
 
-    std::vector<TUnversionedValue> KeyBuffer_;
-    std::vector<const char*> RowPtrBuffer_;
-    std::vector<i32> Buckets_;
-    std::vector<i32> SortedIndexes_;
-    std::vector<int> BucketStart_;
+    TSafeVector<TUnversionedValue> KeyBuffer_;
+    TSafeVector<const char*> RowPtrBuffer_;
+    TSafeVector<i32> Buckets_;
+    TSafeVector<int> BucketStart_;
+
     std::vector<int> BucketHeap_;
+    std::vector<i32> SortedIndexes_;
 
     TSortComparer SortComparer_;
     TMergeComparer MergeComparer_;
@@ -318,7 +319,6 @@ private:
             KeyBuffer_.reserve(EstimatedRowCount_ * KeyColumnCount_);
             RowPtrBuffer_.reserve(EstimatedRowCount_);
             Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
-            SortedIndexes_.reserve(EstimatedRowCount_);
         }
     }
 
@@ -333,22 +333,22 @@ private:
             int rowIndex = 0;
 
             auto flushBucket = [&] () {
-                SafePushBack(Buckets_, BucketEndSentinel);
-                SafePushBack(BucketStart_, Buckets_.size());
+                Buckets_.push_back(BucketEndSentinel);
+                BucketStart_.push_back(Buckets_.size());
+
                 InvokeSortBucket(bucketId);
                 ++bucketId;
                 bucketSize = 0;
             };
 
-            SafePushBack(BucketStart_, 0);
+            BucketStart_.push_back(0);
 
             while (true) {
                 i64 rowCount = 0;
                 auto keyInserter = std::back_inserter(KeyBuffer_);
                 auto rowPtrInserter = std::back_inserter(RowPtrBuffer_);
 
-                i64 maxRowCount = RowPtrBuffer_.size() - rowIndex - 1;
-                auto result = Reader_->Read(maxRowCount, keyInserter, rowPtrInserter, &rowCount);
+                auto result = Reader_->Read(keyInserter, rowPtrInserter, &rowCount);
                 if (!result)
                     break;
 
@@ -360,7 +360,7 @@ private:
 
                 // Push the row to the current bucket and flush the bucket if full.
                 for (i64 i = 0; i < rowCount; ++i) {
-                    SafePushBack(Buckets_, rowIndex);
+                    Buckets_.push_back(rowIndex);
                     ++rowIndex;
                     ++bucketSize;
                 }
@@ -369,7 +369,7 @@ private:
                     flushBucket();
                 }
 
-                if (!isNetworkReleased && Reader->GetIsFetchingComplete()) {
+                if (!isNetworkReleased && Reader_->IsFetchingCompleted()) {
                     OnNetworkReleased_.Run();
                     isNetworkReleased =  true;
                 }
@@ -413,6 +413,8 @@ private:
             SortQueueBarrier();
         }
         LOG_INFO("Sort thread is idle");
+
+        SortedIndexes_.reserve(TotalRowCount_);
 
         for (int index = 0; index < static_cast<int>(BucketStart_.size()) - 1; ++index) {
             BucketHeap_.push_back(BucketStart_[index]);
@@ -458,57 +460,6 @@ private:
         LOG_INFO("Finished merge");
     }
 
-    void DoNextRow()
-    {
-        // SortQueue_->Shutdown();
-
-        if (ReadRowCount_ == TotalRowCount_) {
-            SetInvalid();
-            return;
-        }
-
-        int currentIndex = ReadRowCount_;
-        for (int spinCounter = 1; ; ++spinCounter) {
-            auto sortedRowCount = spinCounter == 1 ? SortedRowCount_ : AtomicGet(SortedRowCount_);
-            if (sortedRowCount > currentIndex) {
-                break;
-            }
-            if (spinCounter % SpinsBetweenYield == 0) {
-                ThreadYield();
-            } else {
-                SpinLockPause();
-            }
-        }
-
-        auto sortedIndex = SortedIndexes_[currentIndex];
-
-        // Prepare key.
-        ClearKey();
-        for (int index = 0; index < KeyColumnCount_; ++index) {
-            const auto& keyPart = KeyBuffer_[sortedIndex * KeyColumnCount_ + index];
-            CurrentKey_[index] = MakeKeyPart(keyPart);
-        }
-
-        // Prepare row.
-        CurrentRow.clear();
-        RowInput.Reset(RowPtrBuffer_[sortedIndex], std::numeric_limits<size_t>::max());
-        while (true) {
-            auto value = TValue::Load(&RowInput);
-            if (value.IsNull()) {
-                break;
-            }
-            i32 columnNameLength;
-            ReadVarInt32(&RowInput, &columnNameLength);
-            YASSERT(columnNameLength > 0);
-            CurrentRow.push_back(std::make_pair(
-                TStringBuf(RowInput.Buf(), columnNameLength),
-                value.ToStringBuf()));
-            RowInput.Skip(columnNameLength);
-        }
-
-        ++ReadRowCount_;
-    }
-
     void SortQueueBarrier()
     {
         BIND([] () { }).AsyncVia(SortQueue_->GetInvoker()).Run().Get();
@@ -529,37 +480,29 @@ private:
             MakeWeak(this)));
     }
 
-    template <class TVector, class TItem>
-    void SafePushBack(TVector& vector, TItem item)
-    {
-        if (vector.size() == vector.capacity()) {
-            SortQueueBarrier();
-            vector.reserve(static_cast<size_t>(vector.size() * ReallocationFactor));
-        }
-        vector.push_back(item);
-    }
-
 };
 
-ISyncReaderPtr CreateSortingReader(
+ISchemalessMultiChunkReaderPtr CreateSortingReader(
     TTableReaderConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    IChannelPtr masterChannel,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
+    TNameTablePtr nameTable,
     TClosure onNetworkReleased,
-    std::vector<NChunkClient::NProto::TChunkSpec>&& chunks,
+    const std::vector<TChunkSpec>& chunks,
     int estimatedRowCount,
     bool isApproximate)
 {
-    return New<TSortingReader>(
+    return New<TSchemalessSortingReader>(
         config,
         masterChannel,
         blockCache,
         nodeDirectory,
         keyColumns,
+        nameTable,
         onNetworkReleased,
-        std::move(chunks),
+        chunks,
         estimatedRowCount,
         isApproximate);
 }

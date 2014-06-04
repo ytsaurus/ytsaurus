@@ -31,6 +31,8 @@ public:
 
     i64 GetRowIndex() const;
 
+    static TUnversionedRow GetRow(const char* rowPointer, TChunkedMemoryPool* memoryPool);
+
 private:
     TSharedRef Block_;
     NProto::TBlockMeta Meta_;
