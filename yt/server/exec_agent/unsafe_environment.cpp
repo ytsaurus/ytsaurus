@@ -3,6 +3,8 @@
 #include "environment.h"
 #include "private.h"
 
+#include <server/exec_agent/slot.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/proc.h>
@@ -44,7 +46,7 @@ public:
     IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        int slotId,
+        const TSlot& slot,
         const Stroka& workingDirectory) override;
 
 private:
@@ -64,13 +66,13 @@ public:
     TUnsafeProxyController(
         const Stroka& proxyPath,
         const TJobId& jobId,
-        int slotId,
+        const TSlot& slot,
         const Stroka& workingDirectory,
         TUnsafeEnvironmentBuilder* envBuilder)
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
-        , SlotId(slotId)
+        , Slot(slot)
         , Logger(ExecAgentLogger)
         , ProcessId(-1)
         , EnvironmentBuilder(envBuilder)
@@ -94,8 +96,8 @@ public:
         arguments.push_back(ProxyConfigFileName);
         arguments.push_back("--job-id");
         arguments.push_back(ToString(JobId));
-        arguments.push_back("--slot");
-        arguments.push_back(ToString(SlotId));
+        arguments.push_back("--cgroup");
+        arguments.push_back(Slot.GetProcessGroup().GetFullPath());
         arguments.push_back("--working-dir");
         arguments.push_back(WorkingDirectory);
         arguments.push_back("--close-all-fds");
@@ -219,7 +221,7 @@ private:
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     const TJobId JobId;
-    const int SlotId;
+    const TSlot& Slot;
 
     NLog::TTaggedLogger Logger;
 
@@ -297,11 +299,11 @@ private:
 IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
     NYTree::INodePtr config,
     const TJobId& jobId,
-    int slotId,
+    const TSlot& slot,
     const Stroka& workingDirectory)
 {
 #ifndef _win_
-    return New<TUnsafeProxyController>(ProxyPath, jobId, slotId, workingDirectory, this);
+    return New<TUnsafeProxyController>(ProxyPath, jobId, slot, workingDirectory, this);
 #else
     UNUSED(config);
     UNUSED(workingDirectory);

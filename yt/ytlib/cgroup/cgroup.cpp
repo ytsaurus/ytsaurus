@@ -128,20 +128,25 @@ void TEvent::Swap(TEvent& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AddCurrentProcessToCGroup(const Stroka& fullPath)
+{
+#ifdef _linux_
+    auto pid = getpid();
+    LOG_INFO("Adding process %d to cgroup %s", pid, ~fullPath.Quote());
+
+    auto path = NFS::CombinePaths(fullPath, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
+#endif
+}
+
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
 { }
 
 void TNonOwningCGroup::AddCurrentProcess()
 {
-#ifdef _linux_
-    auto pid = getpid();
-    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
-
-    auto path = NFS::CombinePaths(FullPath_, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
-#endif
+    AddCurrentProcessToCGroup(FullPath_);
 }
 
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const

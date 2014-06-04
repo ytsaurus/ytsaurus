@@ -395,7 +395,7 @@ private:
                 //jobSpec.operation_spec().environment(),
                 environmentType,
                 JobId,
-                Slot->GetSlotId(),
+                *Slot,
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(

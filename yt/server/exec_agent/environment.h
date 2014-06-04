@@ -50,7 +50,7 @@ struct IEnvironmentBuilder
     virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        int slotId,
+        const TSlot& slot,
         const Stroka& workingDirectory) = 0;
 };
 

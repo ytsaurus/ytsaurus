@@ -72,7 +72,7 @@ public:
         , JobProxy("", "job-proxy", "start job proxy")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
-        , SlotId("", "slot", "slot id (for job proxy mode)", false, "", "ID")
+        , CGroups("", "cgroup", "run in cgroup", false, "")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
@@ -83,7 +83,7 @@ public:
         CmdLine.add(JobProxy);
         CmdLine.add(CloseAllFds);
         CmdLine.add(JobId);
-        CmdLine.add(SlotId);
+        CmdLine.add(CGroups);
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
@@ -98,7 +98,7 @@ public:
     TCLAP::SwitchArg CloseAllFds;
 
     TCLAP::ValueArg<Stroka> JobId;
-    TCLAP::ValueArg<Stroka> SlotId;
+    TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
@@ -127,6 +127,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     Stroka configFileName = parser.Config.getValue();
 
     Stroka workingDirectory = parser.WorkingDirectory.getValue();
+
+    std::vector<Stroka> cgroups = parser.CGroups.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -179,6 +181,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NProfiling::TProfilingManager::Get()->Start();
+    }
+
+    for (const auto& path : cgroups) {
+        NCGroup::AddCurrentProcessToCGroup(path);
     }
 
     // Start an appropriate server.
@@ -272,17 +278,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error parsing job id")
                 << ex;
         }
-
-        int slotId;
-        try {
-            slotId = FromString<int>(parser.SlotId.getValue());
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error getting slot id")
-                << ex;
-        }
-
-        NCGroup::TNonOwningCGroup processGroup("freezer", "slot" + ToString(slotId));
-        processGroup.AddCurrentProcess();
 
         try {
             config->Load(configNode);
