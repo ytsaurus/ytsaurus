@@ -404,13 +404,10 @@ private:
 
         DeclareMutating();
 
-        auto chunkManager = Bootstrap->GetChunkManager();
-
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
         YCHECK(!replicas.empty());
 
-        context->SetRequestInfo("DiskSpace: %" PRId64 ", Targets: [%s]",
-            request->chunk_info().disk_space(),
+        context->SetRequestInfo("Targets: [%s]",
             ~JoinToString(replicas));
 
         auto* chunk = GetThisTypedImpl();
@@ -421,6 +418,7 @@ private:
             return;
         }
 
+        auto chunkManager = Bootstrap->GetChunkManager();
         chunkManager->ConfirmChunk(
             chunk,
             replicas,
