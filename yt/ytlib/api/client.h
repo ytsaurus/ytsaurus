@@ -140,6 +140,7 @@ struct TLookupRowsOptions
     NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp;
+    bool SkipMissingRows = true;
 };
 
 struct TSelectRowsOptions

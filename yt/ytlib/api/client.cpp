@@ -531,6 +531,17 @@ private:
             readers.push_back(std::move(reader));
         }
 
+        if (options.SkipMissingRows) {
+            resultRows.erase(
+                std::remove_if(
+                    resultRows.begin(),
+                    resultRows.end(),
+                    [] (TUnversionedRow row) {
+                        return !static_cast<bool>(row);
+                    }),
+                resultRows.end());
+        }
+
         return CreateRowset(
             std::move(readers),
             resultSchema,
