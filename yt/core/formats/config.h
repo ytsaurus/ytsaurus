@@ -92,7 +92,7 @@ public:
     bool EncodeUtf8;
     i64 MemoryLimit;
 
-    TNullable<int> StringScalarLengthLimit;
+    TNullable<int> StringLengthLimit;
 
     TJsonFormatConfig()
     {
@@ -102,7 +102,7 @@ public:
             .Default(EJsonAttributesMode::OnDemand);
         RegisterParameter("encode_utf8", EncodeUtf8)
             .Default(true);
-        RegisterParameter("string_length_limit", StringScalarLengthLimit)
+        RegisterParameter("string_length_limit", StringLengthLimit)
             .Default(Null);
 
 

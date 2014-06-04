@@ -16,6 +16,7 @@ set( DIRS
   job_tracker_client
   transaction_client
   monitoring
+  cgroup
 )
 
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )

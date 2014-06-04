@@ -163,6 +163,9 @@ public:
     //! Whether to call a |setrlimit| to limit user job VM size.
     bool EnableVMLimit;
 
+    //! Whether to enable user job accounting.
+    bool EnableAccounting;
+
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
@@ -303,6 +306,9 @@ public:
 
         RegisterParameter("enable_vm_limit", EnableVMLimit)
             .Default(true);
+
+        RegisterParameter("enable_accounting", EnableAccounting)
+            .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .Default(1);

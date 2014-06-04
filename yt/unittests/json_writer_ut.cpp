@@ -422,11 +422,11 @@ TEST(TJsonWriterTest, SpecialKeys)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestStringScalarLengthLimit)
+TEST(TJsonWriterTest, TestStringLengthLimit)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
-    config->StringScalarLengthLimit = 10;
+    config->StringLengthLimit = 2;
     auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
 
     writer->OnBeginMap();
@@ -434,7 +434,7 @@ TEST(TJsonWriterTest, TestStringScalarLengthLimit)
         writer->OnStringScalar(Stroka(10000, 'A'));
     writer->OnEndMap();
 
-    Stroka output = "{\"hello\":{\"$attributes\":{\"incomplete\":\"true\"},\"$value\":\"AAAAAAAAAA\"}}";
+    Stroka output = "{\"hello\":{\"$attributes\":{\"incomplete\":\"true\"},\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
