@@ -698,7 +698,6 @@ private:
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
-    TFluentEventLogger EventLogger_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -1877,14 +1876,6 @@ private:
     std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs);
-
-
-    TFluentLogEvent LogEventFluently(ELogEventType eventType)
-    {
-        return EventLogger_.LogEventFluently(GetEventLogConsumer())
-            .Item("timestamp").Value(Now())
-            .Item("event_type").Value(eventType);
-    }
 
 };
 

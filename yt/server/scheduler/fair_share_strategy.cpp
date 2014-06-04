@@ -91,8 +91,6 @@ struct ISchedulerElement
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
     virtual TSchedulableAttributes& Attributes() = 0;
-
-    virtual void LogInfo(IYsonConsumer* consumer) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -130,20 +128,6 @@ public:
     virtual void PrescheduleJob(bool /*starvingOnly*/) override
     {
         Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    }
-
-    void ConsumeAttributes(IYsonConsumer* consumer) const
-    {
-        BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("dominant_resource").Value(Attributes_.DominantResource)
-                .Item("demand_ratio").Value(Attributes_.DemandRatio)
-                .Item("fair_share_ratio").Value(Attributes_.FairShareRatio)
-                .Item("adjusted_min_share_ratio").Value(Attributes_.AdjustedMinShareRatio)
-                .Item("max_share_ratio").Value(Attributes_.MaxShareRatio)
-                .Item("satisfaction_ratio").Value(Attributes_.SatisfactionRatio)
-                .Item("active").Value(Attributes_.Active)
-            .EndAttributes();
     }
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
@@ -653,17 +637,6 @@ public:
         ComputeResourceLimits();
     }
 
-    virtual void LogInfo(IYsonConsumer* consumer) const override
-    {
-        consumer->OnKeyedItem(Id);
-        ConsumeAttributes(consumer);
-        consumer->OnBeginMap();
-        for (const auto& child : Children) {
-            child->LogInfo(consumer);
-        }
-        consumer->OnEndMap();
-    }
-
 
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Parent);
 
@@ -843,13 +816,6 @@ public:
                : EOperationStatus::BelowFairShare;
     }
 
-    virtual void LogInfo(IYsonConsumer* consumer) const override
-    {
-        consumer->OnKeyedItem(ToString(Operation_->GetId()));
-        ConsumeAttributes(consumer);
-        consumer->OnEntity();
-    }
-
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
@@ -882,16 +848,6 @@ public:
         SetMode(ESchedulingMode::FairShare);
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
-    }
-
-    virtual void LogInfo(IYsonConsumer* consumer) const override
-    {
-        consumer->OnListItem();
-        consumer->OnBeginMap();
-        for (const auto& child : Children) {
-            child->LogInfo(consumer);
-        }
-        consumer->OnEndMap();
     }
 };
 
@@ -935,7 +891,12 @@ public:
 
         // Run periodic logging.
         if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
-            RootElement->LogInfo(Host->GetEventLogConsumer());
+            // Log pools information
+            Host->LogEventFluently(ELogEventType::FairShareInfo)
+                .Do(BIND(&TFairShareStrategy::BuildOrchid, this))
+                .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
+                    BuildOperationProgress(pair.first, fluent);
+                });
             LastLogTime = now;
         }
 
@@ -1127,7 +1088,8 @@ private:
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    yhash_map<TOperationPtr, TOperationElementPtr> OperationToElement;
+    typedef yhash_map<TOperationPtr, TOperationElementPtr> TOperationMap;
+    TOperationMap OperationToElement;
 
     typedef std::list<TJobPtr> TJobList;
     TJobList JobList;

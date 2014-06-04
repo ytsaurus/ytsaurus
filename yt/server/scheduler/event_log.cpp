@@ -43,6 +43,15 @@ void TFluentEventLogger::Release()
 
 ////////////////////////////////////////////////////////////////////
 
+TFluentLogEvent IEventLogHost::LogEventFluently(ELogEventType eventType)
+{
+    return EventLogger_.LogEventFluently(GetEventLogConsumer())
+        .Item("timestamp").Value(Now())
+        .Item("event_type").Value(eventType);
+}
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
 

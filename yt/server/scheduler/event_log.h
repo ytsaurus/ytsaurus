@@ -24,6 +24,7 @@ DECLARE_ENUM(ELogEventType,
     (OperationCompleted)
     (OperationFailed)
     (OperationAborted)
+    (FairShareInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,14 +35,6 @@ class TFluentLogEventImpl;
 typedef TFluentLogEventImpl<NYTree::TFluentYsonVoid> TFluentLogEvent;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct IEventLogHost
-{
-    virtual ~IEventLogHost()
-    { }
-
-    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
-};
 
 class TFluentEventLogger
 {
@@ -132,7 +125,22 @@ private:
             this->Logger_ = nullptr;
         }
     }
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct IEventLogHost
+{
+public:
+    virtual ~IEventLogHost()
+    { }
+
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
+
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType);
+
+private:
+    TFluentEventLogger EventLogger_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
