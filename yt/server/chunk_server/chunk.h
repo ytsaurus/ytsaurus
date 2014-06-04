@@ -45,6 +45,7 @@ class TChunk
     , public NObjectServer::TStagedObject
     , public TRefTracked<TChunk>
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
 
@@ -66,7 +67,6 @@ class TChunk
 
 public:
     explicit TChunk(const TChunkId& id);
-    ~TChunk();
 
     TChunkTreeStatistics GetStatistics() const;
     NSecurityServer::TClusterResources GetResourceUsage() const;

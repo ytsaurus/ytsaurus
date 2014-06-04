@@ -64,9 +64,6 @@ TChunk::TChunk(const TChunkId& id)
     ChunkMeta_.mutable_extensions();
 }
 
-TChunk::~TChunk()
-{ }
-
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
     YASSERT(IsConfirmed());
