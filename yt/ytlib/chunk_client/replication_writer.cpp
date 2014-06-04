@@ -452,7 +452,7 @@ TReplicationWriter::TReplicationWriter(
         node->PingExecutor = New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
-            Config_->NodePingInterval);
+            Config_->NodePingPeriod);
         Nodes_.push_back(node);
     }
 }

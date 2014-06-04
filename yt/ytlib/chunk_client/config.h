@@ -163,7 +163,7 @@ public:
     /*!
      *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
      */
-    TDuration NodePingInterval;
+    TDuration NodePingPeriod;
 
     //! If True then written blocks are cached by the node.
     bool EnableNodeCaching;
@@ -183,7 +183,7 @@ public:
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThan(0);
-        RegisterParameter("node_ping_interval", NodePingInterval)
+        RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_node_caching", EnableNodeCaching)
             .Default(false);
