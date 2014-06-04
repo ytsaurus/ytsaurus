@@ -63,20 +63,20 @@ public:
         NObjectClient::EObjectType chunkType);
 
 private:
-    TChunkManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
+    typedef ymultimap<double, TNode*> TFactorToNode;
+    typedef yhash_map<TNode*, TFactorToNode::iterator> TNodeToFactorIt;
 
-    std::vector<TNode*> LoadRankToNode;
+    TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
 
-    typedef ymultimap<double, TNode*> TFillFactorToNode;
-    typedef yhash_map<TNode*, TFillFactorToNode::iterator> TNodeToFillFactorIt;
+    std::vector<TNode*> LoadRankToNode_;
 
     //! Enables traversing nodes by increasing fill factor, which is useful for finding balancing targets.
     //! Nodes with the number of replication write sessions exceeding the limits are omitted.
-    TFillFactorToNode FillFactorToNode;
+    TFactorToNode FillFactorToNode_;
 
-    //! Provides backpointers from nodes to positions in #FillFactorToNode.
-    TNodeToFillFactorIt NodeToFillFactorIt;
+    //! Provides backpointers from nodes to positions in #FillFactorToNode_.
+    TNodeToFactorIt NodeToFillFactorIt_;
 
 
     static int GetLoadFactor(TNode* node);
