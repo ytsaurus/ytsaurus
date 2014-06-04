@@ -16,7 +16,10 @@ class TNonblockingQueue
     : public TRefCounted
 {
 public:
-    void Enqueue(T&& value);
+    // This template is required to enable perfect forwarding.
+    template<class TArg>
+    void Enqueue(TArg&& value);
+
     TFuture<T> Dequeue();
 
 private:

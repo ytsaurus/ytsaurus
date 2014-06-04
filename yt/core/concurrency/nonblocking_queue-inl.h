@@ -8,16 +8,18 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-void TNonblockingQueue<T>::Enqueue(T&& value)
+template<class T> 
+template<class TArg>
+void TNonblockingQueue<T>::Enqueue(TArg&& value)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (PromiseQueue_.empty()) {
         ValueQueue_.push(std::forward<T>(value));
     } else {
         auto promise = PromiseQueue_.front();
-        promise.Set(std::forward<T>(value));
         PromiseQueue_.pop();
+        guard.Release();
+        promise.Set(std::forward<T>(value));
     }
 }
 
