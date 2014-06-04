@@ -21,6 +21,7 @@ struct TChunkYPathProxy
     }
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Confirm);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Seal);
     // NB: Works only for table chunks.
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NChunkClient::NProto, Fetch);
 };

@@ -99,7 +99,7 @@ public:
     NErasure::ECodec GetErasureCodec() const;
     void SetErasureCodec(NErasure::ECodec value);
 
-    //! Returns |true| iff erasure codec is not #EErasureCodec::Null.
+    //! Returns |true| iff this is an erasure chunk.
     bool IsErasure() const;
 
     //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
@@ -108,6 +108,15 @@ public:
      *  For erasure chunks this is equivalent to the existence of replicas for all data parts.
      */
     bool IsAvailable() const;
+
+    //! Returns |true| is this is a journal chunk.
+    bool IsJournal() const;
+
+    //! Returns |true| iff this is a sealed journal chunk.
+    bool IsSealed() const;
+
+    //! Marks the chunk as sealed, i.e. its ultimate record count.
+    void Seal(int recordCount);
 
     TChunkProperties GetChunkProperties() const;
 

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "chunk.h"
-#include "private.h"
 #include "chunk_tree_statistics.h"
 #include "chunk_list.h"
 
@@ -12,6 +11,8 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <core/erasure/codec.h>
 
 #include <server/cell_master/serialize.h>
@@ -21,13 +22,10 @@ namespace NChunkServer {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NSecurityServer;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto& Logger = ChunkServerLogger;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +66,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 {
     YASSERT(IsConfirmed());
 
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
@@ -253,7 +251,7 @@ void TChunk::SetErasureCodec(NErasure::ECodec value)
 
 bool TChunk::IsErasure() const
 {
-    return GetErasureCodec() != NErasure::ECodec::None;
+    return TypeFromId(Id) == EObjectType::ErasureChunk;
 }
 
 bool TChunk::IsAvailable() const
@@ -270,6 +268,32 @@ bool TChunk::IsAvailable() const
         }
         return !missingIndexSet.any();
     }
+}
+
+bool TChunk::IsJournal() const
+{
+    return TypeFromId(Id) == EObjectType::JournalChunk;
+}
+
+bool TChunk::IsSealed() const
+{
+    if (!IsConfirmed()) {
+        return false;
+    }
+
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    return miscExt.sealed();
+}
+
+void TChunk::Seal(int recordCount)
+{
+    YASSERT(IsConfirmed());
+
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    YASSERT(!miscExt.sealed());
+    miscExt.set_sealed(true);
+    miscExt.set_record_count(recordCount);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
 }
 
 TChunkProperties TChunk::GetChunkProperties() const

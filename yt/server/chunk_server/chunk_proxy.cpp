@@ -102,8 +102,8 @@ private:
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
-        attributes->push_back(TAttributeInfo("record_count", chunk->IsConfirmed() && miscExt->has_record_count()));
-        attributes->push_back(TAttributeInfo("sealed", chunk->IsConfirmed() && miscExt->has_sealed()));
+        attributes->push_back(TAttributeInfo("record_count", chunk->IsSealed()));
+        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -318,15 +318,15 @@ private:
                 return true;
             }
 
-            if (key == "record_count" && miscExt.has_record_count()) {
+            if (key == "record_count" && chunk->IsSealed()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.record_count());
                 return true;
             }
 
-            if (key == "sealed" && miscExt.has_sealed()) {
+            if (key == "sealed" && chunk->IsJournal()) {
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.sealed());
+                    .Value(chunk->IsSealed());
                 return true;
             }
         }
@@ -367,6 +367,7 @@ private:
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
     }
 
@@ -416,7 +417,6 @@ private:
 
         // Skip chunks that are already confirmed.
         if (chunk->IsConfirmed()) {
-            context->SetResponseInfo("Chunk is already confirmed");
             context->Reply();
             return;
         }
@@ -429,6 +429,32 @@ private:
 
         context->Reply();
     }
+
+
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Seal)
+    {
+        UNUSED(response);
+
+        DeclareMutating();
+
+        context->SetRequestInfo("RecordCount: %d",
+            request->record_count());
+
+        auto* chunk = GetThisTypedImpl();
+
+        if (chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
+        }
+
+        if (chunk->IsSealed()) {
+            THROW_ERROR_EXCEPTION("Chunk is already sealed");
+        }
+
+        chunk->Seal(request->record_count());
+        
+        context->Reply();
+    }
+
 };
 
 IObjectProxyPtr CreateChunkProxy(
