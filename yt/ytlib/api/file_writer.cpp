@@ -141,9 +141,8 @@ private:
         TObjectServiceProxy proxy(Client_->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
-        auto path = Path_;
         {
-            auto req = TCypressYPathProxy::Get(path);
+            auto req = TCypressYPathProxy::Get(Path_);
             SetTransactionId(req, UploadTransaction_);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("type");
@@ -156,7 +155,7 @@ private:
         }
 
         {
-            auto req = TFileYPathProxy::PrepareForUpdate(path);
+            auto req = TFileYPathProxy::PrepareForUpdate(Path_);
             req->set_mode(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite);
             NHydra::GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
