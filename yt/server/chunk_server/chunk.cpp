@@ -128,6 +128,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value });
 
+    ChunkMeta_ = loadedChunkMeta;
     FilterProtoExtensions(
         ChunkMeta_.mutable_extensions(),
         loadedChunkMeta.extensions(),
