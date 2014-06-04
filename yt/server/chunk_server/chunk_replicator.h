@@ -126,23 +126,24 @@ private:
         NProfiling::TCpuInstant When;
     };
 
-    TChunkManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
-    TChunkPlacementPtr ChunkPlacement;
+    TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
+    TChunkPlacementPtr ChunkPlacement_;
 
-    NProfiling::TCpuDuration ChunkRefreshDelay;
-    TNullable<bool> LastEnabled;
+    NProfiling::TCpuDuration ChunkRefreshDelay_;
+    TNullable<bool> LastEnabled_;
 
-    NConcurrency::TPeriodicExecutorPtr RefreshExecutor;
-    std::deque<TRefreshEntry> RefreshList;
+    NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    std::deque<TRefreshEntry> RefreshList_;
 
-    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor;
-    std::deque<TChunk*> PropertiesUpdateList;
+    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
+    std::deque<TChunk*> PropertiesUpdateList_;
 
-    yhash_map<TJobId, TJobPtr> JobMap;
-    yhash_map<TChunk*, TJobListPtr> JobListMap;
+    yhash_map<TJobId, TJobPtr> JobMap_;
+    yhash_map<TChunk*, TJobListPtr> JobListMap_;
 
-    TChunkRepairQueue RepairQueue;
+    TChunkRepairQueue RepairQueue_;
+
 
     void ProcessExistingJobs(
         TNode* node,
