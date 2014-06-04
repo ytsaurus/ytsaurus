@@ -248,15 +248,13 @@ public:
         TChunkManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
-        , Config(config)
-        , ChunkTreeBalancer(Bootstrap)
-        , TotalReplicaCount(0)
-        , NeedToRecomputeStatistics(false)
+        , Config_(config)
+        , ChunkTreeBalancer_(Bootstrap)
         , Profiler(ChunkServerProfiler)
-        , AddChunkCounter("/add_chunk_rate")
-        , RemoveChunkCounter("/remove_chunk_rate")
-        , AddChunkReplicaCounter("/add_chunk_replica_rate")
-        , RemoveChunkReplicaCounter("/remove_chunk_replica_rate")
+        , AddChunkCounter_("/add_chunk_rate")
+        , RemoveChunkCounter_("/remove_chunk_rate")
+        , AddChunkReplicaCounter_("/add_chunk_replica_rate")
+        , RemoveChunkReplicaCounter_("/remove_chunk_replica_rate")
     {
         RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
 
@@ -292,11 +290,11 @@ public:
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
-        ProfilingExecutor = New<TPeriodicExecutor>(
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap->GetMetaStateFacade()->GetInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
-        ProfilingExecutor->Start();
+        ProfilingExecutor_->Start();
     }
 
 
@@ -316,7 +314,7 @@ public:
         const TNullable<Stroka>& preferredHostName,
         EObjectType chunkType)
     {
-        return ChunkPlacement->AllocateWriteTargets(
+        return ChunkPlacement_->AllocateWriteTargets(
             replicaCount,
             nullptr,
             preferredHostName,
@@ -326,10 +324,10 @@ public:
 
     TChunk* CreateChunk(EObjectType type)
     {
-        Profiler.Increment(AddChunkCounter);
+        Profiler.Increment(AddChunkCounter_);
         auto id = Bootstrap->GetObjectManager()->GenerateId(type);
         auto* chunk = new TChunk(id);
-        ChunkMap.Insert(id, chunk);
+        ChunkMap_.Insert(id, chunk);
         return chunk;
     }
 
@@ -338,7 +336,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList);
         auto* chunkList = new TChunkList(id);
-        ChunkListMap.Insert(id, chunkList);
+        ChunkListMap_.Insert(id, chunkList);
         return chunkList;
     }
 
@@ -417,13 +415,13 @@ public:
 
     void RebalanceChunkTree(TChunkList* chunkList)
     {
-        if (!ChunkTreeBalancer.IsRebalanceNeeded(chunkList))
+        if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
             return;
 
         PROFILE_TIMING ("/chunk_tree_rebalance_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %s)",
                 ~ToString(chunkList->GetId()));
-            ChunkTreeBalancer.Rebalance(chunkList);
+            ChunkTreeBalancer_.Rebalance(chunkList);
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
         }
     }
@@ -486,8 +484,8 @@ public:
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
 
-        if (ChunkReplicator) {
-            ChunkReplicator->ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~ToString(id));
@@ -525,8 +523,8 @@ public:
         auto* chunk = chunkWithIndex.GetPtr();
         int index = chunkWithIndex.GetIndex();
 
-        if (ChunkReplicator) {
-            ChunkReplicator->TouchChunk(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->TouchChunk(chunk);
         }
 
         TNodePtrWithIndexList result;
@@ -562,12 +560,12 @@ public:
 
     TJobPtr FindJob(const TJobId& id)
     {
-        return ChunkReplicator->FindJob(id);
+        return ChunkReplicator_->FindJob(id);
     }
 
     TJobListPtr FindJobList(TChunk* chunk)
     {
-        return ChunkReplicator->FindJobList(chunk);
+        return ChunkReplicator_->FindJobList(chunk);
     }
 
 
@@ -578,7 +576,7 @@ public:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove)
     {
-        ChunkReplicator->ScheduleJobs(
+        ChunkReplicator_->ScheduleJobs(
             node,
             currentJobs,
             jobsToStart,
@@ -597,18 +595,18 @@ public:
 
     int GetTotalReplicaCount()
     {
-        return TotalReplicaCount;
+        return TotalReplicaCount_;
     }
 
     bool IsReplicatorEnabled()
     {
-        return ChunkReplicator->IsEnabled();
+        return ChunkReplicator_->IsEnabled();
     }
 
 
     void SchedulePropertiesUpdate(TChunkTree* chunkTree)
     {
-        ChunkReplicator->SchedulePropertiesUpdate(chunkTree);
+        ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
 
@@ -655,7 +653,7 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk)
     {
-        return ChunkReplicator->ComputeChunkStatus(chunk);
+        return ChunkReplicator_->ComputeChunkStatus(chunk);
     }
 
 
@@ -668,27 +666,27 @@ private:
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 
-    TChunkManagerConfigPtr Config;
+    TChunkManagerConfigPtr Config_;
 
-    TChunkTreeBalancer ChunkTreeBalancer;
+    TChunkTreeBalancer ChunkTreeBalancer_;
 
-    int TotalReplicaCount;
+    int TotalReplicaCount_ = 0;
 
-    bool NeedToRecomputeStatistics;
+    bool NeedToRecomputeStatistics_ = false;
 
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TRateCounter AddChunkCounter;
-    NProfiling::TRateCounter RemoveChunkCounter;
-    NProfiling::TRateCounter AddChunkReplicaCounter;
-    NProfiling::TRateCounter RemoveChunkReplicaCounter;
+    NProfiling::TRateCounter AddChunkCounter_;
+    NProfiling::TRateCounter RemoveChunkCounter_;
+    NProfiling::TRateCounter AddChunkReplicaCounter_;
+    NProfiling::TRateCounter RemoveChunkReplicaCounter_;
 
-    TChunkPlacementPtr ChunkPlacement;
-    TChunkReplicatorPtr ChunkReplicator;
+    TChunkPlacementPtr ChunkPlacement_;
+    TChunkReplicatorPtr ChunkReplicator_;
 
-    NHydra::TEntityMap<TChunkId, TChunk> ChunkMap;
-    NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap;
+    NHydra::TEntityMap<TChunkId, TChunk> ChunkMap_;
+    NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap_;
 
 
     void DestroyChunk(TChunk* chunk)
@@ -699,8 +697,8 @@ private:
         }
 
         // Cancel all jobs, reset status etc.
-        if (ChunkReplicator) {
-            ChunkReplicator->OnChunkDestroyed(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnChunkDestroyed(chunk);
         }
 
         // Unregister chunk replicas from all known locations.
@@ -708,8 +706,8 @@ private:
             auto* node = nodeWithIndex.GetPtr();
             TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
             node->RemoveReplica(chunkWithIndex, cached);
-            if (ChunkReplicator && !cached) {
-                ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex);
+            if (ChunkReplicator_ && !cached) {
+                ChunkReplicator_->ScheduleChunkRemoval(node, chunkWithIndex);
             }
         };
 
@@ -723,7 +721,7 @@ private:
             }
         }
 
-        Profiler.Increment(RemoveChunkCounter);
+        Profiler.Increment(RemoveChunkCounter_);
     }
 
     void DestroyChunkList(TChunkList* chunkList)
@@ -739,12 +737,12 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        if (ChunkPlacement) {
-            ChunkPlacement->OnNodeRegistered(node);
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeRegistered(node);
         }
 
-        if (ChunkReplicator) {
-            ChunkReplicator->OnNodeRegistered(node);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeRegistered(node);
         }
     }
 
@@ -758,12 +756,12 @@ private:
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeUnregistered);
         }
 
-        if (ChunkPlacement) {
-            ChunkPlacement->OnNodeUnregistered(node);
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeUnregistered(node);
         }
 
-        if (ChunkReplicator) {
-            ChunkReplicator->OnNodeUnregistered(node);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->OnNodeUnregistered(node);
         }
     }
 
@@ -779,8 +777,8 @@ private:
 
             node->SetDecommissioned(config->Decommissioned);
 
-            if (ChunkReplicator) {
-                ChunkReplicator->ScheduleNodeRefresh(node);
+            if (ChunkReplicator_) {
+                ChunkReplicator_->ScheduleNodeRefresh(node);
             }
         }
     }
@@ -794,8 +792,8 @@ private:
             ProcessAddedChunk(node, chunkInfo, false);
         }
 
-        if (ChunkPlacement) {
-            ChunkPlacement->OnNodeUpdated(node);
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeUpdated(node);
         }
     }
 
@@ -832,8 +830,8 @@ private:
             }
         }
 
-        if (ChunkPlacement) {
-            ChunkPlacement->OnNodeUpdated(node);
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeUpdated(node);
         }
     }
 
@@ -863,8 +861,8 @@ private:
                 chunk->SetVital(update.vital());
             }
 
-            if (ChunkReplicator && hasChanged) {
-                ChunkReplicator->ScheduleChunkRefresh(chunk);
+            if (ChunkReplicator_ && hasChanged) {
+                ChunkReplicator_->ScheduleChunkRefresh(chunk);
             }
         }
     }
@@ -872,21 +870,21 @@ private:
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
-        ChunkMap.SaveKeys(context);
-        ChunkListMap.SaveKeys(context);
+        ChunkMap_.SaveKeys(context);
+        ChunkListMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
-        ChunkMap.SaveValues(context);
-        ChunkListMap.SaveValues(context);
+        ChunkMap_.SaveValues(context);
+        ChunkListMap_.SaveValues(context);
     }
 
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        ChunkMap.LoadKeys(context);
-        ChunkListMap.LoadKeys(context);
+        ChunkMap_.LoadKeys(context);
+        ChunkListMap_.LoadKeys(context);
         // COMPAT(babenko)
         if (context.GetVersion() < 20) {
             size_t nodeCount = TSizeSerializer::Load(context);
@@ -911,32 +909,32 @@ private:
             // Skip NodeIdGenerator.
             context.GetInput()->Skip(8);
         }
-        ChunkMap.LoadValues(context);
-        ChunkListMap.LoadValues(context);
+        ChunkMap_.LoadValues(context);
+        ChunkListMap_.LoadValues(context);
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        TotalReplicaCount = 0;
+        TotalReplicaCount_ = 0;
         for (const auto* node : nodeTracker->Nodes().GetValues()) {
-            TotalReplicaCount += node->StoredReplicas().size();
-            TotalReplicaCount += node->CachedReplicas().size();
+            TotalReplicaCount_ += node->StoredReplicas().size();
+            TotalReplicaCount_ += node->CachedReplicas().size();
         }
     }
 
 
     virtual void Clear() override
     {
-        ChunkMap.Clear();
-        ChunkListMap.Clear();
-        TotalReplicaCount = 0;
+        ChunkMap_.Clear();
+        ChunkListMap_.Clear();
+        TotalReplicaCount_ = 0;
     }
 
     void ScheduleRecomputeStatistics()
     {
-        NeedToRecomputeStatistics = true;
+        NeedToRecomputeStatistics_ = true;
     }
 
     const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList, TAtomic visitMark)
@@ -1004,7 +1002,7 @@ private:
         auto mark = TChunkList::GenerateVisitMark();
 
         // Force all statistics to be recalculated.
-        for (auto& pair : ChunkListMap) {
+        for (auto& pair : ChunkListMap_) {
             auto* chunkList = pair.second;
             ComputeStatisticsFor(chunkList, mark);
         }
@@ -1017,10 +1015,10 @@ private:
     {
         Profiler.SetEnabled(false);
 
-        NeedToRecomputeStatistics = false;
+        NeedToRecomputeStatistics_ = false;
 
         // Reset runtime info.
-        for (const auto& pair : ChunkMap) {
+        for (const auto& pair : ChunkMap_) {
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
@@ -1028,7 +1026,7 @@ private:
             chunk->SetRepairQueueIterator(Null);
         }
 
-        for (const auto& pair : ChunkListMap) {
+        for (const auto& pair : ChunkListMap_) {
             auto* chunkList = pair.second;
             chunkList->ResetWeakRefCounter();
         }
@@ -1038,9 +1036,9 @@ private:
     {
         Profiler.SetEnabled(true);
 
-        if (NeedToRecomputeStatistics) {
+        if (NeedToRecomputeStatistics_) {
             RecomputeStatistics();
-            NeedToRecomputeStatistics = false;
+            NeedToRecomputeStatistics_ = false;
         }
     }
 
@@ -1048,24 +1046,24 @@ private:
     {
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            YCHECK(!ChunkPlacement);
-            ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
-            ChunkPlacement->Initialize();
+            YCHECK(!ChunkPlacement_);
+            ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap);
+            ChunkPlacement_->Initialize();
 
-            YCHECK(!ChunkReplicator);
-            ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement);
-            ChunkReplicator->Initialize();
+            YCHECK(!ChunkReplicator_);
+            ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap, ChunkPlacement_);
+            ChunkReplicator_->Initialize();
         }
         LOG_INFO("Full chunk refresh completed");
     }
 
     virtual void OnStopLeading() override
     {
-        ChunkPlacement.Reset();
+        ChunkPlacement_.Reset();
 
-        if (ChunkReplicator) {
-            ChunkReplicator->Finalize();
-            ChunkReplicator.Reset();
+        if (ChunkReplicator_) {
+            ChunkReplicator_->Finalize();
+            ChunkReplicator_.Reset();
         }
     }
 
@@ -1106,12 +1104,12 @@ private:
                 ~node->GetAddress());
         }
 
-        if (ChunkReplicator && !cached) {
-            ChunkReplicator->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
+        if (ChunkReplicator_ && !cached) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
-            Profiler.Increment(AddChunkReplicaCounter);
+            Profiler.Increment(AddChunkReplicaCounter_);
         }
     }
 
@@ -1168,11 +1166,11 @@ private:
                 ~node->GetAddress());
         }
 
-        if (ChunkReplicator && !cached) {
-            ChunkReplicator->ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_ && !cached) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
-        Profiler.Increment(RemoveChunkReplicaCounter);
+        Profiler.Increment(RemoveChunkReplicaCounter_);
     }
 
 
@@ -1200,8 +1198,8 @@ private:
                 ~ToString(chunkIdWithIndex),
                 ~FormatBool(cached));
 
-            if (ChunkReplicator) {
-                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
+            if (ChunkReplicator_) {
+                ChunkReplicator_->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
             }
 
             return;
@@ -1256,28 +1254,28 @@ private:
 
     void OnProfiling()
     {
-        if (ChunkReplicator) {
-            Profiler.Enqueue("/refresh_list_size", ChunkReplicator->GetRefreshListSize());
-            Profiler.Enqueue("/properties_update_list_size", ChunkReplicator->GetPropertiesUpdateListSize());
+        if (ChunkReplicator_) {
+            Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize());
+            Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize());
         }
     }
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap_)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, OverreplicatedChunks, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, OverreplicatedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap_)
     , Owner(owner)
 { }
 
@@ -1378,7 +1376,7 @@ void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkListMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkListMap_)
     , Owner(owner)
 { }
 
@@ -1425,7 +1423,7 @@ void TChunkManager::TChunkListTypeHandler::DoUnstage(
 TChunkManager::TChunkManager(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TChunkManager::~TChunkManager()
@@ -1433,27 +1431,27 @@ TChunkManager::~TChunkManager()
 
 void TChunkManager::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 TChunk* TChunkManager::GetChunkOrThrow(const TChunkId& id)
 {
-    return Impl->GetChunkOrThrow(id);
+    return Impl_->GetChunkOrThrow(id);
 }
 
 TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
 {
-    return Impl->FindChunkTree(id);
+    return Impl_->FindChunkTree(id);
 }
 
 TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
 {
-    return Impl->GetChunkTree(id);
+    return Impl_->GetChunkTree(id);
 }
 
 TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 {
-    return Impl->GetChunkTreeOrThrow(id);
+    return Impl_->GetChunkTreeOrThrow(id);
 }
 
 TNodeList TChunkManager::AllocateWriteTargets(
@@ -1461,23 +1459,23 @@ TNodeList TChunkManager::AllocateWriteTargets(
     const TNullable<Stroka>& preferredHostName,
     EObjectType chunkType)
 {
-    return Impl->AllocateWriteTargets(replicaCount, preferredHostName, chunkType);
+    return Impl_->AllocateWriteTargets(replicaCount, preferredHostName, chunkType);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
     const NProto::TReqUpdateChunkProperties& request)
 {
-    return Impl->CreateUpdateChunkPropertiesMutation(request);
+    return Impl_->CreateUpdateChunkPropertiesMutation(request);
 }
 
 TChunk* TChunkManager::CreateChunk(EObjectType type)
 {
-    return Impl->CreateChunk(type);
+    return Impl_->CreateChunk(type);
 }
 
 TChunkList* TChunkManager::CreateChunkList()
 {
-    return Impl->CreateChunkList();
+    return Impl_->CreateChunkList();
 }
 
 void TChunkManager::ConfirmChunk(
@@ -1486,7 +1484,7 @@ void TChunkManager::ConfirmChunk(
     NChunkClient::NProto::TChunkInfo* chunkInfo,
     NChunkClient::NProto::TChunkMeta* chunkMeta)
 {
-    Impl->ConfirmChunk(
+    Impl_->ConfirmChunk(
         chunk,
         replicas,
         chunkInfo,
@@ -1495,17 +1493,17 @@ void TChunkManager::ConfirmChunk(
 
 void TChunkManager::UnstageChunk(TChunk* chunk)
 {
-    Impl->UnstageChunk(chunk);
+    Impl_->UnstageChunk(chunk);
 }
 
 void TChunkManager::UnstageChunkList(TChunkList* chunkList, bool recursive)
 {
-    Impl->UnstageChunkList(chunkList, recursive);
+    Impl_->UnstageChunkList(chunkList, recursive);
 }
 
 TNodePtrWithIndexList TChunkManager::LocateChunk(TChunkPtrWithIndex chunkWithIndex)
 {
-    return Impl->LocateChunk(chunkWithIndex);
+    return Impl_->LocateChunk(chunkWithIndex);
 }
 
 void TChunkManager::AttachToChunkList(
@@ -1513,21 +1511,21 @@ void TChunkManager::AttachToChunkList(
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd)
 {
-    Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
+    Impl_->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 }
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
     const std::vector<TChunkTree*>& children)
 {
-    Impl->AttachToChunkList(chunkList, children);
+    Impl_->AttachToChunkList(chunkList, children);
 }
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree* child)
 {
-    Impl->AttachToChunkList(chunkList, child);
+    Impl_->AttachToChunkList(chunkList, child);
 }
 
 void TChunkManager::DetachFromChunkList(
@@ -1535,41 +1533,41 @@ void TChunkManager::DetachFromChunkList(
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd)
 {
-    Impl->DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
+    Impl_->DetachFromChunkList(chunkList, childrenBegin, childrenEnd);
 }
 
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
     const std::vector<TChunkTree*>& children)
 {
-    Impl->DetachFromChunkList(chunkList, children);
+    Impl_->DetachFromChunkList(chunkList, children);
 }
 
 void TChunkManager::DetachFromChunkList(
     TChunkList* chunkList,
     TChunkTree* child)
 {
-    Impl->DetachFromChunkList(chunkList, child);
+    Impl_->DetachFromChunkList(chunkList, child);
 }
 
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
 {
-    Impl->RebalanceChunkTree(chunkList);
+    Impl_->RebalanceChunkTree(chunkList);
 }
 
 void TChunkManager::ClearChunkList(TChunkList* chunkList)
 {
-    Impl->ClearChunkList(chunkList);
+    Impl_->ClearChunkList(chunkList);
 }
 
 TJobPtr TChunkManager::FindJob(const TJobId& id)
 {
-    return Impl->FindJob(id);
+    return Impl_->FindJob(id);
 }
 
 TJobListPtr TChunkManager::FindJobList(TChunk* chunk)
 {
-    return Impl->FindJobList(chunk);
+    return Impl_->FindJobList(chunk);
 }
 
 void TChunkManager::ScheduleJobs(
@@ -1579,7 +1577,7 @@ void TChunkManager::ScheduleJobs(
     std::vector<TJobPtr>* jobsToAbort,
     std::vector<TJobPtr>* jobsToRemove)
 {
-    Impl->ScheduleJobs(
+    Impl_->ScheduleJobs(
         node,
         currentJobs,
         jobsToStart,
@@ -1589,33 +1587,33 @@ void TChunkManager::ScheduleJobs(
 
 bool TChunkManager::IsReplicatorEnabled()
 {
-    return Impl->IsReplicatorEnabled();
+    return Impl_->IsReplicatorEnabled();
 }
 
 void TChunkManager::SchedulePropertiesUpdate(TChunkTree* chunkTree)
 {
-    Impl->SchedulePropertiesUpdate(chunkTree);
+    Impl_->SchedulePropertiesUpdate(chunkTree);
 }
 
 int TChunkManager::GetTotalReplicaCount()
 {
-    return Impl->GetTotalReplicaCount();
+    return Impl_->GetTotalReplicaCount();
 }
 
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 {
-    return Impl->ComputeChunkStatus(chunk);
+    return Impl_->ComputeChunkStatus(chunk);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl_)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChunks, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

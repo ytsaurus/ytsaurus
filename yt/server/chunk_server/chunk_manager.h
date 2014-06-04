@@ -127,7 +127,7 @@ private:
     class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;
 
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
