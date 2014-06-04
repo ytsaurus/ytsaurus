@@ -12,11 +12,14 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TNonBlockingQueue
+class TNonblockingQueue
     : public TRefCounted
 {
 public:
-    void Enqueue(T&& value);
+    // This template is required to enable perfect forwarding.
+    template<class TArg>
+    void Enqueue(TArg&& value);
+
     TFuture<T> Dequeue();
 
 private:
@@ -32,6 +35,6 @@ private:
 } // namespace NConcurrency
 } // namespace NYT
 
-#define NON_BLOCKING_QUEUE_INL_H_
-#include "non_blocking_queue-inl.h"
-#undef NON_BLOCKING_QUEUE_INL_H_
+#define NONBLOCKING_QUEUE_INL_H_
+#include "nonblocking_queue-inl.h"
+#undef NONBLOCKING_QUEUE_INL_H_

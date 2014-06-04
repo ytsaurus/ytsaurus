@@ -1,17 +1,17 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/non_blocking_queue.h>
+#include <core/concurrency/nonblocking_queue.h>
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TNonBlockingQueue<int> TIntQueue;
+typedef TNonblockingQueue<int> TIntQueue;
 
 
-TEST(TNonBlockingQueueTest, DequeueFirst)
+TEST(TNonblockingQueueTest, DequeueFirst)
 {
     auto queue = New<TIntQueue>();
     auto result1 = queue->Dequeue();
@@ -31,7 +31,7 @@ TEST(TNonBlockingQueueTest, DequeueFirst)
     EXPECT_EQ(2, result2.Get());
 }
 
-TEST(TNonBlockingQueueTest, EnqueueFirst)
+TEST(TNonblockingQueueTest, EnqueueFirst)
 {
     auto queue = New<TIntQueue>();
     queue->Enqueue(1);
@@ -46,7 +46,7 @@ TEST(TNonBlockingQueueTest, EnqueueFirst)
     EXPECT_EQ(2, result2.Get());
 }
 
-TEST(TNonBlockingQueueTest, Mixed)
+TEST(TNonblockingQueueTest, Mixed)
 {
     auto queue = New<TIntQueue>();
     queue->Enqueue(1);

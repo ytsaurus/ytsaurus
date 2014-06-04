@@ -162,6 +162,8 @@ public:
             .Run(body)
             .Get();
 
+        // TODO(sandello): Clean module here.
+
         CompiledBody_ = reinterpret_cast<TCodegenedFunction>(fp);
     }
 
@@ -229,9 +231,7 @@ private:
         LOG_INFO("LLVM has triggered a message: %s/%s: %s",
             DiagnosticSeverityToString(info.getSeverity()),
             DiagnosticKindToString((llvm::DiagnosticKind)info.getKind()),
-            what.c_str());
-
-        llvm::errs() << "!!! LLVM: " << what << "\n";
+            os.str().c_str());
     }
 
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
@@ -243,6 +243,14 @@ private:
                 return "DK_StackSize";
             case llvm::DK_DebugMetadataVersion:
                 return "DK_DebugMetadataVersion";
+            case llvm::DK_SampleProfile:
+                return "DK_SampleProfile";
+            case llvm::DK_OptimizationRemark:
+                return "DK_OptimizationRemark";
+            case llvm::DK_OptimizationRemarkMissed:
+                return "DK_OptimizationRemarkMissed";
+            case llvm::DK_OptimizationRemarkAnalysis:
+                return "DK_OptimizationRemarkAnalysis";
             case llvm::DK_FirstPluginKind:
                 return "DK_FirstPluginKind";
             default:
@@ -258,6 +266,8 @@ private:
                 return "DS_Error";
             case llvm::DS_Warning:
                 return "DS_Warning";
+            case llvm::DS_Remark:
+                return "DS_Remark";
             case llvm::DS_Note:
                 return "DS_Note";
             default:
