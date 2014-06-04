@@ -1,5 +1,6 @@
 #pragma once
 
+#include <util/generic/strbuf.h>
 #include <util/generic/stroka.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
@@ -34,11 +35,20 @@ inline Object GetAttr(const Object& obj, const std::string& fieldName) {
 
 namespace NYT {
 
+inline TStringBuf ConvertToStringBuf(const Py::String& pyString)
+{
+    char* stringData;
+    Py_ssize_t length;
+    PyString_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    return TStringBuf(stringData, length);
+}
+
 inline Stroka ConvertToStroka(const Py::String& pyString)
 {
-    return Stroka(
-        PyString_AsString(pyString.ptr()),
-        PyString_Size(pyString.ptr()));
+    char* stringData;
+    Py_ssize_t length;
+    PyString_AsStringAndSize(pyString.ptr(), &stringData, &length);
+    return Stroka(stringData, length);
 }
 
 inline Py::String ConvertToPythonString(const Stroka& string)
