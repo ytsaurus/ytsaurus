@@ -163,9 +163,16 @@ EChunkStatus TChunkReplicator::ComputeChunkStatus(TChunk* chunk)
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChunk* chunk)
 {
-    return chunk->IsErasure()
-        ? ComputeErasureChunkStatistics(chunk)
-        : ComputeRegularChunkStatistics(chunk);
+    switch (TypeFromId(chunk->GetId())) {
+        case EObjectType::Chunk:
+            return ComputeRegularChunkStatistics(chunk);
+        case EObjectType::ErasureChunk:
+            return ComputeErasureChunkStatistics(chunk);
+        case EObjectType::Journal:
+            return ComputeJournalChunkStatistics(chunk);
+        default:
+            YUNREACHABLE();
+    }
 }
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(TChunk* chunk)
@@ -274,6 +281,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     }
 
     return result;
+}
+
+TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatistics(TChunk* chunk)
+{
+    // TODO(babenko)
+    return TChunkStatistics();
 }
 
 void TChunkReplicator::ScheduleJobs(

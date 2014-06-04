@@ -188,6 +188,7 @@ private:
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeErasureChunkStatistics(TChunk* chunk);
+    TChunkStatistics ComputeJournalChunkStatistics(TChunk* chunk);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
