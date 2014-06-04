@@ -26,8 +26,7 @@ set( SRCS
   ${BASE}/schemaless_chunk_reader.cpp
   ${BASE}/schemaless_chunk_writer.cpp
   ${BASE}/schemaless_sorted_merging_reader.cpp
-  ${BASE}/unordered_schemaful_reader.cpp
-  ${BASE}/ordered_schemaful_reader.cpp
+  ${BASE}/schemaless_sorting_reader.cpp
   ${BASE}/table_producer.cpp
   ${BASE}/unversioned_row.cpp
   ${BASE}/versioned_block_reader.cpp

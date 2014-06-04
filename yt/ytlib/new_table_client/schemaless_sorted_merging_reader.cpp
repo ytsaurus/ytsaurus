@@ -42,8 +42,6 @@ public:
 
     virtual TAsyncError GetReadyEvent() override;
 
-    virtual i64 GetTableRowIndex() const override;
-
     virtual int GetTableIndex() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
@@ -206,11 +204,6 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
 TAsyncError TSchemalessSortedMergingReader::GetReadyEvent()
 {
     return ReadyEvent_;
-}
-
-i64 TSchemalessSortedMergingReader::GetTableRowIndex() const
-{
-    YUNREACHABLE();
 }
 
 int TSchemalessSortedMergingReader::GetTableIndex() const

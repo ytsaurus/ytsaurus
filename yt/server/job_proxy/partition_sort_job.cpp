@@ -26,7 +26,6 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
-using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NYTree;

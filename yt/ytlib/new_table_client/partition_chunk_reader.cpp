@@ -3,13 +3,11 @@
 #include "partition_chunk_reader.h"
 
 #include "chunk_meta_extensions.h"
-#include "chunk_reader_base.h"
+
 #include "name_table.h"
-#include "schemaless_block_reader.h"
 #include "schema.h"
 
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/multi_chunk_reader_base.h>
 
 // TKeyColumnsExt
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -29,53 +27,6 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 using NRpc::IChannelPtr;
 using NTableClient::NProto::TKeyColumnsExt;
 using NVersionedTableClient::TChunkReaderConfigPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPartitionChunkReader
-    : public IPartitionChunkReader
-    , public TChunkReaderBase
-{
-public:
-    TPartitionChunkReader(
-        TChunkReaderConfigPtr config,
-        IAsyncReaderPtr underlyingReader,
-        TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns,
-        const TChunkMeta& masterMeta,
-        int partitionTag);
-
-    virtual bool Read(
-        i64 maxRowCount,
-        TValueIterator& valueInserter,
-        TRowPointerIterator& rowPointerInserter,
-        i64* rowCount) override;
-
-private:
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
-
-    TChunkMeta ChunkMeta_;
-    TBlockMetaExt BlockMetaExt_;
-
-    int PartitionTag_;
-
-    std::vector<int> IdMapping_;
-
-    int CurrentBlockIndex_;
-    i64 CurrentRowIndex_;
-    std::vector<std::unique_ptr<THorizontalSchemalessBlockReader>> BlockReaders_;
-
-    THorizontalSchemalessBlockReader* BlockReader_;
-
-
-    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
-    virtual void InitFirstBlock() override;
-    virtual void InitNextBlock() override;
-
-    void InitNameTable(TNameTablePtr chunkNameTable);
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,53 +52,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     , BlockReader_(nullptr)
 {
     Logger.AddTag(Sprintf("PartitionChunkReader: %p", this));
-}
-
-bool TPartitionChunkReader::Read(
-    i64 maxRowCount,
-    TValueIterator& valueInserter,
-    TRowPointerIterator& rowPointerInserter,
-    i64* rowCount)
-{
-    YASSERT(maxRowCount > 0);
-
-    *rowCount = 0;
-
-    if (!ReadyEvent_.IsSet()) {
-        // Waiting for the next block.
-        return true;
-    }
-
-    if (!BlockReader_) {
-        // Nothing to read from chunk.
-        return false;
-    }
-
-    if (BlockEnded_) {
-        BlockReader_ = nullptr;
-        return OnBlockEnded();
-    }
-
-    while (true) {
-        ++CurrentRowIndex_;
-        ++(*rowCount);
-
-        auto& key = BlockReader_->GetKey();
-
-        std::copy(key.Begin(), key.End(), valueInserter);
-        rowPointerInserter = BlockReader_->GetRowPointer();
-
-        if (!BlockReader_->NextRow()) {
-            BlockEnded_ = true;
-            return true;
-        }
-
-        if (*rowCount == maxRowCount) {
-            return true;
-        }
-    }
-
-    return true;
 }
 
 std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
@@ -221,63 +125,6 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPartitionChunkReaderPtr CreatePartitionChunkReader(
-    TChunkReaderConfigPtr config,
-    IAsyncReaderPtr underlyingReader,
-    TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
-    const TChunkMeta& masterMeta,
-    int partitionTag)
-{
-    return New<TPartitionChunkReader>(
-        config,
-        underlyingReader,
-        nameTable,
-        keyColumns,
-        masterMeta,
-        partitionTag);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPartitionMultiChunkReader
-    : public IPartitionMultiChunkReader
-    , public TParallelMultiChunkReaderBase
-{
-public:
-    TPartitionMultiChunkReader(
-        TMultiChunkReaderConfigPtr config,
-        TMultiChunkReaderOptionsPtr options,
-        IChannelPtr masterChannel,
-        IBlockCachePtr blockCache,
-        TNodeDirectoryPtr nodeDirectory,
-        const std::vector<TChunkSpec>& chunkSpecs,
-        TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns);
-
-    virtual bool Read(
-        i64 maxRowCount,
-        TValueIterator &valueInserter,
-        TRowPointerIterator &rowPointerInserter,
-        i64* rowCount) override;
-
-private:
-    TNameTablePtr NameTable_;
-    TKeyColumns KeyColumns_;
-
-    IPartitionChunkReaderPtr CurrentReader_;
-
-
-    virtual IChunkReaderBasePtr CreateTemplateReader(
-        const TChunkSpec& chunkSpec,
-        IAsyncReaderPtr asyncReader) override;
-
-    virtual void OnReaderSwitched() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
@@ -298,29 +145,6 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     , KeyColumns_(keyColumns)
 { }
 
-bool TPartitionMultiChunkReader::Read(
-    i64 maxRowCount,
-    TValueIterator& valueInserter,
-    TRowPointerIterator& rowPointerInserter,
-    i64* rowCount)
-{
-    YCHECK(ReadyEvent_.IsSet());
-    YCHECK(ReadyEvent_.Get().IsOK());
-
-    *rowCount = 0;
-
-    // Nothing to read.
-    if (!CurrentReader_)
-        return false;
-
-    bool readerFinished = !CurrentReader_->Read(maxRowCount, valueInserter, rowPointerInserter, rowCount);
-    if (*rowCount == 0) {
-        return TParallelMultiChunkReaderBase::OnEmptyRead(readerFinished);
-    } else {
-        return true;
-    }
-}
-
 IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
     IAsyncReaderPtr asyncReader)
@@ -332,7 +156,7 @@ IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
 
     TChunkReaderConfigPtr config = Config_;
 
-    return CreatePartitionChunkReader(
+    return New<TPartitionChunkReader>(
         config,
         asyncReader,
         NameTable_,
@@ -343,33 +167,9 @@ IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
 
 void TPartitionMultiChunkReader::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<IPartitionChunkReader*>(CurrentSession_.ChunkReader.Get());
+    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.ChunkReader.Get());
     YCHECK(CurrentReader_);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-IPartitionMultiChunkReaderPtr CreatePartitionParallelMultiChunkReader(
-    TMultiChunkReaderConfigPtr config,
-    TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
-    IBlockCachePtr blockCache,
-    TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec>& chunkSpecs,
-    TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
-{
-    return CreatePartitionParallelMultiChunkReader(
-        config,
-        options,
-        masterChannel,
-        blockCache,
-        nodeDirectory,
-        chunkSpecs,
-        nameTable,
-        keyColumns);
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

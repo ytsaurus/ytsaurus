@@ -4,23 +4,29 @@
 
 #include "schemaless_chunk_reader.h"
 
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
+#include <core/rpc/public.h>
+
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-IMultiChunkSchemalessReaderPtr CreateSchemalessSortingReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NTableClient::TKeyColumns& keyColumns,
+    TNameTablePtr nameTable,
     TClosure onNetworkReleased,
-    std::vector<NChunkClient::NProto::TChunkSpec>&& chunks,
+    const std::vector<NChunkClient::NProto::TChunkSpec>& chunks,
     i64 estimatedRowCount,
     bool isApproximate);
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

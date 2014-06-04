@@ -6,12 +6,16 @@
 
 #include <core/logging/log.h>
 
+#include <core/profiling/profiler.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLog::TLogger TableClientLogger;
+
+extern NProfiling::TProfiler TableReaderProfiler;
 
 template <class TPredicate>
 int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)

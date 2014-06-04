@@ -126,6 +126,20 @@ bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
     return true;
 }
 
+TUnversionedRow THorizontalSchemalessBlockReader::GetRow(
+    const char *rowPointer,
+    TChunkedMemoryPool *memoryPool)
+{
+    ui32 valueCount;
+    rowPointer += ReadVarUInt32(rowPointer, &valueCount);
+
+    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, valueCount);
+    for (int i = 0; i < valueCount; ++i) {
+        rowPointer += ReadValue(rowPointer, row.Begin() + i);
+    }
+    return row;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

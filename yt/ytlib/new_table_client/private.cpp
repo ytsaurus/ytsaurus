@@ -20,6 +20,8 @@ using NChunkClient::TChannel;
 
 const NLog::TLogger TableClientLogger("TableReader");
 
+NProfiling::TProfiler TableReaderProfiler("/table_reader");
+
 ///////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns)

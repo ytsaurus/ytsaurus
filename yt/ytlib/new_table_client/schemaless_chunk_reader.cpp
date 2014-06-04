@@ -78,7 +78,7 @@ public:
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
-    virtual i64 GetTableRowIndex() const override;
+    i64 GetTableRowIndex() const;
 
 private:
     TNameTablePtr NameTable_;
@@ -117,6 +117,9 @@ private:
     std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceUnsorted(); 
 
 };
+
+DECLARE_REFCOUNTED_CLASS(TSchemalessChunkReader)
+DEFINE_REFCOUNTED_TYPE(TSchemalessChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,16 +397,16 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
-    virtual i64 GetTableRowIndex() const override;
-
     virtual int GetTableIndex() const override;
+
+    i64 GetTableRowIndex() const;
 
 private:
     TMultiChunkReaderConfigPtr Config_;
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
 
-    ISchemalessChunkReaderPtr CurrentReader_;
+    TSchemalessChunkReaderPtr CurrentReader_;
 
     using TBase::ReadyEvent_;
     using TBase::CurrentSession_;
@@ -461,7 +464,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
             ? FromProto<TChannel>(chunkSpec.channel())
             : TChannel::Universal();
 
-    return CreateSchemalessChunkReader(
+    return New<TSchemalessChunkReader>(
         Config_, 
         asyncReader, 
         NameTable_,
@@ -477,7 +480,7 @@ IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
 template <class TBase>
 void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
+    CurrentReader_ = dynamic_cast<TSchemalessChunkReader*>(CurrentSession_.ChunkReader.Get());
     YCHECK(CurrentReader_);
 }
 
@@ -562,6 +565,9 @@ public:
 
 
 private:
+    typedef TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase> TUnderlyingReader;
+    typedef TIntrusivePtr<TUnderlyingReader> TUnderlyingReaderPtr;
+
     NLog::TTaggedLogger Logger;
 
     TTableReaderConfigPtr Config_;
@@ -573,7 +579,7 @@ private:
 
     TTransactionId TransactionId_;
 
-    ISchemalessMultiChunkReaderPtr UnderlyingReader_;
+    TUnderlyingReaderPtr UnderlyingReader_;
 
     TError DoOpen();
 
@@ -678,14 +684,15 @@ TError TSchemalessTableReader::DoOpen()
                 ~ToString(NYT::FromProto<TChunkId>(chunkSpec.chunk_id())));
         }
 
-        UnderlyingReader_ = CreateSchemalessSequentialMultiChunkReader(
+        UnderlyingReader_ = New<TUnderlyingReader>(
             Config_,
             New<TMultiChunkReaderOptions>(),
             MasterChannel_,
             BlockCache_,
             nodeDirectory,
             chunkSpecs,
-            NameTable_);
+            NameTable_,
+            TKeyColumns());
 
         auto error = WaitFor(UnderlyingReader_->Open());
         RETURN_IF_ERROR(error);
