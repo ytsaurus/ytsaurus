@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "unsafe_environment.h"
 #include "environment.h"
 #include "private.h"
@@ -96,8 +96,12 @@ public:
         arguments.push_back(ProxyConfigFileName);
         arguments.push_back("--job-id");
         arguments.push_back(ToString(JobId));
-        arguments.push_back("--cgroup");
-        arguments.push_back(Slot.GetProcessGroup().GetFullPath());
+
+        for (const auto& path : Slot.GetProcessGroups()) {
+            arguments.push_back("--cgroup");
+            arguments.push_back(path);
+        }
+
         arguments.push_back("--working-dir");
         arguments.push_back(WorkingDirectory);
         arguments.push_back("--close-all-fds");

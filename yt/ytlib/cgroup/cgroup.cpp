@@ -140,6 +140,17 @@ void AddCurrentProcessToCGroup(const Stroka& fullPath)
 #endif
 }
 
+std::vector<Stroka> GetSupportedCGroups()
+{
+    std::vector<Stroka> result;
+    result.push_back("cpuacct");
+    result.push_back("blkio");
+    result.push_back("memory");
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
 { }

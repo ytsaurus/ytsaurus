@@ -83,6 +83,21 @@ const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
     return ProcessGroup;
 }
 
+std::vector<Stroka> TSlot::GetProcessGroups() const
+{
+    std::vector<Stroka> result;
+
+    auto subgroupName = "slot" + ToString(SlotId);
+
+    for (const auto& type : NCGroup::GetSupportedCGroups()) {
+        NCGroup::TNonOwningCGroup group(type, subgroupName);
+        result.push_back(group.GetFullPath());
+    }
+    result.push_back(ProcessGroup.GetFullPath());
+
+    return result;
+}
+
 void TSlot::DoClean()
 {
     try {
