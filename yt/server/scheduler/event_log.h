@@ -137,6 +137,13 @@ public:
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
 
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
+};
+
+class TEventLogHostBase
+    : public IEventLogHost
+{
+public:
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType);
 
 private:

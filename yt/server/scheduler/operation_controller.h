@@ -31,7 +31,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
-    : public virtual IEventLogHost
+    : public virtual TEventLogHostBase
 {
     virtual ~IOperationHost()
     { }

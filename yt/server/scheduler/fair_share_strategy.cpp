@@ -891,9 +891,9 @@ public:
 
         // Run periodic logging.
         if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
-            // Log pools information
+            // Log pools information.
             Host->LogEventFluently(ELogEventType::FairShareInfo)
-                .Do(BIND(&TFairShareStrategy::BuildOrchid, this))
+                .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
                     BuildOperationProgress(pair.first, fluent);
                 });
@@ -1055,7 +1055,7 @@ public:
             element->PreemptableJobs().size());
     }
 
-    virtual void BuildOrchid(IYsonConsumer* consumer) override
+    void BuildPoolsInformation(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
@@ -1072,6 +1072,11 @@ public:
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
+    }
+
+    virtual void BuildOrchid(IYsonConsumer* consumer) override
+    {
+        BuildPoolsInformation(consumer);
     }
 
     virtual void BuildBriefSpec(TOperationPtr operation, IYsonConsumer* consumer) override

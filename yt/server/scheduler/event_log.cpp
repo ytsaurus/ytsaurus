@@ -43,7 +43,7 @@ void TFluentEventLogger::Release()
 
 ////////////////////////////////////////////////////////////////////
 
-TFluentLogEvent IEventLogHost::LogEventFluently(ELogEventType eventType)
+TFluentLogEvent TEventLogHostBase::LogEventFluently(ELogEventType eventType)
 {
     return EventLogger_.LogEventFluently(GetEventLogConsumer())
         .Item("timestamp").Value(Now())

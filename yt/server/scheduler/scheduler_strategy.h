@@ -17,7 +17,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchedulerStrategyHost
-    : public virtual IEventLogHost
+    : public virtual TEventLogHostBase
 {
     virtual ~ISchedulerStrategyHost()
     { }
