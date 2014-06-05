@@ -515,6 +515,11 @@ protected:
         size_t needToRead = sizeof(double);
 
         while (needToRead != 0) {
+            if (TBaseStream::IsEmpty()) {
+                TBaseStream::Refresh();
+                continue;
+            }
+
             size_t chunkSize = std::min(needToRead, TBaseStream::Length());
             if (chunkSize == 0) {
                 THROW_ERROR_EXCEPTION("Error parsing binary double literal")
