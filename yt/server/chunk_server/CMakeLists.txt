@@ -31,6 +31,7 @@ set( HDRS
   ${BASE}/chunk_owner_base.h
   ${BASE}/chunk_owner_node_proxy.h
   ${BASE}/chunk_owner_type_handler.h
+  ${BASE}/chunk_owner_type_handler-inl.h
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_proxy.h
   ${BASE}/chunk_replica-inl.h
