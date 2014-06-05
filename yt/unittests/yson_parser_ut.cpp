@@ -121,6 +121,12 @@ TEST_F(TYsonParserTest, BinaryDouble)
     }
 }
 
+
+TEST_F(TYsonParserTest, InvalidBinaryDouble)
+{
+    EXPECT_THROW(Run(Stroka("\x03", 1)), std::exception);
+}
+
 TEST_F(TYsonParserTest, BinaryString)
 {
     InSequence dummy;
