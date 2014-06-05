@@ -167,16 +167,15 @@ public:
     {
         // Run core prologue stuff.
         auto clonedNode = CloneCorePrologue(sourceNode, factory);
-        auto* clonedNode_ = clonedNode.get();
 
         // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
-            dynamic_cast<TImpl*>(clonedNode_),
+            dynamic_cast<TImpl*>(clonedNode.get()),
             factory);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, clonedNode_, factory);
+        CloneCoreEpilogue(sourceNode, clonedNode.get(), factory);
 
         return clonedNode;
     }
