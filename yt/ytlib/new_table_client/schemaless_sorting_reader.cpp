@@ -482,8 +482,10 @@ private:
 
 };
 
-ISchemalessMultiChunkReaderPtr CreateSortingReader(
-    TTableReaderConfigPtr config,
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
+    TMultiChunkReaderConfigPtr config,
     IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -491,7 +493,7 @@ ISchemalessMultiChunkReaderPtr CreateSortingReader(
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
     const std::vector<TChunkSpec>& chunks,
-    int estimatedRowCount,
+    i64 estimatedRowCount,
     bool isApproximate)
 {
     return New<TSchemalessSortingReader>(
