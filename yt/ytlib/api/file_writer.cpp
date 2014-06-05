@@ -136,7 +136,7 @@ private:
 
         ListenTransaction(UploadTransaction_);
 
-        LOG_INFO("Requesting file info");
+        LOG_INFO("Opening file");
 
         TObjectServiceProxy proxy(Client_->GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
@@ -163,7 +163,7 @@ private:
         }
 
         auto batchRsp = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting file info");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error opening file");
 
         auto writerOptions = New<TMultiChunkWriterOptions>();
         {
@@ -194,7 +194,7 @@ private:
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
 
-        LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
+        LOG_INFO("File opened (Account: %s, ChunkListId: %s)",
             ~writerOptions->Account,
             ~ToString(chunkListId));
 
