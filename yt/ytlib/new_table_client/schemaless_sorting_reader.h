@@ -21,7 +21,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    const NTableClient::TKeyColumns& keyColumns,
+    const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunks,
