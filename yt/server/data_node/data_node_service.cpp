@@ -35,6 +35,7 @@
 #include <ytlib/table_client/private.h>
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
@@ -585,11 +586,7 @@ private:
         }
 
     };
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
-    {
-        New<TGetBlockRangeSession>(this, std::move(context))->Run();
-    }
+}
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
