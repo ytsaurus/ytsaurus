@@ -315,6 +315,9 @@ char* TSchemafulDsvWriter::WriteIntegerReversed(char* ptr, i64 value)
 void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
+        case EValueType::Null:
+            break;
+            
         case EValueType::Integer: {
             char buf[64];
             char* begin = buf;
@@ -344,7 +347,6 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
             break;
 
         default:
-            // TODO(babenko): improve
             WriteRaw('?');
             break;
     }
