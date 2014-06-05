@@ -15,7 +15,12 @@ using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NChunkServer;
+using namespace NChunkClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = JournalServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +130,32 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode);
 
-        // TODO(babenko): fixme
+        if (branchedNode->GetUpdateMode() != EUpdateMode::Append) {
+            THROW_ERROR_EXCEPTION("Journal nodes only support %s update mode",
+                ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
+        }
+
+        auto* chunkList = originatingNode->GetChunkList();
+
+        branchedNode->SetChunkList(chunkList);
+        YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->RefObject(branchedNode->GetChunkList());
+
+        branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
+        branchedNode->SetReadConcern(originatingNode->GetReadConcern());
+        branchedNode->SetWriteConcern(originatingNode->GetWriteConcern());
+        branchedNode->SetVital(originatingNode->GetVital());
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Journal node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d, ReadConcern: %d, WriteConcern: %d)",
+            ~ToString(branchedNode->GetId()),
+            ~ToString(originatingNode->GetChunkList()->GetId()),
+            originatingNode->GetReplicationFactor(),
+            originatingNode->GetReadConcern(),
+            originatingNode->GetWriteConcern());
     }
 
     virtual void DoMerge(
@@ -134,7 +164,19 @@ protected:
     {
         TBase::DoMerge(originatingNode, branchedNode);
 
-        // TODO(babenko): fixme
+        auto* originatingChunkList = originatingNode->GetChunkList();
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        YCHECK(originatingChunkList == branchedChunkList);
+        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->UnrefObject(branchedChunkList);
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Journal node merged (OriginatingNodeId: %s, BranchedNodeId: %s)",
+            ~ToString(originatingNode->GetVersionedId()),
+            ~ToString(branchedNode->GetVersionedId()));
     }
 
     virtual void DoClone(
