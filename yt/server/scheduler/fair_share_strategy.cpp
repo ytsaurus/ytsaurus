@@ -895,7 +895,12 @@ public:
             Host->LogEventFluently(ELogEventType::FairShareInfo)
                 .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    BuildOperationProgress(pair.first, fluent);
+                    auto operation = pair.first;
+                    BuildYsonMapFluently(fluent)
+                        .Item(ToString(operation->GetId()))
+                        .BeginMap()
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
+                        .EndMap();
                 });
             LastLogTime = now;
         }
