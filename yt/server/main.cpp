@@ -184,7 +184,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     for (const auto& path : cgroups) {
-        NCGroup::AddCurrentProcessToCGroup(path);
+        NCGroup::TNonOwningCGroup cgroup(path);
+        cgroup.EnsureExistance();
+        cgroup.AddCurrentProcess();
     }
 
     // Start an appropriate server.

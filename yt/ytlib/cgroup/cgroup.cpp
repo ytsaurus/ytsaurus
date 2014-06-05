@@ -131,14 +131,6 @@ void TEvent::Swap(TEvent& other)
 
 void AddCurrentProcessToCGroup(const Stroka& fullPath)
 {
-#ifdef _linux_
-    auto pid = getpid();
-    LOG_INFO("Adding process %d to cgroup %s", pid, ~fullPath.Quote());
-
-    auto path = NFS::CombinePaths(fullPath, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
-#endif
 }
 
 std::vector<Stroka> GetSupportedCGroups()
@@ -152,12 +144,14 @@ std::vector<Stroka> GetSupportedCGroups()
 
 void _removeAllSubcgroups(const TFsPath& path)
 {
-    yvector<TFsPath> children;
-    path.List(children);
-    for (const auto& child : children) {
-        if (child.IsDirectory()) {
-            _removeAllSubcgroups(child);
-            child.DeleteIfExists();
+    if (path.Exists()) {
+        yvector<TFsPath> children;
+        path.List(children);
+        for (const auto& child : children) {
+            if (child.IsDirectory()) {
+                _removeAllSubcgroups(child);
+                child.DeleteIfExists();
+            }
         }
     }
 }
@@ -169,13 +163,24 @@ void RemoveAllSubcgroups(const Stroka& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
+    : FullPath_(fullPath)
+{ }
+
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
 { }
 
 void TNonOwningCGroup::AddCurrentProcess()
 {
-    AddCurrentProcessToCGroup(FullPath_);
+#ifdef _linux_
+    auto pid = getpid();
+    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
+
+    auto path = NFS::CombinePaths(FullPath_, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
+#endif
 }
 
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const

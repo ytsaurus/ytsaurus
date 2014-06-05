@@ -45,8 +45,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddCurrentProcessToCGroup(const Stroka& fullPath);
-
 std::vector<Stroka> GetSupportedCGroups();
 
 void RemoveAllSubcgroups(const Stroka& path);
@@ -57,6 +55,7 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
+    explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
 
     void AddCurrentProcess();
