@@ -8,6 +8,7 @@
 #include <util/system/fs.h>
 #include <util/string/split.h>
 #include <util/string/strip.h>
+#include <util/folder/path.h>
 
 #ifdef _linux_
   #include <unistd.h>
@@ -147,6 +148,23 @@ std::vector<Stroka> GetSupportedCGroups()
     result.push_back("blkio");
     result.push_back("memory");
     return result;
+}
+
+void _removeAllSubcgroups(const TFsPath& path)
+{
+    yvector<TFsPath> children;
+    path.List(children);
+    for (const auto& child : children) {
+        if (child.IsDirectory()) {
+            _removeAllSubcgroups(child);
+            child.DeleteIfExists();
+        }
+    }
+}
+
+void RemoveAllSubcgroups(const Stroka& path)
+{
+    _removeAllSubcgroups(TFsPath(path));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

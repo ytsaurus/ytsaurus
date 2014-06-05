@@ -49,6 +49,8 @@ void AddCurrentProcessToCGroup(const Stroka& fullPath);
 
 std::vector<Stroka> GetSupportedCGroups();
 
+void RemoveAllSubcgroups(const Stroka& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNonOwningCGroup

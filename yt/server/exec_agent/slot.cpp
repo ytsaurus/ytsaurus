@@ -51,7 +51,7 @@ void TSlot::Initialize()
     try {
         NFS::ForcePath(Path, 0755);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
-        DoClean();
+        DoCleanSandbox();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
             ~Path.Quote()) << ex;
@@ -98,7 +98,7 @@ std::vector<Stroka> TSlot::GetProcessGroups() const
     return result;
 }
 
-void TSlot::DoClean()
+void TSlot::DoCleanSandbox()
 {
     try {
         if (isexist(~SandboxPath)) {
@@ -117,10 +117,25 @@ void TSlot::DoClean()
     }
 }
 
+void TSlot::DoCleanProcessGroups()
+{
+    try {
+        for (const auto& path : GetProcessGroups()) {
+            NCGroup::RemoveAllSubcgroups(path);
+        }
+    } catch (const std::exception& ex) {
+        auto wrappedError = TError("Failed to clean slot subcgroups for slot %d",
+            SlotId) << ex;
+        LOG_ERROR(wrappedError);
+        THROW_ERROR wrappedError;
+    }
+}
+
 void TSlot::Clean()
 {
     try {
-        DoClean();
+        DoCleanSandbox();
+        DoCleanProcessGroups();
     } catch (const std::exception& ex) {
         LOG_FATAL("%s", ex.what());
     }

@@ -71,7 +71,8 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    void DoClean();
+    void DoCleanSandbox();
+    void DoCleanProcessGroups();
 
 };
 

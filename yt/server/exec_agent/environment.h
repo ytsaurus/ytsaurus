@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/cgroup/cgroup.h>
+#include <ytlib/cgroup/public.h>
 
 #include <core/ytree/node.h>
 #include <core/misc/error.h>
