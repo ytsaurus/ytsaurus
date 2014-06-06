@@ -39,12 +39,24 @@ public:
     //! Variants cannot be default-constructed.
     TVariant() = delete;
 
+    //! Constructs an instance by copying another instance.
+    TVariant(const TVariant& other);
+
+    //! Constructs an instance by moving another instance.
+    TVariant(TVariant&& other);
+
     //! Constructs an instance by copying a given value.
     template <class T>
     TVariant(const T& value);
 
     //! Constructs an instance by moving a given value.
-    template <class T>
+    template <
+        class T,
+        class = typename std::enable_if<
+            !std::is_reference<T>::value &&
+            !std::is_same<typename std::decay<T>::type, TVariant<Ts...>>::value
+        >::type
+    >
     TVariant(T&& value);
 
     //! Destroys the instance.
@@ -52,11 +64,23 @@ public:
 
     //! Assigns a given value.
     template <class T>
-    void operator= (const T& value);
+    TVariant& operator= (const T& value);
 
     //! Moves a given value.
-    template <class T>
-    void operator= (T&& value);
+    template <
+        class T,
+        class = typename std::enable_if<
+            !std::is_reference<T>::value &&
+            !std::is_same<typename std::decay<T>::type, TVariant<Ts...>>::value
+        >::type
+    >
+    TVariant& operator= (T&& value);
+
+    //! Assigns a given instance.
+    TVariant& operator= (const TVariant& other);
+
+    //! Moves a given instance.
+    TVariant& operator= (TVariant&& other);
 
     //! Returns the discriminating tag of the instance.
     int Tag() const;
@@ -96,14 +120,14 @@ private:
     std::aligned_union_t<0, Ts...> Storage_;
 
     template <class T>
-    void Assign(const T& value);
+    void AssignValue(const T& value);
 
     template <class T>
-    void Assign(T&& value);
+    void AssignValue(T&& value);
 
-    void Assign(const TVariant& other);
+    void AssignVariant(const TVariant& other);
 
-    void Assign(TVariant&& other);
+    void AssignVariant(TVariant&& other);
 
     void Destroy();
 

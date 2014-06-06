@@ -109,7 +109,7 @@ struct TTypeTraits<>
 
 template <class... Ts>
 template <class T>
-void TVariant<Ts...>::Assign(const T& value)
+void TVariant<Ts...>::AssignValue(const T& value)
 {
     static_assert(
         ::NYT::NDetail::NVariant::TTagTraits<T, Ts...>::Tag != -1,
@@ -121,7 +121,7 @@ void TVariant<Ts...>::Assign(const T& value)
 
 template <class... Ts>
 template <class T>
-void TVariant<Ts...>::Assign(T&& value)
+void TVariant<Ts...>::AssignValue(T&& value)
 {
     static_assert(
         ::NYT::NDetail::NVariant::TTagTraits<T, Ts...>::Tag != -1,
@@ -132,14 +132,14 @@ void TVariant<Ts...>::Assign(T&& value)
 }
 
 template <class... Ts>
-void TVariant<Ts...>::Assign(const TVariant& other)
+void TVariant<Ts...>::AssignVariant(const TVariant& other)
 {
     Tag_ = other.Tag_;
     ::NYT::NDetail::NVariant::TStorageTraits<Ts...>::CopyConstruct(Tag_, &Storage_, other);
 }
 
 template <class... Ts>
-void TVariant<Ts...>::Assign(TVariant&& other)
+void TVariant<Ts...>::AssignVariant(TVariant&& other)
 {
     Tag_ = other.Tag_;
     ::NYT::NDetail::NVariant::TStorageTraits<Ts...>::MoveConstruct(Tag_, &Storage_, other);
@@ -163,34 +163,68 @@ template <class... Ts>
 template <class T>
 TVariant<Ts...>::TVariant(const T& value)
 {
-    Assign(value);
+    AssignValue(value);
 }
 
 template <class... Ts>
-template <class T>
+template <class T, class>
 TVariant<Ts...>::TVariant(T&& value)
 {
-    Assign(std::move(value));
+    AssignValue(std::move(value));
+}
+
+template <class... Ts>
+TVariant<Ts...>::TVariant(const TVariant& other)
+{
+    AssignVariant(other);
+}
+
+template <class... Ts>
+TVariant<Ts...>::TVariant(TVariant&& other)
+{
+    AssignVariant(std::move(other));
 }
 
 template <class... Ts>
 template <class T>
-void TVariant<Ts...>::operator=(const T& value)
+TVariant<Ts...>& TVariant<Ts...>::operator=(const T& value)
 {
     if (&value != &UncheckedAs<T>()) {
         Destroy();
-        Assign(v);
+        AssignValue(value);
     }
+    return *this;
 }
 
 template <class... Ts>
-template <class T>
-void TVariant<Ts...>::operator=(T&& value)
+template <class T, class>
+TVariant<Ts...>& TVariant<Ts...>::operator=(T&& value)
 {
     if (&value != &UncheckedAs<T>()) {
         Destroy();
-        Assign(std::move(value));
+        AssignValue(std::move(value));
     }
+    return *this;
+}
+
+template <class... Ts>
+TVariant<Ts...>& TVariant<Ts...>::operator=(const TVariant& other)
+{
+    if (&other != this) {
+        Destroy();
+        AssignVariant(other);
+    }
+    return *this;
+}
+
+template <class... Ts>
+TVariant<Ts...>& TVariant<Ts...>::operator=(TVariant&& other)
+{
+    if (&other != this) {
+        Destroy();
+        AssignVariant(std::move(other));
+    }
+    return *this;
 }
 
 template <class... Ts>
