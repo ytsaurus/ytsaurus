@@ -596,7 +596,7 @@ private:
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("usage_in_bytes", statistics.TotalUsageInBytes)
                     << TErrorAttribute("limit", memoryLimit));
-                KillAll(BIND(GetPidsByUid, uid));
+                KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
                 return;
             }
 
@@ -612,7 +612,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            KillAll(BIND(GetPidsByUid, uid));
+            KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
         }
     }
 

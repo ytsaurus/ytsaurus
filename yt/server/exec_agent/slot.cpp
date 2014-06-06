@@ -73,11 +73,6 @@ int TSlot::GetUserId() const
     return UserId;
 }
 
-int TSlot::GetSlotId() const
-{
-    return SlotId;
-}
-
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
     return ProcessGroup;

@@ -356,9 +356,8 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 
 #else
 
-void KillAll(TCallback<std::vector<int>()> pidsGetter)
+void KillAll(TCallback<std::vector<int>()> )
 {
-    UNUSED(pidsGetter);
     YUNIMPLEMENTED();
 }
 

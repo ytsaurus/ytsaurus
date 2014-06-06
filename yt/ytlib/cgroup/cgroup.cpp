@@ -22,6 +22,7 @@ namespace NCGroup {
 
 static auto& Logger = CGroupLogger;
 static const char* CGroupRootPath = "/sys/fs/cgroup";
+static const int BadDescriptor = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +55,7 @@ TEvent::TEvent(int eventFd, int fd)
 { }
 
 TEvent::TEvent()
-    : TEvent(-1, -1)
+    : TEvent(BadDescriptor, BadDescriptor)
 { }
 
 TEvent::TEvent(TEvent&& other)
@@ -80,7 +81,7 @@ TEvent& TEvent::operator=(TEvent&& other)
 
 bool TEvent::Fired()
 {
-    YCHECK(EventFd_ != -1);
+    YCHECK(EventFd_ != BadDescriptor);
 
     if (Fired_) {
         return true;
@@ -89,7 +90,7 @@ bool TEvent::Fired()
     i64 value;
     auto bytesRead = ::read(EventFd_, &value, sizeof(value));
 
-    if (bytesRead == -1) {
+    if (bytesRead == BadDescriptor) {
         auto errorCode = errno;
         if (errorCode == EWOULDBLOCK || errorCode == EAGAIN) {
             return false;
@@ -109,15 +110,15 @@ void TEvent::Clear()
 void TEvent::Destroy()
 {
     Clear();
-    if (EventFd_ != -1) {
+    if (EventFd_ != BadDescriptor) {
         close(EventFd_);
     }
-    EventFd_ = -1;
+    EventFd_ = BadDescriptor;
 
-    if (Fd_ != -1) {
+    if (Fd_ != BadDescriptor) {
         close(Fd_);
     }
-    Fd_ = -1;
+    Fd_ = BadDescriptor;
 }
 
 void TEvent::Swap(TEvent& other)
@@ -410,6 +411,8 @@ void TMemory::SetLimit(i64 bytes) const
 
 void TMemory::DisableOom() const
 {
+    // This parameter should be call `memory.disable_oom_control`.
+    // 1 means `disable`.
     Set("memory.oom_control", "1");
 }
 

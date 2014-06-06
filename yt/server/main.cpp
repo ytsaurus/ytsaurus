@@ -128,8 +128,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     Stroka workingDirectory = parser.WorkingDirectory.getValue();
 
-    std::vector<Stroka> cgroups = parser.CGroups.getValue();
-
     int modeCount = 0;
     if (isCellNode) {
         ++modeCount;
@@ -183,6 +181,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NProfiling::TProfilingManager::Get()->Start();
     }
 
+    std::vector<Stroka> cgroups = parser.CGroups.getValue();
     for (const auto& path : cgroups) {
         NCGroup::TNonOwningCGroup cgroup(path);
         cgroup.EnsureExistance();

@@ -26,7 +26,6 @@ public:
 
     void Initialize();
 
-    int GetSlotId() const;
     bool IsFree() const;
     int GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
