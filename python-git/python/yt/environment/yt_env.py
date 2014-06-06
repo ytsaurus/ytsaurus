@@ -83,7 +83,7 @@ class YTEnv(object):
         except:
             pass
 
-        self._cgroup_types = os.listdir("/sys/fs/cgroup")
+        self._cgroup_types = filter(lambda x: x != "cpuset", os.listdir("/sys/fs/cgroup"))
         self._cgroup_roots = dict()
         for line in open("/proc/self/cgroup").read().split("\n"):
             if line:
@@ -219,6 +219,7 @@ class YTEnv(object):
 
     def _run_ytserver(self, service_name, name):
         for i in xrange(len(self.configs[name])):
+            cgroups_params = []
             for type_ in self._cgroup_types:
                 cgroup = os.path.join("/sys/fs/cgroup", type_, self._cgroup_roots["freezer"], service_name, str(i))
                 try:
@@ -226,10 +227,14 @@ class YTEnv(object):
                 except OSError, ex:
                     if ex.errno != 17:
                         raise
+                cgroups_params += ["--cgroup", cgroup]
+            print cgroups_params
             self._run([
                 'ytserver', "--" + service_name,
-                '--config', self.config_paths[name][i],
-                '--cgroup', cgroup],
+                '--config', self.config_paths[name][i]
+                ]
+                  +
+                cgroups_params,
                 name, i)
 
     def _kill_previously_run_services(self):
