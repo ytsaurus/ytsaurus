@@ -144,15 +144,6 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode);
 
-        if (!originatingNode->IsFinalized()) {
-            THROW_ERROR_EXCEPTION("Journal is not properly finalized");
-        }
-
-        if (branchedNode->GetUpdateMode() != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %s update mode",
-                ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
-        }
-
         auto* chunkList = originatingNode->GetChunkList();
 
         branchedNode->SetChunkList(chunkList);

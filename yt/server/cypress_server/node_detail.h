@@ -126,6 +126,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
+        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
@@ -140,7 +142,7 @@ public:
 
         // Run custom stuff.
         DoBranch(
-            dynamic_cast<const TImpl*>(originatingNode),
+            typedOriginatingNode,
             branchedNode.get());
 
         return std::move(branchedNode);

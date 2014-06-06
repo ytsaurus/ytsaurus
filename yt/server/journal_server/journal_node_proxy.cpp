@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_node_proxy.h>
+#include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
 namespace NJournalServer {
@@ -122,6 +123,55 @@ private:
         return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
     }
 
+
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
+        return TCypressNodeProxyBase::DoInvoke(context);
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate)
+    {
+        DeclareMutating();
+
+        auto mode = EUpdateMode(request->mode());
+        if (mode != EUpdateMode::Append) {
+            THROW_ERROR_EXCEPTION("Journals only support %s update mode",
+                ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
+        }
+
+        ValidateTransaction();
+        ValidatePermission(
+            NYTree::EPermissionCheckScope::This,
+            NSecurityServer::EPermission::Write);
+
+        auto* node = GetThisTypedImpl();
+        if (!node->IsFinalized()) {
+            THROW_ERROR_EXCEPTION("Journal is not properly finalized");
+        }
+
+        ValidatePrepareForUpdate();
+
+        auto* lockedNode = LockThisTypedImpl();
+        auto* chunkList = node->GetChunkList();
+
+        lockedNode->SetUpdateMode(mode);
+
+        SetModified();
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Node is switched to \"append\" mode (NodeId: %s, ChunkListId: %s)",
+            ~ToString(node->GetId()),
+            ~ToString(chunkList->GetId()));
+
+        ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
+
+        context->SetResponseInfo("ChunkListId: %s",
+            ~ToString(chunkList->GetId()));
+
+        context->Reply();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
