@@ -21,6 +21,8 @@ public:
 public:
     explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
 
+    bool IsFinalized() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

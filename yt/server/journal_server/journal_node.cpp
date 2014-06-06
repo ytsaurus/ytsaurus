@@ -30,6 +30,20 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     , WriteConcern_(0)
 { }
 
+bool TJournalNode::IsFinalized() const
+{
+    if (!ChunkList_) {
+        return true;
+    }
+    if (ChunkList_->Children().empty()) {
+        return true;
+    }
+    if (ChunkList_->Children().back()->AsChunk()->IsSealed()) {
+        return true;
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalNodeTypeHandler
@@ -130,8 +144,12 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode);
 
+        if (!originatingNode->IsFinalized()) {
+            THROW_ERROR_EXCEPTION("Journal is not properly finalized");
+        }
+
         if (branchedNode->GetUpdateMode() != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journal nodes only support %s update mode",
+            THROW_ERROR_EXCEPTION("Journals only support %s update mode",
                 ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
         }
 
