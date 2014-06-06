@@ -343,6 +343,7 @@ public:
 
                 LOG_DEBUG("Opening writer");
                 {
+                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                     auto error = WaitFor(writer->Open(
                         fragment.GetHead()->GetTableSchema(),
                         fragment.GetHead()->GetKeyColumns()));
@@ -389,14 +390,17 @@ public:
                     rowBuffer.GetCapacity(),
                     scratchSpace.GetCapacity());
 
-                statistics.SyncTime = wallTime - statistics.AsyncTime;
-
-                TRACE_ANNOTATION("rows_read", statistics.RowsRead);
-                TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
-                TRACE_ANNOTATION("incomplete", statistics.Incomplete);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to evaluate plan fragment") << ex;
             }
+
+            statistics.SyncTime = wallTime - statistics.AsyncTime;
+
+            TRACE_ANNOTATION("rows_read", statistics.RowsRead);
+            TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
+            TRACE_ANNOTATION("sync_time", statistics.SyncTime);
+            TRACE_ANNOTATION("async_time", statistics.AsyncTime);
+            TRACE_ANNOTATION("incomplete", statistics.Incomplete);
 
             return statistics;
         }        
