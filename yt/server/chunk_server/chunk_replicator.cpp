@@ -168,7 +168,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChu
             return ComputeRegularChunkStatistics(chunk);
         case EObjectType::ErasureChunk:
             return ComputeErasureChunkStatistics(chunk);
-        case EObjectType::Journal:
+        case EObjectType::JournalChunk:
             return ComputeJournalChunkStatistics(chunk);
         default:
             YUNREACHABLE();
