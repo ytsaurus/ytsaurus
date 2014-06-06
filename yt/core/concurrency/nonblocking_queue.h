@@ -13,7 +13,7 @@ namespace NConcurrency {
 
 template <class T>
 class TNonblockingQueue
-    : public TRefCounted
+    : private TNonCopyable
 {
 public:
     // This template is required to enable perfect forwarding.
