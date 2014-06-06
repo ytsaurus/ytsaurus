@@ -83,6 +83,7 @@ class YTEnv(object):
         except:
             pass
 
+        self._cgroup_types = os.listdir("/sys/fs/cgroup")
         self._cgroup_roots = dict()
         for line in open("/proc/self/cgroup").read().split("\n"):
             if line:
@@ -218,12 +219,13 @@ class YTEnv(object):
 
     def _run_ytserver(self, service_name, name):
         for i in xrange(len(self.configs[name])):
-            cgroup = os.path.join("/sys/fs/cgroup", "freezer", self._cgroup_roots["freezer"], service_name, str(i))
-            try:
-                os.makedirs(cgroup, mode=0775)
-            except OSError, ex:
-                if ex.errno != 17:
-                    raise
+            for type_ in self._cgroup_types:
+                cgroup = os.path.join("/sys/fs/cgroup", type_, self._cgroup_roots["freezer"], service_name, str(i))
+                try:
+                    os.makedirs(cgroup, mode=0775)
+                except OSError, ex:
+                    if ex.errno != 17:
+                        raise
             self._run([
                 'ytserver', "--" + service_name,
                 '--config', self.config_paths[name][i],
