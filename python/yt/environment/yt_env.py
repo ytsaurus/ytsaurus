@@ -13,6 +13,7 @@ import socket
 import shutil
 import subprocess
 import sys
+import errno
 import simplejson as json
 from collections import defaultdict
 
@@ -88,7 +89,7 @@ class YTEnv(object):
         for line in open("/proc/self/cgroup").read().split("\n"):
             if line:
                 id_, name, root = line.split(":", 2)
-                if root:
+                if root is not None and root.startswith("/"):
                     self._cgroup_roots[name] = root[1:]
 
         self.configs = defaultdict(lambda: [])
@@ -221,11 +222,11 @@ class YTEnv(object):
         for i in xrange(len(self.configs[name])):
             cgroups_params = []
             for type_ in self._cgroup_types:
-                cgroup = os.path.join("/sys/fs/cgroup", type_, self._cgroup_roots["freezer"], service_name, str(i))
+                cgroup = os.path.join("/sys/fs/cgroup", type_, self._cgroup_roots[type_], service_name, str(i))
                 try:
                     os.makedirs(cgroup, mode=0775)
                 except OSError, ex:
-                    if ex.errno != 17:
+                    if ex.errno != errno.EEXIST:
                         raise
                 cgroups_params += ["--cgroup", cgroup]
             print cgroups_params
