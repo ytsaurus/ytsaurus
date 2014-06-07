@@ -49,10 +49,9 @@ class TLexerImpl;
 
 class TToken
 {
-    friend class TLexerImpl;
-
 public:
     static const TToken EndOfStream;
+
     TToken();
     TToken(ETokenType type); // for special types
     explicit TToken(const TStringBuf& stringValue); // for strings
@@ -71,7 +70,10 @@ public:
     void CheckType(ETokenType expectedType) const;
     void CheckType(const std::vector<ETokenType>& expectedTypes) const;
     void Reset();
+
 private:
+    friend class TLexerImpl;
+
     TStringBuf StringValue;
     i64 IntegerValue;
     double DoubleValue;
