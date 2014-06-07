@@ -136,12 +136,13 @@ TTo ConvertTo(const TFrom& value)
     return ConvertTo<TTo>(ConvertToNode(value));
 }
 
+const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
+
 template <>
 inline i64 ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Integer:
             return token.GetIntegerValue();
@@ -155,8 +156,7 @@ template <>
 inline double ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Integer:
             return token.GetIntegerValue();
@@ -164,7 +164,7 @@ inline double ConvertTo(const TYsonString& str)
             return token.GetDoubleValue();
         default:
             THROW_ERROR_EXCEPTION("Cannot parse number from %s",
-                    ~str.Data().Quote());
+                ~str.Data().Quote());
     }
 }
 
@@ -172,14 +172,13 @@ template <>
 inline Stroka ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
             return Stroka(token.GetStringValue());
         default:
             THROW_ERROR_EXCEPTION("Cannot parse string from %s",
-                    ~str.Data().Quote());
+                ~str.Data().Quote());
     }
 }
 
