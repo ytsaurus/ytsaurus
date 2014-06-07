@@ -34,10 +34,13 @@ public:
     //! Registers a just-written chunk.
     void RegisterNewChunk(IChunkPtr chunk);
 
-    //! Registers a chunk at startup.
+    //! Registers a chunk found during startup.
     void RegisterExistingChunk(IChunkPtr chunk);
 
-    //! Finds chunk by id. Returns NULL if no chunk exists.
+    //! Unregisters the chunk but does not remove any of its files.
+    void UnregisterChunk(IChunkPtr chunk);
+
+    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
     IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Physically removes the chunk.

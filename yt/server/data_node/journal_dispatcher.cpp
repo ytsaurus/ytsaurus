@@ -104,6 +104,12 @@ public:
 
     TAsyncError RemoveJournalChunk(IChunkPtr chunk)
     {
+        TMultiplexedRecord record;
+        record.Header.Type = EMultiplexedRecordType::Remove;
+        record.Header.ChunkId = chunk->GetId();
+        record.Header.RecordId = -1;
+        AppendMultiplexedRecord(record, nullptr);
+
         return BIND(&TImpl::DoRemoveJournalChunk, MakeStrong(this), chunk)
             .Guarded()
             .AsyncVia(chunk->GetLocation()->GetWriteInvoker())
@@ -140,7 +146,6 @@ private:
 
     IChangelogPtr DoCreateChangelog(const TChunkId& chunkId, TLocationPtr location)
     {
-        auto fileName = location->GetChunkFileName(chunkId);
         LOG_DEBUG("Started creating journal chunk (LocationId: %s, ChunkId: %s)",
             ~location->GetId(),
             ~ToString(chunkId));
@@ -150,6 +155,7 @@ private:
         auto& Profiler = location->Profiler();
         PROFILE_TIMING("/journal_chunk_create_time") {
             try {
+                auto fileName = location->GetChunkFileName(chunkId);
                 changelog = ChangelogDispatcher_->CreateChangelog(
                     fileName,
                     TSharedRef(),
@@ -178,19 +184,23 @@ private:
         LOG_DEBUG("Started removing journal chunk (ChunkId: %s)",
             ~ToString(chunkId));
 
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Remove;
-        record.Header.ChunkId = chunk->GetId();
-        record.Header.RecordId = -1;
-        
-        auto appendResult = AppendMultiplexedRecord(record, nullptr);
-        auto appendError = WaitFor(appendResult);
-        THROW_ERROR_EXCEPTION_IF_FAILED(appendError);
-
-        auto dataFileName = chunk->GetFileName();
-        auto indexFileName = dataFileName + IndexSuffix;
-        NFS::Remove(dataFileName);
-        NFS::Remove(indexFileName);
+        auto location = chunk->GetLocation();
+        auto& Profiler = location->Profiler();
+        PROFILE_TIMING("/journal_chunk_remove_time") {
+            try {
+                auto dataFileName = chunk->GetFileName();
+                auto indexFileName = dataFileName + IndexSuffix;
+                NFS::Remove(dataFileName);
+                NFS::Remove(indexFileName);
+            } catch (const std::exception& ex) {
+                location->Disable();
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error removing journal chunk %s",
+                    ~ToString(chunkId))
+                    << ex;
+            }
+        }
 
         LOG_DEBUG("Finished removing journal chunk (ChunkId: %s)",
             ~ToString(chunkId));
@@ -561,7 +571,9 @@ private:
         if (!chunk)
             return;
 
-        chunkStore->RemoveChunk(chunk).Get();
+        Owner_->DoRemoveJournalChunk(chunk);
+
+        chunkStore->UnregisterChunk(chunk);
     }
 
 

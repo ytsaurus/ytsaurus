@@ -113,6 +113,18 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     DoRegisterChunk(chunk);
 }
 
+void TChunkStore::UnregisterChunk(IChunkPtr chunk)
+{
+    auto location = chunk->GetLocation();
+    if (!location->IsEnabled())
+        return;
+
+    YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
+    location->UpdateChunkCount(-1);
+    location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
+    ChunkRemoved_.Fire(chunk);
+}
+
 void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
 {
     auto location = chunk->GetLocation();
@@ -135,17 +147,8 @@ IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     return chunk->ScheduleRemoval().Apply(
-        BIND([=] () {
-            auto location = chunk->GetLocation();
-            if (!location->IsEnabled())
-                return;
-
-            YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
-            location->UpdateChunkCount(-1);
-            location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
-            ChunkRemoved_.Fire(chunk);
-        })
-        .Via(Bootstrap_->GetControlInvoker()));
+        BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk)
+            .Via(Bootstrap_->GetControlInvoker()));
 }
 
 TLocationPtr TChunkStore::GetNewChunkLocation()
