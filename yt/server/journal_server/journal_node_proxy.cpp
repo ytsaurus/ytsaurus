@@ -50,7 +50,7 @@ private:
     {
         attributes->push_back("read_concern");
         attributes->push_back("write_concern");
-        attributes->push_back("finalized");
+        attributes->push_back("sealed");
         TCypressNodeProxyBase::ListSystemAttributes(attributes);
     }
 
@@ -70,9 +70,9 @@ private:
             return true;
         }
 
-        if (key == "finalized") {
+        if (key == "sealed") {
             BuildYsonFluently(consumer)
-                .Value(node->IsFinalized());
+                .Value(node->IsSealed());
             return true;
         }
 
@@ -153,8 +153,8 @@ private:
             NSecurityServer::EPermission::Write);
 
         auto* node = GetThisTypedImpl();
-        if (!node->IsFinalized()) {
-            THROW_ERROR_EXCEPTION("Journal is not properly finalized");
+        if (!node->IsSealed()) {
+            THROW_ERROR_EXCEPTION("Journal is not properly sealed");
         }
 
         ValidatePrepareForUpdate();

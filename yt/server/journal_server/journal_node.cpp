@@ -30,7 +30,7 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     , WriteConcern_(0)
 { }
 
-bool TJournalNode::IsFinalized() const
+bool TJournalNode::IsSealed() const
 {
     if (!ChunkList_) {
         return true;
