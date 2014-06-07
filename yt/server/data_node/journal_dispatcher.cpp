@@ -25,6 +25,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NHydra;
 using namespace NConcurrency;
 
@@ -100,9 +101,9 @@ public:
 
     IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
 
-    TJournalChunkPtr CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location);
+    IChangelogPtr CreateChangelog(IChunkPtr chunk);
 
-    TAsyncError RemoveJournalChunk(IChunkPtr chunk)
+    TAsyncError RemoveChangelog(IChunkPtr chunk)
     {
         TMultiplexedRecord record;
         record.Header.Type = EMultiplexedRecordType::Remove;
@@ -110,7 +111,7 @@ public:
         record.Header.RecordId = -1;
         AppendMultiplexedRecord(record, nullptr);
 
-        return BIND(&TImpl::DoRemoveJournalChunk, MakeStrong(this), chunk)
+        return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
             .Guarded()
             .AsyncVia(chunk->GetLocation()->GetWriteInvoker())
             .Run();
@@ -144,8 +145,11 @@ private:
     yhash_set<TCachedChangelogPtr> ActiveChangelogs_;
 
 
-    IChangelogPtr DoCreateChangelog(const TChunkId& chunkId, TLocationPtr location)
+    IChangelogPtr DoCreateChangelog(IChunkPtr chunk)
     {
+        const auto& chunkId = chunk->GetId();
+        auto location = chunk->GetLocation();
+
         LOG_DEBUG("Started creating journal chunk (LocationId: %s, ChunkId: %s)",
             ~location->GetId(),
             ~ToString(chunkId));
@@ -177,7 +181,7 @@ private:
         return changelog;
     }
 
-    void DoRemoveJournalChunk(IChunkPtr chunk)
+    void DoRemoveChangelog(IChunkPtr chunk)
     {
         const auto& chunkId = chunk->GetId();
 
@@ -551,16 +555,15 @@ private:
 
         auto location = chunkStore->GetNewChunkLocation();
 
-        auto changelog = Owner_->DoCreateChangelog(chunkId, location);
-
         auto chunk = New<TJournalChunk>(
             Owner_->Bootstrap_,
             location,
             chunkId,
-            changelog);
-        chunk->ReleaseChangelog();
-
+            TChunkInfo(),
+            nullptr);
         chunkStore->RegisterNewChunk(chunk);
+
+        Owner_->DoCreateChangelog(chunk);
     }
 
     void ReplayRemoveRecord(const TMultiplexedRecordHeader& header)
@@ -571,7 +574,7 @@ private:
         if (!chunk)
             return;
 
-        Owner_->DoRemoveJournalChunk(chunk);
+        Owner_->DoRemoveChangelog(chunk);
 
         chunkStore->UnregisterChunk(chunk);
     }
@@ -666,15 +669,18 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, co
     return resultOrError.Value();
 }
 
-TJournalChunkPtr TJournalDispatcher::TImpl::CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location)
+IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(IChunkPtr chunk)
 {
     if (!AcceptsChunks()) {
         THROW_ERROR_EXCEPTION("No new journal chunks are accepted");
     }
 
+    const auto& chunkId = chunk->GetId();
+    auto location = chunk->GetLocation();
+
     TInsertCookie cookie(chunkId);
     if (BeginInsert(&cookie)) {
-        auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId, location)
+        auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
             .Guarded()
             .AsyncVia(location->GetWriteInvoker())
             .Run();
@@ -694,11 +700,7 @@ TJournalChunkPtr TJournalDispatcher::TImpl::CreateJournalChunk(const TChunkId& c
     record.Header.RecordId = -1;
     AppendMultiplexedRecord(record, cachedChangelog);
 
-    return New<TJournalChunk>(
-        Bootstrap_,
-        location,
-        chunkId,
-        cachedChangelog);
+    return cachedChangelog;
 }
 
 TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
@@ -792,14 +794,14 @@ IChangelogPtr TJournalDispatcher::OpenChangelog(TLocationPtr location, const TCh
     return Impl_->OpenChangelog(location, chunkId);
 }
 
-TJournalChunkPtr TJournalDispatcher::CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location)
+IChangelogPtr TJournalDispatcher::CreateChangelog(IChunkPtr chunk)
 {
-    return Impl_->CreateJournalChunk(chunkId, location);
+    return Impl_->CreateChangelog(chunk);
 }
 
-TAsyncError TJournalDispatcher::RemoveJournalChunk(IChunkPtr chunk)
+TAsyncError TJournalDispatcher::RemoveChangelog(IChunkPtr chunk)
 {
-    return Impl_->RemoveJournalChunk(chunk);
+    return Impl_->RemoveChangelog(chunk);
 }
 
 void TJournalDispatcher::EvictChangelog(IChunkPtr chunk)

@@ -13,7 +13,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalSession
-    : public TSession
+    : public TSessionBase
 {
 public:
     TJournalSession(
@@ -24,36 +24,38 @@ public:
         bool syncOnClose,
         TLocationPtr location);
 
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
+    virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 
-    virtual void Start(TLeaseManager::TLease lease) override;
+private:
+    TJournalChunkPtr Chunk_;
+    NHydra::IChangelogPtr Changelog_;
+    TAsyncError LastAppendResult_;
 
-    virtual TAsyncError PutBlocks(
+    mutable NChunkClient::NProto::TChunkInfo ChunkInfo_;
+
+
+    void UpdateChunkInfo() const;
+
+    virtual void DoStart() override;
+    void DoCreateChangelog();
+    void OnChangelogCreated();
+
+    virtual TAsyncError DoPutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,
         bool enableCaching) override;
 
-    virtual TAsyncError SendBlocks(
+    virtual TAsyncError DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
 
-    virtual TAsyncError FlushBlocks(int blockIndex) override;
+    virtual TAsyncError DoFlushBlocks(int blockIndex) override;
 
-    virtual void Cancel(const TError& error) override;
+    virtual void DoCancel() override;
 
-    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
+    virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
         const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
-
-private:
-    TJournalChunkPtr Chunk_;
-    TAsyncError LastAppendResult_;
-
-
-    void DoStart();
-    void OnStarted();
-
-    IChunkPtr CloseSession();
 
 };
 

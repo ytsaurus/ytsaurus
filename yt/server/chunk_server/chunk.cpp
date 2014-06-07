@@ -55,8 +55,6 @@ TChunk::TChunk(const TChunkId& id)
 {
     Zero(Flags);
 
-    ChunkInfo_.set_disk_space(-1);
-
     ChunkMeta_.set_type(EChunkType::Unknown);
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();

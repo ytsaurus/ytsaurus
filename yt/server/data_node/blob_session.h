@@ -19,11 +19,11 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlobSession
-    : public TSession
+class TBlobSessionBase
+    : public TSessionBase
 {
 public:
-    TBlobSession(
+    TBlobSessionBase(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
@@ -31,26 +31,7 @@ public:
         bool syncOnClose,
         TLocationPtr location);
 
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
-
-    virtual void Start(TLeaseManager::TLease lease) override;
-
-    virtual TAsyncError PutBlocks(
-        int startBlockIndex,
-        const std::vector<TSharedRef>& blocks,
-        bool enableCaching) override;
-
-    virtual TAsyncError SendBlocks(
-        int startBlockIndex,
-        int blockCount,
-        const NNodeTrackerClient::TNodeDescriptor& target) override;
-
-    virtual TAsyncError FlushBlocks(int blockIndex) override;
-
-    virtual void Cancel(const TError& error) override;
-
-    virtual TFuture<TErrorOr<IChunkPtr>> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+    NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
 
 private:
     DECLARE_ENUM(ESlotState,
@@ -81,15 +62,32 @@ private:
     NChunkClient::TFileWriterPtr Writer_;
 
 
+    virtual void DoStart() override;
+    void DoOpenWriter();
+   
+    virtual TAsyncError DoPutBlocks(
+        int startBlockIndex,
+        const std::vector<TSharedRef>& blocks,
+        bool enableCaching) override;
+
+    virtual TAsyncError DoSendBlocks(
+        int startBlockIndex,
+        int blockCount,
+        const NNodeTrackerClient::TNodeDescriptor& target) override;
+
+    virtual TAsyncError DoFlushBlocks(int blockIndex) override;
+
+    virtual void DoCancel() override;
+
+    virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
+        const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);
     TSlot& GetSlot(int blockIndex);
     void ReleaseBlocks(int flushedBlockIndex);
     TSharedRef GetBlock(int blockIndex);
     void MarkAllSlotsWritten();
-
-    void OpenFile();
-    void DoOpenWriter();
 
     TAsyncError AbortWriter();
     TError DoAbortWriter();
@@ -99,7 +97,6 @@ private:
     TError DoCloseWriter(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     TErrorOr<IChunkPtr> OnWriterClosed(TError error);
 
-    void EnqueueWrites();
     TError DoWriteBlock(const TSharedRef& block, int blockIndex);
     void OnBlockWritten(int blockIndex, TError error);
 
@@ -111,7 +108,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlobSession)
+DEFINE_REFCOUNTED_TYPE(TBlobSessionBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

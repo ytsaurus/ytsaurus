@@ -29,7 +29,7 @@ struct ISession
     virtual TLocationPtr GetLocation() const = 0;
 
     //! Returns the chunk info.
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
+    virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const = 0;
 
     //! Initializes the session instance.
     virtual void Start(TLeaseManager::TLease lease) = 0;

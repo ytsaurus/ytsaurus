@@ -25,7 +25,7 @@ static auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSession::TSession(
+TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
@@ -52,36 +52,29 @@ TSession::TSession(
     Location_->UpdateSessionCount(+1);
 }
 
-TSession::~TSession()
+TSessionBase::~TSessionBase()
 {
     Location_->UpdateSessionCount(-1);
 }
 
-void TSession::Ping()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TLeaseManager::RenewLease(Lease_);
-}
-
-const TChunkId& TSession::GetChunkId() const
+const TChunkId& TSessionBase::GetChunkId() const
 {
     return ChunkId_;
 }
 
-EWriteSessionType TSession::GetType() const
+EWriteSessionType TSessionBase::GetType() const
 {
     return Type_;
 }
 
-TLocationPtr TSession::GetLocation() const
+TLocationPtr TSessionBase::GetLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Location_;
 }
 
-void TSession::Start(TLeaseManager::TLease lease)
+void TSessionBase::Start(TLeaseManager::TLease lease)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -89,13 +82,93 @@ void TSession::Start(TLeaseManager::TLease lease)
         ~ToString(Type_));
 
     Lease_ = lease;
+
+    YCHECK(!Active_);
+    Active_ = true;
+
+    DoStart();
 }
 
-void TSession::CloseLease()
+void TSessionBase::Ping()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    ValidateActive();
+
+    TLeaseManager::RenewLease(Lease_);
+}
+
+void TSessionBase::Cancel(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ValidateActive();
+
+    LOG_INFO(error, "Canceling session");
+
     TLeaseManager::CloseLease(Lease_);
+    Active_ = false;
+
+    DoCancel();
+}
+
+TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ValidateActive();
+
+    LOG_INFO("Finishing session");
+    
+    TLeaseManager::CloseLease(Lease_);
+    Active_ = false;
+
+    return DoFinish(chunkMeta);
+}
+
+TAsyncError TSessionBase::PutBlocks(
+    int startBlockIndex,
+    const std::vector<TSharedRef>& blocks,
+    bool enableCaching)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ValidateActive();
+    Ping();
+
+    return DoPutBlocks(startBlockIndex, blocks, enableCaching);
+}
+
+TAsyncError TSessionBase::SendBlocks(
+    int startBlockIndex,
+    int blockCount,
+    const TNodeDescriptor& target)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ValidateActive();
+    Ping();
+
+    return DoSendBlocks(startBlockIndex, blockCount, target);
+}
+
+TAsyncError TSessionBase::FlushBlocks(int blockIndex)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ValidateActive();
+    Ping();
+
+    return DoFlushBlocks(blockIndex);
+}
+
+void TSessionBase::ValidateActive()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!Active_) {
+        THROW_ERROR_EXCEPTION("Session is not active");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

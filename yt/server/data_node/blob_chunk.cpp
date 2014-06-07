@@ -31,13 +31,13 @@ static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_t
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobChunk::TBlobChunk(
+TBlobChunkBase::TBlobChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
     const TChunkInfo& info,
     const TChunkMeta* meta)
-    : TChunk(
+    : TChunkBase(
         bootstrap,
         location,
         id,
@@ -48,7 +48,7 @@ TBlobChunk::TBlobChunk(
     }
 }
 
-TBlobChunk::~TBlobChunk()
+TBlobChunkBase::~TBlobChunkBase()
 {
     if (Meta_) {
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
@@ -56,7 +56,7 @@ TBlobChunk::~TBlobChunk()
     }
 }
 
-IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
+IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
     i64 priority,
     const std::vector<int>* tags)
 {
@@ -84,7 +84,7 @@ IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
         }).AsyncVia(invoker));
 }
 
-TAsyncError TBlobChunk::ReadBlocks(
+TAsyncError TBlobChunkBase::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 priority,
@@ -103,7 +103,7 @@ TAsyncError TBlobChunk::ReadBlocks(
     auto promise = NewPromise<TError>();
 
     auto callback = BIND(
-        &TBlobChunk::DoReadBlocks,
+        &TBlobChunkBase::DoReadBlocks,
         MakeStrong(this),
         firstBlockIndex,
         blockCount,
@@ -118,7 +118,7 @@ TAsyncError TBlobChunk::ReadBlocks(
     return promise;
 }
 
-void TBlobChunk::DoReadBlocks(
+void TBlobChunkBase::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 pendingSize,
@@ -198,7 +198,7 @@ void TBlobChunk::DoReadBlocks(
     promise.Set(TError());
 }
 
-TAsyncError TBlobChunk::ReadMeta(i64 priority)
+TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
 {
     if (!TryAcquireReadLock()) {
         return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",
@@ -206,14 +206,14 @@ TAsyncError TBlobChunk::ReadMeta(i64 priority)
     }
 
     auto promise = NewPromise<TError>();
-    auto callback = BIND(&TBlobChunk::DoReadMeta, MakeStrong(this), promise);
+    auto callback = BIND(&TBlobChunkBase::DoReadMeta, MakeStrong(this), promise);
     Location_
         ->GetMetaReadInvoker()
         ->Invoke(callback, priority);
     return promise;
 }
 
-void TBlobChunk::DoReadMeta(TPromise<TError> promise)
+void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
 {
     auto& Profiler = Location_->Profiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %s, LocationId: %s)",
@@ -244,7 +244,7 @@ void TBlobChunk::DoReadMeta(TPromise<TError> promise)
     promise.Set(TError());
 }
 
-void TBlobChunk::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta)
+void TBlobChunkBase::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     // This check is important since this code may get triggered
@@ -259,7 +259,7 @@ void TBlobChunk::InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& me
     tracker->Acquire(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
 }
 
-i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
+i64 TBlobChunkBase::ComputePendingReadSize(int firstBlockIndex, int blockCount)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -280,13 +280,13 @@ i64 TBlobChunk::ComputePendingReadSize(int firstBlockIndex, int blockCount)
     return result;
 }
 
-void TBlobChunk::EvictFromCache()
+void TBlobChunkBase::EvictFromCache()
 {
     auto readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 }
 
-TFuture<void> TBlobChunk::RemoveFiles()
+TFuture<void> TBlobChunkBase::RemoveFiles()
 {
     auto dataFileName = GetFileName();
     auto metaFileName = dataFileName + ChunkMetaSuffix;
@@ -318,7 +318,7 @@ TStoredBlobChunk::TStoredBlobChunk(
     const TChunkId& id,
     const TChunkInfo& info,
     const TChunkMeta* meta)
-    : TBlobChunk(
+    : TBlobChunkBase(
         bootstrap,
         location,
         id,
@@ -334,7 +334,7 @@ TCachedBlobChunk::TCachedBlobChunk(
     const TChunkId& id,
     const TChunkInfo& info,
     const TChunkMeta* meta)
-    : TBlobChunk(
+    : TBlobChunkBase(
         bootstrap,
         location,
         id,

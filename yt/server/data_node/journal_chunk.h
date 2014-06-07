@@ -11,14 +11,15 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalChunk
-    : public TChunk
+    : public TChunkBase
 {
 public:
     TJournalChunk(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        NHydra::IChangelogPtr changelog);
+        const NChunkClient::NProto::TChunkInfo& info,
+        ISessionPtr session);
 
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
@@ -30,17 +31,12 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-    NHydra::IChangelogPtr GetChangelog() const;
-    void ReleaseChangelog();
+    void ReleaseSession();
 
 private:
-    NHydra::IChangelogPtr Changelog_;
+    ISessionPtr Session_;
 
-    std::atomic<int> RecordCount_;
-    std::atomic<bool> Sealed_;
-
-
-    void UpdateProperties();
+    void UpdateInfo();
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;

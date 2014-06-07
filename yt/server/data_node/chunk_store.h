@@ -80,6 +80,8 @@ private:
     void DoRegisterChunk(IChunkPtr chunk);
     void OnLocationDisabled(TLocationPtr location);
 
+    IChunkPtr CreateChunkFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStore)

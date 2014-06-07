@@ -20,7 +20,7 @@ static auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TChunk(
+TChunkBase::TChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
@@ -31,27 +31,27 @@ TChunk::TChunk(
     , Info_(info)
 { }
 
-const TChunkId& TChunk::GetId() const
+const TChunkId& TChunkBase::GetId() const
 {
     return Id_;
 }
 
-TLocationPtr TChunk::GetLocation() const
+TLocationPtr TChunkBase::GetLocation() const
 {
     return Location_;
 }
 
-const TChunkInfo& TChunk::GetInfo() const
+const TChunkInfo& TChunkBase::GetInfo() const
 {
     return Info_;
 }
 
-Stroka TChunk::GetFileName() const
+Stroka TChunkBase::GetFileName() const
 {
     return Location_->GetChunkFileName(Id_);
 }
 
-bool TChunk::TryAcquireReadLock()
+bool TChunkBase::TryAcquireReadLock()
 {
     int lockCount;
     {
@@ -72,7 +72,7 @@ bool TChunk::TryAcquireReadLock()
     return true;
 }
 
-void TChunk::ReleaseReadLock()
+void TChunkBase::ReleaseReadLock()
 {
     bool scheduleRemoval = false;
     int lockCount;
@@ -94,12 +94,12 @@ void TChunk::ReleaseReadLock()
     }
 }
 
-bool TChunk::IsReadLockAcquired() const
+bool TChunkBase::IsReadLockAcquired() const
 {
     return ReadLockCounter_ > 0;
 }
 
-TFuture<void> TChunk::ScheduleRemoval()
+TFuture<void> TChunkBase::ScheduleRemoval()
 {
     bool scheduleRemoval = false;
 
@@ -122,7 +122,7 @@ TFuture<void> TChunk::ScheduleRemoval()
     return RemovedEvent_;
 }
 
-void TChunk::DoRemove()
+void TChunkBase::DoRemove()
 {
     EvictFromCache();
 
@@ -132,7 +132,7 @@ void TChunk::DoRemove()
     }));
 }
 
-TRefCountedChunkMetaPtr TChunk::FilterCachedMeta(const std::vector<int>* tags) const
+TRefCountedChunkMetaPtr TChunkBase::FilterCachedMeta(const std::vector<int>* tags) const
 {
     YCHECK(Meta_);
     return tags

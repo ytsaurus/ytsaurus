@@ -35,17 +35,17 @@ public:
      */
     NHydra::IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
 
-    //! Creates a new journal chunk corresponding to a given journal session.
+    //! Creates a new changelog corresponding to a given journal chunk.
     /*!
      *  This call is thread-safe and cannot block. The actual creation happens in background.
      *  This method throws on failure.
      */
-    TJournalChunkPtr CreateJournalChunk(const TChunkId& chunkId, TLocationPtr location);
+    NHydra::IChangelogPtr CreateChangelog(IChunkPtr chunk);
 
-    //! Asynchronously removes a given journal chunk.
-    TAsyncError RemoveJournalChunk(IChunkPtr chunk);
+    //! Asynchronously removes files of a given journal chunk.
+    TAsyncError RemoveChangelog(IChunkPtr chunk);
 
-    //! Evicts the changelog from the cache.
+    //! Evicts the changelog corresponding to a given journal chunk from the cache.
     void EvictChangelog(IChunkPtr chunk);
 
 private:

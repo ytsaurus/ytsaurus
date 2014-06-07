@@ -117,7 +117,7 @@ ISessionPtr TSessionManager::CreateSession(
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            session = New<TBlobSession>(
+            session = New<TBlobSessionBase>(
                 Config_,
                 Bootstrap_,
                 chunkId,

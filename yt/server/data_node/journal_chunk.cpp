@@ -2,6 +2,7 @@
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "location.h"
+#include "session.h"
 #include "private.h"
 
 #include <core/misc/fs.h>
@@ -38,31 +39,31 @@ TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    IChangelogPtr changelog)
-    : TChunk(
+    const TChunkInfo& info,
+    ISessionPtr session)
+    : TChunkBase(
         bootstrap,
         location,
         id,
-        TChunkInfo())
-    , Changelog_(changelog)
+        info)
+    , Session_(session)
 {
     Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(EChunkType::Journal);
     Meta_->set_version(0);
 
-    YCHECK(Changelog_);
-    UpdateProperties();
+    UpdateInfo();
 }
 
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
-    UpdateProperties();
+    UpdateInfo();
 
     TMiscExt miscExt;
-    miscExt.set_record_count(RecordCount_);
-    miscExt.set_sealed(Sealed_);
+    miscExt.set_record_count(Info_.record_count());
+    miscExt.set_sealed(Info_.sealed());
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
@@ -157,11 +158,10 @@ void TJournalChunk::DoReadBlocks(
     }
 }
 
-void TJournalChunk::UpdateProperties()
+void TJournalChunk::UpdateInfo()
 {
-    if (Changelog_) {
-        RecordCount_ = Changelog_->GetRecordCount();
-        Sealed_ = Changelog_->IsSealed();
+    if (Session_) {
+        Info_ = Session_->GetChunkInfo();
     }
 }
 
@@ -175,7 +175,7 @@ TFuture<void> TJournalChunk::RemoveFiles()
 {
     auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveJournalChunk(this)
+    return dispatcher->RemoveChangelog(this)
         .Apply(BIND([=] (TError error) {
             if (!error.IsOK()) {
                 location->Disable();
@@ -183,15 +183,10 @@ TFuture<void> TJournalChunk::RemoveFiles()
         }));
 }
 
-IChangelogPtr TJournalChunk::GetChangelog() const
+void TJournalChunk::ReleaseSession()
 {
-    return Changelog_;
-}
-
-void TJournalChunk::ReleaseChangelog()
-{
-    UpdateProperties();
-    Changelog_.Reset();
+    UpdateInfo();
+    Session_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,14 +37,14 @@ static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughp
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlobSession::TBlobSession(
+TBlobSessionBase::TBlobSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     EWriteSessionType type,
     bool syncOnClose,
     TLocationPtr location)
-    : TSession(
+    : TSessionBase(
         config,
         bootstrap,
         chunkId,
@@ -56,43 +56,14 @@ TBlobSession::TBlobSession(
     , Size_(0)
 { }
 
-void TBlobSession::Start(TLeaseManager::TLease lease)
+void TBlobSessionBase::DoStart()
 {
-    TSession::Start(lease);
-
     WriteInvoker_->Invoke(
-        BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
+        BIND(&TBlobSessionBase::DoOpenWriter, MakeStrong(this)));
 }
 
-void TBlobSession::DoOpenWriter()
+TFuture<TErrorOr<IChunkPtr>> TBlobSessionBase::DoFinish(const TChunkMeta& chunkMeta)
 {
-    LOG_DEBUG("Started opening blob chunk writer");
-
-    PROFILE_TIMING ("/blob_chunk_open_time") {
-        try {
-            auto fileName = Location_->GetChunkFileName(ChunkId_);
-            Writer_ = New<TFileWriter>(fileName, SyncOnClose_);
-            Writer_->Open();
-        }
-        catch (const std::exception& ex) {
-            OnIOError(TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error creating chunk %s",
-                ~ToString(ChunkId_))
-                << ex);
-            return;
-        }
-    }
-
-    LOG_DEBUG("Finished opening blob chunk writer");
-}
-
-TFuture<TErrorOr<IChunkPtr>> TBlobSession::Finish(const TChunkMeta& chunkMeta)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    CloseLease();
-
     for (int blockIndex = WindowStartIndex_; blockIndex < Window_.size(); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
@@ -105,29 +76,23 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::Finish(const TChunkMeta& chunkMeta)
         }
     }
 
-    LOG_DEBUG("Finishing session");
-
     return CloseWriter(chunkMeta).Apply(
-        BIND(&TBlobSession::OnWriterClosed, MakeStrong(this))
+        BIND(&TBlobSessionBase::OnWriterClosed, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
-const TChunkInfo& TBlobSession::GetChunkInfo() const
+TChunkInfo TBlobSessionBase::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Writer_->GetChunkInfo();
 }
 
-TAsyncError TBlobSession::PutBlocks(
+TAsyncError TBlobSessionBase::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TSharedRef>& blocks,
     bool enableCaching)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    Ping();
-
     if (blocks.empty()) {
         return OKFuture;
     }
@@ -177,7 +142,27 @@ TAsyncError TBlobSession::PutBlocks(
         ++blockIndex;
     }
 
-    EnqueueWrites();
+    auto sessionManager = Bootstrap_->GetSessionManager();
+    while (WriteIndex_ < Window_.size()) {
+        const auto& slot = GetSlot(WriteIndex_);
+        YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
+        if (slot.State == ESlotState::Empty)
+            break;
+
+        sessionManager->UpdatePendingWriteSize(slot.Block.Size());
+
+        BIND(
+            &TBlobSessionBase::DoWriteBlock,
+            MakeStrong(this),
+            slot.Block,
+            WriteIndex_)
+        .AsyncVia(WriteInvoker_)
+        .Run()
+        .Subscribe(
+            BIND(&TBlobSessionBase::OnBlockWritten, MakeStrong(this), WriteIndex_)
+                .Via(Bootstrap_->GetControlInvoker()));
+        ++WriteIndex_;
+    }
 
     auto throttler = Bootstrap_->GetInThrottler(Type_);
     return throttler->Throttle(requestSize).Apply(BIND([] () {
@@ -185,15 +170,11 @@ TAsyncError TBlobSession::PutBlocks(
     }));
 }
 
-TAsyncError TBlobSession::SendBlocks(
+TAsyncError TBlobSessionBase::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     const TNodeDescriptor& target)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    Ping();
-
     TDataNodeServiceProxy proxy(ChannelFactory->CreateChannel(target.Address));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
@@ -216,34 +197,7 @@ TAsyncError TBlobSession::SendBlocks(
     }));
 }
 
-void TBlobSession::EnqueueWrites()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto sessionManager = Bootstrap_->GetSessionManager();
-    while (WriteIndex_ < Window_.size()) {
-        const auto& slot = GetSlot(WriteIndex_);
-        YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
-        if (slot.State == ESlotState::Empty)
-            break;
-
-        sessionManager->UpdatePendingWriteSize(slot.Block.Size());
-
-        BIND(
-            &TBlobSession::DoWriteBlock,
-            MakeStrong(this),
-            slot.Block,
-            WriteIndex_)
-        .AsyncVia(WriteInvoker_)
-        .Run()
-        .Subscribe(
-            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WriteIndex_)
-                .Via(Bootstrap_->GetControlInvoker()));
-        ++WriteIndex_;
-    }
-}
-
-TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
+TError TBlobSessionBase::DoWriteBlock(const TSharedRef& block, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -285,7 +239,7 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     return Error_;
 }
 
-void TBlobSession::OnBlockWritten(int blockIndex, TError error)
+void TBlobSessionBase::OnBlockWritten(int blockIndex, TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(error);
@@ -303,13 +257,10 @@ void TBlobSession::OnBlockWritten(int blockIndex, TError error)
     sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
 }
 
-TAsyncError TBlobSession::FlushBlocks(int blockIndex)
+TAsyncError TBlobSessionBase::DoFlushBlocks(int blockIndex)
 {
-    // TODO: verify monotonicity of blockIndex
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
+    // TODO(psushin): verify monotonicity of blockIndex
     ValidateBlockIsInWindow(blockIndex);
-    Ping();
 
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
@@ -323,10 +274,10 @@ TAsyncError TBlobSession::FlushBlocks(int blockIndex)
 
     // IsWritten is set in the control thread, hence no need for AsyncVia.
     return slot.IsWritten.ToFuture().Apply(
-        BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
+        BIND(&TBlobSessionBase::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
-TError TBlobSession::OnBlockFlushed(int blockIndex)
+TError TBlobSessionBase::OnBlockFlushed(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -334,28 +285,46 @@ TError TBlobSession::OnBlockFlushed(int blockIndex)
     return Error_;
 }
 
-void TBlobSession::Cancel(const TError& error)
+void TBlobSessionBase::DoCancel()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Canceling session");
-
-    CloseLease();
     AbortWriter()
-        .Apply(BIND(&TBlobSession::OnWriterAborted, MakeStrong(this))
+        .Apply(BIND(&TBlobSessionBase::OnWriterAborted, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
-TAsyncError TBlobSession::AbortWriter()
+void TBlobSessionBase::DoOpenWriter()
+{
+    LOG_DEBUG("Started opening blob chunk writer");
+
+    PROFILE_TIMING ("/blob_chunk_open_time") {
+        try {
+            auto fileName = Location_->GetChunkFileName(ChunkId_);
+            Writer_ = New<TFileWriter>(fileName, SyncOnClose_);
+            Writer_->Open();
+        }
+        catch (const std::exception& ex) {
+            OnIOError(TError(
+                NChunkClient::EErrorCode::IOError,
+                "Error creating chunk %s",
+                ~ToString(ChunkId_))
+                << ex);
+            return;
+        }
+    }
+
+    LOG_DEBUG("Finished opening blob chunk writer");
+}
+
+TAsyncError TBlobSessionBase::AbortWriter()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return BIND(&TBlobSession::DoAbortWriter, MakeStrong(this))
+    return BIND(&TBlobSessionBase::DoAbortWriter, MakeStrong(this))
         .AsyncVia(WriteInvoker_)
         .Run();
 }
 
-TError TBlobSession::DoAbortWriter()
+TError TBlobSessionBase::DoAbortWriter()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -383,7 +352,7 @@ TError TBlobSession::DoAbortWriter()
     return Error_;
 }
 
-TError TBlobSession::OnWriterAborted(TError error)
+TError TBlobSessionBase::OnWriterAborted(TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -395,16 +364,16 @@ TError TBlobSession::OnWriterAborted(TError error)
     return error;
 }
 
-TAsyncError TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
+TAsyncError TBlobSessionBase::CloseWriter(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return BIND(&TBlobSession::DoCloseWriter,MakeStrong(this), chunkMeta)
+    return BIND(&TBlobSessionBase::DoCloseWriter,MakeStrong(this), chunkMeta)
         .AsyncVia(WriteInvoker_)
         .Run();
 }
 
-TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
+TError TBlobSessionBase::DoCloseWriter(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -433,7 +402,7 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
     return Error_;
 }
 
-TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
+TErrorOr<IChunkPtr> TBlobSessionBase::OnWriterClosed(TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -462,7 +431,7 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
     return IChunkPtr(chunk);
 }
 
-void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
+void TBlobSessionBase::ReleaseBlocks(int flushedBlockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(WindowStartIndex_ <= flushedBlockIndex);
@@ -479,14 +448,14 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         WindowStartIndex_);
 }
 
-bool TBlobSession::IsInWindow(int blockIndex)
+bool TBlobSessionBase::IsInWindow(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     return blockIndex >= WindowStartIndex_;
 }
 
-void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
+void TBlobSessionBase::ValidateBlockIsInWindow(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -500,7 +469,7 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
     }
 }
 
-TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
+TBlobSessionBase::TSlot& TBlobSessionBase::GetSlot(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(IsInWindow(blockIndex));
@@ -515,7 +484,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
     return Window_[blockIndex];
 }
 
-TSharedRef TBlobSession::GetBlock(int blockIndex)
+TSharedRef TBlobSessionBase::GetBlock(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -537,7 +506,7 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
     return slot.Block;
 }
 
-void TBlobSession::MarkAllSlotsWritten()
+void TBlobSessionBase::MarkAllSlotsWritten()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -550,14 +519,14 @@ void TBlobSession::MarkAllSlotsWritten()
     }
 }
 
-void TBlobSession::ReleaseSpace()
+void TBlobSessionBase::ReleaseSpace()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     Location_->UpdateUsedSpace(-Size_);
 }
 
-void TBlobSession::OnIOError(const TError& error)
+void TBlobSessionBase::OnIOError(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -569,7 +538,7 @@ void TBlobSession::OnIOError(const TError& error)
     LOG_ERROR(Error_, "Session failed");
 
     Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this)));
+        BIND(&TBlobSessionBase::MarkAllSlotsWritten, MakeStrong(this)));
 
     Location_->Disable();
 }

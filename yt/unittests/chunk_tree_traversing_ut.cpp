@@ -151,11 +151,7 @@ std::unique_ptr<TChunk> CreateChunk(
     miscExt.set_data_weight(dataWeight);
     SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
     
-    NChunkClient::NProto::TChunkInfo chunkInfo;
-    chunkInfo.set_disk_space(0);
-
     chunk->ChunkMeta() = chunkMeta;
-    chunk->ChunkInfo() = chunkInfo;
 
     return chunk;
 }

@@ -18,7 +18,7 @@ struct TChunkDescriptor
 };
 
 //! A base for any IChunk implementation.
-class TChunk
+class TChunkBase
     : public IChunk
 {
 public:
@@ -46,7 +46,7 @@ protected:
     int ReadLockCounter_ = 0;
     bool RemovalScheduled_ = false;
 
-    TChunk(
+    TChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,

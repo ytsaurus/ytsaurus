@@ -11,8 +11,8 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A base for both TStoredBlobChunk and TCachedBlobChunk.
-class TBlobChunk
-    : public TChunk
+class TBlobChunkBase
+    : public TChunkBase
 {
 public:
     virtual TAsyncGetMetaResult GetMeta(
@@ -26,13 +26,13 @@ public:
         std::vector<TSharedRef>* blocks) override;
 
 protected:
-    TBlobChunk(
+    TBlobChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info,
         const NChunkClient::NProto::TChunkMeta* meta);
-    ~TBlobChunk();
+    ~TBlobChunkBase();
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;
@@ -60,7 +60,7 @@ private:
 
 //! A blob chunk owned by TChunkStore.
 class TStoredBlobChunk
-    : public TBlobChunk
+    : public TBlobChunkBase
 {
 public:
     TStoredBlobChunk(
@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(TStoredBlobChunk)
 
 //! A blob chunk owned by TChunkCache.
 class TCachedBlobChunk
-    : public TBlobChunk
+    : public TBlobChunkBase
     , public TCacheValueBase<TChunkId, TCachedBlobChunk>
 {
 public:

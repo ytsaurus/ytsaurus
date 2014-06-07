@@ -3,11 +3,15 @@
 #include "config.h"
 #include "location.h"
 #include "blob_chunk.h"
+#include "journal_chunk.h"
 #include "chunk_store.h"
 #include "master_connector.h"
 
-#include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <core/misc/fs.h>
+
+#include <ytlib/chunk_client/data_node_service_proxy.h>
+
+#include <ytlib/object_client/helpers.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -19,6 +23,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NRpc;
@@ -52,11 +57,7 @@ void TChunkStore::Initialize()
             
         auto descriptors = location->Initialize();
         for (const auto& descriptor : descriptors) {
-            auto chunk = New<TStoredBlobChunk>(
-                Bootstrap_,
-                location,
-                descriptor.Id,
-                descriptor.Info);
+            auto chunk = CreateChunkFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);
         }
 
@@ -220,6 +221,34 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
         ~location->GetId().Quote()));
     masterConnector->ForceRegister();
 }
+
+IChunkPtr TChunkStore::CreateChunkFromDescriptor(
+    TLocationPtr location,
+    const TChunkDescriptor& descriptor)
+{
+    auto chunkType = TypeFromId(DecodeChunkId(descriptor.Id).Id);
+    switch (chunkType) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return New<TCachedBlobChunk>(
+                Bootstrap_,
+                location,
+                descriptor.Id,
+                descriptor.Info);
+
+        case EObjectType::JournalChunk:
+            return New<TJournalChunk>(
+                Bootstrap_,
+                location,
+                descriptor.Id,
+                descriptor.Info,
+                nullptr);
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

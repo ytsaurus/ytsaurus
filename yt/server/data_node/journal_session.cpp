@@ -24,7 +24,7 @@ TJournalSession::TJournalSession(
     EWriteSessionType type,
     bool syncOnClose,
     TLocationPtr location)
-    : TSession(
+    : TSessionBase(
         config,
         bootstrap,
         chunkId,
@@ -34,74 +34,66 @@ TJournalSession::TJournalSession(
     , LastAppendResult_(OKFuture)
 { }
 
-const TChunkInfo& TJournalSession::GetChunkInfo() const
+TChunkInfo TJournalSession::GetChunkInfo() const
 {
-    YUNREACHABLE();
+    UpdateChunkInfo();
+    return ChunkInfo_;
 }
 
-void TJournalSession::Start(TLeaseManager::TLease lease)
+void TJournalSession::UpdateChunkInfo() const
 {
-    TSession::Start(lease);
-
-    WriteInvoker_->Invoke(
-        BIND(&TJournalSession::DoStart, MakeStrong(this)));
+    if (Changelog_) {
+        ChunkInfo_.set_record_count(Changelog_->GetRecordCount());
+        ChunkInfo_.set_sealed(Changelog_->IsSealed());
+    }
 }
 
 void TJournalSession::DoStart()
 {
-    auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    Chunk_ = dispatcher->CreateJournalChunk(ChunkId_, Location_);
-
-    Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TJournalSession::OnStarted, MakeStrong(this)));
+    BIND(&TJournalSession::DoCreateChangelog, MakeStrong(this))
+        .AsyncVia(WriteInvoker_)
+        .Run()
+        .Subscribe(
+            BIND(&TJournalSession::OnChangelogCreated, MakeStrong(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 }
 
-void TJournalSession::OnStarted()
+void TJournalSession::DoCreateChangelog()
+{
+    Chunk_ = New<TJournalChunk>(
+        Bootstrap_,
+        Location_,
+        ChunkId_,
+        TChunkInfo(),
+        this);
+
+    auto dispatcher = Bootstrap_->GetJournalDispatcher();
+    Changelog_ = dispatcher->CreateChangelog(Chunk_);
+}
+
+void TJournalSession::OnChangelogCreated()
 {
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 }
 
-void TJournalSession::Cancel(const TError& error)
+void TJournalSession::DoCancel()
+{ }
+
+TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& chunkMeta)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO(error, "Session canceled");
-
-    CloseSession();
-}
-
-TFuture<TErrorOr<IChunkPtr>> TJournalSession::Finish(const TChunkMeta& chunkMeta)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LOG_INFO("Session finished");
-
-    return MakeFuture<TErrorOr<IChunkPtr>>(CloseSession());
-}
-
-IChunkPtr TJournalSession::CloseSession()
-{
-    CloseLease();
-
-    Chunk_->ReleaseChangelog();
-
+    UpdateChunkInfo();
+    Chunk_->ReleaseSession();
     Finished_.Fire(TError());
-
-    return Chunk_;
+    return MakeFuture<TErrorOr<IChunkPtr>>(IChunkPtr(Chunk_));
 }
 
-TAsyncError TJournalSession::PutBlocks(
+TAsyncError TJournalSession::DoPutBlocks(
     int startBlockIndex,
     const std::vector<TSharedRef>& blocks,
     bool /*enableCaching*/)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    Ping();
-
-    auto changelog = Chunk_->GetChangelog();
-    int recordCount = changelog->GetRecordCount();
+    int recordCount = Changelog_->GetRecordCount();
     
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
@@ -121,13 +113,13 @@ TAsyncError TJournalSession::PutBlocks(
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        LastAppendResult_ = changelog->Append(blocks[index]);
+        LastAppendResult_ = Changelog_->Append(blocks[index]);
     }
 
     return OKFuture;
 }
 
-TAsyncError TJournalSession::SendBlocks(
+TAsyncError TJournalSession::DoSendBlocks(
     int /*startBlockIndex*/,
     int /*blockCount*/,
     const TNodeDescriptor& /*target*/)
@@ -135,10 +127,9 @@ TAsyncError TJournalSession::SendBlocks(
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TAsyncError TJournalSession::FlushBlocks(int blockIndex)
+TAsyncError TJournalSession::DoFlushBlocks(int blockIndex)
 {
-    auto changelog = Chunk_->GetChangelog();
-    int recordCount = changelog->GetRecordCount();
+    int recordCount = Changelog_->GetRecordCount();
     
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
