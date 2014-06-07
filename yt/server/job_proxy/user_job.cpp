@@ -32,6 +32,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/stream/null.h>
@@ -74,6 +76,7 @@ static auto& Logger = JobProxyLogger;
 #ifdef _linux_
 
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
+static const char* CGroupPrefix = "yt-job-";
 
 class TUserJob
     : public TJob
@@ -82,15 +85,19 @@ public:
     TUserJob(
         IJobHost* host,
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
+        const NJobAgent::TJobId& jobId,
         std::unique_ptr<TUserJobIO> userJobIO)
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
+        , JobId(jobId)
         , InitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
+        , CpuAccounting(CGroupPrefix + ToString(jobId))
+        , BlockIO(CGroupPrefix + ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -107,6 +114,11 @@ public:
         InitPipes();
 
         InitCompleted = true;
+
+        if (UserJobSpec.enable_accounting()) {
+            CreateCGroup(CpuAccounting);
+            CreateCGroup(BlockIO);
+        }
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -131,6 +143,18 @@ public:
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
+
+        if (UserJobSpec.enable_accounting()) {
+            RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+                    CpuAccountingStats = cgroup.GetStatistics();
+                });
+            RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                    BlockIOStats = cgroup.GetStatistics();
+                });
+
+            DestroyCGroup(CpuAccounting);
+            DestroyCGroup(BlockIO);
+        }
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -496,6 +520,11 @@ private:
                 }
             }
 
+            if (UserJobSpec.enable_accounting()) {
+                CpuAccounting.AddCurrentProcess();
+                BlockIO.AddCurrentProcess();
+            }
+
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
@@ -604,12 +633,51 @@ private:
 
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
+
+        if (UserJobSpec.enable_accounting()) {
+            ToProto(result.mutable_cpu(), CpuAccountingStats);
+            ToProto(result.mutable_block_io(), BlockIOStats);
+        }
+
         return result;
+    }
+
+    void CreateCGroup(NCGroup::TCGroup& cgroup)
+    {
+        try {
+            cgroup.Create();
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
+        }
+    }
+
+    template <typename T, typename Func>
+    void RetrieveStatistics(T& cgroup, Func retriever)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                retriever(cgroup);
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
+    }
+
+    void DestroyCGroup(NCGroup::TCGroup& cgroup)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                cgroup.Destroy();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
     }
 
     std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
+    NJobAgent::TJobId JobId;
 
     volatile bool InitCompleted;
 
@@ -635,16 +703,23 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
+    NCGroup::TCpuAccounting CpuAccounting;
+    NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;
+
+    NCGroup::TBlockIO BlockIO;
+    NCGroup::TBlockIO::TStatistics BlockIOStats;
 };
 
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO,
+    NJobAgent::TJobId& jobId)
 {
     return New<TUserJob>(
         host,
         userJobSpec,
+        jobId,
         std::move(userJobIO));
 }
 

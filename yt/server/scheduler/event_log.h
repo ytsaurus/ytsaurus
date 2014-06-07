@@ -23,6 +23,8 @@ DECLARE_ENUM(ELogEventType,
     (JobAborted)
     (OperationCompleted)
     (OperationFailed)
+    (OperationAborted)
+    (FairShareInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +87,7 @@ public:
     }
 
     TFluentLogEventImpl(const TFluentLogEventImpl& other)
-        : TBase(other.Consumer_, other.Parent)
+        : TBase(other.Consumer, other.Parent)
         , Logger_(other.Logger_)
     {
         Acquire();
@@ -123,7 +125,29 @@ private:
             this->Logger_ = nullptr;
         }
     }
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct IEventLogHost
+{
+public:
+    virtual ~IEventLogHost()
+    { }
+
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
+
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
+};
+
+class TEventLogHostBase
+    : public IEventLogHost
+{
+public:
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType);
+
+private:
+    TFluentEventLogger EventLogger_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -445,9 +445,8 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
                 keyPart->set_type(EKeyPartType::String);
-                size_t partSize = std::min(token.GetStringValue().size(), MaxKeySize);
-                keyPart->set_str_value(token.GetStringValue().begin(), partSize);
-                size += partSize;
+                keyPart->set_str_value(token.GetStringValue().begin(), token.GetStringValue().size());
+                size += token.GetStringValue().size();
                 break;
             }
 
@@ -470,10 +469,9 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
     YASSERT(State.IsClosed());
 
-    static const int masterMetaTagsArray[] = {
+    static const yhash_set<int> masterMetaTags({
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value };
-    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
+        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value });
 
     auto meta = Meta;
     FilterProtoExtensions(

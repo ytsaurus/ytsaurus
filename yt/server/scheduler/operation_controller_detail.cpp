@@ -34,6 +34,8 @@
 
 #include <ytlib/cell_directory/cell_directory.h>
 
+#include <ytlib/cgroup/statistics.h>
+
 #include <core/concurrency/fiber.h>
 #include <core/rpc/helpers.h>
 
@@ -3424,6 +3426,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
     jobSpec->set_enable_io_prio(config->EnableIOPrio);
+    jobSpec->set_enable_accounting(Config->EnableAccounting);
 
     {
         // Set input and output format.
@@ -3566,12 +3569,13 @@ TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventTy
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
     const auto& result = job->Result();
+    const auto& statistics = result.statistics();
 
     return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
-        .Item("statistics").Value(result.statistics());
+        .Item("statistics").Value(statistics);
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)

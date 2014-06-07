@@ -297,10 +297,9 @@ private:
         // Confirm
         LOG_INFO("Confirming output chunk");
         {
-            static const int masterMetaTagsArray[] = {
+            static const yhash_set<int> masterMetaTags({
                 TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value };
-            static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
+                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value });
 
             auto masterChunkMeta = chunkMeta;
             FilterProtoExtensions(

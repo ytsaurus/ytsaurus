@@ -148,6 +148,8 @@ message TUserJobSpec
     optional bool enable_vm_limit = 13 [default = true];
 
     optional bool enable_io_prio = 14 [default = true];
+
+    optional bool enable_accounting = 15 [default = false];
 }
 
 // User code result.

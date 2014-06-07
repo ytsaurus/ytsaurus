@@ -516,15 +516,20 @@ protected:
     {
         size_t needToRead = sizeof(double);
 
-        while (needToRead) {
-            size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
-            if (!readingBytes) {
+        while (needToRead != 0) {
+            if (TBaseStream::IsEmpty()) {
+                TBaseStream::Refresh();
+                continue;
+            }
+
+            size_t chunkSize = std::min(needToRead, TBaseStream::Length());
+            if (chunkSize == 0) {
                 THROW_ERROR_EXCEPTION("Error while parsing binary double (%s)", 
                     ~TBaseStream::GetPositionInfo());
             }
-            std::copy(TBaseStream::Begin(), TBaseStream::Begin() + readingBytes, reinterpret_cast<char*>(value) + (sizeof(double) - needToRead));
-            needToRead -= readingBytes;
-            TBaseStream::Advance(readingBytes);
+            std::copy(TBaseStream::Begin(), TBaseStream::Begin() + chunkSize, reinterpret_cast<char*>(value) + (sizeof(double) - chunkSize));
+            needToRead -= chunkSize;
+            TBaseStream::Advance(chunkSize);
         }
     }
     

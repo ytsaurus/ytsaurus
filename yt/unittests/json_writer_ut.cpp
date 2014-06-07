@@ -422,6 +422,22 @@ TEST(TJsonWriterTest, SpecialKeys)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, TestStringLengthLimit)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->StringLengthLimit = 2;
+    auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+
+    writer->OnBeginMap();
+        writer->OnKeyedItem("hello");
+        writer->OnStringScalar(Stroka(10000, 'A'));
+    writer->OnEndMap();
+
+    Stroka output = "{\"hello\":{\"$attributes\":{\"incomplete\":\"true\"},\"$value\":\"AA\"}}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

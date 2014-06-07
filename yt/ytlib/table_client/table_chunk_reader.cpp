@@ -724,6 +724,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkReader::TTableChunkReader(
+    // We keep this parameter to make it compatible with multi_chunk_reader.
     TTableChunkReaderProviderPtr provider,
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
@@ -734,8 +735,7 @@ TTableChunkReader::TTableChunkReader(
     i64 startTableRowIndex,
     int partitionTag,
     TChunkReaderOptionsPtr options)
-    : Provider(provider)
-    , Facade(this)
+    : Facade(this)
     , IsFinished(false)
     , SequentialReader(nullptr)
     , Channel(channel)
@@ -814,7 +814,6 @@ bool TTableChunkReader::DoFetchNextRow()
     }
 
     ++CurrentRowIndex;
-    ++Provider->RowIndex_;
 
     CurrentRow.clear();
     CurrentKey.Clear();
@@ -860,7 +859,6 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
     MakeCurrentRow();
 
     if (!ValidateRow()) {
-        --Provider->RowIndex_;
         --CurrentRowIndex;
     }
 
@@ -998,8 +996,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     const NChunkClient::TSequentialReaderConfigPtr& config,
     const TChunkReaderOptionsPtr& options,
     TNullable<i64> startTableRowIndex)
-    : RowIndex_(0)
-    , RowCount_(0)
+    : RowCount_(0)
     , Config(config)
     , Options(options)
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
@@ -1064,6 +1061,11 @@ NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatisti
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;
+}
+
+i64 TTableChunkReaderProvider::GetRowIndex() const
+{
+    return GetDataStatistics().row_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

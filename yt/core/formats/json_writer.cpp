@@ -64,6 +64,7 @@ private:
     int InAttributesBalance;
     bool HasAttributes;
     int Depth;
+    bool CheckLimit;
 
     TUtf8Transcoder Utf8Transcoder_;
 };
@@ -97,6 +98,7 @@ TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     , Config(config)
     , Type(type)
     , Depth(0)
+    , CheckLimit(true)
     , Utf8Transcoder_(Config->EncodeUtf8)
 {
     if (Type == EYsonType::MapFragment) {
@@ -164,8 +166,20 @@ bool TJsonWriterImpl::IsWriteAllowed()
 void TJsonWriterImpl::OnStringScalar(const TStringBuf& value)
 {
     if (IsWriteAllowed()) {
+        TStringBuf writeValue = value;
+        if (CheckLimit && Config->StringLengthLimit && value.Size() > *Config->StringLengthLimit) {
+            // To prevent length check while writing this attribute
+            CheckLimit = false;
+            OnBeginAttributes();
+                OnKeyedItem("incomplete");
+                OnStringScalar("true");
+            OnEndAttributes();
+            CheckLimit = true;
+
+            writeValue = value.substr(0, *Config->StringLengthLimit);
+        }
         EnterNode();
-        WriteStringScalar(value);
+        WriteStringScalar(writeValue);
         LeaveNode();
     }
 }

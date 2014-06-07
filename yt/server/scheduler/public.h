@@ -18,11 +18,6 @@ using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESchedulerStrategy,
-    (Null)
-    (FairShare)
-);
-
 class TSchedulerService;
 typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
 
@@ -51,6 +46,8 @@ typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
 
 class TScheduler;
 typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
+
+struct IEventLogHost;
 
 struct ISchedulerStrategy;
 struct ISchedulerStrategyHost;

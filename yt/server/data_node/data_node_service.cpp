@@ -53,6 +53,8 @@ static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
+const size_t MaxSampleSize = 4 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataNodeService::TDataNodeService(
@@ -629,7 +631,7 @@ void TDataNodeService::ProcessSample(
 
         size_t size = 0;
         FOREACH (const auto& column, keyColumns) {
-            if (size >= MaxKeySize)
+            if (size >= MaxSampleSize)
                 break;
 
             auto* keyPart = key->add_parts();
@@ -656,7 +658,7 @@ void TDataNodeService::ProcessSample(
                     size += sizeof(keyPart->double_value());
                     break;
                 case EKeyPartType::String: {
-                    auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                    auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
                     keyPart->set_str_value(it->key_part().str_value().begin(), partSize);
                     size += partSize;
                     break;

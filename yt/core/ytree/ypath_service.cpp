@@ -128,6 +128,8 @@ private:
     TSpinLock SpinLock;
     INodePtr CachedTree;
     TInstant LastUpdateTime;
+    bool Updating = false;
+    
 
     virtual bool DoInvoke(IServiceContextPtr /*context*/) override
     {
@@ -137,12 +139,15 @@ private:
 
     INodePtr GetCachedTree()
     {
-        bool needsUpdate;
+        bool needsUpdate = false;
         INodePtr cachedTree;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            needsUpdate = TInstant::Now() > LastUpdateTime + ExpirationPeriod;
             cachedTree = CachedTree;
+            if (TInstant::Now() > LastUpdateTime + ExpirationPeriod && !Updating) {
+                needsUpdate = true;
+                Updating = true;
+            }
         }
 
         if (needsUpdate) {
@@ -179,6 +184,7 @@ private:
         TGuard<TSpinLock> guard(SpinLock);
         CachedTree = tree;
         LastUpdateTime = TInstant::Now();
+        Updating = false;
     }
 
 };

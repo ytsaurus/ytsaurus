@@ -29,6 +29,16 @@ public:
         parser.Read(input);
         parser.Finish();
     }
+
+    void Run(const std::vector<Stroka>& input, EYsonType mode = EYsonType::Node, TNullable<i64> memoryLimit = Null)
+    {
+        TYsonParser parser(&Mock, mode, true, memoryLimit);
+        for (const auto& str : input) {
+            parser.Read(str);
+        }
+        parser.Finish();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,19 +86,45 @@ TEST_F(TYsonParserTest, Entity)
 TEST_F(TYsonParserTest, BinaryInteger)
 {
     InSequence dummy;
-    EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21));
+    {
+        EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21));
 
-    //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
-    Run(Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2));
+        //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
+        Run(Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2));
+    }
+
+    {
+        EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21));
+
+        //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
+        std::vector<Stroka> parts = {Stroka("\x02"), Stroka("\x80\x80\x80\x02")};
+        Run(parts);
+    }
 }
 
 TEST_F(TYsonParserTest, BinaryDouble)
 {
     InSequence dummy;
-    EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(2.71828)));
-
     double x = 2.71828;
-    Run(Stroka("\x03", 1) + Stroka((char*) &x, sizeof(double))); // DoubleMarker
+
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
+
+        Run(Stroka("\x03", 1) + Stroka((char*) &x, sizeof(double))); // DoubleMarker
+    }
+
+    {
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(x)));
+
+        std::vector<Stroka> parts = {Stroka("\x03", 1), Stroka((char*) &x, sizeof(double))};
+        Run(parts); // DoubleMarker
+    }
+}
+
+
+TEST_F(TYsonParserTest, InvalidBinaryDouble)
+{
+    EXPECT_THROW(Run(Stroka("\x03", 1)), std::exception);
 }
 
 TEST_F(TYsonParserTest, BinaryString)

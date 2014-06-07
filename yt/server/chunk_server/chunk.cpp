@@ -119,13 +119,20 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ChunkInfo_);
-    Load(context, ChunkMeta_);
 
     // XXX(babenko): fix snapshot bloat caused by remote copy
-    RemoveProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NChunkClient::NProto::TErasurePlacementExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NTableClient::NProto::TSamplesExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NTableClient::NProto::TIndexExt>(ChunkMeta_.mutable_extensions());
+    NChunkClient::NProto::TChunkMeta loadedChunkMeta;
+    Load(context, loadedChunkMeta);
+
+    static const yhash_set<int> correctMetaTags({
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value });
+
+    ChunkMeta_ = loadedChunkMeta;
+    FilterProtoExtensions(
+        ChunkMeta_.mutable_extensions(),
+        loadedChunkMeta.extensions(),
+        correctMetaTags);
 
     SetReplicationFactor(Load<i16>(context));
     // COMPAT(psushin)

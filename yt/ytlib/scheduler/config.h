@@ -201,7 +201,7 @@ public:
             .Default()
             .GreaterThan(0);
         RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
@@ -362,7 +362,7 @@ public:
             .Default();
 
         RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 32 * 1024 * 1024;
+            DataSizePerJob = (i64) 128 * 1024 * 1024;
             JobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
@@ -712,7 +712,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TFairShareOperationSpec
+class TStrategyOperationSpec
     : public NYTree::TYsonSerializable
 {
 public:
@@ -726,7 +726,7 @@ public:
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
 
-    TFairShareOperationSpec()
+    TStrategyOperationSpec()
     {
         RegisterParameter("pool", Pool)
             .Default()
@@ -753,13 +753,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-class TFairShareOperationRuntimeParams
+class TOperationRuntimeParams
     : public NYTree::TYsonSerializable
 {
 public:
     double Weight;
 
-    TFairShareOperationRuntimeParams()
+    TOperationRuntimeParams()
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)

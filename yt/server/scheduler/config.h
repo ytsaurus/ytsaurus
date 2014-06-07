@@ -29,6 +29,7 @@ public:
     double FairShareStarvationTolerance;
 
     TDuration FairShareUpdatePeriod;
+    TDuration FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
@@ -44,6 +45,9 @@ public:
             .Default(0.8);
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
+            .Default(TDuration::MilliSeconds(1000));
+        
+        RegisterParameter("fair_share_log_period", FairShareLogPeriod)
             .Default(TDuration::MilliSeconds(1000));
 
         RegisterParameter("min_preemptable_ratio", MinPreemptableRatio)
@@ -96,8 +100,6 @@ public:
 
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerScratch;
-
-    ESchedulerStrategy Strategy;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -162,6 +164,9 @@ public:
 
     //! Whether to call a |setrlimit| to limit user job VM size.
     bool EnableVMLimit;
+
+    //! Whether to enable user job accounting.
+    bool EnableAccounting;
 
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
@@ -230,9 +235,6 @@ public:
             .Default(10000)
             .GreaterThan(0)
             .LessThan(100000);
-
-        RegisterParameter("strategy", Strategy)
-            .Default(ESchedulerStrategy::Null);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(100)
@@ -303,6 +305,9 @@ public:
 
         RegisterParameter("enable_vm_limit", EnableVMLimit)
             .Default(true);
+
+        RegisterParameter("enable_accounting", EnableAccounting)
+            .Default(false);
 
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .Default(1);
