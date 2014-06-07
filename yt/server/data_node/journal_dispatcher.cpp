@@ -476,17 +476,18 @@ private:
             startRecordId += records.size();
         }
 
-        LOG_INFO("Flushing journal chunks");
-
         for (auto& pair : SplitMap_) {
             auto& entry = pair.second;
                 
-            LOG_INFO("Flushing journal chunk %s",
+            LOG_INFO("Started flushing journal chunk (ChunkId: %s)",
                 ~ToString(pair.first));
+
             entry.Changelog->Flush().Get();
 
-            LOG_INFO("Done, %d records added",
+            LOG_INFO("Finished flushing journal chunk (ChunkId: %s, RecordAdded: %d)",
+                ~ToString(pair.first),
                 entry.RecordsAdded);
+
             entry.RecordsAdded = 0;
         }
 
@@ -573,7 +574,11 @@ private:
             if (!chunk) {
                 return nullptr;
             }
-            auto changelog = Owner_->OpenChangelog(chunk->GetLocation(), chunkId);
+            auto location = chunk->GetLocation();
+            auto fileName = location->GetChunkFileName(chunkId);
+            auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
+                fileName,
+                Owner_->Config_->Split);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
                 TSplitEntry(changelog))).first;
