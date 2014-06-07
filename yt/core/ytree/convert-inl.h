@@ -136,12 +136,13 @@ TTo ConvertTo(const TFrom& value)
     return ConvertTo<TTo>(ConvertToNode(value));
 }
 
+const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
+
 template <>
 inline i64 ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Integer:
             return token.GetIntegerValue();
@@ -155,8 +156,7 @@ template <>
 inline double ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Integer:
             return token.GetIntegerValue();
@@ -172,8 +172,7 @@ template <>
 inline Stroka ConvertTo(const TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
-    tokenizer.ParseNext();
-    const auto& token = tokenizer.CurrentToken();
+    const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
             return Stroka(token.GetStringValue());
