@@ -101,6 +101,10 @@ public:
     bool PreferLocalHost;
     TDuration NodeRpcTimeout;
     TDuration NodePingPeriod;
+    int MaxChunkOpenAttempts;
+    int MaxChunkRecordCount;
+    i64 MaxChunkDataSize;
+    TDuration NodeBanTimeout;
 
     TJournalWriterConfig()
     {
@@ -116,6 +120,17 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("node_ping_period", NodeRpcTimeout)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("max_chunk_open_attempts", MaxChunkOpenAttempts)
+            .GreaterThan(0)
+            .Default(5);
+        RegisterParameter("max_chunk_record_count", MaxChunkRecordCount)
+            .GreaterThan(0)
+            .Default(1000000);
+        RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("node_ban_timeout", NodeBanTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 

@@ -228,6 +228,7 @@ struct TJournalReaderOptions
 };
 
 struct TJournalWriterOptions
+    : public TTransactionalOptions
 { };
 
 ///////////////////////////////////////////////////////////////////////////////

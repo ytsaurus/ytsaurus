@@ -30,6 +30,7 @@
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -112,8 +113,16 @@ private:
             , Proxy_(Client_->GetMasterChannel())
             , Logger(ApiLogger)
         {
-            Logger.AddTag(Sprintf("Path: %s",
-                ~Path_));
+            if (Options_.TransactionId != NullTransactionId) {
+                auto transactionManager = Client_->GetTransactionManager();
+                TTransactionAttachOptions attachOptions(Options_.TransactionId);
+                attachOptions.AutoAbort = false;
+                Transaction_ = transactionManager->Attach(attachOptions);
+            }
+
+            Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+                ~Path_,
+                ~ToString(Options_.TransactionId)));
 
             // Spawn the actor.
             BIND(&TImpl::ActorMain, MakeStrong(this))
@@ -175,11 +184,10 @@ private:
             : public TIntrinsicRefCounted
         {
             int FirstRecordIndex = -1;
-
             i64 DataSize = 0;
             std::vector<TSharedRef> Records;
             TAsyncErrorPromise FlushedPromise = NewPromise<TError>();
-            int FlushCounter = 0;
+            int FlushedReplicas = 0;
         };
 
         typedef TIntrusivePtr<TBatch> TBatchPtr;
@@ -194,6 +202,7 @@ private:
         bool Closing_ = false;
         TAsyncErrorPromise ClosedPromise_ = NewPromise<TError>();
 
+        TTransactionPtr Transaction_;
         TTransactionPtr UploadTransaction_;
         
         int ReplicationFactor_ = -1;
@@ -231,7 +240,9 @@ private:
         {
             TChunkId ChunkId;
             std::vector<TNodePtr> Nodes;
+            int RecordCount = 0;
             int FlushedRecordCount = 0;
+            i64 DataSize = 0;
         };
 
         typedef TIntrusivePtr<TChunkSession> TChunkSessionPtr;
@@ -261,6 +272,8 @@ private:
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
+        yhash_map<Stroka, TInstant> BannedNodeToDeadline_;
+
 
         void EnqueueCommand(TCommand command)
         {
@@ -273,12 +286,41 @@ private:
         }
 
 
+        void BanNode(const Stroka& address)
+        {
+            if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
+                BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
+                LOG_INFO("Node banned (Address: %s)",
+                    ~address);
+            }
+        }
+
+        std::vector<Stroka> GetBannedNodes()
+        {
+            std::vector<Stroka> result;
+            auto now = TInstant::Now();
+            auto it = BannedNodeToDeadline_.begin();
+            while (it != BannedNodeToDeadline_.end()) {
+                auto jt = it++;
+                if (jt->second < now) {
+                    LOG_INFO("Node unbanned (Address: %s)",
+                        ~jt->first);
+                    BannedNodeToDeadline_.erase(jt);
+                } else {
+                    result.push_back(jt->first);
+                }
+            }
+            return result;
+        }
+
+
         void OpenJournal()
         {
             LOG_INFO("Creating upload transaction");
     
             {
                 NTransactionClient::TTransactionStartOptions options;
+                options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
                 options.EnableUncommittedAccounting = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Journal upload to %s", ~Path_));
@@ -296,7 +338,7 @@ private:
                 ~ToString(UploadTransaction_->GetId()));
             
 
-            LOG_INFO("Requesting journal info");
+            LOG_INFO("Opening journal");
 
             TObjectServiceProxy proxy(Client_->GetMasterChannel());
             auto batchReq = proxy.ExecuteBatch();
@@ -322,7 +364,7 @@ private:
             }
 
             auto batchRsp = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting journal info");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error opening journal");
 
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
@@ -350,7 +392,7 @@ private:
                 ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
 
-            LOG_INFO("Journal info received (ReplicationFactor: %d, WriteConcern: %d, Account: %s, ChunkListId: %s)",
+            LOG_INFO("Journal opened (ReplicationFactor: %d, WriteConcern: %d, Account: %s, ChunkListId: %s)",
                 ReplicationFactor_,
                 WriteConcern_,
                 ~Account_,
@@ -365,7 +407,7 @@ private:
             LOG_INFO("Journal writer closed");
         }
 
-        void OpenChunk()
+        bool TryOpenChunk()
         {
             CurrentSession_ = New<TChunkSession>();
 
@@ -380,6 +422,7 @@ private:
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
 
                 auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
+                ToProto(reqExt->mutable_forbidden_addresses(), GetBannedNodes());
                 if (Config_->PreferLocalHost) {
                     reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
                 }
@@ -425,7 +468,7 @@ private:
             }
 
             LOG_INFO("Starting chunk sessions");
-            {
+            try {
                 auto collector = New<TParallelCollector<void>>();
                 for (auto node : CurrentSession_->Nodes) {
                     auto req = node->LightProxy.StartChunk();
@@ -438,8 +481,19 @@ private:
                 }
                 auto result = WaitFor(collector->Complete());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
+            } catch (const std::exception& ex) {
+                LOG_WARNING(ex, "Chunk open attempt failed");
+                CurrentSession_.Reset();
+                return false;
             }
             LOG_INFO("Chunk sessions started");
+
+            for (auto node : CurrentSession_->Nodes) {
+                node->PingExecutor = New<TPeriodicExecutor>(
+                    GetCurrentInvoker(),
+                    BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(node), CurrentSession_),
+                    Config_->NodePingPeriod);
+            }
 
             LOG_INFO("Attaching chunk");
             {
@@ -451,7 +505,8 @@ private:
                     auto* meta = req->mutable_chunk_meta();
                     meta->set_type(EChunkType::Journal);
                     meta->set_version(0);
-                    meta->mutable_extensions();
+                    TMiscExt miscExt;
+                    SetProtoExtension(meta->mutable_extensions(), miscExt);
                     NHydra::GenerateMutationId(req);
                     batchReq->AddRequest(req, "confirm");
                 }
@@ -468,8 +523,20 @@ private:
             LOG_INFO("Chunk attached");
         
             for (auto batch : PendingBatches_) {
-                EnqueueBatchToNodes(batch);
+                EnqueueBatchToSession(batch);
             }
+
+            return true;
+        }
+
+        void OpenChunk()
+        {
+            for (int attempt = 0; attempt < Config_->MaxChunkOpenAttempts; ++attempt) {
+                if (TryOpenChunk())
+                    return;
+            }
+            THROW_ERROR_EXCEPTION("All %d attempts to open a chunk were unsuccessfull",
+                Config_->MaxChunkOpenAttempts);
         }
 
         void WriteChunk()
@@ -483,9 +550,13 @@ private:
                     throw TFiberCanceledException();
                 } else if (auto* command = someCommand.TryAs<TBatchCommand>()) {
                     HandleBatch(*command);
+                    if (IsSessionOverful()) {
+                        SwitchChunk();
+                        break;
+                    }
                 } else if (auto* command = someCommand.TryAs<TSwitchChunkCommand>()) {
                     if (command->Session == CurrentSession_) {
-                        HandleSwitchChunk();
+                        SwitchChunk();
                         break;
                     }
                 }
@@ -510,50 +581,63 @@ private:
             CurrentRecordIndex_ += recordCount;
 
             PendingBatches_.push_back(batch);
-            EnqueueBatchToNodes(batch);
+
+            EnqueueBatchToSession(batch);
         }
 
-        void EnqueueBatchToNodes(TBatchPtr batch)
+        bool IsSessionOverful()
         {
+            return
+                CurrentSession_->RecordCount > Config_->MaxChunkRecordCount ||
+                CurrentSession_->DataSize > Config_->MaxChunkDataSize;
+        }
+
+        void EnqueueBatchToSession(TBatchPtr batch)
+        {
+            CurrentSession_->RecordCount += batch->Records.size();
+            CurrentSession_->DataSize += batch->DataSize;
+
             for (auto node : CurrentSession_->Nodes) {
                 node->PendingBatches.push(batch);
                 MaybeFlushBlocks(node);
             }
         }
 
-        void HandleSwitchChunk()
+        void SwitchChunk()
         {
             LOG_INFO("Switching chunk");
         }
 
         void CloseChunk()
         {
+            // Release the current session to prevent writing more records.
+            auto session = CurrentSession_;
+            CurrentSession_.Reset();
+
             // NB: Fire-and-forget.
             LOG_INFO("Finishing chunk sessions");
-            for (auto node : CurrentSession_->Nodes) {
+            for (auto node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
-                ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
+                ToProto(req->mutable_chunk_id(), session->ChunkId);
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(GetCurrentInvoker()));
             }
             
+            for (auto node : session->Nodes) {
+                node->PingExecutor->Stop();
+            }
+
             LOG_INFO("Sealing chunk (ChunkId: %s, RecordCount: %d)",
-                ~ToString(CurrentSession_->ChunkId),
-                CurrentSession_->FlushedRecordCount);
+                ~ToString(session->ChunkId),
+                session->FlushedRecordCount);
             {
-                auto req = TChunkYPathProxy::Seal(FromObjectId(CurrentSession_->ChunkId));
-                req->set_record_count(CurrentSession_->FlushedRecordCount);
+                auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
+                req->set_record_count(session->FlushedRecordCount);
                 auto rsp = WaitFor(Proxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk");
             }
             LOG_INFO("Chunk sealed");
-
-            for (auto node : CurrentSession_->Nodes) {
-                node->PingExecutor->Stop();
-            }
-
-            CurrentSession_.Reset();
         }
 
 
@@ -685,6 +769,7 @@ private:
                     ~node->Descriptor.Address);
                 return TError();
             } else {
+                BanNode(node->Descriptor.Address);
                 return TError("Error starting session at %s",
                     ~node->Descriptor.Address)
                     << *rsp;
@@ -697,6 +782,7 @@ private:
                 LOG_DEBUG("Chunk session finished (Address: %s)",
                     ~node->Descriptor.Address);
             } else {
+                BanNode(node->Descriptor.Address);
                 LOG_WARNING(*rsp, "Chunk session has failed to finish (Address: %s)",
                     ~node->Descriptor.Address);
             }
@@ -753,11 +839,11 @@ private:
                 node->FirstBlockIndex = lastBlockIndex + 1;
                 node->FlushInProgress = false;
 
-                ++batch->FlushCounter;
+                ++batch->FlushedReplicas;
 
                 while (!PendingBatches_.empty()) {
                     auto front = PendingBatches_.front();
-                    if (front->FlushCounter <  WriteConcern_)
+                    if (front->FlushedReplicas <  WriteConcern_)
                         break;
 
                     front->FlushedPromise.Set(TError());
@@ -765,7 +851,7 @@ private:
                     session->FlushedRecordCount += recordCount;
                     PendingBatches_.pop_front();
 
-                    LOG_DEBUG("Records flushed (Records: %d-%d)",
+                    LOG_DEBUG("Records are flushed by a quorum of replicas (Records: %d-%d)",
                         front->FirstRecordIndex,
                         front->FirstRecordIndex + recordCount - 1);
                 }
@@ -777,6 +863,8 @@ private:
                     ~ToString(session->ChunkId),
                     firstBlockIndex,
                     lastBlockIndex);
+
+                BanNode(node->Descriptor.Address);
 
                 TSwitchChunkCommand command;
                 command.Session = session;
