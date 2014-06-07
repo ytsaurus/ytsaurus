@@ -23,7 +23,7 @@ namespace NHydra {
 struct TChangelogHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x333030304C435459ull; // YTCL0003
+    static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003
 
     //! Indicates that the changelog is not yet sealed.
     static const i32 NotSealedRecordCount = -2;
@@ -83,7 +83,7 @@ static_assert(sizeof (TChangelogRecordHeader) == 16, "Binary size of TChangelogR
 struct TChangelogIndexHeader
 {
     //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x32303030494C5459ull; // YTLI0002
+    static const ui64 ExpectedSignature = 0x3330303049435459ull; // YTCI0003
 
     ui64 Signature;
     i32 IndexRecordCount;
