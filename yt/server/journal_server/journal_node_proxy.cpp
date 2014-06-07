@@ -50,6 +50,7 @@ private:
     {
         attributes->push_back("read_concern");
         attributes->push_back("write_concern");
+        attributes->push_back("finalized");
         TCypressNodeProxyBase::ListSystemAttributes(attributes);
     }
 
@@ -66,6 +67,12 @@ private:
         if (key == "write_concern") {
             BuildYsonFluently(consumer)
                 .Value(node->GetWriteConcern());
+            return true;
+        }
+
+        if (key == "finalized") {
+            BuildYsonFluently(consumer)
+                .Value(node->IsFinalized());
             return true;
         }
 
