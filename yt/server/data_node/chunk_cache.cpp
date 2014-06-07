@@ -119,7 +119,7 @@ public:
 
             auto invoker = CreateSerializedInvoker(Location_->GetWriteInvoker());
             invoker->Invoke(BIND(
-                &TImpl::DoDownload,
+                &TImpl::DoDownloadChunk,
                 MakeStrong(this),
                 chunkId,
                 Passed(std::move(cookie))));
@@ -183,7 +183,7 @@ private:
     }
 
 
-    void DoDownload(const TChunkId& chunkId, TInsertCookie cookie)
+    void DoDownloadChunk(const TChunkId& chunkId, TInsertCookie cookie)
     {
         NLog::TTaggedLogger Logger(DataNodeLogger);
         Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
@@ -271,6 +271,7 @@ private:
             LOG_WARNING(error);
         }
     }
+
 
 };
 
