@@ -167,7 +167,7 @@ TTo ConvertTo(const TFrom& value)
 
 CONVERT_TO_PLAIN_TYPE(i64, (Integer))
 CONVERT_TO_PLAIN_TYPE(double, (Double)(Integer))
-CONVERT_TO_PLAIN_TYPE(TStringBuf, (String))
+CONVERT_TO_PLAIN_TYPE(Stroka, (String))
 
 #undef CONVERT_TO_PLAIN_TYPE
 #undef CHECK_TYPE
