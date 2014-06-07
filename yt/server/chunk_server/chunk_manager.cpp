@@ -626,6 +626,7 @@ public:
         switch (type) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
+            case EObjectType::JournalChunk:
                 return FindChunk(id);
             case EObjectType::ChunkList:
                 return FindChunkList(id);

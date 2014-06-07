@@ -440,7 +440,7 @@ private:
 
         auto* chunk = GetThisTypedImpl();
 
-        if (chunk->IsConfirmed()) {
+        if (!chunk->IsConfirmed()) {
             THROW_ERROR_EXCEPTION("Chunk is not confirmed");
         }
 

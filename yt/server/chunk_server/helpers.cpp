@@ -23,6 +23,7 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     switch (child->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk:
             child->AsChunk()->Parents().push_back(parent);
             break;
         case EObjectType::ChunkList:
@@ -37,7 +38,8 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
 {
     switch (child->GetType()) {
         case EObjectType::Chunk:
-        case EObjectType::ErasureChunk: {
+        case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk: {
             auto& parents = child->AsChunk()->Parents();
             auto it = std::find(parents.begin(), parents.end(), parent);
             YASSERT(it != parents.end());
@@ -61,6 +63,7 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk:
             return chunkTree->AsChunk()->GetStatistics();
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Statistics();
@@ -125,7 +128,8 @@ void GetOwningNodes(
     }
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
-        case EObjectType::ErasureChunk: {
+        case EObjectType::ErasureChunk:
+        case EObjectType::JournalChunk: {
             for (auto* parent : chunkTree->AsChunk()->Parents()) {
                 GetOwningNodes(parent, visited, owningNodes);
             }

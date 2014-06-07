@@ -257,7 +257,8 @@ protected:
                 }
 
                 case EObjectType::Chunk:
-                case EObjectType::ErasureChunk: {
+                case EObjectType::ErasureChunk: 
+                case EObjectType::JournalChunk: {
                     auto* childChunk = child->AsChunk();
                     if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();
