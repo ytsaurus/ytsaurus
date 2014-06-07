@@ -44,6 +44,10 @@ message TReqCreateChunkExt
     // Desired number of copies (including those created by background replication).
     optional int32 replication_factor = 2 [default = 1];
  
+    // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
+    // This does not prevent further balancing to move chunk there.
+    repeated string forbidden_addresses = 7;
+
     // Host name (without port number!) to be preferred for upload.
     // The client typically puts the name of the local host here to
     // facilitate local uploads.

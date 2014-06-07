@@ -311,12 +311,13 @@ public:
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
+        const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         EObjectType chunkType)
     {
         return ChunkPlacement_->AllocateWriteTargets(
             replicaCount,
-            nullptr,
+            forbiddenNodes,
             preferredHostName,
             EWriteSessionType::User,
             chunkType);
@@ -1319,6 +1320,17 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     chunk->SetStagingAccount(account);
 
     if (Owner->IsLeader()) {
+        TNodeSet forbiddenNodeSet;
+        TNodeList forbiddenNodeList;
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        for (const auto& address : requestExt->forbidden_addresses()) {
+            auto* node = nodeTracker->FindNodeByAddress(address);
+            if (node) {
+                forbiddenNodeSet.insert(node);
+                forbiddenNodeList.push_back(node);
+            }
+        }
+
         auto preferredHostName = requestExt->has_preferred_host_name()
             ? TNullable<Stroka>(requestExt->preferred_host_name())
             : Null;
@@ -1329,6 +1341,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         auto targets = Owner->AllocateWriteTargets(
             uploadReplicationFactor,
+            &forbiddenNodeSet,
             preferredHostName,
             chunkType);
 
@@ -1346,11 +1359,13 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
         LOG_DEBUG_UNLESS(Owner->IsRecovery(),
             "Allocated nodes for new chunk "
             "(ChunkId: %s, TransactionId: %s, Account: %s, Targets: [%s], "
-            "PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, ErasureCodec: %s, Movable: %s, Vital: %s)",
+            "ForbiddenAddresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, "
+            "UploadReplicationFactor: %d, ErasureCodec: %s, Movable: %s, Vital: %s)",
             ~ToString(chunk->GetId()),
             ~ToString(transaction->GetId()),
             ~account->GetName(),
             ~JoinToString(targets, TNodePtrAddressFormatter()),
+            ~JoinToString(forbiddenNodeList, TNodePtrAddressFormatter()),
             ~ToString(preferredHostName),
             chunk->GetReplicationFactor(),
             uploadReplicationFactor,
@@ -1457,10 +1472,15 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
 
 TNodeList TChunkManager::AllocateWriteTargets(
     int replicaCount,
+    const TNodeSet* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EObjectType chunkType)
 {
-    return Impl_->AllocateWriteTargets(replicaCount, preferredHostName, chunkType);
+    return Impl_->AllocateWriteTargets(
+        replicaCount,
+        forbiddenNodes,
+        preferredHostName,
+        chunkType);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(

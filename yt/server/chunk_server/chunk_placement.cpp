@@ -139,7 +139,10 @@ TNodeList TChunkPlacement::GetWriteTargets(
     if (preferredHostName) {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && IsValidWriteTarget(preferredNode, sessionType, chunkType)) {
+        if (preferredNode &&
+            IsValidWriteTarget(preferredNode, sessionType, chunkType) &&
+            (!forbiddenNodes || forbiddenNodes->count(preferredNode) == 0))
+        {
             targets.push_back(preferredNode);
         }
     }
