@@ -32,6 +32,7 @@ protected:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info,
         const NChunkClient::NProto::TChunkMeta* meta);
+    ~TBlobChunk();
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> RemoveFiles() override;

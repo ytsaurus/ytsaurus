@@ -52,8 +52,6 @@ protected:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
-    ~TChunk();
-
     void DoRemove();
     virtual void EvictFromCache() = 0;
     virtual TFuture<void> RemoveFiles() = 0;

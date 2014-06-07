@@ -48,6 +48,14 @@ TBlobChunk::TBlobChunk(
     }
 }
 
+TBlobChunk::~TBlobChunk()
+{
+    if (Meta_) {
+        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
+        tracker->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
+    }
+}
+
 IChunk::TAsyncGetMetaResult TBlobChunk::GetMeta(
     i64 priority,
     const std::vector<int>* tags)

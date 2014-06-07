@@ -31,14 +31,6 @@ TChunk::TChunk(
     , Info_(info)
 { }
 
-TChunk::~TChunk()
-{
-    if (Meta_) {
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        tracker->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
-    }
-}
-
 const TChunkId& TChunk::GetId() const
 {
     return Id_;
