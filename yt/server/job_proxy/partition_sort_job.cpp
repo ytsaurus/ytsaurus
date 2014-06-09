@@ -10,7 +10,7 @@
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaless_sorting_reader.h>
+#include <ytlib/new_table_client/schemaless_partition_sort_reader.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -51,7 +51,7 @@ public:
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
         std::vector<TChunkSpec> chunkSpecs(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
-        Reader_ = CreateSchemalessSortingReader(
+        Reader_ = CreateSchemalessPartitionSortReader(
             config->JobIO->NewTableReader,
             host->GetMasterChannel(),
             host->GetCompressedBlockCache(),
