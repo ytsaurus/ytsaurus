@@ -1169,6 +1169,8 @@ public:
 
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
                 chunkSlice->GetChunkSpec()->chunk_meta().extensions());
+
+            Cout << "Scheduler parti " << partitionsExt.DebugString() << Endl;
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {

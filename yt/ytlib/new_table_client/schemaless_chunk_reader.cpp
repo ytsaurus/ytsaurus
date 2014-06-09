@@ -78,6 +78,8 @@ public:
         TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+
+    virtual TDataStatistics GetDataStatistics() const override;
     i64 GetTableRowIndex() const;
 
 private:
@@ -146,6 +148,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , KeyColumns_(keyColumns)
     , TableRowIndex_(tableRowIndex)
     , PartitionTag_(partitionTag)
+    , RowCount_(0)
     , ChunkMeta_(masterMeta)
 {
     Logger.AddTag(Sprintf("SchemalessChunkReader: %p", this));
@@ -269,6 +272,13 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSe
         blocks.push_back(blockInfo);
     }
     return blocks;
+}
+
+TDataStatistics TSchemalessChunkReader::GetDataStatistics() const
+{
+    auto dataStatistics = TChunkReaderBase::GetDataStatistics();
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
 }
 
 void TSchemalessChunkReader::InitFirstBlock()

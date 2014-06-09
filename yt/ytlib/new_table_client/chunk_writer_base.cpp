@@ -86,7 +86,9 @@ TChunkMeta TChunkWriterBase::GetSchedulerMeta() const
 
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
 {
-    return EncodingChunkWriter_->GetDataStatistics();
+    auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
 }
 
 void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
