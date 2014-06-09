@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "schemaless_sorting_reader.h"
+#include "schemaless_partition_sort_reader.h"
 
 #include "config.h"
 #include "partition_chunk_reader.h"
@@ -41,11 +41,11 @@ static const double ReallocationFactor = 1.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessSortingReader
+class TSchemalessPartitionSortReader
     : public ISchemalessMultiChunkReader
 {
 public:
-    TSchemalessSortingReader(
+    TSchemalessPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
         IChannelPtr masterChannel,
         IBlockCachePtr blockCache,
@@ -172,7 +172,7 @@ private:
     class TComparerBase
     {
     public:
-        explicit TComparerBase(TSchemalessSortingReader* reader)
+        explicit TComparerBase(TSchemalessPartitionSortReader* reader)
             : KeyColumnCount_(reader->KeyColumnCount_)
             , KeyBuffer_(reader->KeyBuffer_)
         { }
@@ -204,7 +204,7 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TSortComparer(TSchemalessSortingReader* reader)
+        explicit TSortComparer(TSchemalessPartitionSortReader* reader)
             : TComparerBase(reader)
         { }
 
@@ -219,7 +219,7 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TMergeComparer(TSchemalessSortingReader* reader)
+        explicit TMergeComparer(TSchemalessPartitionSortReader* reader)
             : TComparerBase(reader)
             , Buckets_(reader->Buckets_)
         { }
@@ -240,7 +240,7 @@ private:
         : public std::vector<T>
     {
     public:
-        explicit TSafeVector(TSchemalessSortingReader* reader)
+        explicit TSafeVector(TSchemalessPartitionSortReader* reader)
             : Reader_(reader)
         { }
 
@@ -261,7 +261,7 @@ private:
         using std::vector<T>::size;
 
     private:
-        TSchemalessSortingReader* Reader_;
+        TSchemalessPartitionSortReader* Reader_;
 
         void EnsureCapacity()
         {
@@ -468,7 +468,7 @@ private:
     void InvokeSortBucket(int bucketId)
     {
         SortQueue_->GetInvoker()->Invoke(BIND(
-            &TSchemalessSortingReader::DoSortBucket,
+            &TSchemalessPartitionSortReader::DoSortBucket,
             MakeWeak(this),
             bucketId));
     }
@@ -476,7 +476,7 @@ private:
     void InvokeMerge()
     {
         SortQueue_->GetInvoker()->Invoke(BIND(
-            &TSchemalessSortingReader::DoMerge,
+            &TSchemalessPartitionSortReader::DoMerge,
             MakeWeak(this)));
     }
 
@@ -484,7 +484,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
+ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TMultiChunkReaderConfigPtr config,
     IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
@@ -496,7 +496,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
     i64 estimatedRowCount,
     bool isApproximate)
 {
-    return New<TSchemalessSortingReader>(
+    return New<TSchemalessPartitionSortReader>(
         config,
         masterChannel,
         blockCache,
