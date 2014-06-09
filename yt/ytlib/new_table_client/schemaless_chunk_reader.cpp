@@ -241,7 +241,9 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
 {
     YCHECK(LowerLimit_.IsTrivial());
     YCHECK(UpperLimit_.IsTrivial());
-    YUNIMPLEMENTED();
+
+    DownloadChunkMeta(std::vector<int>(), PartitionTag_);
+    return CreateBlockSequence(0, BlockMetaExt_.entries_size());
 }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceUnsorted() 
@@ -249,7 +251,7 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     DownloadChunkMeta(std::vector<int>());
 
     return CreateBlockSequence(
-        GetBeginBlockIndex(BlockMetaExt_), 
+        GetBeginBlockIndex(BlockMetaExt_),
         GetEndBlockIndex(BlockMetaExt_));
 }
 
@@ -266,9 +268,10 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSe
 
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
     for (int index = CurrentBlockIndex_; index < endIndex; ++index) {
+        auto& blockMeta = BlockMetaExt_.entries(index);
         TSequentialReader::TBlockInfo blockInfo;
-        blockInfo.Index = index;
-        blockInfo.Size = BlockMetaExt_.entries(index).block_size();
+        blockInfo.Index = blockMeta.block_index();
+        blockInfo.Size = blockMeta.block_size();
         blocks.push_back(blockInfo);
     }
     return blocks;
