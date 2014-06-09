@@ -57,6 +57,11 @@ using NHydra::GenerateMutationId;
 using NTableClient::TTableYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+auto& Logger = TableWriterLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TBase>
 class TSchemalessChunkWriter
     : public TBase
@@ -327,6 +332,8 @@ TError TPartitionChunkWriter::DoClose()
 void TPartitionChunkWriter::PrepareChunkMeta()
 {
     TChunkWriterBase::PrepareChunkMeta();
+
+    LOG_DEBUG("Partition totals: %s", ~PartitionsExt_.DebugString());
 
     auto& meta = EncodingChunkWriter_->Meta();
 

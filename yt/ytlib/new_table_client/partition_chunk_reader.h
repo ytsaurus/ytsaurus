@@ -36,6 +36,8 @@ public:
         TRowPointerInsertIterator& rowPointerInserter,
         i64* rowCount);
 
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+
 private:
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
@@ -48,7 +50,7 @@ private:
     std::vector<int> IdMapping_;
 
     int CurrentBlockIndex_;
-    i64 CurrentRowIndex_;
+    i64 RowCount_;
     std::vector<std::unique_ptr<THorizontalSchemalessBlockReader>> BlockReaders_;
 
     THorizontalSchemalessBlockReader* BlockReader_;
@@ -92,7 +94,7 @@ bool TPartitionChunkReader::Read(
     }
 
     while (true) {
-        ++CurrentRowIndex_;
+        ++RowCount_;
         ++(*rowCount);
 
         auto& key = BlockReader_->GetKey();

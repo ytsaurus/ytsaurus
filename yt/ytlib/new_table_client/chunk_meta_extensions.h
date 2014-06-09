@@ -18,7 +18,9 @@ DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TBlockIndexExt, 52)
 DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TNameTableExt, 53)
 DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TBoundaryKeysExt, 55)
 DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TSamplesExt, 56)
-DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TPartitionsExt, 57)
+
+// Moved from old table client
+DECLARE_PROTO_EXTENSION(NVersionedTableClient::NProto::TPartitionsExt, 15)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,6 +9,8 @@
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <core/concurrency/scheduler.h>
 
 namespace NYT {
@@ -94,6 +96,11 @@ TJobResult TSimpleJobBase::Run()
 
             TJobResult result;
             ToProto(result.mutable_error(), TError());
+
+            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+            ToProto(schedulerResultExt->mutable_chunks(), Writer_->GetWrittenChunks());
+
             return result;
         }
     }

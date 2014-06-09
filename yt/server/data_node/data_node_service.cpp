@@ -622,8 +622,9 @@ private:
                 ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
                 : TChunkMeta(meta);
 
-            context->Reply();
-        }).Via(WorkerThread_->GetInvoker()));
+    std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);
+    for (int i = 0; i < keyIds.size(); ++i) {
+        idToKeyIndex[keyIds[i]] = 0;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)

@@ -48,7 +48,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
     , CurrentBlockIndex_(0)
-    , CurrentRowIndex_(0)
+    , RowCount_(0)
     , BlockReader_(nullptr)
 {
     Logger.AddTag(Sprintf("PartitionChunkReader: %p", this));
@@ -89,6 +89,13 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
     }
 
     return blocks;
+}
+
+TDataStatistics TPartitionChunkReader::GetDataStatistics() const
+{
+    auto dataStatistics = TChunkReaderBase::GetDataStatistics();
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
 }
 
 void TPartitionChunkReader::InitFirstBlock()
