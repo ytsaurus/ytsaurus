@@ -31,7 +31,7 @@ TChunkWriterBase::TChunkWriterBase(
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
     : Config_(config)
-    , KeyColumns_(keyColumns)
+    , Options_(options)
     , RowCount_(0)
     , DataWeight_(0)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(config, options, asyncWriter))
@@ -268,10 +268,13 @@ i64 TSortedChunkWriterBase::GetMetaSize() const
 void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     YCHECK(std::distance(begin, end) >= KeyColumns_.size());
-    LastKey_ = TOwningKey(begin, begin + KeyColumns_.size());
+    auto newKey = TOwningKey(begin, begin + KeyColumns_.size());
     if (RowCount_ == 0) {
-        ToProto(BoundaryKeysExt_.mutable_min(), LastKey_);
+        ToProto(BoundaryKeysExt_.mutable_min(), newKey);
+    } else if (Options_->VerifySorted) {
+        YCHECK(CompareRows(newKey, LastKey_) >= 0);
     }
+    LastKey_ = std::move(newKey);
 
     TSequentialChunkWriterBase::OnRow(begin, end);
 }

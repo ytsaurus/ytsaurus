@@ -78,7 +78,7 @@ public:
         auto options = New<TMultiChunkReaderOptions>();
         options->KeepInMemory = true;
 
-        Reader_ = New<TPartitionMultiChunkReader>(
+        UnderlyingReader_ = New<TPartitionMultiChunkReader>(
             config,
             options,
             masterChannel,
@@ -152,20 +152,22 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(Reader_);
-        return Reader_->IsFetchingCompleted();
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->IsFetchingCompleted();
     }
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(Reader_);
-        return Reader_->GetDataStatistics();
+        YCHECK(UnderlyingReader_);
+        auto dataStatistics = UnderlyingReader_->GetDataStatistics();
+        dataStatistics.set_row_count(ReadRowCount_);
+        return dataStatistics;
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YCHECK(Reader_);
-        return Reader_->GetFailedChunkIds();
+        YCHECK(UnderlyingReader_);
+        return UnderlyingReader_->GetFailedChunkIds();
     }
 
 private:
@@ -241,7 +243,7 @@ private:
     {
     public:
         explicit TSafeVector(TSchemalessPartitionSortReader* reader)
-            : Reader_(reader)
+            : UnderlyingReader_(reader)
         { }
 
         void push_back(const T& value)
@@ -261,12 +263,12 @@ private:
         using std::vector<T>::size;
 
     private:
-        TSchemalessPartitionSortReader* Reader_;
+        TSchemalessPartitionSortReader* UnderlyingReader_;
 
         void EnsureCapacity()
         {
             if (capacity() == size()) {
-                Reader_->SortQueueBarrier();
+                UnderlyingReader_->SortQueueBarrier();
                 reserve(static_cast<size_t>(size() * ReallocationFactor));
             }
         }
@@ -278,7 +280,7 @@ private:
     int KeyColumnCount_;
     TClosure OnNetworkReleased_;
 
-    TPartitionMultiChunkReaderPtr Reader_;
+    TPartitionMultiChunkReaderPtr UnderlyingReader_;
     TActionQueuePtr SortQueue_;
 
     TChunkedMemoryPool MemoryPool_;
@@ -308,7 +310,7 @@ private:
     {
         LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
-            auto error = WaitFor(Reader_->Open());
+            auto error = WaitFor(UnderlyingReader_->Open());
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open partition reader");
 
             EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
@@ -348,12 +350,12 @@ private:
                 auto keyInserter = std::back_inserter(KeyBuffer_);
                 auto rowPtrInserter = std::back_inserter(RowPtrBuffer_);
 
-                auto result = Reader_->Read(keyInserter, rowPtrInserter, &rowCount);
+                auto result = UnderlyingReader_->Read(keyInserter, rowPtrInserter, &rowCount);
                 if (!result)
                     break;
 
                 if (!rowCount) {
-                    auto error = WaitFor(Reader_->GetReadyEvent());
+                    auto error = WaitFor(UnderlyingReader_->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                     continue;
                 }
@@ -369,7 +371,7 @@ private:
                     flushBucket();
                 }
 
-                if (!isNetworkReleased && Reader_->IsFetchingCompleted()) {
+                if (!isNetworkReleased && UnderlyingReader_->IsFetchingCompleted()) {
                     OnNetworkReleased_.Run();
                     isNetworkReleased =  true;
                 }

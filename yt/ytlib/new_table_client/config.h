@@ -41,6 +41,33 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkWriterOptions
+    : public virtual NChunkClient::TEncodingWriterOptions
+{
+public:
+    bool VerifySorted;
+
+    TChunkWriterOptions()
+    {
+        // Block less than 1M is nonsense.
+        RegisterParameter("verify_sorted", VerifySorted)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMultiChunkWriterOptions
+    : public TChunkWriterOptions
+    , public NChunkClient::TMultiChunkWriterOptions
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableWriterConfig
     : public TChunkWriterConfig
     , public NChunkClient::TMultiChunkWriterConfig

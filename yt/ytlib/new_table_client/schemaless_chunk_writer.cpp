@@ -8,6 +8,7 @@
 #include "name_table.h"
 #include "partitioner.h"
 #include "schemaless_block_writer.h"
+#include "schemaless_row_reorderer.h"
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
@@ -446,16 +447,10 @@ public:
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
 
 private:
-    TKeyColumns KeyColumns_;
-    TNameTablePtr NameTable_;
+    TChunkedMemoryPool MemoryPool_;
+    TSchemalessRowReorderer RowReorderer_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
-    std::vector<int> IdMapping_;
-    TChunkedMemoryPool MemoryPool_;
-    std::vector<TUnversionedValue> EmptyKey_;
-
-
-    TUnversionedRow ReorderRow(const TUnversionedRow& row);
 
     virtual TAsyncError Open() override;
     virtual TAsyncError GetReadyEvent() override;
@@ -474,21 +469,10 @@ TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
     ISchemalessMultiChunkWriterPtr underlyingWriter)
-    : KeyColumns_(keyColumns)
-    , NameTable_(nameTable)
+    : MemoryPool_(TReorderingSchemalessWriterPoolTag())
+    , RowReorderer_(nameTable, keyColumns)
     , UnderlyingWriter_(underlyingWriter)
-    , MemoryPool_(TReorderingSchemalessWriterPoolTag())
-{ 
-    for (int i = 0; i < KeyColumns_.size(); ++i) {
-        auto id = NameTable_->GetIdOrRegisterName(KeyColumns_[i]);
-        if (id >= IdMapping_.size()) {
-            IdMapping_.resize(id + 1, -1);
-        } 
-        IdMapping_[id] = i;
-    }
-
-    EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
-}
+{ }
 
 bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
@@ -496,39 +480,12 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     reorderedRows.reserve(rows.size());
 
     for (const auto& row : rows) {
-        reorderedRows.push_back(ReorderRow(row));
+        reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
     }
 
     auto result = UnderlyingWriter_->Write(reorderedRows);
     MemoryPool_.Clear();
 
-    return result;
-}
-
-TUnversionedRow TReorderingSchemalessMultiChunkWriter::ReorderRow(const TUnversionedRow& row)
-{
-    int valueCount = KeyColumns_.size() + row.GetCount();
-    TUnversionedRow result = TUnversionedRow::Allocate(&MemoryPool_, valueCount);
-
-    // Initialize with empty key.
-    ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
-
-    int nextValueIndex = KeyColumns_.size();
-    for (auto it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        if (value.Id < IdMapping_.size()) {
-            int keyIndex = IdMapping_[value.Id];
-            if (keyIndex >= 0) {
-                result.Begin()[keyIndex] = value;
-                --valueCount;
-                continue;
-            }
-        }
-        result.Begin()[nextValueIndex] = value;
-        ++nextValueIndex;
-    }
-
-    result.SetCount(valueCount);
     return result;
 }
 
