@@ -88,7 +88,7 @@ class YTEnv(object):
         self._cgroup_roots = dict()
         for line in open("/proc/self/cgroup").read().split("\n"):
             if line:
-                id_, name, root = line.split(":", 2)
+                _, name, root = line.split(":", 2)
                 if root is not None and root.startswith("/"):
                     self._cgroup_roots[name] = root[1:]
 
@@ -229,7 +229,6 @@ class YTEnv(object):
                     if ex.errno != errno.EEXIST:
                         raise
                 cgroups_params += ["--cgroup", cgroup]
-            print cgroups_params
             self._run([
                 'ytserver', "--" + service_name,
                 '--config', self.config_paths[name][i]
