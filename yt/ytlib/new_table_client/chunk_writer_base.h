@@ -39,7 +39,7 @@ public:
 
 protected:
     TChunkWriterConfigPtr Config_;
-    TKeyColumns KeyColumns_;
+    TChunkWriterOptionsPtr Options_;
     i64 RowCount_ = 0;
 
     i64 DataWeight_ = 0;

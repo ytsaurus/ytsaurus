@@ -150,13 +150,13 @@ DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
 
-typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
-typedef NChunkClient::TEncodingWriterOptionsPtr TChunkWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 
-typedef NChunkClient::TMultiChunkWriterOptions TTableWriterOptions;
-typedef NChunkClient::TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
+typedef TMultiChunkWriterOptions TTableWriterOptions;
+typedef TMultiChunkWriterOptionsPtr TTableWriterOptionsPtr;
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
 
 typedef NChunkClient::TSequentialReaderConfig TChunkReaderConfig;
 typedef NChunkClient::TSequentialReaderConfigPtr TChunkReaderConfigPtr;
