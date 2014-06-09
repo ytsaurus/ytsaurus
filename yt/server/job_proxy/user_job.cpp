@@ -121,7 +121,7 @@ public:
             CreateCGroup(BlockIO);
             CreateCGroup(Memory);
 
-            Memory.SetLimit(UserJobSpec.memory_limit());
+            Memory.SetLimitInBytes(UserJobSpec.memory_limit());
             Memory.DisableOom();
             OomEvent = Memory.GetOomEvent();
         }
@@ -530,9 +530,9 @@ private:
             }
 
             if (UserJobSpec.enable_accounting()) {
-                CpuAccounting.AddCurrentProcess();
-                BlockIO.AddCurrentProcess();
-                Memory.AddCurrentProcess();
+                CpuAccounting.AddCurrentTask();
+                BlockIO.AddCurrentTask();
+                Memory.AddCurrentTask();
             }
 
             if (config->UserId > 0) {
@@ -586,22 +586,22 @@ private:
         try {
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+            LOG_DEBUG("Get memory usage (JobId: %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
                 ~ToString(JobId),
-                statistics.TotalUsageInBytes,
+                statistics.UsageInBytes,
                 memoryLimit);
 
             if (OomEvent.Fired()) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
-                    << TErrorAttribute("usage_in_bytes", statistics.TotalUsageInBytes)
+                    << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
                     << TErrorAttribute("limit", memoryLimit));
                 KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
                 return;
             }
 
-            if (statistics.TotalUsageInBytes > MemoryUsage) {
-                i64 delta = statistics.TotalUsageInBytes - MemoryUsage;
+            if (statistics.UsageInBytes > MemoryUsage) {
+                i64 delta = statistics.UsageInBytes - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;

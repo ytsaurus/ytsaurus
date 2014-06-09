@@ -30,49 +30,6 @@ static NLog::TLogger SILENT_UNUSED Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetPidsByUid(int uid)
-{
-#ifdef _linux_
-    std::vector<int> result;
-
-    DIR *dp = ::opendir("/proc");
-    YCHECK(dp != nullptr);
-
-    struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
-        const char* begin = ep->d_name;
-        char* end = nullptr;
-        int pid = static_cast<int>(strtol(begin, &end, 10));
-        if (begin == end) {
-            // Not a pid.
-            continue;
-        }
-
-        auto path = Sprintf("/proc/%d", pid);
-        struct stat buf;
-        int res = ::stat(~path, &buf);
-
-        if (res == 0) {
-            if (buf.st_uid == uid) {
-                result.push_back(pid);
-            }
-        } else {
-            // Assume that the process has already completed.
-            auto errno_ = errno;
-            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
-                pid);
-            YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
-        }
-    }
-
-    YCHECK(::closedir(dp) == 0);
-    return result;
-
-#else
-    return std::vector<int>();
-#endif
-}
-
 i64 GetProcessRss(int pid)
 {
 #ifdef _linux_
@@ -90,34 +47,6 @@ i64 GetProcessRss(int pid)
 }
 
 #ifdef _unix_
-
-i64 GetUserRss(int uid)
-{
-    YCHECK(uid > 0);
-
-    LOG_DEBUG("Started computing RSS (UID: %d)", uid);
-
-    auto pids = GetPidsByUid(uid);
-    i64 result = 0;
-    FOREACH(int pid, pids) {
-        try {
-            i64 rss = GetProcessRss(pid);
-            LOG_DEBUG("PID: %d, RSS: %" PRId64,
-                pid,
-                rss);
-            result += rss;
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to get RSS for PID %d",
-                pid);
-        }
-    }
-
-    LOG_DEBUG("Finished computing RSS (UID: %d, RSS: %" PRId64 ")",
-        uid,
-        result);
-
-    return result;
-}
 
 // The caller must be sure that it has root privileges.
 void KillAll(TCallback<std::vector<int>()> pidsGetter)
@@ -356,7 +285,7 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 
 #else
 
-void KillAll(TCallback<std::vector<int>()> )
+void KillAll(TCallback<std::vector<int>()>)
 {
     YUNIMPLEMENTED();
 }

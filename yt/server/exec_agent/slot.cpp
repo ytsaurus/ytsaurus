@@ -17,6 +17,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka GetSlotProcessGroup(int slotId)
+{
+    return "slot" + ToString(slotId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSlot::TSlot(const Stroka& path, int slotId, int userId)
     : IsFree_(true)
     , IsClean(true)
@@ -24,7 +31,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
     , SlotId(slotId)
     , UserId(userId)
     , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", slotId)))
-    , ProcessGroup("freezer", "slot" + ToString(SlotId))
+    , ProcessGroup("freezer", GetSlotProcessGroup(slotId))
     , Logger(ExecAgentLogger)
 {
     Logger.AddTag(Sprintf("SlotId: %d", SlotId));
@@ -56,6 +63,12 @@ void TSlot::Initialize()
         THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
             ~Path.Quote()) << ex;
     }
+
+    try {
+        DoCleanProcessGroups();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to clean slot cgroups") << ex;
+    }
 }
 
 void TSlot::Acquire()
@@ -78,11 +91,11 @@ const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
     return ProcessGroup;
 }
 
-std::vector<Stroka> TSlot::GetProcessGroups() const
+std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
 
-    auto subgroupName = "slot" + ToString(SlotId);
+    auto subgroupName = GetSlotProcessGroup(SlotId);
 
     for (const auto& type : NCGroup::GetSupportedCGroups()) {
         NCGroup::TNonOwningCGroup group(type, subgroupName);
@@ -115,7 +128,7 @@ void TSlot::DoCleanSandbox()
 void TSlot::DoCleanProcessGroups()
 {
     try {
-        for (const auto& path : GetProcessGroups()) {
+        for (const auto& path : GetCGroupPaths()) {
             NCGroup::RemoveAllSubcgroups(path);
         }
     } catch (const std::exception& ex) {

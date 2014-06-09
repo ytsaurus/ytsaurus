@@ -22,7 +22,7 @@ namespace NCGroup {
 
 static auto& Logger = CGroupLogger;
 static const char* CGroupRootPath = "/sys/fs/cgroup";
-static const int BadDescriptor = -1;
+static const int InvalidFd = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +55,7 @@ TEvent::TEvent(int eventFd, int fd)
 { }
 
 TEvent::TEvent()
-    : TEvent(BadDescriptor, BadDescriptor)
+    : TEvent(InvalidFd, InvalidFd)
 { }
 
 TEvent::TEvent(TEvent&& other)
@@ -81,7 +81,7 @@ TEvent& TEvent::operator=(TEvent&& other)
 
 bool TEvent::Fired()
 {
-    YCHECK(EventFd_ != BadDescriptor);
+    YCHECK(EventFd_ != InvalidFd);
 
     if (Fired_) {
         return true;
@@ -90,9 +90,8 @@ bool TEvent::Fired()
     i64 value;
     auto bytesRead = ::read(EventFd_, &value, sizeof(value));
 
-    if (bytesRead == BadDescriptor) {
-        auto errorCode = errno;
-        if (errorCode == EWOULDBLOCK || errorCode == EAGAIN) {
+    if (bytesRead < 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
             return false;
         }
         THROW_ERROR_EXCEPTION() << TError::FromSystem();
@@ -110,15 +109,15 @@ void TEvent::Clear()
 void TEvent::Destroy()
 {
     Clear();
-    if (EventFd_ != BadDescriptor) {
-        close(EventFd_);
+    if (EventFd_ != InvalidFd) {
+        ::close(EventFd_);
     }
-    EventFd_ = BadDescriptor;
+    EventFd_ = InvalidFd;
 
-    if (Fd_ != BadDescriptor) {
-        close(Fd_);
+    if (Fd_ != InvalidFd) {
+        ::close(Fd_);
     }
-    Fd_ = BadDescriptor;
+    Fd_ = InvalidFd;
 }
 
 void TEvent::Swap(TEvent& other)
@@ -130,10 +129,6 @@ void TEvent::Swap(TEvent& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddCurrentProcessToCGroup(const Stroka& fullPath)
-{
-}
-
 std::vector<Stroka> GetSupportedCGroups()
 {
     std::vector<Stroka> result;
@@ -143,14 +138,14 @@ std::vector<Stroka> GetSupportedCGroups()
     return result;
 }
 
-void _removeAllSubcgroups(const TFsPath& path)
+void RemoveAllSubscgroupsImpl(const TFsPath& path)
 {
     if (path.Exists()) {
         yvector<TFsPath> children;
         path.List(children);
         for (const auto& child : children) {
             if (child.IsDirectory()) {
-                _removeAllSubcgroups(child);
+                RemoveAllSubscgroupsImpl(child);
                 child.DeleteIfExists();
             }
         }
@@ -159,7 +154,7 @@ void _removeAllSubcgroups(const TFsPath& path)
 
 void RemoveAllSubcgroups(const Stroka& path)
 {
-    _removeAllSubcgroups(TFsPath(path));
+    RemoveAllSubscgroupsImpl(TFsPath(path));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +167,7 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
 { }
 
-void TNonOwningCGroup::AddCurrentProcess()
+void TNonOwningCGroup::AddCurrentTask()
 {
 #ifdef _linux_
     auto pid = getpid();
@@ -399,12 +394,12 @@ TMemory::TStatistics TMemory::GetStatistics()
 #ifdef _linux_
     const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
     auto rawData = TFileInput(filename).ReadAll();
-    result.TotalUsageInBytes = FromString<i64>(strip(rawData));
+    result.UsageInBytes = FromString<i64>(strip(rawData));
 #endif
     return result;
 }
 
-void TMemory::SetLimit(i64 bytes) const
+void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
 }
@@ -434,7 +429,7 @@ TEvent TMemory::GetOomEvent() const
 }
 
 TMemory::TStatistics::TStatistics()
-    : TotalUsageInBytes(0)
+    : UsageInBytes(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

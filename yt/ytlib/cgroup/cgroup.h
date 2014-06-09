@@ -58,7 +58,7 @@ public:
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
 
-    void AddCurrentProcess();
+    void AddCurrentTask();
 
     void Set(const Stroka& name, const Stroka& value) const;
 
@@ -142,13 +142,13 @@ public:
     {
         TStatistics();
 
-        i64 TotalUsageInBytes;
+        i64 UsageInBytes;
     };
 
     explicit TMemory(const Stroka& name);
     TStatistics GetStatistics();
 
-    void SetLimit(i64 bytes) const;
+    void SetLimitInBytes(i64 bytes) const;
     void DisableOom() const;
     TEvent GetOomEvent() const;
 };

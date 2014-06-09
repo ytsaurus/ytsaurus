@@ -52,7 +52,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 #ifdef _linux_
 
-TEST(CGroup, AddCurrentProcess)
+TEST(CGroup, AddCurrentTask)
 {
     TBlockIO group("some");
     group.Create();
@@ -61,7 +61,7 @@ TEST(CGroup, AddCurrentProcess)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        group.AddCurrentProcess();
+        group.AddCurrentTask();
         auto tasks = group.GetTasks();
         ASSERT_EQ(1, tasks.size());
         EXPECT_EQ(getpid(), tasks[0]);
@@ -87,7 +87,7 @@ TEST(CGroup, UnableToDestoryNotEmptyCGroup)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        group.AddCurrentProcess();
+        group.AddCurrentTask();
 
         i64 value = 1024;
         ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
@@ -121,7 +121,7 @@ TEST(CGroup, DestroyAndGrandChildren)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        group.AddCurrentProcess();
+        group.AddCurrentTask();
 
         ASSERT_EQ(0, daemon(0, 0));
 
@@ -174,7 +174,7 @@ TEST(CGroup, GetMemoryStats)
     group.Create();
 
     auto stats = group.GetStatistics();
-    EXPECT_EQ(0, stats.TotalUsageInBytes);
+    EXPECT_EQ(0, stats.UsageInBytes);
 
     group.Destroy();
 }
@@ -213,11 +213,11 @@ TEST(CurrentProcessCGroup, BadInput)
     EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
 }
 
-class TEvent
+class TTestableEvent
     : public NCGroup::TEvent
 {
 public:
-    TEvent(int eventFd, int fd = -1)
+    TTestableEvent(int eventFd, int fd = -1)
         : NCGroup::TEvent(eventFd, fd)
     { }
 };
@@ -225,7 +225,7 @@ public:
 TEST(TEvent, Fired)
 {
     auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TEvent event(eventFd, -1);
+    TTestableEvent event(eventFd, -1);
 
     EXPECT_FALSE(event.Fired());
 
@@ -235,10 +235,10 @@ TEST(TEvent, Fired)
     EXPECT_TRUE(event.Fired());
 }
 
-TEST(TEvent, Stiky)
+TEST(TEvent, Sticky)
 {
     auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TEvent event(eventFd, -1);
+    TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
     write(eventFd, &value, sizeof(value));
@@ -250,7 +250,7 @@ TEST(TEvent, Stiky)
 TEST(TEvent, Clear)
 {
     auto eventFd = eventfd(0, EFD_NONBLOCK);
-    TEvent event(eventFd, -1);
+    TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
     write(eventFd, &value, sizeof(value));

@@ -97,7 +97,7 @@ public:
         arguments.push_back("--job-id");
         arguments.push_back(ToString(JobId));
 
-        for (const auto& path : Slot.GetProcessGroups()) {
+        for (const auto& path : Slot.GetCGroupPaths()) {
             arguments.push_back("--cgroup");
             arguments.push_back(path);
         }

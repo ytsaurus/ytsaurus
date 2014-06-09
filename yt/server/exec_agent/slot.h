@@ -29,7 +29,7 @@ public:
     bool IsFree() const;
     int GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
-    std::vector<Stroka> GetProcessGroups() const;
+    std::vector<Stroka> GetCGroupPaths() const;
 
     void Acquire();
     void InitSandbox();
