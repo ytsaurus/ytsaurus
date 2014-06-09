@@ -898,6 +898,8 @@ private:
             auto controller = CreateController(~operation);
             operation->SetController(controller);
 
+            SwitchTo(controller->GetCancelableControlInvoker());
+
             RegisterOperation(operation);
             registered = true;
 
