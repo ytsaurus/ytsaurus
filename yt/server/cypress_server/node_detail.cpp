@@ -42,6 +42,11 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap(bootstrap)
 { }
 
+bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
+{
+    return Bootstrap->GetMetaStateFacade()->GetManager()->IsLeader();
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 {
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();

@@ -35,6 +35,7 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
+    bool IsLeader() const;
     bool IsRecovery() const;
 
     void DestroyCore(TCypressNodeBase* node);
