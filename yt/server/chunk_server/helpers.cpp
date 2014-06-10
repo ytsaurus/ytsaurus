@@ -118,20 +118,20 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
     chunkList->Statistics() = statistics;
 }
 
-void GetOwningNodes(
+void VisitOwningNodes(
     TChunkTree* chunkTree,
-    yhash_set<TChunkTree*>& visited,
+    yhash_set<TChunkTree*>* visitedTrees,
     yhash_set<TChunkOwnerBase*>* owningNodes)
 {
-    if (!visited.insert(chunkTree).second) {
+    if (!visitedTrees->insert(chunkTree).second)
         return;
-    }
+    
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk: {
             for (auto* parent : chunkTree->AsChunk()->Parents()) {
-                GetOwningNodes(parent, visited, owningNodes);
+                VisitOwningNodes(parent, visitedTrees, owningNodes);
             }
             break;
         }
@@ -139,7 +139,7 @@ void GetOwningNodes(
             auto* chunkList = chunkTree->AsChunkList();
             owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
             for (auto* parent : chunkList->Parents()) {
-                GetOwningNodes(parent, visited, owningNodes);
+                VisitOwningNodes(parent, visitedTrees, owningNodes);
             }
             break;
         }
@@ -148,14 +148,23 @@ void GetOwningNodes(
     }
 }
 
+std::vector<TChunkOwnerBase*> GetOwningNodes(
+    TChunkTree* chunkTree)
+{
+    yhash_set<TChunkOwnerBase*> owningNodes;
+    yhash_set<TChunkTree*> visitedTrees;
+    VisitOwningNodes(chunkTree, &visitedTrees, &owningNodes);
+    return std::vector<TChunkOwnerBase*>(owningNodes.begin(), owningNodes.end());
+}
+
 void SerializeOwningNodesPaths(
     TCypressManagerPtr cypressManager,
     TChunkTree* chunkTree,
     IYsonConsumer* consumer)
 {
     yhash_set<TChunkOwnerBase*> owningNodes;
-    yhash_set<TChunkTree*> visited;
-    GetOwningNodes(chunkTree, visited, &owningNodes);
+    yhash_set<TChunkTree*> visitedTrees;
+    VisitOwningNodes(chunkTree, &visitedTrees, &owningNodes);
 
     BuildYsonFluently(consumer)
         .DoListFor(owningNodes, [&] (TFluentList fluent, TChunkOwnerBase* node) {
@@ -164,15 +173,13 @@ void SerializeOwningNodesPaths(
                 node->GetTransaction());
             auto path = proxy->GetPath();
             if (node->GetTransaction()) {
-                fluent
-                    .Item()
+                fluent.Item()
                     .BeginAttributes()
                         .Item("transaction_id").Value(node->GetTransaction()->GetId())
                     .EndAttributes()
                     .Value(path);
             } else {
-                fluent
-                    .Item()
+                fluent.Item()
                     .Value(path);
             }
         });

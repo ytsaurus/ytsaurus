@@ -42,6 +42,8 @@ void AccumulateChildStatistics(
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
+std::vector<TChunkOwnerBase*> GetOwningNodes(
+    TChunkTree* chunkTree);
 void SerializeOwningNodesPaths(
     NCypressServer::TCypressManagerPtr cypressManager,
     TChunkTree* chunkTree,
