@@ -78,13 +78,15 @@ void TJournalSession::OnChangelogCreated()
 }
 
 void TJournalSession::DoCancel()
-{ }
-
-TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& chunkMeta)
 {
     UpdateChunkInfo();
     Chunk_->ReleaseSession();
     Finished_.Fire(TError());
+}
+
+TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& /*chunkMeta*/)
+{
+    DoCancel();
     return MakeFuture<TErrorOr<IChunkPtr>>(IChunkPtr(Chunk_));
 }
 
