@@ -714,7 +714,7 @@ TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     std::unique_ptr<TUserJobIO> userJobIO,
-    NJobAgent::TJobId& jobId)
+    const NJobAgent::TJobId& jobId)
 {
     return New<TUserJob>(
         host,
@@ -728,7 +728,8 @@ TJobPtr CreateUserJob(
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO,
+    const NJobAgent::TJobId& jobId)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }

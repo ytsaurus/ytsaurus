@@ -871,6 +871,9 @@ public:
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
         Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, this));
 
+        Host->SubscribeOperationRuntimeParamsUpdated(
+            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
+
         RootElement = New<TRootElement>(Host);
     }
 
@@ -1179,9 +1182,6 @@ private:
         operationElement->SetPool(~pool);
         pool->AddChild(operationElement);
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
-
-        Host->SubscribeOperationRuntimeParamsUpdated(
-            BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetId()),
