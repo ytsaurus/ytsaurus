@@ -498,6 +498,8 @@ private:
             LOG_INFO("Attaching chunk");
             {
                 auto batchReq = Proxy_.ExecuteBatch();
+                batchReq->PrerequisiteTransactions().push_back(UploadTransaction_->GetId());
+
                 {
                     auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
                     req->mutable_chunk_info();
