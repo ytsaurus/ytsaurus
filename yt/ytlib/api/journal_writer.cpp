@@ -206,7 +206,7 @@ private:
         TTransactionPtr UploadTransaction_;
         
         int ReplicationFactor_ = -1;
-        int WriteConcern_ = -1;
+        int WriteQuorum_ = -1;
         Stroka Account_;
 
         TChunkListId ChunkListId_;
@@ -349,7 +349,7 @@ private:
                 TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
                 attributeFilter.Keys.push_back("type");
                 attributeFilter.Keys.push_back("replication_factor");
-                attributeFilter.Keys.push_back("write_concern");
+                attributeFilter.Keys.push_back("write_quorum");
                 attributeFilter.Keys.push_back("account");
                 ToProto(req->mutable_attribute_filter(), attributeFilter);
                 batchReq->AddRequest(req, "get_attributes");
@@ -382,7 +382,7 @@ private:
                 }
 
                 ReplicationFactor_ = attributes.Get<int>("replication_factor");
-                WriteConcern_ = attributes.Get<int>("write_concern");
+                WriteQuorum_ = attributes.Get<int>("write_quorum");
                 Account_ = attributes.Get<Stroka>("account");
             }
 
@@ -392,9 +392,9 @@ private:
                 ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
 
-            LOG_INFO("Journal opened (ReplicationFactor: %d, WriteConcern: %d, Account: %s, ChunkListId: %s)",
+            LOG_INFO("Journal opened (ReplicationFactor: %d, WriteQuorum: %d, Account: %s, ChunkListId: %s)",
                 ReplicationFactor_,
-                WriteConcern_,
+                WriteQuorum_,
                 ~Account_,
                 ~ToString(ChunkListId_));
 
@@ -843,7 +843,7 @@ private:
 
                 while (!PendingBatches_.empty()) {
                     auto front = PendingBatches_.front();
-                    if (front->FlushedReplicas <  WriteConcern_)
+                    if (front->FlushedReplicas <  WriteQuorum_)
                         break;
 
                     front->FlushedPromise.Set(TError());

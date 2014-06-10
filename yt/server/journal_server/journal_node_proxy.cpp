@@ -48,8 +48,8 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        attributes->push_back("read_concern");
-        attributes->push_back("write_concern");
+        attributes->push_back("read_quorum");
+        attributes->push_back("write_quorum");
         attributes->push_back("sealed");
         TCypressNodeProxyBase::ListSystemAttributes(attributes);
     }
@@ -58,15 +58,15 @@ private:
     {
         const auto* node = GetThisTypedImpl();
 
-        if (key == "read_concern") {
+        if (key == "read_quorum") {
             BuildYsonFluently(consumer)
-                .Value(node->GetReadConcern());
+                .Value(node->GetReadQuorum());
             return true;
         }
 
-        if (key == "write_concern") {
+        if (key == "write_quorum") {
             BuildYsonFluently(consumer)
-                .Value(node->GetWriteConcern());
+                .Value(node->GetWriteQuorum());
             return true;
         }
 
@@ -93,9 +93,9 @@ private:
             }
         }
 
-        if (key == "read_concern") {
-            int readConcern = NYTree::ConvertTo<int>(value);
-            if (readConcern < 1) {
+        if (key == "read_quorum") {
+            int readQuorum = NYTree::ConvertTo<int>(value);
+            if (readQuorum < 1) {
                 THROW_ERROR_EXCEPTION("Value must be positive");
             }
 
@@ -103,16 +103,16 @@ private:
             auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
 
-            if (node->GetReadConcern() != 0) {
-                ThrowCannotSetSystemAttribute("read_concern");
+            if (node->GetReadQuorum() != 0) {
+                ThrowCannotSetSystemAttribute("read_quorum");
             }
-            node->SetReadConcern(readConcern);
+            node->SetReadQuorum(readQuorum);
             return true;
         }
 
-        if (key == "write_concern") {
-            int writeConcern = NYTree::ConvertTo<int>(value);
-            if (writeConcern < 1) {
+        if (key == "write_quorum") {
+            int writeQuorum = NYTree::ConvertTo<int>(value);
+            if (writeQuorum < 1) {
                 THROW_ERROR_EXCEPTION("Value must be positive");
             }
 
@@ -120,10 +120,10 @@ private:
             auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
 
-            if (node->GetWriteConcern() != 0) {
-                ThrowCannotSetSystemAttribute("write_concern");
+            if (node->GetWriteQuorum() != 0) {
+                ThrowCannotSetSystemAttribute("write_quorum");
             }
-            node->SetWriteConcern(writeConcern);
+            node->SetWriteQuorum(writeQuorum);
             return true;
         }
 
