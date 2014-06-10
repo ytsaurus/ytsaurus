@@ -43,7 +43,13 @@ message TReqCreateChunkExt
  
     // Desired number of copies (including those created by background replication).
     optional int32 replication_factor = 2 [default = 1];
+
+    // Minimum number of replicas to read during seal. Journal chunks only.
+    optional int32 read_quorum = 8 [default = 0];
  
+    // Minimum number of replicas to flush during write. Journal chunks only.
+    optional int32 write_quorum = 9 [default = 0];
+
     // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
     // This does not prevent further balancing to move chunk there.
     repeated string forbidden_addresses = 7;

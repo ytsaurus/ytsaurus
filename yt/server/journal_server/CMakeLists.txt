@@ -9,7 +9,6 @@ set( SRCS
 set( HDRS
   ${BASE}/journal_node.h
   ${BASE}/journal_node_proxy.h
-  ${BASE}/config.h
   ${BASE}/private.h
   ${BASE}/public.h
 )

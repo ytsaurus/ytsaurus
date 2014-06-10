@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_type_handler.h>
+#include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -30,18 +31,28 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     , WriteQuorum_(0)
 { }
 
-bool TJournalNode::IsSealed() const
+TChunk* TJournalNode::GetTrailingChunk() const
 {
     if (!ChunkList_) {
-        return true;
+        return nullptr;
     }
+
     if (ChunkList_->Children().empty()) {
-        return true;
+        return nullptr;
     }
-    if (ChunkList_->Children().back()->AsChunk()->IsSealed()) {
-        return true;
-    }
-    return false;
+
+    return ChunkList_->Children().back()->AsChunk();
+}
+
+bool TJournalNode::IsSealed() const
+{
+    auto* chunk = GetTrailingChunk();
+    return !chunk || chunk->IsSealed();
+}
+
+TJournalNode* TJournalNode::GetTrunkNode()
+{
+    return static_cast<TJournalNode*>(TrunkNode_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,11 +142,15 @@ protected:
     {
         TBase::DoDestroy(node);
 
-        auto objectManager = TBase::Bootstrap->GetObjectManager();
-
         auto* chunkList = node->GetChunkList();
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
+
+        auto objectManager = Bootstrap->GetObjectManager();
         objectManager->UnrefObject(chunkList);
+
+        if (IsLeader() && !node->IsTrunk()) {
+            ScheduleSeal(node);
+        }
     }
 
     virtual void DoBranch(
@@ -181,6 +196,10 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->UnrefObject(branchedChunkList);
 
+        if (IsLeader()) {
+            ScheduleSeal(originatingNode);
+        }
+
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Journal node merged (OriginatingNodeId: %s, BranchedNodeId: %s)",
@@ -194,6 +213,16 @@ protected:
         ICypressNodeFactoryPtr /*factory*/) override
     {
         THROW_ERROR_EXCEPTION("Journals cannot be cloned");
+    }
+
+
+    void ScheduleSeal(TJournalNode* journal)
+    {
+        if (journal->IsSealed())
+            return;
+
+        auto chunkManager = Bootstrap->GetChunkManager();
+        chunkManager->ScheduleSeal(journal->GetTrailingChunk());
     }
 
 };

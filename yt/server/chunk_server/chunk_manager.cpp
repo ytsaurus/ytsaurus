@@ -7,6 +7,7 @@
 #include "job.h"
 #include "chunk_placement.h"
 #include "chunk_replicator.h"
+#include "chunk_sealer.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_proxy.h"
 #include "chunk_list_proxy.h"
@@ -610,6 +611,11 @@ public:
         ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
+    void ScheduleSeal(TChunk* chunk)
+    {
+        ChunkSealer_->ScheduleSeal(chunk);
+    }
+
 
     TChunk* GetChunkOrThrow(const TChunkId& id)
     {
@@ -686,6 +692,7 @@ private:
 
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
+    TChunkSealerPtr ChunkSealer_;
 
     NHydra::TEntityMap<TChunkId, TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap_;
@@ -1024,6 +1031,7 @@ private:
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
+            chunk->SetSealScheduled(false);
             chunk->ResetWeakRefCounter();
             chunk->SetRepairQueueIterator(Null);
         }
@@ -1055,6 +1063,10 @@ private:
             YCHECK(!ChunkReplicator_);
             ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap, ChunkPlacement_);
             ChunkReplicator_->Initialize();
+
+            YCHECK(!ChunkSealer_);
+            ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap);
+            ChunkSealer_->Initialize();
         }
         LOG_INFO("Full chunk refresh scheduled");
     }
@@ -1067,6 +1079,8 @@ private:
             ChunkReplicator_->Finalize();
             ChunkReplicator_.Reset();
         }
+
+        ChunkSealer_.Reset();
     }
 
 
@@ -1107,7 +1121,11 @@ private:
         }
 
         if (ChunkReplicator_ && !cached) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        }
+
+        if (ChunkSealer_ && !cached && chunk->IsJournal()) {
+            ChunkSealer_->ScheduleSeal(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1305,17 +1323,22 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
     auto chunkType = GetType();
     bool isErasure = (chunkType == EObjectType::ErasureChunk);
-    const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
+    bool isJournal = (chunkType == EObjectType::JournalChunk);
 
-    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
+    const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
+    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
     auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
-    int replicationFactor = isErasure ? 1 : requestExt->replication_factor();
+    int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
+    int readQuorum = isJournal ? requestExt.read_quorum() : 0;
+    int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
 
     auto* chunk = Owner->CreateChunk(chunkType);
     chunk->SetReplicationFactor(replicationFactor);
+    chunk->SetReadQuorum(readQuorum);
+    chunk->SetWriteQuorum(writeQuorum);
     chunk->SetErasureCodec(erasureCodecId);
-    chunk->SetMovable(requestExt->movable());
-    chunk->SetVital(requestExt->vital());
+    chunk->SetMovable(requestExt.movable());
+    chunk->SetVital(requestExt.vital());
     chunk->SetStagingTransaction(transaction);
     chunk->SetStagingAccount(account);
 
@@ -1323,7 +1346,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
         TNodeSet forbiddenNodeSet;
         TNodeList forbiddenNodeList;
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        for (const auto& address : requestExt->forbidden_addresses()) {
+        for (const auto& address : requestExt.forbidden_addresses()) {
             auto* node = nodeTracker->FindNodeByAddress(address);
             if (node) {
                 forbiddenNodeSet.insert(node);
@@ -1331,13 +1354,13 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             }
         }
 
-        auto preferredHostName = requestExt->has_preferred_host_name()
-            ? TNullable<Stroka>(requestExt->preferred_host_name())
+        auto preferredHostName = requestExt.has_preferred_host_name()
+            ? TNullable<Stroka>(requestExt.preferred_host_name())
             : Null;
 
         int uploadReplicationFactor = isErasure
             ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
-            : requestExt->upload_replication_factor();
+            : requestExt.upload_replication_factor();
 
         auto targets = Owner->AllocateWriteTargets(
             uploadReplicationFactor,
@@ -1360,7 +1383,8 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             "Allocated nodes for new chunk "
             "(ChunkId: %s, TransactionId: %s, Account: %s, Targets: [%s], "
             "ForbiddenAddresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, "
-            "UploadReplicationFactor: %d, ErasureCodec: %s, Movable: %s, Vital: %s)",
+            "UploadReplicationFactor: %d, ReadQuorum: %d, WriteQuorum: %d, "
+            "ErasureCodec: %s, Movable: %s, Vital: %s)",
             ~ToString(chunk->GetId()),
             ~ToString(transaction->GetId()),
             ~account->GetName(),
@@ -1369,9 +1393,11 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ~ToString(preferredHostName),
             chunk->GetReplicationFactor(),
             uploadReplicationFactor,
+            chunk->GetReadQuorum(),
+            chunk->GetWriteQuorum(),
             ~ToString(erasureCodecId),
-            ~FormatBool(requestExt->movable()),
-            ~FormatBool(requestExt->vital()));
+            ~FormatBool(requestExt.movable()),
+            ~FormatBool(requestExt.vital()));
     }
 
     return chunk;
@@ -1614,6 +1640,11 @@ bool TChunkManager::IsReplicatorEnabled()
 void TChunkManager::SchedulePropertiesUpdate(TChunkTree* chunkTree)
 {
     Impl_->SchedulePropertiesUpdate(chunkTree);
+}
+
+void TChunkManager::ScheduleSeal(TChunk* chunk)
+{
+    Impl_->ScheduleSeal(chunk);
 }
 
 int TChunkManager::GetTotalReplicaCount()

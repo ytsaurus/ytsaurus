@@ -50,10 +50,12 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , ReplicationFactor(1)
-    , ErasureCodec(NErasure::ECodec::None)
+    , ReplicationFactor_(1)
+    , ReadQuorum_(0)
+    , WriteQuorum_(0)
+    , ErasureCodec_(NErasure::ECodec::None)
 {
-    Zero(Flags);
+    Zero(Flags_);
 
     ChunkMeta_.set_type(EChunkType::Unknown);
     ChunkMeta_.set_version(-1);
@@ -99,7 +101,9 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
-    Save(context, ReplicationFactor);
+    Save(context, ReplicationFactor_);
+    Save(context, ReadQuorum_);
+    Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetVital());
@@ -123,7 +127,14 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     RemoveProtoExtension<NVersionedTableClient::NProto::TSamplesExt>(ChunkMeta_.mutable_extensions());
     RemoveProtoExtension<NTableClient::NProto::TIndexExt>(ChunkMeta_.mutable_extensions());
 
-    SetReplicationFactor(Load<i16>(context));
+    // COMPAT(babenko)
+    if (context.GetVersion() < 100) {
+        SetReplicationFactor(Load<i16>(context));
+    } else {
+        SetReplicationFactor(Load<i8>(context));
+        SetReadQuorum(Load<i8>(context));
+        SetWriteQuorum(Load<i8>(context));
+    }
     // COMPAT(psushin)
     if (context.GetVersion() >= 20) {
         SetErasureCodec(Load<NErasure::ECodec>(context));
@@ -189,62 +200,92 @@ void TChunk::ValidateConfirmed()
 
 bool TChunk::GetMovable() const
 {
-    return Flags.Movable;
+    return Flags_.Movable;
 }
 
 void TChunk::SetMovable(bool value)
 {
-    Flags.Movable = value;
+    Flags_.Movable = value;
 }
 
 bool TChunk::GetVital() const
 {
-    return Flags.Vital;
+    return Flags_.Vital;
 }
 
 void TChunk::SetVital(bool value)
 {
-    Flags.Vital = value;
+    Flags_.Vital = value;
 }
 
 bool TChunk::GetRefreshScheduled() const
 {
-    return Flags.RefreshScheduled;
+    return Flags_.RefreshScheduled;
 }
 
 void TChunk::SetRefreshScheduled(bool value)
 {
-    Flags.RefreshScheduled = value;
+    Flags_.RefreshScheduled = value;
 }
 
 bool TChunk::GetPropertiesUpdateScheduled() const
 {
-    return Flags.PropertiesUpdateScheduled;
+    return Flags_.PropertiesUpdateScheduled;
 }
 
 void TChunk::SetPropertiesUpdateScheduled(bool value)
 {
-    Flags.PropertiesUpdateScheduled = value;
+    Flags_.PropertiesUpdateScheduled = value;
+}
+
+bool TChunk::GetSealScheduled() const
+{
+    return Flags_.SealScheduled;
+}
+
+void TChunk::SetSealScheduled(bool value)
+{
+    Flags_.SealScheduled = value;
 }
 
 int TChunk::GetReplicationFactor() const
 {
-    return ReplicationFactor;
+    return ReplicationFactor_;
 }
 
 void TChunk::SetReplicationFactor(int value)
 {
-    ReplicationFactor = value;
+    ReplicationFactor_ = value;
+}
+
+int TChunk::GetReadQuorum() const
+{
+    return ReadQuorum_;
+}
+
+void TChunk::SetReadQuorum(int value)
+{
+    ReadQuorum_ = value;
+}
+
+int TChunk::GetWriteQuorum() const
+{
+    return WriteQuorum_;
+}
+
+void TChunk::SetWriteQuorum(int value)
+{
+    WriteQuorum_ = value;
 }
 
 NErasure::ECodec TChunk::GetErasureCodec() const
 {
-    return NErasure::ECodec(ErasureCodec);
+    return NErasure::ECodec(ErasureCodec_);
 }
 
 void TChunk::SetErasureCodec(NErasure::ECodec value)
 {
-    ErasureCodec = static_cast<i16>(value);
+    ErasureCodec_ = static_cast<i16>(value);
 }
 
 bool TChunk::IsErasure() const

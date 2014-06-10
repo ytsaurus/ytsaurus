@@ -99,6 +99,7 @@ using namespace NHive;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
+using namespace NJournalServer;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NMonitoring;
@@ -314,7 +315,7 @@ void TBootstrap::Run()
     CypressManager = New<TCypressManager>(Config->CypressManager, this);
     
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
-    
+
     TabletManager = New<TTabletManager>(Config->TabletManager, this);
     
     auto timestampManager = New<TTimestampManager>(

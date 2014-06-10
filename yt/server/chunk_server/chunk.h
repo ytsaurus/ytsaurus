@@ -93,8 +93,17 @@ public:
     bool GetPropertiesUpdateScheduled() const;
     void SetPropertiesUpdateScheduled(bool value);
 
+    bool GetSealScheduled() const;
+    void SetSealScheduled(bool value);
+
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);
+
+    int GetReadQuorum() const;
+    void SetReadQuorum(int value);
+
+    int GetWriteQuorum() const;
+    void SetWriteQuorum(int value);
 
     NErasure::ECodec GetErasureCodec() const;
     void SetErasureCodec(NErasure::ECodec value);
@@ -126,10 +135,13 @@ private:
         bool Vital : 1;
         bool RefreshScheduled : 1;
         bool PropertiesUpdateScheduled : 1;
-    } Flags;
+        bool SealScheduled : 1;
+    } Flags_;
 
-    i16 ReplicationFactor;
-    i16 ErasureCodec;
+    i8 ReplicationFactor_;
+    i8 ReadQuorum_;
+    i8 WriteQuorum_;
+    i8 ErasureCodec_;
 
 };
 

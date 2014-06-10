@@ -21,7 +21,10 @@ public:
 public:
     explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
 
+    NChunkServer::TChunk* GetTrailingChunk() const;
     bool IsSealed() const;
+
+    TJournalNode* GetTrunkNode();
 
 };
 

@@ -104,6 +104,8 @@ private:
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
         attributes->push_back(TAttributeInfo("record_count", chunk->IsSealed()));
         attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
+        attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
+        attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -327,6 +329,18 @@ private:
             if (key == "sealed" && chunk->IsJournal()) {
                 BuildYsonFluently(consumer)
                     .Value(chunk->IsSealed());
+                return true;
+            }
+
+            if (key == "read_quorum" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetReadQuorum());
+                return true;
+            }
+
+            if (key == "write_quorum" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetWriteQuorum());
                 return true;
             }
         }

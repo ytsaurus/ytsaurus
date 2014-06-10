@@ -129,6 +129,7 @@ void TChunkReplicator::Finalize()
         const auto& job = pair.second;
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
     }
+
     JobMap_.clear();
     JobListMap_.clear();
 }
@@ -957,6 +958,11 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
+    if (!chunk->GetRefreshScheduled()) {
+
+    } else {
+
+    }
     TRefreshEntry entry;
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay_;

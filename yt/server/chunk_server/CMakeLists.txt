@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/chunk_replicator.cpp
+  ${BASE}/chunk_sealer.cpp
   ${BASE}/chunk_service.cpp
   ${BASE}/chunk_tree.cpp
   ${BASE}/chunk_tree_balancer.cpp
@@ -37,6 +38,7 @@ set( HDRS
   ${BASE}/chunk_replica-inl.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_replicator.h
+  ${BASE}/chunk_sealer.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_tree.h
   ${BASE}/chunk_tree_balancer.h

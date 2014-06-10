@@ -206,6 +206,7 @@ private:
         TTransactionPtr UploadTransaction_;
         
         int ReplicationFactor_ = -1;
+        int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
         Stroka Account_;
 
@@ -349,6 +350,7 @@ private:
                 TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
                 attributeFilter.Keys.push_back("type");
                 attributeFilter.Keys.push_back("replication_factor");
+                attributeFilter.Keys.push_back("read_quorum");
                 attributeFilter.Keys.push_back("write_quorum");
                 attributeFilter.Keys.push_back("account");
                 ToProto(req->mutable_attribute_filter(), attributeFilter);
@@ -382,6 +384,7 @@ private:
                 }
 
                 ReplicationFactor_ = attributes.Get<int>("replication_factor");
+                ReadQuorum_ = attributes.Get<int>("read_quorum");
                 WriteQuorum_ = attributes.Get<int>("write_quorum");
                 Account_ = attributes.Get<Stroka>("account");
             }
@@ -428,6 +431,8 @@ private:
                 }
                 reqExt->set_replication_factor(ReplicationFactor_);
                 reqExt->set_upload_replication_factor(ReplicationFactor_);
+                reqExt->set_read_quorum(ReadQuorum_);
+                reqExt->set_write_quorum(WriteQuorum_);
                 reqExt->set_movable(true);
                 reqExt->set_vital(true);
                 reqExt->set_erasure_codec(NErasure::ECodec::None);

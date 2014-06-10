@@ -18,6 +18,8 @@
 
 #include <server/chunk_server/public.h>
 
+#include <server/journal_server/public.h>
+
 #include <server/transaction_server/public.h>
 
 #include <server/cypress_server/public.h>
