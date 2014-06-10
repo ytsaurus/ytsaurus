@@ -1046,8 +1046,8 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
-        LOG_INFO("Full chunk refresh started");
-        PROFILE_TIMING ("/full_chunk_refresh_time") {
+        LOG_INFO("Scheduling full chunk refresh");
+        PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
             YCHECK(!ChunkPlacement_);
             ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap);
             ChunkPlacement_->Initialize();
@@ -1056,7 +1056,7 @@ private:
             ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap, ChunkPlacement_);
             ChunkReplicator_->Initialize();
         }
-        LOG_INFO("Full chunk refresh completed");
+        LOG_INFO("Full chunk refresh scheduled");
     }
 
     virtual void OnStopLeading() override
