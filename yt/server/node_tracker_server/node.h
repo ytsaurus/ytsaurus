@@ -33,6 +33,7 @@ DECLARE_ENUM(ENodeState,
 
 class TNode
 {
+public:
     // Import third-party types into the scope.
     typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
     typedef NChunkServer::TChunkId TChunkId;
