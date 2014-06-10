@@ -222,7 +222,7 @@ protected:
             return;
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        chunkManager->ScheduleSeal(journal->GetTrailingChunk());
+        chunkManager->ScheduleChunkSeal(journal->GetTrailingChunk());
     }
 
 };

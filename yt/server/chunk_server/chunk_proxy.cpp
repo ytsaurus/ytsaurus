@@ -463,6 +463,11 @@ private:
         }
 
         chunk->Seal(request->record_count());
+
+        if (IsLeader()) {
+            auto chunkManager = Bootstrap->GetChunkManager();
+            chunkManager->ScheduleChunkRefresh(chunk);
+        }
         
         context->Reply();
     }

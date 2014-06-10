@@ -388,6 +388,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OverreplicatedChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));

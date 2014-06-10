@@ -53,6 +53,8 @@ private:
                 return chunkManager->DataMissingChunks();
             case EObjectType::ParityMissingChunkMap:
                 return chunkManager->ParityMissingChunks();
+            case EObjectType::QuorumMissingChunkMap:
+                return chunkManager->QuorumMissingChunks();
             default:
                 YUNREACHABLE();
         }

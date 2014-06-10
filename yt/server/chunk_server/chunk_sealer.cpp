@@ -101,13 +101,9 @@ private:
 
     static bool IsSealNeeded(TChunk* chunk)
     {
-        if (!chunk->IsAlive()) {
-            return false;
-        }
-        if (chunk->IsSealed()) {
-            return false;
-        }
-        return true;
+        return
+            chunk->IsAlive() &&
+            !chunk->IsSealed();
     }
 
     static bool IsLocked(TChunk* chunk)

@@ -173,7 +173,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
         originatingNode->SetChunkList(branchedChunkList);
 
         if (isPropertiesUpdateNeeded) {
-            chunkManager->SchedulePropertiesUpdate(branchedChunkList);
+            chunkManager->ScheduleChunkPropertiesUpdate(branchedChunkList);
         }
 
         objectManager->UnrefObject(originatingChunkList);
@@ -202,7 +202,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
             chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
 
             if (isPropertiesUpdateNeeded) {
-                chunkManager->SchedulePropertiesUpdate(deltaRef);
+                chunkManager->ScheduleChunkPropertiesUpdate(deltaRef);
             }
         }
 

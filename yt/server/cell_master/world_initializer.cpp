@@ -329,6 +329,11 @@ private:
                 EObjectType::ParityMissingChunkMap);
 
             CreateNode(
+                "//sys/quorum_missing_chunks",
+                transactionId,
+                EObjectType::QuorumMissingChunkMap);
+
+            CreateNode(
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);

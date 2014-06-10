@@ -627,7 +627,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
             securityManager->UpdateAccountNodeUsage(node);
 
             if (IsLeader()) {
-                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
+                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
         return true;
@@ -644,7 +644,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
             node->SetVital(vital);
 
             if (IsLeader()) {
-                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
+                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
 

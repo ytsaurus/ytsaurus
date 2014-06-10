@@ -91,6 +91,7 @@ DECLARE_ENUM(EObjectType,
     ((UnderreplicatedChunkMap)    (405))
     ((DataMissingChunkMap)        (419))
     ((ParityMissingChunkMap)      (420))
+    ((QuorumMissingChunkMap)      (424))
     ((ChunkListMap)               (406))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))

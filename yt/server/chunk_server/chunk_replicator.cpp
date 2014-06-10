@@ -286,8 +286,21 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatistics(TChunk* chunk)
 {
-    // TODO(babenko)
-    return TChunkStatistics();
+    TChunkStatistics result;
+
+    if (chunk->IsSealed()) {
+        // TODO(babenko)
+    } else {
+        if (chunk->StoredReplicas().empty()) {
+            result.Status |= EChunkStatus::Lost;
+        }
+
+        if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
+            result.Status |= EChunkStatus::QuorumMissing;
+        }
+    }
+
+    return result;
 }
 
 void TChunkReplicator::ScheduleJobs(
@@ -833,6 +846,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         YCHECK(ParityMissingChunks_.insert(chunk).second);
     }
 
+    if (statistics.Status & EChunkStatus::QuorumMissing) {
+        YCHECK(QuorumMissingChunks_.insert(chunk).second);
+    }
+
     if (!HasRunningJobs(chunk)) {
         ResetChunkJobs(chunk);
 
@@ -893,6 +910,10 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);
         ParityMissingChunks_.erase(chunk);
+    }
+
+    if (chunk->IsJournal()) {
+        QuorumMissingChunks_.erase(chunk);
     }
 }
 

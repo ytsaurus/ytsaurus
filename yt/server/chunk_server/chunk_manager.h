@@ -106,9 +106,9 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void SchedulePropertiesUpdate(TChunkTree* chunkTree);
-
-    void ScheduleSeal(TChunk* chunk);
+    void ScheduleChunkRefresh(TChunk* chunk);
+    void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
+    void ScheduleChunkSeal(TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;
@@ -116,6 +116,7 @@ public:
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
+    const yhash_set<TChunk*>& QuorumMissingChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();

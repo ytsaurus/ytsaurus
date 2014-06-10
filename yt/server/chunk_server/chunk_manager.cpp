@@ -107,7 +107,7 @@ public:
         TRspCreateObjects* response) override;
 
 protected:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
@@ -219,7 +219,7 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TChunkList* chunkList) override
     {
@@ -593,6 +593,7 @@ public:
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
+    const yhash_set<TChunk*>& QuorumMissingChunks() const;
 
 
     int GetTotalReplicaCount()
@@ -606,12 +607,17 @@ public:
     }
 
 
-    void SchedulePropertiesUpdate(TChunkTree* chunkTree)
+    void ScheduleChunkRefresh(TChunk* chunk)
+    {
+        ChunkReplicator_->ScheduleChunkRefresh(chunk);
+    }
+
+    void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     {
         ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
-    void ScheduleSeal(TChunk* chunk)
+    void ScheduleChunkSeal(TChunk* chunk)
     {
         ChunkSealer_->ScheduleSeal(chunk);
     }
@@ -1291,12 +1297,13 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, Overreplica
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap_)
-    , Owner(owner)
+    , Owner_(owner)
 { }
 
 IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
@@ -1332,7 +1339,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
 
-    auto* chunk = Owner->CreateChunk(chunkType);
+    auto* chunk = Owner_->CreateChunk(chunkType);
     chunk->SetReplicationFactor(replicationFactor);
     chunk->SetReadQuorum(readQuorum);
     chunk->SetWriteQuorum(writeQuorum);
@@ -1342,7 +1349,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     chunk->SetStagingTransaction(transaction);
     chunk->SetStagingAccount(account);
 
-    if (Owner->IsLeader()) {
+    if (Owner_->IsLeader()) {
         TNodeSet forbiddenNodeSet;
         TNodeList forbiddenNodeList;
         auto nodeTracker = Bootstrap->GetNodeTracker();
@@ -1362,7 +1369,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
             : requestExt.upload_replication_factor();
 
-        auto targets = Owner->AllocateWriteTargets(
+        auto targets = Owner_->AllocateWriteTargets(
             uploadReplicationFactor,
             &forbiddenNodeSet,
             preferredHostName,
@@ -1379,7 +1386,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             responseExt->add_replicas(NYT::ToProto<ui32>(replica));
         }
 
-        LOG_DEBUG_UNLESS(Owner->IsRecovery(),
+        LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
             "Allocated nodes for new chunk "
             "(ChunkId: %s, TransactionId: %s, Account: %s, Targets: [%s], "
             "ForbiddenAddresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, "
@@ -1405,21 +1412,21 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
 void TChunkManager::TChunkTypeHandlerBase::DoDestroy(TChunk* chunk)
 {
-    Owner->DestroyChunk(chunk);
+    Owner_->DestroyChunk(chunk);
 }
 
 void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
     TChunk* chunk,
     bool /*recursive*/)
 {
-    Owner->UnstageChunk(chunk);
+    Owner_->UnstageChunk(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkListMap_)
-    , Owner(owner)
+    , Owner_(owner)
 { }
 
 IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
@@ -1442,7 +1449,7 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     UNUSED(request);
     UNUSED(response);
 
-    auto* chunkList = Owner->CreateChunkList();
+    auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);
     chunkList->SetStagingAccount(account);
     return chunkList;
@@ -1450,14 +1457,14 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
 
 void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
 {
-    Owner->DestroyChunkList(chunkList);
+    Owner_->DestroyChunkList(chunkList);
 }
 
 void TChunkManager::TChunkListTypeHandler::DoUnstage(
     TChunkList* chunkList,
     bool recursive)
 {
-    Owner->UnstageChunkList(chunkList, recursive);
+    Owner_->UnstageChunkList(chunkList, recursive);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1637,14 +1644,19 @@ bool TChunkManager::IsReplicatorEnabled()
     return Impl_->IsReplicatorEnabled();
 }
 
-void TChunkManager::SchedulePropertiesUpdate(TChunkTree* chunkTree)
+void TChunkManager::ScheduleChunkRefresh(TChunk* chunk)
 {
-    Impl_->SchedulePropertiesUpdate(chunkTree);
+    Impl_->ScheduleChunkRefresh(chunk);
 }
 
-void TChunkManager::ScheduleSeal(TChunk* chunk)
+void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
 {
-    Impl_->ScheduleSeal(chunk);
+    Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
+}
+
+void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
+{
+    Impl_->ScheduleChunkSeal(chunk);
 }
 
 int TChunkManager::GetTotalReplicaCount()
@@ -1666,6 +1678,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChun
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunks, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -47,6 +47,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
 
