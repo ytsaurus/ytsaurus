@@ -117,10 +117,10 @@ private:
                 ~descriptor.Address);
            
             if (ResponseCounter_ == Replicas_.size()) {
-                auto wrappedError = TError("Unable to abort sessions quorum for journal chunk %s",
-                    ~ToString(ChunkId_));
-                wrappedError.InnerErrors() = InnerErrors_;
-                Promise_.TrySet(wrappedError);
+                auto combinedError = TError("Unable to abort sessions quorum for journal chunk %s",
+                    ~ToString(ChunkId_))
+                    << InnerErrors_;
+                Promise_.TrySet(combinedError);
             }
         }
     }
@@ -221,7 +221,7 @@ private:
                 ~descriptor.Address,
                 recordCount);
 
-            QuorumRecordCount_ = std::min(QuorumRecordCount_, recordCount);
+            QuorumRecordCount_ = std::max(QuorumRecordCount_, recordCount);
 
             if (++SuccessCounter_ == Quorum_) {
                 LOG_INFO("Quorum record count for journal chunk computed successfully (ChunkId: %s, RecordCount: %d)",
@@ -238,10 +238,10 @@ private:
                 ~descriptor.Address);
            
             if (ResponseCounter_ == Replicas_.size()) {
-                auto wrappedError = TError("Unable to compute record count for journal chunk %s",
-                    ~ToString(ChunkId_));
-                wrappedError.InnerErrors() = InnerErrors_;
-                Promise_.TrySet(wrappedError);
+                auto combinedError = TError("Unable to compute record count for journal chunk %s",
+                    ~ToString(ChunkId_))
+                    << InnerErrors_;
+                Promise_.TrySet(combinedError);
             }
         }
     }
