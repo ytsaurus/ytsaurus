@@ -62,7 +62,6 @@ public:
         , Config_(config ? config : New<TFileReaderConfig>())
         , IsFirstBlock_(true)
         , IsFinished_(false)
-        , Size_(0)
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -93,11 +92,6 @@ public:
             .Run();
     }
 
-    virtual i64 GetSize() const override
-    {
-        return Size_;
-    }
-
 private:
     IClientPtr Client_;
     TYPath Path_;
@@ -111,8 +105,6 @@ private:
 
     typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
     TIntrusivePtr<TReader> Reader_;
-
-    i64 Size_;
 
     NLog::TTaggedLogger Logger;
 
@@ -171,12 +163,6 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            for (const auto& chunk : chunks) {
-                i64 dataSize;
-                GetStatistics(chunk, &dataSize);
-                Size_ += dataSize;
-            }
-
             auto provider = New<TFileChunkReaderProvider>(Config_);
             Reader_ = New<TReader>(
                 Config_,

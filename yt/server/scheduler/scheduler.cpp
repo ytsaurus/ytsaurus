@@ -967,14 +967,14 @@ private:
             }
 
             {
-                auto error = WaitFor(
-                    operation->Snapshot() ? controller->Revive() : controller->Prepare());
+                auto error = WaitFor(operation->Snapshot()
+                	? controller->Revive()
+                	: controller->Prepare());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
             if (operation->GetState() != EOperationState::Reviving)
                 throw TFiberCanceledException();
-
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
                 ~ToString(operation->GetId()));
@@ -985,7 +985,7 @@ private:
         }
 
         // Discard the snapshot, if any.
-        operation->Snapshot() = Null;
+        operation->Snapshot().Reset();
 
         operation->SetState(EOperationState::Running);
 

@@ -1433,7 +1433,7 @@ void TOperationControllerBase::DoLoadSnapshot()
 {
     LOG_INFO("Started loading snapshot");
 
-    const auto& snapshot = *Operation->Snapshot();
+    auto snapshot = Operation->Snapshot();
     TMemoryInput input(snapshot.Begin(), snapshot.Size());
 
     TLoadContext context;

@@ -21,9 +21,6 @@ struct IFileReader
 
     //! Reads another portion of file.
     virtual TFuture<TErrorOr<TSharedRef>> Read() = 0;
-
-    //! Returns the file (uncompressed) size.
-    virtual i64 GetSize() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileReader)

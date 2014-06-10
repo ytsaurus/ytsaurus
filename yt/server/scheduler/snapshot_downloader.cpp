@@ -43,6 +43,7 @@ void TSnapshotDownloader::Run()
     auto client = Bootstrap->GetMasterClient();
 
     auto snapshotPath = GetSnapshotPath(Operation->GetId());
+    
     auto reader = client->CreateFileReader(
         snapshotPath,
         TFileReaderOptions(),
@@ -53,24 +54,20 @@ void TSnapshotDownloader::Run()
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
         
-    i64 size = reader->GetSize();
-
-    LOG_INFO("Snapshot reader opened (Size: %" PRId64 ")", size);
+    LOG_INFO("Snapshot reader opened");
     
-    Operation->Snapshot() = TBlob();
-
     try {
-        auto& blob = *Operation->Snapshot();
-        blob.Reserve(size);
-
+        std::vector<TSharedRef> blocks;
         while (true) {
             auto blockOrError = WaitFor(reader->Read());
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
             auto block = blockOrError.Value();
             if (!block)
                 break;
-            blob.Append(block);
+            blocks.push_back(block);
         }
+
+        Operation->Snapshot() = MergeRefs(blocks);
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (...) {
