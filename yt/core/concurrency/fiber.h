@@ -62,7 +62,7 @@ private:
     TExecutionContext Context_;
     std::exception_ptr Exception_;
 
-    std::atomic_bool Canceled_;
+    std::atomic<bool> Canceled_;
 
     TClosure Callee_;
 

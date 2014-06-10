@@ -35,7 +35,7 @@ private:
 
     TParallelAwaiterPtr Awaiter_;
     TPromise<TResultsOrError> Promise_;
-    std::atomic_bool Completed_;
+    std::atomic<bool> Completed_;
     std::atomic<int> CurrentIndex_;
     TParallelCollectorStorage<T> Results_;
 

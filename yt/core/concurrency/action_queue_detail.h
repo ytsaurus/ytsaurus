@@ -85,7 +85,7 @@ private:
     TThreadId ThreadId;
     bool EnableLogging;
 
-    std::atomic_bool Running;
+    std::atomic<bool> Running;
 
     NProfiling::TProfiler Profiler;
 
@@ -157,7 +157,7 @@ protected:
     NProfiling::TProfiler Profiler;
 
     // If (Epoch & 0x1) == 0x1 then the thread is running.
-    std::atomic_uint Epoch;
+    std::atomic<ui32> Epoch;
 
     TPromise<void> Started;
 
