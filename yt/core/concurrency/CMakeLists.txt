@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/coroutine.h
   ${BASE}/thread.h
   ${BASE}/scheduler.h
+  ${BASE}/scheduler-inl.h
   ${BASE}/fiber.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h

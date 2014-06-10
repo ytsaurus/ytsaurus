@@ -66,22 +66,19 @@ private:
 // Shortcuts.
 
 TFiberId GetCurrentFiberId();
-
 void Yield();
-
 void SwitchTo(IInvokerPtr invoker);
 
-void WaitFor(TFuture<void> future, IInvokerPtr invoker = GetCurrentInvoker());
+////////////////////////////////////////////////////////////////////////////////
+
+void WaitFor(
+    TFuture<void> future,
+    IInvokerPtr invoker = GetCurrentInvoker());
 
 template <class T>
 T WaitFor(
     TFuture<T> future,
-    IInvokerPtr invoker = GetCurrentInvoker())
-{
-    WaitFor(future.IgnoreResult(), std::move(invoker));
-    YCHECK(future.IsSet());
-    return future.Get();
-}
+    IInvokerPtr invoker = GetCurrentInvoker());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,3 +91,6 @@ class TFiberCanceledException
 } // namespace NConcurrency
 } // namespace NYT
 
+#define SCHEDULER_INL_H_
+#include "scheduler-inl.h"
+#undef SCHEDULER_INL_H_
