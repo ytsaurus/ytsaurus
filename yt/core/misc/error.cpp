@@ -392,6 +392,15 @@ TError operator << (TError error, const TError& innerError)
     return error;
 }
 
+TError operator << (TError error, const std::vector<TError>& innerErrors)
+{
+    error.InnerErrors().insert(
+        error.InnerErrors().end(),
+        innerErrors.begin(),
+        innerErrors.end());
+    return error;
+}
+
 TError operator >>= (const TErrorAttribute& attribute, TError error)
 {
     return error << attribute;
