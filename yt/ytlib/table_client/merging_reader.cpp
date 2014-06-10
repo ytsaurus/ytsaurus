@@ -68,9 +68,8 @@ public:
         awaiter->Complete().Get();
 
         if (!errors.empty()) {
-            TError wrappedError("Error opening merging reader");
-            wrappedError.InnerErrors() = errors;
-            THROW_ERROR wrappedError;
+            THROW_ERROR_EXCEPTION("Error opening merging reader")
+                << errors;
         }
 
         // Push all non-empty readers to the heap.

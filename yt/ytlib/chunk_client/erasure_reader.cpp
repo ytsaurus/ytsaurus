@@ -127,9 +127,8 @@ public:
         if (ReadErrors_.empty()) {
             ResultPromise_.Set(Result_);
         } else {
-            auto error = TError("Error reading erasure chunk");
-            error.InnerErrors() = ReadErrors_;
-            ResultPromise_.Set(error);
+            ResultPromise_.Set(TError("Error reading erasure chunk")
+                << ReadErrors_);
         }
     }
 

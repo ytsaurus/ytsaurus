@@ -425,8 +425,7 @@ protected:
 
     TError BuildCombinedError(TError error)
     {
-        error.InnerErrors() = InnerErrors;
-        return error;
+        return error << InnerErrors;
     }
 
     virtual void OnSessionFailed() = 0;

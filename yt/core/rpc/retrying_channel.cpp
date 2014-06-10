@@ -170,8 +170,7 @@ private:
 
     void ReportError(TError error)
     {
-        error.InnerErrors() = InnerErrors_;
-        OriginalHandler_->OnError(error);
+        OriginalHandler_->OnError(error << InnerErrors_);
     }
 
     void Retry()
