@@ -24,6 +24,8 @@ struct ISchemalessWriter
 
 };
 
+DEFINE_REFCOUNTED_TYPE(ISchemalessWriter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

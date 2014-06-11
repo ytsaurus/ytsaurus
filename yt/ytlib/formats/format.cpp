@@ -16,6 +16,8 @@
 #include "schemaful_dsv_parser.h"
 #include "schemaful_dsv_writer.h"
 
+#include "schemaless_writer_adapter.h"
+
 #include "yson_parser.h"
 #include "yson_writer.h"
 
@@ -246,6 +248,25 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
             THROW_ERROR_EXCEPTION("Unsupported output format %s",
                 ~FormatEnum(format.GetType()).Quote());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessWriterPtr CreateSchemalessWriterAdaptor(
+    std::unique_ptr<IYsonConsumer> consumer,
+    TNameTablePtr nameTable)
+{
+    return New<TSchemalessWriterAdapter>(std::move(consumer), nameTable);
+}
+
+ISchemalessWriterPtr CreateSchemalessWriterForFormat(
+    const TFormat& format,
+    TNameTablePtr nameTable,
+    TOutputStream* output)
+{
+    return CreateSchemalessWriterAdaptor(
+        CreateConsumerForFormat(format, EDataType::Tabular, output),
+        nameTable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
