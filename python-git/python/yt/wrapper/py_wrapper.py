@@ -66,7 +66,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                     file = file[:-1]
 
                 relpath = module_relpath(module.__name__, file)
-                if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
+                if relpath is None:
                     raise YtError("Cannot determine relative path of module " + str(module))
                 
                 if relpath in compressed_files:
