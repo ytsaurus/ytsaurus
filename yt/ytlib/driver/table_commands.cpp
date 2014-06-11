@@ -81,8 +81,6 @@ void TReadTableCommand::DoExecute()
         Request_->Path,
         nameTable);
 
-    auto output = Context_->Request().OutputStream;
-
     {
         auto error = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
@@ -91,12 +89,12 @@ void TReadTableCommand::DoExecute()
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
-    TBlobOutput buffer;
 
+    // ToDo(psushin): implement and use buffered output stream.
+    auto output = CreateSyncOutputStream(Context_->Request().OutputStream);
     auto format = Context_->GetOutputFormat();
 
-    // ToDo(psushin): CreateSchemalessWriterForFormat
-    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+    auto writer = CreateSchemalessWriterForFormat(format, nameTable, output.get());
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(Context_->GetConfig()->ReadBufferRowCount);
@@ -108,16 +106,10 @@ void TReadTableCommand::DoExecute()
             continue;
         }
 
-        for (auto row : rows) {
-            ProduceRow(consumer.get(), row, nameTable);
+        if (!writer->Write(rows)) {
+            auto error = WaitFor(writer->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
-
-        if (!output->Write(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(output->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        buffer.Clear();
     }
     YCHECK(rows.empty());
 }
