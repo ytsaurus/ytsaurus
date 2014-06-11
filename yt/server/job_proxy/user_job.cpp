@@ -211,16 +211,15 @@ private:
         createPipe(pipe);
 
         // Configure stderr pipe.
-        TOutputStream* stderrOutput;
+        TOutputStream* stderrOutput = &NullErrorOutput;
         if (UserJobSpec.has_stderr_transaction_id()) {
             auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
             ErrorOutput = JobIO->CreateErrorOutput(
                 stderrTransactionId,
                 UserJobSpec.max_stderr_size());
             stderrOutput = ErrorOutput.get();
-        } else {
-            stderrOutput = &NullErrorOutput;
         }
+        
         OutputPipes.push_back(New<TOutputPipe>(pipe, stderrOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
