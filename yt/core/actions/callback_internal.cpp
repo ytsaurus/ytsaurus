@@ -60,16 +60,6 @@ bool TCallbackBase::operator != (const TCallbackBase& other) const
     return !(*this == other);
 }
 
-TCallbackBase::TCallbackBase(const TCallbackBase& other)
-    : BindState(other.BindState)
-    , UntypedInvoke(other.UntypedInvoke)
-{ }
-
-TCallbackBase::TCallbackBase(TCallbackBase&& other)
-    : BindState(std::move(other.BindState))
-    , UntypedInvoke(std::move(other.UntypedInvoke))
-{ }
-
 TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))
     , UntypedInvoke(NULL)

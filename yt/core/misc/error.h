@@ -30,7 +30,7 @@ class TErrorOr<void>
 public:
     TErrorOr();
     TErrorOr(const TError& other);
-    TErrorOr(TError&& other);
+    TErrorOr(TError&& other) noexcept;
 
     TErrorOr(const std::exception& ex);
 
@@ -44,7 +44,7 @@ public:
     static TError FromSystem(int error);
 
     TError& operator = (const TError& other);
-    TError& operator = (TError&& other);
+    TError& operator = (TError&& other) noexcept;
 
     int GetCode() const;
     TError& SetCode(int code);
@@ -130,8 +130,8 @@ class TErrorException
 
 public:
     TErrorException();
-    TErrorException(TErrorException&& other);
-    TErrorException(const TErrorException& other);
+    TErrorException(TErrorException&& other) noexcept = default;
+    TErrorException(const TErrorException& other) = default;
 
     ~TErrorException() throw();
 
@@ -195,7 +195,7 @@ public:
         : Value_(value)
     { }
 
-    TErrorOr(T&& value)
+    TErrorOr(T&& value) noexcept
         : Value_(std::move(value))
     { }
 

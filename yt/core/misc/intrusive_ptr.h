@@ -88,7 +88,7 @@ public:
     }
 
     //! Move constructor.
-    explicit TIntrusivePtr(TIntrusivePtr&& other) // noexcept
+    explicit TIntrusivePtr(TIntrusivePtr&& other) noexcept
         : T_(other.Get())
     {
         other.T_ = nullptr;
@@ -131,7 +131,7 @@ public:
     }
 
     //! Move assignment operator.
-    TIntrusivePtr& operator=(TIntrusivePtr&& other) // noexcept
+    TIntrusivePtr& operator=(TIntrusivePtr&& other) noexcept
     {
         TIntrusivePtr(std::move(other)).Swap(*this);
         return *this;

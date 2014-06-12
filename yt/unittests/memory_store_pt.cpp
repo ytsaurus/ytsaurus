@@ -108,21 +108,21 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TMemoryStorePerfTest, DynamicWrite)
+TEST_F(TMemoryStorePerfTest, DISABLED_DynamicWrite)
 {
     RunDynamic(
         1000000,
         100);
 }
 
-TEST_F(TMemoryStorePerfTest, DynamicRead)
+TEST_F(TMemoryStorePerfTest, DISABLED_DynamicRead)
 {
     RunDynamic(
         1000000,
         0);
 }
 
-TEST_F(TMemoryStorePerfTest, DynamicReadWrite)
+TEST_F(TMemoryStorePerfTest, DISABLED_DynamicReadWrite)
 {
     RunDynamic(
         1000000,

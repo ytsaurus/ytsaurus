@@ -14,7 +14,7 @@ namespace NYT {
 
 struct TGuid
 {
-    ui32 Parts[4];
+    std::array<ui32, 4> Parts;
 
     //! Empty constructor.
     TGuid();
@@ -24,9 +24,6 @@ struct TGuid
 
     //! Constructor from parts.
     TGuid(ui64 part0, ui64 part1);
-
-    //! Copy constructor.
-    TGuid(const TGuid& guid);
 
     //! Checks if TGuid is zero.
     bool IsEmpty() const;

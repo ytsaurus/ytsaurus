@@ -83,12 +83,6 @@ public:
     //! Empty constructor.
     TFuture(TNull);
 
-    //! Copy constructor.
-    TFuture(const TFuture& other);
-
-    //! Move constructor.
-    TFuture(TFuture&& other);
-
     //! Checks if the future is associated with a state.
     explicit operator bool() const;
 
@@ -97,12 +91,6 @@ public:
 
     //! Swaps underlying associated state.
     void Swap(TFuture& other);
-
-    //! Copy assignment.
-    TFuture<T>& operator=(const TFuture<T>& other);
-
-    //! Move assignment.
-    TFuture<T>& operator=(TFuture<T>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -213,12 +201,6 @@ public:
     //! Empty constructor.
     TFuture(TNull);
 
-    //! Copy constructor.
-    TFuture(const TFuture& other);
-
-    //! Move constructor.
-    TFuture(TFuture&& other);
-
     //! Checks if the future is associated with a state.
     explicit operator bool() const;
 
@@ -227,12 +209,6 @@ public:
 
     //! Swaps underlying associated state.
     void Swap(TFuture& other);
-
-    //! Copy assignment.
-    TFuture<void>& operator=(const TFuture<void>& other);
-
-    //! Move assignment.
-    TFuture<void>& operator=(TFuture<void>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -340,12 +316,6 @@ public:
     //! Empty constructor.
     TPromise(TNull);
 
-    //! Copy constructor.
-    TPromise(const TPromise& other);
-
-    //! Move constructor.
-    TPromise(TPromise&& other);
-
     //! Checks if the promise is associated with a state.
     explicit operator bool() const;
 
@@ -354,12 +324,6 @@ public:
 
     //! Swaps underlying associated state.
     void Swap(TPromise& other);
-
-    //! Copy assignment.
-    TPromise<T>& operator=(const TPromise<T>& other);
-
-    //! Move assignment.
-    TPromise<T>& operator=(TPromise<T>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -473,12 +437,6 @@ public:
     //! Empty constructor.
     TPromise(TNull);
 
-    //! Copy constructor.
-    TPromise(const TPromise& other);
-
-    //! Move constructor.
-    TPromise(TPromise&& other);
-
     //! Checks if the promise is associated with a state.
     explicit operator bool() const;
 
@@ -487,12 +445,6 @@ public:
 
     //! Swaps underlying associated state.
     void Swap(TPromise& other);
-
-    //! Copy assignment.
-    TPromise<void>& operator=(const TPromise<void>& other);
-
-    //! Move assignment.
-    TPromise<void>& operator=(TPromise<void>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;

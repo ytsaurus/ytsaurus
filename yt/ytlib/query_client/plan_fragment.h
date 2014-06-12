@@ -21,13 +21,6 @@ public:
         TPlanContextPtr context,
         const TOperator* head = nullptr,
         const TGuid& id = TGuid::Create());
-    TPlanFragment(const TPlanFragment& other);
-    TPlanFragment(TPlanFragment&& other);
-
-    ~TPlanFragment();
-
-    TPlanFragment& operator=(const TPlanFragment& other);
-    TPlanFragment& operator=(TPlanFragment&& other);
 
     template <class TFunctor>
     void Rewrite(const TFunctor& functor);

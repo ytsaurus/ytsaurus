@@ -684,16 +684,6 @@ inline TFuture<T>::TFuture(TNull)
 { }
 
 template <class T>
-inline TFuture<T>::TFuture(const TFuture<T>& other)
-    : Impl_(other.Impl_)
-{ }
-
-template <class T>
-inline TFuture<T>::TFuture(TFuture<T>&& other)
-    : Impl_(std::move(other.Impl_))
-{ }
-
-template <class T>
 inline TFuture<T>::operator bool() const
 {
     return Impl_ != nullptr;
@@ -709,20 +699,6 @@ template <class T>
 inline void TFuture<T>::Swap(TFuture& other)
 {
     Impl_.Swap(other.Impl_);
-}
-
-template <class T>
-inline TFuture<T>& TFuture<T>::operator=(const TFuture<T>& other)
-{
-    TFuture(other).Swap(*this);
-    return *this;
-}
-
-template <class T>
-inline TFuture<T>& TFuture<T>::operator=(TFuture<T>&& other)
-{
-    TFuture(std::move(other)).Swap(*this);
-    return *this;
 }
 
 template <class T>
@@ -887,14 +863,6 @@ inline TFuture<void>::TFuture(TNull)
     : Impl_(nullptr)
 { }
 
-inline TFuture<void>::TFuture(const TFuture<void>& other)
-    : Impl_(other.Impl_)
-{ }
-
-inline TFuture<void>::TFuture(TFuture<void>&& other)
-    : Impl_(std::move(other.Impl_))
-{ }
-
 inline TFuture<void>::operator bool() const
 {
     return Impl_ != nullptr;
@@ -908,18 +876,6 @@ inline void TFuture<void>::Reset()
 inline void TFuture<void>::Swap(TFuture& other)
 {
     Impl_.Swap(other.Impl_);
-}
-
-inline TFuture<void>& TFuture<void>::operator=(const TFuture<void>& other)
-{
-    TFuture(other).Swap(*this);
-    return *this;
-}
-
-inline TFuture<void>& TFuture<void>::operator=(TFuture<void>&& other)
-{
-    TFuture(std::move(other)).Swap(*this);
-    return *this;
 }
 
 inline bool TFuture<void>::IsSet() const
@@ -1083,16 +1039,6 @@ inline TPromise<T>::TPromise(TNull)
 { }
 
 template <class T>
-inline TPromise<T>::TPromise(const TPromise<T>& other)
-    : Impl_(other.Impl_)
-{ }
-
-template <class T>
-inline TPromise<T>::TPromise(TPromise<T>&& other)
-    : Impl_(std::move(other.Impl_))
-{ }
-
-template <class T>
 inline TPromise<T>::operator bool() const
 {
     return Impl_ != nullptr;
@@ -1108,20 +1054,6 @@ template <class T>
 inline void TPromise<T>::Swap(TPromise& other)
 {
     Impl_.Swap(other.Impl_);
-}
-
-template <class T>
-inline TPromise<T>& TPromise<T>::operator=(const TPromise<T>& other)
-{
-    TPromise(other).Swap(*this);
-    return *this;
-}
-
-template <class T>
-inline TPromise<T>& TPromise<T>::operator=(TPromise<T>&& other)
-{
-    TPromise(std::move(other)).Swap(*this);
-    return *this;
 }
 
 template <class T>
@@ -1240,14 +1172,6 @@ inline TPromise<void>::TPromise(TNull)
     : Impl_(nullptr)
 { }
 
-inline TPromise<void>::TPromise(const TPromise<void>& other)
-    : Impl_(other.Impl_)
-{ }
-
-inline TPromise<void>::TPromise(TPromise<void>&& other)
-    : Impl_(std::move(other.Impl_))
-{ }
-
 inline TPromise<void>::operator bool() const
 {
     return Impl_ != nullptr;
@@ -1261,18 +1185,6 @@ inline void TPromise<void>::Reset()
 inline void TPromise<void>::Swap(TPromise& other)
 {
     Impl_.Swap(other.Impl_);
-}
-
-inline TPromise<void>& TPromise<void>::operator=(const TPromise<void>& other)
-{
-    TPromise(other).Swap(*this);
-    return *this;
-}
-
-inline TPromise<void>& TPromise<void>::operator=(TPromise<void>&& other)
-{
-    TPromise(std::move(other)).Swap(*this);
-    return *this;
 }
 
 inline bool TPromise<void>::IsSet() const
