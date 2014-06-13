@@ -336,7 +336,7 @@ private:
 
             if (key == "record_count" && chunk->IsSealed()) {
                 BuildYsonFluently(consumer)
-                    .Value(miscExt.record_count());
+                    .Value(chunk->GetSealedRecordCount());
                 return true;
             }
 

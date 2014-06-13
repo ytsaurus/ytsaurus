@@ -88,6 +88,7 @@ DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((ParityMissing)     (0x0010))
     ((QuorumMissing)     (0x0020))
     ((Safe)              (0x0040))
+    ((Sealed)            (0x0080))
 );
 
 typedef std::list<TChunk*> TChunkRepairQueue;

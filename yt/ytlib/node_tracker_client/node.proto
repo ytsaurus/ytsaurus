@@ -43,6 +43,7 @@ message TNodeResources
     optional int32 replication_slots = 5;
     optional int32 removal_slots     = 6;
     optional int32 repair_slots      = 7;
+    optional int32 seal_slots        = 8;
 }
 
 // Describes a cluster node.

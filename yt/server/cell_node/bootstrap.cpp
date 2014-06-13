@@ -281,6 +281,7 @@ void TBootstrap::Run()
     JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
 

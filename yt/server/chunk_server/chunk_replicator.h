@@ -121,9 +121,7 @@ private:
 
     struct TRefreshEntry
     {
-        TRefreshEntry();
-
-        TChunk* Chunk;
+        TChunk* Chunk = nullptr;
         NProfiling::TCpuInstant When;
     };
 
@@ -143,7 +141,7 @@ private:
     yhash_map<TJobId, TJobPtr> JobMap_;
     yhash_map<TChunk*, TJobListPtr> JobListMap_;
 
-    TChunkRepairQueue RepairQueue_;
+    TChunkRepairQueue ChunkRepairQueue_;
 
 
     void ProcessExistingJobs(
@@ -172,6 +170,10 @@ private:
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
     EJobScheduleFlags ScheduleRepairJob(
+        TNode* node,
+        TChunk* chunk,
+        TJobPtr* job);
+    EJobScheduleFlags ScheduleSealJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);
@@ -215,6 +217,9 @@ private:
         ((All)                   (0xffff))
     );
     void UnregisterJob(TJobPtr job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
+
+    void AddToChunkRepairQueue(TChunk* chunk);
+    void RemoveFromChunkRepairQueue(TChunk* chunk);
 
 };
 

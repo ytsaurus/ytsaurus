@@ -34,6 +34,7 @@ DECLARE_ENUM(EJobType,
     ((ReplicateChunk)   (102))
     ((RemoveChunk)      (103))
     ((RepairChunk)      (104))
+    ((SealChunk)        (105))
     ((MasterLast)       (199)) // sentinel
 );
 

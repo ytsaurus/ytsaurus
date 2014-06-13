@@ -236,6 +236,21 @@ void TNode::ClearChunkReplicationQueues()
     }
 }
 
+void TNode::AddToChunkSealQueue(TChunk* chunk)
+{
+    ChunkSealQueue_.insert(chunk);
+}
+
+void TNode::RemoveFromChunkSealQueue(TChunk* chunk)
+{
+    ChunkSealQueue_.erase(chunk);
+}
+
+void TNode::ClearChunkSealQueue()
+{
+    ChunkSealQueue_.clear();
+}
+
 void TNode::ResetHints()
 {
     HintedUserSessionCount_ = 0;

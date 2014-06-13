@@ -62,6 +62,11 @@ public:
         const NErasure::TPartIndexList& erasedIndexes,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
+    static TJobPtr CreateSeal(
+        const TChunkId& chunkId,
+        NNodeTrackerServer::TNode* node,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+
     TJob(
         EJobType type,
         const TJobId& jobId,

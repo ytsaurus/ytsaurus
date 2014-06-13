@@ -460,8 +460,9 @@ private:
         for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             node->ResetHints();
-            node->ClearChunkReplicationQueues();
             node->ClearChunkRemovalQueue();
+            node->ClearChunkReplicationQueues();
+            node->ClearChunkSealQueue();
         }
     }
 

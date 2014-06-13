@@ -161,8 +161,8 @@ private:
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
-                    auto* replicationJobSpecExt = jobSpec->MutableExtension(TReplicationJobSpecExt::replication_job_spec_ext);
-                    SerializeDescriptors(replicationJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
+                    auto* replciateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+                    SerializeDescriptors(replciateChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
                     break;
                 }
 
@@ -170,18 +170,32 @@ private:
                     break;
 
                 case EJobType::RepairChunk: {
-                    auto chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
 
-                    auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
-                    repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
-                    ToProto(repairJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
+                    auto* repairChunkJobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
+                    repairChunkJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
+                    ToProto(repairChunkJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
 
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(repairChunkJobSpecExt->mutable_node_directory());
                     const auto& replicas = chunk->StoredReplicas();
                     builder.Add(replicas);
-                    ToProto(repairJobSpecExt->mutable_replicas(), replicas);
+                    ToProto(repairChunkJobSpecExt->mutable_replicas(), replicas);
 
-                    SerializeDescriptors(repairJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
+                    SerializeDescriptors(repairChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
+                    break;
+                }
+
+                case EJobType::SealChunk: {
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+
+                    auto* sealChunkJobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
+
+                    sealChunkJobSpecExt->set_record_count(chunk->GetSealedRecordCount());
+
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(sealChunkJobSpecExt->mutable_node_directory());
+                    const auto& replicas = chunk->StoredReplicas();
+                    builder.Add(replicas);
+                    ToProto(sealChunkJobSpecExt->mutable_replicas(), replicas);
                     break;
                 }
 

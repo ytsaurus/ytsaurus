@@ -76,6 +76,9 @@ public:
     typedef yhash_set<NChunkClient::TChunkIdWithIndex> TChunkRemovalQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
+    typedef yhash_set<TChunk*> TChunkSealQueue;
+    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
+
     // Tablet Manager stuff.
     struct TTabletSlot
     {
@@ -132,6 +135,10 @@ public:
     void AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority);
     void RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica);
     void ClearChunkReplicationQueues();
+
+    void AddToChunkSealQueue(TChunk* chunk);
+    void RemoveFromChunkSealQueue(TChunk* chunk);
+    void ClearChunkSealQueue();
 
     void ResetHints();
     

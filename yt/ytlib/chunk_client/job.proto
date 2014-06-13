@@ -16,28 +16,40 @@ message TChunkJobSpecExt
     required NYT.NProto.TGuid chunk_id = 1;
 }
 
-message TReplicationJobSpecExt
+message TReplicateChunkJobSpecExt
 {
     extend NJobTrackerClient.NProto.TJobSpec
     {
-        optional TReplicationJobSpecExt replication_job_spec_ext = 201;
+        optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
     }
 
-    repeated NNodeTrackerClient.NProto.TNodeDescriptor target_descriptors = 1;
+    repeated NNodeTrackerClient.NProto.TNodeDescriptor targets = 1;
 }
 
-message TRepairJobSpecExt
+message TRepairChunkJobSpecExt
 {
     extend NJobTrackerClient.NProto.TJobSpec
     {
-        optional TRepairJobSpecExt repair_job_spec_ext = 202;
+        optional TRepairChunkJobSpecExt repair_chunk_job_spec_ext = 202;
     }
 
     required int32 erasure_codec = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated fixed32 replicas = 3;
-    repeated NNodeTrackerClient.NProto.TNodeDescriptor target_descriptors = 4;
+    repeated NNodeTrackerClient.NProto.TNodeDescriptor targets = 4;
     repeated int32 erased_indexes = 5;
+}
+
+message TSealChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TSealChunkJobSpecExt seal_chunk_job_spec_ext = 203;
+    }
+
+    required int32 record_count = 1;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+    repeated fixed32 replicas = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

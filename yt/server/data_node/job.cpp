@@ -5,6 +5,7 @@
 #include "block_store.h"
 #include "location.h"
 #include "config.h"
+#include "journal_chunk.h"
 #include "private.h"
 
 #include <core/misc/protobuf_helpers.h>
@@ -58,6 +59,7 @@ using NNodeTrackerClient::TNodeDescriptor;
 class TChunkJobBase
     : public IJob
 {
+public:
     DEFINE_SIGNAL(void(), ResourcesReleased);
 
 public:
@@ -67,67 +69,67 @@ public:
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : JobId(jobId)
-        , ResourceLimits(resourceLimits)
-        , Config(config)
-        , Bootstrap(bootstrap)
+        : JobId_(jobId)
+        , ResourceLimits_(resourceLimits)
+        , Config_(config)
+        , Bootstrap_(bootstrap)
         , Logger(DataNodeLogger)
-        , JobState(EJobState::Waiting)
-        , JobPhase(EJobPhase::Created)
-        , Progress(0.0)
+        , JobState_(EJobState::Waiting)
+        , JobPhase_(EJobPhase::Created)
+        , Progress_(0.0)
     {
-        JobSpec.Swap(&jobSpec);
+        JobSpec_.Swap(&jobSpec);
 
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
     virtual void Start() override
     {
-        JobState = EJobState::Running;
-        JobPhase = EJobPhase::Running;
+        JobState_ = EJobState::Running;
+        JobPhase_ = EJobPhase::Running;
 
         DoPrepare();
 
-        if (JobState != EJobState::Running)
+        if (JobState_ != EJobState::Running)
             return;
 
-        JobFuture = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
-            .AsyncVia(Bootstrap->GetControlInvoker())
+        JobFuture_ = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
-        if (JobState != EJobState::Running)
+        if (JobState_ != EJobState::Running)
             return;
 
-        JobFuture.Cancel();
+        JobFuture_.Cancel();
         SetAborted(error);
     }
 
     virtual const TJobId& GetId() const override
     {
-        return JobId;
+        return JobId_;
     }
 
     virtual const TJobSpec& GetSpec() const override
     {
-        return JobSpec;
+        return JobSpec_;
     }
 
     virtual EJobState GetState() const override
     {
-        return JobState;
+        return JobState_;
     }
 
     virtual EJobPhase GetPhase() const override
     {
-        return JobPhase;
+        return JobPhase_;
     }
 
     virtual TNodeResources GetResourceUsage() const override
     {
-        return ResourceLimits;
+        return ResourceLimits_;
     }
 
     virtual void SetResourceUsage(const TNodeResources& /*newUsage*/) override
@@ -137,7 +139,7 @@ public:
 
     virtual TJobResult GetResult() const override
     {
-        return Result;
+        return Result_;
     }
 
     virtual void SetResult(const TJobResult& /*result*/) override
@@ -147,12 +149,12 @@ public:
 
     virtual double GetProgress() const override
     {
-        return Progress;
+        return Progress_;
     }
 
     virtual void SetProgress(double value) override
     {
-        Progress = value;
+        Progress_ = value;
     }
 
     virtual TJobStatistics GetJobStatistics() const override
@@ -167,32 +169,32 @@ public:
     }
 
 protected:
-    TJobId JobId;
-    TJobSpec JobSpec;
-    TNodeResources ResourceLimits;
-    TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    TJobId JobId_;
+    TJobSpec JobSpec_;
+    TNodeResources ResourceLimits_;
+    TDataNodeConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
     NLog::TTaggedLogger Logger;
 
-    EJobState JobState;
-    EJobPhase JobPhase;
+    EJobState JobState_;
+    EJobPhase JobPhase_;
 
-    double Progress;
+    double Progress_;
 
-    TFuture<void> JobFuture;
+    TFuture<void> JobFuture_;
 
-    TJobResult Result;
+    TJobResult Result_;
 
-    TChunkId ChunkId;
+    TChunkId ChunkId_;
 
 
     virtual void DoPrepare()
     {
-        const auto& chunkSpecExt = JobSpec.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
-        ChunkId = FromProto<TChunkId>(chunkSpecExt.chunk_id());
+        const auto& chunkSpecExt = JobSpec_.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
+        ChunkId_ = FromProto<TChunkId>(chunkSpecExt.chunk_id());
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+        Logger.AddTag(Sprintf("ChunkId_: %s", ~ToString(ChunkId_)));
     }
 
     virtual void DoRun() = 0;
@@ -211,7 +213,7 @@ protected:
     void SetCompleted()
     {
         LOG_INFO("Job completed");
-        Progress = 1.0;
+        Progress_ = 1.0;
         DoSetFinished(EJobState::Completed, TError());
     }
 
@@ -239,15 +241,15 @@ protected:
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
-        if (JobState != EJobState::Running)
+        if (JobState_ != EJobState::Running)
             return;
 
-        JobPhase = EJobPhase::Finished;
-        JobState = finalState;
-        ToProto(Result.mutable_error(), error);
-        ToProto(Result.mutable_statistics(), GetJobStatistics());
-        ResourceLimits = ZeroNodeResources();
-        JobFuture.Reset();
+        JobPhase_ = EJobPhase::Finished;
+        JobState_ = finalState;
+        ToProto(Result_.mutable_error(), error);
+        ToProto(Result_.mutable_statistics(), GetJobStatistics());
+        ResourceLimits_ = ZeroNodeResources();
+        JobFuture_.Reset();
     }
 
 };
@@ -273,19 +275,19 @@ public:
     { }
 
 protected:
+    IChunkPtr Chunk_;
+
     virtual void DoPrepare()
     {
         TChunkJobBase::DoPrepare();
 
-        auto chunkStore = Bootstrap->GetChunkStore();
-        Chunk = chunkStore->FindChunk(ChunkId);
-        if (!Chunk) {
-            SetFailed(TError("Chunk %s does not exists on node", ~ToString(ChunkId)));
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        Chunk_ = chunkStore->FindChunk(ChunkId_);
+        if (!Chunk_) {
+            SetFailed(TError("Chunk_ %s is missing", ~ToString(ChunkId_)));
             return;
         }
     }
-
-    IChunkPtr Chunk;
 
 };
 
@@ -312,9 +314,10 @@ public:
 private:
     virtual void DoRun() override
     {
-        auto chunkStore = Bootstrap->GetChunkStore();
-        WaitFor(chunkStore->RemoveChunk(Chunk));
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        WaitFor(chunkStore->RemoveChunk(Chunk_));
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,40 +338,40 @@ public:
             resourceLimits,
             config,
             bootstrap)
-        , ReplicationJobSpecExt(JobSpec.GetExtension(TReplicationJobSpecExt::replication_job_spec_ext))
+        , ReplicateChunkJobSpecExt_(JobSpec_.GetExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext))
     { }
 
 private:
-    TReplicationJobSpecExt ReplicationJobSpecExt;
+    TReplicateChunkJobSpecExt ReplicateChunkJobSpecExt_;
 
     virtual void DoRun() override
     {
         LOG_INFO("Retrieving chunk meta");
 
-        auto metaOrError = WaitFor(Chunk->GetMeta(0));
+        auto metaOrError = WaitFor(Chunk_->GetMeta(0));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %s",
-            ~ToString(ChunkId));
+            ~ToString(ChunkId_));
 
-        LOG_INFO("Chunk meta received");
+        LOG_INFO("Chunk_ meta received");
         const auto& chunkMeta = metaOrError.Value();
         const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
 
-        auto targets = FromProto<TNodeDescriptor>(ReplicationJobSpecExt.target_descriptors());
+        auto targets = FromProto<TNodeDescriptor>(ReplicateChunkJobSpecExt_.targets());
 
         auto writer = CreateReplicationWriter(
-            Config->ReplicationWriter,
-            ChunkId,
+            Config_->ReplicationWriter,
+            ChunkId_,
             targets,
             EWriteSessionType::Replication,
-            Bootstrap->GetReplicationOutThrottler());
+            Bootstrap_->GetReplicationOutThrottler());
         writer->Open();
 
-        auto blockStore = Bootstrap->GetBlockStore();
+        auto blockStore = Bootstrap_->GetBlockStore();
 
         for (int index = 0; index < blocksExt.blocks_size(); ++index) {
             LOG_DEBUG("Retrieving block %d for replication", index);
 
-            TBlockId blockId(ChunkId, index);
+            TBlockId blockId(ChunkId_, index);
             auto blockOrError = WaitFor(blockStore->GetBlocks(
                 blockId.ChunkId,
                 blockId.BlockIndex,
@@ -414,20 +417,20 @@ public:
             resourceLimits,
             config,
             bootstrap)
-        , RepairJobSpecExt(JobSpec.GetExtension(TRepairJobSpecExt::repair_job_spec_ext))
+        , RepairJobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
     { }
 
 private:
-    TRepairJobSpecExt RepairJobSpecExt;
+    TRepairChunkJobSpecExt RepairJobSpecExt_;
 
     virtual void DoRun() override
     {
-        auto codecId = NErasure::ECodec(RepairJobSpecExt.erasure_codec());
+        auto codecId = NErasure::ECodec(RepairJobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
 
-        auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt.replicas());
-        auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
-        auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt.erased_indexes());
+        auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt_.replicas());
+        auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt_.targets());
+        auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt_.erased_indexes());
         YCHECK(targets.size() == erasedIndexes.size());
 
         // Compute repair plan.
@@ -442,9 +445,9 @@ private:
             ~JoinToString(targets));
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(RepairJobSpecExt.node_directory());
+        nodeDirectory->MergeFrom(RepairJobSpecExt_.node_directory());
 
-        auto config = Bootstrap->GetConfig()->DataNode;
+        auto config = Bootstrap_->GetConfig()->DataNode;
 
         std::vector<IReaderPtr> readers;
         for (int partIndex : *repairIndexes) {
@@ -456,18 +459,18 @@ private:
             }
             YCHECK(!partReplicas.empty());
 
-            auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
+            auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto reader = CreateReplicationReader(
                 config->RepairReader,
-                Bootstrap->GetBlockStore()->GetBlockCache(),
-                Bootstrap->GetMasterClient()->GetMasterChannel(),
+                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
-                Bootstrap->GetLocalDescriptor(),
+                Bootstrap_->GetLocalDescriptor(),
                 partId,
                 partReplicas,
                 DefaultNetworkName,
                 EReadSessionType::Repair,
-                Bootstrap->GetRepairInThrottler());
+                Bootstrap_->GetRepairInThrottler());
             readers.push_back(reader);
         }
 
@@ -475,13 +478,13 @@ private:
         for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
             int partIndex = erasedIndexes[index];
             const auto& target = targets[index];
-            auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
+            auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto writer = CreateReplicationWriter(
                 config->RepairWriter,
                 partId,
                 std::vector<TNodeDescriptor>(1, target),
                 EWriteSessionType::Repair,
-                Bootstrap->GetRepairOutThrottler());
+                Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
         }
 
@@ -501,7 +504,45 @@ private:
 
         auto repairError = WaitFor(asyncRepairError);
         THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %s",
-            ~ToString(ChunkId));
+            ~ToString(ChunkId_));
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSealChunkJob
+    : public TLocalChunkJobBase
+{
+public:
+    TSealChunkJob(
+        const TJobId& jobId,
+        TJobSpec&& jobSpec,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap)
+        : TLocalChunkJobBase(
+            jobId,
+            std::move(jobSpec),
+            resourceLimits,
+            config,
+            bootstrap)
+        , SealJobSpecExt_(JobSpec_.GetExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext))
+    { }
+
+private:
+    TSealChunkJobSpecExt SealJobSpecExt_;
+
+    virtual void DoRun() override
+    {
+        auto journalChunk = Chunk_->AsJournalChunk();
+
+        //auto sessionManager = Bootstrap_->GetSessionManager();
+        //if (sessionManager->FindSession(ChunkId_)) {
+        //    THROW_ERROR_EXCEPTION("Write session is currently in progress");
+        //}
+
+        THROW_ERROR_EXCEPTION("Not implemented");
     }
 
 };
@@ -535,6 +576,14 @@ IJobPtr CreateChunkJob(
 
         case EJobType::RepairChunk:
             return New<TChunkRepairJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                config,
+                bootstrap);
+
+        case EJobType::SealChunk:
+            return New<TSealChunkJob>(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,

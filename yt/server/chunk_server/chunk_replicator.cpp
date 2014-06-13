@@ -75,12 +75,6 @@ TChunkReplicator::TChunkStatistics::TChunkStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplicator::TRefreshEntry::TRefreshEntry()
-    : Chunk(nullptr)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
@@ -124,22 +118,18 @@ void TChunkReplicator::Initialize()
 
 void TChunkReplicator::Finalize()
 {
-    // Clear JobMap, JobListMap, and unregister jobs from the nodes.
-    for (const auto& pair : JobMap_) {
-        const auto& job = pair.second;
-        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    for (auto* node : nodeTracker->Nodes().GetValues()) {
+        node->Jobs().clear();
     }
-
-    JobMap_.clear();
-    JobListMap_.clear();
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
     if (repairIt) {
-        RepairQueue_.erase(*repairIt);
-        auto newRepairIt = RepairQueue_.insert(RepairQueue_.begin(), chunk);
+        ChunkRepairQueue_.erase(*repairIt);
+        auto newRepairIt = ChunkRepairQueue_.insert(ChunkRepairQueue_.begin(), chunk);
         chunk->SetRepairQueueIterator(newRepairIt);
     }
 }
@@ -288,13 +278,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics result;
 
-    if (chunk->IsSealed()) {
-        // TODO(babenko)
-    } else {
-        if (chunk->StoredReplicas().empty()) {
-            result.Status |= EChunkStatus::Lost;
-        }
+    if (chunk->StoredReplicas().empty()) {
+        result.Status |= EChunkStatus::Lost;
+    }
 
+    if (chunk->IsSealed()) {
+        result.Status |= EChunkStatus::Sealed;
+    } else {
         if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
             result.Status |= EChunkStatus::QuorumMissing;
         }
@@ -328,6 +318,7 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
 {
     node->ClearChunkRemovalQueue();
     node->ClearChunkReplicationQueues();
+    node->ClearChunkSealQueue();
     ScheduleNodeRefresh(node);
 }
 
@@ -659,6 +650,43 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
 
+
+TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleSealJob(
+    TNode* node,
+    TChunk* chunk,
+    TJobPtr* job)
+{
+    YCHECK(chunk->IsJournal());
+    YCHECK(chunk->IsSealed());
+
+    if (!IsObjectAlive(chunk)) {
+        return EJobScheduleFlags::Purged;
+    }
+
+    if (chunk->GetRefreshScheduled()) {
+        return EJobScheduleFlags::Purged;
+    }
+
+    if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
+        return EJobScheduleFlags::Purged;
+    }
+
+    TNodeResources resourceUsage;
+    resourceUsage.set_seal_slots(1);
+
+    *job = TJob::CreateSeal(
+        chunk->GetId(),
+        node,
+        resourceUsage);
+
+    LOG_INFO("Seal job scheduled (JobId: %s, Address: %s, ChunkId: %s)",
+        ~ToString((*job)->GetJobId()),
+        ~node->GetAddress(),
+        ~ToString(chunk->GetId()));
+
+    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
+}
+
 void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
     std::vector<TJobPtr>* jobsToStart,
@@ -739,8 +767,8 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule repair jobs.
     {
-        auto it = RepairQueue_.begin();
-        while (it != RepairQueue_.end()) {
+        auto it = ChunkRepairQueue_.begin();
+        while (it != ChunkRepairQueue_.end()) {
             if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
                 break;
             if (runningRepairSize > Config_->MaxRepairJobsSize)
@@ -757,16 +785,16 @@ void TChunkReplicator::ScheduleNewJobs(
             }
             if (flags & EJobScheduleFlags::Purged) {
                 chunk->SetRepairQueueIterator(Null);
-                RepairQueue_.erase(jt);
+                ChunkRepairQueue_.erase(jt);
             }
         }
     }
 
     // Schedule removal jobs.
     {
-        auto& removalQueue = node->ChunkRemovalQueue();
-        auto it = removalQueue.begin();
-        while (it != removalQueue.end()) {
+        auto& queue = node->ChunkRemovalQueue();
+        auto it = queue.begin();
+        while (it != queue.end()) {
             if (resourceUsage.removal_slots() >= resourceLimits.removal_slots())
                 break;
 
@@ -780,7 +808,30 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                removalQueue.erase(jt);
+                queue.erase(jt);
+            }
+        }
+    }
+
+    // Schedule seal jobs.
+    {
+        auto& queue = node->ChunkSealQueue();
+        auto it = queue.begin();
+        while (it != queue.end()) {
+            if (resourceUsage.seal_slots() >= resourceLimits.seal_slots())
+                break;
+
+            auto jt = it++;
+            auto* chunk = *jt;
+
+            TJobPtr job;
+            auto flags = ScheduleSealJob(node, chunk, &job);
+
+            if (flags & EJobScheduleFlags::Scheduled) {
+                registerJob(job);
+            }
+            if (flags & EJobScheduleFlags::Purged) {
+                queue.erase(jt);
             }
         }
     }
@@ -885,11 +936,18 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             }
         }
 
+        if (statistics.Status & EChunkStatus::Sealed) {
+            for (auto replica : chunk->StoredReplicas()) {
+                if (replica.GetIndex() == UnsealedChunkIndex) {
+                    replica.GetPtr()->AddToChunkSealQueue(chunk);
+                }
+            }
+        }
+
         if ((statistics.Status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
             !(statistics.Status & EChunkStatus::Lost))
         {
-            auto repairIt = RepairQueue_.insert(RepairQueue_.end(), chunk);
-            chunk->SetRepairQueueIterator(repairIt);
+            AddToChunkRepairQueue(chunk);
         }
     }
 }
@@ -917,16 +975,13 @@ void TChunkReplicator::ResetChunkJobs(TChunk* chunk)
         auto* node = nodeWithIndex.GetPtr();
         TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
         TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
-        node->RemoveFromChunkReplicationQueues(chunkWithIndex);
         node->RemoveFromChunkRemovalQueue(chunkIdWithIndex);
+        node->RemoveFromChunkReplicationQueues(chunkWithIndex);
+        node->RemoveFromChunkSealQueue(chunk);
     }
 
     if (chunk->IsErasure()) {
-        auto repairIt = chunk->GetRepairQueueIterator();
-        if (repairIt) {
-            RepairQueue_.erase(*repairIt);
-            chunk->SetRepairQueueIterator(Null);
-        }
+        RemoveFromChunkRepairQueue(chunk);
     }
 }
 
@@ -1370,6 +1425,22 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
     LOG_INFO("Job unregistered (JobId: %s, Address: %s)",
         ~ToString(job->GetJobId()),
         ~job->GetNode()->GetAddress());
+}
+
+void TChunkReplicator::AddToChunkRepairQueue(TChunk* chunk)
+{
+    YASSERT(!chunk->GetRepairQueueIterator());
+    auto it = ChunkRepairQueue_.insert(ChunkRepairQueue_.end(), chunk);
+    chunk->SetRepairQueueIterator(it);
+}
+
+void TChunkReplicator::RemoveFromChunkRepairQueue(TChunk* chunk)
+{
+    auto it = chunk->GetRepairQueueIterator();
+    if (it) {
+        ChunkRepairQueue_.erase(*it);
+        chunk->SetRepairQueueIterator(Null);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

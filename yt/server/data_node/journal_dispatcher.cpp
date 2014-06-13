@@ -595,9 +595,7 @@ private:
                 return nullptr;
             }
 
-            auto* journalChunk = dynamic_cast<TJournalChunk*>(chunk.Get());
-            YCHECK(journalChunk);
-
+            auto journalChunk = chunk->AsJournalChunk();
             auto location = journalChunk->GetLocation();
             auto fileName = location->GetChunkFileName(chunkId);
             auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
