@@ -156,87 +156,106 @@ protected:
                 continue;
             }
 
+            const auto& statistics = chunkList->Statistics();
             auto* child = chunkList->Children()[entry.ChildIndex];
+
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
-            auto childLowerRowIndex = 
-                (entry.ChildIndex == 0)
+            auto fetchPrevSum = [&] (const std::vector<i64>& sums) -> i64 {
+                return entry.ChildIndex == 0
                     ? 0
-                    : chunkList->RowCountSums()[entry.ChildIndex - 1];
+                    : sums[entry.ChildIndex - 1];
+            };
 
-            if (entry.UpperBound.HasRowIndex()) {
-                if (entry.UpperBound.GetRowIndex() <= childLowerRowIndex) {
-                    PopStack();
-                    continue;
+            auto fetchCurrentSum = [&] (const std::vector<i64>& sums, i64 fallback) {
+                return entry.ChildIndex == chunkList->Children().size() - 1
+                    ? fallback
+                    : sums[entry.ChildIndex];
+            };
+
+            // Row index
+            i64 rowIndex;
+            {
+                i64 childLimit = fetchPrevSum(chunkList->RowCountSums());
+                rowIndex =  entry.RowIndex + childLimit;
+                if (entry.UpperBound.HasRowIndex()) {
+                    if (entry.UpperBound.GetRowIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetRowIndex(childLimit);
+                    childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), statistics.RowCount));
+                } else if (entry.LowerBound.HasRowIndex()) {
+                    childLowerBound.SetRowIndex(childLimit);
                 }
-                
-                childLowerBound.SetRowIndex(childLowerRowIndex);
-                childUpperBound.SetRowIndex(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().RowCount
-                        : chunkList->RowCountSums()[entry.ChildIndex]);
-            } else if (entry.LowerBound.HasRowIndex()) {
-                childLowerBound.SetRowIndex(childLowerRowIndex);
             }
 
-            auto childLowerChunkIndex = 
-                (entry.ChildIndex == 0)
-                    ? 0
-                    : chunkList->ChunkCountSums()[entry.ChildIndex - 1];
-            if (entry.UpperBound.HasChunkIndex()) {
-                if (entry.UpperBound.GetChunkIndex() <= childLowerChunkIndex) {
-                    PopStack();
-                    continue;
+            // Record index
+            {
+                i64 childLimit = fetchPrevSum(chunkList->RecordCountSums());
+                if (entry.UpperBound.HasRecordIndex()) {
+                    if (entry.UpperBound.GetRecordIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetRecordIndex(childLimit);
+                    // NB: The last chunk may be non-sealed.
+                    childUpperBound.SetRecordIndex(fetchCurrentSum(chunkList->RecordCountSums(), std::numeric_limits<i64>::max()));
+                } else if (entry.LowerBound.HasRecordIndex()) {
+                    childLowerBound.SetRecordIndex(childLimit);
                 }
-                
-                childLowerBound.SetChunkIndex(childLowerChunkIndex);
-                childUpperBound.SetChunkIndex(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().ChunkCount
-                        : chunkList->ChunkCountSums()[entry.ChildIndex]);
-            } else if (entry.LowerBound.HasChunkIndex()) {
-                childLowerBound.SetChunkIndex(childLowerChunkIndex);
             }
 
-            auto childLowerOffset =
-                (entry.ChildIndex == 0)
-                    ? 0
-                    : chunkList->DataSizeSums()[entry.ChildIndex - 1];
-            if (entry.UpperBound.HasOffset()) {
-                if (entry.UpperBound.GetOffset() <= childLowerOffset) {
-                    PopStack();
-                    continue;
+            // Chunk index
+            {
+                i64 childLimit = fetchPrevSum(chunkList->ChunkCountSums());
+                if (entry.UpperBound.HasChunkIndex()) {
+                    if (entry.UpperBound.GetChunkIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetChunkIndex(childLimit);
+                    childUpperBound.SetChunkIndex(fetchCurrentSum(chunkList->ChunkCountSums(), statistics.ChunkCount));
+                } else if (entry.LowerBound.HasChunkIndex()) {
+                    childLowerBound.SetChunkIndex(childLimit);
                 }
-
-                childLowerBound.SetOffset(childLowerOffset);
-                childUpperBound.SetOffset(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().UncompressedDataSize
-                        : chunkList->DataSizeSums()[entry.ChildIndex]);
-            } else if (entry.LowerBound.HasOffset()) {
-                childLowerBound.SetOffset(childLowerOffset);
             }
 
-            if (entry.UpperBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKey(child));
-
-                if (entry.UpperBound.GetKey() <= childLowerBound.GetKey()) {
-                    PopStack();
-                    continue;
+            // Offset
+            {
+                i64 childLimit = fetchPrevSum(chunkList->DataSizeSums());
+                if (entry.UpperBound.HasOffset()) {
+                    if (entry.UpperBound.GetOffset() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetOffset(childLimit);
+                    childUpperBound.SetOffset(fetchCurrentSum(chunkList->DataSizeSums(), statistics.UncompressedDataSize));
+                } else if (entry.LowerBound.HasOffset()) {
+                    childLowerBound.SetOffset(childLimit);
                 }
-                childUpperBound.SetKey(GetMaxKey(child));
-            } else if (entry.LowerBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKey(child));
+            }
+
+            // Key
+            {
+                if (entry.UpperBound.HasKey()) {
+                    childLowerBound.SetKey(GetMinKey(child));
+                    if (entry.UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                        PopStack();
+                        continue;
+                    }
+                    childUpperBound.SetKey(GetMaxKey(child));
+                } else if (entry.LowerBound.HasKey()) {
+                    childLowerBound.SetKey(GetMinKey(child));
+                }
             }
 
             ++entry.ChildIndex;
 
-            auto rowIndex = entry.RowIndex + childLowerRowIndex;
-
             TReadLimit subtreeStartLimit;
             TReadLimit subtreeEndLimit;
-            GetSubtreeLimits(
+            GetInducedSubtreeLimits(
                 entry,
                 childLowerBound,
                 childUpperBound,
@@ -246,10 +265,10 @@ protected:
             switch (child->GetType()) {
                 case EObjectType::ChunkList: {
                     auto* childChunkList = child->AsChunkList();
-                    int index = GetStartChildIndex(childChunkList, subtreeStartLimit);
+                    int childIndex = GetStartChildIndex(childChunkList, subtreeStartLimit);
                     PushStack(TStackEntry(
                         childChunkList,
-                        index,
+                        childIndex,
                         rowIndex,
                         subtreeStartLimit,
                         subtreeEndLimit));
@@ -279,7 +298,7 @@ protected:
             ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
-    int GetStartChildIndex(
+    static int GetStartChildIndex(
         const TChunkList* chunkList,
         const TReadLimit& lowerBound)
     {
@@ -287,112 +306,133 @@ protected:
             return 0;
         }
 
-        int index = 0;
+        int result = 0;
+        const auto& statistics = chunkList->Statistics();
 
+        auto adjustResult = [&] (i64 limit, i64 total, const std::vector<i64>& sums) {
+            if (limit < total) {
+                auto it = std::upper_bound(
+                    sums.begin(),
+                    sums.end(),
+                    limit);
+                result = std::max(result, static_cast<int>(it - sums.begin()));
+            } else {
+                result = chunkList->Children().size();
+            }
+        };
+
+        // Row Index
         if (lowerBound.HasRowIndex()) {
-            if (lowerBound.GetRowIndex() >= chunkList->Statistics().RowCount) {
-                return chunkList->Children().size();
-            }
-
-            auto begin = chunkList->RowCountSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->RowCountSums().end(),
-                lowerBound.GetRowIndex()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+            adjustResult(lowerBound.GetRowIndex(), statistics.RowCount, chunkList->RowCountSums());
         }
 
+        // Record index
+        if (lowerBound.HasRecordIndex()) {
+            // NB: The last chunk may be non-sealed.
+            adjustResult(lowerBound.GetRecordIndex(), std::numeric_limits<i64>::max(), chunkList->RecordCountSums());
+        }
+
+        // Chunk index
         if (lowerBound.HasChunkIndex()) {
-            if (lowerBound.GetChunkIndex() >= chunkList->Statistics().ChunkCount) {
-                return chunkList->Children().size();
-            }
-
-            auto begin = chunkList->ChunkCountSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->ChunkCountSums().end(),
-                lowerBound.GetChunkIndex()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+            adjustResult(lowerBound.GetChunkIndex(), statistics.ChunkCount, chunkList->ChunkCountSums());
         }
 
+        // Offset
         if (lowerBound.HasOffset()) {
-            if (lowerBound.GetOffset() >= chunkList->Statistics().UncompressedDataSize) {
-                return chunkList->Children().size();
-            }
-
-            auto begin = chunkList->DataSizeSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->DataSizeSums().end(),
-                lowerBound.GetOffset()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+            adjustResult(lowerBound.GetOffset(), statistics.UncompressedDataSize, chunkList->DataSizeSums());
         }
 
+        // Key
         if (lowerBound.HasKey()) {
-            typedef decltype(chunkList->Children().begin()) TChildIter;
-            std::reverse_iterator<TChildIter> rbegin(chunkList->Children().end());
-            std::reverse_iterator<TChildIter> rend(chunkList->Children().begin());
-
-            int childIndex = rend - std::upper_bound(
+            typedef std::vector<TChunkTree*>::const_iterator TChildrenIterator;
+            std::reverse_iterator<TChildrenIterator> rbegin(chunkList->Children().end());
+            std::reverse_iterator<TChildrenIterator> rend(chunkList->Children().begin());
+            auto it = std::upper_bound(
                 rbegin,
                 rend,
                 lowerBound.GetKey(),
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
                     return key > GetMaxKey(chunkTree);
                 });
-            index = std::max(index, childIndex);
-            YCHECK(index <= chunkList->Children().size());
+            result = std::max(result, static_cast<int>(rend - it));
         }
 
-        return index;
+        return result;
     }
 
-    void GetSubtreeLimits(
+    static void GetInducedSubtreeLimits(
         const TStackEntry& stackEntry,
         const TReadLimit& childLowerBound,
         const TReadLimit& childUpperBound,
         TReadLimit* startLimit,
         TReadLimit* endLimit)
     {
+        // Row index
         if (stackEntry.LowerBound.HasRowIndex()) {
             i64 newLowerBound = stackEntry.LowerBound.GetRowIndex() - childLowerBound.GetRowIndex();
             if (newLowerBound > 0) {
                 startLimit->SetRowIndex(newLowerBound);
             }
         }
-
         if (stackEntry.UpperBound.HasRowIndex() &&
             stackEntry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
-            YCHECK(newUpperBound > 0);
+            YASSERT(newUpperBound > 0);
             endLimit->SetRowIndex(newUpperBound);
         }
 
+        // Record index
+        if (stackEntry.LowerBound.HasRecordIndex()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
+            if (newLowerBound > 0) {
+                startLimit->SetRecordIndex(newLowerBound);
+            }
+        }
+        if (stackEntry.UpperBound.HasRecordIndex() &&
+            stackEntry.UpperBound.GetRecordIndex() < childUpperBound.GetRecordIndex())
+        {
+            i64 newUpperBound = stackEntry.UpperBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetRecordIndex(newUpperBound);
+        }
+
+        // Chunk index
+        if (stackEntry.LowerBound.HasChunkIndex()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
+            if (newLowerBound > 0) {
+                startLimit->SetChunkIndex(newLowerBound);
+            }
+        }
+        if (stackEntry.UpperBound.HasChunkIndex() &&
+            stackEntry.UpperBound.GetChunkIndex() < childUpperBound.GetChunkIndex())
+        {
+            i64 newUpperBound = stackEntry.UpperBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetChunkIndex(newUpperBound);
+        }
+
+        // Offset
         if (stackEntry.LowerBound.HasOffset()) {
             i64 newLowerBound = stackEntry.LowerBound.GetOffset() - childLowerBound.GetOffset();
             if (newLowerBound > 0) {
                 startLimit->SetOffset(newLowerBound);
             }
         }
-
         if (stackEntry.UpperBound.HasOffset() &&
             stackEntry.UpperBound.GetOffset() < childUpperBound.GetOffset())
         {
             i64 newUpperBound = stackEntry.UpperBound.GetOffset() - childLowerBound.GetOffset();
-            YCHECK(newUpperBound > 0);
+            YASSERT(newUpperBound > 0);
             endLimit->SetOffset(newUpperBound);
         }
 
+        // Key
         if (stackEntry.LowerBound.HasKey() &&
             stackEntry.LowerBound.GetKey() > childLowerBound.GetKey())
         {
             startLimit->SetKey(stackEntry.LowerBound.GetKey());
         }
-
         if (stackEntry.UpperBound.HasKey() &&
             stackEntry.UpperBound.GetKey() < childUpperBound.GetKey())
         {
