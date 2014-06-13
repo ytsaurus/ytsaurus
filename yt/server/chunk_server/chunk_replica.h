@@ -40,15 +40,10 @@ public:
     void Load(C& context);
 
 private:
-#ifdef __x86_64__
-    static_assert(sizeof (void*) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof (intptr_t) == 8, "Pointer type must be of size 8.");
+
     // Use compact 8-byte representation with index occupying the highest 8 bits.
-    ui64 Value;
-#else
-    // Use simple unpacked representation.
-    T* Ptr;
-    int Index;
-#endif
+    intptr_t Value_;
 
 };
 
