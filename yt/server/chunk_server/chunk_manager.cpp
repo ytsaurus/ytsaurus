@@ -674,6 +674,44 @@ public:
         return ChunkReplicator_->ComputeChunkStatus(chunk);
     }
 
+
+    void SealChunk(TChunk* chunk, int recordCount)
+    {
+        if (!chunk->IsJournal()) {
+            THROW_ERROR_EXCEPTION("Not a journal chunk");
+        }
+
+        if (!chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
+        }
+
+        if (chunk->IsSealed()) {
+            THROW_ERROR_EXCEPTION("Chunk is already sealed");
+        }
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+
+        TChunkTreeStatistics statisticsDelta;
+        statisticsDelta.RecordCount = recordCount - miscExt.record_count(); // the latter is usually 0
+        
+        chunk->Seal(recordCount);
+
+        YCHECK(chunk->Parents().size() == 1);
+        auto* chunkList = chunk->Parents()[0];
+
+        // Go upwards and apply delta.
+        VisitUniqueAncestors(
+            chunkList,
+            [&] (TChunkList* current) {
+                ++statisticsDelta.Rank;
+                current->Statistics().Accumulate(statisticsDelta);
+            });
+
+        if (IsLeader()) {
+            ScheduleChunkRefresh(chunk);
+        }
+    }
+
     TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
@@ -1691,6 +1729,11 @@ int TChunkManager::GetTotalReplicaCount()
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 {
     return Impl_->ComputeChunkStatus(chunk);
+}
+
+void TChunkManager::SealChunk(TChunk* chunk, int recordCount)
+{
+    Impl_->SealChunk(chunk, recordCount);
 }
 
 TFuture<TErrorOr<int>> TChunkManager::GetChunkQuorumRecordCount(TChunk* chunk)

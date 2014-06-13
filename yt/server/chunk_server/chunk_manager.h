@@ -123,6 +123,7 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
+    void SealChunk(TChunk* chunk, int recordCount);
     TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk);
 
 private:

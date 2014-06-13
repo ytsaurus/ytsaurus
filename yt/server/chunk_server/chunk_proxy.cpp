@@ -471,22 +471,9 @@ private:
             request->record_count());
 
         auto* chunk = GetThisTypedImpl();
+        auto chunkManager = Bootstrap->GetChunkManager();
+        chunkManager->SealChunk(chunk, request->record_count());
 
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
-        }
-
-        if (chunk->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Chunk is already sealed");
-        }
-
-        chunk->Seal(request->record_count());
-
-        if (IsLeader()) {
-            auto chunkManager = Bootstrap->GetChunkManager();
-            chunkManager->ScheduleChunkRefresh(chunk);
-        }
-        
         context->Reply();
     }
 
