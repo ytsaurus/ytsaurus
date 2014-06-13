@@ -92,6 +92,10 @@ struct IChunk
      */
     virtual TFuture<void> ScheduleRemoval() = 0;
 
+
+    //! Returns the instance cast to TJournalChunk. Fails if cast is not possible.
+    TJournalChunkPtr AsJournalChunk();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunk)

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk.h"
+#include "journal_chunk.h"
 
 namespace NYT {
 namespace NDataNode {
@@ -27,6 +28,15 @@ TRefCountedChunkMeta::TRefCountedChunkMeta(const NChunkClient::NProto::TChunkMet
 TRefCountedChunkMeta::TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& other)
 {
     Swap(&other);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJournalChunkPtr IChunk::AsJournalChunk()
+{
+    auto* journalChunk = dynamic_cast<TJournalChunk*>(this);
+    YCHECK(journalChunk);
+    return journalChunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
