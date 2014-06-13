@@ -46,10 +46,10 @@ def process_logs(import_list, remove_list, link_queue, destination_dir, source_p
         else: # Import case
             if dst in map(get_dst, import_list):
                 continue
-            elif not yt.exists(dst):
+            if not yt.exists(dst):
                 import_list.append({"src": src, "dst": dst})
-                if make_link:
-                    link_queue.append({"src": dst, "dst": dst_link})
+            if make_link and not yt.exists(dst_link):
+                link_queue.append({"src": dst, "dst": dst_link})
 
 def main():
     parser = argparse.ArgumentParser(description='Prepare tables to merge')
@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--remove-queue', required=True)
     parser.add_argument('--link-queue', required=True)
     parser.add_argument('--user-sessions-period', type=int, default=50)
+    parser.add_argument('--user-sessions-frauds-period', type=int, default=50)
     args = parser.parse_args()
 
     tables_to_import = yt.get(args.import_queue)
@@ -67,11 +68,11 @@ def main():
     def process(source, destination, days, link):
         process_logs(tables_to_import, tables_to_remove, link_queue, args.path, source, destination, days, link)
 
-    process("user_sessions/{}",        None,                      args.user_sessions_period, True)
-    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", args.user_sessions_period, True)
-    process("user_intents/{}",         None,                      None,                      False)
-    process("reqregscdata/{}/www",     None,                      None,                      False)
-    process("reqregscdata/{}/xml",     None,                      None,                      False)
+    process("user_sessions/{}",        None,                      args.user_sessions_period,        True)
+    process("user_sessions/{}/frauds", "user_sessions_frauds/{}", args.user_sessions_frauds_period, True)
+    process("user_intents/{}",         None,                      None,                             False)
+    process("reqregscdata/{}/www",     None,                      None,                             False)
+    process("reqregscdata/{}/xml",     None,                      None,                             False)
 
     yt.set(args.import_queue, list(tables_to_import))
     yt.set(args.remove_queue, list(tables_to_remove))
