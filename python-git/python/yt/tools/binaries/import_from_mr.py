@@ -37,7 +37,7 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
 
     if pool is None:
         pool = "restricted"
-    spec = {"data_size_per_job": 1, "pool": pool}
+    spec = {"data_size_per_job": 1, "pool": pool, "job_io": {"table_writer": {"max_row_weight": 32 * 1024 * 1024}}}
     if job_count is not None:
         spec["job_count"] = job_count
 
