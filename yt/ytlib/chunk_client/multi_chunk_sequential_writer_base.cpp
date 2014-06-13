@@ -136,7 +136,7 @@ TDataStatistics TMultiChunkSequentialWriterBase::GetDataStatistics() const
 TError TMultiChunkSequentialWriterBase::DoOpen()
 {
     CreateNextSession();
-    NextSessionReady_ = MakeFuture();
+    NextSessionReady_ = VoidFuture;
     return InitCurrentSession();
 }
 

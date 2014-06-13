@@ -1001,7 +1001,7 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
         return SequentialReader->GetFetchingCompleteEvent();
     } else {
         // Error occured during initialization.
-        return MakeFuture();
+        return VoidFuture;
     }
 }
 

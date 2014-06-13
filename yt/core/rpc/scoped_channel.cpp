@@ -125,7 +125,7 @@ TFuture<void> TScopedChannel::Terminate(const TError& error)
     }
 
     if (OutstandingRequestCount == 0) {
-        return MakeFuture();
+        return VoidFuture;
     }
 
     return OutstandingRequestsCompleted;

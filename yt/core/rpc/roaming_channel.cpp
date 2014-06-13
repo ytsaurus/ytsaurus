@@ -79,7 +79,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             if (Terminated_) {
-                return MakeFuture();
+                return VoidFuture;
             }
 
             channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
@@ -91,7 +91,8 @@ public:
         if (channel && channel->IsOK()) {
             return channel->Value()->Terminate(error);
         }
-        return MakeFuture();
+
+        return VoidFuture;
     }
 
 private:

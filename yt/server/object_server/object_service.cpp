@@ -105,7 +105,7 @@ public:
         : Bootstrap(boostrap)
         , Config(std::move(config))
         , Context(std::move(context))
-        , LastMutationCommitted(MakeFuture())
+        , LastMutationCommitted(VoidFuture)
         , Replied(false)
         , ResponseCount(0)
         , CurrentRequestIndex(0)

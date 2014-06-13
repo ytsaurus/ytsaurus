@@ -199,7 +199,7 @@ public:
         if (!list) {
             LOG_INFO("Operation node is not registered, omitting flush (OperationId: %s)",
                 ~ToString(id));
-            return MakeFuture();
+            return VoidFuture;
         }
 
         // Create a batch update for this particular operation.

@@ -74,7 +74,7 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        return MakeFuture();
+        return VoidFuture;
     }
 
 private:

@@ -120,7 +120,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             if (Terminated) {
-                return MakeFuture();
+                return VoidFuture;
             }
 
             session = Session;
@@ -133,7 +133,8 @@ public:
         if (session) {
             session->Terminate(error);
         }
-        return MakeFuture();
+
+        return VoidFuture;
     }
 
 private:
