@@ -123,6 +123,8 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
+    TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk);
+
 private:
     class TImpl;
     class TChunkTypeHandlerBase;

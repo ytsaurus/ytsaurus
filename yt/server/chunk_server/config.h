@@ -72,8 +72,8 @@ public:
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
 
-    //! Timeout for RPC requests to nodes during chunk seal.
-    TDuration ChunkSealTimeout;
+    //! Timeout for RPC requests to nodes during journal operations.
+    TDuration JournalRpcTimeout;
 
     //! Maximum number of chunks that can be sealed concurrently.
     int MaxChunkConcurrentSeals;
@@ -127,7 +127,7 @@ public:
 
         RegisterParameter("chunk_seal_backoff_time", ChunkSealBackoffTime)
             .Default(TDuration::Seconds(30));
-        RegisterParameter("chunk_seal_timeout", ChunkSealTimeout)
+        RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("max_concurrent_chunk_seals", MaxChunkConcurrentSeals)
             .GreaterThan(0)

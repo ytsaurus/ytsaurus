@@ -4,6 +4,8 @@
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_node_proxy.h>
+#include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
@@ -28,7 +30,7 @@ public:
         TBootstrap* bootstrap,
         TTransaction* transaction,
         TJournalNode* trunkNode)
-        : TCypressNodeProxyBase(
+        : TBase(
             typeHandler,
             bootstrap,
             transaction,
@@ -36,6 +38,8 @@ public:
     { }
 
 private:
+    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode> TBase;
+
     virtual NLog::TLogger CreateLogger() const override
     {
         return JournalServerLogger;
@@ -51,7 +55,8 @@ private:
         attributes->push_back("read_quorum");
         attributes->push_back("write_quorum");
         attributes->push_back("sealed");
-        TCypressNodeProxyBase::ListSystemAttributes(attributes);
+        attributes->push_back(TAttributeInfo("quorum_record_count", true, true));
+        TBase::ListSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -76,7 +81,7 @@ private:
             return true;
         }
 
-        return TCypressNodeProxyBase::GetSystemAttribute(key, consumer);
+        return TBase::GetSystemAttribute(key, consumer);
     }
 
     virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
@@ -103,6 +108,7 @@ private:
             auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
 
+            // Prevent changing read quorum after construction.
             if (node->GetReadQuorum() != 0) {
                 ThrowCannotSetSystemAttribute("read_quorum");
             }
@@ -120,6 +126,7 @@ private:
             auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
 
+            // Prevent changing write quorum after construction.
             if (node->GetWriteQuorum() != 0) {
                 ThrowCannotSetSystemAttribute("write_quorum");
             }
@@ -127,14 +134,43 @@ private:
             return true;
         }
 
-        return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
+        return TBase::SetSystemAttribute(key, value);
+    }
+
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        const auto* node = GetThisTypedImpl();
+        if (key == "quorum_record_count") {
+            const auto* chunkList = node->GetChunkList();
+            if (chunkList->Children().empty()) {
+                BuildYsonFluently(consumer)
+                    .Value(0);
+                return OKFuture;
+            }
+
+            auto* chunk = chunkList->Children().back()->AsChunk();
+            i64 penultimateRecordCount = chunkList->RecordCountSums().empty() ? 0 : chunkList->RecordCountSums().back();
+
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto recordCountResult = chunkManager->GetChunkQuorumRecordCount(chunk);
+
+            return recordCountResult.Apply(BIND([=] (TErrorOr<int> recordCountOrError) -> TError {
+                if (recordCountOrError.IsOK()) {
+                    BuildYsonFluently(consumer)
+                        .Value(penultimateRecordCount + recordCountOrError.Value());
+                }
+                return TError(recordCountOrError);
+            }));
+        }
+
+        return TBase::GetSystemAttributeAsync(key, consumer);
     }
 
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
-        return TCypressNodeProxyBase::DoInvoke(context);
+        return TBase::DoInvoke(context);
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate)

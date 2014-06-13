@@ -236,7 +236,7 @@ private:
             auto result = WaitFor(AbortSessionsQuorum(
                 chunk->GetId(),
                 replicas,
-                Config_->ChunkSealTimeout,
+                Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum()));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
@@ -246,7 +246,7 @@ private:
             auto result = WaitFor(ComputeQuorumRecordCount(
                 chunk->GetId(),
                 replicas,
-                Config_->ChunkSealTimeout,
+                Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum()));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             recordCount = result.Value();

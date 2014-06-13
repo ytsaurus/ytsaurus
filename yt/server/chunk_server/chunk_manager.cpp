@@ -30,6 +30,8 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_ypath.pb.h>
 
+#include <ytlib/journal_client/helpers.h>
+
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/entity_map.h>
 
@@ -62,6 +64,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NConcurrency;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
@@ -74,8 +77,9 @@ using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NConcurrency;
+using namespace NJournalClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -668,6 +672,26 @@ public:
     EChunkStatus ComputeChunkStatus(TChunk* chunk)
     {
         return ChunkReplicator_->ComputeChunkStatus(chunk);
+    }
+
+    TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk)
+    {
+        if (chunk->IsSealed()) {
+            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+            return MakeFuture<TErrorOr<int>>(miscExt.record_count());
+        }
+
+        std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
+        for (auto nodeWithIndex : chunk->StoredReplicas()) {
+            const auto* node = nodeWithIndex.GetPtr();
+            replicas.push_back(node->GetDescriptor());
+        }
+
+        return ComputeQuorumRecordCount(
+            chunk->GetId(),
+            replicas,
+            Config_->JournalRpcTimeout,
+            chunk->GetReadQuorum());
     }
 
 
@@ -1376,7 +1400,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             chunkType);
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
-        TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
+        NNodeTrackerServer::TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
             NChunkServer::TNodePtrWithIndex replica(
@@ -1667,6 +1691,11 @@ int TChunkManager::GetTotalReplicaCount()
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 {
     return Impl_->ComputeChunkStatus(chunk);
+}
+
+TFuture<TErrorOr<int>> TChunkManager::GetChunkQuorumRecordCount(TChunk* chunk)
+{
+    return Impl_->GetChunkQuorumRecordCount(chunk);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)

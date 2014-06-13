@@ -102,7 +102,8 @@ private:
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
-        attributes->push_back(TAttributeInfo("record_count", chunk->IsSealed()));
+        attributes->push_back(TAttributeInfo("record_count", chunk->IsJournal() && chunk->IsSealed()));
+        attributes->push_back(TAttributeInfo("quorum_record_count", chunk->IsJournal(), true));
         attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
@@ -375,6 +376,23 @@ private:
         }
 
         return TBase::GetSystemAttribute(key, consumer);
+    }
+
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        auto* chunk = GetThisTypedImpl();
+        if (chunk->IsJournal() && key == "quorum_record_count") {
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto recordCountResult = chunkManager->GetChunkQuorumRecordCount(chunk);
+            return recordCountResult.Apply(BIND([=] (TErrorOr<int> recordCountOrError) -> TError {
+                if (recordCountOrError.IsOK()) {
+                    BuildYsonFluently(consumer)
+                        .Value(recordCountOrError.Value());
+                }
+                return TError(recordCountOrError);
+            }));
+        }
+        return TBase::GetSystemAttributeAsync(key, consumer);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
