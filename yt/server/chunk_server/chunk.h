@@ -124,6 +124,9 @@ public:
     //! Returns |true| iff this is a sealed journal chunk.
     bool IsSealed() const;
 
+    //! Returns the number of records in a sealed chunk.
+    int GetSealedRecordCount() const;
+
     //! Marks the chunk as sealed, i.e. its ultimate record count.
     void Seal(int recordCount);
 

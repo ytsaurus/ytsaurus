@@ -329,6 +329,13 @@ bool TChunk::IsSealed() const
     return miscExt.sealed();
 }
 
+int TChunk::GetSealedRecordCount() const
+{
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    YCHECK(miscExt.sealed());
+    return miscExt.record_count();
+}
+
 void TChunk::Seal(int recordCount)
 {
     YASSERT(IsConfirmed());
