@@ -682,8 +682,8 @@ private:
                 ToProto(request->mutable_chunk_id(), reader->ChunkId_);
                 for (int index : unfetchedBlockIndexes) {
                     auto* range = request->add_block_ranges();
-                    range->set_first_block_index(index);
-                    range->set_block_count(1);
+                    range->set_first_index(index);
+                    range->set_count(1);
                 }
                 request->set_enable_caching(reader->Config_->EnableNodeCaching);
                 request->set_session_type(reader->SessionType_);
@@ -748,8 +748,8 @@ private:
         int attachmentIndex = 0;
 
         for (const auto& range : req->block_ranges()) {
-            for (int blockIndex = range.first_block_index();
-                 blockIndex < range.first_block_index() + range.block_count();
+            for (int blockIndex = range.first_index();
+                 blockIndex < range.first_index() + range.count();
                  ++blockIndex)
             {
                 TBlockId blockId(reader->ChunkId_, blockIndex);

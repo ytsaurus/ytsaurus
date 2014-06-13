@@ -76,8 +76,8 @@ message TReqGetBlocks
 {
     message TBlockRange
     {
-        required int32 first_block_index = 1;
-        required int32 block_count = 2;
+        required int32 first_index = 1;
+        required int32 count = 2;
     }
 
     required NYT.NProto.TGuid chunk_id = 1;

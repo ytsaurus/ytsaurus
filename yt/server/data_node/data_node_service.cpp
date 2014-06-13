@@ -58,9 +58,9 @@ namespace NProto {
 
 Stroka ToString(const TReqGetBlocks::TBlockRange& range)
 {
-    return Sprintf("%d:%d",
-        range.first_block_index(),
-        range.first_block_index() + range.block_count() - 1);
+    return Sprintf("%d-%d",
+        range.first_index(),
+        range.first_index() + range.count() - 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,14 +236,14 @@ private:
         auto session = sessionManager->GetSession(chunkId);
 
         // Put blocks.
-        auto asyncResult = session->PutBlocks(
+        auto result = session->PutBlocks(
             firstBlockIndex,
             request->Attachments(),
             enableCaching);
         
         // Flush blocks if needed.
         if (flushBlocks) {
-            asyncResult = asyncResult.Apply(BIND([=] (TError error) -> TAsyncError {
+            result = result.Apply(BIND([=] (TError error) -> TAsyncError {
                 if (!error.IsOK()) {
                     return MakeFuture(error);
                 }
@@ -251,7 +251,7 @@ private:
             }));
         }
 
-        asyncResult.Subscribe(BIND([=] (TError error) {
+        result.Subscribe(BIND([=] (TError error) {
             context->Reply(error);
         }));
     }
@@ -330,7 +330,7 @@ private:
 
         int blockCount = 0;
         for (const auto& range : request->block_ranges()) {
-            blockCount += range.block_count();
+            blockCount += range.count();
         }
         response->Attachments().resize(blockCount);
 
@@ -339,8 +339,8 @@ private:
             // Let's try to suggest some other peers.
             if (peerBlockTable->MayHavePeers(chunkId)) {
                 for (const auto& range : request->block_ranges()) {
-                    for (int blockIndex = range.first_block_index();
-                        blockIndex < range.first_block_index() + range.block_count();
+                    for (int blockIndex = range.first_index();
+                        blockIndex < range.first_index() + range.count();
                         ++blockIndex)
                     {
                         TBlockId blockId(chunkId, blockIndex);
@@ -369,8 +369,8 @@ private:
                 // Fetch the actual data (either from cache or from disk).
                 LOG_DEBUG("Fetching block range (Blocks: %s:%d-%d)",
                     ~ToString(chunkId),
-                    range.first_block_index(),
-                    range.first_block_index() + range.block_count() - 1);
+                    range.first_index(),
+                    range.first_index() + range.count() - 1);
 
                 auto handler = BIND([=] (int firstAttachmentIndex, TBlockStore::TGetBlocksResult result) {
                     if (result.IsOK()) {
@@ -389,14 +389,14 @@ private:
                 awaiter->Await(
                     blockStore->GetBlocks(
                         chunkId,
-                        range.first_block_index(),
-                        range.block_count(),
+                        range.first_index(),
+                        range.count(),
                         priority,
                         enableCaching),
                     BIND(handler, attachmentIndex));
 
                 --priority;
-                attachmentIndex += range.block_count();
+                attachmentIndex += range.count();
             }
     
             awaiter->Complete(BIND([=] () {
@@ -423,8 +423,8 @@ private:
 
                     int attachmentIndex = 0;
                     for (const auto& range : request->block_ranges()) {
-                        for (int blockIndex = range.first_block_index();
-                            blockIndex < range.first_block_index() + range.block_count();
+                        for (int blockIndex = range.first_index();
+                            blockIndex < range.first_index() + range.count();
                             ++blockIndex)
                         {
                             if (response->Attachments()[attachmentIndex++]) {
