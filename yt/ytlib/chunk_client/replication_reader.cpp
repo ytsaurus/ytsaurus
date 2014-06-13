@@ -695,7 +695,7 @@ private:
 
                 request->Invoke().Subscribe(
                     BIND(
-                        &TReadSession::OnGetBlocksResponse,
+                        &TReadSession::OnGotBlocks,
                         MakeStrong(this),
                         currentDescriptor,
                         request)
@@ -707,7 +707,7 @@ private:
         }
     }
 
-    void OnGetBlocksResponse(
+    void OnGotBlocks(
         const TNodeDescriptor& requestedDescriptor,
         TDataNodeServiceProxy::TReqGetBlocksPtr req,
         TDataNodeServiceProxy::TRspGetBlocksPtr rsp)
@@ -737,7 +737,7 @@ private:
     {
         auto reader = Reader_.Lock();
         if (!reader) {
-            return MakeFuture();
+            return VoidFuture;
         }
 
         const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
@@ -746,8 +746,7 @@ private:
 
         i64 totalSize = 0;
         int attachmentIndex = 0;
-
-        for (const auto& range : req->block_ranges()) {
+        for (const auto& range : rsp->block_ranges()) {
             for (int blockIndex = range.first_index();
                  blockIndex < range.first_index() + range.count();
                  ++blockIndex)

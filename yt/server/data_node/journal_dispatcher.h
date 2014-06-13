@@ -20,7 +20,7 @@ class TJournalDispatcher
 public:
     TJournalDispatcher(
         NCellNode::TBootstrap* bootstrap,
-        TJournalDispatcherConfigPtr config);
+        TDataNodeConfigPtr config);
     ~TJournalDispatcher();
 
     void Initialize();

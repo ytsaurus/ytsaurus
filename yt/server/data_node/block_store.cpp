@@ -63,15 +63,15 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->BlockCacheSize)
-        , Config(config)
-        , Bootstrap(bootstrap)
+        , Config_(config)
+        , Bootstrap_(bootstrap)
     { }
 
     void Initialize()
     {
-        auto result = Bootstrap->GetMemoryUsageTracker()->TryAcquire(
+        auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,
-            Config->BlockCacheSize);
+            Config_->BlockCacheSize);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
     }
 
@@ -161,8 +161,8 @@ public:
 private:
     friend class TGetBlocksSession;
 
-    TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    TDataNodeConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
     std::atomic<i64> PendingReadSize_ = 0;
 
@@ -201,9 +201,9 @@ public:
         , Priority_(priority)
         , EnableCaching_(enableCaching)
         , Promise_(NewPromise<TGetBlocksResult>())
-        , Blocks_(blockCount)
-        , Cookies_(blockCount)
-        , BlocksPending_(blockCount)
+        , Blocks_(BlockCount_)
+        , Cookies_(BlockCount_)
+        , BlocksPending_(BlockCount_)
     { }
 
     ~TGetBlocksSession()
@@ -246,7 +246,7 @@ public:
             }
         }
 
-        auto chunkRegistry = StoreImpl_->Bootstrap->GetChunkRegistry();
+        auto chunkRegistry = StoreImpl_->Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(ChunkId_);
 
         if (chunk) {
@@ -342,14 +342,13 @@ TFuture<TBlockStore::TGetBlocksResult> TBlockStore::TStoreImpl::Get(
     i64 priority,
     bool enableCaching)
 {
-    auto session = New<TGetBlocksSession>(
+    return New<TGetBlocksSession>(
         this,
         chunkId,
         firstBlockIndex,
-        blockCount,
+        std::min(blockCount, Config_->MaxRangeReadBlockCount),
         priority,
-        enableCaching);
-    return session->Run();
+        enableCaching)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

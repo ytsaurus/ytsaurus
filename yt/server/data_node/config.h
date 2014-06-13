@@ -106,24 +106,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
-class TBlobDispatcherConfig
-    : public TYsonSerializable
-{
-public:
-    //! Maximum number of cached blob chunks readers.
-    int ReaderCacheSize;
-
-    TBlobDispatcherConfig()
-    {
-        RegisterParameter("reader_cache_size", ReaderCacheSize)
-            .GreaterThan(0)
-            .Default(256);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TBlobDispatcherConfig)
-
-class TMultiplexedJournalConfig
+class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
 {
 public:
@@ -142,7 +125,11 @@ public:
      */
     i64 MaxDataSize;
 
-    TMultiplexedJournalConfig()
+    //! Maximum bytes of multiplexed journal to read during
+    //! a single iteration of replay.
+    i64 ReplayBufferSize;
+
+    TMultiplexedChangelogConfig()
     {
         RegisterParameter("path", Path);
         RegisterParameter("max_record_count", MaxRecordCount)
@@ -151,62 +138,13 @@ public:
         RegisterParameter("max_data_size", MaxDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMultiplexedJournalConfig)
-
-class TJournalDispatcherConfig
-    : public TYsonSerializable
-{
-public:
-    //! Multiplexed journal configuration.
-    TMultiplexedJournalConfigPtr Multiplexed;
-
-    //! Split (per chunk) journal configuration.
-    NHydra::TFileChangelogConfigPtr Split;
-
-    //! Maximum number of cached split changelogs.
-    int MaxCachedChangelogs;
-
-    //! Maximum bytes of multiplexed journal to read during
-    //! a single iteration of replay.
-    i64 ReplayBufferSize;
-
-    //! Maximum bytes to read from a journal per single read request.
-    i64 MaxBytesPerRead;
-
-    //! Maximum number of cached opened journals.
-    int ReaderCacheSize;
-
-    TJournalDispatcherConfig()
-    {
-        RegisterParameter("multiplexed", Multiplexed);
-        RegisterParameter("split", Split)
-            .DefaultNew();
-        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
-            .GreaterThan(0)
-            .Default(256);
         RegisterParameter("replay_buffer_size", ReplayBufferSize)
             .GreaterThan(0)
-            .Default(256 * 1024 * 1024);
-        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
-            .GreaterThan(0)
-            .Default((i64) 64 * 1024 * 1024);
-        RegisterParameter("reader_cache_size", ReaderCacheSize)
-            .GreaterThan(0)
-            .Default(256);
-
-        RegisterInitializer([&] () {
-            // Expect many splits -- adjust configuration.
-            Split->FlushBufferSize = (i64) 16 * 1024 * 1024;
-            Split->FlushPeriod = TDuration::Seconds(15);
-        });
+            .Default((i64) 256 * 1024 * 1024);
     }
-
 };
 
-DEFINE_REFCOUNTED_TYPE(TJournalDispatcherConfig)
+DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
 //! Describes a configuration of a data node.
 class TDataNodeConfig
@@ -231,11 +169,20 @@ public:
     //! Block cache size (in bytes).
     i64 BlockCacheSize;
 
-    //! Blob dispatcher configuration.
-    TBlobDispatcherConfigPtr BlobDispatcher;
+    //! Maximum number of cached blob chunks readers.
+    int BlobReaderCacheSize;
 
-    //! Journal dispatcher configuration.
-    TJournalDispatcherConfigPtr JournalDispatcher;
+    //! Multiplexed changelog configuration.
+    TMultiplexedChangelogConfigPtr MultiplexedChangelog;
+
+    //! Split (per chunk) changelog configuration.
+    NHydra::TFileChangelogConfigPtr SplitChangelog;
+
+    //! Maximum number of cached split changelogs.
+    int MaxCachedChangelogs;
+
+    //! Maximum number of cached opened journals.
+    int ChangelogReaderCacheSize;
 
     //! Upload session timeout.
     /*!
@@ -302,8 +249,14 @@ public:
     //! Number of writer threads per location.
     int WriteThreadCount;
 
-    //! Maximum number of concurrent balancing write sessions.
+    //! Maximum number of concurrent write sessions.
     int MaxWriteSessions;
+
+    //! Maximum number of blocks to fetch via a single request per range.
+    int MaxRangeReadBlockCount;
+
+    //! Maximum number of bytes to fetch via a single request per range.
+    i64 MaxRangeReadDataSize;
 
 
     TDataNodeConfig()
@@ -314,13 +267,25 @@ public:
             .Default(Null);
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
+        
         RegisterParameter("block_cache_size", BlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
-        RegisterParameter("blob_dispatcher", BlobDispatcher)
+
+        RegisterParameter("blob_reader_cache_size", BlobReaderCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+
+        RegisterParameter("multiplexed_changelog", MultiplexedChangelog);
+        RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
-        RegisterParameter("journal_dispatcher", JournalDispatcher)
-            .DefaultNew();
+        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
+            .GreaterThan(0)
+            .Default(256);
+        RegisterParameter("changelog_reader_cache_size", ChangelogReaderCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
@@ -329,6 +294,7 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
+
         RegisterParameter("bus_out_throttling_limit", BusOutThrottlingLimit)
             .GreaterThan(0)
             .Default((i64) 512 * 1024 * 1024);
@@ -336,10 +302,12 @@ public:
             .GreaterThan(0)
             // TODO(babenko): provide some meaningful default
             .Default((i64) 100 * 1024 * 1024 * 1024);
+
         RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();
         RegisterParameter("cache_location", CacheLocation)
             .DefaultNew();
+
         RegisterParameter("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
         RegisterParameter("cache_sequential_reader", CacheSequentialReader)
@@ -350,6 +318,7 @@ public:
             .DefaultNew();
         RegisterParameter("repair_writer", RepairWriter)
             .DefaultNew();
+
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
@@ -358,16 +327,33 @@ public:
             .DefaultNew();
         RegisterParameter("repair_out_throttler", RepairOutThrottler)
             .DefaultNew();
+
         RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();
+
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
+
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
+            
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
             .GreaterThanOrEqual(1);
+
+        RegisterParameter("max_range_read_block_count", MaxRangeReadBlockCount)
+            .GreaterThan(0)
+            .Default(100000);
+        RegisterParameter("max_range_read_data_size", MaxRangeReadDataSize)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+
+        RegisterInitializer([&] () {
+            // Expect many splits -- adjust configuration.
+            SplitChangelog->FlushBufferSize = (i64) 16 * 1024 * 1024;
+            SplitChangelog->FlushPeriod = TDuration::Seconds(15);
+        });
     }
 };
 

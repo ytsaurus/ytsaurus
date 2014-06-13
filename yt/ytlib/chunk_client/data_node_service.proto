@@ -72,14 +72,14 @@ message TRspFlushBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TBlockRange
+{
+    required int32 first_index = 1;
+    required int32 count = 2;
+}
+
 message TReqGetBlocks
 {
-    message TBlockRange
-    {
-        required int32 first_index = 1;
-        required int32 count = 2;
-    }
-
     required NYT.NProto.TGuid chunk_id = 1;
     repeated TBlockRange block_ranges = 2;
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
@@ -97,7 +97,8 @@ message TRspGetBlocks
     }
 
     repeated TPeerDescriptor peer_descriptors = 1;
-    required bool has_complete_chunk = 2;
+    repeated TBlockRange block_ranges = 2;
+    required bool has_complete_chunk = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

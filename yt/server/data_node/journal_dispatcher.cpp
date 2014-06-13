@@ -85,8 +85,8 @@ class TJournalDispatcher::TImpl
 public:
     explicit TImpl(
         NCellNode::TBootstrap* bootstrap,
-        TJournalDispatcherConfigPtr config)
-        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->ReaderCacheSize)
+        TDataNodeConfigPtr config)
+        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->ChangelogReaderCacheSize)
         , Bootstrap_(bootstrap)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>("JournalFlush"))
@@ -96,7 +96,7 @@ public:
 
     bool AcceptsChunks() const
     {
-        return Config_->Multiplexed != nullptr;
+        return Config_->MultiplexedChangelog != nullptr;
     }
 
     IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
@@ -127,7 +127,7 @@ private:
     friend class TMultiplexedReplay;
 
     NCellNode::TBootstrap* Bootstrap_;
-    TJournalDispatcherConfigPtr Config_;
+    TDataNodeConfigPtr Config_;
 
     TFileChangelogDispatcherPtr ChangelogDispatcher_;
 
@@ -163,7 +163,7 @@ private:
                 changelog = ChangelogDispatcher_->CreateChangelog(
                     fileName,
                     TSharedRef(),
-                    Config_->Split);
+                    Config_->SplitChangelog);
             } catch (const std::exception& ex) {
                 location->Disable();
                 THROW_ERROR_EXCEPTION(
@@ -270,7 +270,7 @@ private:
 
     Stroka GetMultiplexedPath()
     {
-        return Config_->Multiplexed->Path;
+        return Config_->MultiplexedChangelog->Path;
     }
 
     Stroka GetMultiplexedChangelogPath(int changelogId)
@@ -295,7 +295,7 @@ private:
         auto changelog = ChangelogDispatcher_->CreateChangelog(
             GetMultiplexedChangelogPath(id),
             TSharedRef(),
-            Config_->Multiplexed);
+            Config_->MultiplexedChangelog);
 
         LOG_INFO("Finished creating new multiplexed changelog %d",
             id);
@@ -473,7 +473,7 @@ private:
         auto multiplexedChangelogPath = Owner_->GetMultiplexedChangelogPath(changelogId);
         auto multiplexedChangelog = Owner_->ChangelogDispatcher_->OpenChangelog(
             multiplexedChangelogPath,
-            Owner_->Config_->Multiplexed);
+            Owner_->Config_->MultiplexedChangelog);
 
         int startRecordId = 0;
         int recordCount = multiplexedChangelog->GetRecordCount();
@@ -486,7 +486,7 @@ private:
             auto records = multiplexedChangelog->Read(
                 startRecordId,
                 recordCount,
-                Owner_->Config_->ReplayBufferSize);
+                Owner_->Config_->MultiplexedChangelog->ReplayBufferSize);
 
             for (const auto& record : records) {
                 YCHECK(record.Size() >= sizeof (TMultiplexedRecordHeader));
@@ -590,20 +590,23 @@ private:
         auto it = SplitMap_.find(chunkId);
         if (it == SplitMap_.end()) {
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto* chunk = dynamic_cast<TJournalChunk*>(chunkStore->FindChunk(chunkId).Get());
+            auto chunk = chunkStore->FindChunk(chunkId);
             if (!chunk) {
                 return nullptr;
             }
 
-            auto location = chunk->GetLocation();
+            auto* journalChunk = dynamic_cast<TJournalChunk*>(chunk.Get());
+            YCHECK(journalChunk);
+
+            auto location = journalChunk->GetLocation();
             auto fileName = location->GetChunkFileName(chunkId);
             auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
                 fileName,
-                Owner_->Config_->Split);
-            chunk->SetChangelog(changelog);
+                Owner_->Config_->SplitChangelog);
+            journalChunk->SetChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
-                TSplitEntry(chunk, changelog))).first;
+                TSplitEntry(journalChunk, changelog))).first;
         }
         return &it->second;
     }
@@ -617,7 +620,7 @@ void TJournalDispatcher::TImpl::Initialize()
     LOG_INFO("Starting journal dispatcher");
 
     try {
-        if (Config_->Multiplexed) {
+        if (Config_->MultiplexedChangelog) {
             // Initialize and replay multiplexed changelogs.
             TMultiplexedReplay replay(this);
             int newId = replay.Run();
@@ -648,7 +651,7 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, co
             try {
                 auto changelog = ChangelogDispatcher_->OpenChangelog(
                     fileName,
-                    Config_->Split);
+                    Config_->SplitChangelog);
                 auto cachedChangelog = New<TCachedChangelog>(
                     this,
                     chunkId,
@@ -726,7 +729,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     auto appendResult = DoAppendMultiplexedRecord(record);
 
     // Check if it is time to rotate.
-    const auto& config = Config_->Multiplexed;
+    const auto& config = Config_->MultiplexedChangelog;
     if (MultiplexedChangelog_->GetRecordCount() >= config->MaxRecordCount ||
         MultiplexedChangelog_->GetDataSize() >= config->MaxDataSize)
     {
@@ -779,7 +782,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
 
 TJournalDispatcher::TJournalDispatcher(
     NCellNode::TBootstrap* bootstrap,
-    TJournalDispatcherConfigPtr config)
+    TDataNodeConfigPtr config)
     : Impl_(New<TImpl>(bootstrap, config))
 { }
 

@@ -125,10 +125,8 @@ class Holder(WinNode, Server):
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
-                'journal_dispatcher' : {
-                    'multiplexed' : {
-                        'path' : r'%(work_dir)s\multiplexed'
-                    }
+                'multiplexed_changelog' : {
+                    'path' : r'%(work_dir)s\multiplexed'
                 },
                 'session_timeout' : 10000
             },
@@ -170,7 +168,7 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                print >>fd, 'rmdir /S /Q %s' % cls.config['data_node']['journal_dispatcher']['multiplexed']['path']
+                print >>fd, 'rmdir /S /Q %s' % cls.config['data_node']['multiplexed_changelog']['path']
                 print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['snapshots']['temp_path']
                 print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['changelogs']['path']
                 for location in cls.config['data_node']['store_locations']:
