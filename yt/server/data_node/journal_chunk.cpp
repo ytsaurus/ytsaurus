@@ -39,20 +39,16 @@ TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
     const TChunkId& id,
-    const TChunkInfo& info,
-    ISessionPtr session)
+    const TChunkInfo& info)
     : TChunkBase(
         bootstrap,
         location,
         id,
         info)
-    , Session_(session)
 {
     Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(EChunkType::Journal);
     Meta_->set_version(0);
-
-    UpdateInfo();
 }
 
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
@@ -160,8 +156,9 @@ void TJournalChunk::DoReadBlocks(
 
 void TJournalChunk::UpdateInfo()
 {
-    if (Session_) {
-        Info_ = Session_->GetChunkInfo();
+    if (Changelog_) {
+        Info_.set_record_count(Changelog_->GetRecordCount());
+        Info_.set_sealed(Changelog_->IsSealed());
     }
 }
 
@@ -183,10 +180,16 @@ TFuture<void> TJournalChunk::RemoveFiles()
         }));
 }
 
-void TJournalChunk::ReleaseSession()
+void TJournalChunk::SetChangelog(IChangelogPtr changelog)
+{
+    Changelog_ = changelog;
+    UpdateInfo();
+}
+
+void TJournalChunk::ResetChangelog()
 {
     UpdateInfo();
-    Session_.Reset();
+    Changelog_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

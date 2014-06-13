@@ -440,6 +440,11 @@ public:
             ReplayChangelog(id);
         }
 
+        for (auto& pair : SplitMap_) {
+            auto& entry = pair.second;
+            entry.Chunk->ResetChangelog();
+        }
+
         return maxId == std::numeric_limits<int>::min() ? 0 : maxId + 1;
     }
 
@@ -448,10 +453,12 @@ private:
 
     struct TSplitEntry
     {
-        explicit TSplitEntry(IChangelogPtr changelog)
-            : Changelog(changelog)
+        TSplitEntry(TJournalChunkPtr chunk, IChangelogPtr changelog)
+            : Chunk(chunk)
+            , Changelog(changelog)
         { }
 
+        TJournalChunkPtr Chunk;
         IChangelogPtr Changelog;
         int RecordsAdded = 0;
     };
@@ -559,8 +566,7 @@ private:
             Owner_->Bootstrap_,
             location,
             chunkId,
-            TChunkInfo(),
-            nullptr);
+            TChunkInfo());
         chunkStore->RegisterNewChunk(chunk);
 
         Owner_->DoCreateChangelog(chunk);
@@ -575,7 +581,6 @@ private:
             return;
 
         Owner_->DoRemoveChangelog(chunk);
-
         chunkStore->UnregisterChunk(chunk);
     }
 
@@ -585,18 +590,20 @@ private:
         auto it = SplitMap_.find(chunkId);
         if (it == SplitMap_.end()) {
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
-            auto chunk = chunkStore->FindChunk(chunkId);
+            auto* chunk = dynamic_cast<TJournalChunk*>(chunkStore->FindChunk(chunkId).Get());
             if (!chunk) {
                 return nullptr;
             }
+
             auto location = chunk->GetLocation();
             auto fileName = location->GetChunkFileName(chunkId);
             auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
                 fileName,
                 Owner_->Config_->Split);
+            chunk->SetChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
-                TSplitEntry(changelog))).first;
+                TSplitEntry(chunk, changelog))).first;
         }
         return &it->second;
     }

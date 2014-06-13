@@ -64,11 +64,12 @@ void TJournalSession::DoCreateChangelog()
         Bootstrap_,
         Location_,
         ChunkId_,
-        TChunkInfo(),
-        this);
+        TChunkInfo());
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     Changelog_ = dispatcher->CreateChangelog(Chunk_);
+
+    Chunk_->SetChangelog(Changelog_);
 }
 
 void TJournalSession::OnChangelogCreated()
@@ -80,7 +81,7 @@ void TJournalSession::OnChangelogCreated()
 void TJournalSession::DoCancel()
 {
     UpdateChunkInfo();
-    Chunk_->ReleaseSession();
+    Chunk_->ResetChangelog();
     Finished_.Fire(TError());
 }
 

@@ -241,8 +241,7 @@ IChunkPtr TChunkStore::CreateChunkFromDescriptor(
                 Bootstrap_,
                 location,
                 descriptor.Id,
-                descriptor.Info,
-                nullptr);
+                descriptor.Info);
 
         default:
             YUNREACHABLE();

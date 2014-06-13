@@ -18,8 +18,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info,
-        ISessionPtr session);
+        const NChunkClient::NProto::TChunkInfo& info);
 
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
@@ -31,10 +30,11 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-    void ReleaseSession();
+    void SetChangelog(NHydra::IChangelogPtr changelog);
+    void ResetChangelog();
 
 private:
-    ISessionPtr Session_;
+    NHydra::IChangelogPtr Changelog_;
 
     void UpdateInfo();
 
