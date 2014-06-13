@@ -149,11 +149,20 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
+        YASSERT(!IsJournal());
         if (!CachedReplicas_) {
             CachedReplicas_.reset(new yhash_set<TNodePtrWithIndex>());
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
+        if (IsJournal()) {
+            TNodePtrWithIndex antireplica(
+                replica.GetPtr(),
+                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
+            StoredReplicas_.erase(
+                std::remove(StoredReplicas_.begin(), StoredReplicas_.end(), antireplica),
+                StoredReplicas_.end());
+        }
         StoredReplicas_.push_back(replica);
     }
 }
@@ -167,17 +176,13 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
             CachedReplicas_.reset();
         }
     } else {
-        for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {
-            if (*it == replica) {
-                StoredReplicas_.erase(it);
-                return;
-            }
-        }
-        YUNREACHABLE();
+        auto it = std::remove(StoredReplicas_.begin(), StoredReplicas_.end(), replica);
+        YCHECK(it != StoredReplicas_.end());
+        StoredReplicas_.erase(it, StoredReplicas_.end());
     }
 }
 
-SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
+TNodePtrWithIndexList TChunk::GetReplicas() const
 {
     SmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
     if (CachedReplicas_) {

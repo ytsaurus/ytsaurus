@@ -451,17 +451,19 @@ public:
         auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        for (auto clientReplica : replicas) {
-            auto* node = nodeTracker->FindNode(clientReplica.GetNodeId());
+        for (auto replica : replicas) {
+            auto* node = nodeTracker->FindNode(replica.GetNodeId());
             if (!node) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %d",
                     ~ToString(id),
-                    ~clientReplica.GetNodeId());
+                    ~replica.GetNodeId());
                 continue;
             }
 
-            TNodePtrWithIndex nodeWithIndex(node, clientReplica.GetIndex());
-            TChunkPtrWithIndex chunkWithIndex(chunk, clientReplica.GetIndex());
+            auto nodeWithIndex = TNodePtrWithIndex(node, replica.GetIndex());
+            auto chunkWithIndex = chunk->IsJournal()
+                ? TChunkPtrWithIndex(chunk, UnsealedChunkIndex)
+                : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at %s which has invalid state %s",
@@ -477,7 +479,7 @@ public:
                     chunkWithIndex,
                     false,
                     EAddReplicaReason::Confirmation);
-                node->MarkReplicaUnapproved(chunkWithIndex, mutationTimestamp);
+                node->AddUnapprovedReplica(chunkWithIndex, mutationTimestamp);
             }
         }
 
@@ -536,7 +538,7 @@ public:
         TNodePtrWithIndexList result;
         auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
-            if (index == GenericChunkPartIndex || replica.GetIndex() == index) {
+            if (index == GenericChunkIndex || replica.GetIndex() == index) {
                 result.push_back(replica);
             }
         }
@@ -1164,16 +1166,6 @@ private:
         auto nodeId = node->GetId();
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
-        if (node->HasReplica(chunkWithIndex, cached)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkWithIndex),
-                ~FormatBool(cached),
-                ~ToString(reason),
-                nodeId,
-                ~node->GetAddress());
-            return;
-        }
-
         node->AddReplica(chunkWithIndex, cached);
         chunk->AddReplica(nodeWithIndex, cached);
 
@@ -1293,7 +1285,10 @@ private:
             return;
         }
 
-        TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
+        auto chunkWithIndex = chunk->IsJournal()
+            ? TChunkPtrWithIndex(chunk, chunkAddInfo.chunk_info().sealed() ? SealedChunkIndex : UnsealedChunkIndex)
+            : TChunkPtrWithIndex(chunk, chunkIdWithIndex.Index);
+
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %d, Address: %s, ChunkId: %s)",
                 nodeId,
@@ -1303,8 +1298,6 @@ private:
             node->ApproveReplica(chunkWithIndex);
             return;
         }
-
-        // Use the size reported by the node, but check it for consistency first.
 
         AddChunkReplica(
             node,

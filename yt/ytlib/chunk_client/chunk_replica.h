@@ -54,16 +54,24 @@ struct TChunkIdWithIndex
 
 };
 
+///////////////////////////////////////////////////////////////////////////////
+
 //! Indicates that an instance of TChunkIdWithIndex (or other similar descriptor)
 //! refers to the whole chunk, not to any of its replicas.
-static const int GenericChunkPartIndex = 255;
+const int GenericChunkIndex = 255;
+
+//! Indicates a non-sealed journal chunk.
+const int UnsealedChunkIndex = 0;
+
+//! Indicates a sealed journal chunk.
+const int SealedChunkIndex = 1;
+
+///////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 Stroka ToString(const TChunkIdWithIndex& id);
-
-///////////////////////////////////////////////////////////////////////////////
 
 //! Returns |true| iff this is a erasure chunk.
 bool IsErasureChunkId(const TChunkId& id);

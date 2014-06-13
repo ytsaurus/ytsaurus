@@ -59,11 +59,14 @@ public:
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
+    
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
+    
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
+
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     //! Indexed by priority.
@@ -118,9 +121,17 @@ public:
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
 
-    void MarkReplicaUnapproved(TChunkPtrWithIndex replica, TInstant timestamp);
+    void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
+
+    void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void ClearChunkRemovalQueue();
+
+    void AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority);
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica);
+    void ClearChunkReplicationQueues();
 
     void ResetHints();
     
@@ -152,6 +163,9 @@ private:
     int HintedTabletSlots_;
 
     void Init();
+
+    static TChunkPtrWithIndex NormalizeReplica(TChunkPtrWithIndex replica);
+    static NChunkClient::TChunkIdWithIndex NormalizeReplica(const NChunkClient::TChunkIdWithIndex& replica);
 
 };
 

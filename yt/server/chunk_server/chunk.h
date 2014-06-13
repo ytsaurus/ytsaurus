@@ -76,7 +76,7 @@ public:
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
-    SmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
+    TNodePtrWithIndexList GetReplicas() const;
 
     bool IsConfirmed() const;
     void ValidateConfirmed();

@@ -23,9 +23,17 @@ Stroka ToString(TChunkPtrWithIndex value)
 {
     auto* chunk = value.GetPtr();
     int index = value.GetIndex();
-    return !chunk->IsErasure() || index == GenericChunkPartIndex
-        ? ToString(chunk->GetId())
-        : Sprintf("%s/%d", ~ToString(chunk->GetId()), index);
+    if (chunk->IsErasure() && index != GenericChunkIndex) {
+        return Sprintf("%s/%d",
+            ~ToString(chunk->GetId()),
+            index);
+    } else if (chunk->IsJournal()) {
+        return Sprintf("%s/%s",
+            ~ToString(chunk->GetId()),
+            index == SealedChunkIndex ? "sealed" : "unsealed");
+    } else {
+        return ToString(chunk->GetId());
+    }
 }
 
 void ToProto(ui32* protoValue, TNodePtrWithIndex value)
@@ -40,7 +48,7 @@ TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
     int index = chunkWithIndex.GetIndex();
-    return chunk->IsErasure() && index != GenericChunkPartIndex
+    return chunk->IsErasure() && index != GenericChunkIndex
         ? ErasurePartIdFromChunkId(chunk->GetId(), index)
         : chunk->GetId();
 }

@@ -133,9 +133,22 @@ private:
                 .Value(replica.GetPtr()->GetAddress());
         };
 
-        auto serializeReplica = chunk->IsErasure()
-            ? TReplicaSerializer(serializeErasureReplica)
-            : TReplicaSerializer(serializeRegularReplica);
+        auto serializeJournalReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
+            fluent.Item()
+                .BeginAttributes()
+                    .Item("sealed").Value(replica.GetIndex() == SealedChunkIndex)
+                .EndAttributes()
+                .Value(replica.GetPtr()->GetAddress());
+        };
+
+        TReplicaSerializer serializeReplica;
+        if (chunk->IsErasure()) {
+            serializeReplica = TReplicaSerializer(serializeErasureReplica);
+        } else if (chunk->IsJournal()) {
+            serializeReplica = TReplicaSerializer(serializeJournalReplica);
+        } else {
+            serializeReplica = TReplicaSerializer(serializeRegularReplica);
+        }
 
         auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexList& replicas) {
             std::sort(

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "node.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk.h>
 
@@ -15,6 +17,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTabletServer;
@@ -121,51 +124,116 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
 void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
-        YCHECK(CachedReplicas_.insert(replica).second);
+        YASSERT(!chunk->IsJournal());
+        CachedReplicas_.insert(replica);
     } else {
-        YCHECK(StoredReplicas_.insert(replica).second);
+        if (chunk->IsJournal()) {
+            TChunkPtrWithIndex antireplica(
+                chunk,
+                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
+            StoredReplicas_.erase(antireplica);
+        }
+        StoredReplicas_.insert(replica);
     }
 }
 
 void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
-        YCHECK(CachedReplicas_.erase(replica) == 1);
+        YASSERT(!chunk->IsJournal());
+        CachedReplicas_.erase(replica);
     } else {
-        YCHECK(StoredReplicas_.erase(replica) == 1);
-        UnapprovedReplicas_.erase(replica);
-        ChunkRemovalQueue_.erase(TChunkIdWithIndex(replica.GetPtr()->GetId(), replica.GetIndex()));
+        StoredReplicas_.erase(replica);
+        if (chunk->IsJournal()) {
+            TChunkPtrWithIndex antireplica(
+                chunk,
+                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
+            StoredReplicas_.erase(antireplica);
+        }
+
+        auto normalizedReplica = NormalizeReplica(replica);
+        UnapprovedReplicas_.erase(normalizedReplica);
+
+        ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), normalizedReplica.GetIndex()));
+
         for (auto& queue : ChunkReplicationQueues_) {
-            queue.erase(replica);
+            queue.erase(normalizedReplica);
         }
     }
 }
 
 bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
+        YASSERT(!chunk->IsJournal());
         return CachedReplicas_.find(replica) != CachedReplicas_.end();
     } else {
-        return StoredReplicas_.find(replica) != StoredReplicas_.end();
+        if (chunk->IsJournal()) {
+            return
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, UnsealedChunkIndex)) != StoredReplicas_.end() ||
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, SealedChunkIndex)) != StoredReplicas_.end();
+        } else {
+            return StoredReplicas_.find(replica) != StoredReplicas_.end();
+        }
     }
 }
 
-void TNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica, TInstant timestamp)
+void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
 {
-    YASSERT(HasReplica(replica, false));
-    YCHECK(UnapprovedReplicas_.insert(std::make_pair(replica, timestamp)).second);
+    YCHECK(UnapprovedReplicas_.insert(std::make_pair(
+        NormalizeReplica(replica),
+        timestamp)).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
-    return UnapprovedReplicas_.find(replica) != UnapprovedReplicas_.end();
+    return
+        UnapprovedReplicas_.find(NormalizeReplica(replica)) !=
+        UnapprovedReplicas_.end();
 }
 
 void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
-    YASSERT(HasReplica(replica, false));
-    YCHECK(UnapprovedReplicas_.erase(replica) == 1);
+    YCHECK(UnapprovedReplicas_.erase(NormalizeReplica(replica)) == 1);
+}
+
+void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
+{
+    ChunkRemovalQueue_.insert(NormalizeReplica(replica));
+}
+
+void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
+{
+    ChunkRemovalQueue_.erase(NormalizeReplica(replica));
+}
+
+void TNode::ClearChunkRemovalQueue()
+{
+    ChunkRemovalQueue_.clear();
+}
+
+void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
+{
+    ChunkReplicationQueues_[priority].insert(NormalizeReplica(replica));
+}
+
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
+{
+    replica = NormalizeReplica(replica);
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.erase(replica);
+    }
+}
+
+void TNode::ClearChunkReplicationQueues()
+{
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.clear();
+    }
 }
 
 void TNode::ResetHints()
@@ -282,6 +350,21 @@ int TNode::GetTotalTabletSlots() const
     return
         Statistics_.used_tablet_slots() +
         Statistics_.available_tablet_slots();
+}
+
+TChunkPtrWithIndex TNode::NormalizeReplica(TChunkPtrWithIndex replica)
+{
+    auto* chunk = replica.GetPtr();
+    return chunk->IsJournal()
+        ? TChunkPtrWithIndex(chunk, UnsealedChunkIndex)
+        : replica;
+}
+
+TChunkIdWithIndex TNode::NormalizeReplica(const TChunkIdWithIndex& replica)
+{
+    return TypeFromId(replica.Id) == EObjectType::JournalChunk
+        ? TChunkIdWithIndex(replica.Id, UnsealedChunkIndex)
+        : replica;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

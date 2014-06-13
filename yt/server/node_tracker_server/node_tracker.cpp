@@ -459,14 +459,9 @@ private:
         // Reset runtime info.
         for (const auto& pair : NodeMap) {
             auto* node = pair.second;
-
             node->ResetHints();
-            
-            for (auto& queue : node->ChunkReplicationQueues()) {
-                queue.clear();
-            }
-
-            node->ChunkRemovalQueue().clear();
+            node->ClearChunkReplicationQueues();
+            node->ClearChunkRemovalQueue();
         }
     }
 
