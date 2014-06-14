@@ -79,8 +79,7 @@ ISessionPtr TSessionManager::GetSession(const TChunkId& chunkId)
 
 ISessionPtr TSessionManager::StartSession(
     const TChunkId& chunkId,
-    EWriteSessionType type,
-    bool syncOnClose)
+    const TSessionOptions& options)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -89,10 +88,7 @@ ISessionPtr TSessionManager::StartSession(
             Config_->MaxWriteSessions);
     }
     
-    auto session = CreateSession(
-        chunkId,
-        type,
-        syncOnClose);
+    auto session = CreateSession(chunkId, options);
 
     session->SubscribeFinished(
         BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), session.Get())
@@ -105,8 +101,7 @@ ISessionPtr TSessionManager::StartSession(
 
 ISessionPtr TSessionManager::CreateSession(
     const TChunkId& chunkId,
-    EWriteSessionType type,
-    bool syncOnClose)
+    const TSessionOptions& options)
 {
     auto chunkStore = Bootstrap_->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation();
@@ -117,12 +112,11 @@ ISessionPtr TSessionManager::CreateSession(
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            session = New<TBlobSessionBase>(
+            session = New<TBlobSession>(
                 Config_,
                 Bootstrap_,
                 chunkId,
-                type,
-                syncOnClose,
+                options,
                 location);
             break;
 
@@ -131,8 +125,7 @@ ISessionPtr TSessionManager::CreateSession(
                 Config_,
                 Bootstrap_,
                 chunkId,
-                type,
-                syncOnClose,
+                options,
                 location);
             break;
     

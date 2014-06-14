@@ -479,6 +479,7 @@ private:
                     auto req = node->LightProxy.StartChunk();
                     ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
                     req->set_session_type(EWriteSessionType::User);
+                    req->set_optimize_for_latency(true);
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
                             .AsyncVia(GetCurrentInvoker()));

@@ -21,6 +21,7 @@ using NNodeTrackerClient::TNodeId;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkDescriptor;
+struct TSessionOptions;
 
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
@@ -43,7 +44,7 @@ DECLARE_REFCOUNTED_CLASS(TJournalChunk)
 DECLARE_REFCOUNTED_CLASS(TRefCountedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
-DECLARE_REFCOUNTED_CLASS(TBlobSessionBase)
+DECLARE_REFCOUNTED_CLASS(TBlobSession)
 DECLARE_REFCOUNTED_CLASS(TSessionManager)
 
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTable)

@@ -33,14 +33,19 @@ public:
      *  This call is thread-safe but may block if the changelog is not cached.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
+    NHydra::IChangelogPtr OpenChangelog(
+        TLocationPtr location,
+        const TChunkId& chunkId,
+        bool enableMultiplexing);
 
     //! Creates a new changelog corresponding to a given journal chunk.
     /*!
      *  This call is thread-safe and cannot block. The actual creation happens in background.
      *  This method throws on failure.
      */
-    NHydra::IChangelogPtr CreateChangelog(IChunkPtr chunk);
+    NHydra::IChangelogPtr CreateChangelog(
+        IChunkPtr chunk,
+        bool enableMultiplexing);
 
     //! Asynchronously removes files of a given journal chunk.
     TAsyncError RemoveChangelog(IChunkPtr chunk);

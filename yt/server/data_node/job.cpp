@@ -491,23 +491,24 @@ private:
             writers.push_back(writer);
         }
 
-        auto onProgress =
-            BIND(&TChunkRepairJob::SetProgress, MakeWeak(this))
+        {
+            auto onProgress = BIND(&TChunkRepairJob::SetProgress, MakeWeak(this))
                 .Via(GetCurrentInvoker());
 
-        auto asyncRepairError = RepairErasedParts(
-            codec,
-            erasedIndexes,
-            readers,
-            writers,
-            onProgress);
+            auto asyncError = RepairErasedParts(
+                codec,
+                erasedIndexes,
+                readers,
+                writers,
+                onProgress);
 
-        // Make sure the repair is canceled when the current fiber terminates.
-        TFutureCancelationGuard<TError> repairErrorGuard(asyncRepairError);
+            // Make sure the repair is canceled when the current fiber terminates.
+            TFutureCancelationGuard<TError> repairErrorGuard(asyncError);
 
-        auto repairError = WaitFor(asyncRepairError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %s",
-            ~ToString(ChunkId_));
+            auto repairError = WaitFor(asyncError);
+            THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %s",
+                ~ToString(ChunkId_));
+        }
     }
 
 };
@@ -547,7 +548,7 @@ private:
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
         auto location = Chunk_->GetLocation();
-        auto changelog = journalDispatcher->OpenChangelog(location, ChunkId_);
+        auto changelog = journalDispatcher->OpenChangelog(location, ChunkId_, false);
 
         if (changelog->IsSealed()) {
             LOG_INFO("Chunk %s is already sealed",
@@ -557,15 +558,23 @@ private:
 
         journalChunk->AttachChangelog(changelog);
         try {
+            int currentRecordCount = changelog->GetRecordCount();
             int sealRecordCount = SealJobSpecExt_.record_count();
-            if (changelog->GetRecordCount() < sealRecordCount) {
+            if (currentRecordCount < sealRecordCount) {
+                LOG_INFO("Started downloading missing journal chunk records (Records: %d-%d)",
+                    currentRecordCount,
+                    sealRecordCount - 1);
+
                 THROW_ERROR_EXCEPTION("Record download is not implemented");
+
+                LOG_INFO("Finished downloading missing journal chunk records");
             }
 
-            LOG_INFO("Started sealing journal chunk");
+            LOG_INFO("Started sealing journal chunk (RecordCount: %d)",
+                sealRecordCount);
             {
-                auto result = WaitFor(changelog->Seal(sealRecordCount));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                auto error = WaitFor(changelog->Seal(sealRecordCount));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
             LOG_INFO("Finished sealing journal chunk");
         } catch (...) {

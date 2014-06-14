@@ -21,15 +21,13 @@ TJournalSession::TJournalSession(
     TDataNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap,
     const TChunkId& chunkId,
-    EWriteSessionType type,
-    bool syncOnClose,
+    const TSessionOptions& options,
     TLocationPtr location)
     : TSessionBase(
         config,
         bootstrap,
         chunkId,
-        type,
-        syncOnClose,
+        options,
         location)
     , LastAppendResult_(OKFuture)
 { }
@@ -67,7 +65,7 @@ void TJournalSession::DoCreateChangelog()
         TChunkInfo());
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    Changelog_ = dispatcher->CreateChangelog(Chunk_);
+    Changelog_ = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
 
     Chunk_->AttachChangelog(Changelog_);
 }

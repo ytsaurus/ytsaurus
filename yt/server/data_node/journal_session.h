@@ -20,8 +20,7 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose,
+        const TSessionOptions& options,
         TLocationPtr location);
 
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;

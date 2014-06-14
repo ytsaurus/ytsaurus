@@ -29,14 +29,12 @@ TSessionBase::TSessionBase(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
-    NChunkClient::EWriteSessionType type,
-    bool syncOnClose,
+    const TSessionOptions& options,
     TLocationPtr location)
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkId_(chunkId)
-    , Type_(type)
-    , SyncOnClose_(syncOnClose)
+    , Options_(options)
     , Location_(location)
     , WriteInvoker_(CreateSerializedInvoker(Location_->GetWriteInvoker()))
     , Logger(DataNodeLogger)
@@ -64,7 +62,7 @@ const TChunkId& TSessionBase::GetChunkId() const
 
 EWriteSessionType TSessionBase::GetType() const
 {
-    return Type_;
+    return Options_.SessionType;
 }
 
 TLocationPtr TSessionBase::GetLocation() const
@@ -78,8 +76,7 @@ void TSessionBase::Start(TLeaseManager::TLease lease)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Session started (SessionType: %s)",
-        ~ToString(Type_));
+    LOG_DEBUG("Session started");
 
     Lease_ = lease;
 

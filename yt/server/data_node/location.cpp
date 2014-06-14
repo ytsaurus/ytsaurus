@@ -418,7 +418,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
     }
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto changelog = dispatcher->OpenChangelog(this, chunkId);
+    auto changelog = dispatcher->OpenChangelog(this, chunkId, false);
 
     TChunkDescriptor descriptor;
     descriptor.Id = chunkId;

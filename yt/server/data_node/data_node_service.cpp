@@ -149,19 +149,23 @@ private:
         UNUSED(response);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto sessionType = EWriteSessionType(request->session_type());
-        bool syncOnClose = request->sync_on_close();
 
-        context->SetRequestInfo("ChunkId: %s, SessionType: %s, SyncOnClose: %s",
+        TSessionOptions options;
+        options.SessionType = EWriteSessionType(request->session_type());
+        options.SyncOnClose = request->sync_on_close();
+        options.OptimizeForLatency = request->sync_on_close();
+
+        context->SetRequestInfo("ChunkId: %s, SessionType: %s, SyncOnClose: %s, OptimizeForLatency: %s",
             ~ToString(chunkId),
-            ~ToString(sessionType),
-            ~FormatBool(syncOnClose));
+            ~ToString(options.SessionType),
+            ~FormatBool(options.SyncOnClose),
+            ~FormatBool(options.OptimizeForLatency));
 
         ValidateNoSession(chunkId);
         ValidateNoChunk(chunkId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
-        sessionManager->StartSession(chunkId, sessionType, syncOnClose);
+        sessionManager->StartSession(chunkId, options);
 
         context->Reply();
     }

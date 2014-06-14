@@ -99,9 +99,14 @@ public:
         return Config_->MultiplexedChangelog != nullptr;
     }
 
-    IChangelogPtr OpenChangelog(TLocationPtr location, const TChunkId& chunkId);
+    IChangelogPtr OpenChangelog(
+        TLocationPtr location,
+        const TChunkId& chunkId,
+        bool enableMultiplexing);
 
-    IChangelogPtr CreateChangelog(IChunkPtr chunk);
+    IChangelogPtr CreateChangelog(
+        IChunkPtr chunk,
+        bool enableMultiplexing);
 
     TAsyncError RemoveChangelog(IChunkPtr chunk)
     {
@@ -315,11 +320,12 @@ public:
     TCachedChangelog(
         TImplPtr owner,
         const TChunkId& chunkId,
-        IChangelogPtr underlyingChangelog)
+        IChangelogPtr underlyingChangelog,
+        bool enableMultiplexing)
         : TCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
         , Owner_(owner)
         , UnderlyingChangelog_(underlyingChangelog)
-        , LastAppendResult_(OKFuture)
+        , EnableMultiplexing_(enableMultiplexing)
     { }
 
     virtual TSharedRef GetMeta() const override
@@ -344,18 +350,22 @@ public:
 
     virtual TAsyncError Append(const TSharedRef& data) override
     {
-        int recordId = UnderlyingChangelog_->GetRecordCount();
-        LastAppendResult_ = UnderlyingChangelog_->Append(data);
+        if (EnableMultiplexing_) {
+            int recordId = UnderlyingChangelog_->GetRecordCount();
+            LastAppendResult_ = UnderlyingChangelog_->Append(data);
 
-        // Construct the multiplexed data record.
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Append;
-        record.Header.ChunkId = GetKey();
-        record.Header.RecordId = recordId;
-        record.Data = data;
+            // Construct the multiplexed data record.
+            TMultiplexedRecord record;
+            record.Header.Type = EMultiplexedRecordType::Append;
+            record.Header.ChunkId = GetKey();
+            record.Header.RecordId = recordId;
+            record.Data = data;
 
-        // Put the multiplexed record into the multiplexed changelog.
-        return Owner_->AppendMultiplexedRecord(record, this);
+            // Put the multiplexed record into the multiplexed changelog.
+            return Owner_->AppendMultiplexedRecord(record, this);
+        } else {
+            return UnderlyingChangelog_->Append(data);
+        }
     }
 
     virtual TAsyncError Flush() override
@@ -388,12 +398,16 @@ public:
 
     TAsyncError GetLastAppendResult()
     {
+        YASSERT(EnableMultiplexing_);
+        YASSERT(LastAppendResult_);
         return LastAppendResult_;
     }
 
 private:
     TImplPtr Owner_;
     IChangelogPtr UnderlyingChangelog_;
+    bool EnableMultiplexing_;
+
     TAsyncError LastAppendResult_;
 
 };
@@ -632,7 +646,10 @@ void TJournalDispatcher::TImpl::Initialize()
     LOG_INFO("Journal dispatcher started");
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, const TChunkId& chunkId)
+IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
+    TLocationPtr location,
+    const TChunkId& chunkId,
+    bool enableMultiplexing)
 {
     auto& Profiler = location->Profiler();
 
@@ -651,7 +668,8 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, co
                 auto cachedChangelog = New<TCachedChangelog>(
                     this,
                     chunkId,
-                    changelog);
+                    changelog,
+                    enableMultiplexing);
                 cookie.EndInsert(cachedChangelog);
             } catch (const std::exception& ex) {
                 auto error = TError(
@@ -675,7 +693,9 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(TLocationPtr location, co
     return resultOrError.Value();
 }
 
-IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(IChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
+    IChunkPtr chunk,
+    bool enableMultiplexing)
 {
     if (!AcceptsChunks()) {
         THROW_ERROR_EXCEPTION("No new journal chunks are accepted");
@@ -694,7 +714,8 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(IChunkPtr chunk)
         auto cachedChangelog = New<TCachedChangelog>(
             this,
             chunkId,
-            lazyChangelog);
+            lazyChangelog,
+            enableMultiplexing);
         cookie.EndInsert(cachedChangelog);
     }
 
@@ -704,7 +725,7 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(IChunkPtr chunk)
     record.Header.Type = EMultiplexedRecordType::Create;
     record.Header.ChunkId = chunkId;
     record.Header.RecordId = -1;
-    AppendMultiplexedRecord(record, cachedChangelog);
+    AppendMultiplexedRecord(record, nullptr);
 
     return cachedChangelog;
 }
@@ -795,14 +816,19 @@ bool TJournalDispatcher::AcceptsChunks() const
     return Impl_->AcceptsChunks();
 }
 
-IChangelogPtr TJournalDispatcher::OpenChangelog(TLocationPtr location, const TChunkId& chunkId)
+IChangelogPtr TJournalDispatcher::OpenChangelog(
+    TLocationPtr location,
+    const TChunkId& chunkId,
+    bool enableMultiplexing)
 {
-    return Impl_->OpenChangelog(location, chunkId);
+    return Impl_->OpenChangelog(location, chunkId, enableMultiplexing);
 }
 
-IChangelogPtr TJournalDispatcher::CreateChangelog(IChunkPtr chunk)
+IChangelogPtr TJournalDispatcher::CreateChangelog(
+    IChunkPtr chunk,
+    bool enableMultiplexing)
 {
-    return Impl_->CreateChangelog(chunk);
+    return Impl_->CreateChangelog(chunk, enableMultiplexing);
 }
 
 TAsyncError TJournalDispatcher::RemoveChangelog(IChunkPtr chunk)

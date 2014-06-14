@@ -19,16 +19,15 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlobSessionBase
+class TBlobSession
     : public TSessionBase
 {
 public:
-    TBlobSessionBase(
+    TBlobSession(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose,
+        const TSessionOptions& options,
         TLocationPtr location);
 
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
@@ -108,7 +107,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlobSessionBase)
+DEFINE_REFCOUNTED_TYPE(TBlobSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 

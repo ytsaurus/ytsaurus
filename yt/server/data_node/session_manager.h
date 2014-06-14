@@ -27,12 +27,9 @@ public:
 
     //! Starts a new chunk upload session.
     /*!
-     *  Chunk file is opened asynchronously, however the call returns immediately.
+     *  Chunk files are opened asynchronously, however the call returns immediately.
      */
-    ISessionPtr StartSession(
-        const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose);
+    ISessionPtr StartSession(const TChunkId& chunkId, const TSessionOptions& options);
 
     //! Finds session by chunk id. Returns |nullptr| if no session is found.
     ISessionPtr FindSession(const TChunkId& chunkId);
@@ -67,10 +64,7 @@ private:
     std::atomic<i64> PendingWriteSize_;
 
 
-    ISessionPtr CreateSession(
-        const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose);
+    ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);
 
     void OnSessionLeaseExpired(ISessionPtr session);
     void OnSessionFinished(ISession* session, const TError& error);

@@ -16,6 +16,15 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSessionOptions
+{
+    EWriteSessionType SessionType;
+    bool SyncOnClose = false;
+    bool OptimizeForLatency = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISession
     : public virtual TRefCounted
 {

@@ -24,8 +24,7 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
-        EWriteSessionType type,
-        bool syncOnClose,
+        const TSessionOptions& options,
         TLocationPtr location);
 
     ~TSessionBase();
@@ -61,8 +60,7 @@ protected:
     TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
     TChunkId ChunkId_;
-    EWriteSessionType Type_;
-    bool SyncOnClose_;
+    TSessionOptions Options_;
     TLocationPtr Location_;
 
     IInvokerPtr WriteInvoker_;
