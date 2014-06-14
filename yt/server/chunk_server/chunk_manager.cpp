@@ -928,19 +928,19 @@ private:
                 continue;
             }
 
-            bool hasChanged = false;
+            bool changed = false;
             if (update.has_replication_factor() && chunk->GetReplicationFactor() != update.replication_factor()) {
                 YCHECK(!chunk->IsErasure());
-                hasChanged = true;
+                changed = true;
                 chunk->SetReplicationFactor(update.replication_factor());
             }
 
             if (update.has_vital() && chunk->GetVital() != update.vital()) {
-                hasChanged = true;
+                changed = true;
                 chunk->SetVital(update.vital());
             }
 
-            if (ChunkReplicator_ && hasChanged) {
+            if (ChunkReplicator_ && changed) {
                 ChunkReplicator_->ScheduleChunkRefresh(chunk);
             }
         }
