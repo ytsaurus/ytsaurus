@@ -378,14 +378,12 @@ public:
 
     virtual TAsyncError Seal(int recordCount) override
     {
-        // TODO(babenko): fixme
-        YUNIMPLEMENTED();
+        return UnderlyingChangelog_->Seal(recordCount);
     }
 
     virtual void Unseal() override
     {
-        // TODO(babenko): fixme
-        YUNIMPLEMENTED();
+        UnderlyingChangelog_->Unseal();
     }
 
     TAsyncError GetLastAppendResult()
@@ -442,7 +440,7 @@ public:
 
         for (auto& pair : SplitMap_) {
             auto& entry = pair.second;
-            entry.Chunk->ResetChangelog();
+            entry.Chunk->DetachChangelog();
         }
 
         return maxId == std::numeric_limits<int>::min() ? 0 : maxId + 1;
@@ -601,7 +599,7 @@ private:
             auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
                 fileName,
                 Owner_->Config_->SplitChangelog);
-            journalChunk->SetChangelog(changelog);
+            journalChunk->AttachChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
                 TSplitEntry(journalChunk, changelog))).first;

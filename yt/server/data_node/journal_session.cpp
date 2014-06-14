@@ -69,7 +69,7 @@ void TJournalSession::DoCreateChangelog()
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     Changelog_ = dispatcher->CreateChangelog(Chunk_);
 
-    Chunk_->SetChangelog(Changelog_);
+    Chunk_->AttachChangelog(Changelog_);
 }
 
 void TJournalSession::OnChangelogCreated()
@@ -82,7 +82,7 @@ void TJournalSession::DoCancel()
 {
     UpdateChunkInfo();
 
-    Chunk_->ResetChangelog();
+    Chunk_->DetachChangelog();
     
     Finished_.Fire(TError());
 

@@ -51,6 +51,11 @@ TJournalChunk::TJournalChunk(
     Meta_->set_version(0);
 }
 
+bool TJournalChunk::IsActive() const
+{
+    return (Changelog_ != nullptr);
+}
+
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
@@ -180,13 +185,15 @@ TFuture<void> TJournalChunk::RemoveFiles()
         }));
 }
 
-void TJournalChunk::SetChangelog(IChangelogPtr changelog)
+void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
 {
+    YCHECK(!Changelog_);
     Changelog_ = changelog;
+
     UpdateInfo();
 }
 
-void TJournalChunk::ResetChangelog()
+void TJournalChunk::DetachChangelog()
 {
     UpdateInfo();
     Changelog_.Reset();

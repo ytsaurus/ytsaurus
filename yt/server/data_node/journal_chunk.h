@@ -20,6 +20,8 @@ public:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
+    virtual bool IsActive() const override;
+
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
@@ -30,8 +32,8 @@ public:
         i64 priority,
         std::vector<TSharedRef>* blocks) override;
 
-    void SetChangelog(NHydra::IChangelogPtr changelog);
-    void ResetChangelog();
+    void AttachChangelog(NHydra::IChangelogPtr changelog);
+    void DetachChangelog();
 
 private:
     NHydra::IChangelogPtr Changelog_;

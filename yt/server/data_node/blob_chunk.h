@@ -15,6 +15,8 @@ class TBlobChunkBase
     : public TChunkBase
 {
 public:
+    virtual bool IsActive() const override;
+
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;

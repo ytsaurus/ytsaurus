@@ -6,7 +6,7 @@
 #include "location.h"
 #include "config.h"
 #include "journal_chunk.h"
-#include "session_manager.h"
+#include "journal_dispatcher.h"
 #include "private.h"
 
 #include <core/misc/protobuf_helpers.h>
@@ -34,6 +34,8 @@
 #include <ytlib/chunk_client/replication_reader.h>
 
 #include <ytlib/api/client.h>
+
+#include <server/hydra/changelog.h>
 
 #include <server/job_agent/job.h>
 
@@ -195,7 +197,7 @@ protected:
         const auto& chunkSpecExt = JobSpec_.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
         ChunkId_ = FromProto<TChunkId>(chunkSpecExt.chunk_id());
 
-        Logger.AddTag(Sprintf("ChunkId_: %s", ~ToString(ChunkId_)));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
     }
 
     virtual void DoRun() = 0;
@@ -538,13 +540,42 @@ private:
     {
         auto journalChunk = Chunk_->AsJournalChunk();
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        if (sessionManager->FindSession(ChunkId_)) {
-            THROW_ERROR_EXCEPTION("Cannot seal a still active chunk %s",
+        if (journalChunk->IsActive()) {
+            THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %s",
                 ~ToString(ChunkId_));
         }
 
-        THROW_ERROR_EXCEPTION("Not implemented");
+        auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
+        auto location = Chunk_->GetLocation();
+        auto changelog = journalDispatcher->OpenChangelog(location, ChunkId_);
+
+        if (changelog->IsSealed()) {
+            LOG_INFO("Chunk %s is already sealed",
+                ~ToString(ChunkId_));
+            return;
+        }
+
+        journalChunk->AttachChangelog(changelog);
+        try {
+            int sealRecordCount = SealJobSpecExt_.record_count();
+            if (changelog->GetRecordCount() < sealRecordCount) {
+                THROW_ERROR_EXCEPTION("Record download is not implemented");
+            }
+
+            LOG_INFO("Started sealing journal chunk");
+            {
+                auto result = WaitFor(changelog->Seal(sealRecordCount));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            LOG_INFO("Finished sealing journal chunk");
+        } catch (...) {
+            journalChunk->DetachChangelog();
+            throw;
+        }
+        journalChunk->DetachChangelog();
+
+        auto chunkStore = Bootstrap_->GetChunkStore();
+        chunkStore->UpdateExistingChunk(Chunk_);
     }
 
 };
