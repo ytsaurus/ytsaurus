@@ -6,6 +6,7 @@
 #include "location.h"
 #include "config.h"
 #include "journal_chunk.h"
+#include "session_manager.h"
 #include "private.h"
 
 #include <core/misc/protobuf_helpers.h>
@@ -537,10 +538,11 @@ private:
     {
         auto journalChunk = Chunk_->AsJournalChunk();
 
-        //auto sessionManager = Bootstrap_->GetSessionManager();
-        //if (sessionManager->FindSession(ChunkId_)) {
-        //    THROW_ERROR_EXCEPTION("Write session is currently in progress");
-        //}
+        auto sessionManager = Bootstrap_->GetSessionManager();
+        if (sessionManager->FindSession(ChunkId_)) {
+            THROW_ERROR_EXCEPTION("Cannot seal a still active chunk %s",
+                ~ToString(ChunkId_));
+        }
 
         THROW_ERROR_EXCEPTION("Not implemented");
     }

@@ -156,12 +156,12 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
         if (IsJournal()) {
-            TNodePtrWithIndex antireplica(
-                replica.GetPtr(),
-                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
-            StoredReplicas_.erase(
-                std::remove(StoredReplicas_.begin(), StoredReplicas_.end(), antireplica),
-                StoredReplicas_.end());
+            for (auto& existingReplica : StoredReplicas_) {
+                if (existingReplica.GetPtr() == replica.GetPtr()) {
+                    existingReplica = replica;
+                    return;
+                }
+            }
         }
         StoredReplicas_.push_back(replica);
     }
@@ -199,7 +199,8 @@ bool TChunk::IsConfirmed() const
 void TChunk::ValidateConfirmed()
 {
     if (!IsConfirmed()) {
-        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(Id));
+        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed",
+            ~ToString(Id));
     }
 }
 

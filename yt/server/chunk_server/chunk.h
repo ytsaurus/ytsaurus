@@ -127,7 +127,7 @@ public:
     //! Returns the number of records in a sealed chunk.
     int GetSealedRecordCount() const;
 
-    //! Marks the chunk as sealed, i.e. its ultimate record count.
+    //! Marks the chunk as sealed, i.e. sets its ultimate record count.
     void Seal(int recordCount);
 
     TChunkProperties GetChunkProperties() const;

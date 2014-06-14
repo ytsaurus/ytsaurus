@@ -462,7 +462,7 @@ public:
 
             auto nodeWithIndex = TNodePtrWithIndex(node, replica.GetIndex());
             auto chunkWithIndex = chunk->IsJournal()
-                ? TChunkPtrWithIndex(chunk, UnsealedChunkIndex)
+                ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
@@ -1166,7 +1166,9 @@ private:
         auto nodeId = node->GetId();
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
-        node->AddReplica(chunkWithIndex, cached);
+        if (!node->AddReplica(chunkWithIndex, cached))
+            return;
+
         chunk->AddReplica(nodeWithIndex, cached);
 
         if (!IsRecovery()) {
@@ -1285,9 +1287,20 @@ private:
             return;
         }
 
-        auto chunkWithIndex = chunk->IsJournal()
-            ? TChunkPtrWithIndex(chunk, chunkAddInfo.chunk_info().sealed() ? SealedChunkIndex : UnsealedChunkIndex)
-            : TChunkPtrWithIndex(chunk, chunkIdWithIndex.Index);
+        int replicaIndex;
+        if (chunk->IsJournal()) {
+            if (chunkAddInfo.active()) {
+                replicaIndex = EJournalReplicaType::Active;
+            } else if (chunkAddInfo.chunk_info().sealed()) {
+                replicaIndex = EJournalReplicaType::Sealed;
+            } else {
+                replicaIndex = EJournalReplicaType::Unsealed;
+            }
+        } else {
+            replicaIndex = chunkIdWithIndex.Index;
+        }
+
+        auto chunkWithIndex = TChunkPtrWithIndex(chunk, replicaIndex);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %d, Address: %s, ChunkId: %s)",

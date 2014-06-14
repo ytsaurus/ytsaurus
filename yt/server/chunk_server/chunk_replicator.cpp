@@ -938,7 +938,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
         if (statistics.Status & EChunkStatus::Sealed) {
             for (auto replica : chunk->StoredReplicas()) {
-                if (replica.GetIndex() == UnsealedChunkIndex) {
+                if (replica.GetIndex() == EJournalReplicaType::Unsealed) {
                     replica.GetPtr()->AddToChunkSealQueue(chunk);
                 }
             }
@@ -1003,12 +1003,20 @@ bool TChunkReplicator::HasRunningJobs(TChunkPtrWithIndex replica)
     if (!jobList) {
         return false;
     }
-
-    for (const auto& job : jobList->Jobs()) {
-        if (job->GetChunkIdWithIndex().Index == replica.GetIndex()) {
+    
+    auto* chunk = replica.GetPtr();
+    if (chunk->IsJournal()) {
+        if (!jobList->Jobs().empty()) {
             return true;
         }
+    } else {
+        for (const auto& job : jobList->Jobs()) {
+            if (job->GetChunkIdWithIndex().Index == replica.GetIndex()) {
+                return true;
+            }
+        }
     }
+
     return false;
 }
 

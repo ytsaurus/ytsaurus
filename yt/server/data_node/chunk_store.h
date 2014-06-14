@@ -37,6 +37,15 @@ public:
     //! Registers a chunk found during startup.
     void RegisterExistingChunk(IChunkPtr chunk);
 
+    //! Triggers another round of master notification for a chunk that is already registered.
+    /*!
+     *  Used for journal chunks that initially get registered (with "active" replica type)
+     *  when a session starts and subsequently get re-registered (with "unsealed" replica type)
+     *  with the session finishes. Finally, when such a chunk is sealed it gets re-registered again
+     *  (with "sealed" replica type).
+     */
+    void UpdateExistingChunk(IChunkPtr chunk);
+
     //! Unregisters the chunk but does not remove any of its files.
     void UnregisterChunk(IChunkPtr chunk);
 

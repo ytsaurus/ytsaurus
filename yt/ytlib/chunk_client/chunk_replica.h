@@ -60,11 +60,13 @@ struct TChunkIdWithIndex
 //! refers to the whole chunk, not to any of its replicas.
 const int GenericChunkIndex = 255;
 
-//! Indicates a non-sealed journal chunk.
-const int UnsealedChunkIndex = 0;
-
-//! Indicates a sealed journal chunk.
-const int SealedChunkIndex = 1;
+//! Stored in the index part of replicas, describes th  
+DECLARE_ENUM(EJournalReplicaType,
+    (Generic)   // used internally by Chunk Manager
+    (Active)    // the replica is currently being written
+    (Unsealed)  // the replica is finished but not sealed
+    (Sealed)    // the replica is finished and is sealed
+);
 
 ///////////////////////////////////////////////////////////////////////////////
 

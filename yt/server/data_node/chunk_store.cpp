@@ -114,6 +114,12 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     DoRegisterChunk(chunk);
 }
 
+
+void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
+{
+    DoRegisterChunk(chunk);
+}
+
 void TChunkStore::UnregisterChunk(IChunkPtr chunk)
 {
     auto location = chunk->GetLocation();
@@ -132,9 +138,23 @@ void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
     location->UpdateChunkCount(+1);
     location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
 
-    LOG_DEBUG("Chunk registered (ChunkId: %s, DiskSpace: %" PRId64 ")",
-        ~ToString(chunk->GetId()),
-        chunk->GetInfo().disk_space());
+    switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            LOG_DEBUG("Blob chunk registered (ChunkId: %s, DiskSpace: %" PRId64 ")",
+                ~ToString(chunk->GetId()),
+                chunk->GetInfo().disk_space());
+            break;
+
+        case EObjectType::JournalChunk:
+            LOG_DEBUG("Journal chunk registered (ChunkId: %s, Sealed: %s)",
+                ~ToString(chunk->GetId()),
+                ~FormatBool(chunk->GetInfo().sealed()));
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
 
     ChunkAdded_.Fire(chunk);
 }
@@ -247,7 +267,6 @@ IChunkPtr TChunkStore::CreateChunkFromDescriptor(
             YUNREACHABLE();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -122,20 +122,19 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletCellCreateQueue_);
 }
 
-void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
+bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
-        CachedReplicas_.insert(replica);
+        return CachedReplicas_.insert(replica).second;
     } else {
         if (chunk->IsJournal()) {
-            TChunkPtrWithIndex antireplica(
-                chunk,
-                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
-            StoredReplicas_.erase(antireplica);
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
         }
-        StoredReplicas_.insert(replica);
+        return StoredReplicas_.insert(replica).second;
     }
 }
 
@@ -146,15 +145,15 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         YASSERT(!chunk->IsJournal());
         CachedReplicas_.erase(replica);
     } else {
-        StoredReplicas_.erase(replica);
         if (chunk->IsJournal()) {
-            TChunkPtrWithIndex antireplica(
-                chunk,
-                SealedChunkIndex + UnsealedChunkIndex - replica.GetIndex());
-            StoredReplicas_.erase(antireplica);
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
+        } else {
+            StoredReplicas_.erase(replica);
         }
 
-        auto normalizedReplica = NormalizeReplica(replica);
+        auto normalizedReplica = ToGeneric(replica);
         UnapprovedReplicas_.erase(normalizedReplica);
 
         ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), normalizedReplica.GetIndex()));
@@ -174,8 +173,9 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
     } else {
         if (chunk->IsJournal()) {
             return
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, UnsealedChunkIndex)) != StoredReplicas_.end() ||
-                StoredReplicas_.find(TChunkPtrWithIndex(chunk, SealedChunkIndex)) != StoredReplicas_.end();
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)) != StoredReplicas_.end() ||
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed)) != StoredReplicas_.end() ||
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed)) != StoredReplicas_.end();
         } else {
             return StoredReplicas_.find(replica) != StoredReplicas_.end();
         }
@@ -185,30 +185,30 @@ bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
 {
     YCHECK(UnapprovedReplicas_.insert(std::make_pair(
-        NormalizeReplica(replica),
+        ToGeneric(replica),
         timestamp)).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
     return
-        UnapprovedReplicas_.find(NormalizeReplica(replica)) !=
+        UnapprovedReplicas_.find(ToGeneric(replica)) !=
         UnapprovedReplicas_.end();
 }
 
 void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
-    YCHECK(UnapprovedReplicas_.erase(NormalizeReplica(replica)) == 1);
+    YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
-    ChunkRemovalQueue_.insert(NormalizeReplica(replica));
+    ChunkRemovalQueue_.insert(ToGeneric(replica));
 }
 
 void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
-    ChunkRemovalQueue_.erase(NormalizeReplica(replica));
+    ChunkRemovalQueue_.erase(ToGeneric(replica));
 }
 
 void TNode::ClearChunkRemovalQueue()
@@ -218,12 +218,12 @@ void TNode::ClearChunkRemovalQueue()
 
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 {
-    ChunkReplicationQueues_[priority].insert(NormalizeReplica(replica));
+    ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
 }
 
 void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
 {
-    replica = NormalizeReplica(replica);
+    replica = ToGeneric(replica);
     for (auto& queue : ChunkReplicationQueues_) {
         queue.erase(replica);
     }
@@ -367,18 +367,18 @@ int TNode::GetTotalTabletSlots() const
         Statistics_.available_tablet_slots();
 }
 
-TChunkPtrWithIndex TNode::NormalizeReplica(TChunkPtrWithIndex replica)
+TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndex replica)
 {
     auto* chunk = replica.GetPtr();
     return chunk->IsJournal()
-        ? TChunkPtrWithIndex(chunk, UnsealedChunkIndex)
+        ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Generic)
         : replica;
 }
 
-TChunkIdWithIndex TNode::NormalizeReplica(const TChunkIdWithIndex& replica)
+TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndex& replica)
 {
     return TypeFromId(replica.Id) == EObjectType::JournalChunk
-        ? TChunkIdWithIndex(replica.Id, UnsealedChunkIndex)
+        ? TChunkIdWithIndex(replica.Id, EJournalReplicaType::Generic)
         : replica;
 }
 

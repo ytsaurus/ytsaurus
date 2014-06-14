@@ -2,6 +2,8 @@
 #include "chunk_replica.h"
 #include "chunk.h"
 
+#include <core/misc/string.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -16,7 +18,9 @@ using namespace NChunkClient;
 
 Stroka ToString(TNodePtrWithIndex value)
 {
-    return Sprintf("%s/%d", ~value.GetPtr()->GetAddress(), value.GetIndex());
+    return Sprintf("%s/%d",
+        ~value.GetPtr()->GetAddress(),
+        value.GetIndex());
 }
 
 Stroka ToString(TChunkPtrWithIndex value)
@@ -30,7 +34,7 @@ Stroka ToString(TChunkPtrWithIndex value)
     } else if (chunk->IsJournal()) {
         return Sprintf("%s/%s",
             ~ToString(chunk->GetId()),
-            index == SealedChunkIndex ? "sealed" : "unsealed");
+            ~FormatEnum(EJournalReplicaType(index)));
     } else {
         return ToString(chunk->GetId());
     }

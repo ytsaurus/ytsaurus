@@ -120,7 +120,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // Chunk Manager stuff.
-    void AddReplica(TChunkPtrWithIndex replica, bool cached);
+    bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
 
@@ -171,8 +171,8 @@ private:
 
     void Init();
 
-    static TChunkPtrWithIndex NormalizeReplica(TChunkPtrWithIndex replica);
-    static NChunkClient::TChunkIdWithIndex NormalizeReplica(const NChunkClient::TChunkIdWithIndex& replica);
+    static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
+    static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
 
 };
 

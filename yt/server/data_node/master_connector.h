@@ -60,11 +60,11 @@ public:
 private:
     typedef yhash_set<IChunkPtr> TChunkSet;
 
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    bool Started;
-    IInvokerPtr ControlInvoker;
+    bool Started_;
+    IInvokerPtr ControlInvoker_;
 
     DECLARE_ENUM(EState,
         // Not registered.
@@ -78,33 +78,33 @@ private:
     );
 
     //! Guards the current heartbeat session.
-    TCancelableContextPtr HeartbeatContext;
+    TCancelableContextPtr HeartbeatContext_;
 
     //! Corresponds to #HeartbeatContext and #ControlInvoker.
-    IInvokerPtr HeartbeatInvoker;
+    IInvokerPtr HeartbeatInvoker_;
 
     //! The current connection state.
-    EState State;
+    EState State_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
-    TNodeId NodeId;
+    TNodeId NodeId_;
 
     //! Chunks that were added since the last successful heartbeat.
-    TChunkSet AddedSinceLastSuccess;
+    TChunkSet AddedSinceLastSuccess_;
 
     //! Store chunks that were removed since the last successful heartbeat.
-    TChunkSet RemovedSinceLastSuccess;
+    TChunkSet RemovedSinceLastSuccess_;
 
     //! Store chunks that were reported added at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedAdded;
+    TChunkSet ReportedAdded_;
 
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedRemoved;
+    TChunkSet ReportedRemoved_;
 
     //! Protects #Alerts.
-    TSpinLock AlertsLock;
+    TSpinLock AlertsSpinLock_;
     //! A list of registered alerts.
-    std::vector<Stroka> Alerts;
+    std::vector<Stroka> Alerts_;
 
     
     //! Schedules a new node heartbeat via TDelayedExecutor.
@@ -144,7 +144,7 @@ private:
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
-    static NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
+    NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
     static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);

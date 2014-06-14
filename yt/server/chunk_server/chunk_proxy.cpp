@@ -136,7 +136,7 @@ private:
         auto serializeJournalReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
             fluent.Item()
                 .BeginAttributes()
-                    .Item("sealed").Value(replica.GetIndex() == SealedChunkIndex)
+                    .Item("type").Value(EJournalReplicaType(replica.GetIndex()))
                 .EndAttributes()
                 .Value(replica.GetPtr()->GetAddress());
         };

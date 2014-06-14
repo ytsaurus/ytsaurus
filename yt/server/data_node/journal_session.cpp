@@ -81,8 +81,13 @@ void TJournalSession::OnChangelogCreated()
 void TJournalSession::DoCancel()
 {
     UpdateChunkInfo();
+
     Chunk_->ResetChangelog();
+    
     Finished_.Fire(TError());
+
+    auto chunkStore = Bootstrap_->GetChunkStore();
+    chunkStore->UpdateExistingChunk(Chunk_);
 }
 
 TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& /*chunkMeta*/)
