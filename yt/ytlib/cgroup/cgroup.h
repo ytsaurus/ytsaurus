@@ -12,8 +12,69 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCGroup
+class TMemory;
+
+class TEvent
     : private TNonCopyable
+{
+public:
+    TEvent();
+    ~TEvent();
+
+    TEvent(TEvent&& other);
+
+    bool Fired();
+
+    void Clear();
+    void Destroy();
+
+    TEvent& operator=(TEvent&& other);
+
+protected:
+    TEvent(int eventFd, int fd = -1);
+
+private:
+    void Swap(TEvent& other);
+
+    int EventFd_;
+    int Fd_;
+    bool Fired_;
+
+    friend TMemory;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Stroka> GetSupportedCGroups();
+
+void RemoveAllSubcgroups(const Stroka& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNonOwningCGroup
+    : private TNonCopyable
+{
+public:
+    explicit TNonOwningCGroup(const Stroka& fullPath);
+    TNonOwningCGroup(const Stroka& type, const Stroka& name);
+
+    void AddCurrentTask();
+
+    void Set(const Stroka& name, const Stroka& value) const;
+
+    std::vector<int> GetTasks() const;
+    const Stroka& GetFullPath() const;
+
+    void EnsureExistance();
+
+protected:
+    Stroka FullPath_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCGroup
+    : public TNonOwningCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
@@ -21,17 +82,12 @@ protected:
 public:
     ~TCGroup();
 
-    void AddCurrentProcess();
-
     void Create();
     void Destroy();
 
-    std::vector<int> GetTasks() const;
-    const Stroka& GetFullPath() const;
     bool IsCreated() const;
 
 private:
-    Stroka FullPath_;
     bool Created_;
 };
 
@@ -84,10 +140,17 @@ class TMemory
 public:
     struct TStatistics
     {
+        TStatistics();
+
+        i64 UsageInBytes;
     };
 
     explicit TMemory(const Stroka& name);
     TStatistics GetStatistics();
+
+    void SetLimitInBytes(i64 bytes) const;
+    void DisableOom() const;
+    TEvent GetOomEvent() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

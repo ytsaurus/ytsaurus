@@ -22,6 +22,12 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        'scheduler' : {
+            'enable_accounting': 'true'
+        }
+    }
+
     DELTA_NODE_CONFIG = \
         {'exec_agent' :
             {'slot_manager' :

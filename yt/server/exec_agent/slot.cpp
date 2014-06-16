@@ -2,6 +2,8 @@
 #include "slot.h"
 #include "private.h"
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/misc/proc.h>
 
 #include <core/ytree/yson_producer.h>
@@ -15,6 +17,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka GetSlotProcessGroup(int slotId)
+{
+    return "slot" + ToString(slotId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSlot::TSlot(const Stroka& path, int slotId, int userId)
     : IsFree_(true)
     , IsClean(true)
@@ -22,6 +31,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
     , SlotId(slotId)
     , UserId(userId)
     , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", slotId)))
+    , ProcessGroup("freezer", GetSlotProcessGroup(slotId))
     , Logger(ExecAgentLogger)
 {
     Logger.AddTag(Sprintf("SlotId: %d", SlotId));
@@ -29,25 +39,35 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
 
 void TSlot::Initialize()
 {
+    try {
+        ProcessGroup.EnsureExistance();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to create process group %s",
+            ~ProcessGroup.GetFullPath().Quote()) << ex;
+    }
+
 #ifdef _linux_
     try {
-        if (UserId > 0) {
-            // Kill all processes of this pseudo-user for sanity reasons.
-            KilallByUid(UserId);
-        }
+        KillAll(BIND(&NCGroup::TNonOwningCGroup::GetTasks, &ProcessGroup));
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
-        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d)", UserId);
+        LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
     }
 #endif
 
     try {
         NFS::ForcePath(Path, 0755);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
-        DoClean();
+        DoCleanSandbox();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
             ~Path.Quote()) << ex;
+    }
+
+    try {
+        DoCleanProcessGroups();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to clean slot cgroups") << ex;
     }
 }
 
@@ -66,7 +86,27 @@ int TSlot::GetUserId() const
     return UserId;
 }
 
-void TSlot::DoClean()
+const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
+{
+    return ProcessGroup;
+}
+
+std::vector<Stroka> TSlot::GetCGroupPaths() const
+{
+    std::vector<Stroka> result;
+
+    auto subgroupName = GetSlotProcessGroup(SlotId);
+
+    for (const auto& type : NCGroup::GetSupportedCGroups()) {
+        NCGroup::TNonOwningCGroup group(type, subgroupName);
+        result.push_back(group.GetFullPath());
+    }
+    result.push_back(ProcessGroup.GetFullPath());
+
+    return result;
+}
+
+void TSlot::DoCleanSandbox()
 {
     try {
         if (isexist(~SandboxPath)) {
@@ -85,10 +125,25 @@ void TSlot::DoClean()
     }
 }
 
+void TSlot::DoCleanProcessGroups()
+{
+    try {
+        for (const auto& path : GetCGroupPaths()) {
+            NCGroup::RemoveAllSubcgroups(path);
+        }
+    } catch (const std::exception& ex) {
+        auto wrappedError = TError("Failed to clean slot subcgroups for slot %d",
+            SlotId) << ex;
+        LOG_ERROR(wrappedError);
+        THROW_ERROR wrappedError;
+    }
+}
+
 void TSlot::Clean()
 {
     try {
-        DoClean();
+        DoCleanSandbox();
+        DoCleanProcessGroups();
     } catch (const std::exception& ex) {
         LOG_FATAL("%s", ex.what());
     }

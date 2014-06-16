@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/cgroup/public.h>
+
 #include <core/ytree/node.h>
 #include <core/misc/error.h>
 #include <core/actions/signal.h>
@@ -26,7 +28,7 @@ struct IProxyController
      *
      *  Must be called from the same thread as #Run.
      */
-    virtual void Kill(int uid, const TError& error) throw() = 0;
+    virtual void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) throw() = 0;
 
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;
@@ -48,6 +50,7 @@ struct IEnvironmentBuilder
     virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
+        const TSlot& slot,
         const Stroka& workingDirectory) = 0;
 };
 

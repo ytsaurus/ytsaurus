@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/formats/format.h>
@@ -26,6 +28,8 @@ public:
 
     bool IsFree() const;
     int GetUserId() const;
+    const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
+    std::vector<Stroka> GetCGroupPaths() const;
 
     void Acquire();
     void InitSandbox();
@@ -62,9 +66,12 @@ private:
 
     NConcurrency::TActionQueuePtr SlotThread;
 
+    NCGroup::TNonOwningCGroup ProcessGroup;
+
     NLog::TTaggedLogger Logger;
 
-    void DoClean();
+    void DoCleanSandbox();
+    void DoCleanProcessGroups();
 
 };
 

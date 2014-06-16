@@ -5,9 +5,15 @@
 #include <core/misc/fs.h>
 #include <core/misc/error.h>
 
-#include <util/folder/dirut.h>
 #include <util/system/fs.h>
 #include <util/string/split.h>
+#include <util/string/strip.h>
+#include <util/folder/path.h>
+
+#ifdef _linux_
+  #include <unistd.h>
+  #include <sys/eventfd.h>
+#endif
 
 namespace NYT {
 namespace NCGroup {
@@ -16,6 +22,7 @@ namespace NCGroup {
 
 static auto& Logger = CGroupLogger;
 static const char* CGroupRootPath = "/sys/fs/cgroup";
+static const int InvalidFd = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,8 +48,175 @@ yvector<Stroka> ReadAllValues(const Stroka& filename)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+TEvent::TEvent(int eventFd, int fd)
+    : EventFd_(eventFd)
+    , Fd_(fd)
+    , Fired_(false)
+{ }
+
+TEvent::TEvent()
+    : TEvent(InvalidFd, InvalidFd)
+{ }
+
+TEvent::TEvent(TEvent&& other)
+    : TEvent()
+{
+    Swap(other);
+}
+
+TEvent::~TEvent()
+{
+    Destroy();
+}
+
+TEvent& TEvent::operator=(TEvent&& other)
+{
+    if (this == &other) {
+        return *this;
+    }
+    Destroy();
+    Swap(other);
+    return *this;
+}
+
+bool TEvent::Fired()
+{
+    YCHECK(EventFd_ != InvalidFd);
+
+    if (Fired_) {
+        return true;
+    }
+
+    i64 value;
+    auto bytesRead = ::read(EventFd_, &value, sizeof(value));
+
+    if (bytesRead < 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            return false;
+        }
+        THROW_ERROR_EXCEPTION() << TError::FromSystem();
+    }
+    YCHECK(bytesRead == sizeof(value));
+    Fired_ = true;
+    return true;
+}
+
+void TEvent::Clear()
+{
+    Fired_ = false;
+}
+
+void TEvent::Destroy()
+{
+    Clear();
+    if (EventFd_ != InvalidFd) {
+        ::close(EventFd_);
+    }
+    EventFd_ = InvalidFd;
+
+    if (Fd_ != InvalidFd) {
+        ::close(Fd_);
+    }
+    Fd_ = InvalidFd;
+}
+
+void TEvent::Swap(TEvent& other)
+{
+    std::swap(EventFd_, other.EventFd_);
+    std::swap(Fd_, other.Fd_);
+    std::swap(Fired_, other.Fired_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Stroka> GetSupportedCGroups()
+{
+    std::vector<Stroka> result;
+    result.push_back("cpuacct");
+    result.push_back("blkio");
+    result.push_back("memory");
+    return result;
+}
+
+void RemoveAllSubscgroupsImpl(const TFsPath& path)
+{
+    if (path.Exists()) {
+        yvector<TFsPath> children;
+        path.List(children);
+        for (const auto& child : children) {
+            if (child.IsDirectory()) {
+                RemoveAllSubscgroupsImpl(child);
+                child.DeleteIfExists();
+            }
+        }
+    }
+}
+
+void RemoveAllSubcgroups(const Stroka& path)
+{
+    RemoveAllSubscgroupsImpl(TFsPath(path));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
+    : FullPath_(fullPath)
+{ }
+
+TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
+{ }
+
+void TNonOwningCGroup::AddCurrentTask()
+{
+#ifdef _linux_
+    auto pid = getpid();
+    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
+
+    auto path = NFS::CombinePaths(FullPath_, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
+#endif
+}
+
+void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
+{
+    auto path = NFS::CombinePaths(FullPath_, name);
+    TFileOutput output(TFile(path, OpenMode::WrOnly));
+    output << value;
+}
+
+std::vector<int> TNonOwningCGroup::GetTasks() const
+{
+    std::vector<int> results;
+#ifdef _linux_
+    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
+    for (const auto& value : values) {
+        int pid = FromString<int>(value);
+        results.push_back(pid);
+    }
+#endif
+    return results;
+}
+
+const Stroka& TNonOwningCGroup::GetFullPath() const
+{
+    return FullPath_;
+}
+
+void TNonOwningCGroup::EnsureExistance()
+{
+    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
+
+#ifdef _linux_
+    NFS::ForcePath(FullPath_, 0755);
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCGroup::TCGroup(const Stroka& type, const Stroka& name)
+    : TNonOwningCGroup(type, name)
     , Created_(false)
 { }
 
@@ -59,15 +233,8 @@ TCGroup::~TCGroup()
 
 void TCGroup::Create()
 {
-    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
-
-#ifdef _linux_
-    if (Mkdir(FullPath_.data(), 0755) != 0) {
-        THROW_ERROR_EXCEPTION("Unable to create cgroup %s", ~FullPath_.Quote())
-            << TError::FromSystem();
-    }
+    EnsureExistance();
     Created_ = true;
-#endif
 }
 
 void TCGroup::Destroy()
@@ -82,36 +249,6 @@ void TCGroup::Destroy()
     }
     Created_ = false;
 #endif
-}
-
-void TCGroup::AddCurrentProcess()
-{
-#ifdef _linux_
-    auto pid = getpid();
-    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
-
-    auto path = NFS::CombinePaths(FullPath_, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
-#endif
-}
-
-std::vector<int> TCGroup::GetTasks() const
-{
-    std::vector<int> results;
-#ifdef _linux_
-    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
-    for (const auto& value : values) {
-        int pid = FromString<int>(value);
-        results.push_back(pid);
-    }
-#endif
-    return results;
-}
-
-const Stroka& TCGroup::GetFullPath() const
-{
-    return FullPath_;
 }
 
 bool TCGroup::IsCreated() const
@@ -204,18 +341,14 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& type = values[3 * lineNumber + 1];
             i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
-            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
-            }
+            YCHECK(deviceId.has_prefix("8:"));
 
             if (type == "Read") {
                 result.BytesRead += bytes;
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                if (type != "Sync" && type != "Async" && type != "Total") {
-                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
-                }
+                YCHECK(type != "Sync" && type != "Async" && type != "Total");
             }
             ++lineNumber;
         }
@@ -248,6 +381,56 @@ void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics
     protoStats->set_bytes_read(stats.BytesRead);
     protoStats->set_bytes_written(stats.BytesWritten);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMemory::TMemory(const Stroka& name)
+    : TCGroup("memory", name)
+{ }
+
+TMemory::TStatistics TMemory::GetStatistics()
+{
+    TMemory::TStatistics result;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+    auto rawData = TFileInput(filename).ReadAll();
+    result.UsageInBytes = FromString<i64>(strip(rawData));
+#endif
+    return result;
+}
+
+void TMemory::SetLimitInBytes(i64 bytes) const
+{
+    Set("memory.limit_in_bytes", ToString(bytes));
+}
+
+void TMemory::DisableOom() const
+{
+    // This parameter should be call `memory.disable_oom_control`.
+    // 1 means `disable`.
+    Set("memory.oom_control", "1");
+}
+
+TEvent TMemory::GetOomEvent() const
+{
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
+    auto fd = ::open(~filename, O_WRONLY | O_CLOEXEC);
+
+    auto eventFd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    auto data = ToString(eventFd) + ' ' + ToString(fd);
+
+    Set("cgroup.event_control", data);
+
+    return TEvent(eventFd, fd);
+#else
+    return TEvent();
+#endif
+}
+
+TMemory::TStatistics::TStatistics()
+    : UsageInBytes(0)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

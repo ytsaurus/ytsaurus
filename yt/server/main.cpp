@@ -11,6 +11,8 @@
 
 #include <core/profiling/profiling_manager.h>
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/shutdown.h>
@@ -70,6 +72,7 @@ public:
         , JobProxy("", "job-proxy", "start job proxy")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
+        , CGroups("", "cgroup", "run in cgroup", false, "")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
@@ -80,6 +83,7 @@ public:
         CmdLine.add(JobProxy);
         CmdLine.add(CloseAllFds);
         CmdLine.add(JobId);
+        CmdLine.add(CGroups);
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
@@ -94,6 +98,7 @@ public:
     TCLAP::SwitchArg CloseAllFds;
 
     TCLAP::ValueArg<Stroka> JobId;
+    TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
@@ -174,6 +179,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NProfiling::TProfilingManager::Get()->Start();
+    }
+
+    std::vector<Stroka> cgroups = parser.CGroups.getValue();
+    for (const auto& path : cgroups) {
+        NCGroup::TNonOwningCGroup cgroup(path);
+        cgroup.EnsureExistance();
+        cgroup.AddCurrentTask();
     }
 
     // Start an appropriate server.

@@ -4,9 +4,12 @@
 
 #include <ytlib/cgroup/cgroup.h>
 
+#include <core/misc/proc.h>
+
 #ifdef _linux_
   #include <sys/wait.h>
   #include <unistd.h>
+  #include <sys/eventfd.h>
 #endif
 
 namespace NYT {
@@ -34,7 +37,7 @@ TEST(CGroup, DoubleCreate)
 {
     TBlockIO group("wierd_name");
     group.Create();
-    EXPECT_THROW(group.Create(), std::exception);
+    group.Create();
     group.Destroy();
 }
 
@@ -49,7 +52,7 @@ TEST(CGroup, EmptyHasNoTasks)
 
 #ifdef _linux_
 
-TEST(CGroup, AddCurrentProcess)
+TEST(CGroup, AddCurrentTask)
 {
     TBlockIO group("some");
     group.Create();
@@ -58,7 +61,7 @@ TEST(CGroup, AddCurrentProcess)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        group.AddCurrentProcess();
+        group.AddCurrentTask();
         auto tasks = group.GetTasks();
         ASSERT_EQ(1, tasks.size());
         EXPECT_EQ(getpid(), tasks[0]);
@@ -70,6 +73,74 @@ TEST(CGroup, AddCurrentProcess)
     group.Destroy();
 
     ASSERT_EQ(pid, waitedpid);
+}
+
+TEST(CGroup, UnableToDestoryNotEmptyCGroup)
+{
+    TBlockIO group("some");
+    group.Create();
+
+    auto addedEvent = eventfd(0, 0);
+    auto triedRemoveEvent = eventfd(0, 0);
+
+    auto pid = fork();
+    ASSERT_TRUE(pid >= 0);
+
+    if (pid == 0) {
+        group.AddCurrentTask();
+
+        i64 value = 1024;
+        ASSERT_EQ(sizeof(value), ::write(addedEvent, &value, sizeof(value)));
+
+        ASSERT_EQ(sizeof(value), ::read(triedRemoveEvent, &value, sizeof(value)));
+        exit(0);
+    }
+
+    i64 value;
+    ASSERT_EQ(sizeof(value), ::read(addedEvent, &value, sizeof(value)));
+    EXPECT_THROW(group.Destroy(), std::exception);
+
+    value = 1;
+    ASSERT_EQ(sizeof(value), ::write(triedRemoveEvent, &value, sizeof(value)));
+
+    auto waitedpid = waitpid(pid, nullptr, 0);
+
+    group.Destroy();
+    ASSERT_EQ(pid, waitedpid);
+
+    ASSERT_EQ(0, close(addedEvent));
+    ASSERT_EQ(0, close(triedRemoveEvent));
+}
+
+TEST(CGroup, DestroyAndGrandChildren)
+{
+    TBlockIO group("grandchildren");
+    group.Create();
+
+    auto pid = fork();
+    ASSERT_TRUE(pid >= 0);
+
+    if (pid == 0) {
+        group.AddCurrentTask();
+
+        ASSERT_EQ(0, daemon(0, 0));
+
+        exit(0);
+    }
+
+    ASSERT_EQ(pid , waitpid(pid, nullptr, 0));
+
+    while (true) {
+        auto pids = group.GetTasks();
+        if (pids.empty()) {
+            break;
+        }
+        for (auto pid: pids) {
+            ASSERT_EQ(0, kill(pid, SIGTERM));
+        }
+    }
+
+    group.Destroy();
 }
 
 TEST(CGroup, GetCpuAccStat)
@@ -93,6 +164,17 @@ TEST(CGroup, GetBlockIOStat)
     EXPECT_EQ(0, stats.BytesRead);
     EXPECT_EQ(0, stats.BytesWritten);
     EXPECT_EQ(0, stats.TotalSectors);
+
+    group.Destroy();
+}
+
+TEST(CGroup, GetMemoryStats)
+{
+    TMemory group("some");
+    group.Create();
+
+    auto stats = group.GetStatistics();
+    EXPECT_EQ(0, stats.UsageInBytes);
 
     group.Destroy();
 }
@@ -131,7 +213,54 @@ TEST(CurrentProcessCGroup, BadInput)
     EXPECT_THROW(ParseCurrentProcessCGroups(TStringBuf(basic.data(), basic.length())), std::exception);
 }
 
-#endif
+class TTestableEvent
+    : public NCGroup::TEvent
+{
+public:
+    TTestableEvent(int eventFd, int fd = -1)
+        : NCGroup::TEvent(eventFd, fd)
+    { }
+};
+
+TEST(TEvent, Fired)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TTestableEvent event(eventFd, -1);
+
+    EXPECT_FALSE(event.Fired());
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+}
+
+TEST(TEvent, Sticky)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TTestableEvent event(eventFd, -1);
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+    EXPECT_TRUE(event.Fired());
+}
+
+TEST(TEvent, Clear)
+{
+    auto eventFd = eventfd(0, EFD_NONBLOCK);
+    TTestableEvent event(eventFd, -1);
+
+    i64 value = 1;
+    write(eventFd, &value, sizeof(value));
+
+    EXPECT_TRUE(event.Fired());
+    event.Clear();
+    EXPECT_FALSE(event.Fired());
+}
+
+#endif // _linux_
 
 ////////////////////////////////////////////////////////////////////////////////
 
