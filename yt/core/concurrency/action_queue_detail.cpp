@@ -275,7 +275,7 @@ void TExecutorThread::FiberMain()
     }
 
     --FibersAlive;
-    Profiler.Enqueue("/fibers_alive", FibersCreated);
+    Profiler.Enqueue("/fibers_alive", FibersAlive);
 
     LOG_DEBUG_IF(EnableLogging, "Fiber finished (Name: %s, Created: %d, Alive: %d)",
         ~ThreadName,

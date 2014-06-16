@@ -661,7 +661,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    channel = LightNodeChannelCache->GetChannel(currentDescriptor.GetAddress(NetworkName_));
+                    channel = HeavyNodeChannelCache->GetChannel(currentDescriptor.GetAddress(NetworkName_));
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
