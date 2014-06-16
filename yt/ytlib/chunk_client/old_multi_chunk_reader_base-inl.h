@@ -1,5 +1,5 @@
 #ifndef MULTI_CHUNK_READER_BASE_INL_H_
-#error "Direct inclusion of this file is not allowed, include multi_chunk_reader_base.h"
+#error "Direct inclusion of this file is not allowed, include old_multi_chunk_reader_base.h"
 #endif
 #undef MULTI_CHUNK_READER_BASE_INL_H_
 
@@ -28,7 +28,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
-TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
+TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
@@ -120,7 +120,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
+void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 {
     if (!State.IsActive()) {
         return;
@@ -178,14 +178,14 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 
     session.Reader->AsyncOpen()
         .Subscribe(BIND(
-            &TMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
+            &TOldMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
             MakeWeak(this),
             session)
         .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
+void TOldMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
     LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
     ReaderProvider->OnReaderOpened(session.Reader, ChunkSpecs[session.ChunkIndex]);
@@ -193,25 +193,25 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
         FetchingCompleteAwaiter->Complete(BIND(
-            &TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
+            &TOldMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
             MakeWeak(this)));
     }
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete()
+void TOldMultiChunkReaderBase<TChunkReader>::OnFetchingComplete()
 {
     IsFetchingComplete_ = true;
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
+void TOldMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
 {
     ReaderProvider->OnReaderFinished(session.Reader);
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
+void TOldMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
     const auto& chunkSpec = ChunkSpecs[session.ChunkIndex];
     auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunkSpec.chunk_id());
@@ -221,20 +221,20 @@ void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session
 }
 
 template <class TChunkReader>
-std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunkIds() const
+std::vector<NChunkClient::TChunkId> TOldMultiChunkReaderBase<TChunkReader>::GetFailedChunkIds() const
 {
     TGuard<TSpinLock> guard(FailedChunksLock);
     return FailedChunks;
 }
 
 template <class TChunkReader>
-TAsyncError TMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
+TAsyncError TOldMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
 {
     return State.GetOperationError();
 }
 
 template <class TChunkReader>
-auto TMultiChunkReaderBase<TChunkReader>::GetFacade() const -> const TFacade*
+auto TOldMultiChunkReaderBase<TChunkReader>::GetFacade() const -> const TFacade*
 {
     YASSERT(!State.HasRunningOperation());
     if (CurrentSession.Reader) {
@@ -245,7 +245,7 @@ auto TMultiChunkReaderBase<TChunkReader>::GetFacade() const -> const TFacade*
 }
 
 template <class TChunkReader>
-auto TMultiChunkReaderBase<TChunkReader>::GetProvider() -> TProviderPtr
+auto TOldMultiChunkReaderBase<TChunkReader>::GetProvider() -> TProviderPtr
 {
     return ReaderProvider;
 }

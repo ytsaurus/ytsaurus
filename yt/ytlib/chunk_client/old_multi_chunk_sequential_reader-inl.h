@@ -1,5 +1,5 @@
 ﻿#ifndef MULTI_CHUNK_SEQUENTIAL_READER_INL_H_
-#error "Direct inclusion of this file is not allowed, include multi_chunk_sequential_reader.h"
+#error "Direct inclusion of this file is not allowed, include old_multi_chunk_sequential_reader.h"
 #endif
 #undef MULTI_CHUNK_SEQUENTIAL_READER_INL_H_
 
@@ -9,14 +9,14 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
-TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
+TOldMultiChunkSequentialReader<TChunkReader>::TOldMultiChunkSequentialReader(
     TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     typename TBase::TProviderPtr readerProvider)
-    : TMultiChunkReaderBase<TChunkReader>(
+    : TOldMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
         blockCache,
@@ -35,7 +35,7 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
 }
 
 template <class TChunkReader>
-TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
+TAsyncError TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 {
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
@@ -50,7 +50,7 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 
         State.StartOperation();
         Sessions[CurrentReaderIndex].Subscribe(
-            BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
+            BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -58,7 +58,7 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 }
 
 template <class TChunkReader>
-void TMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
+void TOldMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
     const typename TBase::TSession& session,
     TError error)
 {
@@ -73,7 +73,7 @@ void TMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
 }
 
 template <class TChunkReader>
-void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
+void TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
     typename TBase::TSession nextSession)
 {
     if (CurrentReaderIndex > 0 && !ReaderProvider->KeepInMemory()) {
@@ -95,7 +95,7 @@ void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
 }
 
 template <class TChunkReader>
-bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
+bool TOldMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 {
     if (!CurrentSession.Reader->GetFacade()) {
         TBase::ProcessFinishedReader(CurrentSession);
@@ -109,7 +109,7 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
                 State.StartOperation();
 
             Sessions[CurrentReaderIndex].Subscribe(
-                BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
+                BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
             return false;
         }
@@ -119,7 +119,7 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 }
 
 template <class TChunkReader>
-bool TMultiChunkSequentialReader<TChunkReader>::FetchNext()
+bool TOldMultiChunkSequentialReader<TChunkReader>::FetchNext()
 {
     YCHECK(!State.HasRunningOperation());
     YCHECK(TBase::GetFacade());
@@ -129,14 +129,14 @@ bool TMultiChunkSequentialReader<TChunkReader>::FetchNext()
     } else {
         State.StartOperation();
         CurrentSession.Reader->GetReadyEvent().Subscribe(BIND(
-            IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched),
+            IgnoreResult(&TOldMultiChunkSequentialReader<TChunkReader>::OnItemFetched),
             MakeWeak(this)));
         return false;
     }
 }
 
 template <class TChunkReader>
-void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
+void TOldMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
     YCHECK(State.HasRunningOperation());
 

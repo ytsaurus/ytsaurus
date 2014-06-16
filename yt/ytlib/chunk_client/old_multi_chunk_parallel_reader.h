@@ -1,6 +1,6 @@
 #pragma once
 
-#include "multi_chunk_reader_base.h"
+#include "old_multi_chunk_reader_base.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -8,13 +8,13 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
-class TMultiChunkParallelReader
-    : public TMultiChunkReaderBase<TChunkReader>
+class TOldMultiChunkParallelReader
+    : public TOldMultiChunkReaderBase<TChunkReader>
 {
 public:
-    typedef TMultiChunkReaderBase<TChunkReader> TBase;
+    typedef TOldMultiChunkReaderBase<TChunkReader> TBase;
 
-    TMultiChunkParallelReader(
+    TOldMultiChunkParallelReader(
         TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
@@ -57,5 +57,5 @@ private:
 } // namespace NYT
 
 #define MULTI_CHUNK_PARALLEL_READER_INL_H_
-#include "multi_chunk_parallel_reader-inl.h"
+#include "old_multi_chunk_parallel_reader-inl.h"
 #undef MULTI_CHUNK_PARALLEL_READER_INL_H_

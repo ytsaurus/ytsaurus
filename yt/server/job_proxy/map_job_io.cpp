@@ -4,7 +4,7 @@
 #include "user_job_io.h"
 #include "job.h"
 
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 
 #include <ytlib/scheduler/config.h>
 

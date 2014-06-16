@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/parser.cpp
   ${BASE}/schemaful_dsv_parser.cpp
   ${BASE}/schemaful_dsv_writer.cpp
+  ${BASE}/schemaless_writer_adapter.cpp
   ${BASE}/symbols.cpp
   ${BASE}/yamr_base_parser.cpp
   ${BASE}/yamr_parser.cpp
@@ -36,6 +37,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/schemaful_dsv_parser.h
   ${BASE}/schemaful_dsv_writer.h
+  ${BASE}/schemaless_writer_adapter.h
   ${BASE}/symbols.h
   ${BASE}/yamr_base_parser.h
   ${BASE}/yamr_parser.h

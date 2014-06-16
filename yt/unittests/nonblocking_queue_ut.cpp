@@ -10,7 +10,6 @@ namespace NConcurrency {
 
 typedef TNonblockingQueue<int> TIntQueue;
 
-
 TEST(TNonblockingQueueTest, DequeueFirst)
 {
     auto queue = New<TIntQueue>();

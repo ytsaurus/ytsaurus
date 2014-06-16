@@ -9,7 +9,7 @@
 
 #include <core/concurrency/action_queue.h>
 
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
@@ -141,7 +141,7 @@ public:
     }
 
 private:
-    typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
+    typedef TOldMultiChunkParallelReader<TPartitionChunkReader> TReader;
     typedef TIntrusivePtr<TReader> TReaderPtr;
 
     TKeyColumns KeyColumns;
