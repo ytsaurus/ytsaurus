@@ -318,8 +318,8 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     DumpSignalInfo(signal, si);
 
     // Get the stack trace (without current frame hence +1).
-    void* stack[99]; // 99 is to keep formatting. :)
-    const int depth = GetStackTrace(stack, ARRAY_SIZE(stack), 1);
+    std::array<void*, 99> stack; // 99 is to keep formatting. :)
+    const int depth = GetStackTrace(stack.data(), stack.size(), 1);
 
     // Dump the stack trace.
     for (int i = 0; i < depth; ++i) {

@@ -335,7 +335,7 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 Stroka GetHomePath()
 {
 #ifdef _win_
-    char buffer[1024];
+    std::array<char, 1024> buffer;
     SHGetSpecialFolderPath(0, buffer, CSIDL_PROFILE, 0);
     return Stroka(buffer);
 #else

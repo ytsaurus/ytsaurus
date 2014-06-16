@@ -17,7 +17,7 @@ static const size_t BufferSize = 1 << 16;
 
 void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
 {
-    char buffer[BufferSize];
+    std::array<char, BufferSize> buffer;
 
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -35,13 +35,13 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
         flush = (stream.avail_in == source->Available()) ? Z_FINISH : Z_NO_FLUSH;
         do {
             size_t previousAvailable = stream.avail_in;
-            stream.next_out = reinterpret_cast<Bytef*>(buffer);
+            stream.next_out = reinterpret_cast<Bytef*>(buffer.data());
             stream.avail_out = BufferSize;
             returnCode = deflate(&stream, flush);
             YCHECK(returnCode != Z_STREAM_ERROR);
 
             source->Skip(previousAvailable - stream.avail_in);
-            sink->Append(buffer, BufferSize - stream.avail_out);
+            sink->Append(buffer.data(), BufferSize - stream.avail_out);
         } while (stream.avail_out == 0);
         YCHECK(stream.avail_in == 0);
 

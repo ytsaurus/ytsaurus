@@ -232,12 +232,12 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             return Sprintf("unknown://family(%d)", sockAddr->sa_family);
     }
 
-    char buffer[256];
+    std::array<char, 256> buffer;
     if (!inet_ntop(
         sockAddr->sa_family,
         const_cast<void*>(ipAddr),
-        buffer,
-        ARRAY_SIZE(buffer)))
+        buffer.data(),
+        buffer.size()))
     {
         return "invalid://";
     }
@@ -248,7 +248,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
         result.append('[');
     }
 
-    result.append(buffer);
+    result.append(buffer.data());
 
     if (ipv6) {
         result.append(']');
