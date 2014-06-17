@@ -3,10 +3,10 @@ import config
 import format_config
 
 from common import get_value
-from errors import YtError
 
 from yt.zip import ZipFile
 import yt.logger as logger
+from errors import YtError
 
 import os
 import sys
@@ -68,7 +68,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 relpath = module_relpath(module.__name__, file)
                 if relpath is None:
                     raise YtError("Cannot determine relative path of module " + str(module))
-                
+
                 if relpath in compressed_files:
                     continue
                 compressed_files.add(relpath)
@@ -104,11 +104,13 @@ def _init_attributes(func):
         func.attributes = {}
 
 def aggregator(func):
+    """Decorator for mappers consumed generator"""
     _init_attributes(func)
     func.attributes["is_aggregator"] = True
     return func
 
 def raw(func):
+    """Decorator for mappers consumed raw data stream"""
     _init_attributes(func)
     func.attributes["is_raw"] = True
     return func

@@ -24,20 +24,42 @@ def _make_transactional_request(command_name, params, **kwargs):
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, _add_transaction_params(params), format, **kwargs)
 
-def start_transaction(parent_transaction=None, ping_ancestor_transactions=None, timeout=None, attributes=None, client=None):
-    params = transaction_params(parent_transaction, ping_ancestor_transactions)
+def start_transaction(parent_transaction=None, timeout=None, attributes=None, client=None):
+    """Start transaction.
+
+    :param parent_transaction: (string) parent transaction id
+    :param timeout: transaction lifetime singe last ping in milliseconds
+    :param attributes: (dict)
+    :return: (string) new transaction id
+    `More about <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#starttx>`_
+    """
+    params = transaction_params(parent_transaction)
     timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
     if timeout is not None:
         params["timeout"] = int(timeout)
     params["attributes"] = get_value(attributes, {})
     return make_formatted_request("start_tx", params, None, client=client)
 
-def abort_transaction(transaction, ping_ancestor_transactions=None, client=None):
-    make_request("abort_tx", transaction_params(transaction, ping_ancestor_transactions), client=client)
+def abort_transaction(transaction, client=None):
+    """Abort transaction. All changes will be lost.
 
-def commit_transaction(transaction, ping_ancestor_transactions=None, client=None):
-    make_request("commit_tx", transaction_params(transaction, ping_ancestor_transactions), client=client)
+    :param transaction: (string) transaction id
+    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#aborttx>`_
+    """
+    make_request("abort_tx", transaction_params(transaction), client=client)
 
-def ping_transaction(transaction, ping_ancestor_transactions=None, client=None):
-    make_request("ping_tx", transaction_params(transaction, ping_ancestor_transactions), client=client)
+def commit_transaction(transaction, client=None):
+    """Save all transaction changes.
 
+    :param transaction: (string) transaction id
+    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#committx>`_
+    """
+    make_request("commit_tx", transaction_params(transaction), client=client)
+
+def ping_transaction(transaction, client=None):
+    """Prolong transaction lifetime.
+
+    :param transaction: (string) transaction id
+    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#pingtx>`_
+    """
+    make_request("ping_tx", transaction_params(transaction), client=client)

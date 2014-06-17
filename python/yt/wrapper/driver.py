@@ -1,3 +1,4 @@
+"""YT requests misc"""
 import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
@@ -34,6 +35,7 @@ def escape_utf8(obj):
     return obj
 
 class ResponseStream(object):
+    """Iterator over response"""
     def __init__(self, response, iter_type):
         self.response = response
         self.iter_type = iter_type
@@ -95,7 +97,7 @@ class ResponseStream(object):
             self._pos = len(self._buffer)
             return result
         else:
-            raise YtError("Incorrent iter type: " + str(self.iter_type))
+            raise YtError("Incorrect iter type: " + str(self.iter_type))
 
 
 def read_content(response, raw, format, response_type):

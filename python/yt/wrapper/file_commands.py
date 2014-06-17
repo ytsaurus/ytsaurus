@@ -1,6 +1,8 @@
+"""downloading and uploading data to YT commands"""
+
 import config
 import yt.logger as logger
-from common import require, chunk_iter, partial, bool_to_string, parse_bool
+from common import require, chunk_iter, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from driver import read_content, get_host_for_heavy_operation
 from heavy_commands import make_heavy_request
@@ -12,6 +14,7 @@ from yt.yson import to_yson_type
 
 import os
 import hashlib
+from functools import partial
 
 def md5sum(filename):
     with open(filename, mode='rb') as fin:
@@ -22,11 +25,17 @@ def md5sum(filename):
 
 def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
     """
-    Downloads file from path.
-    Response type means the output format. By default it is line generator.
+    Download file from path in Cypress.
+
+    :param path: (string of `TablePath`) path to file in Cypress
+    :param response_type: (string) Deprecated! It means the output format. By default it is line generator.
+    :param file_reader: (dict) spec of download command
+    :param offset: (int) offset in input file in bytes, 0 by default
+    :param length: (int) length in bytes of desired part of input file, all file without offset by default
+    :return: some stream over downloaded file, string generator by default
     """
     if response_type is None: response_type = "iter_lines"
-    
+
     params = {"path": prepare_path(path)}
     if file_reader is not None:
         params["file_reader"] = file_reader
@@ -44,8 +53,12 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
 
 def upload_file(stream, destination, file_writer=None, client=None):
     """
-    Simply uploads data from stream to destination and
-    set file_name attribute if yt_filename is specified
+    Simply uploads data from `stream` to `destination` and
+    set 'file_name' attribute if yt_filename is specified
+
+    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
+    :param destination: (string or `TablePath`) destination path in Cypress
+    :param file_writer: (dict) spec of upload operation
     """
     if hasattr(stream, 'fileno'):
         # read files by chunks, not by lines
@@ -66,13 +79,27 @@ def upload_file(stream, destination, file_writer=None, client=None):
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
     """
-    Upload file specified by filename to destination path.
-    If destination is not specified, than name is determined by placement strategy.
-    If placement_strategy equals "replace" or "ignore", then destination is set up
-    'config.FILE_STORAGE/basename'. In "random" case (default) destination is set up
-    'config.FILE_STORAGE/basename<random_suffix>'
-    If yt_filename is specified than file_name attribrute is set up
-    (name that would be visible in operations).
+    Upload file specified by 'filename' to destination path with custom placement strategy.
+
+    :param filename: (string) path to file on local machine
+    :param destination: (string) desired file path in Cypress,
+    :param yt_filename: (string) 'file_name' attribute of file in Cypress (visible in operation name of file)
+    :param placement_strategy: (choice from "replace", "ignore", "random", "hash"), \
+    `config.FILE_PLACEMENT_STRATEGY` by default.
+    :param ignore_set_attributes_error: (bool) ignore `YtResponseError` during attributes setting
+    :return: YSON structure with result destination path
+
+    'placement_strategy':
+
+    * "replace" or "ignore" -> destination path will be 'destination' \
+    or 'config.FILE_STORAGE/<basename>' if destination is not specified
+
+    * "random" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/<basename><random_suffix>'\
+
+    * "hash" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/hash/<md5sum_of_file>' \
+    or this path will be link to some random Cypress path
+
+    .. note:: Parameter 'destination' overrides 'yt_filename'.
     """
 
     def upload_with_check(path):
@@ -138,7 +165,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         upload_with_check(destination)
 
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
-    
+
     try:
         set_attribute(destination, "file_name", yt_filename, client=client)
         set_attribute(destination, "executable", bool_to_string(executable), client=client)

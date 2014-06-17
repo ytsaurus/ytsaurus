@@ -113,7 +113,8 @@ class OperationProgressFormatter(logging.Formatter):
 def get_operation_state(operation, client=None):
     """Return current state of operation.
 
-    :raises YtError: Raise ``YtError`` if operation doesn't exists
+    :param operation: (string) operation id.
+    Raise `YtError` if operation doesn't exists
     """
     old_request_timeout = config.http.REQUEST_TIMEOUT
     config.http.REQUEST_TIMEOUT = config.OPERATION_TRANSACTION_TIMEOUT
@@ -182,19 +183,27 @@ class PrintOperationInfo(object):
 
         logger.set_formatter(logger.BASIC_FORMATTER)
 
-
 def abort_operation(operation, client=None):
-    """Abort operation."""
+    """Abort operation.
+
+    :param operation: (string) operation id.
+    """
     #TODO(ignat): remove check!?
     if not get_operation_state(operation).is_final():
         make_request("abort_op", {"operation_id": operation}, client=client)
 
 def suspend_operation(operation, client=None):
-    """Suspend operation."""
+    """Suspend operation.
+
+    :param operation: (string) operation id.
+    """
     make_request("suspend_op", {"operation_id": operation}, client=client)
 
 def resume_operation(operation, client=None):
-    """Continue operation after suspending."""
+    """Continue operation after suspending.
+
+    :param operation: (string) operation id.
+    """
     make_request("resume_op", {"operation_id": operation}, client=client)
 
 def wait_final_state(operation, time_watcher, print_info, action=lambda: None, client=None):
@@ -266,8 +275,9 @@ class WaitStrategy(object):
     """Strategy synchronously wait operation, print current progress and finalize at the completion."""
     def __init__(self, check_result=True, print_progress=True, timeout=None):
         """
-        :param check_result: get stderr if operation failed
-        :param timeout: timeout of operation. ``None`` means operation is endlessly waited for.
+        :param check_result: (bool) get stderr if operation failed
+        :param print_progress: (bool)
+        :param timeout: (double) timeout of operation in sec. ``None`` means operation is endlessly waited for.
         """
         self.check_result = check_result
         self.print_progress = print_progress
@@ -331,6 +341,11 @@ class AsyncStrategy(object):
         self.operations.append(tuple([type, operation, finalize]))
 
     def get_last_operation(self):
+        """
+        Return last operation.
+
+        :raises `IndexError`: no operations
+        """
         return self.operations[-1]
 
 config.DEFAULT_STRATEGY = WaitStrategy()
