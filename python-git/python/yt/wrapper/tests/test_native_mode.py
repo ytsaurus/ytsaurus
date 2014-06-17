@@ -6,6 +6,7 @@ from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
 import yt.wrapper as yt
 
+import inspect
 import os
 import time
 import tempfile
@@ -13,6 +14,22 @@ import subprocess
 import simplejson as json
 
 import pytest
+
+def test_docs_exist():
+    functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith('_'))
+    functions_without_doc = filter(lambda (name, func): not inspect.getdoc(func), functions)
+    assert not functions_without_doc
+    #for name, f in functions:
+    #    assert inspect.getdoc(f), "function %s without doc! " % name
+
+    classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))
+    for name, cl  in classes:
+        assert inspect.getdoc(cl)
+        if name == "PingTransaction":
+            continue # Python Thread is not documented O_o
+        public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and not o.__name__.startswith('_'))
+        methods_without_doc = [method for name, method in public_methods if (not inspect.getdoc(method))]
+        assert not methods_without_doc
 
 class TestNativeMode(YtTestBase, YTEnv):
     @classmethod
@@ -443,7 +460,7 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\ty=2\n"])
 
         yt.run_map(foo, table, table,
-                   input_format=yt.create_format("yamred_dsv", attributes={"key_column_names": ["y"]}),
+                   input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
 
