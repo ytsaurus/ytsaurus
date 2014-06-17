@@ -1,8 +1,15 @@
+"""YT data formats
+
+.. note:: In `Format` descendants constructors default parameters are overridden by `attributes` parameters,\
+ and then by kwargs options.
+"""
+
 import format_config
-from common import get_value, require, filter_dict
+from common import get_value, require, filter_dict, merge_dicts
 from errors import YtError, YtFormatError
 from yamr_record import Record
 import yt.yson as yson
+import yt.logger as logger
 
 from abc import ABCMeta, abstractmethod
 import copy
@@ -21,16 +28,22 @@ class Format(object):
     def __init__(self, name, attributes=None):
         """
         :param name: (string) format name
-        :param attributes: format parameters dictionary
+        :param attributes: (dict) format parameters
         """
         require(isinstance(name, str), YtFormatError("Incorrect format %r" % name))
         self._name = yson.YsonString(name)
         self._name.attributes = get_value(attributes, {})
 
     def json(self):
+        """
+        Return JSON name of format.
+        """
         return yson.yson_to_json(self._name)
 
     def name(self):
+        """
+        Return string name of format.
+        """
         return str(self._name)
 
     def _get_attributes(self):
@@ -77,12 +90,12 @@ class Format(object):
 
     @abstractmethod
     def dump_row(self, row, stream):
-        """Serialize row and write it to the stream."""
+        """Serialize row and write to the stream."""
         pass
 
     @abstractmethod
     def dump_rows(self, rows, stream):
-        """Serialize rows and write it to the stream"""
+        """Serialize rows and write to the stream"""
         pass
 
     def dumps_row(self, row):
@@ -104,25 +117,43 @@ class Format(object):
 
     @staticmethod
     def _make_attributes(attributes, defaults, options):
-      result = defaults
-      result.update(get_value(attributes, {}))
-      result.update(filter_dict(lambda key, value: value is not None, options))
-      return result
+        not_none_options = filter_dict(lambda key, value: value is not None, options)
+        return merge_dicts(defaults, attributes, not_none_options)
 
     def is_read_row_supported(self):
-        """..note: Deprecated."""
+        """.. note:: Deprecated."""
         return self.name() in ("dsv", "yamr", "yamred_dsv")
 
     def read_row(self, stream):
-        """..note: Deprecated."""
+        """.. note:: Deprecated. Use instead load_row method with parameter unparsed=True"""
         return self.load_row(stream, unparsed=True)
 
+    @staticmethod
+    def _copy_docs():
+        """Magic for coping docs in subclasses
+
+        .. note:: Use once after creating all subclasses!
+        """
+        for cl in Format.__subclasses__():
+            cl_dict = cl.__dict__
+            for name in ('load_row', 'load_rows', 'dump_row', 'dump_rows', 'loads_row', 'dumps_row'):
+                if name in cl_dict and not cl_dict[name].__doc__:
+                    cl_dict[name].__doc__ = Format.__dict__[name].__doc__
+
+
 class DsvFormat(Format):
+    """
+    Statbox favorite data format a la ``'time=10\\tday=monday\\n'``.
+
+    `More about DSV <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
+    """
+
     def __init__(self, enable_escaping=None, attributes=None):
-        all_attributes = Format._make_attributes(attributes,
+        all_attributes = Format._make_attributes(get_value(attributes, {}),
                                                  {"enable_escaping": True},
                                                  {"enable_escaping": enable_escaping})
         super(DsvFormat, self).__init__("dsv", all_attributes)
+
 
     enable_escaping = Format._create_property("enable_escaping")
 
@@ -196,8 +227,13 @@ class DsvFormat(Format):
         return dict(map(unescape_dsv_field, filter(None, string.strip("\n").split("\t"))))
 
 class YsonFormat(Format):
+    """
+    Main, default and the best YT data format.
+
+    `More about YSON <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
+    """
     def __init__(self, format=None, attributes=None):
-        all_attributes = Format._make_attributes(attributes,
+        all_attributes = Format._make_attributes(get_value(attributes, {}),
                                                  {"format": "text"},
                                                  {"format": format})
         super(YsonFormat, self).__init__("yson", all_attributes)
@@ -216,9 +252,16 @@ class YsonFormat(Format):
         yson.dump(rows, stream, yson_type="list_fragment")
 
 class YamrFormat(Format):
+    """
+    YAMR legacy data format.
+
+    `More about YAMR <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
+    """
+
     def __init__(self, has_subkey=None, lenval=None, field_separator=None, record_separator=None, attributes=None):
         defaults = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n'}
         options = {"has_subkey": has_subkey, "lenval": lenval, "fs": field_separator, "rs": record_separator}
+        attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         super(YamrFormat, self).__init__("yamr", all_attributes)
 
@@ -307,6 +350,12 @@ class YamrFormat(Format):
             return fields
 
 class JsonFormat(Format):
+    """
+    Open standard text data format for attribute-value data.
+
+    `More about JSON <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
+    """
+
     def __init__(self, attributes=None):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes)
@@ -336,10 +385,17 @@ class JsonFormat(Format):
         return json.loads(string)
 
 class YamredDsvFormat(YamrFormat):
+    """
+    Evil tabular data format for YAMR data.
+
+    `More about Yamred DSV <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
+    """
+
     def __init__(self, key_column_names=None, subkey_column_names=None, has_subkey=None, lenval=None, attributes=None):
         defaults = {"has_subkey": False, "lenval": False, "subkey_column_names": []}
         options = {"key_column_names": key_column_names, "subkey_column_names": subkey_column_names,
                    "has_subkey": has_subkey, "lenval": lenval}
+        attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("key_column_names"),
                 YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
@@ -348,9 +404,17 @@ class YamredDsvFormat(YamrFormat):
 
 
 class SchemafulDsvFormat(Format):
+    """
+    Yet another DSV-like data format.
+
+    `More about <https://wiki.yandex-team.ru/yt/userdoc/formats#schemeddsvschemafuldsv>`_
+
+    """
+
     def __init__(self, columns=None, enable_escaping=None, attributes=None):
         defaults = {"enable_escaping": True}
         options = {"columns": columns, "enable_escaping": enable_escaping}
+        attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("columns"),
                 YtFormatError("SchemafulDsvFormat require 'columns' attribute"))
@@ -398,14 +462,26 @@ class SchemafulDsvFormat(Format):
 
         return dict(itertools.izip(self.columns, map(unescape_field, line.rstrip("\n").split("\t"))))
 
-# Deprecated
 class SchemedDsvFormat(SchemafulDsvFormat):
+    """.. note:: Deprecated."""
+
     def __init__(self, columns, attributes=None):
+        attributes = get_value(attributes, {})
         super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes)
         self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
+Format._copy_docs()
+
 def create_format(yson_name, attributes=None):
-    attributes = get_value(attributes, {})
+    """Create format by yson string.
+
+    :param yson_name: YSON string like ``'<lenval=false;has_subkey=false>yamr'``
+    :param attributes: Deprecated! Don't use it! It will be removed!
+    """
+    if attributes is not None:
+        logger.warning("Usage deprecated parameter 'attributes' of create_format. It will be removed!")
+    else:
+        attributes = {}
 
     yson_string = yson.loads(yson_name)
     attributes.update(yson_string.attributes)
@@ -423,9 +499,11 @@ def create_format(yson_name, attributes=None):
         raise YtFormatError("Incorrect format " + name)
 
 def loads_row(string, format=None):
+    """Convert string to parsed row"""
     format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.loads_row(string)
 
 def dumps_row(row, format=None):
+    """Convert parsed row to string"""
     format = get_value(format, format_config.TABULAR_DATA_FORMAT)
     return format.dumps_row(row)

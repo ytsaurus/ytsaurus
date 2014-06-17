@@ -1,6 +1,8 @@
+"""YT command misc"""
+
 class Command(object):
     """
-    Describe properties of YT command.
+    Properties of YT command.
     """
     def __init__(self, input_type, output_type, is_volatile, is_heavy):
         self.input_type = input_type

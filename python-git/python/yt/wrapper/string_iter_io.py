@@ -3,7 +3,7 @@ from cStringIO import StringIO
 
 class StringIterIO(object):
     """
-    It represents read-only IO that wraps iterator of strings
+    Read-only IO stream wraps strings iterator.
     """
 
     def __init__(self, strings_iter, add_eoln=False):
@@ -15,6 +15,11 @@ class StringIterIO(object):
         self._extract_next()
 
     def read(self, size=None):
+        """
+        Get string of 'size' length from stream.
+
+        :param size: (int) number bytes to read
+        """
         if not self._active:
             return ""
 
@@ -32,7 +37,7 @@ class StringIterIO(object):
                     break
                 string_output.write(self._sep)
                 size -= len(self._sep)
-                
+
                 self._pos = 0
                 self._extract_next()
                 if not self._active:
@@ -40,9 +45,12 @@ class StringIterIO(object):
             return string_output.getvalue()
 
     def readline(self):
+        """
+        Get from string line (string ended by '\n').
+        """
         if not self._active:
             return ""
-        
+
         string_output = StringIO()
         while True:
             index = self._cur_string.find("\n", self._pos)

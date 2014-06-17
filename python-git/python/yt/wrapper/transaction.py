@@ -11,16 +11,20 @@ from datetime import datetime, timedelta
 
 class Transaction(object):
     """
-    It is designed to use by with_statement:
-    > with Transaction():
-    >    ....
-    >    lock("//home/my_node")
-    >    ....
-    >    with Transaction():
-    >        ....
-    >        yt.run_map(...)
-    >
+    It is designed to use by with_statement::
+
+    >>> with Transaction():
+    >>>    ...
+    >>>    lock("//home/my_node")
+    >>>    ...
+    >>>    with Transaction():
+    >>>        ...
+    >>>        yt.run_map(...)
+    >>>
+
     Caution: if you use this class then do not use directly methods *_transaction.
+
+    `See more <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
     stack = []
 
@@ -88,13 +92,20 @@ class Transaction(object):
             config.PING_ANCESTOR_TRANSACTIONS = Transaction.initial_ping_ancestor_transactions
 
 class PingTransaction(Thread):
-    # delay and step in seconds
+    """
+    Pinger for transaction.
+
+    Ping transaction in background thread.
+    """
     def __init__(self, transaction, delay, client=None):
+        """
+        :param delay: delay in seconds
+        """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
-        self.step = config.TRANSACTION_PING_BACKOFF / 1000.0
+        self.step = config.TRANSACTION_PING_BACKOFF / 1000.0 # in seconds
         self.client = client
 
     def __enter__(self):
@@ -123,6 +134,7 @@ class PingTransaction(Thread):
 
 
 class PingableTransaction(object):
+    """Self-pinged transaction"""
     def __init__(self, timeout=None, attributes=None, client=None):
         self.timeout = get_value(timeout, config.http.REQUEST_TIMEOUT)
         self.attributes = attributes

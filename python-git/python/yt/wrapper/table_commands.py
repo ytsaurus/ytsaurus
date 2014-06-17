@@ -1,3 +1,48 @@
+"""
+Commands for table working and Map-Reduce operations.
+`See more <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
+
+Python wrapper has some improvements over bare YT operations:
+
+* upload files automatically
+
+* create or erase output table
+
+* delete files after
+
+**Heavy commands** have deprecated parameter `response_type`:  choice from \
+["iter_lines" (default), "iter_content", "raw", "string"]. It specifies response type.
+
+.. _operation_parameters:
+
+Common operations parameters
+-----------------------
+
+
+* **spec** : (dict) universal method to set operation parameter
+
+* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy` or `yt.wrapper.operation_commands.AsyncStrategy`)\
+strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
+
+* **replication_factor** : (integer) number of output data replicas
+
+* **compression_codec** : (choice from "lz4", "gzip", "gzip_best_compression", "gzip_normal",\
+ TODO(veronikaiv): list it) compression algorithm for output data
+
+* **job_count** : (integer) recommendation how many jobs should run
+
+* **table_writer** : (dict) spec of `"write" operation <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
+
+* **table_reader** : (dict) spec of `"read" operation <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
+
+* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output data of operation
+
+* **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
+
+
+Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is `False`.
+"""
+
 import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
@@ -236,10 +281,17 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
                 _run_operation(finalizer)
 
 """ Common table methods """
+
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None, client=None):
     """Create empty table.
-    :param recursive: create the path automatically"""
-    table = TablePath(path, client=client)
+
+    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
+    :param recursive: (bool) create the path automatically
+    :param ignore_existing: (bool) if it sets to `False` and table exists, Python Wrapper raises `YtResponseError`.
+    :param replication_factor: (int) number of data replicas
+    :param attributes: (dict)
+    """
+    table = to_table(path, client=client)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
@@ -249,7 +301,12 @@ def create_table(path, recursive=None, ignore_existing=False, replication_factor
     create("table", table.name, recursive=recursive, ignore_existing=ignore_existing, attributes=attributes, client=client)
 
 def create_temp_table(path=None, prefix=None, client=None):
-    """ Creates temporary table by given path with given prefix """
+    """Create temporary table by given path with given prefix and return name.
+
+    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, by default `config.TEMP_TABLES_STORAGE`
+    :param prefix: (string) prefix of table name
+    :return: (string) name of result table
+    """
     if path is None:
         path = config.TEMP_TABLES_STORAGE
         mkdir(path, recursive=True, client=client)
@@ -265,19 +322,23 @@ def create_temp_table(path=None, prefix=None, client=None):
     create_table(name, client=client)
     return name
 
-
 def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None, compression_codec=None, client=None):
     """
-    Writes rows from input_stream to table.
+    Write rows from input_stream to table.
 
-    Input stream may be python file-like object or string, or list of strings. You also can
-    use StringIterIO to wrap iter of strings.
+    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify `TablePath` attributes \
+    for append mode or something like this. Table can not exist.
+    :param input_stream: python file-like object, string, list of strings, ``StringIterIO``.
+    :param format: (string or subclass of ``Format``) format of input data.
+    :param table_writer: (dict) spec of "write" operation
+    :param replication_factor: (integer) number of data replicas
+    :param compression_codec: (string) data compression algorithm, "lz4" (default), "gzip", "gzip_best_compression",\
+    "gzip_normal", "snappy"... TODO(veronikaiv): list it!
 
-    There are two modes.
-    In chunk mode we write by portion of fixed size. Each portion is written with retries.
-    In single mode we write all stream as is through HTTP.
+    Python Wrapper try to split input stream to portions of fixed size and write its with retries.
+    If splitting fails, stream is written as is through HTTP.
 
-    In both cases Transfer-Encoding is used.
+    Writing is executed under self-pinged transaction.
     """
     table = to_table(table, client=client)
     format = _prepare_format(format)
@@ -333,11 +394,19 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
         _remove_tables([table], client=client)
 
-
 def read_table(table, format=None, table_reader=None, response_type=None, raw=True, client=None):
     """
-    Downloads file from path.
-    Response type means the output format. By default it is line generator.
+    Download file from path.
+
+    :param table: string or :py:class:`yt.wrapper.table.TablePath`
+    :param table_reader: (dict) spec of "read" operation
+    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", "raw", "string"]
+    :param raw: (bool) don't parse response to rows
+    :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,
+    else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
+
+    If :py:data:`yt.wrapper.config.RETRY_READ` isn't specified,
+    command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
     table = to_table(table, client=client)
     format = _prepare_format(format)
@@ -440,14 +509,19 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             tx.__exit__(*sys.exc_info())
             raise
 
-
 def _are_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and not source_tables[0].has_delimiters() and not destination_table.append
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """
-    Copy table. Source table may be a list of tables. In this case tables would
-    be merged.
+    Copy table(s).
+
+    :param source_table: string, `TablePath` or list of them
+    :param destination_table: string or `TablePath`
+    :param replace: (bool) override `destination_table`
+
+    .. note:: param `replace` is overridden by setted `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    If `source_table` is a list of tables, tables would be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
@@ -469,8 +543,14 @@ def copy_table(source_table, destination_table, replace=True, client=None):
 
 def move_table(source_table, destination_table, replace=True, client=None):
     """
-    Move table. Source table may be a list of tables. In this case tables would
-    be merged.
+    Move table.
+
+    :param source_table: string, `TablePath` or list of them
+    :param destination_table: string or `TablePath`
+    :param replace: (bool) override `destination_table`
+
+    .. note:: param `replace` is overridden by `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    If `source_table` is a list of tables, tables would be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
@@ -490,11 +570,145 @@ def move_table(source_table, destination_table, replace=True, client=None):
                 continue
             remove(table.name, client=client)
 
+
+def records_count(table, client=None):
+    """Return number of records in the table.
+
+    :param table: string or `TablePath`
+    :return: integer
+    """
+    table = to_name(table, client=client)
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table, client=client):
+        return 0
+    return get_attribute(table, "row_count", client=client)
+
+def is_empty(table, client=None):
+    """Is table empty?
+
+    :param table: (string or `TablePath`)
+    :return: (bool)
+    """
+    return records_count(to_name(table, client=client), client=client) == 0
+
+def get_sorted_by(table, default=None, client=None):
+    """Get 'sorted_by' table attribute or `default` if attribute doesn't exist.
+
+    :param table: string or `TablePath`
+    :param default: whatever
+    :return: string of list of string
+    """
+    if default is None:
+        default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
+    return get_attribute(to_name(table, client=client), "sorted_by", default=default, client=client)
+
+def is_sorted(table, client=None):
+    """Is table sorted?
+
+    :param table: string or `TablePath`
+    :return: bool
+    """
+    if config.USE_YAMR_SORT_REDUCE_COLUMNS:
+        return get_sorted_by(table, [], client=client) == ["key", "subkey"]
+    else:
+        return parse_bool(get_attribute(to_name(table, client=client), "sorted", default="false", client=client))
+
+def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+    """
+    description is coming with tablets
+    TODO
+    """
+    # TODO(ignat): Add path preparetion
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("mount_table", params, client=client)
+
+def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
+    """
+    description is coming with tablets
+    TODO
+    """
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+    if force is not None:
+        params["force"] = bool_to_string(force)
+
+    make_request("unmount_table", params, client=client)
+
+def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
+    """
+    description is coming with tablets
+    TODO
+    """
+    params = {"path": path}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("remount_table", params, client=client)
+
+def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
+    """
+    description is coming with tablets
+    TODO
+    """
+    params = {"path": path,
+              "pivot_keys": pivot_keys}
+    if first_tablet_index is not None:
+        params["first_tablet_index"] = first_tablet_index
+    if last_tablet_index is not None:
+        params["last_tablet_index"] = last_tablet_index
+
+    make_request("reshard_table", params, client=client)
+
+def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
+    """
+    Execute a SQL-like query in accordance with the `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+
+    :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] [where <predicate> \
+    [group by <columns> [as <alias>], ...]]\"
+    :param timestamp: (string) TODO(veronikaiv): verify
+    :param format: (string or descendant of `Format`) output format
+    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", "raw", "string"]
+    :param raw: (bool) don't parse response to rows
+    """
+    format = _prepare_format(format)
+    params = {
+        "query": query,
+        "output_format": format.json()}
+    if timestamp is not None:
+        params["timestamp"] = timestamp
+
+    response = _make_transactional_request(
+        "select",
+        params,
+        proxy=get_host_for_heavy_operation(),
+        return_raw_response=True,
+        client=client)
+
+    return read_content(response, raw, format, get_value(response_type, "iter_lines"))
+
+# Operations.
+
 def run_erase(table, spec=None, strategy=None, client=None):
     """
-    Erase table. It differs from remove command.
-    Erase only remove given content. You can erase range
-    of records in the table.
+    Erase table.
+
+    It differs from remove command.
+    `Erase` only remove given content. You can erase range of records in the table.
+
+    :param table: (string of `TablePath`)
+    :param spec: (dict)
+    :param strategy: standard operation parameter
+
+    See :ref:`operation_parameters`.
     """
     table = to_table(table, client=client)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
@@ -503,36 +717,26 @@ def run_erase(table, spec=None, strategy=None, client=None):
     spec = _configure_spec(spec)
     _make_operation_request("erase", spec, strategy, client=client)
 
-def records_count(table, client=None):
-    """Return number of records in the table"""
-    table = to_name(table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table, client=client):
-        return 0
-    return get_attribute(table, "row_count", client=client)
-
-def is_empty(table, client=None):
-    """Check table for the emptiness"""
-    return records_count(to_name(table, client=client), client=client) == 0
-
-def get_sorted_by(table, default=None, client=None):
-    if default is None:
-        default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
-    return get_attribute(to_name(table, client=client), "sorted_by", default=default, client=client)
-
-def is_sorted(table, client=None):
-    """Checks that table is sorted"""
-    if config.USE_YAMR_SORT_REDUCE_COLUMNS:
-        return get_sorted_by(table, [], client=client) == ["key", "subkey"]
-    else:
-        return parse_bool(get_attribute(to_name(table, client=client), "sorted", default="false", client=client))
-
 def run_merge(source_table, destination_table, mode=None,
               strategy=None, table_writer=None,
               replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
     """
     Merge source tables and write it to destination table.
-    Mode should be 'unordered', 'ordered', or 'sorted'.
+
+    :param source_table: list of string or `TablePath`, list tables names to merge
+    :param destination_table: string or `TablePath`, path to result table
+    :param mode: ['unordered' (default), 'ordered', or 'sorted']. Mode `sorted` keeps sortedness of output tables,\
+    mode `ordered` is about chunk magic, not for ordinary users.
+    :param strategy: standard operation parameter
+    :param table_writer: standard operation parameter
+    :param replication_factor: (int) number of destination table replicas.
+    :param compression_codec: (string) compression algorithm of destination_table.
+    :param job_count: (integer) standard operation parameter.
+    :param spec: (dict) standard operation parameter.
+
+
+    See :ref:`operation_parameters`.
     """
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
@@ -552,7 +756,11 @@ def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
     """
-    Sort source table. If destination table is not specified, than it equals to source table.
+    Sort source table to destination table.
+
+    If destination table is not specified, than it equals to source table.
+
+    See :ref:`operation_parameters`.
     """
 
     sort_by = _prepare_sort_by(sort_by)
@@ -587,8 +795,10 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     _make_operation_request("sort", spec, strategy, finalizer=None, client=client)
 
-""" Map and reduce methods """
 class Finalizer(object):
+    """
+    Entity for operation finalizing: checking size of result chunks, deleting of empty output tables and uploaded files.
+    """
     def __init__(self, files, output_tables, client=None):
         self.files = files if files is not None else []
         self.output_tables = output_tables
@@ -635,6 +845,7 @@ class Finalizer(object):
                            "data_size_per_job={2}"
                         "}}'".format(table, mode, data_size_per_job, config.http.PROXY))
 
+
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
@@ -653,6 +864,48 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
                    reduce_combiner_memory_limit=None,
                    client=None):
+    """
+    Apply `mapper` to `source_table`, sort result by `sort_by` and apply `reducer` and `reduce_combiner`.
+
+    :param mapper: (python generator, callable object-generator or string (with bash commands)).
+    :param reducer: (python generator, callable object-generator or string (with bash commands)).
+    :param source_table: (string, `TablePath` or list of them) input tables
+    :param destination_table: (string, `TablePath` or list of them) output tables
+    :param format: (string of descendant of `yt.wrapper.format.Format`) common format of input, intermediate \
+    and output data. More specific formats will override it.
+    :param map_input_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param map_output_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param reduce_input_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param reduce_output_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param strategy:  standard operation parameter
+    :param table_writer: (dict) standard operation parameter
+    :param spec: (dict) standard operation parameter
+    :param replication_factor: (int) standard operation parameter
+    :param compression_codec: standard operation parameter
+    :param map_files: Deprecated!
+    :param map_file_paths: Deprecated!
+    :param map_local_files: (string or list  of string) paths to map scripts on local machine.
+    :param map_yt_files: (string or list  of string) paths to map scripts in Cypress.
+    :param reduce_files: Deprecated!
+    :param reduce_file_paths: Deprecated!
+    :param reduce_local_files: (string or list  of string) paths to reduce scripts on local machine.
+    :param reduce_yt_files: (string or list of string) paths to reduce scripts in Cypress.
+    :param mapper_memory_limit: (integer) in Mb, map **job** memory limit.
+    :param reducer_memory_limit: (integer) in Mb, reduce **job** memory limit.
+    :param sort_by: (list of strings, string) list of columns for sorting by, equals to `reduce_by` by default
+    :param reduce_by: (list of strings, string) list of columns for grouping by
+    :param reduce_combiner: (python generator, callable object-generator or string (with bash commands)).
+    :param reduce_combiner_input_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param reduce_combiner_output_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param reduce_combiner_files: Deprecated!
+    :param reduce_combiner_file_paths: Deprecated!
+    :param reduce_combiner_local_files: (string or list  of string) paths to reduce combiner scripts on local machine.
+    :param reduce_combiner_yt_files: (string or list  of string) paths to reduce combiner scripts in Cypress.
+    :param reduce_combiner_memory_limit: (integer) in Mb
+
+
+    See :ref:`operation_parameters`.
+    """
 
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
@@ -711,6 +964,18 @@ def run_operation(binary, source_table, destination_table,
                   op_name=None,
                   reduce_by=None,
                   client=None):
+    """
+    Run script operation.
+
+    :param binary: (python generator, callable object-generator or string (with bash commands))
+    :param files: Deprecated!
+    :param file_paths: Deprecated!
+    :param local_files: (string or list  of string) paths to scripts on local machine.
+    :param yt_files: (string or list  of string) paths to scripts in Cypress.
+    :param op_name: (string) operation name
+
+    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    """
     run_operation.files = []
     def memorize_files(spec, files):
         run_operation.files += files
@@ -775,15 +1040,35 @@ def run_operation(binary, source_table, destination_table,
     _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table, client=client), client=client)
 
 def run_map(binary, source_table, destination_table, **kwargs):
+    """
+    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    """
     kwargs["op_name"] = "map"
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
+    """
+    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    """
     kwargs["op_name"] = "reduce"
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
                     network_name=None, spec=None, copy_attributes=False, strategy=None, client=None):
+    """Copy `source_table` from remote cluster to `destination_table` of current cluster.
+
+    :param source_table: (list of string or `TablePath`)
+    :param destination_table: (string, `TablePath`)
+    :param cluster_name: (string)
+    :param network_name: (string)
+    :param spec: (dict)
+    :param copy_attributes: (bool) copy attributes source_table to destination_table
+    :param strategy: standard operation parameter
+
+    .. note:: For atomicity you should specify just one item in `source_table` in case attributes copying.
+
+    See :ref:`operation_parameters`.
+    """
     def get_input_name(table):
         return to_table(table).get_json()
 
@@ -820,61 +1105,3 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     )(spec)
 
     _make_operation_request("remote_copy", spec, strategy, client=client)
-
-def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    # TODO(ignat): Add path preparetion
-    params = {"path": path}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-
-    make_request("mount_table", params, client=client)
-
-def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
-    params = {"path": path}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-    if force is not None:
-        params["force"] = bool_to_string(force)
-
-    make_request("unmount_table", params, client=client)
-
-def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    params = {"path": path}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-
-    make_request("remount_table", params, client=client)
-
-def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
-    params = {"path": path,
-              "pivot_keys": pivot_keys}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
-
-    make_request("reshard_table", params, client=client)
-
-def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
-    format = _prepare_format(format)
-    params = {
-        "query": query,
-        "output_format": format.json()}
-    if timestamp is not None:
-        params["timestamp"] = timestamp
-
-    response = _make_transactional_request(
-        "select",
-        params,
-        proxy=get_host_for_heavy_operation(),
-        return_raw_response=True,
-        client=client)
-
-    return read_content(response, raw, format, get_value(response_type, "iter_lines"))
-
