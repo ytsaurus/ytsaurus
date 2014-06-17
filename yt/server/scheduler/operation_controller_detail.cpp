@@ -1062,9 +1062,11 @@ TError TOperationControllerBase::DoPrepare()
 
         SuspendUnavailableInputStripes();
 
-        InitInputChunkScratcher();
-
         AddAllTaskPendingHints();
+
+        // Input chunk scratcher initialization should be the last step to avoid races,
+        // because input chunk scratcher works in control thread.
+        InitInputChunkScratcher();
 
         return TError();
     } catch (const std::exception& ex) {
@@ -1111,9 +1113,10 @@ void TOperationControllerBase::DoRevive()
 
     AbortAllJoblets();
 
-    InitInputChunkScratcher();
-
     AddAllTaskPendingHints();
+
+    // Input chunk scratcher initialization should be the last step to avoid races.
+    InitInputChunkScratcher();
 }
 
 void TOperationControllerBase::InitializeTransactions()
