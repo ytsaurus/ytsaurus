@@ -68,14 +68,14 @@ protected:
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
     LOG_INFO("Prepaing logging thread");
-    sleep(1); // In sleep() we trust.
+    sleep(1.0); // In sleep() we trust.
 
     int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
     LOG_INFO("Awaking logging thread");
-    sleep(1); // In sleep() we trust.
+    sleep(1.0); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
 
@@ -179,7 +179,7 @@ TEST_F(TLoggingTest, LogManager)
     LOG_INFO("Info message");
     LOG_ERROR("Error message");
 
-    sleep(1);
+    sleep(1.0);
 
     auto infoLog = ReadFile("test.log");
     auto errorLog = ReadFile("test.error.log");

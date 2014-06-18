@@ -256,7 +256,7 @@ TEST_F(TSyncFileChangelogTest, TestSealedCorrupted)
 
 TEST_F(TSyncFileChangelogTest, Truncate)
 {
-    const int logRecordCount = 128;
+    const int logRecordCount = 16;
 
     {
         auto changelog = CreateChangelog<ui32>(logRecordCount);

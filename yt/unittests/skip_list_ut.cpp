@@ -95,12 +95,12 @@ TEST_F(TSkipListTest, 1to10)
     EXPECT_FALSE(List.FindEqualTo(11).IsValid());
 }
 
-TEST_F(TSkipListTest, Random1000000)
+TEST_F(TSkipListTest, Random100000)
 {
     srand(42);
     std::set<int> set;
-    for (int i = 0; i < 1000000; ++i) {
-        int value = rand();
+    for (int i = 0; i < 100000; ++i) {
+        int value = rand() % 1000;
         EXPECT_EQ(List.Insert(value), set.insert(value).second);
     }
     EXPECT_EQ(List.GetSize(), set.size());

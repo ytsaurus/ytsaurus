@@ -1588,13 +1588,13 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
-    for (size_t i = 0; i < 100000; ++i) {
+    for (size_t i = 0; i < 10000; ++i) {
         source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), simpleSplit, false));
     }
 
     std::vector<TUnversionedOwningRow> result;
 
-    for (size_t i = 2; i < 100000; ++i) {
+    for (size_t i = 2; i < 10000; ++i) {
         result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), simpleSplit, false));
     }
 

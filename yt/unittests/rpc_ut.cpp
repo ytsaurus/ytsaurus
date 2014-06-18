@@ -140,7 +140,7 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, DoNothing)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
 {
-    Sleep(TDuration::Seconds(5));
+    Sleep(TDuration::Seconds(1.0));
     context->Reply();
 }
 
@@ -323,7 +323,7 @@ TEST_F(TRpcTest, NoMethod)
 TEST_F(TRpcTest, Timeout)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    proxy.SetDefaultTimeout(TDuration::Seconds(1));
+    proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
 
     auto request = proxy.LongReply();
     auto response = request->Invoke().Get();
@@ -434,12 +434,12 @@ TEST_F(TRpcTest, LostConnection)
     auto request = proxy.LongReply();
     auto future = request->Invoke();
 
-    Sleep(TDuration::Seconds(1));
+    Sleep(TDuration::Seconds(0.2));
 
     EXPECT_FALSE(future.IsSet());
     RpcServer->Stop();
 
-    Sleep(TDuration::Seconds(1));
+    Sleep(TDuration::Seconds(0.2));
 
     // check that lost of connection is detected fast
     EXPECT_TRUE(future.IsSet());
