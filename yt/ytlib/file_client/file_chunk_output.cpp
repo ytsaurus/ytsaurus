@@ -6,13 +6,13 @@
 #include "file_chunk_writer.h"
 #include "private.h"
 
-#include <core/misc/sync.h>
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/compression/codec.h>
 
 #include <core/rpc/helpers.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/api/config.h>
 
@@ -33,6 +33,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
@@ -110,9 +111,11 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
     YCHECK(IsOpen);
 
+
     TFileChunkWriterFacade* facade = nullptr;
     while ((facade = Writer->GetFacade()) == nullptr) {
-        Sync(Writer.Get(), &TFileChunkWriter::GetReadyEvent);
+        auto error = WaitFor(Writer->GetReadyEvent());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     facade->Write(TRef(const_cast<void*>(buf), len));
@@ -127,7 +130,8 @@ void TFileChunkOutput::DoFinish()
 
     LOG_INFO("Closing file writer");
 
-    Sync(Writer.Get(), &TFileChunkWriter::Close);
+    auto error = WaitFor(Writer->GetReadyEvent());
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
 
     LOG_INFO("Confirming chunk");
     {
@@ -139,7 +143,7 @@ void TFileChunkOutput::DoFinish()
         ToProto(req->mutable_replicas(), ChunkWriter->GetWrittenChunkReplicas());
         GenerateMutationId(req);
 
-        auto rspOrError = proxy.Execute(req).Get();
+        auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
     }
     LOG_INFO("Chunk confirmed");
