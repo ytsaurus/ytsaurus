@@ -110,7 +110,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None, clie
     """
     List all children of Cypress node.
 
-    Node type should be 'map_node' or 'list_node'.
+    Node type should be 'map_node'.
     In case of 'map_node' it returns keys of the node.
     :param path: (string or `TablePath`)
     :param max_size: (int)

@@ -142,7 +142,7 @@ class Format(object):
 
 class DsvFormat(Format):
     """
-    Statbox favorite data format a la ``'time=10\\tday=monday\\n'``.
+    Tabular format is widely used in Statistics.
 
     .. seealso:: `DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
     """
@@ -227,7 +227,7 @@ class DsvFormat(Format):
 
 class YsonFormat(Format):
     """
-    Main, default and the best YT data format.
+    Main and default YT data format.
 
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
@@ -386,7 +386,7 @@ class JsonFormat(Format):
 
 class YamredDsvFormat(YamrFormat):
     """
-    Evil tabular data format for YAMR data.
+    Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
 
     .. seealso:: `Yamred DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
     """
@@ -405,7 +405,7 @@ class YamredDsvFormat(YamrFormat):
 
 class SchemafulDsvFormat(Format):
     """
-    Yet another DSV-like data format.
+    Schemaful dsv format. It accept column names and outputs values of these columns.
 
     .. seealso:: `SchemafulDsvFormat on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#schemeddsvschemafuldsv>`_
     """
