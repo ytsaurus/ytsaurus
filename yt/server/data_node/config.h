@@ -249,14 +249,11 @@ public:
     //! Number of writer threads per location.
     int WriteThreadCount;
 
-    //! Maximum number of concurrent write sessions.
-    int MaxWriteSessions;
+    //! Maximum number of blocks to fetch via a single range request.
+    int MaxBlocksPerRead;
 
-    //! Maximum number of blocks to fetch via a single request per range.
-    int MaxRangeReadBlockCount;
-
-    //! Maximum number of bytes to fetch via a single request per range.
-    i64 MaxRangeReadDataSize;
+    //! Maximum number of bytes to fetch via a single range request.
+    i64 MaxBytesPerRead;
 
 
     TDataNodeConfig()
@@ -342,10 +339,10 @@ public:
             .Default(1000)
             .GreaterThanOrEqual(1);
 
-        RegisterParameter("max_range_read_block_count", MaxRangeReadBlockCount)
+        RegisterParameter("max_block_per_read", MaxBlocksPerRead)
             .GreaterThan(0)
             .Default(100000);
-        RegisterParameter("max_range_read_data_size", MaxRangeReadDataSize)
+        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
 

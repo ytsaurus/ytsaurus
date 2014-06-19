@@ -209,7 +209,7 @@ private:
             }
 
             LOG_INFO("Getting chunk meta");
-            auto chunkMetaOrError = WaitFor(chunkReader->GetChunkMeta());
+            auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
             THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError);
             LOG_INFO("Chunk meta received");
             const auto& chunkMeta = chunkMetaOrError.Value();

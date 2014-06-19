@@ -32,21 +32,22 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    NChunkClient::NProto::TChunkMeta GetChunkMeta(
-        const std::vector<int>* extensionTags = nullptr) const;
-
-    //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes);
-
-    //! Implements IChunkReader and calls #GetChunkMeta.
-    virtual TAsyncGetMetaResult GetChunkMeta(
-        const TNullable<int>& partitionTag,
-        const std::vector<int>* extensionTags = nullptr);
-
     //! Synchronously reads a given block from the file.
     TSharedRef ReadBlock(int blockIndex);
 
-    //! Returns null but may be overridden in derived classes.
+    //! Synchronously returns the requested meta.
+    NChunkClient::NProto::TChunkMeta GetMeta(
+        const std::vector<int>* extensionTags = nullptr);
+
+    // IReader implementation.
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override;
+
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override;
+    
+    virtual TAsyncGetMetaResult GetMeta(
+        const TNullable<int>& partitionTag,
+        const std::vector<int>* extensionTags = nullptr) override;
+
     virtual TChunkId GetChunkId() const override;
 
 private:
@@ -58,8 +59,12 @@ private:
     i64 MetaSize_;
     i64 DataSize_;
 
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NChunkClient::NProto::TChunkMeta Meta_;
     NChunkClient::NProto::TBlocksExt BlocksExt_;
+    int BlockCount_;
+
+
+    void ValidateBlockIndex(int blockIndex);
 
 };
 

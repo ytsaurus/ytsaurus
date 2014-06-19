@@ -3,13 +3,10 @@
 #include "peer_block_table.h"
 #include "config.h"
 
-#include <ytlib/object_client/helpers.h>
-
 namespace NYT {
 namespace NDataNode {
 
 using namespace NChunkClient;
-using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,15 +17,6 @@ static auto& Logger = DataNodeLogger;
 TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfigPtr config)
     : Config_(config)
 { }
-
-bool TPeerBlockTable::MayHavePeers(const TChunkId& chunkId) const
-{
-    // NB: No peering for journal chunks.
-    auto type = TypeFromId(chunkId);
-    return
-        type == EObjectType::Chunk ||
-        type >= EObjectType::ErasureChunkPart_0 && type <= EObjectType::ErasureChunkPart_15;
-}
 
 const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 {

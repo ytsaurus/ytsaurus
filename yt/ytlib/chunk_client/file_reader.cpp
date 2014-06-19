@@ -31,10 +31,10 @@ void TFileReader::Open()
         OpenExisting | RdOnly | Seq | CloseOnExec);
 
     MetaSize_ = metaFile.GetLength();
-    TBufferedFileInput chunkMetaInput(metaFile);
+    TBufferedFileInput metaInput(metaFile);
 
     TChunkMetaHeader metaHeader;
-    ReadPod(chunkMetaInput, metaHeader);
+    ReadPod(metaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
         THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %s: expected %" PRIx64 ", actual %" PRIx64,
             ~FileName_.Quote(),
@@ -42,7 +42,7 @@ void TFileReader::Open()
             metaHeader.Signature);
     }
 
-    auto metaBlob = chunkMetaInput.ReadAll();
+    auto metaBlob = metaInput.ReadAll();
     auto metaBlobRef = TRef::FromString(metaBlob);
 
     auto checksum = GetChecksum(metaBlobRef);
@@ -53,37 +53,68 @@ void TFileReader::Open()
             checksum);
     }
 
-    if (!DeserializeFromProtoWithEnvelope(&ChunkMeta_, metaBlobRef)) {
+    if (!DeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %s",
             ~FileName_.Quote());
     }
 
-    BlocksExt_ = GetProtoExtension<TBlocksExt>(ChunkMeta_.extensions());
+    BlocksExt_ = GetProtoExtension<TBlocksExt>(Meta_.extensions());
+    BlockCount_ = BlocksExt_.blocks_size();
 
     DataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
     Opened_ = true;
 }
 
-TFuture<IReader::TReadResult>
-TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
+IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
     YCHECK(Opened_);
 
-    std::vector<TSharedRef> blocks;
-    blocks.reserve(blockIndexes.size());
+    try {
+        std::vector<TSharedRef> blocks;
+        blocks.reserve(blockIndexes.size());
 
-    for (int index = 0; index < blockIndexes.size(); ++index) {
-        int blockIndex = blockIndexes[index];
-        blocks.push_back(ReadBlock(blockIndex));
+        for (int index = 0; index < blockIndexes.size(); ++index) {
+            int blockIndex = blockIndexes[index];
+            ValidateBlockIndex(blockIndex);
+            blocks.push_back(ReadBlock(blockIndex));
+        }
+
+        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+    } catch (const std::exception& ex) {
+        return MakeFuture<TReadBlocksResult>(ex);
     }
+}
 
-    return MakeFuture(TReadResult(std::move(blocks)));
+IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
+    int firstBlockIndex,
+    int blockCount)
+{
+    YCHECK(Opened_);
+
+    try {
+        ValidateBlockIndex(firstBlockIndex);
+        ValidateBlockIndex(firstBlockIndex + blockCount - 1);
+
+        std::vector<TSharedRef> blocks;
+        blocks.reserve(blockCount);
+
+        for (int blockIndex = firstBlockIndex;
+             blockIndex < BlockCount_ && blockIndex < firstBlockIndex + blockCount;
+             ++blockIndex)
+        {
+            blocks.push_back(ReadBlock(blockIndex));
+        }
+
+        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+    } catch (const std::exception& ex) {
+        return MakeFuture<TReadBlocksResult>(ex);
+    }
 }
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
     YCHECK(Opened_);
-    YCHECK(blockIndex >= 0 && blockIndex < BlocksExt_.blocks_size());
+    YCHECK(blockIndex >= 0 && blockIndex < BlockCount_);
 
     const auto& blockInfo = BlocksExt_.blocks(blockIndex);
     struct TFileChunkBlockTag { };
@@ -101,6 +132,13 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     }
 
     return data;
+}
+
+TChunkMeta TFileReader::GetMeta(const std::vector<int>* extensionTags /*= nullptr*/)
+{
+    return extensionTags
+        ? FilterChunkMetaByExtensionTags(Meta_, *extensionTags)
+        : Meta_;
 }
 
 i64 TFileReader::GetMetaSize() const
@@ -121,28 +159,29 @@ i64 TFileReader::GetFullSize() const
     return MetaSize_ + DataSize_;
 }
 
-TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* extensionTags) const
-{
-    YCHECK(Opened_);
-    return extensionTags
-        ? FilterChunkMetaByExtensionTags(ChunkMeta_, *extensionTags)
-        : ChunkMeta_;
-}
-
-IReader::TAsyncGetMetaResult TFileReader::GetChunkMeta(
+IReader::TAsyncGetMetaResult TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
     const std::vector<int>* extensionTags)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YCHECK(!partitionTag.HasValue());
-    return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));
+    YCHECK(!partitionTag);
+    YCHECK(Opened_);
+    return MakeFuture(TGetMetaResult(GetMeta(extensionTags)));
 }
 
 TChunkId TFileReader::GetChunkId() const 
 {
     YUNREACHABLE();
+}
+
+void TFileReader::ValidateBlockIndex(int blockIndex)
+{
+    if (blockIndex < 0 || blockIndex >= BlockCount_) {
+        THROW_ERROR_EXCEPTION("Chunk has no block %d",
+            blockIndex);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

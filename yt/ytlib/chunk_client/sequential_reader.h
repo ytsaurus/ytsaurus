@@ -74,7 +74,7 @@ public:
 private:
     void OnGotBlocks(
         int firstSequenceIndex,
-        IReader::TReadResult readResult);
+        IReader::TReadBlocksResult readResult);
 
     void FetchNextGroup();
     void RequestBlocks(
@@ -84,7 +84,7 @@ private:
 
     void DecompressBlocks(
         int blockIndex,
-        const IReader::TReadResult& readResult);
+        const IReader::TReadBlocksResult& readResult);
 
     const std::vector<TBlockInfo> BlockSequence;
 

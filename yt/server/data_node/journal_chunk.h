@@ -26,11 +26,10 @@ public:
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
 
-    virtual TAsyncError ReadBlocks(
+    virtual TAsyncReadBlocksResult ReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
-        std::vector<TSharedRef>* blocks) override;
+        i64 priority) override;
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
@@ -46,8 +45,7 @@ private:
     void DoReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        TPromise<TError> promise,
-        std::vector<TSharedRef>* blocks);
+        TPromise<TReadBlocksResult> promise);
 
 };
 

@@ -200,7 +200,7 @@ public:
 
         LOG_INFO("Requesting chunk meta");
 
-        ChunkReader->GetChunkMeta(Null, &tags).Subscribe(
+        ChunkReader->GetMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -651,7 +651,7 @@ public:
 
         LOG_INFO("Requesting chunk meta");
 
-        ÑhunkReader->GetChunkMeta(chunkReader->PartitionTag, &tags)
+        ÑhunkReader->GetMeta(chunkReader->PartitionTag, &tags)
             .Subscribe(
                 BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));

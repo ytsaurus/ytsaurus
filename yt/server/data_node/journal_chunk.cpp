@@ -70,24 +70,22 @@ IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
 }
 
-TAsyncError TJournalChunk::ReadBlocks(
+IChunk::TAsyncReadBlocksResult TJournalChunk::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    i64 priority,
-    std::vector<TSharedRef>* blocks)
+    i64 priority)
 {
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
 
-    auto promise = NewPromise<TError>();
+    auto promise = NewPromise<TReadBlocksResult>();
 
     auto callback = BIND(
         &TJournalChunk::DoReadBlocks,
         MakeStrong(this),
         firstBlockIndex,
         blockCount,
-        promise,
-        blocks);
+        promise);
 
     Location_
         ->GetDataReadInvoker()
@@ -99,8 +97,7 @@ TAsyncError TJournalChunk::ReadBlocks(
 void TJournalChunk::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    TPromise<TError> promise,
-    std::vector<TSharedRef>* blocks)
+    TPromise<TReadBlocksResult> promise)
 {
     auto config = Bootstrap_->GetConfig();
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
@@ -116,45 +113,41 @@ void TJournalChunk::DoReadBlocks(
 
         NProfiling::TScopedTimer timer;
 
-        auto readBlocks = changelog->Read(
-            firstBlockIndex,
-            blockCount,
-            config->DataNode->MaxRangeReadDataSize);
-
-        auto readTime = timer.GetElapsed();
-
-        i64 readSize = 0;
-        for (int index = 0; index < readBlocks.size(); ++index) {
-            auto& readBlock = readBlocks[index];
-            readSize += readBlock.Size();
-            auto& block = (*blocks)[index + firstBlockIndex];
-            if (!block) {
-                block = std::move(readBlock);
-            }
+        std::vector<TSharedRef> blocks;
+        try {
+            blocks = changelog->Read(
+                firstBlockIndex,
+                std::min(blockCount, config->DataNode->MaxBlocksPerRead),
+                config->DataNode->MaxBytesPerRead);
+        } catch (const std::exception& ex) {
+            Location_->Disable();
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::IOError,
+                "Error reading journal chunk %s",
+                ~ToString(Id_))
+                << ex;
         }
 
-        LOG_DEBUG("Finished reading journal chunk blocks (Blocks: %s:%d-%d, LocationId: %s, ActuallyReadBlocks: %d, ActuallyReadBytes: %" PRId64 ")",
+        auto readTime = timer.GetElapsed();
+        int blocksRead = static_cast<int>(blocks.size());
+        i64 bytesRead = GetTotalSize(blocks);
+
+        LOG_DEBUG("Finished reading journal chunk blocks (Blocks: %s:%d-%d, LocationId: %s, BlocksReadActually: %d, BytesReadActually: %" PRId64 ")",
             ~ToString(Id_),
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             ~Location_->GetId(),
-            static_cast<int>(readBlocks.size()),
-            readSize);
+            blocksRead,
+            bytesRead);
 
         auto& locationProfiler = Location_->Profiler();
-        locationProfiler.Enqueue("/journal_read_size", readSize);
+        locationProfiler.Enqueue("/journal_read_size", bytesRead);
         locationProfiler.Enqueue("/journal_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/journal_read_throughput", readSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskJournalReadThroughputCounter, readSize);
+        locationProfiler.Enqueue("/journal_read_throughput", bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
+        DataNodeProfiler.Increment(DiskJournalReadThroughputCounter, bytesRead);
 
-        promise.Set(TError());
+        promise.Set(blocks);
     } catch (const std::exception& ex) {
-        auto error = TError(
-            NChunkClient::EErrorCode::IOError,
-            "Error reading journal chunk %s",
-            ~ToString(Id_))
-            << ex;
-        Location_->Disable();
         promise.Set(ex);
     }
 }

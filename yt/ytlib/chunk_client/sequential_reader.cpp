@@ -95,7 +95,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
 
 void TSequentialReader::OnGotBlocks(
     int firstSequenceIndex,
-    IReader::TReadResult readResult)
+    IReader::TReadBlocksResult readResult)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -124,7 +124,7 @@ void TSequentialReader::OnGotBlocks(
 
 void TSequentialReader::DecompressBlocks(
     int blockIndex,
-    const IReader::TReadResult& readResult)
+    const IReader::TReadBlocksResult& readResult)
 {
     const auto& blocks = readResult.Value();
     for (int i = 0; i < blocks.size(); ++i, ++blockIndex) {

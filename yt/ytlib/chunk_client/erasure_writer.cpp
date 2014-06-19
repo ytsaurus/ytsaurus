@@ -257,7 +257,7 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     NProto::TErasurePlacementExt placementExt;
     for (const auto& group : Groups_) {
         auto* info = placementExt.add_part_infos();
-        info->set_start(start);
+        info->set_first_block_index(start);
         for (const auto& block : group) {
             info->add_block_sizes(block.Size());
         }

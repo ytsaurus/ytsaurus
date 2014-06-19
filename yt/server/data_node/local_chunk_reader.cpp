@@ -37,7 +37,7 @@ class TLocalChunkReader;
 typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
 class TLocalChunkReader
-    : public NChunkClient::IReader
+    : public IReader
 {
 public:
     TLocalChunkReader(
@@ -52,7 +52,7 @@ public:
         Chunk_->ReleaseReadLock();
     }
 
-    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         NTracing::TTraceSpanGuard guard(
             NTracing::GetCurrentTraceContext(),
@@ -62,7 +62,13 @@ public:
             ->Run(blockIndexes);
     }
 
-    virtual TAsyncGetMetaResult GetChunkMeta(
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    {
+        // TODO(babenko): implement when first needed
+        YUNIMPLEMENTED();
+    }
+
+    virtual TAsyncGetMetaResult GetMeta(
         const TNullable<int>& partitionTag,
         const std::vector<int>* extensionTags) override
     {
@@ -98,7 +104,7 @@ private:
             , TraceSpanGuard_(std::move(guard))
         { }
 
-        TAsyncReadResult Run(const std::vector<int>& blockIndexes)
+        TAsyncReadBlocksResult Run(const std::vector<int>& blockIndexes)
         {
             Blocks_.resize(blockIndexes.size());
 
@@ -106,10 +112,9 @@ private:
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             for (int index = 0; index < static_cast<int>(blockIndexes.size()); ++index) {
                 awaiter->Await(
-                    blockStore->GetBlocks(
+                    blockStore->GetBlock(
                         Owner_->Chunk_->GetId(),
                         blockIndexes[index],
-                        1,
                         FetchPriority,
                         EnableCaching),
                     BIND(&TReadSession::OnBlockFetched, MakeStrong(this), index));
@@ -129,10 +134,10 @@ private:
         std::vector<TSharedRef> Blocks_;
 
 
-        void OnBlockFetched(int index, TBlockStore::TGetBlocksResult result)
+        void OnBlockFetched(int index, TBlockStore::TGetBlockResult result)
         {
             if (result.IsOK()) {
-                Blocks_[index] = result.Value()[0];
+                Blocks_[index] = result.Value();
             } else {
                 Promise_.TrySet(TError("Error reading local chunk")
                     << result);

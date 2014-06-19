@@ -50,23 +50,35 @@ public:
 
     ~TBlockStore();
 
-    typedef TErrorOr<std::vector<TSharedRef>> TGetBlocksResult;
+    typedef TErrorOr<TSharedRef> TGetBlockResult;
+    typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
 
-    //! Asynchronously retrives a range of blocks from the store.
+    typedef TErrorOr<std::vector<TSharedRef>> TGetBlocksResult;
+    typedef TFuture<TGetBlocksResult> TAsyncGetBlocksResult;
+
+    //! Asynchronously retrieves a block from the store.
     /*!
-     * This call returns a promise to the list of requested blocks.
-     *
-     * Fetching an already-cached block is cheap (i.e. requires no context switch).
-     * Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
+     *  Fetching an already-cached block is cheap (i.e. requires no context switch).
+     *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
      * 
-     * If some block is missing then the corresponding entry is null.
+     *  If the requested block is missing then null is returned.
      */
-    TFuture<TGetBlocksResult> GetBlocks(
+    TAsyncGetBlockResult GetBlock(
+        const TChunkId& chunkId,
+        int blockIndex,
+        i64 priority,
+        bool enableCaching);
+
+    //! Asynchronously retrieves a range of blocks from the store.
+    /*!
+     *  The resulting list may contain less blocks than requested.
+     *  An empty list indicates that the requested blocks are out of range.
+     */
+    TAsyncGetBlocksResult GetBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
-        bool enableCaching);
+        i64 priority);
 
     //! Puts a block into the store.
     /*!

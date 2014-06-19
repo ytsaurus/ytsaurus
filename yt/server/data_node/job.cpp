@@ -375,16 +375,15 @@ private:
             LOG_DEBUG("Retrieving block %d for replication", index);
 
             TBlockId blockId(ChunkId_, index);
-            auto blockOrError = WaitFor(blockStore->GetBlocks(
+            auto blockOrError = WaitFor(blockStore->GetBlock(
                 blockId.ChunkId,
                 blockId.BlockIndex,
-                1,
                 0,
                 false));
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError, "Error getting block %s for replication",
                 ~ToString(blockId));
 
-            const auto& block = blockOrError.Value()[0];
+            const auto& block = blockOrError.Value();
             auto result = writer->WriteBlock(block);
             if (!result) {
                 auto error = WaitFor(writer->GetReadyEvent());

@@ -21,11 +21,10 @@ public:
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
 
-    virtual TAsyncError ReadBlocks(
+    virtual TAsyncReadBlocksResult ReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
-        std::vector<TSharedRef>* blocks) override;
+        i64 priority) override;
 
 protected:
     TBlobChunkBase(
@@ -50,8 +49,7 @@ private:
         int firstBlockIndex,
         int blockCount,
         i64 pendingSize,
-        TPromise<TError> promise,
-        std::vector<TSharedRef>* blocks);
+        TPromise<TErrorOr<std::vector<TSharedRef>>> promise);
 
 
     NChunkClient::NProto::TBlocksExt BlocksExt_;

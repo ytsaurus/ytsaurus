@@ -47,7 +47,7 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
 
-        auto chunkMetaOrError = WaitFor(chunkReader->GetChunkMeta());
+        auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError)
         ChunkMeta_.Swap(&chunkMetaOrError.Value());
 

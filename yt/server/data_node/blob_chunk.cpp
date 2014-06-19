@@ -89,11 +89,10 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
         }).AsyncVia(invoker));
 }
 
-TAsyncError TBlobChunkBase::ReadBlocks(
+IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    i64 priority,
-    std::vector<TSharedRef>* blocks)
+    i64 priority)
 {
     YCHECK(firstBlockIndex >= 0);
     YCHECK(blockCount >= 0);
@@ -105,7 +104,7 @@ TAsyncError TBlobChunkBase::ReadBlocks(
         blockStore->UpdatePendingReadSize(+pendingSize);
     }
 
-    auto promise = NewPromise<TError>();
+    auto promise = NewPromise<TReadBlocksResult>();
 
     auto callback = BIND(
         &TBlobChunkBase::DoReadBlocks,
@@ -113,8 +112,7 @@ TAsyncError TBlobChunkBase::ReadBlocks(
         firstBlockIndex,
         blockCount,
         pendingSize,
-        promise,
-        blocks);
+        promise);
 
     Location_
         ->GetDataReadInvoker()
@@ -127,80 +125,78 @@ void TBlobChunkBase::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 pendingSize,
-    TPromise<TError> promise,
-    std::vector<TSharedRef>* blocks)
+    TPromise<TReadBlocksResult> promise)
 {
     auto blockStore = Bootstrap_->GetBlockStore();
     auto readerCache = Bootstrap_->GetBlobReaderCache();
 
-    TFileReaderPtr reader;
     try {
-        reader = readerCache->GetReader(this);
+        auto reader = readerCache->GetReader(this);
+
+        if (pendingSize < 0) {
+            InitializeCachedMeta(reader->GetMeta());
+            pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
+            YCHECK(pendingSize >= 0);
+        }
+
+        auto validateBlockIndex = [&] (int blockIndex) {
+            if (blockIndex < 0 || blockIndex >= BlocksExt_.blocks_size()) {
+                THROW_ERROR_EXCEPTION("Chunk %s has no block %d",
+                    ~ToString(Id_),
+                    blockIndex);
+            }
+        };
+
+        validateBlockIndex(firstBlockIndex);
+        validateBlockIndex(firstBlockIndex + blockCount - 1);
+
+        std::vector<TSharedRef> blocks;
+
+        for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
+            TBlockId blockId(Id_, blockIndex);
+            NProfiling::TScopedTimer timer;
+            TSharedRef block;
+            try {
+                LOG_DEBUG("Started reading blob chunk block (BlockId: %s, LocationId: %s)",
+                    ~ToString(blockId),
+                    ~Location_->GetId());
+            
+                block = reader->ReadBlock(blockIndex);
+
+                LOG_DEBUG("Finished reading blob chunk block (BlockId: %s, LocationId: %s)",
+                    ~ToString(blockId),
+                    ~Location_->GetId());
+            } catch (const std::exception& ex) {
+                Location_->Disable();
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error reading blob chunk block %s",
+                    ~ToString(blockId))
+                    << ex;
+            }
+
+            blocks.push_back(block);
+
+            auto readTime = timer.GetElapsed();
+            i64 readSize = block.Size();
+
+            auto& locationProfiler = Location_->Profiler();
+            locationProfiler.Enqueue("/blob_block_read_size", readSize);
+            locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
+            locationProfiler.Enqueue("/blob_block_read_throughput", readSize * 1000000 / (1 + readTime.MicroSeconds()));
+            DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, readSize);
+        }
+
+        YCHECK(pendingSize >= 0);
+        blockStore->UpdatePendingReadSize(-pendingSize);
+
+        promise.Set(blocks);
     } catch (const std::exception& ex) {
         if (pendingSize >= 0) {
             blockStore->UpdatePendingReadSize(-pendingSize);
         }
         promise.Set(ex);
-        return;
     }
-
-    if (pendingSize < 0) {
-        InitializeCachedMeta(reader->GetChunkMeta());
-        pendingSize = ComputePendingReadSize(firstBlockIndex, blockCount);
-        YCHECK(pendingSize >= 0);
-    }
-
-    if (firstBlockIndex + blockCount > BlocksExt_.blocks_size()) {
-        promise.Set(TError("Chunk %s has no blocks %d-%d",
-            ~ToString(Id_),
-            BlocksExt_.blocks_size(),
-            firstBlockIndex + blockCount - 1));
-        return;
-    }
-
-    for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
-        if ((*blocks)[blockIndex - firstBlockIndex])
-            continue;
-
-        TBlockId blockId(Id_, blockIndex);
-        NProfiling::TScopedTimer timer;
-        TSharedRef block;
-        try {
-            LOG_DEBUG("Started reading blob chunk block (BlockId: %s, LocationId: %s)",
-                ~ToString(blockId),
-                ~Location_->GetId());
-            
-            block = reader->ReadBlock(blockIndex);
-
-            LOG_DEBUG("Finished reading blob chunk block (BlockId: %s, LocationId: %s)",
-                ~ToString(blockId),
-                ~Location_->GetId());
-        } catch (const std::exception& ex) {
-            auto error = TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error reading blob chunk block %s",
-                ~ToString(blockId))
-                << ex;
-            Location_->Disable();
-            blockStore->UpdatePendingReadSize(-pendingSize);
-            promise.Set(error);
-            return;
-        }
-
-        (*blocks)[blockIndex - firstBlockIndex] = block;
-
-        auto readTime = timer.GetElapsed();
-        i64 readSize = block.Size();
-
-        auto& locationProfiler = Location_->Profiler();
-        locationProfiler.Enqueue("/blob_block_read_size", readSize);
-        locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
-        locationProfiler.Enqueue("/blob_block_read_throughput", readSize * 1000000 / (1 + readTime.MicroSeconds()));
-        DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, readSize);
-    }
-
-    blockStore->UpdatePendingReadSize(-pendingSize);
-    promise.Set(TError());
 }
 
 TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
@@ -239,7 +235,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
         }
     }
 
-    InitializeCachedMeta(reader->GetChunkMeta());
+    InitializeCachedMeta(reader->GetMeta());
     ReleaseReadLock();
 
     LOG_DEBUG("Finished reading chunk meta (ChunkId: %s, LocationId: %s)",

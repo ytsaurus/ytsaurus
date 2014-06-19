@@ -42,6 +42,9 @@ struct IChunk
     //! Returns the full path to the chunk data file.
     virtual Stroka GetFileName() const = 0;
 
+    typedef TErrorOr<std::vector<TSharedRef>> TReadBlocksResult;
+    typedef TFuture<TReadBlocksResult> TAsyncReadBlocksResult;
+
     typedef TErrorOr<TRefCountedChunkMetaPtr> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
@@ -58,15 +61,10 @@ struct IChunk
         const std::vector<int>* tags = nullptr) = 0;
 
     //! Asynchronously reads a range of blocks.
-    /*!
-     *  Blocks are put into #blocks list. If some element is not null then
-     *  the corresponding block must not be fetched.
-     */
-    virtual TAsyncError ReadBlocks(
+    virtual TAsyncReadBlocksResult ReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
-        std::vector<TSharedRef>* blocks) = 0;
+        i64 priority) = 0;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!

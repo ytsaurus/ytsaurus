@@ -37,10 +37,6 @@ class TPeerBlockTable
 public:
     explicit TPeerBlockTable(TPeerBlockTableConfigPtr config);
     
-    //! Returns |true| if the table may potentially contain peer information
-    //! for a given chunk id.
-    bool MayHavePeers(const NChunkClient::TChunkId& chunkId) const;
-
     //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.

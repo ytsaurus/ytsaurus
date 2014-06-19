@@ -20,21 +20,23 @@ namespace NChunkClient {
 struct IReader
     : public virtual TRefCounted
 {
-    //! Describes a result of #AsyncReadBlocks.
-    typedef TErrorOr<std::vector<TSharedRef>> TReadResult;
-    typedef TFuture<TReadResult> TAsyncReadResult;
-    typedef TPromise<TReadResult> TAsyncReadPromise;
+    typedef TErrorOr<std::vector<TSharedRef>> TReadBlocksResult;
+    typedef TFuture<TReadBlocksResult> TAsyncReadBlocksResult;
 
-    //! Describes a result of #AsyncGetChunkInfo.
     typedef TErrorOr<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
-    typedef TPromise<TGetMetaResult> TAsyncGetMetaPromise;
 
     //! Asynchronously reads a given set of blocks.
-    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) = 0;
+    //! Returns a collection of blocks, each corresponding to a single given index.
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) = 0;
+
+    //! Asynchronously reads a given range of blocks.
+    //! The call may return less blocks than requested.
+    //! If an empty list of blocks is returned then there are no blocks in the given range.
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) = 0;
 
     //! Asynchronously obtains a meta, possibly filtered by #partitionTag and #extensionTags.
-    virtual TAsyncGetMetaResult GetChunkMeta(
+    virtual TAsyncGetMetaResult GetMeta(
         const TNullable<int>& partitionTag = Null,
         const std::vector<int>* extensionTags = nullptr) = 0;
 

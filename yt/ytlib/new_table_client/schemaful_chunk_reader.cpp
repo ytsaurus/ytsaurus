@@ -163,7 +163,7 @@ void TChunkReader::DoOpen()
     tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(UnderlyingReader->GetChunkMeta(Null, &tags));
+    auto metaOrError = WaitFor(UnderlyingReader->GetMeta(Null, &tags));
     if (!metaOrError.IsOK()) {
         State.Finish(metaOrError);
         return;

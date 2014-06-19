@@ -69,10 +69,10 @@ message TMiscExt
 
 message TPartInfo
 {
-    // Number of first block in whole chunk
-    required int32 start = 1;
+    // Index of the first block in the whole chunk.
+    required int32 first_block_index = 1;
 
-    // Sizes of blocks. Needed for repair.
+    // Block sizes. Used to estimate memory consumption of repair.
     repeated int64 block_sizes = 2;
 }
 

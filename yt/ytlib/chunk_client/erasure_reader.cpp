@@ -34,7 +34,7 @@ IReader::TAsyncGetMetaResult GetPlacementMeta(IReaderPtr reader)
 {
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<TErasurePlacementExt>::Value);
-    return reader->GetChunkMeta(Null, &tags);
+    return reader->GetMeta(Null, &tags);
 }
 
 } // namespace
@@ -56,17 +56,17 @@ public:
         , PartInfos_(partInfos)
         , BlockIndexes_(blockIndexes)
         , Result_(BlockIndexes_.size())
-        , ResultPromise_(NewPromise<IReader::TReadResult>())
+        , ResultPromise_(NewPromise<IReader::TReadBlocksResult>())
     { }
 
 
-    IReader::TAsyncReadResult Run()
+    IReader::TAsyncReadBlocksResult Run()
     {
-        // For each reader we find blocks to read and their initial indices
+        // For each reader we find blocks to read and their initial indices.
         std::vector<
             std::pair<
                 std::vector<int>, // indices of blocks in the part
-                TPartIndexList   // indices of blocks in the requested blockIndexes
+                TPartIndexList    // indices of blocks in the requested blockIndexes
             > > BlockLocations_(Readers_.size());
 
         // Fill BlockLocations_ using information about blocks in parts
@@ -74,18 +74,18 @@ public:
         for (int blockIndex : BlockIndexes_) {
             YCHECK(blockIndex >= 0);
 
-            // Searching for the part of given block
+            // Searching for the part of a given block.
             auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparer());
             YCHECK(it != PartInfos_.begin());
             do {
                 --it;
-            } while (it != PartInfos_.begin() && (it->start() > blockIndex || it->block_sizes().size() == 0));
+            } while (it != PartInfos_.begin() && (it->first_block_index() > blockIndex || it->block_sizes().size() == 0));
 
             YCHECK(it != PartInfos_.end());
             int readerIndex = it - PartInfos_.begin();
 
-            YCHECK(blockIndex >= it->start());
-            int blockInPartIndex = blockIndex - it->start();
+            YCHECK(blockIndex >= it->first_block_index());
+            int blockInPartIndex = blockIndex - it->first_block_index();
 
             YCHECK(blockInPartIndex < it->block_sizes().size());
             BlockLocations_[readerIndex].first.push_back(blockInPartIndex);
@@ -109,7 +109,7 @@ public:
         return ResultPromise_;
     }
 
-    void OnBlocksRead(const TPartIndexList& indicesInPart, IReader::TReadResult readResult)
+    void OnBlocksRead(const TPartIndexList& indicesInPart, IReader::TReadBlocksResult readResult)
     {
         if (readResult.IsOK()) {
             auto dataRefs = readResult.Value();
@@ -139,7 +139,7 @@ private:
     {
         bool operator()(int position, const TPartInfo& info) const
         {
-            return position < info.start();
+            return position < info.first_block_index();
         }
     };
 
@@ -149,7 +149,7 @@ private:
     std::vector<int> BlockIndexes_;
 
     std::vector<TSharedRef> Result_;
-    IReader::TAsyncReadPromise ResultPromise_;
+    TPromise<IReader::TReadBlocksResult> ResultPromise_;
 
     TSpinLock AddReadErrorLock_;
     std::vector<TError> ReadErrors_;
@@ -170,24 +170,30 @@ public:
         YCHECK(!Readers_.empty());
     }
 
-    virtual TAsyncReadResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
-            BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadResult {
-                RETURN_FUTURE_IF_ERROR(error, TReadResult);
+            BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadBlocksResult {
+                RETURN_FUTURE_IF_ERROR(error, TReadBlocksResult);
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
             }).AsyncVia(ControlInvoker_)
         );
     }
 
-    virtual TAsyncGetMetaResult GetChunkMeta(
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    {
+        // TODO(babenko): implement when first needed
+        YUNIMPLEMENTED();
+    }
+
+    virtual TAsyncGetMetaResult GetMeta(
         const TNullable<int>& partitionTag = Null,
         const std::vector<int>* extensionTags = nullptr) override
     {
         // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);
-        return Readers_.front()->GetChunkMeta(partitionTag, extensionTags);
+        return Readers_.front()->GetMeta(partitionTag, extensionTags);
     }
 
     virtual TChunkId GetChunkId() const override
@@ -216,9 +222,9 @@ private:
                 PartInfos_ = NYT::FromProto<TPartInfo>(extension.part_infos());
 
                 // Check that part infos are correct.
-                YCHECK(PartInfos_.front().start() == 0);
+                YCHECK(PartInfos_.front().first_block_index() == 0);
                 for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
-                    YCHECK(PartInfos_[i].start() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].start());
+                    YCHECK(PartInfos_[i].first_block_index() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].first_block_index());
                 }
 
                 return TError();
@@ -316,7 +322,7 @@ private:
         promise.Set(result);
     }
 
-    void OnBlockRead(TReadPromise promise, IReader::TReadResult readResult)
+    void OnBlockRead(TReadPromise promise, IReader::TReadBlocksResult readResult)
     {
         if (!readResult.IsOK()) {
             Complete(promise, TError(readResult));
@@ -742,7 +748,7 @@ private:
         TChunkMeta meta;
         {
             auto reader = Readers_.front(); // an arbitrary one will do
-            auto metaOrError = WaitFor(reader->GetChunkMeta());
+            auto metaOrError = WaitFor(reader->GetMeta());
             THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
             meta = metaOrError.Value();
         }
