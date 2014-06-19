@@ -76,7 +76,9 @@ void WaitFor(TFuture<void> future, IInvokerPtr invoker)
     if (scheduler) {
         scheduler->WaitFor(std::move(future), std::move(invoker));
     } else {
-        // If we call WaitFor from fiber-unfriendly thread, we fallback to blocking wait.
+        // If we call WaitFor from a fiber-unfriendly thread, we fallback to blocking wait.
+        YCHECK(invoker == GetCurrentInvoker());
+        YCHECK(invoker == GetSyncInvoker());
         future.Get();
     }
 }
