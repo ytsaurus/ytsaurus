@@ -48,8 +48,5 @@ class YtTestBase(object):
         yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
     def teardown(self):
-        try:
-            yt.remove(TEST_DIR, recursive=True, force=True)
-        except:
-            pass
+        yt.remove(TEST_DIR, recursive=True, force=True)
 

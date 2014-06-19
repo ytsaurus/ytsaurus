@@ -279,7 +279,7 @@ class TestNativeMode(YtTestBase, YTEnv):
         self.assertEqual(proc.returncode, 0)
 
 
-    def check_command(self, command, post_action=None, check_action=None):
+    def check_command(self, command, post_action=None, check_action=None, final_action=None):
         mutation_id = yt.common.generate_uuid()
         def run_command():
             yt.config.MUTATION_ID = mutation_id
@@ -294,6 +294,9 @@ class TestNativeMode(YtTestBase, YTEnv):
             assert result == run_command()
             if check_action is not None:
                 assert check_action()
+
+        if final_action is not None:
+            final_action(result)
 
     def test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
@@ -326,6 +329,10 @@ class TestNativeMode(YtTestBase, YTEnv):
         self.check_command(lambda: yt.move(test_dir, test_dir2))
 
     def test_scheduler_mutation_id(self):
+        def abort(operation_id):
+            yt.abort_operation(operation_id)
+            time.sleep(1.0) # Wait for aborting transactions
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["x=1\n", "x=2\n"])
@@ -340,11 +347,11 @@ class TestNativeMode(YtTestBase, YTEnv):
                      "input_table_paths": [table],
                      "output_table_paths": [other_table]}})]:
 
-            op_count = yt.get("//sys/operations/@count")
             self.check_command(
-                lambda: yt.driver.make_request(command, params),
+                lambda: yson.loads(yt.driver.make_request(command, params)),
                 None,
-                lambda: yt.get("//sys/operations/@count") == op_count + 1)
+                lambda: yt.get("//sys/operations/@count") == 1,
+                abort)
 
     def test_lock(self):
         dir = TEST_DIR + "/dir"
