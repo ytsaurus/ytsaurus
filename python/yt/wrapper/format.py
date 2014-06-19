@@ -36,7 +36,7 @@ class Format(object):
 
     def json(self):
         """
-        Return JSON name of format.
+        Return JSON representation of format.
         """
         return yson.yson_to_json(self._name)
 
@@ -145,7 +145,7 @@ class DsvFormat(Format):
     """
     Statbox favorite data format a la ``'time=10\\tday=monday\\n'``.
 
-    `More about DSV <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
+    .. seealso:: `DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
     """
 
     def __init__(self, enable_escaping=None, attributes=None):
@@ -230,7 +230,7 @@ class YsonFormat(Format):
     """
     Main, default and the best YT data format.
 
-    `More about YSON <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
+    .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
     def __init__(self, format=None, attributes=None):
         all_attributes = Format._make_attributes(get_value(attributes, {}),
@@ -255,7 +255,7 @@ class YamrFormat(Format):
     """
     YAMR legacy data format.
 
-    `More about YAMR <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
+    .. seealso:: `YAMR on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
     """
 
     def __init__(self, has_subkey=None, lenval=None, field_separator=None, record_separator=None, attributes=None):
@@ -353,7 +353,7 @@ class JsonFormat(Format):
     """
     Open standard text data format for attribute-value data.
 
-    `More about JSON <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
+    .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
     def __init__(self, attributes=None):
@@ -388,7 +388,7 @@ class YamredDsvFormat(YamrFormat):
     """
     Evil tabular data format for YAMR data.
 
-    `More about Yamred DSV <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
+    .. seealso:: `Yamred DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
     """
 
     def __init__(self, key_column_names=None, subkey_column_names=None, has_subkey=None, lenval=None, attributes=None):
@@ -407,8 +407,7 @@ class SchemafulDsvFormat(Format):
     """
     Yet another DSV-like data format.
 
-    `More about <https://wiki.yandex-team.ru/yt/userdoc/formats#schemeddsvschemafuldsv>`_
-
+    .. seealso:: `SchemafulDsvFormat on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#schemeddsvschemafuldsv>`_
     """
 
     def __init__(self, columns=None, enable_escaping=None, attributes=None):

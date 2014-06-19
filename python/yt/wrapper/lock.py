@@ -18,7 +18,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, client=None):
     :param wait_for: (int) wait interval in milliseconds. If timeout occurred, ``YtError`` raised
     :return: taken lock id (YSON string) or ``None`` if lock was not taken.
 
-    `More about <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
+    .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)

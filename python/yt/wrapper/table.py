@@ -27,7 +27,7 @@ class TablePath(object):
 
     * simplify -- request proxy to parse YPATH
 
-    `See more <https://wiki.yandex-team.ru/yt/Design/YPath>`_
+    .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/Design/YPath>`_
     """
     def __init__(self,
                  name,
@@ -48,7 +48,7 @@ class TablePath(object):
         :param start_index: (int) lower bound of rows
         :param end_index: (int) upper bound of rows
 
-        .. note:: 'upper_key' and 'lower_key' are special YT terms. Meaning are counter-intuitive.
+        .. note:: 'upper_key' and 'lower_key' are special YT terms. \
         `See usage example. <https://wiki.yandex-team.ru/yt/Design/YPath#modifikatorydiapazonovtablicy>`_
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously
         .. note:: param `simplify` will be removed
@@ -115,7 +115,7 @@ class TablePath(object):
         return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
 
     def get_json(self):
-        """Get path in JSON format"""
+        """Get path in JSON representation (dict)"""
         return {"$value": str(self.name), "$attributes": self.name.attributes}
 
     def __eq__(self, other):

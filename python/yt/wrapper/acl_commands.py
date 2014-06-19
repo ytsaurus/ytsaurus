@@ -9,7 +9,7 @@ def check_permission(user, permission, path, format=None, client=None):
     :param user: (string) user login
     :param permission: (string) ["read", "write", "administer", "create", "use"]
     :return: permission in specified format (YSON by default)
-    `See more <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     return _make_formatted_transactional_request(
         "check_permission",
@@ -26,7 +26,7 @@ def add_member(member, group, client=None):
 
     :param member: (string)
     :param group: (string)
-    `See more <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     return make_request(
         "add_member",
@@ -41,7 +41,7 @@ def remove_member(member, group, client=None):
 
     :param member: (string)
     :param group: (string)
-    `See more <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
     """
     return make_request(
         "remove_member",

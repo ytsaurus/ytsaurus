@@ -39,7 +39,7 @@ def parse_bool(word):
 def bool_to_string(bool_value):
     """convert Python bool value to 'true' or 'false' string
 
-    Raise ``YtError`` if value is incorrect.
+    Raise `YtError` if value is incorrect.
     """
     if bool_value not in [False, True]:
         raise YtError("Incorrect bool value '{0}'".format(bool_value))
