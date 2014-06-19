@@ -15,6 +15,7 @@ import subprocess
 import sys
 import simplejson as json
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -218,7 +219,7 @@ class YTEnv(object):
         self.pids_file.write(str(pid) + '\n')
         self.pids_file.flush();
 
-    def _run(self, args, name, number=1, timeout=0.5):
+    def _run(self, args, name, number=1, timeout=0.1):
         if self.supress_yt_output:
             stdout = open("/dev/null", "w")
             stderr = open("/dev/null", "w")
@@ -555,11 +556,16 @@ class YTEnv(object):
         if has_proxy:
             self.start_proxy(proxy_name)
 
-    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
+    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.1, name=""):
+        print_dot_timeout = timedelta(seconds=0.5)
+        last_print_dot_time = datetime.now()
+
         current_wait_time = 0
         write_with_flush('Waiting for %s' % name)
         while current_wait_time < max_wait_time:
-            write_with_flush('.')
+            if last_print_dot_time < datetime.now():
+                write_with_flush('.')
+                last_print_dot_time += print_dot_timeout
             if condition():
                 write_with_flush(' %s ready\n' % name)
                 return
