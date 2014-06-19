@@ -75,7 +75,7 @@ def main():
     else:
         __result = \
             itertools.chain.from_iterable(
-                itertools.starmap(__operation, 
+                itertools.starmap(__operation,
                     itertools.groupby(__records, lambda rec: extract_key(rec, __keys))))
 
     if is_raw:
