@@ -28,7 +28,7 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
     Be careful: attributes have specific representation in json format.
 
     :return: node tree content in `format`
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
+    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
     """
     return _make_formatted_transactional_request(
         "get",
@@ -46,7 +46,7 @@ def set(path, value, client=None):
 
     :param path: (string or `yt.wrapper.table.TablePath`)
     :param value: json-able object.
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
+    .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
     """
     return _make_transactional_request(
         "set",
@@ -63,7 +63,7 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
     :param source_path: (string or `yt.wrapper.table.TablePath`)
     :param destination_path: (string or `yt.wrapper.table.TablePath`)
     :param preserve_account: (bool)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
+    .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
     """
     params = {"source_path": prepare_path(source_path),
               "destination_path": prepare_path(destination_path)}
@@ -76,7 +76,7 @@ def move(source_path, destination_path, client=None):
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
     :param destination_path: (string or `yt.wrapper.table.TablePath`)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
+    .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
     """
     _make_transactional_request(
         "move",
@@ -93,7 +93,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
     :param link_path: (string or `yt.wrapper.table.TablePath`)
     :param recursive: (bool)
     :param ignore_existing: (bool)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#link>`_
+    .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#link>`_
     """
     return _make_transactional_request(
         "link",
@@ -117,7 +117,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None, clie
     :param attributes: (list) desired node attributes in the response.
     :param format: (descendant of `Format`)
     :param absolute: (bool)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
+    .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
     """
     def join(elem):
         return yson.to_yson_type(
@@ -141,7 +141,7 @@ def exists(path, client=None):
     """Check Cypress node exists.
 
     :param path: (string or `TablePath`)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#exists>`_
+    .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#exists>`_
     """
     return parse_bool(
         _make_formatted_transactional_request(
@@ -155,7 +155,7 @@ def remove(path, recursive=False, force=False, client=None):
 
     :param path: (string or `TablePath`)
     :recursive, force: (bool)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#remove>`_
+    .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#remove>`_
     """
     _make_transactional_request(
         "remove",
@@ -170,9 +170,9 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     """Create Cypress node.
 
     :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
-    :param path: (string or ``TablePath``)
+    :param path: (string or `TablePath`)
     :param attributes: (dict)
-    `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
+    .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
     """
     params = {
         "type": type,
