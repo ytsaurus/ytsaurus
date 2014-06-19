@@ -49,10 +49,10 @@ using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCellNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
-using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
 using NNodeTrackerClient::TNodeDescriptor;
@@ -430,7 +430,7 @@ private:
         auto codecId = NErasure::ECodec(RepairJobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
 
-        auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt_.replicas());
+        auto replicas = FromProto<TChunkReplica>(RepairJobSpecExt_.replicas());
         auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt_.targets());
         auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt_.erased_indexes());
         YCHECK(targets.size() == erasedIndexes.size());
@@ -449,8 +449,6 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(RepairJobSpecExt_.node_directory());
 
-        auto config = Bootstrap_->GetConfig()->DataNode;
-
         std::vector<IReaderPtr> readers;
         for (int partIndex : *repairIndexes) {
             TChunkReplicaList partReplicas;
@@ -463,7 +461,7 @@ private:
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto reader = CreateReplicationReader(
-                config->RepairReader,
+                Config_->RepairReader,
                 Bootstrap_->GetBlockStore()->GetBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
@@ -482,7 +480,7 @@ private:
             const auto& target = targets[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto writer = CreateReplicationWriter(
-                config->RepairWriter,
+                Config_->RepairWriter,
                 partId,
                 std::vector<TNodeDescriptor>(1, target),
                 EWriteSessionType::Repair,
@@ -564,7 +562,48 @@ private:
                     currentRecordCount,
                     sealRecordCount - 1);
 
-                THROW_ERROR_EXCEPTION("Record download is not implemented");
+                auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+                nodeDirectory->MergeFrom(SealJobSpecExt_.node_directory());
+
+                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
+
+                auto reader = CreateReplicationReader(
+                    Config_->SealReader,
+                    Bootstrap_->GetBlockStore()->GetBlockCache(),
+                    Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                    nodeDirectory,
+                    Null,
+                    ChunkId_,
+                    replicas,
+                    EReadSessionType::Replication,
+                    Bootstrap_->GetReplicationInThrottler());
+
+                while (currentRecordCount < sealRecordCount) {
+                    auto blocksOrError = WaitFor(reader->ReadBlocks(
+                        currentRecordCount,
+                        sealRecordCount - currentRecordCount));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(blocksOrError);
+
+                    const auto& blocks = blocksOrError.Value();
+                    int blockCount = static_cast<int>(blocks.size());
+
+                    if (blockCount == 0) {
+                        THROW_ERROR_EXCEPTION("Cannot download required records %d-%d to seal chunk %s",
+                            currentRecordCount,
+                            sealRecordCount - 1,
+                            ~ToString(ChunkId_));
+                    }
+
+                    LOG_INFO("Journal chunk records downloaded (Blocks: %d-%d)",
+                        currentRecordCount,
+                        currentRecordCount + blockCount - 1);
+
+                    for (const auto& block : blocks) {
+                        changelog->Append(block);
+                    }
+
+                    currentRecordCount += blockCount;
+                }
 
                 LOG_INFO("Finished downloading missing journal chunk records");
             }

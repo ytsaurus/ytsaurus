@@ -228,6 +228,9 @@ public:
     //! Writer configuration used to repair chunks.
     NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
+    //! Reader configuration used to seal chunks.
+    NChunkClient::TReplicationReaderConfigPtr SealReader;
+
     //! Controls incoming bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
@@ -314,6 +317,9 @@ public:
         RegisterParameter("repair_reader", RepairReader)
             .DefaultNew();
         RegisterParameter("repair_writer", RepairWriter)
+            .DefaultNew();
+
+        RegisterParameter("seal_reader", SealReader)
             .DefaultNew();
 
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)

@@ -535,11 +535,11 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionTyp
         case EWriteSessionType::User:
             return GetUnlimitedThrottler();
 
-        case EWriteSessionType::Repair:
-            return RepairOutThrottler;
-
         case EWriteSessionType::Replication:
             return ReplicationOutThrottler;
+
+        case EWriteSessionType::Repair:
+            return RepairOutThrottler;
 
         default:
             YUNREACHABLE();
@@ -551,6 +551,9 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType
     switch (sessionType) {
         case EReadSessionType::User:
             return GetUnlimitedThrottler();
+
+        case EReadSessionType::Replication:
+            return ReplicationOutThrottler;
 
         case EReadSessionType::Repair:
             return RepairOutThrottler;

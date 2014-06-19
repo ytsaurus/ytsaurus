@@ -80,7 +80,8 @@ DECLARE_ENUM(EWriteSessionType,
 
 DECLARE_ENUM(EReadSessionType,
     ((User)                     (0))
-    ((Repair)                   (1))
+    ((Replication)              (1))
+    ((Repair)                   (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
