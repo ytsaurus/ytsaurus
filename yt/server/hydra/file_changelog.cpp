@@ -76,7 +76,7 @@ public:
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
-            return MakeFuture(TError());
+            return OKFuture;
         }
 
         FlushForced_ = true;
@@ -391,7 +391,7 @@ public:
     TAsyncError Flush(TSyncFileChangelogPtr changelog)
     {
         auto queue = FindQueue(changelog);
-        return queue ? queue->AsyncFlush() : MakeFuture(TError());
+        return queue ? queue->AsyncFlush() : OKFuture;
     }
 
     void Close(TSyncFileChangelogPtr changelog)
