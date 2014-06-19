@@ -29,15 +29,15 @@ class YtResponseError(YtError):
         return self.__str__()
 
     def is_resolve_error(self):
-        """Is error about resolving"""
+        """Resolving error."""
         return int(self.error["code"]) == 500
 
     def is_access_denied(self):
-        """Is error about permission"""
+        """Access denied."""
         return int(self.error["code"]) == 901
 
     def is_concurrent_transaction_lock_conflict(self):
-        """Is error about transaction lock conflict"""
+        """Transaction lock conflict."""
         return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
