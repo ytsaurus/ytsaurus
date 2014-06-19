@@ -25,7 +25,7 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
         (by default python dict automatically parsed from YSON).
     :param ignore_opaque: (bool)
     :param spec: (dict)
-    Be careful: attributes have weird representation in json format.
+    Be careful: attributes have specific representation in json format.
 
     :return: node tree content in `format`
     `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
@@ -169,7 +169,7 @@ def remove(path, recursive=False, force=False, client=None):
 def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
     """Create Cypress node.
 
-    :param type: (choice from "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
+    :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
     :param path: (string or ``TablePath``)
     :param attributes: (dict)
     `See more <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
@@ -261,7 +261,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
 
     :param root: (string or `TablePath`)
     :param node_type: (list of string)
-    :param object_filter: (predicat)
+    :param object_filter: (predicate)
     :param attributes: (list of string) these attributes will be added to result objects
     :param exclude: (list of string) excluded paths
     :param depth_bound: (int) recursion depth

@@ -16,15 +16,16 @@ import types
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def module_relpath(module_name, module_file):
-    if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is not None:
-        suffixes = ["." + ext for ext in config.PYTHON_FUNCTION_SEARCH_EXTENSIONS]
+    if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is None:
+        suffixes = [suf for suf, _, _ in imp.get_suffixes()]
     else:
-        suffixes = [s for s, m, t in imp.get_suffixes()]
+        suffixes = ["." + ext for ext in config.PYTHON_FUNCTION_SEARCH_EXTENSIONS]
+
     if module_name == "__main__":
         return module_file
     for init in ["", "/__init__"]:
         for suf in suffixes:
-            rel_path = "%s%s%s" % (module_name.replace(".", "/"), init, suf)
+            rel_path = ''.join([module_name.replace(".", "/"), init, suf])
             if module_file.endswith(rel_path):
                 return rel_path
     return None
@@ -106,13 +107,13 @@ def _init_attributes(func):
         func.attributes = {}
 
 def aggregator(func):
-    """Decorator for mappers consumed generator"""
+    """Decorate mapper function to consume *iterator of rows* instead of single row."""
     _init_attributes(func)
     func.attributes["is_aggregator"] = True
     return func
 
 def raw(func):
-    """Decorator for mappers consumed raw data stream"""
+    """Decorate mapper function to consume *raw data stream* instead of single row."""
     _init_attributes(func)
     func.attributes["is_raw"] = True
     return func
