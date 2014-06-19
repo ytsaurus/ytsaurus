@@ -87,7 +87,7 @@ public:
     {
         if (!Config_->AllowFetchingSeedsFromMaster && InitialSeedReplicas_.empty()) {
             THROW_ERROR_EXCEPTION(
-                "Reader is unusable: master seeds retries are disabled and no initial seeds are given (ChunkId: %s)",
+                "Cannot read chunk %s: master seeds retries are disabled and no initial seeds are given",
                 ~ToString(ChunkId_));
         }
 
