@@ -105,50 +105,50 @@ class TestTxCommands(YTEnvSetup):
         assert not exists('//sys/transactions/' + tx2)
 
     def test_timeout(self):
-        tx = start_transaction(opt = '/timeout=4000')
+        tx = start_transaction(opt = '/timeout=2000')
 
         # check that transaction is still alive after 2 seconds
-        sleep(2)
+        sleep(1.0)
         assert exists('//sys/transactions/' + tx)
 
         # check that transaction is expired after 4 seconds
-        sleep(3)
+        sleep(1.5)
         assert not exists('//sys/transactions/' + tx)
 
     def test_ping(self):
-        tx = start_transaction(opt = '/timeout=4000')
+        tx = start_transaction(opt = '/timeout=2000')
 
-        sleep(2)
+        sleep(1)
         assert exists('//sys/transactions/' + tx)
         ping_transaction(tx)
 
-        sleep(3)
+        sleep(1.5)
         assert exists('//sys/transactions/' + tx)
         
     def test_expire_outer(self):
-        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_outer = start_transaction(opt = '/timeout=2000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        sleep(2)
+        sleep(1)
         assert exists('//sys/transactions/' + tx_inner)
         assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner)
 
-        sleep(3)
+        sleep(1.5)
         # check that outer tx expired (and therefore inner was aborted)
         assert not exists('//sys/transactions/' + tx_inner)
         assert not exists('//sys/transactions/' + tx_outer)
 
     def test_ping_ancestors(self):
-        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_outer = start_transaction(opt = '/timeout=2000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        sleep(2)
+        sleep(1)
         assert exists('//sys/transactions/' + tx_inner)
         assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
-        sleep(3)
+        sleep(1.5)
         # check that all tx are still alive
         assert exists('//sys/transactions/' + tx_inner)
         assert exists('//sys/transactions/' + tx_outer)
