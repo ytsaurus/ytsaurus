@@ -206,23 +206,24 @@ private:
         TChunk* chunk,
         TAsyncSemaphoreGuard /*guard*/)
     {
-        if (CanSeal(chunk)) {
-            try {
-                GuardedSealChunk(chunk);
-                EndDequeueChunk(chunk);
-            } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error sealing journal chunk %s, backing off",
-                    ~ToString(chunk->GetId()));
-                TDelayedExecutor::Submit(
-                    BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunk)
-                        .Via(GetCurrentInvoker()),
-                    Config_->ChunkSealBackoffTime);
-            }
+        try {
+            GuardedSealChunk(chunk);
+            EndDequeueChunk(chunk);
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error sealing journal chunk %s, backing off",
+                ~ToString(chunk->GetId()));
+            TDelayedExecutor::Submit(
+                BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunk)
+                    .Via(GetCurrentInvoker()),
+                Config_->ChunkSealBackoffTime);
         }
     }
 
     void GuardedSealChunk(TChunk* chunk)
     {
+        if (!CanSeal(chunk))
+            return;
+
         LOG_INFO("Sealing journal chunk (ChunkId: %s)",
             ~ToString(chunk->GetId()));
 
@@ -251,6 +252,10 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             recordCount = result.Value();
         }
+
+        // NB: Double-check.
+        if (!IsObjectAlive(chunk))
+            return;
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
