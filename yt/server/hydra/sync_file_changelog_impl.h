@@ -224,8 +224,8 @@ private:
     const TFileChangelogConfigPtr Config_;
 
     bool IsOpen_;
-    i32 RecordCount_;
-    i32 SealedRecordCount_;
+    int RecordCount_;
+    int SealedRecordCount_;
     i64 CurrentBlockSize_;
     i64 CurrentFilePosition_;
     TInstant LastFlushed_;

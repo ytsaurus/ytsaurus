@@ -85,7 +85,7 @@ size_t ComputeValidIndexPrefix(
     const TChangelogHeader& header,
     TBufferedFile* file)
 {
-    // Check adequacy of index.
+    // Validate index records.
     size_t result = 0;
     for (int i = 0; i < index.size(); ++i) {\
         const auto& record = index[i];
@@ -106,7 +106,7 @@ size_t ComputeValidIndexPrefix(
         ++result;
     }
 
-    // Truncate records
+    // Truncate invalid records.
     i64 fileLength = file->GetLength();
     while (result > 0 && index[result - 1].FilePosition > fileLength) {
         --result;
@@ -116,7 +116,7 @@ size_t ComputeValidIndexPrefix(
         return 0;
     }
 
-    // Truncate last index record if changelog file is corrupt.
+    // Truncate the last index entry if the corresponding changelog record is corrupt.
     file->Seek(index[result - 1].FilePosition, sSet);
     TCheckedReader<TBufferedFile> changelogReader(*file);
     if (!ReadRecord(changelogReader)) {
