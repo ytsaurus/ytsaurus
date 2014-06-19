@@ -1227,7 +1227,11 @@ protected:
             const auto& address = node->Node->GetAddress();
 
             partition->AssignedAddress = address;
-            AddTaskLocalityHint(partition->SortTask, address);
+            auto task = partition->Maniac 
+                ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
+                : static_cast<TTaskPtr>(partition->SortTask);
+
+            AddTaskLocalityHint(task, address);
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataSize += partition->ChunkPoolOutput->GetTotalDataSize();
