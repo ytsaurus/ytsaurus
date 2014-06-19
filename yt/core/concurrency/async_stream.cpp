@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "async_stream.h"
 
+#include "scheduler.h"
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -19,7 +21,7 @@ public:
     virtual size_t DoRead(void* buf, size_t len) override
     {
         if (!AsyncStream_->Read(buf, len)) {
-            auto result = AsyncStream_->GetReadyEvent().Get();
+            auto result = WaitFor(AsyncStream_->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
         return AsyncStream_->GetReadLength();
@@ -111,7 +113,7 @@ public:
     virtual void DoWrite(const void* buf, size_t len) override
     {
         if (!AsyncStream_->Write(buf, len)) {
-            auto result = AsyncStream_->GetReadyEvent().Get();
+            auto result = WaitFor(AsyncStream_->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
