@@ -609,10 +609,10 @@ private:
 
             auto journalChunk = chunk->AsJournalChunk();
             auto location = journalChunk->GetLocation();
-            auto fileName = location->GetChunkFileName(chunkId);
-            auto changelog = Owner_->ChangelogDispatcher_->OpenChangelog(
-                fileName,
-                Owner_->Config_->SplitChangelog);
+            auto changelog = Owner_->OpenChangelog(
+                location,
+                chunkId,
+                false);
             journalChunk->AttachChangelog(changelog);
             it = SplitMap_.insert(std::make_pair(
                 chunkId,
