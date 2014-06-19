@@ -27,7 +27,7 @@ def unlist(l):
 def parse_bool(word):
     """convert 'true' and 'false' and something like this to Python bool
 
-    Raise ``YtError`` if input word is incorrect."""
+    Raise `YtError` if input word is incorrect."""
     word = word.lower()
     if word == "true":
         return True

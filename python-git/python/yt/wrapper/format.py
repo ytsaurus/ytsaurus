@@ -130,10 +130,7 @@ class Format(object):
 
     @staticmethod
     def _copy_docs():
-        """Magic for coping docs in subclasses
-
-        .. note:: Use once after creating all subclasses!
-        """
+        """Magic for coping docs in subclasses"""
         for cl in Format.__subclasses__():
             cl_dict = cl.__dict__
             for name in ('load_row', 'load_rows', 'dump_row', 'dump_rows', 'loads_row', 'dumps_row'):
@@ -147,6 +144,8 @@ class DsvFormat(Format):
 
     .. seealso:: `DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
     """
+
+    Format._copy_docs()
 
     def __init__(self, enable_escaping=None, attributes=None):
         all_attributes = Format._make_attributes(get_value(attributes, {}),
@@ -232,6 +231,9 @@ class YsonFormat(Format):
 
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
+
+    Format._copy_docs()
+
     def __init__(self, format=None, attributes=None):
         all_attributes = Format._make_attributes(get_value(attributes, {}),
                                                  {"format": "text"},
@@ -257,6 +259,8 @@ class YamrFormat(Format):
 
     .. seealso:: `YAMR on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
     """
+
+    Format._copy_docs()
 
     def __init__(self, has_subkey=None, lenval=None, field_separator=None, record_separator=None, attributes=None):
         defaults = {"has_subkey": False, "lenval": False, "fs": '\t', "rs": '\n'}
@@ -356,6 +360,8 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
+    Format._copy_docs()
+
     def __init__(self, attributes=None):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes)
@@ -409,6 +415,8 @@ class SchemafulDsvFormat(Format):
 
     .. seealso:: `SchemafulDsvFormat on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#schemeddsvschemafuldsv>`_
     """
+
+    Format._copy_docs()
 
     def __init__(self, columns=None, enable_escaping=None, attributes=None):
         defaults = {"enable_escaping": True}
@@ -469,7 +477,7 @@ class SchemedDsvFormat(SchemafulDsvFormat):
         super(SchemedDsvFormat, self).__init__(columns=columns, attributes=attributes)
         self._name = yson.to_yson_type("schemed_dsv", self.attributes)
 
-Format._copy_docs()
+
 
 def create_format(yson_name, attributes=None):
     """Create format by yson string.

@@ -41,7 +41,7 @@ class TablePath(object):
         """
         :param name: (Yson string) path with attribute
         :param append: (bool) append to table or overwrite
-        :param sorted_by: (list of string) list of sort keys``
+        :param sorted_by: (list of string) list of sort keys
         :param columns: list of string (column) or string pairs (column range)
         :param lower_key: (string or string tuple) lower key bound of rows
         :param upper_key: (string or string tuple) upper bound of rows
@@ -131,14 +131,14 @@ class TablePath(object):
         return str(self)
 
 def to_table(object, client=None):
-    """Return ``TablePath`` object"""
+    """Return `TablePath` object"""
     if isinstance(object, TablePath):
         return object
     else:
         return TablePath(object, client=client)
 
 def to_name(object, client=None):
-    """Return ``YsonString`` name of path"""
+    """Return `YsonString` name of path"""
     return to_table(object, client=client).name
 
 def prepare_path(object, client=None):
