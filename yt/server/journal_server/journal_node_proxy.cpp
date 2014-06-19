@@ -55,6 +55,7 @@ private:
         attributes->push_back("read_quorum");
         attributes->push_back("write_quorum");
         attributes->push_back("sealed");
+        attributes->push_back("record_count");
         attributes->push_back(TAttributeInfo("quorum_record_count", true, true));
         TBase::ListSystemAttributes(attributes);
     }
@@ -78,6 +79,12 @@ private:
         if (key == "sealed") {
             BuildYsonFluently(consumer)
                 .Value(node->IsSealed());
+            return true;
+        }
+
+        if (key == "record_count") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetChunkList()->Statistics().RecordCount);
             return true;
         }
 
