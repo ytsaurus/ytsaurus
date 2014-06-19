@@ -45,7 +45,7 @@ class OperationState(object):
 
 
 class TimeWatcher(object):
-    """Class for proper sleeping in ``WaitStrategy.process_operation``."""
+    """Class for proper sleeping in `WaitStrategy.process_operation`."""
     def __init__(self, min_interval, max_interval, slowdown_coef, timeout=None):
         """
         Initialise time watcher.
@@ -287,9 +287,9 @@ class WaitStrategy(object):
         """
         Wait for final state of running operation.
 
-        If timeout occurred, raise ``YtTimeoutError``.
-        If operation failed, raise ``YtOperationFailedError``.
-        If ``KeyboardInterrupt`` occurred, abort operation, finalize and reraise ``KeyboardInterrupt``.
+        If timeout occurred, raise `YtTimeoutError`.
+        If operation failed, raise `YtOperationFailedError`.
+        If `KeyboardInterrupt` occurred, abort operation, finalize and reraise `KeyboardInterrupt`.
         """
         finalize = finalize if finalize else lambda state: None
         time_watcher = TimeWatcher(min_interval=config.OPERATION_STATE_UPDATE_PERIOD / 5.0,

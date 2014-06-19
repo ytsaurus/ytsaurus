@@ -83,8 +83,9 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     :param filename: (string) path to file on local machine
     :param destination: (string) desired file path in Cypress,
-    :param yt_filename: (string) 'file_name' attribute of file in Cypress (visible in operation name of file)
-    :param placement_strategy: (choice from "replace", "ignore", "random", "hash"), \
+    :param yt_filename: (string) 'file_name' attribute of file in Cypress (visible in operation name of file), \
+    by default basename of `destination` (or `filename` if `destination` is not set)
+    :param placement_strategy: (one of "replace", "ignore", "random", "hash"), \
     `config.FILE_PLACEMENT_STRATEGY` by default.
     :param ignore_set_attributes_error: (bool) ignore `YtResponseError` during attributes setting
     :return: YSON structure with result destination path
@@ -98,8 +99,6 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     * "hash" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/hash/<md5sum_of_file>' \
     or this path will be link to some random Cypress path
-
-    .. note:: Parameter 'destination' overrides 'yt_filename'.
     """
 
     def upload_with_check(path):

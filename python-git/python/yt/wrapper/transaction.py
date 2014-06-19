@@ -24,7 +24,7 @@ class Transaction(object):
 
     Caution: if you use this class then do not use directly methods *_transaction.
 
-    `See more <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
+    .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
     stack = []
 

@@ -1,6 +1,6 @@
 """
 Commands for table working and Map-Reduce operations.
-`See more <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
+.. seealso:: `operations on wiki <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
 
 Python wrapper has some improvements over bare YT operations:
 
@@ -10,8 +10,8 @@ Python wrapper has some improvements over bare YT operations:
 
 * delete files after
 
-**Heavy commands** have deprecated parameter `response_type`:  choice from \
-["iter_lines" (default), "iter_content", "raw", "string"]. It specifies response type.
+**Heavy commands** have deprecated parameter `response_type`:  one of \
+"iter_lines" (default), "iter_content", "raw", "string". It specifies response type.
 
 .. _operation_parameters:
 
@@ -19,14 +19,14 @@ Common operations parameters
 -----------------------
 
 
-* **spec** : (dict) universal method to set operation parameter
+* **spec** : (dict) universal method to set operation parameters
 
 * **strategy** : (`yt.wrapper.operation_commands.WaitStrategy` or `yt.wrapper.operation_commands.AsyncStrategy`)\
 strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (integer) number of output data replicas
 
-* **compression_codec** : (choice from "lz4", "gzip", "gzip_best_compression", "gzip_normal",\
+* **compression_codec** : (one of "lz4", "gzip", "gzip_best_compression", "gzip_normal",\
  TODO(veronikaiv): list it) compression algorithm for output data
 
 * **job_count** : (integer) recommendation how many jobs should run
@@ -285,6 +285,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None, client=None):
     """Create empty table.
 
+    Shortcut for `create("table", ...)`.
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
     :param recursive: (bool) create the path automatically
     :param ignore_existing: (bool) if it sets to `False` and table exists, Python Wrapper raises `YtResponseError`.
@@ -328,15 +329,17 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify `TablePath` attributes \
     for append mode or something like this. Table can not exist.
-    :param input_stream: python file-like object, string, list of strings, ``StringIterIO``.
-    :param format: (string or subclass of ``Format``) format of input data.
+    :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
+    :param format: (string or subclass of `Format`) format of input data, \
+    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
-    :param compression_codec: (string) data compression algorithm, "lz4" (default), "gzip", "gzip_best_compression",\
+    :param compression_codec: (string) data compression algorithm, one of "lz4" (default), "gzip", "gzip_best_compression",\
     "gzip_normal", "snappy"... TODO(veronikaiv): list it!
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
+    Set `yt.wrapper.config.USE_RETRIES_DURING_WRITE` to ``False`` for writing without splitting and retries.
 
     Writing is executed under self-pinged transaction.
     """
@@ -708,7 +711,7 @@ def run_erase(table, spec=None, strategy=None, client=None):
     :param spec: (dict)
     :param strategy: standard operation parameter
 
-    See :ref:`operation_parameters`.
+    .. seealso::  :ref:`operation_parameters`.
     """
     table = to_table(table, client=client)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
@@ -736,7 +739,7 @@ def run_merge(source_table, destination_table, mode=None,
     :param spec: (dict) standard operation parameter.
 
 
-    See :ref:`operation_parameters`.
+    .. seealso::  :ref:`operation_parameters`.
     """
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
@@ -760,7 +763,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     If destination table is not specified, than it equals to source table.
 
-    See :ref:`operation_parameters`.
+    .. seealso::  :ref:`operation_parameters`.
     """
 
     sort_by = _prepare_sort_by(sort_by)
@@ -904,7 +907,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_combiner_memory_limit: (integer) in Mb
 
 
-    See :ref:`operation_parameters`.
+    .. seealso::  :ref:`operation_parameters`.
     """
 
     run_map_reduce.files_to_remove = []
@@ -974,7 +977,7 @@ def run_operation(binary, source_table, destination_table,
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
     :param op_name: (string) operation name
 
-    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     run_operation.files = []
     def memorize_files(spec, files):
@@ -1041,14 +1044,14 @@ def run_operation(binary, source_table, destination_table,
 
 def run_map(binary, source_table, destination_table, **kwargs):
     """
-    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "map"
     run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
     """
-    See :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
     run_operation(binary, source_table, destination_table, **kwargs)
@@ -1067,7 +1070,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     .. note:: For atomicity you should specify just one item in `source_table` in case attributes copying.
 
-    See :ref:`operation_parameters`.
+    .. seealso::  :ref:`operation_parameters`.
     """
     def get_input_name(table):
         return to_table(table).get_json()
