@@ -105,27 +105,32 @@ private:
                 } else {
                     switch (state) {
                         case EJobState::Completed:
-                            LOG_WARNING("Unknown job has completed, removal scheduled");
+                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Failed:
-                            LOG_INFO("Unknown job has failed, removal scheduled");
+                            LOG_INFO("Unknown job has failed, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Aborted:
-                            LOG_INFO("Job aborted, removal scheduled");
+                            LOG_INFO("Job aborted, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Running:
-                            LOG_WARNING("Unknown job is running, abort scheduled");
+                            LOG_WARNING("Unknown job is running, abort scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 
                         case EJobState::Waiting:
-                            LOG_WARNING("Unknown job is waiting, abort scheduled");
+                            LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 
