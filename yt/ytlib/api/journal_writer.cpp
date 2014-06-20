@@ -35,6 +35,7 @@
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction_listener.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 
@@ -98,7 +99,7 @@ public:
 private:
     // NB: PImpl is used to enable external lifetime control (see TJournalWriter::dtor and TImpl::Cancel).
     class TImpl
-        : public TRefCounted
+        : public TTransactionListener
     {
     public:
         TImpl(
@@ -129,6 +130,10 @@ private:
                 // TODO(babenko): another invoker?
                 .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
                 .Run();
+
+            if (Transaction_) {
+                ListenTransaction(Transaction_);
+            }
         }
 
         TAsyncError Open()
@@ -338,6 +343,7 @@ private:
             LOG_INFO("Upload transaction created (TransactionId: %s)",
                 ~ToString(UploadTransaction_->GetId()));
             
+            ListenTransaction(UploadTransaction_);
 
             LOG_INFO("Opening journal");
 
@@ -543,13 +549,14 @@ private:
                 if (TryOpenChunk())
                     return;
             }
-            THROW_ERROR_EXCEPTION("All %d attempts to open a chunk were unsuccessfull",
+            THROW_ERROR_EXCEPTION("All %d attempts to open a chunk were unsuccessful",
                 Config_->MaxChunkOpenAttempts);
         }
 
         void WriteChunk()
         {
             while (true) {
+                CheckAborted();
                 auto someCommand = DequeueCommand();
                 if (auto* command = someCommand.TryAs<TCloseCommand>()) {
                     HandleClose();
