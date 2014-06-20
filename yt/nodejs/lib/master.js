@@ -1,5 +1,7 @@
 var cluster = require("cluster");
 
+var utils = require("./utils");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG;
@@ -25,11 +27,11 @@ var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, worker)
+function YtClusterHandle(logger, logger_ts, worker)
 {
     "use strict";
-
     this.logger     = logger;
+    this.logger_ts  = logger_ts;
     this.worker     = worker;
     this.state      = "unknown";
     this.young      = true;
@@ -95,6 +97,7 @@ YtClusterHandle.prototype.destroy = function()
     }
 
     this.logger     = null;
+    this.logger_ut  = null;
     this.worker     = null;
     this.state      = "destroyed";
     this.alive      = false;
@@ -135,7 +138,7 @@ YtClusterHandle.prototype.handleMessage = function(message)
             this.postponeDeath(TIMEOUT_COOLDOWN);
             break;
         default:
-            this.logger.warn(
+            this.logger_ts.warn(
                 "Received unknown message of type '" + message.type +
                 "' from worker " + this.toString());
             break;
@@ -144,19 +147,16 @@ YtClusterHandle.prototype.handleMessage = function(message)
 
 YtClusterHandle.prototype.handleLog = function(level, message, payload)
 {
-    var logger = this.logger[level];
-    if (typeof(logger) !== "undefined") {
-        if (process.memoryUsage().rss < MEMORY_PRESSURE_LIMIT) {
-            logger(message, payload);
-        } else {
-            var time_now = +(new Date());
-            var time_next = MEMORY_PRESSURE_HIT_TIMESTAMP + MEMORY_PRESSURE_HIT_COOLDOWN;
+    if (process.memoryUsage().rss < MEMORY_PRESSURE_LIMIT) {
+        this.logger[level](message, payload);
+    } else {
+        var time_now = +(new Date());
+        var time_next = MEMORY_PRESSURE_HIT_TIMESTAMP + MEMORY_PRESSURE_HIT_COOLDOWN;
 
-            if (time_now > time_next) {
-                logger("Logging is disabled due to high memory pressure");
+        if (time_now > time_next) {
+            this.logger_ts.warn("Logging is disabled due to high memory pressure");
 
-                MEMORY_PRESSURE_HIT_TIMESTAMP = time_now;
-            }
+            MEMORY_PRESSURE_HIT_TIMESTAMP = time_now;
         }
     }
 };
@@ -190,7 +190,7 @@ YtClusterHandle.prototype.ageToDeath = function()
         return;
     }
 
-    this.logger.info("Worker is not responding", {
+    this.logger_ts.info("Worker is not responding", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
@@ -206,7 +206,7 @@ YtClusterHandle.prototype.certifyDeath = function()
         return;
     }
 
-    this.logger.info("Worker is dead", {
+    this.logger_ts.info("Worker is dead", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
@@ -241,7 +241,10 @@ function YtClusterMaster(logger, number_of_workers, cluster_options)
         });
     }
 
+    var getTS = function getTS() { return new Date().toISOString(); };
+
     this.logger = logger;
+    this.logger_ts = new utils.TaggedLogger(logger, { timestamp: getTS });
 
     __DBG("Expected number of workers is " + number_of_workers);
 
@@ -263,7 +266,7 @@ function YtClusterMaster(logger, number_of_workers, cluster_options)
             !self.workers_handles.hasOwnProperty(worker.id),
             "Received |message| event from the dead worker");
 
-        self.logger.info("Worker has exited", {
+        self.logger_ts.info("Worker has exited", {
             wid    : worker.id,
             pid    : worker.process.pid,
             code   : code,
@@ -319,10 +322,10 @@ YtClusterMaster.prototype.spawnNewWorker = function()
     "use strict";
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
-        new YtClusterHandle(this.logger, worker);
+        new YtClusterHandle(this.logger, this.logger_ts, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
-    this.logger.info("Spawned young worker");
+    this.logger_ts.info("Spawned young worker");
 };
 
 YtClusterMaster.prototype.killOldWorker = function()
@@ -334,7 +337,7 @@ YtClusterMaster.prototype.killOldWorker = function()
             handle = this.workers_handles[p];
             if (!handle.young) {
                 handle.kill();
-                this.logger.info("Killed old worker", {
+                this.logger_ts.info("Killed old worker", {
                     handle : handle.toString()
                 });
             }
@@ -358,18 +361,18 @@ YtClusterMaster.prototype.respawnWorkers = function()
 
     if (n_young === 0) {
         if (n_target > 0) {
-            this.logger.info("Young generation is dead; resurrecting...");
+            this.logger_ts.info("Young generation is dead; resurrecting...");
             will_spawn = true;
             will_reschedule = true;
         }
     } else {
         if (n_young < n_total) {
-            this.logger.info("Old generation is alive; killing...");
+            this.logger_ts.info("Old generation is alive; killing...");
             will_kill = true;
             will_reschedule = false;
         }
         if (n_young < n_target) {
-            this.logger.info("More young workers required; spawning...");
+            this.logger_ts.info("More young workers required; spawning...");
             will_spawn = true;
             will_reschedule = true;
         }
@@ -405,7 +408,7 @@ YtClusterMaster.prototype.scheduleRespawnWorkers = function()
 YtClusterMaster.prototype.restartWorkers = function()
 {
     "use strict";
-    this.logger.info("Starting rolling restart of workers");
+    this.logger_ts.info("Starting rolling restart of workers");
     for (var i in this.workers_handles) {
         if (this.workers_handles.hasOwnProperty(i)) {
             this.workers_handles[i].young = false;
@@ -418,7 +421,7 @@ YtClusterMaster.prototype.shutdownWorkers = function()
 {
     "use strict";
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
-    this.logger.info("Starting graceful shutdown");
+    this.logger_ts.info("Starting graceful shutdown");
     var i;
     for (i in cluster.workers) {
         if (cluster.workers.hasOwnProperty(i)) {
@@ -440,10 +443,10 @@ YtClusterMaster.prototype.shutdownWorkersLoop = function()
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
     var n = Object.keys(cluster.workers).length;
     if (n > 0) {
-        this.logger.info("There are " + n + " workers alive", { n : n });
+        this.logger_ts.info("There are " + n + " workers alive", { n : n });
         setTimeout(this.shutdownWorkersLoop.bind(this), 1000);
     } else {
-        this.logger.info("All workers gone");
+        this.logger_ts.info("All workers gone");
         process.exit();
     }
 };
