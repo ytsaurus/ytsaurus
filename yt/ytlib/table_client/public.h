@@ -117,6 +117,8 @@ typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 class TTableProducer;
 class TLegacyTableConsumer;
 
+class TWritingTableConsumer;
+
 class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 
