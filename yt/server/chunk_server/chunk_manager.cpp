@@ -460,7 +460,6 @@ public:
                 continue;
             }
 
-            auto nodeWithIndex = TNodePtrWithIndex(node, replica.GetIndex());
             auto chunkWithIndex = chunk->IsJournal()
                 ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
