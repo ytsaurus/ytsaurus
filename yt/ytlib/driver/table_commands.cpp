@@ -22,6 +22,7 @@
 #include <ytlib/table_client/table_consumer.h>
 
 #include <ytlib/new_table_client/config.h>
+#include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/schemaful_chunk_reader.h>
@@ -89,29 +90,13 @@ void TReadTableCommand::DoExecute()
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
-
     // ToDo(psushin): implement and use buffered output stream.
     auto output = CreateSyncOutputStream(Context_->Request().OutputStream);
     auto format = Context_->GetOutputFormat();
 
     auto writer = CreateSchemalessWriterForFormat(format, nameTable, output.get());
 
-    std::vector<TUnversionedRow> rows;
-    rows.reserve(Context_->GetConfig()->ReadBufferRowCount);
-
-    while (reader->Read(&rows)) {
-        if (rows.empty()) {
-            auto error = WaitFor(reader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-            continue;
-        }
-
-        if (!writer->Write(rows)) {
-            auto error = WaitFor(writer->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
-        }
-    }
-    YCHECK(rows.empty());
+    ReadToWriter(reader, writer, Context_->GetConfig()->ReadBufferRowCount);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -146,26 +131,9 @@ void TWriteTableCommand::DoExecute()
     consumer.AddWriter(writer);
 
     auto format = Context_->GetInputFormat();
-    auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
+    auto input = CreateSyncInputStream(Context_->Request().InputStream);
 
-    struct TWriteBufferTag { };
-    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(config->BlockSize);
-
-    auto input = Context_->Request().InputStream;
-
-    while (true) {
-        auto bytesRead = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
-
-        if (bytesRead.Value() == 0)
-            break;
-
-        parser->Read(TStringBuf(buffer.Begin(), length));
-        consumer.Flush();
-    }
-
-    parser->Finish();
-    consumer.Flush();
+    ReadToConsumer(format, &consumer, input.get(), config->BlockSize);
 
     auto error = WaitFor(writer->Close());
     THROW_ERROR_EXCEPTION_IF_FAILED(error);
