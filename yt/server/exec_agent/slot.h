@@ -48,7 +48,10 @@ public:
         bool isExecutable);
 
     //! Writes data from producer to #fileName.
-    void MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer);
+    void MakeFile(
+        const Stroka& fileName, 
+        std::function<void (TOutputStream*)> dataProducer, 
+        bool isExecutable = false);
 
     void MakeEmptyFile(const Stroka& fileName);
 
