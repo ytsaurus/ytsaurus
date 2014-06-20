@@ -60,8 +60,6 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(config ? config : New<TFileReaderConfig>())
-        , IsFirstBlock_(true)
-        , IsFinished_(false)
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId != NullTransactionId) {
@@ -98,8 +96,8 @@ private:
     TFileReaderOptions Options_;
     TFileReaderConfigPtr Config_;
 
-    bool IsFirstBlock_;
-    bool IsFinished_;
+    bool IsFirstBlock_ = true;
+    bool IsFinished_ = false;
 
     TTransactionPtr Transaction_;
 
