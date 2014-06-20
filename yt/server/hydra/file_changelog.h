@@ -12,6 +12,7 @@ class TFileChangelogDispatcher
 {
 public:
     explicit TFileChangelogDispatcher(const Stroka& threadName);
+    ~TFileChangelogDispatcher();
 
     void Shutdown();
 

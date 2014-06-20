@@ -43,7 +43,7 @@ bool Exists(const Stroka& path)
 #ifdef _win32_
     return GetFileAttributesA(~path) != 0xFFFFFFFF;
 #else
-    return access(path, F_OK) == 0;
+    return access(~path, F_OK) == 0;
 #endif
 }
 

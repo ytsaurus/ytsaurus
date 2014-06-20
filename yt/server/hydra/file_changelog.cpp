@@ -36,6 +36,7 @@ class TFileChangelogDispatcher::TChangelogQueue
 public:
     explicit TChangelogQueue(TSyncFileChangelogPtr changelog)
         : Changelog_(changelog)
+        , UseCount_(0)
         , FlushedRecordCount_(changelog->GetRecordCount())
     { }
 
@@ -228,7 +229,7 @@ private:
     TSyncFileChangelogPtr Changelog_;
 
     TSpinLock SpinLock_;
-    std::atomic<int> UseCount_ = 0;
+    std::atomic<int> UseCount_;
 
     //! Number of records flushed to the underlying sync changelog.
     int FlushedRecordCount_ = 0;
@@ -631,6 +632,9 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
 TFileChangelogDispatcher::TFileChangelogDispatcher(const Stroka& threadName)
     : Impl_(New<TImpl>(threadName))
+{ }
+
+TFileChangelogDispatcher::~TFileChangelogDispatcher()
 { }
 
 void TFileChangelogDispatcher::Shutdown()

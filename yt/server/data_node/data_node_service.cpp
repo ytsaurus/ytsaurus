@@ -48,6 +48,8 @@
 
 #include <server/cell_node/bootstrap.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -305,6 +307,8 @@ private:
             : Owner_(std::move(owner))
             , Context_(std::move(context))
             , Awaiter_(New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker()))
+            , BlocksWithData_(0)
+            , BlocksSize_(0)
         { }
 
         void Run()
@@ -384,8 +388,8 @@ private:
 
         TParallelAwaiterPtr Awaiter_;
 
-        std::atomic<int> BlocksWithData_ = 0;
-        std::atomic<i64> BlocksSize_ = 0;
+        std::atomic<int> BlocksWithData_;
+        std::atomic<i64> BlocksSize_;
 
 
         void OnGotBlock(int index, TBlockStore::TGetBlockResult result)
@@ -426,9 +430,9 @@ private:
             Context_->SetResponseInfo("HasCompleteChunk: %s, Throttling: %s, BlocksWithData: %d, BlocksWithPeers: %d, BlocksSize: %" PRId64,
                 ~FormatBool(response.has_complete_chunk()),
                 ~FormatBool(response.throttling()),
-                BlocksWithData_,
+                BlocksWithData_.load(),
                 response.peer_descriptors_size(),
-                BlocksSize_);
+                BlocksSize_.load());
 
             // Throttle response.
             auto sessionType = EReadSessionType(request.session_type());
@@ -455,6 +459,8 @@ private:
         TGetBlockRangeSession(TIntrusivePtr<TDataNodeService> owner, TCtxGetBlockRangePtr context)
             : Owner_(std::move(owner))
             , Context_(std::move(context))
+            , BlocksWithData_(0)
+            , BlocksSize_(0)
         { }
 
         void Run()
@@ -496,8 +502,8 @@ private:
         TIntrusivePtr<TDataNodeService> Owner_;
         TCtxGetBlockRangePtr Context_;
 
-        int BlocksWithData_ = 0;
-        i64 BlocksSize_ = 0;
+        int BlocksWithData_;
+        i64 BlocksSize_;
 
 
         void OnGotBlocks(TBlockStore::TGetBlocksResult result)
@@ -576,7 +582,7 @@ private:
 
             *context->Response().mutable_chunk_meta() = partitionTag
                 ? FilterChunkMetaByPartitionTag(chunkMeta, *partitionTag)
-                : chunkMeta;
+                : TChunkMeta(chunkMeta);
 
             context->Reply();
         }).Via(WorkerThread_->GetInvoker()));

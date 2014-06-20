@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <memory>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +119,7 @@ public:
 
 private:
     int Tag_;
-    std::aligned_union_t<0, Ts...> Storage_;
+    typename std::aligned_union<0, Ts...>::type Storage_;
 
     template <class T>
     void AssignValue(const T& value);

@@ -632,7 +632,7 @@ public:
         TTableChunkReaderPtr tableReader,
         NChunkClient::IReaderPtr chunkReader)
         : SequentialConfig(config)
-        , ÑhunkReader(chunkReader)
+        , ChunkReader(chunkReader)
         , TableReader(tableReader)
         , Logger(TableClientLogger)
     { }
@@ -642,7 +642,7 @@ public:
         auto chunkReader = TableReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ÑhunkReader->GetChunkId())));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -651,7 +651,7 @@ public:
 
         LOG_INFO("Requesting chunk meta");
 
-        ÑhunkReader->GetMeta(chunkReader->PartitionTag, &tags)
+        ChunkReader->GetMeta(chunkReader->PartitionTag, &tags)
             .Subscribe(
                 BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
@@ -707,7 +707,7 @@ public:
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
             std::move(blockSequence),
-            ÑhunkReader,
+            ChunkReader,
             NCompression::ECodec(miscExt.compression_codec()));
 
         LOG_DEBUG("Reading %d blocks for partition %d",
@@ -727,7 +727,7 @@ public:
     }
 
     TSequentialReaderConfigPtr SequentialConfig;
-    NChunkClient::IReaderPtr ÑhunkReader;
+    NChunkClient::IReaderPtr ChunkReader;
     TWeakPtr<TTableChunkReader> TableReader;
     NLog::TTaggedLogger Logger;
 };

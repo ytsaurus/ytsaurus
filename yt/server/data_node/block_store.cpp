@@ -62,6 +62,7 @@ public:
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->BlockCacheSize)
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , PendingReadSize_(0)
     { }
 
     void Initialize()
@@ -218,7 +219,7 @@ private:
     TDataNodeConfigPtr Config_;
     TBootstrap* Bootstrap_;
 
-    std::atomic<i64> PendingReadSize_ = 0;
+    std::atomic<i64> PendingReadSize_;
 
 
     virtual i64 GetWeight(TCachedBlock* block) const override

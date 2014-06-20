@@ -30,7 +30,7 @@ struct TStorageTraits<T, Ts...>
     static void CopyConstruct(int tag, void* storage, const V& other)
     {
         if (tag == 0) {
-            new (storage) T(other.As<T>());
+            new (storage) T(other.template As<T>());
         } else {
             TStorageTraits<Ts...>::CopyConstruct(tag - 1, storage, other);
         }
@@ -40,7 +40,7 @@ struct TStorageTraits<T, Ts...>
     static void MoveConstruct(int tag, void* storage, V&& other)
     {
         if (tag == 0) {
-            new (storage) T(static_cast<T&&>(other.As<T>()));
+            new (storage) T(static_cast<T&&>(other.template As<T>()));
         } else {
             TStorageTraits<Ts...>::MoveConstruct(tag - 1, storage, other);
         }
