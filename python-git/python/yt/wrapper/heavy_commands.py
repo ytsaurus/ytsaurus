@@ -1,7 +1,9 @@
+"""heavy command"""
+
 import config
 import yt.logger as logger
 from common import YtError, get_backoff
-from errors import YtNetworkError 
+from errors import YtNetworkError
 from table import to_table
 from transaction import PingableTransaction
 from transaction_commands import _make_transactional_request
@@ -27,10 +29,10 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
 
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), config.TRANSACTION))
-                
+
                 for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     current_time = datetime.now()
-                    try: 
+                    try:
                         with PingableTransaction(timeout=config.http.REQUEST_TIMEOUT, client=client):
                             params["path"] = path.get_json()
                             _make_transactional_request(

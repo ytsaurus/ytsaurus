@@ -2,12 +2,11 @@ from pickling import dump
 import config
 import format_config
 
-from common import get_value
-from errors import YtError
-
 from yt.zip import ZipFile
 import yt.logger as logger
+from errors import YtError
 
+import imp
 import os
 import sys
 import shutil
@@ -17,12 +16,16 @@ import types
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def module_relpath(module_name, module_file):
-    extensions = get_value(config.PYTHON_FUNCTION_SEARCH_EXTENSIONS, ["py", "pyc", "so"])
+    if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is None:
+        suffixes = [suf for suf, _, _ in imp.get_suffixes()]
+    else:
+        suffixes = ["." + ext for ext in config.PYTHON_FUNCTION_SEARCH_EXTENSIONS]
+
     if module_name == "__main__":
         return module_file
     for init in ["", "/__init__"]:
-        for ext in extensions:
-            rel_path = "%s%s.%s" % (module_name.replace(".", "/"), init, ext)
+        for suf in suffixes:
+            rel_path = ''.join([module_name.replace(".", "/"), init, suf])
             if module_file.endswith(rel_path):
                 return rel_path
     return None
@@ -68,7 +71,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 relpath = module_relpath(module.__name__, file)
                 if relpath is None:
                     raise YtError("Cannot determine relative path of module " + str(module))
-                
+
                 if relpath in compressed_files:
                     continue
                 compressed_files.add(relpath)
@@ -104,11 +107,13 @@ def _init_attributes(func):
         func.attributes = {}
 
 def aggregator(func):
+    """Decorate mapper function to consume *iterator of rows* instead of single row."""
     _init_attributes(func)
     func.attributes["is_aggregator"] = True
     return func
 
 def raw(func):
+    """Decorate mapper function to consume *raw data stream* instead of single row."""
     _init_attributes(func)
     func.attributes["is_raw"] = True
     return func
