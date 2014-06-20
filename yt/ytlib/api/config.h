@@ -84,7 +84,7 @@ DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalReaderConfig
-    : public TYsonSerializable
+    : public NChunkClient::TReplicationReaderConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TJournalReaderConfig)

@@ -221,7 +221,8 @@ struct TFileWriterOptions
 };
 
 struct TJournalReaderOptions
-    : public TSuppressableAccessTrackingOptions
+    : public TTransactionalOptions
+    , public TSuppressableAccessTrackingOptions
 {
     TNullable<i64> FirstRecordIndex;
     TNullable<i64> RecordCount;
@@ -339,6 +340,17 @@ struct IClientBase
         TFileWriterConfigPtr config = TFileWriterConfigPtr()) = 0;
 
 
+    // Journals
+    virtual IJournalReaderPtr CreateJournalReader(
+        const NYPath::TYPath& path,
+        const TJournalReaderOptions& options = TJournalReaderOptions(),
+        TJournalReaderConfigPtr config = TJournalReaderConfigPtr()) = 0;
+
+    virtual IJournalWriterPtr CreateJournalWriter(
+        const NYPath::TYPath& path,
+        const TJournalWriterOptions& options = TJournalWriterOptions(),
+        TJournalWriterConfigPtr config = TJournalWriterConfigPtr()) = 0;
+
     // TODO(babenko): scheduler commands
 
 };
@@ -407,18 +419,6 @@ struct IClient
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = TCheckPermissionOptions()) = 0;
-
-
-    // Journals
-    virtual IJournalReaderPtr CreateJournalReader(
-        const NYPath::TYPath& path,
-        const TJournalReaderOptions& options = TJournalReaderOptions(),
-        TJournalReaderConfigPtr config = TJournalReaderConfigPtr()) = 0;
-
-    virtual IJournalWriterPtr CreateJournalWriter(
-        const NYPath::TYPath& path,
-        const TJournalWriterOptions& options = TJournalWriterOptions(),
-        TJournalWriterConfigPtr config = TJournalWriterConfigPtr()) = 0;
 
 };
 

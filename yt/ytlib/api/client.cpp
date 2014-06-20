@@ -1157,6 +1157,17 @@ public:
         TFileWriterConfigPtr config),
         (path, options, config))
 
+    DELEGATE_TRANSACTIONAL_METHOD(IJournalReaderPtr, CreateJournalReader, (
+        const TYPath& path,
+        const TJournalReaderOptions& options,
+        TJournalReaderConfigPtr config),
+        (path, options, config))
+    DELEGATE_TRANSACTIONAL_METHOD(IJournalWriterPtr, CreateJournalWriter, (
+        const TYPath& path,
+        const TJournalWriterOptions& options,
+        TJournalWriterConfigPtr config),
+        (path, options, config))
+
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPTED_METHOD
 
