@@ -6,6 +6,8 @@
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <core/ytree/node.h>
 #include <core/ytree/fluent.h>
 #include <core/ytree/system_attribute_provider.h>
@@ -16,11 +18,14 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/node_tracker_server/node_directory_builder.h>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
@@ -29,6 +34,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NNodeTrackerServer;
 using namespace NVersionedTableClient;
+using namespace NObjectClient;
 
 using NChunkClient::TChannel;
 using NChunkClient::TReadLimit;
@@ -74,7 +80,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void Reply();
+    void ReplySuccess();
     void ReplyError(const TError& error);
 
     virtual bool OnChunk(
@@ -135,15 +141,55 @@ void TFetchChunkVisitor::Complete()
 
     Completed_ = true;
     if (SessionCount_ == 0 && !Finished_) {
-        Reply();
+        ReplySuccess();
     }
 }
 
-void TFetchChunkVisitor::Reply()
+void TFetchChunkVisitor::ReplySuccess()
 {
-    Context_->SetResponseInfo("ChunkCount: %d", Context_->Response().chunks_size());
-    Context_->Reply();
+    YCHECK(!Finished_);
     Finished_ = true;
+
+    auto* chunkSpecs = Context_->Response().mutable_chunks();
+    int chunkCount = chunkSpecs->size();
+
+    // Update the upper limit for the last journal chunk.
+    if (chunkCount > 0) {
+        auto* lastChunkSpec = chunkSpecs->Mutable(chunkCount - 1);
+        auto chunkId = FromProto<TChunkId>(lastChunkSpec->chunk_id());
+        if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!chunk) {
+                Context_->Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Optimistic locking failed for chunk %s",
+                    ~ToString(chunkId)));
+                return;
+            }
+
+            auto lowerLimit = FromProto<TReadLimit>(lastChunkSpec->lower_limit());
+            auto upperLimit = FromProto<TReadLimit>(lastChunkSpec->upper_limit());
+
+            auto result = WaitFor(chunkManager->GetChunkQuorumRecordCount(chunk));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+            int quorumRecordCount = result.Value();
+            int specLowerLimit = lowerLimit.HasRecordIndex() ? lowerLimit.GetRecordIndex() : 0;
+            int specUpperLimit = upperLimit.HasRecordIndex() ? upperLimit.GetRecordIndex() : std::numeric_limits<int>::max();
+            
+            int adjustedUpperLimit = std::min(quorumRecordCount, specUpperLimit);
+            if (adjustedUpperLimit > specLowerLimit) {
+                upperLimit.SetRecordIndex(adjustedUpperLimit);
+                ToProto(lastChunkSpec->mutable_upper_limit(), upperLimit);
+            } else {
+                chunkSpecs->RemoveLast();
+            }
+        }
+    }
+
+    Context_->SetResponseInfo("ChunkCount: %d", chunkCount);
+    Context_->Reply();
 }
 
 bool TFetchChunkVisitor::OnChunk(
@@ -231,7 +277,7 @@ void TFetchChunkVisitor::OnFinish()
     YCHECK(SessionCount_ >= 0);
 
     if (Completed_ && !Finished_ && SessionCount_ == 0) {
-        Reply();
+        ReplySuccess();
     }
 }
 
@@ -240,8 +286,9 @@ void TFetchChunkVisitor::ReplyError(const TError& error)
     if (Finished_)
         return;
 
-    Context_->Reply(error);
     Finished_ = true;
+
+    Context_->Reply(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
