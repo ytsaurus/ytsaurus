@@ -73,6 +73,15 @@ bool TFileWriter::WriteBlock(const TSharedRef& block)
     }
 }
 
+bool TFileWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+{
+    bool result = true;
+    for (const auto& block : blocks) {
+        result = WriteBlock(block);
+    }
+    return result;
+}
+
 TAsyncError TFileWriter::GetReadyEvent()
 {
     return Result_;
@@ -149,7 +158,6 @@ TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta
 
     return OKFuture;
 }
-
 
 void TFileWriter::Abort()
 {

@@ -9,31 +9,47 @@ using namespace NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMemoryWriter::TMemoryWriter()
-    : IsClosed_(false)
-{ }
-
 void TMemoryWriter::Open()
-{ }
+{
+    YCHECK(!Open_);
+    YCHECK(!Closed_);
+
+    Open_ = true;
+}
 
 bool TMemoryWriter::WriteBlock(const TSharedRef& block)
 {
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
+
     Blocks_.emplace_back(block);
+    return true;
+}
+
+bool TMemoryWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+{
+    YCHECK(Open_);
+    YCHECK(!Closed_);
+
+    Blocks_.insert(Blocks_.end(), blocks.begin(), blocks.end());
     return true;
 }
 
 TAsyncError TMemoryWriter::GetReadyEvent()
 {
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
+
     return OKFuture;
 }
 
 TAsyncError TMemoryWriter::Close(const TChunkMeta& chunkMeta)
 {
-    YCHECK(!IsClosed_);
+    YCHECK(Open_);
+    YCHECK(!Closed_);
+
     ChunkMeta_ = chunkMeta;
-    IsClosed_ = true;
+    Closed_ = true;
     return OKFuture;
 }
 
@@ -49,13 +65,17 @@ IWriter::TReplicaIndexes TMemoryWriter::GetWrittenReplicaIndexes() const
 
 std::vector<TSharedRef>& TMemoryWriter::GetBlocks()
 {
-    YCHECK(IsClosed_);
+    YCHECK(Open_);
+    YCHECK(Closed_);
+
     return Blocks_;
 }
 
 NProto::TChunkMeta& TMemoryWriter::GetChunkMeta()
 {
-    YCHECK(IsClosed_);
+    YCHECK(Open_);
+    YCHECK(Closed_);
+
     return ChunkMeta_;
 }
 

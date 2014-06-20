@@ -27,6 +27,9 @@ struct IWriter
      */
     virtual bool WriteBlock(const TSharedRef& block) = 0;
 
+    //! Similar to #WriteBlock but enqueues a bunch of blocks at once.
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
+
     //! Returns an asynchronous flag used to backpressure the upload.
     virtual TAsyncError GetReadyEvent() = 0;
 

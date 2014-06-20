@@ -12,10 +12,9 @@ class TMemoryWriter
     : public IWriter
 {
 public:
-    TMemoryWriter();
-
     virtual void Open() override;
     virtual bool WriteBlock(const TSharedRef& block) override;
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
     virtual TAsyncError GetReadyEvent() override;
     virtual TAsyncError Close(const NProto::TChunkMeta& chunkMeta) override;
 
@@ -23,12 +22,15 @@ public:
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
     virtual TReplicaIndexes GetWrittenReplicaIndexes() const override;
 
-    // Possible to call after #AsyncClose.
+    //! Can only be called after the writer is closed.
     std::vector<TSharedRef>& GetBlocks();
+
     NProto::TChunkMeta& GetChunkMeta();
 
 private:
-    bool IsClosed_;
+    bool Open_ = false;
+    bool Closed_ = false;
+
     std::vector<TSharedRef> Blocks_;
     NProto::TChunkMeta ChunkMeta_;
 

@@ -72,9 +72,8 @@ class TGroup
 {
 public:
     TGroup(
-        int nodeCount,
-        int startBlockIndex,
-        TReplicationWriter* writer);
+        TReplicationWriter* writer,
+        int startBlockIndex);
 
     void AddBlock(const TSharedRef& block);
     void ScheduleProcess();
@@ -88,13 +87,13 @@ public:
     int GetEndBlockIndex() const;
 
 private:
-    bool IsFlushing_;
-    std::vector<bool> IsSentTo_;
+    bool Flushing_ = false;
+    std::vector<bool> SentTo_;
 
     std::vector<TSharedRef> Blocks_;
     int FirstBlockIndex_;
 
-    i64 Size_;
+    i64 Size_ = 0;
 
     TWeakPtr<TReplicationWriter> Writer_;
 
@@ -127,6 +126,7 @@ public:
     virtual void Open() override;
 
     virtual bool WriteBlock(const TSharedRef& block) override;
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
     virtual TAsyncError GetReadyEvent() override;
 
     virtual TAsyncError Close(const TChunkMeta& chunkMeta) override;
@@ -168,7 +168,7 @@ private:
     //! All access to this field happens from client thread.
     TGroupPtr CurrentGroup_;
 
-    //! Number of blocks that are already added via #AddBlock.
+    //! Number of blocks that are already added via #AddBlocks.
     int BlockCount_;
 
     //! Returned from node on Finish.
@@ -178,9 +178,8 @@ private:
 
     void DoClose();
 
-    void AddGroup(TGroupPtr group);
-
-    void RegisterReadyEvent(TFuture<void> windowReady);
+    void EnsureCurrentGroup();
+    void FlushCurrentGroup();
 
     void OnNodeFailed(TNodePtr node, const TError& error);
 
@@ -205,7 +204,7 @@ private:
     void CancelPing(TNodePtr node);
     void CancelAllPings();
 
-    void AddBlock(const TSharedRef& block);
+    void AddBlocks(const std::vector<TSharedRef>& blocks);
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
@@ -213,13 +212,10 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 TGroup::TGroup(
-    int nodeCount,
-    int startBlockIndex,
-    TReplicationWriter* writer)
-    : IsFlushing_(false)
-    , IsSentTo_(nodeCount, false)
+    TReplicationWriter* writer,
+    int startBlockIndex)
+    : SentTo_(writer->Nodes_.size(), false)
     , FirstBlockIndex_(startBlockIndex)
-    , Size_(0)
     , Writer_(writer)
     , Logger(writer->Logger)
 { }
@@ -252,8 +248,8 @@ bool TGroup::IsWritten() const
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int nodeIndex = 0; nodeIndex < IsSentTo_.size(); ++nodeIndex) {
-        if (writer->Nodes_[nodeIndex]->IsAlive() && !IsSentTo_[nodeIndex]) {
+    for (int nodeIndex = 0; nodeIndex < SentTo_.size(); ++nodeIndex) {
+        if (writer->Nodes_[nodeIndex]->IsAlive() && !SentTo_[nodeIndex]) {
             return false;
         }
     }
@@ -294,7 +290,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     auto rsp = WaitFor(req->Invoke());
 
     if (rsp->IsOK()) {
-        IsSentTo_[node->Index] = true;
+        SentTo_[node->Index] = true;
 
         LOG_DEBUG("Blocks are put (Blocks: %d-%d, Address: %s)",
             GetStartBlockIndex(),
@@ -311,9 +307,9 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int dstNodeIndex = 0; dstNodeIndex < IsSentTo_.size(); ++dstNodeIndex) {
+    for (int dstNodeIndex = 0; dstNodeIndex < SentTo_.size(); ++dstNodeIndex) {
         auto dstNode = writer->Nodes_[dstNodeIndex];
-        if (dstNode->IsAlive() && !IsSentTo_[dstNodeIndex]) {
+        if (dstNode->IsAlive() && !SentTo_[dstNodeIndex]) {
             LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
                 GetStartBlockIndex(),
                 GetEndBlockIndex(),
@@ -338,7 +334,7 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
                     ~srcNode->Descriptor.GetDefaultAddress(),
                     ~dstNode->Descriptor.GetDefaultAddress());
 
-                IsSentTo_[dstNode->Index] = true;
+                SentTo_[dstNode->Index] = true;
             } else {
                 auto error = rsp->GetError();
                 if (error.GetCode() == EErrorCode::PipelineFailed) {
@@ -362,7 +358,7 @@ bool TGroup::IsFlushing() const
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    return IsFlushing_;
+    return Flushing_;
 }
 
 void TGroup::SetFlushing()
@@ -372,7 +368,7 @@ void TGroup::SetFlushing()
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    IsFlushing_ = true;
+    Flushing_ = true;
 }
 
 void TGroup::ScheduleProcess()
@@ -396,10 +392,10 @@ void TGroup::Process()
 
     TNodePtr nodeWithBlocks;
     bool emptyNodeFound = false;
-    for (int nodeIndex = 0; nodeIndex < IsSentTo_.size(); ++nodeIndex) {
+    for (int nodeIndex = 0; nodeIndex < SentTo_.size(); ++nodeIndex) {
         auto node = writer->Nodes_[nodeIndex];
         if (node->IsAlive()) {
-            if (IsSentTo_[nodeIndex]) {
+            if (SentTo_[nodeIndex]) {
                 nodeWithBlocks = node;
             } else {
                 emptyNodeFound = true;
@@ -442,8 +438,6 @@ TReplicationWriter::TReplicationWriter(
     YCHECK(!targets.empty());
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
-
-    CurrentGroup_ = New<TGroup>(AliveNodeCount_, 0, this);
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto node = New<TNode>(index, Targets_[index]);
@@ -583,7 +577,14 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
     }
 }
 
-void TReplicationWriter::AddGroup(TGroupPtr group)
+void TReplicationWriter::EnsureCurrentGroup()
+{
+    if (!CurrentGroup_) {
+        CurrentGroup_ = New<TGroup>(this, BlockCount_);
+    }
+}
+
+void TReplicationWriter::FlushCurrentGroup()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested_);
@@ -591,16 +592,18 @@ void TReplicationWriter::AddGroup(TGroupPtr group)
     if (!State_.IsActive())
         return;
 
-    LOG_DEBUG("Block group added (Group: %p, Blocks: %d-%d)",
-        group.Get(),
-        group->GetStartBlockIndex(),
-        group->GetEndBlockIndex());
+    LOG_DEBUG("Block group added (Blocks: %d-%d, Group: %p)",
+        CurrentGroup_->GetStartBlockIndex(),
+        CurrentGroup_->GetEndBlockIndex(),
+        CurrentGroup_.Get());
 
-    Window_.push_back(group);
+    Window_.push_back(CurrentGroup_);
 
     if (IsInitComplete_) {
-        group->ScheduleProcess();
+        CurrentGroup_->ScheduleProcess();
     }
+
+    CurrentGroup_.Reset();
 }
 
 void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
@@ -781,13 +784,18 @@ void TReplicationWriter::CancelAllPings()
 
 bool TReplicationWriter::WriteBlock(const TSharedRef& block)
 {
+    return WriteBlocks(std::vector<TSharedRef>(1, block));
+}
+
+bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+{
     YCHECK(IsOpen_);
     YCHECK(!IsClosing_);
     YCHECK(!State_.IsClosed());
 
-    WindowSlots_.Acquire(block.Size());
+    WindowSlots_.Acquire(GetTotalSize(blocks));
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
-        BIND(&TReplicationWriter::AddBlock, MakeWeak(this), block));
+        BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));
 
     return WindowSlots_.IsReady();
 }
@@ -813,7 +821,7 @@ TAsyncError TReplicationWriter::GetReadyEvent()
     return State_.GetOperationError();
 }
 
-void TReplicationWriter::AddBlock(const TSharedRef& block)
+void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested_);
@@ -821,20 +829,25 @@ void TReplicationWriter::AddBlock(const TSharedRef& block)
     if (!State_.IsActive())
         return;
 
-    CurrentGroup_->AddBlock(block);
+    int firstBlockIndex = BlockCount_;
 
-    LOG_DEBUG("Block added (Block: %d, Group: %p, Size: %" PRISZT ")",
-        BlockCount_,
-        CurrentGroup_.Get(),
-        block.Size());
+    for (const auto& block : blocks) {
+        EnsureCurrentGroup();
 
-    ++BlockCount_;
+        CurrentGroup_->AddBlock(block);
+        ++BlockCount_;
 
-    if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
-        AddGroup(CurrentGroup_);
-        // Construct a new (empty) group.
-        CurrentGroup_ = New<TGroup>(Nodes_.size(), BlockCount_, this);
+        if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
+            FlushCurrentGroup();
+        }
     }
+
+    int lastBlockIndex = BlockCount_ - 1;
+
+    LOG_DEBUG("Blocks added (Blocks: %d-%d, Size: %" PRISZT ")",
+        firstBlockIndex,
+        lastBlockIndex,
+        GetTotalSize(blocks));
 }
 
 void TReplicationWriter::DoClose()
@@ -850,7 +863,7 @@ void TReplicationWriter::DoClose()
     }
 
     if (CurrentGroup_->GetSize() > 0) {
-        AddGroup(CurrentGroup_);
+        FlushCurrentGroup();
     }
 
     IsCloseRequested_ = true;
@@ -920,5 +933,4 @@ IWriterPtr CreateReplicationWriter(
 
 } // namespace NChunkClient
 } // namespace NYT
-
 

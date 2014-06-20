@@ -159,6 +159,15 @@ public:
         return true;
     }
 
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    {
+        bool result = true;
+        for (const auto& block : blocks) {
+            result = WriteBlock(block);
+        }
+        return result;
+    }
+
     virtual TAsyncError GetReadyEvent() override
     {
         auto error = TAsyncErrorPromise();
