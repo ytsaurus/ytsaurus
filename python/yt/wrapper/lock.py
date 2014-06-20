@@ -13,8 +13,12 @@ def lock(path, mode=None, waitable=False, wait_for=None, client=None):
     """
     Try to lock the path.
 
-    :return: taken lock id or ``None`` if lock was not taken.
-    :raises YtError: Raise ``YtError`` if node already under exclusive lock.
+    :param mode: (optional) blocking type ["snapshot", "shared" or "exclusive" (default)]
+    :param waitable: (bool) wait for lock if node under blocking
+    :param wait_for: (int) wait interval in milliseconds. If timeout occurred, `YtError` raised
+    :return: taken lock id (YSON string) or ``None`` if lock was not taken.
+
+    .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)

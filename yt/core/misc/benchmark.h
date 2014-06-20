@@ -63,7 +63,7 @@ struct TBenchmarkSuspender
 #ifndef _MSC_VER
     TBenchmarkSuspender(const TBenchmarkSuspender &) = delete;
 #endif
-    TBenchmarkSuspender(TBenchmarkSuspender&& rhs)
+    TBenchmarkSuspender(TBenchmarkSuspender&& rhs) noexcept
     {
         Begin = rhs.Begin;
         rhs.Begin.Seconds = rhs.Begin.Nanoseconds = 0;
@@ -72,7 +72,7 @@ struct TBenchmarkSuspender
 #ifndef _MSC_VER
     TBenchmarkSuspender& operator=(const TBenchmarkSuspender &) = delete;
 #endif
-    TBenchmarkSuspender& operator=(TBenchmarkSuspender&& rhs)
+    TBenchmarkSuspender& operator=(TBenchmarkSuspender&& rhs) noexcept
     {
         if (Begin.Nanoseconds > 0 || Begin.Seconds > 0) {
             Tally();

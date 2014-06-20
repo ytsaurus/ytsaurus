@@ -569,7 +569,7 @@ cat > /dev/null; echo {hello=world}
         op_id = map(dont_track=True,
             in_='//tmp/t',
             out='//tmp/t',
-            command="sleep 2")
+            command="sleep 1")
 
         path = '//sys/operations/%s/@state' % op_id
         # check running

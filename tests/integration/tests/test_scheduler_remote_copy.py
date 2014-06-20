@@ -8,7 +8,10 @@ import time
 ##################################################################
 
 class TestSchedulerRemoteCopyCommands(YTEnvSetup):
-    DELTA_SCHEDULER_CONFIG = {'chunk_scratch_period' : 500}
+    DELTA_SCHEDULER_CONFIG = {
+        "chunk_scratch_period" : 500,
+        "cluster_directory_update_period": 500
+    }
 
     NUM_MASTERS = 3
     NUM_NODES = 9
@@ -31,7 +34,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                 "cell_id": 10
             })
         self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
-        time.sleep(3.0)
+        time.sleep(1.0)
 
     def teardown(self):
         set("//tmp", {}, driver=self.remote_driver)
@@ -135,14 +138,14 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         set_banned_flag(True)
 
-        time.sleep(2)
+        time.sleep(1)
 
         create("table", "//tmp/t2")
         op_id = remote_copy(dont_track=True, in_='//tmp/t1', out='//tmp/t2',
                             spec={"cluster_name": "remote",
                                   "unavailable_chunk_strategy": "wait"})
 
-        time.sleep(2)
+        time.sleep(1)
         set_banned_flag(False)
 
         track_op(op_id)
@@ -159,7 +162,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                             spec={"cluster_name": "remote"})
 
         self.Env._kill_service("scheduler")
-        time.sleep(2)
+        time.sleep(1)
         self.Env.start_schedulers("scheduler")
 
         track_op(op_id)

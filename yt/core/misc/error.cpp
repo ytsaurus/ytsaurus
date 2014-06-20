@@ -28,7 +28,7 @@ TError::TErrorOr(const TError& other)
     , InnerErrors_(other.InnerErrors_)
 { }
 
-TError::TErrorOr(TError&& other)
+TError::TErrorOr(TError&& other) noexcept
     : Code_(other.Code_)
     , Message_(std::move(other.Message_))
     , Attributes_(std::move(other.Attributes_))
@@ -108,7 +108,7 @@ TError& TError::operator= (const TError& other)
     return *this;
 }
 
-TError& TError::operator= (TError&& other)
+TError& TError::operator= (TError&& other) noexcept
 {
     if (this != &other) {
         Code_ = other.Code_;
@@ -400,14 +400,6 @@ TError operator >>= (const TErrorAttribute& attribute, TError error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorException::TErrorException()
-{ }
-
-TErrorException::TErrorException(TErrorException&& other)
-    : Error_(other.Error_)
-{ }
-
-TErrorException::TErrorException(const TErrorException& other)
-    : Error_(other.Error_)
 { }
 
 TErrorException::~TErrorException() throw()

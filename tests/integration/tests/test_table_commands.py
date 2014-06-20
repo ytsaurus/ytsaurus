@@ -483,7 +483,7 @@ class TestTableCommands(YTEnvSetup):
 
         set('//tmp/t/@vital', 'false')
         assert get('//tmp/t/@vital') == 'false'
-        sleep(3)
+        sleep(2)
 
         check_vital_chunks('false')
 
@@ -492,7 +492,7 @@ class TestTableCommands(YTEnvSetup):
         for i in xrange(0, 5):
             write('<append=true>//tmp/t', {'a' : 'b'})
         set('//tmp/t/@replication_factor', 4)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update2(self):
@@ -502,7 +502,7 @@ class TestTableCommands(YTEnvSetup):
             write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
         set('//tmp/t/@replication_factor', 4)
         commit_transaction(tx)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update3(self):
@@ -512,7 +512,7 @@ class TestTableCommands(YTEnvSetup):
             write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
         set('//tmp/t/@replication_factor', 2)
         commit_transaction(tx)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 2)
 
     def test_key_columns1(self):

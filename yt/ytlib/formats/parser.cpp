@@ -12,13 +12,13 @@ static const size_t ParseBufferSize = 1 << 16;
 
 void Parse(TInputStream* input, IParser* parser)
 {
-    char buffer[ParseBufferSize];
+    std::array<char, ParseBufferSize> buffer;
     while (true) {
-        size_t bytesRead = input->Read(buffer, ParseBufferSize);
+        size_t bytesRead = input->Read(buffer.data(), ParseBufferSize);
         if (bytesRead == 0) {
             break;
         }
-        parser->Read(TStringBuf(buffer, bytesRead));
+        parser->Read(TStringBuf(buffer.data(), bytesRead));
     }
     parser->Finish();
 }

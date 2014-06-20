@@ -80,7 +80,13 @@ TEST(TCoroutineTest, Unary)
 }
 
 // In this case I've got lazy and set up these test cases.
-struct { int lhs; int rhs; int sum; } Coroutine2TestCases[] = {
+struct TTestCase { 
+    int lhs;
+    int rhs;
+    int sum;
+};
+
+std::vector<TTestCase> Coroutine2TestCases = {
     { 10, 20, 30 },
     { 11, 21, 32 },
     { 12, 22, 34 },
@@ -91,7 +97,7 @@ struct { int lhs; int rhs; int sum; } Coroutine2TestCases[] = {
 
 void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
 {
-    for (int i = 0; i < ARRAY_SIZE(Coroutine2TestCases); ++i) {
+    for (int i = 0; i < Coroutine2TestCases.size(); ++i) {
         EXPECT_EQ(Coroutine2TestCases[i].lhs, lhs) << "Iteration #" << i;
         EXPECT_EQ(Coroutine2TestCases[i].rhs, rhs) << "Iteration #" << i;
         std::tie(lhs, rhs) = self.Yield(lhs + rhs);
@@ -116,7 +122,7 @@ TEST(TCoroutineTest, Binary)
     }
 
     EXPECT_FALSE(actual.HasValue());
-    EXPECT_EQ(i, ARRAY_SIZE(Coroutine2TestCases));
+    EXPECT_EQ(i, Coroutine2TestCases.size());
 
     EXPECT_TRUE(coro.IsCompleted());
 }

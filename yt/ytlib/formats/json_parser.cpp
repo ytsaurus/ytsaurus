@@ -180,10 +180,10 @@ void TJsonParser::TImpl::Finish()
 void TJsonParser::TImpl::Parse(TInputStream* input)
 {
     static const int bufferLength = 65536;
-    char buffer[bufferLength];
-    while (int readLength = input->Read(buffer, bufferLength))
+    std::array<char, bufferLength> buffer;
+    while (int readLength = input->Read(buffer.data(), bufferLength))
     {
-        Read(TStringBuf(buffer, readLength));
+        Read(TStringBuf(buffer.data(), readLength));
     }
     Finish();
 }

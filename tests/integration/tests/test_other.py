@@ -1,15 +1,11 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.yson import to_yson_type
 
 import time
 import os
 
 ##################################################################
 
-# TODO(panin): unite with next
 class TestResourceLeak(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

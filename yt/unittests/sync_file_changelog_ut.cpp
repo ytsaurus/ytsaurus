@@ -256,7 +256,7 @@ TEST_F(TSyncFileChangelogTest, TestSealedCorrupted)
 
 TEST_F(TSyncFileChangelogTest, Truncate)
 {
-    const int logRecordCount = 128;
+    const int logRecordCount = 16;
 
     {
         auto changelog = CreateChangelog<ui32>(logRecordCount);
@@ -326,11 +326,11 @@ TEST_F(TSyncFileChangelogTest, UnalignedChecksum)
 class BigStruct {
 public:
     BigStruct(i32 num) {
-        memset(str, 0, sizeof(str));
+        str.fill(0);
     }
 
 private:
-    char str[1000000];
+    std::array<char, 1000000> str;
 };
 
 TEST_F(TSyncFileChangelogTest, DISABLED_Profiling)

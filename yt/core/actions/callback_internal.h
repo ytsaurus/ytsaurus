@@ -79,13 +79,13 @@ protected:
     /*!
      * Yup, out-of-line copy constructor. Yup, explicit.
      */
-    explicit TCallbackBase(const TCallbackBase& other);
+    explicit TCallbackBase(const TCallbackBase& other) = default;
 
     /*!
      * We can efficiently move-construct callbacks avoiding extra interlocks
      * while moving reference counted #TBindStateBase.
      */
-    explicit TCallbackBase(TCallbackBase&& other);
+    explicit TCallbackBase(TCallbackBase&& other) noexcept = default;
 
     /*!
      * We can construct #TCallback<> from a rvalue reference to the #TBindStateBase
@@ -113,8 +113,8 @@ protected:
     TUntypedInvokeFunction UntypedInvoke;
 
 private:
-    TCallbackBase& operator=(const TCallbackBase&);
-    TCallbackBase& operator=(TCallbackBase&&);
+    TCallbackBase& operator=(const TCallbackBase&) = delete;
+    TCallbackBase& operator=(TCallbackBase&&) noexcept = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

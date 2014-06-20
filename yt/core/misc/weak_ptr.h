@@ -83,7 +83,7 @@ public:
     }
 
     //! Move constructor.
-    explicit TWeakPtr(TWeakPtr&& other) // noexcept
+    explicit TWeakPtr(TWeakPtr&& other) noexcept
         : T_(other.T_)
         , RefCounter(other.RefCounter)
     {
@@ -151,7 +151,7 @@ public:
     }
 
     //! Move assignment operator.
-    TWeakPtr& operator=(TWeakPtr&& other) // noexcept
+    TWeakPtr& operator=(TWeakPtr&& other) noexcept
     {
         TWeakPtr(std::move(other)).Swap(*this);
         return *this;

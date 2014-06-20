@@ -1,3 +1,5 @@
+"""Some common useful misc"""
+
 import yt.logger as logger
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
@@ -6,8 +8,7 @@ import os
 import sys
 import random
 from datetime import datetime
-from functools import partial
-from itertools import ifilter
+from itertools import ifilter, chain
 import simplejson as json
 
 EMPTY_GENERATOR = (i for i in [])
@@ -24,6 +25,9 @@ def unlist(l):
         return l
 
 def parse_bool(word):
+    """convert 'true' and 'false' and something like this to Python bool
+
+    Raise `YtError` if input word is incorrect."""
     word = word.lower()
     if word == "true":
         return True
@@ -33,6 +37,10 @@ def parse_bool(word):
         raise YtError("Cannot parse boolean from %s" % word)
 
 def bool_to_string(bool_value):
+    """convert Python bool value to 'true' or 'false' string
+
+    Raise `YtError` if value is incorrect.
+    """
     if bool_value not in [False, True]:
         raise YtError("Incorrect bool value '{0}'".format(bool_value))
     if bool_value:
@@ -79,6 +87,9 @@ def first_not_none(iter):
 
 def filter_dict(predicate, dictionary):
     return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
+
+def merge_dicts(*dicts):
+    return dict(chain(*[d.iteritems() for d in dicts]))
 
 def get_value(value, default):
     if value is None:

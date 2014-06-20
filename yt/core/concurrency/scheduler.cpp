@@ -72,7 +72,15 @@ void WaitFor(TFuture<void> future, IInvokerPtr invoker)
         throw TFiberCanceledException();
     }
 
-    GetCurrentScheduler()->WaitFor(std::move(future), std::move(invoker));
+    auto* scheduler = TryGetCurrentScheduler();
+    if (scheduler) {
+        scheduler->WaitFor(std::move(future), std::move(invoker));
+    } else {
+        // If we call WaitFor from a fiber-unfriendly thread, we fallback to blocking wait.
+        YCHECK(invoker == GetCurrentInvoker());
+        YCHECK(invoker == GetSyncInvoker());
+        future.Get();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

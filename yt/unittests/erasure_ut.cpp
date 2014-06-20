@@ -167,12 +167,11 @@ TEST_F(TErasureMixture, WriterTest)
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
-    Stroka data[] = {
+    std::vector<Stroka> dataStrings = {
         "a",
         "b",
         "",
         "Hello world"};
-    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codec, dataRefs);
@@ -199,12 +198,11 @@ TEST_F(TErasureMixture, ReaderTest)
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
-    Stroka data[] = {
+    std::vector<Stroka> dataStrings = {
         "a",
         "b",
         "",
         "Hello world"};
-    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codec, dataRefs);
@@ -244,8 +242,7 @@ TEST_F(TErasureMixture, RepairTest1)
     auto codec = GetCodec(ECodec::ReedSolomon_6_3);
 
     // Prepare data
-    Stroka data[] = {"a"};
-    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
+    std::vector<Stroka> dataStrings({"a"});
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codec, dataRefs);
@@ -300,12 +297,11 @@ TEST_F(TErasureMixture, RepairTest2)
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
-    Stroka data[] = {
+    std::vector<Stroka> dataStrings = {
         "a",
         "b",
         "",
         "Hello world"};
-    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
     auto dataRefs = ToSharedRefs(dataStrings);
 
     WriteErasureChunk(codec, dataRefs);

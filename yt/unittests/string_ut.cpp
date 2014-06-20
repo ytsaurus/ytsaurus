@@ -8,10 +8,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static struct TTestCase {
+struct TTestCase {
     const char* UnderCase;
     const char* CamelCase;
-} TestCasesRaw[] = {
+};
+
+static std::vector<TTestCase> TestCases{
     { "kenny", "Kenny" },
     { "south_park", "SouthPark" },
     { "a", "A" },
@@ -19,12 +21,7 @@ static struct TTestCase {
     { "reed_solomon_6_3", "ReedSolomon_6_3" },
     { "l_r_c_12_2_2", "LRC_12_2_2" },
     { "0", "0" },
-    { "0_1_2", "0_1_2" },
-};
-
-static std::vector<TTestCase> TestCases(
-    TestCasesRaw,
-    TestCasesRaw + ARRAY_SIZE(TestCasesRaw));
+    { "0_1_2", "0_1_2" }};
 
 ////////////////////////////////////////////////////////////////////////////////
 

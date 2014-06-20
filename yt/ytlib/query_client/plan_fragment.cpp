@@ -23,37 +23,6 @@ TPlanFragment::TPlanFragment(
     , Id_(id)
 { }
 
-TPlanFragment::TPlanFragment(const TPlanFragment& other)
-    : Context_(other.Context_)
-    , Head_(other.Head_)
-    , Id_(other.Id_)
-{ }
-
-TPlanFragment::TPlanFragment(TPlanFragment&& other)
-    : Context_(std::move(other.Context_))
-    , Head_(std::move(other.Head_))
-    , Id_(std::move(other.Id_))
-{ }
-
-TPlanFragment::~TPlanFragment()
-{ }
-
-TPlanFragment& TPlanFragment::operator=(const TPlanFragment& other)
-{
-    Context_ = other.Context_;
-    Head_ = other.Head_;
-    Id_ = other.Id_;
-    return *this;
-}
-
-TPlanFragment& TPlanFragment::operator=(TPlanFragment&& other)
-{
-    Context_ = std::move(other.Context_);
-    Head_ = std::move(other.Head_);
-    Id_ = std::move(other.Id_);
-    return *this;
-}
-
 TPlanFragment TPlanFragment::Prepare(
     IPrepareCallbacks* callbacks,
     const Stroka& source,

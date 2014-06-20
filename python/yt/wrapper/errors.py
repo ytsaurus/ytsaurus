@@ -1,3 +1,5 @@
+"""YT usage errors"""
+
 import errors_config
 from yt.common import YtError
 
@@ -27,12 +29,15 @@ class YtResponseError(YtError):
         return self.__str__()
 
     def is_resolve_error(self):
+        """Resolving error."""
         return int(self.error["code"]) == 500
 
     def is_access_denied(self):
+        """Access denied."""
         return int(self.error["code"]) == 901
 
     def is_concurrent_transaction_lock_conflict(self):
+        """Transaction lock conflict."""
         return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
