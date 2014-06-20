@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "journal_reader.h"
 #include "config.h"
+#include "connection.h"
 #include "private.h"
 
 #include <core/logging/tagged_logger.h>
@@ -9,9 +10,15 @@
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction_listener.h>
+#include <ytlib/transaction_client/helpers.h>
 
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -26,11 +33,14 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NJournalClient;
 using namespace NCypressClient;
+using namespace NTransactionClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalReader
-    : public IJournalReader
+    : public TTransactionListener
+    , public IJournalReader
 {
 public:
     TJournalReader(
@@ -42,13 +52,18 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(config ? config : New<TJournalReaderConfig>())
-        //, IsFirstBlock_(true)
-        //, IsFinished_(false)
-        //, Size_(0)
         , Logger(ApiLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s",
-            ~Path_));
+        if (Options_.TransactionId != NullTransactionId) {
+            auto transactionManager = Client_->GetTransactionManager();
+            TTransactionAttachOptions attachOptions(Options_.TransactionId);
+            attachOptions.AutoAbort = false;
+            Transaction_ = transactionManager->Attach(attachOptions);
+        }
+
+        Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+            ~Path_,
+            ~ToString(Options_.TransactionId)));
     }
 
     virtual TAsyncError Open() override
@@ -73,15 +88,19 @@ private:
     TJournalReaderOptions Options_;
     TJournalReaderConfigPtr Config_;
 
-    //bool IsFirstBlock_;
-    //bool IsFinished_;
+    TTransactionPtr Transaction_;
 
-    //TTransactionPtr Transaction_;
+    TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
 
-    //typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
-    //TIntrusivePtr<TReader> Reader_;
+    int CurrentChunkIndex_ = -1;
+    bool Finished_ = false;
+    IReaderPtr CurrentChunkReader_;
 
-    //i64 Size_;
+    // Inside current chunk.
+    int BeginRecordIndex_ = -1;
+    int CurrentRecordIndex_ = -1;
+    int EndRecordIndex_ = -1; // exclusive
 
     NLog::TTaggedLogger Logger;
 
@@ -97,6 +116,7 @@ private:
 
         {
             auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
+            SetTransactionId(req, Transaction_);
             batchReq->AddRequest(req, "get_attrs");
         }
 
@@ -107,8 +127,9 @@ private:
                 req->mutable_lower_limit()->set_record_index(firstRecordIndex);
             }
             if (Options_.RecordCount) {
-                req->mutable_upper_limit()->set_offset(firstRecordIndex + *Options_.RecordCount);
+                req->mutable_upper_limit()->set_record_index(firstRecordIndex + *Options_.RecordCount);
             }
+            SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             batchReq->AddRequest(req, "fetch");
@@ -130,61 +151,72 @@ private:
             }
         }
 
-        auto nodeDirectory = New<TNodeDirectory>();
         {
             auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspFetch>("fetch");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching journal chunks");
 
-            nodeDirectory->MergeFrom(rsp->node_directory());
+            NodeDirectory_->MergeFrom(rsp->node_directory());
 
-            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            //for (const auto& chunk : chunks) {
-            //    i64 dataSize;
-            //    GetStatistics(chunk, &dataSize);
-            //    Size_ += dataSize;
-            //}
-
-            //auto provider = New<TFileChunkReaderProvider>(Config_);
-            //Reader_ = New<TReader>(
-            //    Config_,
-            //    Client_->GetMasterChannel(),
-            //    Client_->GetConnection()->GetBlockCache(),
-            //    nodeDirectory,
-            //    std::move(chunks),
-            //    provider);
+            ChunkSpecs_ = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
         }
 
-        //{
-        //    auto result = WaitFor(Reader_->AsyncOpen());
-        //    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        //}
+        if (Transaction_) {
+            ListenTransaction(Transaction_);
+        }
 
         LOG_INFO("Journal reader opened");
     }
 
     std::vector<TSharedRef> DoRead()
     {
-        YUNIMPLEMENTED();
-        //CheckAborted();
+        while (true) {
+            CheckAborted();
 
-        //if (IsFinished_) {
-        //    return TSharedRef();
-        //}
-        //
-        //if (!IsFirstBlock_ && !Reader_->FetchNext()) {
-        //    auto result = WaitFor(Reader_->GetReadyEvent());
-        //    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        //}
+            if (Finished_) {
+                return std::vector<TSharedRef>();
+            }
 
-        //IsFirstBlock_ = false;
+            if (!CurrentChunkReader_) {
+                if (++CurrentChunkIndex_ >= ChunkSpecs_.size()) {
+                    Finished_ = true;
+                    return std::vector<TSharedRef>();
+                }
 
-        //auto* facade = Reader_->GetFacade();
-        //if (facade) {
-        //    return facade->GetBlock();
-        //} else {
-        //    IsFinished_ = true;
-        //    return TSharedRef();
-        //}
+                const auto& chunkSpec = ChunkSpecs_[CurrentChunkIndex_];
+
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                CurrentChunkReader_ = CreateReplicationReader(
+                    Config_,
+                    Client_->GetConnection()->GetBlockCache(),
+                    Client_->GetMasterChannel(),
+                    NodeDirectory_,
+                    Null,
+                    chunkId,
+                    replicas);
+
+                auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
+                BeginRecordIndex_ = lowerLimit.HasRecordIndex() ? lowerLimit.GetRecordIndex() : 0;
+
+                auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
+                EndRecordIndex_ = upperLimit.HasRecordIndex() ? upperLimit.GetRecordIndex() : std::numeric_limits<int>::max();
+
+                CurrentRecordIndex_ = BeginRecordIndex_;
+            }
+
+            auto recordsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
+                CurrentRecordIndex_,
+                EndRecordIndex_ - CurrentRecordIndex_));
+            THROW_ERROR_EXCEPTION_IF_FAILED(recordsOrError);
+
+            const auto& records = recordsOrError.Value();
+            if (!records.empty()) {
+                CurrentRecordIndex_ += records.size();
+                return records;
+            }
+
+            CurrentChunkReader_.Reset();
+        }
     }
 
 };
