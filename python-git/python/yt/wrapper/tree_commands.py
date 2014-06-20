@@ -17,11 +17,18 @@ import __builtin__
 
 def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, client=None):
     """
-    Gets the tree growning from path.
-    attributes -- attributes to provide for each node in the response.
-    format -- output format (by default it is yson that automatically parsed to python structure).
+    Get Cypress node content (attribute tree).
 
-    Be carefull: attributes have weird representation in json format.
+    :param path: (string or `yt.wrapper.table.TablePath`) path to tree, it must exist!
+    :param attributes: (list) desired node attributes in the response.
+    :param format: (string or descendant of `yt.wrapper.format.Format` output format \
+        (by default python dict automatically parsed from YSON).
+    :param ignore_opaque: (bool)
+    :param spec: (dict)
+    Be careful: attributes have specific representation in json format.
+
+    :return: node tree content in `format`
+    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
     """
     return _make_formatted_transactional_request(
         "get",
@@ -35,7 +42,11 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
 
 def set(path, value, client=None):
     """
-    Sets the value by path. Value should json-able object.
+    Set new value to Cypress node.
+
+    :param path: (string or `yt.wrapper.table.TablePath`)
+    :param value: json-able object.
+    .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
     """
     return _make_transactional_request(
         "set",
@@ -47,6 +58,13 @@ def set(path, value, client=None):
         client=client)
 
 def copy(source_path, destination_path, preserve_account=None, client=None):
+    """Copy Cypress node.
+
+    :param source_path: (string or `yt.wrapper.table.TablePath`)
+    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param preserve_account: (bool)
+    .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
+    """
     params = {"source_path": prepare_path(source_path),
               "destination_path": prepare_path(destination_path)}
     if preserve_account is not None:
@@ -54,6 +72,12 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
     return _make_transactional_request("copy", params, client=client)
 
 def move(source_path, destination_path, client=None):
+    """Move (rename) Cypress node.
+
+    :param source_path: (string or `yt.wrapper.table.TablePath`)
+    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
+    """
     _make_transactional_request(
         "move",
         {
@@ -63,6 +87,14 @@ def move(source_path, destination_path, client=None):
         client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
+    """Make link to Cypress node.
+
+    :param target_path: (string or `yt.wrapper.table.TablePath`)
+    :param link_path: (string or `yt.wrapper.table.TablePath`)
+    :param recursive: (bool)
+    :param ignore_existing: (bool)
+    .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#link>`_
+    """
     return _make_transactional_request(
         "link",
         {
@@ -76,8 +108,16 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
 
 def list(path, max_size=1000, format=None, absolute=False, attributes=None, client=None):
     """
-    Lists all items in the path. Paht should be map_node or list_node.
-    In case of map_node it returns keys of the node.
+    List all children of Cypress node.
+
+    Node type should be 'map_node'.
+    In case of 'map_node' it returns keys of the node.
+    :param path: (string or `TablePath`)
+    :param max_size: (int)
+    :param attributes: (list) desired node attributes in the response.
+    :param format: (descendant of `Format`)
+    :param absolute: (bool)
+    .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
     """
     def join(elem):
         return yson.to_yson_type(
@@ -98,6 +138,11 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None, clie
     return result
 
 def exists(path, client=None):
+    """Check Cypress node exists.
+
+    :param path: (string or `TablePath`)
+    .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#exists>`_
+    """
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
@@ -106,6 +151,12 @@ def exists(path, client=None):
             client=client))
 
 def remove(path, recursive=False, force=False, client=None):
+    """Remove Cypress node.
+
+    :param path: (string or `TablePath`)
+    :recursive, force: (bool)
+    .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#remove>`_
+    """
     _make_transactional_request(
         "remove",
         {
@@ -116,6 +167,13 @@ def remove(path, recursive=False, force=False, client=None):
         client=client)
 
 def create(type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
+    """Create Cypress node.
+
+    :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
+    :param path: (string or `TablePath`)
+    :param attributes: (dict)
+    .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
+    """
     params = {
         "type": type,
         "recursive": bool_to_string(recursive),
@@ -127,35 +185,65 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     return _make_formatted_transactional_request("create", params, format=None, client=client)
 
 def mkdir(path, recursive=None, client=None):
+    """Make directory (Cypress node of map_node type).
+
+    :param path: (string or `TablePath`)
+    :param recursive: (bool) `config.CREATE_RECURSIVE` by default
+    """
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
-
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None, client=None):
+    """Get attribute of Cypress node.
+
+    :param path: (string)
+    :param attribute: (string)
+    :param default: (any) return it if node hasn't attribute `attribute`."""
     if default is not None and attribute not in list_attributes(path):
         return default
     return get("%s/@%s" % (path, attribute), client=client)
 
 def has_attribute(path, attribute, client=None):
+    """Check Cypress node has attribute.
+
+    :param path: (string)
+    :param attribute: (string)
+    """
     return exists("%s/@%s" % (path, attribute), client=client)
 
 def set_attribute(path, attribute, value, client=None):
+    """Set Cypress node `attribute` to `value`.
+
+    :param path: (string)
+    :param attribute: (string)
+    :param value: (any)
+    """
     return set("%s/@%s" % (path, attribute), value, client=client)
 
 def list_attributes(path, attribute_path="", client=None):
+    """List all attributes of Cypress node.
+
+    :param path: (string)
+    :param attribute_path: (string)
+    """
     return list("%s/@%s" % (path, attribute_path), client=client)
 
 def get_type(path, client=None):
-    return get_attribute(path, "type", client=client)
+    """Get Cypress node attribute type.
 
+    :param path: (string)
+    """
+    return get_attribute(path, "type", client=client)
 
 def find_free_subpath(path, client=None):
     """
-    Searches free node started with path.
-    Path can have form {dir}/{prefix}.
+    Generate some free random subpath.
+
+    :param path: (string)
+    :return: (string)
     """
-    # Temporary comment it because of race condirtion while uploading file
+    # Temporary comment it because of race condition while uploading file
     # TODO(ignat): Uncomment it with apperance of proper locking
     #if not path.endswith("/") and not exists(path):
     #    return path
@@ -168,17 +256,24 @@ def find_free_subpath(path, client=None):
 
 def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
     """
-    Searches all objects in root that have specified node_type,
-    satisfy path and object filters. Returns list of the objects.
-    Adds given attributes to objects.
+    Search all objects in root directory that have specified node types,
+    satisfy path and object filters.
+
+    :param root: (string or `TablePath`)
+    :param node_type: (list of string)
+    :param object_filter: (predicate)
+    :param attributes: (list of string) these attributes will be added to result objects
+    :param exclude: (list of string) excluded paths
+    :param depth_bound: (int) recursion depth
+    :return: (list of YsonString) result paths
     """
-    # Deprecated. Default value "/" should be removed. 
+    # Deprecated. Default value "/" should be removed.
     if not root and not config.PREFIX:
         root = "/"
     root = to_name(root, client=client)
     attributes = get_value(attributes, [])
 
-    request_attributes = deepcopy(flatten(get_value(attributes, [])))
+    request_attributes = deepcopy(flatten(attributes))
     request_attributes.append("type")
     request_attributes.append("opaque")
 
@@ -206,7 +301,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
         if object.attributes.get("opaque", False) and not ignore_opaque:
             walk(path, safe_get(path), depth, True)
             return
-        
+
         object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
@@ -231,7 +326,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
     return result
 
 def remove_with_empty_dirs(path, force=True, client=None):
-    """ Removes path and all empty dirs that appear after deletion.  """
+    """Remove path and all empty dirs that appear after deletion.
+
+    :param path: (string or `TablePath`)
+    :param force: (bool)
+    """
     path = to_name(path, client=client)
     while True:
         try:

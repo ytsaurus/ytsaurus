@@ -127,9 +127,9 @@ def get_scheduler_config():
         snapshot_period = 100000000;
         connect_retry_period = 2000;
         lock_transaction_timeout = 2000;
-        transactions_refresh_period = 1000;
-        operations_update_period = 1000;
-        watchers_update_period = 1000;
+        transactions_refresh_period = 500;
+        operations_update_period = 500;
+        watchers_update_period = 500;
         connect_grace_delay = 0;
         environment = {
              PYTHONUSERBASE = "/tmp"
