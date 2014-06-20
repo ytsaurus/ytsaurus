@@ -60,17 +60,17 @@ public:
     void Complete();
 
 private:
-    NCellMaster::TBootstrap* Bootstrap;
-    TChunkList* ChunkList;
-    TCtxFetchPtr Context;
-    TChannel Channel;
-    bool FetchParityReplicas;
+    NCellMaster::TBootstrap* Bootstrap_;
+    TChunkList* ChunkList_;
+    TCtxFetchPtr Context_;
+    TChannel Channel_;
+    bool FetchParityReplicas_;
 
-    yhash_set<int> ExtensionTags;
-    TNodeDirectoryBuilder NodeDirectoryBuilder;
-    int SessionCount;
-    bool Completed;
-    bool Finished;
+    yhash_set<int> ExtensionTags_;
+    TNodeDirectoryBuilder NodeDirectoryBuilder_;
+    int SessionCount_ = 0;
+    bool Completed_ = false;
+    bool Finished_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -98,19 +98,16 @@ TFetchChunkVisitor::TFetchChunkVisitor(
     TCtxFetchPtr context,
     const TChannel& channel,
     bool fetchParityReplicas)
-    : Bootstrap(bootstrap)
-    , ChunkList(chunkList)
-    , Context(context)
-    , Channel(channel)
-    , FetchParityReplicas(fetchParityReplicas)
-    , NodeDirectoryBuilder(context->Response().mutable_node_directory())
-    , SessionCount(0)
-    , Completed(false)
-    , Finished(false)
+    : Bootstrap_(bootstrap)
+    , ChunkList_(chunkList)
+    , Context_(context)
+    , Channel_(channel)
+    , FetchParityReplicas_(fetchParityReplicas)
+    , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
 {
-    if (!Context->Request().fetch_all_meta_extensions()) {
-        for (int tag : Context->Request().extension_tags()) {
-            ExtensionTags.insert(tag);
+    if (!Context_->Request().fetch_all_meta_extensions()) {
+        for (int tag : Context_->Request().extension_tags()) {
+            ExtensionTags_.insert(tag);
         }
     }
 }
@@ -121,12 +118,12 @@ void TFetchChunkVisitor::StartSession(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ++SessionCount;
+    ++SessionCount_;
 
     TraverseChunkTree(
-        CreatePreemptableChunkTraverserCallbacks(Bootstrap),
+        CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
         this,
-        ChunkList,
+        ChunkList_,
         lowerBound,
         upperBound);
 }
@@ -134,19 +131,19 @@ void TFetchChunkVisitor::StartSession(
 void TFetchChunkVisitor::Complete()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!Completed);
+    YCHECK(!Completed_);
 
-    Completed = true;
-    if (SessionCount == 0 && !Finished) {
+    Completed_ = true;
+    if (SessionCount_ == 0 && !Finished_) {
         Reply();
     }
 }
 
 void TFetchChunkVisitor::Reply()
 {
-    Context->SetResponseInfo("ChunkCount: %d", Context->Response().chunks_size());
-    Context->Reply();
-    Finished = true;
+    Context_->SetResponseInfo("ChunkCount: %d", Context_->Response().chunks_size());
+    Context_->Reply();
+    Finished_ = true;
 }
 
 bool TFetchChunkVisitor::OnChunk(
@@ -157,37 +154,35 @@ bool TFetchChunkVisitor::OnChunk(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
 
     if (!chunk->IsConfirmed()) {
-        ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
+        ReplyError(TError("Cannot fetch an object containing an unconfirmed chunk %s",
             ~ToString(chunk->GetId())));
         return false;
     }
 
-    auto* chunkSpec = Context->Response().add_chunks();
+    auto* chunkSpec = Context_->Response().add_chunks();
 
     chunkSpec->set_table_row_index(rowIndex);
 
-    if (!Channel.IsUniversal()) {
-        ToProto(chunkSpec->mutable_channel(), Channel);
+    if (!Channel_.IsUniversal()) {
+        ToProto(chunkSpec->mutable_channel(), Channel_);
     }
 
     // Default value for non-erasure chunks.
     int firstParityPartIndex = 1;
     
     auto erasureCodecId = chunk->GetErasureCodec();
-    if (erasureCodecId != NErasure::ECodec::None) {
-        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-        firstParityPartIndex = FetchParityReplicas 
-            ? erasureCodec->GetTotalPartCount()
-            : erasureCodec->GetDataPartCount();
-    }
+    int firstInfeasibleReplicaIndex =
+        erasureCodecId == NErasure::ECodec::None || FetchParityReplicas_
+        ? std::numeric_limits<int>::max() // all replicas are feasible
+        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     auto replicas = chunk->GetReplicas();
     for (auto replica : replicas) {
-        if (replica.GetIndex() < firstParityPartIndex) {
-            NodeDirectoryBuilder.Add(replica);
+        if (replica.GetIndex() < firstInfeasibleReplicaIndex) {
+            NodeDirectoryBuilder_.Add(replica);
             chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
         }
     }
@@ -198,13 +193,13 @@ bool TFetchChunkVisitor::OnChunk(
     chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
     chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
 
-    if (Context->Request().fetch_all_meta_extensions()) {
+    if (Context_->Request().fetch_all_meta_extensions()) {
         *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
     } else {
         FilterProtoExtensions(
             chunkSpec->mutable_chunk_meta()->mutable_extensions(),
             chunk->ChunkMeta().extensions(),
-            ExtensionTags);
+            ExtensionTags_);
     }
 
     // Try to keep responses small -- avoid producing redundant limits.
@@ -222,8 +217,8 @@ void TFetchChunkVisitor::OnError(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    --SessionCount;
-    YCHECK(SessionCount >= 0);
+    --SessionCount_;
+    YCHECK(SessionCount_ >= 0);
 
     ReplyError(error);
 }
@@ -232,21 +227,21 @@ void TFetchChunkVisitor::OnFinish()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    --SessionCount;
-    YCHECK(SessionCount >= 0);
+    --SessionCount_;
+    YCHECK(SessionCount_ >= 0);
 
-    if (Completed && !Finished && SessionCount == 0) {
+    if (Completed_ && !Finished_ && SessionCount_ == 0) {
         Reply();
     }
 }
 
 void TFetchChunkVisitor::ReplyError(const TError& error)
 {
-    if (Finished)
+    if (Finished_)
         return;
 
-    Context->Reply(error);
-    Finished = true;
+    Context_->Reply(error);
+    Finished_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
