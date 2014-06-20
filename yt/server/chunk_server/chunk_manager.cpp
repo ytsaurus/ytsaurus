@@ -717,8 +717,7 @@ public:
     TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-            return MakeFuture<TErrorOr<int>>(miscExt.record_count());
+            return MakeFuture<TErrorOr<int>>(chunk->GetSealedRecordCount());
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
