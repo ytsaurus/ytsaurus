@@ -89,8 +89,8 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
     TChunkManagerConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
     TAsyncSemaphore Semaphore_;
 
