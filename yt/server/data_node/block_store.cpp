@@ -160,7 +160,8 @@ public:
 
         return chunk
             ->ReadBlocks(blockIndex, 1, priority)
-            .Apply(BIND([] (IChunk::TReadBlocksResult result) -> TGetBlockResult {
+            .Apply(BIND([=] (IChunk::TReadBlocksResult result) -> TGetBlockResult {
+                chunk->ReleaseReadLock();
                 if (!result.IsOK()) {
                     return TError(result);
                 }
@@ -188,7 +189,12 @@ public:
                 ~ToString(chunkId)));
         }
 
-        return chunk->ReadBlocks(firstBlockIndex, blockCount, priority);
+        return chunk
+            ->ReadBlocks(firstBlockIndex, blockCount, priority)
+            .Apply(BIND([=] (IChunk::TReadBlocksResult result) -> TGetBlocksResult {
+                chunk->ReleaseReadLock();
+                return result;
+            }));
     }
 
     TCachedBlockPtr FindBlock(const TBlockId& id)
@@ -237,176 +243,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//class TBlockStore::TGetBlocksSession
-//    : public TIntrinsicRefCounted
-//{
-//public:
-//    TGetBlocksSession(
-//        TIntrusivePtr<TStoreImpl> storeImpl,
-//        const TChunkId& chunkId,
-//        int firstBlockIndex,
-//        int blockCount,
-//        i64 priority,
-//        bool enableCaching)
-//        : StoreImpl_(std::move(storeImpl))
-//        , ChunkId_(chunkId)
-//        , FirstBlockIndex_(firstBlockIndex)
-//        , BlockCount_(blockCount)
-//        , Priority_(priority)
-//        , EnableCaching_(enableCaching)
-//        , Promise_(NewPromise<TGetBlocksResult>())
-//        , Blocks_(BlockCount_)
-//        , Cookies_(BlockCount_)
-//        , BlocksPending_(BlockCount_)
-//    { }
-//
-//    ~TGetBlocksSession()
-//    {
-//        if (LockedChunk_) {
-//            LockedChunk_->ReleaseReadLock();
-//        }
-//    }
-//
-//    TFuture<TGetBlocksResult> Run()
-//    {
-//        int blocksToRead = BlockCount_;
-//
-//        if (StoreImpl_->IsCachingEnabled(ChunkId_)) {
-//            // During block peering, data nodes exchange individual blocks.
-//            // Thus the cache may contain a block not bound to any chunk in the registry.
-//            // Handle these "unbounded" blocks first.
-//            // If none is found then look for the owning chunk.
-//            for (int index = 0; index < BlockCount_; ++index) {
-//                TBlockId blockId(ChunkId_, index + FirstBlockIndex_);
-//                auto block = StoreImpl_->Find(blockId);
-//                if (block) {
-//                    Blocks_[index] = block->GetData();
-//                    OnGotBlocks(1);
-//                    --blocksToRead;
-//                } else if (EnableCaching_) {
-//                    auto& cookie = Cookies_[index];
-//                    cookie = TStoreImpl::TInsertCookie(blockId);
-//                    if (!StoreImpl_->BeginInsert(&cookie)) {
-//                        // Prevent fetching this block.
-//                        const static auto CachedBlockSentinel = TSharedRef::Allocate(1);
-//                        Blocks_[index] = CachedBlockSentinel;
-//                        --blocksToRead;
-//                        cookie.GetValue().Apply(BIND(
-//                            &TGetBlocksSession::OnGotBlockFromCache,
-//                            MakeStrong(this),
-//                            index));
-//                    }
-//                }
-//            }
-//        }
-//
-//        auto chunkRegistry = StoreImpl_->Bootstrap_->GetChunkRegistry();
-//        auto chunk = chunkRegistry->FindChunk(ChunkId_);
-//
-//        if (chunk) {
-//            if (chunk->TryAcquireReadLock()) {
-//                LockedChunk_ = chunk;
-//                chunk->ReadBlocks(FirstBlockIndex_, BlockCount_, Priority_, &Blocks_).Subscribe(BIND(
-//                    &TGetBlocksSession::OnGotBlocksFromChunk,
-//                    MakeStrong(this),
-//                    blocksToRead));
-//            } else {
-//                OnFail(TError(
-//                    "Cannot read chunk %s since it is scheduled for removal",
-//                    ~ToString(ChunkId_)));
-//            }
-//        }
-//
-//        OnGotBlocks(0); // handle BlockCount_ == 0
-//
-//        return Promise_;
-//    }
-//
-//private:
-//    TIntrusivePtr<TStoreImpl> StoreImpl_;
-//    TChunkId ChunkId_;
-//    int FirstBlockIndex_;
-//    int BlockCount_;
-//    i64 Priority_;
-//    bool EnableCaching_;
-//
-//    IChunkPtr LockedChunk_;
-//
-//    std::vector<TSharedRef> Blocks_;
-//    std::vector<TStoreImpl::TInsertCookie> Cookies_;
-//
-//    std::atomic<int> BlocksPending_;
-//    TPromise<TGetBlocksResult> Promise_;
-//
-//
-//    void OnGotBlocks(int count)
-//    {
-//        if ((BlocksPending_ -= count) == 0) {
-//            Promise_.TrySet(Blocks_);
-//        }
-//    }
-//
-//    void OnFail(const TError& error)
-//    {
-//        Promise_.TrySet(error);
-//    }
-//
-//
-//    void OnGotBlockFromCache(int index, TErrorOr<TCachedBlockPtr> errorOrBlock)
-//    {
-//        if (errorOrBlock.IsOK()) {
-//            const auto& block = errorOrBlock.Value();
-//            StoreImpl_->LogCacheHit(block);
-//            Blocks_[index] = block->GetData();
-//            OnGotBlocks(1);
-//        } else {
-//            OnFail(errorOrBlock);
-//        }
-//    }
-//
-//    void OnGotBlocksFromChunk(int count, TError error)
-//    {
-//        if (error.IsOK()) {
-//            OnGotBlocks(count);
-//            for (int index = 0; index < BlockCount_; ++index) {
-//                auto& cookie = Cookies_[index];
-//                if (cookie.IsActive()) {
-//                    TBlockId blockId(ChunkId_, index + FirstBlockIndex_);
-//                    auto cachedBlock = New<TCachedBlock>(blockId, Blocks_[index], Null);
-//                    cookie.EndInsert(cachedBlock);
-//                }
-//            }
-//        } else {
-//            OnFail(error);
-//            for (int index = 0; index < BlockCount_; ++index) {
-//                auto& cookie = Cookies_[index];
-//                if (cookie.IsActive()) {
-//                    cookie.Cancel(error);
-//                }
-//            }
-//        }
-//    }
-//
-//};
-//
-//TFuture<TBlockStore::TGetBlocksResult> TBlockStore::TStoreImpl::GetBlocks(
-//    const TChunkId& chunkId,
-//    int firstBlockIndex,
-//    int blockCount,
-//    i64 priority,
-//    bool enableCaching)
-//{
-//    return New<TGetBlocksSession>(
-//        this,
-//        chunkId,
-//        firstBlockIndex,
-//        blockCount,
-//        priority,
-//        enableCaching)->Run();
-//}
-//
-//////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TCacheImpl
     : public IBlockCache
