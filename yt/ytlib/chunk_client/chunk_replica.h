@@ -60,7 +60,7 @@ struct TChunkIdWithIndex
 //! refers to the whole chunk, not to any of its replicas.
 const int GenericChunkIndex = 255;
 
-//! Stored in the index part of replicas, describes th  
+//! Stored in the index part of replicas.
 DECLARE_ENUM(EJournalReplicaType,
     (Generic)   // used internally by Chunk Manager
     (Active)    // the replica is currently being written
