@@ -4,6 +4,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/concurrency/parallel_awaiter.h>
+
 #include <core/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/private.h>
@@ -16,6 +18,7 @@
 namespace NYT {
 namespace NJournalClient {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -68,29 +71,27 @@ private:
 
     void DoRun()
     {
-        try {
-            LOG_INFO("Aborting journal chunk session quroum (ChunkId: %s, Addresses: [%s])",
+        LOG_INFO("Aborting journal chunk session quroum (ChunkId: %s, Addresses: [%s])",
+            ~ToString(ChunkId_),
+            ~JoinToString(Replicas_));
+
+        if (Replicas_.size() < Quorum_) {
+            auto error = TError("Unable to abort sessions quorum for journal chunk %s: too few replicas known, %d given, %d needed",
                 ~ToString(ChunkId_),
-                ~JoinToString(Replicas_));
+                static_cast<int>(Replicas_.size()),
+                Quorum_);
+            Promise_.Set(error);
+            return;
+        }
 
-            if (Replicas_.size() < Quorum_) {
-                THROW_ERROR_EXCEPTION("Unable to abort sessions quorum for journal chunk %s: too few replicas known, %d given, %d needed",
-                    ~ToString(ChunkId_),
-                    static_cast<int>(Replicas_.size()),
-                    Quorum_);
-            }
-
-            for (const auto& descriptor : Replicas_) {
-                auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
-                TDataNodeServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Timeout_);
-                auto req = proxy.FinishChunk();
-                ToProto(req->mutable_chunk_id(), ChunkId_);
-                req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), descriptor)
-                    .Via(GetCurrentInvoker()));
-            }
-        } catch (const std::exception& ex) {
-            Promise_.TrySet(ex);
+        for (const auto& descriptor : Replicas_) {
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
+            TDataNodeServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Timeout_);
+            auto req = proxy.FinishChunk();
+            ToProto(req->mutable_chunk_id(), ChunkId_);
+            req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), descriptor)
+                .Via(GetCurrentInvoker()));
         }
     }
 
@@ -169,10 +170,7 @@ private:
     TDuration Timeout_;
     int Quorum_;
 
-    int SuccessCounter_ = 0;
-    int ResponseCounter_ = 0;
-    int QuorumRecordCount_ = -1;
-
+    std::vector<int> RecordCounts_;
     std::vector<TError> InnerErrors_;
 
     TPromise<TErrorOr<int>> Promise_ = NewPromise<TErrorOr<int>>();
@@ -182,53 +180,47 @@ private:
 
     void DoRun()
     {
-        try {
-            LOG_INFO("Computing quorum record count for journal chunk (ChunkId: %s, Addresses: [%s])",
+        if (Replicas_.size() < Quorum_) {
+            auto error = TError("Unable to compute quorum record count for journal chunk %s: too few replicas known, %d given, %d needed",
                 ~ToString(ChunkId_),
-                ~JoinToString(Replicas_));
-
-            if (Replicas_.size() < Quorum_) {
-                THROW_ERROR_EXCEPTION("Unable to compute quorum record count for journal chunk %s: too few replicas known, %d given, %d needed",
-                    ~ToString(ChunkId_),
-                    static_cast<int>(Replicas_.size()),
-                    Quorum_);
-            }
-
-            for (const auto& descriptor : Replicas_) {
-                auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
-                TDataNodeServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Timeout_);
-                auto req = proxy.GetChunkMeta();
-                ToProto(req->mutable_chunk_id(), ChunkId_);
-                req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-                req->Invoke().Subscribe(BIND(&TComputeQuorumRecordCountSession::OnResponse, MakeStrong(this), descriptor)
-                    .Via(GetCurrentInvoker()));
-            }
-        } catch (const std::exception& ex) {
-            Promise_.TrySet(ex);
+                static_cast<int>(Replicas_.size()),
+                Quorum_);
+            Promise_.Set(error);
+            return;
         }
+
+        LOG_INFO("Computing quorum record count for journal chunk (ChunkId: %s, Addresses: [%s])",
+            ~ToString(ChunkId_),
+            ~JoinToString(Replicas_));
+
+        auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
+        for (const auto& descriptor : Replicas_) {
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
+            TDataNodeServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Timeout_);
+            auto req = proxy.GetChunkMeta();
+            ToProto(req->mutable_chunk_id(), ChunkId_);
+            req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
+            awaiter->Await(
+                req->Invoke(),
+                BIND(&TComputeQuorumRecordCountSession::OnResponse, MakeStrong(this), descriptor));
+        }
+
+        awaiter->Complete(
+            BIND(&TComputeQuorumRecordCountSession::OnComplete, MakeStrong(this)));
     }
 
     void OnResponse(const TNodeDescriptor& descriptor, TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
     {
-        ++ResponseCounter_;
         if (rsp->IsOK()) {
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
             int recordCount = miscExt.record_count();
+            RecordCounts_.push_back(recordCount);
 
             LOG_INFO("Received record count for journal chunk (ChunkId: %s, Address: %s, RecordCount: %d)",
                 ~ToString(ChunkId_),
                 ~descriptor.Address,
                 recordCount);
-
-            QuorumRecordCount_ = std::max(QuorumRecordCount_, recordCount);
-
-            if (++SuccessCounter_ == Quorum_) {
-                LOG_INFO("Quorum record count for journal chunk computed successfully (ChunkId: %s, RecordCount: %d)",
-                    ~ToString(ChunkId_),
-                    QuorumRecordCount_);
-                Promise_.TrySet(QuorumRecordCount_);
-            }
         } else {
             auto error = rsp->GetError();
             InnerErrors_.push_back(error);
@@ -237,13 +229,29 @@ private:
                 ~ToString(ChunkId_),
                 ~descriptor.Address);
            
-            if (ResponseCounter_ == Replicas_.size()) {
-                auto combinedError = TError("Unable to compute record count for journal chunk %s",
-                    ~ToString(ChunkId_))
-                    << InnerErrors_;
-                Promise_.TrySet(combinedError);
-            }
         }
+    }
+
+    void OnComplete()
+    {
+        if (RecordCounts_.size() < Quorum_) {
+            auto error = TError("Unable to compute quorum record count for journal chunk %s: too few replicas alive, %d found, %d needed",
+                ~ToString(ChunkId_),
+                static_cast<int>(RecordCounts_.size()),
+                Quorum_)
+                << InnerErrors_;
+            Promise_.Set(error);
+            return;
+        }
+
+        std::sort(RecordCounts_.begin(), RecordCounts_.end());
+        int quorumRecordCount = RecordCounts_[Quorum_ - 1];
+
+        LOG_INFO("Quorum record count for journal chunk computed successfully (ChunkId: %s, QuorumRecordCount: %d)",
+            ~ToString(ChunkId_),
+            quorumRecordCount);
+
+        Promise_.Set(quorumRecordCount);
     }
 
 };
