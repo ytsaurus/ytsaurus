@@ -111,15 +111,18 @@ public:
     //! Returns |true| iff this is an erasure chunk.
     bool IsErasure() const;
 
+    //! Returns |true| iff this is a journal chunk.
+    bool IsJournal() const;
+    
+    //! Returns |true| iff this is a regular chunk.
+    bool IsRegular() const;
+
     //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
     /*!
      *  For regular (non-erasure) chunk this is equivalent to the existence of any replica.
      *  For erasure chunks this is equivalent to the existence of replicas for all data parts.
      */
     bool IsAvailable() const;
-
-    //! Returns |true| is this is a journal chunk.
-    bool IsJournal() const;
 
     //! Returns |true| iff this is a sealed journal chunk.
     bool IsSealed() const;

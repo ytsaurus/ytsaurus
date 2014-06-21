@@ -36,6 +36,8 @@
 
 #include <server/cypress_server/node.h>
 
+#include <array>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -170,9 +172,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
+    int replicationFactor = chunk->GetReplicationFactor();
+
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
-    int replicationFactor = chunk->GetReplicationFactor();
     TNodePtrWithIndexList decommissionedReplicas;
 
     for (auto replica : chunk->StoredReplicas()) {
@@ -184,30 +187,26 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
     }
 
-    result.ReplicaCount[0] = replicaCount;
-    result.DecommissionedReplicaCount[0] = decommissionedReplicaCount;
+    result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
+    result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
 
-    if (replicaCount == 0 && decommissionedReplicaCount == 0) {
+    if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
-        return result;
     }
     
-    if (replicaCount < replicationFactor) {
+    if (replicaCount < replicationFactor && replicaCount + decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Underreplicated;
-        result.ReplicationRequests.push_back(TJobRequest(0, replicationFactor - replicaCount));
-        return result;
+        result.ReplicationRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicationFactor - replicaCount));
     }
 
     if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Overreplicated;
         result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
-        return result;
     }
 
     if (replicaCount > replicationFactor) {
         result.Status |= EChunkStatus::Overreplicated;
-        result.BalancingRemovalRequests.push_back(TJobRequest(0, replicaCount - replicationFactor));
-        return result;
+        result.BalancingRemovalRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicaCount - replicationFactor));
     }
 
     return result;
@@ -220,7 +219,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    TNodePtrWithIndexList decommissionedReplicas[NErasure::MaxTotalPartCount];
+    std::array<TNodePtrWithIndexList, ChunkReplicaIndexBound> decommissionedReplicas;
 
     auto mark = TNode::GenerateVisitMark();
 
@@ -278,16 +277,58 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics result;
 
-    if (chunk->StoredReplicas().empty()) {
+    // Cf. ComputeRegularChunkStatistics.
+    int replicationFactor = chunk->GetReplicationFactor();
+    int readQuorum = chunk->GetReadQuorum();
+
+    int replicaCount = 0;
+    int decommissionedReplicaCount = 0;
+    int sealedReplicaCount = 0;
+    int unsealedReplicaCount = 0;
+    TNodePtrWithIndexList decommissionedReplicas;
+
+    for (auto replica : chunk->StoredReplicas()) {
+        if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+            ++sealedReplicaCount;
+        } else {
+            ++unsealedReplicaCount;
+        }
+        if (IsReplicaDecommissioned(replica)) {
+            ++decommissionedReplicaCount;
+            decommissionedReplicas.push_back(replica);
+        } else {
+            ++replicaCount;
+        }
+    }
+
+    result.ReplicaCount[EJournalReplicaType::Generic] = replicaCount;
+    result.DecommissionedReplicaCount[EJournalReplicaType::Generic] = decommissionedReplicaCount;
+
+    if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
     }
 
     if (chunk->IsSealed()) {
         result.Status |= EChunkStatus::Sealed;
-    } else {
-        if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
-            result.Status |= EChunkStatus::QuorumMissing;
+
+        if (replicaCount < replicationFactor && sealedReplicaCount > 0) {
+            result.Status |= EChunkStatus::Underreplicated;
+            result.ReplicationRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicationFactor - replicaCount));
         }
+
+        if (replicaCount == replicationFactor && decommissionedReplicaCount > 0 && unsealedReplicaCount == 0) {
+            result.Status |= EChunkStatus::Overreplicated;
+            result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
+        }
+
+        if (replicaCount > replicationFactor && unsealedReplicaCount == 0) {
+            result.Status |= EChunkStatus::Overreplicated;
+            result.BalancingRemovalRequests.push_back(TJobRequest(GenericChunkReplicaIndex, replicaCount - replicationFactor));
+        }
+    }
+    
+    if (replicaCount + decommissionedReplicaCount < readQuorum && sealedReplicaCount == 0) {
+        result.Status |= EChunkStatus::QuorumMissing;
     }
 
     return result;
@@ -447,7 +488,7 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 }
 
-TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
+bool TChunkReplicator::CreateReplicationJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
     TJobPtr* job)
@@ -457,15 +498,15 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     auto chunkType = TypeFromId(chunk->GetId());
 
     if (!IsObjectAlive(chunk)) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     if (chunk->GetRefreshScheduled()) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     if (HasRunningJobs(chunkWithIndex)) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     int replicationFactor = chunk->GetReplicationFactor();
@@ -473,17 +514,18 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     int replicaCount = statistics.ReplicaCount[index];
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
     if (replicaCount + decommissionedReplicaCount == 0 || replicaCount >= replicationFactor) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
-    int replicasNeeded = replicationFactor - replicaCount;
+    // TODO(babenko): journal replication currently does not support fan-out > 1
+    int replicasNeeded = chunk->IsJournal() ? 1 : replicationFactor - replicaCount;
     auto targets = ChunkPlacement_->AllocateWriteTargets(
         chunk,
         replicasNeeded,
         EWriteSessionType::Replication,
         chunkType);
     if (targets.empty()) {
-        return EJobScheduleFlags::None;
+        return false;
     }
 
     TNodeResources resourceUsage;
@@ -501,13 +543,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         ~ToString(chunkWithIndex),
         ~JoinToString(targets, TNodePtrAddressFormatter()));
 
-    return
-        targets.size() == replicasNeeded
-        ? EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled)
-        : EJobScheduleFlags(EJobScheduleFlags::Scheduled);
+    return targets.size() == replicasNeeded;
 }
 
-TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
+bool TChunkReplicator::CreateBalancingJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
     double maxFillFactor,
@@ -518,7 +557,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     auto chunkType = TypeFromId(chunk->GetId());
 
     if (chunk->GetRefreshScheduled()) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     auto* target = ChunkPlacement_->AllocateBalancingTarget(
@@ -526,7 +565,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         maxFillFactor,
         chunkType);
     if (!target) {
-        return EJobScheduleFlags::None;
+        return false;
     }
 
     TNodeResources resourceUsage;
@@ -544,10 +583,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         ~ToString(chunkIdWithIndex),
         ~target->GetAddress());
 
-    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
+    return true;
 }
 
-TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
+bool TChunkReplicator::CreateRemovalJob(
     TNode* node,
     const TChunkIdWithIndex& chunkIdWithIndex,
     TJobPtr* job)
@@ -557,11 +596,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     // NB: Allow more than one job for dead chunks.
     if (chunk) {
         if (chunk->GetRefreshScheduled()) {
-            return EJobScheduleFlags::Purged;
+            return true;
         }
-
         if (HasRunningJobs(TChunkPtrWithIndex(chunk, chunkIdWithIndex.Index))) {
-            return EJobScheduleFlags::Purged;
+            return true;
         }
     }
 
@@ -578,10 +616,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         ~node->GetAddress(),
         ~ToString(chunkIdWithIndex));
 
-    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
+    return true;
 }
 
-TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
+bool TChunkReplicator::CreateRepairJob(
     TNode* node,
     TChunk* chunk,
     TJobPtr* job)
@@ -589,15 +627,15 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     YCHECK(chunk->IsErasure());
 
     if (!IsObjectAlive(chunk)) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     if (chunk->GetRefreshScheduled()) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     if (HasRunningJobs(chunk)) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     auto chunkType = TypeFromId(chunk->GetId());
@@ -617,7 +655,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
     int erasedIndexCount = static_cast<int>(erasedIndexes.size());
     if (erasedIndexCount == 0) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     auto targets = ChunkPlacement_->AllocateWriteTargets(
@@ -626,7 +664,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         EWriteSessionType::Repair,
         chunkType);
     if (targets.empty()) {
-        return EJobScheduleFlags::None;
+        return false;
     }
 
     TNodeResources resourceUsage;
@@ -647,11 +685,11 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         ~JoinToString(targets, TNodePtrAddressFormatter()),
         ~JoinToString(erasedIndexes));
 
-    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
+    return true;
 }
 
 
-TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleSealJob(
+bool TChunkReplicator::CreateSealJob(
     TNode* node,
     TChunk* chunk,
     TJobPtr* job)
@@ -660,15 +698,13 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleSealJob(
     YCHECK(chunk->IsSealed());
 
     if (!IsObjectAlive(chunk)) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
-    if (chunk->GetRefreshScheduled()) {
-        return EJobScheduleFlags::Purged;
-    }
+    // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
     if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
-        return EJobScheduleFlags::Purged;
+        return true;
     }
 
     TNodeResources resourceUsage;
@@ -684,7 +720,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleSealJob(
         ~node->GetAddress(),
         ~ToString(chunk->GetId()));
 
-    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
+    return true;
 }
 
 void TChunkReplicator::ScheduleNewJobs(
@@ -710,7 +746,7 @@ void TChunkReplicator::ScheduleNewJobs(
 
         i64 size = chunk->ChunkInfo().disk_space();
 
-        // NB: Erasure chunks have replicas much smaller than reported by chunk info.
+        // Adjust data size of erasure chunk replicas.
         auto codecId = chunk->GetErasureCodec();
         if (codecId != NErasure::ECodec::None) {
             auto* codec = NErasure::GetCodec(codecId);
@@ -735,10 +771,12 @@ void TChunkReplicator::ScheduleNewJobs(
     }
 
     auto registerJob = [&] (TJobPtr job) {
-        jobsToStart->push_back(job);
-        RegisterJob(job);
-        resourceUsage += job->ResourceUsage();
-        increaseRunningSizes(job);
+        if (job) {
+            jobsToStart->push_back(job);
+            RegisterJob(job);
+            resourceUsage += job->ResourceUsage();
+            increaseRunningSizes(job);
+        }
     };
 
     // Schedule replication jobs.
@@ -754,14 +792,10 @@ void TChunkReplicator::ScheduleNewJobs(
             auto chunkWithIndex = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleReplicationJob(node, chunkWithIndex, &job);
-
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
-            if (flags & EJobScheduleFlags::Purged) {
+            if (CreateReplicationJob(node, chunkWithIndex, &job)) {
                 queue.erase(jt);
             }
+            registerJob(job);
         }
     }
 
@@ -778,15 +812,11 @@ void TChunkReplicator::ScheduleNewJobs(
             auto* chunk = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleRepairJob(node, chunk, &job);
-
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
-            if (flags & EJobScheduleFlags::Purged) {
+            if (CreateRepairJob(node, chunk, &job)) {
                 chunk->SetRepairQueueIterator(Null);
                 ChunkRepairQueue_.erase(jt);
             }
+            registerJob(job);
         }
     }
 
@@ -802,14 +832,10 @@ void TChunkReplicator::ScheduleNewJobs(
             const auto& chunkId = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleRemovalJob(node, chunkId, &job);
-
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
-            if (flags & EJobScheduleFlags::Purged) {
+            if (CreateRemovalJob(node, chunkId, &job)) {
                 queue.erase(jt);
             }
+            registerJob(job);
         }
     }
 
@@ -825,14 +851,10 @@ void TChunkReplicator::ScheduleNewJobs(
             auto* chunk = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleSealJob(node, chunk, &job);
-
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
-            if (flags & EJobScheduleFlags::Purged) {
+            if (CreateSealJob(node, chunk, &job)) {
                 queue.erase(jt);
             }
+            registerJob(job);
         }
     }
 
@@ -852,11 +874,8 @@ void TChunkReplicator::ScheduleNewJobs(
                 break;
 
             TJobPtr job;
-            auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
-
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
+            CreateBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
+            registerJob(job);
         }
     }
 }
@@ -929,7 +948,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
                 for (auto replica : chunk->StoredReplicas()) {
-                    if (replica.GetIndex() == index) {
+                    if (chunk->IsRegular() ||
+                        chunk->IsErasure() && replica.GetIndex() == index ||
+                        chunk->IsJournal() && replica.GetIndex() == EJournalReplicaType::Sealed)
+                    {
                         replica.GetPtr()->AddToChunkReplicationQueue(chunkWithIndex, priority);
                     }
                 }
@@ -937,6 +959,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
 
         if (statistics.Status & EChunkStatus::Sealed) {
+            YASSERT(chunk->IsJournal());
             for (auto replica : chunk->StoredReplicas()) {
                 if (replica.GetIndex() == EJournalReplicaType::Unsealed) {
                     replica.GetPtr()->AddToChunkSealQueue(chunk);

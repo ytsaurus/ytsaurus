@@ -224,20 +224,22 @@ TNodeList TChunkPlacement::GetRemovalTargets(
 {
     TNodeList targets;
 
-    // Construct a list of (node, loadFactor) pairs.
+    // Construct a list of |(node, fillFactor)| pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
     SmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
-    candidates.reserve(chunk->StoredReplicas().size());
     for (auto replica : chunk->StoredReplicas()) {
-        if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
+        if (chunk->IsRegular() ||
+            chunk->IsErasure() && replica.GetIndex() == chunkWithIndex.GetIndex() ||
+            chunk->IsJournal()) // allow removing arbitrary journal replicas
+        {
             auto* node = replica.GetPtr();
             double fillFactor = GetFillFactor(node);
             candidates.push_back(std::make_pair(node, fillFactor));
         }
     }
 
-    // Sort by loadFactor in descending order.
+    // Sort by fillFactor in descending order.
     std::sort(
         candidates.begin(),
         candidates.end(),
@@ -245,7 +247,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
             return lhs.second > rhs.second;
         });
 
-    // Take first count nodes.
+    // Take top |replicaCount| nodes.
     targets.reserve(replicaCount);
     for (const auto& pair : candidates) {
         if (static_cast<int>(targets.size()) >= replicaCount) {
@@ -263,11 +265,13 @@ TNodeList TChunkPlacement::GetRemovalTargets(
 
 bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
 {
-    if (maxFillFactor < 0)
+    if (maxFillFactor < 0) {
         return false;
+    }
 
-    if (FillFactorToNode_.empty())
+    if (FillFactorToNode_.empty()) {
         return false;
+    }
 
     auto* node = FillFactorToNode_.begin()->second;
     return GetFillFactor(node) < maxFillFactor;

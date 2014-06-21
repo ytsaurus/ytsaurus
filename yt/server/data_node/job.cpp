@@ -33,6 +33,8 @@
 #include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/replication_reader.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/api/client.h>
 
 #include <server/hydra/changelog.h>
@@ -45,6 +47,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
 using namespace NJobAgent;
@@ -56,6 +59,10 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 
 using NNodeTrackerClient::TNodeDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const int FetchPriority = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,7 +294,7 @@ protected:
         auto chunkStore = Bootstrap_->GetChunkStore();
         Chunk_ = chunkStore->FindChunk(ChunkId_);
         if (!Chunk_) {
-            SetFailed(TError("Chunk_ %s is missing", ~ToString(ChunkId_)));
+            SetFailed(TError("Chunk %s is missing", ~ToString(ChunkId_)));
             return;
         }
     }
@@ -349,15 +356,12 @@ private:
 
     virtual void DoRun() override
     {
-        LOG_INFO("Retrieving chunk meta");
-
         auto metaOrError = WaitFor(Chunk_->GetMeta(0));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %s",
             ~ToString(ChunkId_));
 
-        LOG_INFO("Chunk_ meta received");
-        const auto& chunkMeta = metaOrError.Value();
-        const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
+        LOG_INFO("Chunk meta fetched");
+        const auto& meta = metaOrError.Value();
 
         auto targets = FromProto<TNodeDescriptor>(ReplicateChunkJobSpecExt_.targets());
 
@@ -369,36 +373,69 @@ private:
             Bootstrap_->GetReplicationOutThrottler());
         writer->Open();
 
+        int blockIndex = 0;
+        int blockCount = GetBlockCount(*meta);
+
         auto blockStore = Bootstrap_->GetBlockStore();
 
-        for (int index = 0; index < blocksExt.blocks_size(); ++index) {
-            LOG_DEBUG("Retrieving block %d for replication", index);
+        while (blockIndex < blockCount) {
+            auto getResult = WaitFor(blockStore->GetBlocks(
+                ChunkId_,
+                blockIndex,
+                blockCount - blockIndex,
+                FetchPriority));
+            THROW_ERROR_EXCEPTION_IF_FAILED(getResult, "Error reading chunk %s during replication",
+                ~ToString(ChunkId_));
+            const auto& blocks = getResult.Value();
 
-            TBlockId blockId(ChunkId_, index);
-            auto blockOrError = WaitFor(blockStore->GetBlock(
-                blockId.ChunkId,
-                blockId.BlockIndex,
-                0,
-                false));
-            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError, "Error getting block %s for replication",
-                ~ToString(blockId));
+            LOG_DEBUG("Enqueuing blocks for replication (Blocks: %d-%d)",
+                blockIndex,
+                blockIndex + static_cast<int>(blocks.size()) - 1);
 
-            const auto& block = blockOrError.Value();
-            auto result = writer->WriteBlock(block);
-            if (!result) {
+            auto writeResult = writer->WriteBlocks(blocks);
+            if (!writeResult) {
                 auto error = WaitFor(writer->GetReadyEvent());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error writing block %s for replication",
-                    ~ToString(blockId));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error writing chunk %s during replication",
+                    ~ToString(ChunkId_));
             }
+
+            blockIndex += blocks.size();
         }
 
         LOG_DEBUG("All blocks are enqueued for replication");
 
         {
-            auto error = WaitFor(writer->Close(*chunkMeta));
+            auto error = WaitFor(writer->Close(*meta));
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing replication writer");
         }
     }
+
+    int GetBlockCount(const TChunkMeta& meta)
+    {
+        switch (TypeFromId(DecodeChunkId(ChunkId_).Id)) {
+            case EObjectType::Chunk: {
+                auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+                return blocksExt.blocks_size();
+            }
+
+            case EObjectType::ErasureChunk:
+                THROW_ERROR_EXCEPTION("Cannot replicate an erasure chunk %s",
+                    ~ToString(ChunkId_));
+
+            case EObjectType::JournalChunk: {
+                auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+                if (!miscExt.sealed()) {
+                    THROW_ERROR_EXCEPTION("Cannot replicate an unsealed chunk %s",
+                        ~ToString(ChunkId_));
+                }
+                return miscExt.record_count();
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

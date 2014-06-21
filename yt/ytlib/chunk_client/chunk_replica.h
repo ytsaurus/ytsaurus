@@ -56,13 +56,13 @@ struct TChunkIdWithIndex
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Indicates that an instance of TChunkIdWithIndex (or other similar descriptor)
-//! refers to the whole chunk, not to any of its replicas.
-const int GenericChunkIndex = 255;
+const int GenericChunkReplicaIndex = 0;
 
-//! Stored in the index part of replicas.
+//! Valid indexes are in range |[0, MaxChunkReplicaIndex)|.
+const int ChunkReplicaIndexBound = 16;
+
 DECLARE_ENUM(EJournalReplicaType,
-    (Generic)   // used internally by Chunk Manager
+   ((Generic)   (GenericChunkReplicaIndex))
     (Active)    // the replica is currently being written
     (Unsealed)  // the replica is finished but not sealed
     (Sealed)    // the replica is finished and is sealed
@@ -94,8 +94,8 @@ int IndexFromErasurePartId(const TChunkId& id);
 //! For erasure chunks, constructs the part id using the given replica index.
 TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex);
 
-//! For usual chunks, preserves the id and returns zero index.
-//! For erasure chunks, constructs the whole chunk id and extracts index.
+//! For regular chunks, preserves the id and returns #GenericChunkReplicaIndex.
+//! For erasure chunk parts, constructs the whole chunk id and extracts part index.
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
 
 ////////////////////////////////////////////////////////////////////////////////

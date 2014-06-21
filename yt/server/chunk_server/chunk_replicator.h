@@ -87,7 +87,7 @@ private:
     {
         TJobRequest(int index, int count);
 
-        //! Part index the request applies to.
+        //! Replica index the request applies to.
         int Index;
 
         //! Number of replicas to create/remove.
@@ -100,17 +100,17 @@ private:
 
         EChunkStatus Status;
 
-        //! Number of active replicas, indexed by part index.
-        int ReplicaCount[NErasure::MaxTotalPartCount];
+        //! Number of active replicas, per each replica index.
+        int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
         
-        //! Number of decommissioned replicas, indexed by part index.
-        int DecommissionedReplicaCount[NErasure::MaxTotalPartCount];
+        //! Number of decommissioned replicas, per each replica index.
+        int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
 
         //! Recommended replications.
         SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
         
         //! Recommended removals of decommissioned replicas. 
-        SmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalRequests;
+        TNodePtrWithIndexList DecommissionedRemovalRequests;
 
         //! Recommended removals to active replicas.
         //! Removal targets must be selected among most loaded nodes.
@@ -150,30 +150,24 @@ private:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
-    DECLARE_FLAGGED_ENUM(EJobScheduleFlags,
-        ((None)     (0x0000))
-        ((Scheduled)(0x0001))
-        ((Purged)   (0x0002))
-    );
-
-    EJobScheduleFlags ScheduleReplicationJob(
+    bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         TJobPtr* job);
-    EJobScheduleFlags ScheduleBalancingJob(
+    bool CreateBalancingJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
         TJobPtr* jobsToStart);
-    EJobScheduleFlags ScheduleRemovalJob(
+    bool CreateRemovalJob(
         TNode* node,
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
-    EJobScheduleFlags ScheduleRepairJob(
+    bool CreateRepairJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);
-    EJobScheduleFlags ScheduleSealJob(
+    bool CreateSealJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);

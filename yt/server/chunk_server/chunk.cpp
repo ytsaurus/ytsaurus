@@ -176,15 +176,23 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
             CachedReplicas_.reset();
         }
     } else {
-        auto it = std::remove(StoredReplicas_.begin(), StoredReplicas_.end(), replica);
-        YCHECK(it != StoredReplicas_.end());
-        StoredReplicas_.erase(it, StoredReplicas_.end());
+        for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {
+            auto& existingReplica = *it;
+            if (existingReplica == replica ||
+                IsJournal() && existingReplica.GetPtr() == replica.GetPtr())
+            {
+                std::swap(existingReplica, StoredReplicas_.back());
+                StoredReplicas_.resize(StoredReplicas_.size() - 1);
+                return;
+            }
+        }
+        YUNREACHABLE();
     }
 }
 
 TNodePtrWithIndexList TChunk::GetReplicas() const
 {
-    SmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
+    TNodePtrWithIndexList result(StoredReplicas_.begin(), StoredReplicas_.end());
     if (CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }
@@ -299,25 +307,41 @@ bool TChunk::IsErasure() const
     return TypeFromId(Id) == EObjectType::ErasureChunk;
 }
 
+bool TChunk::IsJournal() const
+{
+    return TypeFromId(Id) == EObjectType::JournalChunk;
+}
+
+bool TChunk::IsRegular() const
+{
+    return TypeFromId(Id) == EObjectType::Chunk;
+}
+
 bool TChunk::IsAvailable() const
 {
-    auto codecId = GetErasureCodec();
-    if (codecId == NErasure::ECodec::None) {
+    if (IsRegular()) {
         return !StoredReplicas_.empty();
-    } else {
-        auto* codec = NErasure::GetCodec(codecId);
+    } else if (IsErasure()) {
+        auto* codec = NErasure::GetCodec(GetErasureCodec());
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
         for (auto replica : StoredReplicas_) {
             missingIndexSet.reset(replica.GetIndex());
         }
         return !missingIndexSet.any();
+    } else if (IsJournal()) {
+        if (StoredReplicas_.size() >= GetReadQuorum()) {
+            return true;
+        }
+        for (auto replica : StoredReplicas_) {
+            if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        YUNREACHABLE();
     }
-}
-
-bool TChunk::IsJournal() const
-{
-    return TypeFromId(Id) == EObjectType::JournalChunk;
 }
 
 bool TChunk::IsSealed() const

@@ -27,7 +27,7 @@ TChunkReplica::TChunkReplica(int nodeId, int index)
     : Value(nodeId | (index << 28))
 {
     YASSERT(nodeId >= 0 && nodeId <= MaxNodeId);
-    YASSERT(index >= 0 && index < NErasure::MaxTotalPartCount);
+    YASSERT(index >= 0 && index < ChunkReplicaIndexBound);
 }
 
 int TChunkReplica::GetNodeId() const
@@ -128,22 +128,18 @@ int IndexFromErasurePartId(const TChunkId& id)
 
 TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
 {
-    if (IsErasureChunkId(idWithIndex.Id) && idWithIndex.Index != GenericChunkIndex) {
-        return ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.Index);
-    } else {
-        return idWithIndex.Id;
-    }
+    YASSERT(TypeFromId(idWithIndex.Id) != EObjectType::ErasureChunk);
+    return IsErasureChunkId(idWithIndex.Id)
+        ? ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.Index)
+        : idWithIndex.Id;
 }
 
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 {
-    if (IsErasureChunkPartId(id)) {
-        return TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id));
-    } else if (IsErasureChunkId(id)) {
-        return TChunkIdWithIndex(id, GenericChunkIndex);
-    } else {
-        return TChunkIdWithIndex(id, 0);
-    }
+    YASSERT(TypeFromId(id) != EObjectType::ErasureChunk);
+    return IsErasureChunkPartId(id)
+        ? TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id))
+        : TChunkIdWithIndex(id, GenericChunkReplicaIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

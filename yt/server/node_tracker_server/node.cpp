@@ -155,13 +155,13 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
             StoredReplicas_.erase(replica);
         }
 
-        auto normalizedReplica = ToGeneric(replica);
-        UnapprovedReplicas_.erase(normalizedReplica);
+        auto genericReplica = ToGeneric(replica);
+        UnapprovedReplicas_.erase(genericReplica);
 
-        ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), normalizedReplica.GetIndex()));
+        ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), genericReplica.GetIndex()));
 
         for (auto& queue : ChunkReplicationQueues_) {
-            queue.erase(normalizedReplica);
+            queue.erase(genericReplica);
         }
     }
 }
@@ -225,9 +225,9 @@ void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 
 void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
 {
-    replica = ToGeneric(replica);
+    auto genericReplica = ToGeneric(replica);
     for (auto& queue : ChunkReplicationQueues_) {
-        queue.erase(replica);
+        queue.erase(genericReplica);
     }
 }
 
