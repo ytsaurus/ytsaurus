@@ -101,6 +101,9 @@ bool TChunkBase::IsReadLockAcquired() const
 
 TFuture<void> TChunkBase::ScheduleRemoval()
 {
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)",
+        ~ToString(Id_));
+
     bool scheduleRemoval = false;
 
     {
