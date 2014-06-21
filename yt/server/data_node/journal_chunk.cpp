@@ -99,7 +99,7 @@ void TJournalChunk::DoReadBlocks(
     int blockCount,
     TPromise<TReadBlocksResult> promise)
 {
-    auto config = Bootstrap_->GetConfig();
+    auto config = Bootstrap_->GetConfig()->DataNode;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
@@ -117,8 +117,8 @@ void TJournalChunk::DoReadBlocks(
         try {
             blocks = changelog->Read(
                 firstBlockIndex,
-                std::min(blockCount, config->DataNode->MaxBlocksPerRead),
-                config->DataNode->MaxBytesPerRead);
+                std::min(blockCount, config->MaxBlocksPerRead),
+                config->MaxBytesPerRead);
         } catch (const std::exception& ex) {
             Location_->Disable();
             THROW_ERROR_EXCEPTION(
