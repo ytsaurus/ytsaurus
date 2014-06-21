@@ -27,7 +27,6 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): consider revising
 static const int FetchPriority = 0;
 static const bool EnableCaching = true;
 
