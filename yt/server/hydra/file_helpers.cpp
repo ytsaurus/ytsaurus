@@ -79,6 +79,11 @@ void TBufferedFile::Close()
     File_.Close();
 }
 
+void TBufferedFile::Flock(int op)
+{
+    File_.Flock(op);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLengthMeasureOutputStream::TLengthMeasureOutputStream(TOutputStream* output)

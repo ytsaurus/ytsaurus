@@ -30,6 +30,7 @@ public:
     size_t GetLength();
     void Resize(size_t length);
     void Close();
+    void Flock(int op);
 
 private:
     TFile File_;
