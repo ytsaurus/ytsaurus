@@ -244,6 +244,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
             ReplaceFile(tempFileName, FileName_);
 
             DataFile_ = std::make_unique<TBufferedFile>(FileName_, RdWr);
+            DataFile_->Flock(LOCK_EX | LOCK_NB);
             DataFile_->Seek(0, sEnd);
         }
 
@@ -261,6 +262,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
             ReplaceFile(tempFileName, IndexFileName_);
 
             IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
+            IndexFile_->Flock(LOCK_EX | LOCK_NB);
             IndexFile_->Seek(0, sEnd);
         }
 
@@ -281,6 +283,7 @@ void TSyncFileChangelog::TImpl::Open()
         TGuard<TMutex> guard(Mutex_);
 
         DataFile_.reset(new TBufferedFile(FileName_, RdWr|Seq));
+        DataFile_->Flock(LOCK_EX | LOCK_NB);
 
         // Read and check changelog header.
         TChangelogHeader header;
@@ -584,6 +587,7 @@ void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
         Index_.resize(correctPrefixSize);
 
         IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec));
+        IndexFile_->Flock(LOCK_EX | LOCK_NB);
         IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
         IndexFile_->Seek(0, sEnd);
     }
