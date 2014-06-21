@@ -39,8 +39,6 @@ public:
     }
 
 private:
-    typedef TChunkService TThis;
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
         context->SetRequestInfo("ChunkCount: %d",
