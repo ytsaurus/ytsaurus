@@ -350,7 +350,7 @@ public:
             .Default(100000);
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 64 * 1024 * 1024);
 
         RegisterInitializer([&] () {
             // Expect many splits -- adjust configuration.
