@@ -159,7 +159,7 @@ public:
     void CancelTabletCellStart(NTabletServer::TTabletCell* cell);
     void DetachTabletCell(NTabletServer::TTabletCell* cell);
 
-    static TAtomic GenerateVisitMark();
+    static ui64 GenerateVisitMark();
 
 private:
     TNodeDescriptor Descriptor_;

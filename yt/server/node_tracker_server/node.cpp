@@ -14,6 +14,8 @@
 
 #include <server/cell_master/serialize.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 
@@ -341,10 +343,10 @@ void TNode::DetachTabletCell(TTabletCell* cell)
     }
 }
 
-TAtomic TNode::GenerateVisitMark()
+ui64 TNode::GenerateVisitMark()
 {
-    static TAtomic result = 0;
-    return AtomicIncrement(result);
+    static std::atomic<ui64> result(0);
+    return result++;
 }
 
 void TNode::AddTabletSlotHint()
