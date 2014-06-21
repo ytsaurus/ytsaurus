@@ -16,8 +16,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/hive/cell_directory.h>
@@ -589,25 +587,11 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     if (State_ == EState::Offline)
         return;
 
-    NLog::TTaggedLogger Logger(DataNodeLogger);
-    Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
-        ~ToString(chunk->GetId()),
-        ~chunk->GetLocation()->GetPath()));
-
-    if (AddedSinceLastSuccess_.find(chunk) != AddedSinceLastSuccess_.end()) {
-        LOG_DEBUG("Addition of chunk has already been registered");
-        return;
-    }
-
-    if (RemovedSinceLastSuccess_.find(chunk) != RemovedSinceLastSuccess_.end()) {
-        RemovedSinceLastSuccess_.erase(chunk);
-        LOG_DEBUG("Trying to add a chunk whose removal has been registered, canceling removal and addition");
-        return;
-    }
-
-    LOG_DEBUG("Registered addition of chunk");
-
+    RemovedSinceLastSuccess_.erase(chunk);
     AddedSinceLastSuccess_.insert(chunk);
+
+    LOG_DEBUG("Chunk addition registered (ChunkId: %s)",
+        ~ToString(chunk->GetId()));
 }
 
 void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
@@ -617,25 +601,11 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     if (State_ == EState::Offline)
         return;
 
-    NLog::TTaggedLogger Logger(DataNodeLogger);
-    Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
-        ~ToString(chunk->GetId()),
-        ~chunk->GetLocation()->GetPath()));
-
-    if (RemovedSinceLastSuccess_.find(chunk) != RemovedSinceLastSuccess_.end()) {
-        LOG_DEBUG("Removal of chunk has already been registered");
-        return;
-    }
-
-    if (AddedSinceLastSuccess_.find(chunk) != AddedSinceLastSuccess_.end()) {
-        AddedSinceLastSuccess_.erase(chunk);
-        LOG_DEBUG("Trying to remove a chunk whose addition has been registered, canceling addition and removal");
-        return;
-    }
-
-    LOG_DEBUG("Registered removal of chunk");
-
+    AddedSinceLastSuccess_.erase(chunk);
     RemovedSinceLastSuccess_.insert(chunk);
+
+    LOG_DEBUG("Chunk removal registered (ChunkId: %s)",
+        ~ToString(chunk->GetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
