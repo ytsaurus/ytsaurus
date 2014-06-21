@@ -32,9 +32,6 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    //! Synchronously reads a given block from the file.
-    TSharedRef ReadBlock(int blockIndex);
-
     //! Synchronously returns the requested meta.
     NChunkClient::NProto::TChunkMeta GetMeta(
         const std::vector<int>* extensionTags = nullptr);
@@ -64,7 +61,7 @@ private:
     int BlockCount_;
 
 
-    void ValidateBlockIndex(int blockIndex);
+    TSharedRef ReadBlock(int blockIndex);
 
 };
 

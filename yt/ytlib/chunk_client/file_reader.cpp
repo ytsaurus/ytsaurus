@@ -75,8 +75,12 @@ IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& 
 
         for (int index = 0; index < blockIndexes.size(); ++index) {
             int blockIndex = blockIndexes[index];
-            ValidateBlockIndex(blockIndex);
-            blocks.push_back(ReadBlock(blockIndex));
+            YCHECK(blockIndex >= 0);
+            if (blockIndex < BlockCount_) {
+                blocks.push_back(ReadBlock(blockIndex));
+            } else {
+                blocks.push_back(TSharedRef());
+            }
         }
 
         return MakeFuture(TReadBlocksResult(std::move(blocks)));
@@ -90,11 +94,9 @@ IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
     int blockCount)
 {
     YCHECK(Opened_);
+    YCHECK(firstBlockIndex >= 0);
 
     try {
-        ValidateBlockIndex(firstBlockIndex);
-        ValidateBlockIndex(firstBlockIndex + blockCount - 1);
-
         std::vector<TSharedRef> blocks;
         blocks.reserve(blockCount);
 
@@ -174,14 +176,6 @@ IReader::TAsyncGetMetaResult TFileReader::GetMeta(
 TChunkId TFileReader::GetChunkId() const 
 {
     YUNREACHABLE();
-}
-
-void TFileReader::ValidateBlockIndex(int blockIndex)
-{
-    if (blockIndex < 0 || blockIndex >= BlockCount_) {
-        THROW_ERROR_EXCEPTION("Chunk has no block %d",
-            blockIndex);
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

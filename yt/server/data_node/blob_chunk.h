@@ -43,7 +43,10 @@ private:
     void DoReadMeta(TPromise<TError> promise);
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
 
-    i64 ComputePendingReadSize(int firstBlockIndex, int blockCount);
+    void AdjustReadRange(
+        int firstBlockIndex,
+        int* blockCount, // inout
+        i64* dataSize);  // out
 
     void DoReadBlocks(
         int firstBlockIndex,
