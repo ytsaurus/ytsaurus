@@ -26,7 +26,7 @@ TAsyncError RepairErasedParts(
     const std::vector<IWriterPtr>& writers,
     TRepairProgressHandler onProgress = TRepairProgressHandler());
 
-std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
+std::vector<IReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
@@ -36,7 +36,7 @@ std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
     const NErasure::ICodec* codec,
     const Stroka& networkName = NNodeTrackerClient::DefaultNetworkName);
 
-std::vector<IAsyncReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,

@@ -30,8 +30,7 @@ class TNodeDirectoryBuilder;
 DECLARE_ENUM(EErrorCode,
     ((NoSuchNode)    (300))
     ((InvalidState)  (301))
-    ((NotAuthorized) (302))
-    ((InvalidNetwork)(303))
+    ((NoSuchNetwork) (302))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

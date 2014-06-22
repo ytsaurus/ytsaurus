@@ -33,7 +33,7 @@ namespace NTableClient {
  *  Finally the client must call #Close.
  *  After this call the writer is no longer usable.
  */
-IWriterPtr CreateAsyncTableWriter(
+IAsyncWriterPtr CreateAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,

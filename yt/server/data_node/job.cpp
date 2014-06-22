@@ -612,6 +612,7 @@ private:
                     Null,
                     ChunkId_,
                     replicas,
+                    DefaultNetworkName,
                     EReadSessionType::Replication,
                     Bootstrap_->GetReplicationInThrottler());
 
@@ -625,7 +626,7 @@ private:
                     int blockCount = static_cast<int>(blocks.size());
 
                     if (blockCount == 0) {
-                        THROW_ERROR_EXCEPTION("Cannot download required records %d-%d to seal chunk %s",
+                        THROW_ERROR_EXCEPTION("Cannot download missing records %d-%d to seal chunk %s",
                             currentRecordCount,
                             sealRecordCount - 1,
                             ~ToString(ChunkId_));

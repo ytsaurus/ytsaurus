@@ -96,9 +96,9 @@ public:
         }
 
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s, Network: %s)",
-            ~JoinToString(InitialSeedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)),
+            ~JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             ~FormatBool(Config_->FetchFromPeers),
-            LocalDescriptor ? ~ToString(LocalDescriptor->GetAddressOrThrow(NetworkName_)) : "<Null>",
+            LocalDescriptor_ ? ~ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
             ~FormatBool(Config_->EnableNodeCaching),
             ~NetworkName_);
     }
@@ -256,7 +256,7 @@ protected:
     //! Seed replicas for the current retry.
     TChunkReplicaList SeedReplicas_;
 
-    //! Set of peer addresses corresponding to SeedReplcias.
+    //! Set of peer addresses corresponding to SeedReplicas_.
     yhash_set<Stroka> SeedAddresses_;
 
     //! Set of peer addresses banned for the current retry.
@@ -265,7 +265,7 @@ protected:
     //! List of candidates to try.
     std::vector<TNodeDescriptor> PeerList_;
 
-    //! Set of addresses corresponding to PeerList_.
+    //! Set of default (!) addresses corresponding to PeerList_.
     yhash_set<Stroka> PeerSet_;
 
     //! Current index in #PeerList.
@@ -292,7 +292,7 @@ protected:
 
     void AddPeer(const TNodeDescriptor& descriptor)
     {
-        if (PeerSet_.insert(descriptor.Address).second) {
+        if (PeerSet_.insert(descriptor.GetDefaultAddress()).second) {
             PeerList_.push_back(descriptor);
         }
     }
@@ -480,8 +480,8 @@ private:
         }
 
         SeedAddresses_.clear();
-        for (auto replica : SeedReplicas) {
-            auto descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
+        for (auto replica : SeedReplicas_) {
+            auto descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
             auto address = descriptor.FindAddress(NetworkName_);
             if (address) {
                 SeedAddresses_.insert(*address);
@@ -556,7 +556,7 @@ private:
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> Blocks_;
 
-    //! Maps known peer addresses to block indexes.
+    //! Maps known default (!) peer addresses to block indexes.
     yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
 
 
@@ -568,7 +568,7 @@ private:
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
         for (const auto& descriptor : PeerList_) {
-            PeerBlocksMap_[descriptor.Address] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
+            PeerBlocksMap_[descriptor.GetDefaultAddress()] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();
@@ -595,7 +595,7 @@ private:
 
         auto it = PeerBlocksMap_.find(nodeDescriptor.GetDefaultAddress());
         YCHECK(it != PeerBlocksMap_.end());
-        const auto& peerBlockIndexes = it->second.BlockIndexes;
+        const auto& peerBlockIndexes = it->second;
 
         for (int blockIndex : indexesToFetch) {
             if (peerBlockIndexes.find(blockIndex) != peerBlockIndexes.end()) {
@@ -765,10 +765,17 @@ private:
                 TBlockId blockId(reader->ChunkId_, blockIndex);
                 for (const auto& protoNodeDescriptor : peerDescriptor.node_descriptors()) {
                     auto descriptor = FromProto<TNodeDescriptor>(protoNodeDescriptor);
-                    PeerBlocksMap_[descriptor.GetDefaultAddress()].insert(blockIndex);
-                    LOG_INFO("Peer descriptor received (Block: %d, Address: %s)",
-                        blockIndex,
-                        ~descriptor.GetDefaultAddress());
+                    if (descriptor.FindAddress(NetworkName_)) {
+                        AddPeer(descriptor);
+                        PeerBlocksMap_[descriptor.GetDefaultAddress()].insert(blockIndex);
+                        LOG_INFO("Peer descriptor received (Block: %d, Address: %s)",
+                            blockIndex,
+                            ~descriptor.GetDefaultAddress());
+                    } else {
+                        LOG_WARNING("Peer descriptor ignored (Block: %d, Address: %s)",
+                            blockIndex,
+                            ~descriptor.GetDefaultAddress());
+                    }
                 }
             }
         }
@@ -900,15 +907,17 @@ private:
             }
 
             auto currentDescriptor = PickNextPeer();
-            if (!IsPeerBanned(currentDescriptor.Address)) {
+            const auto& currentAddress = currentDescriptor.GetAddress(NetworkName_);
+
+            if (!IsPeerBanned(currentAddress)) {
                 LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: %d-%d)",
-                    ~currentDescriptor.Address,
+                    ~currentAddress,
                     FirstBlockIndex_,
                     FirstBlockIndex_ + BlockCount_ - 1);
 
                 IChannelPtr channel;
                 try {
-                    channel = HeavyNodeChannelFactory->CreateChannel(currentDescriptor.Address);
+                    channel = HeavyNodeChannelFactory->CreateChannel(currentAddress);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -935,7 +944,7 @@ private:
             }
 
             LOG_INFO("Skipping peer (Address: %s)",
-                ~currentDescriptor.Address);
+                ~currentAddress);
         }
     }
 
@@ -944,7 +953,7 @@ private:
         TDataNodeServiceProxy::TReqGetBlockRangePtr req,
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
-        const auto& requestedAddress = requestedDescriptor.Address;
+        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
         if (!rsp->IsOK()) {
             RegisterError(TError("Error fetching blocks from node %s",
                 ~requestedAddress)
@@ -972,7 +981,7 @@ private:
             return VoidFuture;
         }
 
-        const auto& requestedAddress = requestedDescriptor.Address;
+        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
 
         if (rsp->throttling()) {
             LOG_INFO("Peer is throttling (Address: %s)",

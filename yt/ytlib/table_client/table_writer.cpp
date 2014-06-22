@@ -370,10 +370,9 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
     return Writer->GetProvider()->GetDataStatistics();
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
-IWriterPtr CreateAsyncTableWriter(
+IAsyncWriterPtr CreateAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     TTransactionPtr transaction,

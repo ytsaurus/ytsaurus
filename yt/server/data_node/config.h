@@ -252,6 +252,9 @@ public:
     //! Number of writer threads per location.
     int WriteThreadCount;
 
+    //! Maximum number of concurrent balancing write sessions.
+    int MaxWriteSessions;
+
     //! Maximum number of blocks to fetch via a single range request.
     int MaxBlocksPerRead;
 

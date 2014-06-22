@@ -1068,12 +1068,12 @@ private:
 
         yhash_set<TTransactionId> deadTransactionIds;
 
-        // Invoke GetId verbs for these transactions to see if they are alive.
+        // Invoke GetBasicAttributes method for these transactions to see if they are alive.
         auto batchRequest = TMultiCellBatchRequest(ClusterDirectory, false);
 
         std::vector<TTransactionId> transactionIds;
         for (const auto& id : watchSet) {
-            auto checkReq = TObjectYPathProxy::GetBasicAttributesFromObjectId(id));
+            auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
             if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
                 transactionIds.push_back(id);
             } else {

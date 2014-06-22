@@ -85,7 +85,7 @@ private:
         }
 
         for (const auto& descriptor : Replicas_) {
-            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
             auto req = proxy.FinishChunk();
@@ -102,7 +102,7 @@ private:
         if (rsp->IsOK() || rsp->GetError().GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             LOG_INFO("Journal chunk session aborted successfully (ChunkId: %s, Address: %s)",
                 ~ToString(ChunkId_),
-                ~descriptor.Address);
+                ~descriptor.GetDefaultAddress());
 
             if (++SuccessCounter_ == Quorum_) {
                 LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %s)",
@@ -115,7 +115,7 @@ private:
 
             LOG_WARNING(error, "Failed to abort journal chunk session (ChunkId: %s, Address: %s)",
                 ~ToString(ChunkId_),
-                ~descriptor.Address);
+                ~descriptor.GetDefaultAddress());
            
             if (ResponseCounter_ == Replicas_.size()) {
                 auto combinedError = TError("Unable to abort sessions quorum for journal chunk %s",
@@ -195,7 +195,7 @@ private:
 
         auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
         for (const auto& descriptor : Replicas_) {
-            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.Address);
+            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
             auto req = proxy.GetChunkMeta();
@@ -219,7 +219,7 @@ private:
 
             LOG_INFO("Received record count for journal chunk (ChunkId: %s, Address: %s, RecordCount: %d)",
                 ~ToString(ChunkId_),
-                ~descriptor.Address,
+                ~descriptor.GetDefaultAddress(),
                 recordCount);
         } else {
             auto error = rsp->GetError();
@@ -227,7 +227,7 @@ private:
 
             LOG_WARNING(error, "Failed to get journal chunk record count (ChunkId: %s, Address: %s)",
                 ~ToString(ChunkId_),
-                ~descriptor.Address);
+                ~descriptor.GetDefaultAddress());
            
         }
     }

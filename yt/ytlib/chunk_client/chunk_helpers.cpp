@@ -17,7 +17,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ChunkWriterLogger;
+static auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,10 +64,10 @@ void OnChunkCreated(
 {
     auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
     if (!rsp->IsOK()) {
-        auto wrappedError = TError(
+        THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk") << *rsp;
-        THROW_ERROR_EXCEPTION(wrappedError);
+            "Error creating chunk")
+            << *rsp;
     }
 
     *chunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));

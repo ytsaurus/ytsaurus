@@ -1,6 +1,6 @@
 #include "erasure_reader.h"
-#include "async_writer.h"
-#include "async_reader.h"
+#include "writer.h"
+#include "reader.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
@@ -803,7 +803,7 @@ TAsyncError RepairErasedParts(
 
 namespace {
 
-std::vector<IAsyncReaderPtr> CreateErasurePartsReaders(
+std::vector<IReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
@@ -824,7 +824,7 @@ std::vector<IAsyncReaderPtr> CreateErasurePartsReaders(
             return lhs.GetIndex() < rhs.GetIndex();
         });
 
-    std::vector<IAsyncReaderPtr> readers;
+    std::vector<IReaderPtr> readers;
     readers.reserve(partCount);
 
     {
@@ -858,7 +858,7 @@ std::vector<IAsyncReaderPtr> CreateErasurePartsReaders(
 
 } // anonymous namespace
 
-std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
+std::vector<IReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
@@ -880,7 +880,7 @@ std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
         networkName);
 }
 
-std::vector<IAsyncReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,

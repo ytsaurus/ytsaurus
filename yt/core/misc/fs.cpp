@@ -338,7 +338,7 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 {
 #ifdef _linux_
-    auto wrappedStat = [] (const Stroka& path, struct stat* buffer) {
+    auto guardedStat = [] (const Stroka& path, struct stat* buffer) {
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
@@ -349,10 +349,12 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
     };
 
     struct stat lhsBuffer, rhsBuffer;
-    wrappedStat(lhsPath, &lhsBuffer);
-    wrappedStat(rhsPath, &rhsBuffer);
+    guardedStat(lhsPath, &lhsBuffer);
+    guardedStat(rhsPath, &rhsBuffer);
 
-    return (lhsBuffer.st_dev == rhsBuffer.st_dev) && (lhsBuffer.st_ino == rhsBuffer.st_ino);
+    return
+        lhsBuffer.st_dev == rhsBuffer.st_dev &&
+        lhsBuffer.st_ino == rhsBuffer.st_ino;
 #else
     return false;
 #endif
@@ -362,8 +364,8 @@ Stroka GetHomePath()
 {
 #ifdef _win_
     std::array<char, 1024> buffer;
-    SHGetSpecialFolderPath(0, buffer, CSIDL_PROFILE, 0);
-    return Stroka(buffer);
+    SHGetSpecialFolderPath(0, buffer.data(), CSIDL_PROFILE, 0);
+    return Stroka(buffer.data());
 #else
     return std::getenv("HOME");
 #endif

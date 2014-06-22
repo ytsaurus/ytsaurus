@@ -152,20 +152,17 @@ public:
 
     //! RPC requests timeout.
     /*!
-     *  This timeout is especially useful for PutBlocks calls to ensure that
+     *  This timeout is especially useful for |PutBlocks| calls to ensure that
      *  uploading is not stalled.
      */
     TDuration NodeRpcTimeout;
 
     int MinUploadReplicationFactor;
 
-    //! Maximum allowed period of time without RPC requests to nodes.
-    /*!
-     *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
-     */
+    //! Interval between consecutive pings to Data Nodes.
     TDuration NodePingPeriod;
 
-    //! If True then written blocks are cached by the node.
+    //! If |true| then written blocks are cached by the node.
     bool EnableNodeCaching;
 
     bool SyncOnClose;

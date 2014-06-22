@@ -108,7 +108,7 @@ public:
         , DroppedRowCount_(0)
         , CurrentBuffer_(nullptr)
         , FlushedBufferCount_(0)
-        , Logger(TableWriterLogger)
+        , Logger(TableClientLogger)
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);

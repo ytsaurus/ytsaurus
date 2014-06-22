@@ -64,7 +64,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
     }
 
     // Maintain FillFactorToNode_.
-    if (node->GetSessionCount(EWriteSessionType::Replication) < Config->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(EWriteSessionType::Replication) < Config_->MaxReplicationWriteSessions) {
         double fillFactor = GetFillFactor(node);
         auto it = FillFactorToNode_.insert(std::make_pair(fillFactor, node));
         YCHECK(NodeToFillFactorIt_.insert(std::make_pair(node, it)).second);
@@ -438,12 +438,12 @@ void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
     }
 
     // Maintain FillFactorToNode_.
-    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config->MaxReplicationWriteSessions) {
-        auto itIt = NodeToFillFactorIt.find(node);
-        if (itIt != NodeToFillFactorIt.end()) {
+    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+        auto itIt = NodeToFillFactorIt_.find(node);
+        if (itIt != NodeToFillFactorIt_.end()) {
             auto it = itIt->second;
-            FillFactorToNode.erase(it);
-            NodeToFillFactorIt.erase(itIt);
+            FillFactorToNode_.erase(it);
+            NodeToFillFactorIt_.erase(itIt);
         }        
     }
 }

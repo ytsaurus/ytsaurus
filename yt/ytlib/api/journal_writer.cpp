@@ -231,8 +231,8 @@ private:
 
             explicit TNode(const TNodeDescriptor& descriptor)
                 : Descriptor(descriptor)
-                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.Address))
-                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.Address))
+                , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
+                , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
             { }
         };
 
@@ -770,7 +770,7 @@ private:
                 return;
 
             LOG_DEBUG("Sending ping (Address: %s)",
-                ~node_->Descriptor.Address);
+                ~node_->Descriptor.GetDefaultAddress());
 
             auto req = node_->LightProxy.PingSession();
             ToProto(req->mutable_chunk_id(), session->ChunkId);
@@ -781,12 +781,12 @@ private:
         {
             if (rsp->IsOK()) {
                 LOG_DEBUG("Chunk session started (Address: %s)",
-                    ~node->Descriptor.Address);
+                    ~node->Descriptor.GetDefaultAddress());
                 return TError();
             } else {
-                BanNode(node->Descriptor.Address);
+                BanNode(node->Descriptor.GetDefaultAddress());
                 return TError("Error starting session at %s",
-                    ~node->Descriptor.Address)
+                    ~node->Descriptor.GetDefaultAddress())
                     << *rsp;
             }
         }
@@ -795,11 +795,11 @@ private:
         {
             if (rsp->IsOK()) {
                 LOG_DEBUG("Chunk session finished (Address: %s)",
-                    ~node->Descriptor.Address);
+                    ~node->Descriptor.GetDefaultAddress());
             } else {
-                BanNode(node->Descriptor.Address);
+                BanNode(node->Descriptor.GetDefaultAddress());
                 LOG_WARNING(*rsp, "Chunk session has failed to finish (Address: %s)",
-                    ~node->Descriptor.Address);
+                    ~node->Descriptor.GetDefaultAddress());
             }
         }
 
@@ -846,7 +846,7 @@ private:
 
             if (rsp->IsOK()) {
                 LOG_DEBUG("Journal replica flushed (Address: %s, BlockIds: %s:%d-%d)",
-                    ~node->Descriptor.Address,
+                    ~node->Descriptor.GetDefaultAddress(),
                     ~ToString(session->ChunkId),
                     firstBlockIndex,
                     lastBlockIndex);
@@ -874,12 +874,12 @@ private:
                 MaybeFlushBlocks(node);
             } else {
                 LOG_WARNING(*rsp, "Journal replica failed (Address: %s, BlockIds: %s:%d-%d)",
-                    ~node->Descriptor.Address,
+                    ~node->Descriptor.GetDefaultAddress(),
                     ~ToString(session->ChunkId),
                     firstBlockIndex,
                     lastBlockIndex);
 
-                BanNode(node->Descriptor.Address);
+                BanNode(node->Descriptor.GetDefaultAddress());
 
                 TSwitchChunkCommand command;
                 command.Session = session;

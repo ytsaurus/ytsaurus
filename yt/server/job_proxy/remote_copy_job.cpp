@@ -7,8 +7,8 @@
 
 #include <ytlib/api/connection.h>
 
-#include <ytlib/chunk_client/async_writer.h>
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/writer.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_helpers.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/erasure_reader.h>
@@ -20,8 +20,6 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
-
-//#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -49,8 +47,8 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NChunkClient;
-using namespace NNodeTrackerClient;
 using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -115,7 +113,7 @@ public:
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
-        double chunkProgress = TotalChunkSize_ ? CopiedChunkSize_ / TotalChunkSize_.Get() : 0.0;
+        double chunkProgress = TotalChunkSize_ ? CopiedChunkSize_ / *TotalChunkSize_ : 0.0;
         return (CopiedChunks_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).chunks_size();
     }
 
@@ -158,12 +156,12 @@ private:
     double CopiedChunkSize_;
     TNullable<double> TotalChunkSize_;
 
-    NChunkClient::NProto::TDataStatistics DataStatistics_;
+    TDataStatistics DataStatistics_;
 
     TNullable<TChunkId> FailedChunkId_;
 
 
-    void CopyChunk(const NChunkClient::NProto::TChunkSpec& inputChunkSpec)
+    void CopyChunk(const TChunkSpec& inputChunkSpec)
     {
         auto host = Host.Lock();
         if (!host) {
@@ -194,12 +192,12 @@ private:
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
 
-            auto rsp = CreateChunk(
+            auto rsp = WaitFor(CreateChunk(
                 host->GetMasterChannel(),
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
-                transactionId).Get();
+                transactionId));
 
             OnChunkCreated(
                 rsp,
@@ -215,8 +213,8 @@ private:
         // Copy chunk
         LOG_INFO("Copying blocks");
 
-        NChunkClient::NProto::TChunkInfo chunkInfo;
-        NChunkClient::NProto::TChunkMeta chunkMeta;
+        TChunkInfo chunkInfo;
+        TChunkMeta chunkMeta;
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
@@ -244,7 +242,7 @@ private:
 
             auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta.extensions());
 
-            // Thi is upper bound for total size.
+            // Compute an upper bound for total size.
             TotalChunkSize_ =
                 GetProtoExtension<TMiscExt>(chunkMeta.extensions()).compressed_data_size() +
                 erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
@@ -291,7 +289,7 @@ private:
         // Prepare data statistics
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
         
-        NChunkClient::NProto::TDataStatistics chunkStatistics;
+        TDataStatistics chunkStatistics;
         chunkStatistics.set_compressed_data_size(miscExt.compressed_data_size());
         chunkStatistics.set_uncompressed_data_size(miscExt.uncompressed_data_size());
         chunkStatistics.set_chunk_count(1);
@@ -299,11 +297,11 @@ private:
 
         TObjectServiceProxy objectProxy(host->GetMasterChannel());
 
-        // Confirm
+        // Confirm chunk.
         LOG_INFO("Confirming output chunk");
         {
             static const int masterMetaTagsArray[] = {
-                TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+                TProtoExtensionTag<TMiscExt>::Value,
                 TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value };
             static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
 
@@ -313,63 +311,68 @@ private:
                 chunkMeta.extensions(),
                 masterMetaTags);
 
-            auto confirmReq = TChunkYPathProxy::Confirm(
+            auto req = TChunkYPathProxy::Confirm(
                 NObjectClient::FromObjectId(outputChunkId));
-            NHydra::GenerateMutationId(confirmReq);
-            *confirmReq->mutable_chunk_info() = chunkInfo;
-            *confirmReq->mutable_chunk_meta() = masterChunkMeta;
-            NYT::ToProto(confirmReq->mutable_replicas(), replicas);
+            NHydra::GenerateMutationId(req);
+            *req->mutable_chunk_info() = chunkInfo;
+            *req->mutable_chunk_meta() = masterChunkMeta;
+            NYT::ToProto(req->mutable_replicas(), replicas);
 
-            auto confirmReqRsp = objectProxy.Execute(confirmReq).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(*confirmReqRsp, "Failed to confirm chunk");
+            auto rsp = WaitFor(objectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Failed to confirm chunk");
         }
 
-        // Attach
+        // Attach chunk.
         LOG_INFO("Attaching output chunk");
         {
-            auto attachReq = TChunkListYPathProxy::Attach(NObjectClient::FromObjectId(OutputChunkListId_));
-            ToProto(attachReq->add_children_ids(), outputChunkId);
-            NHydra::GenerateMutationId(attachReq);
-            auto attachReqRsp = objectProxy.Execute(attachReq).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(*attachReqRsp, "Failed to attach chunk");
+            auto req = TChunkListYPathProxy::Attach(NObjectClient::FromObjectId(OutputChunkListId_));
+            ToProto(req->add_children_ids(), outputChunkId);
+            NHydra::GenerateMutationId(req);
+
+            auto rsp = WaitFor(objectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");
         }
     }
 
     void DoCopy(
-        const NChunkClient::IAsyncReaderPtr& reader,
-        const NChunkClient::IAsyncWriterPtr& writer,
+        NChunkClient::IReaderPtr reader,
+        NChunkClient::IWriterPtr writer,
         int blockCount,
-        const NChunkClient::NProto::TChunkMeta& meta)
+        const TChunkMeta& meta)
     {
         writer->Open();
 
         for (int i = 0; i < blockCount; ++i) {
-            auto blocksRsp = reader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
-            if (!blocksRsp.IsOK()) {
+            auto result = WaitFor(reader->ReadBlocks(i, 1));
+            if (!result.IsOK()) {
                 FailedChunkId_ = reader->GetChunkId();
-                THROW_ERROR_EXCEPTION_IF_FAILED(blocksRsp, "Failed to read block");
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading block");
             }
-            auto block = blocksRsp.Value().front();
+            
+            auto block = result.Value().front();
             CopiedChunkSize_ += block.Size();
+
             if (!writer->WriteBlock(block)) {
-                auto rsp = writer->GetReadyEvent().Get();
-                THROW_ERROR_EXCEPTION_IF_FAILED(rsp, "Failed to write block");
+                auto result = WaitFor(writer->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
             }
         }
 
-        auto writerCloseRsp = writer->AsyncClose(meta).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(writerCloseRsp, "Failed to close chunk");
+        {
+            auto result = WaitFor(writer->Close(meta));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error closing chunk");
+        }
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    NChunkClient::NProto::TChunkMeta GetChunkMeta(const NChunkClient::IAsyncReaderPtr& reader)
+    TChunkMeta GetChunkMeta(NChunkClient::IReaderPtr reader)
     {
-        auto inputChunkMetaRsp = reader->AsyncGetChunkMeta().Get();
-        if (!inputChunkMetaRsp.IsOK()) {
+        auto result = WaitFor(reader->GetMeta());
+        if (!result.IsOK()) {
             FailedChunkId_ = reader->GetChunkId();
-            THROW_ERROR_EXCEPTION_IF_FAILED(inputChunkMetaRsp, "Failed to get chunk meta");
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");
         }
-        return inputChunkMetaRsp.Value();
+        return result.Value();
     }
 };
 

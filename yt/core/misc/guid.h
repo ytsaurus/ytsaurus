@@ -18,13 +18,13 @@ struct TGuid
 {
     std::array<ui32, 4> Parts;
 
-    //! Empty constructor.
+    //! Constructs a null (zero) guid.
     TGuid();
 
-    //! Constructor from parts.
+    //! Constructs guid from parts.
     TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
 
-    //! Constructor from parts.
+    //! Constructs guid from parts.
     TGuid(ui64 part0, ui64 part1);
 
     //! Checks if TGuid is zero.
@@ -36,7 +36,7 @@ struct TGuid
     //! Conversion from TStringBuf, throws an exception if something went wrong.
     static TGuid FromString(const TStringBuf& str);
 
-    //! Conversion from TStringBuf, returns true if everything was ok.
+    //! Conversion from TStringBuf, returns |true| if everything was ok.
     static bool FromString(const TStringBuf& str, TGuid* guid);
 };
 
@@ -45,9 +45,9 @@ void FromProto(TGuid* guid, const NProto::TGuid& protoGuid);
 
 Stroka ToString(const TGuid& guid);
 
-bool operator == (const TGuid &a, const TGuid &b);
-bool operator != (const TGuid &a, const TGuid &b);
-bool operator <  (const TGuid &a, const TGuid &b);
+bool operator == (const TGuid& lhs, const TGuid& rhs);
+bool operator != (const TGuid& lhs, const TGuid& rhs);
+bool operator <  (const TGuid& lhs, const TGuid& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

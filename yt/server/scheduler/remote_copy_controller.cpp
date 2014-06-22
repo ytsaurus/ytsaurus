@@ -293,8 +293,8 @@ private:
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& chunkSpec : CollectInputChunks()) {
-            if (chunkSpec->has_lower_limit() && IsNontrivial(chunkSpec->lower_limit()) ||
-                chunkSpec->has_upper_limit() && IsNontrivial(chunkSpec->upper_limit()))
+            if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
+                chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
             {
                 OnOperationFailed(TError("Remote copy operation does not support non-trivial table limits"));
                 return;

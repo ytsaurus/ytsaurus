@@ -16,7 +16,7 @@ IWriterPtr CreateErasureWriter(
     NErasure::ICodec* codec,
     const std::vector<IWriterPtr>& writers);
 
-std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
+std::vector<IWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,

@@ -2424,14 +2424,14 @@ void TOperationControllerBase::GetInputObjectIds()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting ids for input objects");
 
     {
-        auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_in_id");
+        auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_in_id");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
             {
                 auto rsp = getInIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->id());
             }
         }
     }
@@ -2456,14 +2456,14 @@ void TOperationControllerBase::GetOutputObjectIds()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting ids for output objects");
 
     {
-        auto getOutIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_out_id");
+        auto getOutIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_out_id");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
             {
                 auto rsp = getOutIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->id());
             }
         }
     }

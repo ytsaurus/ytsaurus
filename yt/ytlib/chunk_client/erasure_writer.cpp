@@ -1,8 +1,7 @@
 #include "public.h"
-
 #include "config.h"
 #include "dispatcher.h"
-#include "async_writer.h"
+#include "writer.h"
 #include "chunk_replica.h"
 #include "chunk_meta_extensions.h"
 #include "replication_writer.h"
@@ -421,7 +420,7 @@ IWriterPtr CreateErasureWriter(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
+std::vector<IWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
@@ -430,7 +429,7 @@ std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
 {
     YCHECK(targets.size() == codec->GetTotalPartCount());
 
-    std::vector<IAsyncWriterPtr> writers;
+    std::vector<IWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         std::vector<NNodeTrackerClient::TNodeDescriptor> partTargets(1, targets[index]);
