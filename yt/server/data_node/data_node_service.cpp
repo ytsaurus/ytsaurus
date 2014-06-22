@@ -212,7 +212,7 @@ private:
         bool enableCaching = request->enable_caching();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("Blocks: %s:%d-%d, EnableCaching: %s, FlushBlocks: %s",
+        context->SetRequestInfo("BlockIds: %s:%d-%d, EnableCaching: %s, FlushBlocks: %s",
             ~ToString(chunkId),
             firstBlockIndex,
             lastBlockIndex,
@@ -253,10 +253,10 @@ private:
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         auto target = FromProto<TNodeDescriptor>(request->target());
 
-        context->SetRequestInfo("Blocks: %s:%d-%d, TargetAddress: %s",
+        context->SetRequestInfo("BlockIds: %s:%d-%d, TargetAddress: %s",
             ~ToString(chunkId),
             firstBlockIndex,
-            blockCount,
+            lastBlockIndex,
             ~target.GetDefaultAddress());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
@@ -282,7 +282,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int blockIndex = request->block_index();
 
-        context->SetRequestInfo("Block: %s:%d",
+        context->SetRequestInfo("BlockId: %s:%d",
             ~ToString(chunkId),
             blockIndex);
 
@@ -320,7 +320,7 @@ private:
             bool enableCaching = request.enable_caching();
             auto sessionType = EReadSessionType(request.session_type());
 
-            Context_->SetRequestInfo("ChunkId: %s, Blocks: [%s], EnableCaching: %s, SessionType: %s",
+            Context_->SetRequestInfo("BlockIds: %s:%s, EnableCaching: %s, SessionType: %s",
                 ~ToString(chunkId),
                 ~JoinToString(request.block_indexes()),
                 ~FormatBool(enableCaching),
@@ -359,7 +359,7 @@ private:
                 for (int index = 0; index < request.block_indexes().size(); ++index) {
                     int blockIndex = request.block_indexes(index);
 
-                    LOG_DEBUG("Fetching block (Block: %s:%d)",
+                    LOG_DEBUG("Fetching block (BlockId: %s:%d)",
                         ~ToString(chunkId),
                         blockIndex);
 
@@ -473,7 +473,7 @@ private:
             int firstBlockIndex = request.first_block_index();
             int blockCount = request.block_count();
 
-            Context_->SetRequestInfo("ChunkId: %s, Blocks: %d-%d, SessionType: %s",
+            Context_->SetRequestInfo("BlockIds: %s:%d-%d, SessionType: %s",
                 ~ToString(chunkId),
                 firstBlockIndex,
                 firstBlockIndex + blockCount - 1,

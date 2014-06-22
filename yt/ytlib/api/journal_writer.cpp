@@ -557,20 +557,20 @@ private:
         {
             while (true) {
                 CheckAborted();
-                auto someCommand = DequeueCommand();
-                if (auto* command = someCommand.TryAs<TCloseCommand>()) {
+                auto command = DequeueCommand();
+                if (command.Is<TCloseCommand>()) {
                     HandleClose();
                     break;
-                } else if (auto* command = someCommand.TryAs<TCancelCommand>()) {
+                } else if (command.Is<TCancelCommand>()) {
                     throw TFiberCanceledException();
-                } else if (auto* command = someCommand.TryAs<TBatchCommand>()) {
-                    HandleBatch(*command);
+                } else if (auto* typedCommand = command.TryAs<TBatchCommand>()) {
+                    HandleBatch(*typedCommand);
                     if (IsSessionOverful()) {
                         SwitchChunk();
                         break;
                     }
-                } else if (auto* command = someCommand.TryAs<TSwitchChunkCommand>()) {
-                    if (command->Session == CurrentSession_) {
+                } else if (auto* typedCommand = command.TryAs<TSwitchChunkCommand>()) {
+                    if (typedCommand->Session == CurrentSession_) {
                         SwitchChunk();
                         break;
                     }
@@ -700,10 +700,10 @@ private:
             PendingBatches_.clear();
 
             while (true) {
-                auto someCommand = DequeueCommand();
-                if (auto* command = someCommand.TryAs<TBatchCommand>()) {
-                    (*command)->FlushedPromise.Set(error);
-                } else if (auto* command = someCommand.TryAs<TCancelCommand>()) {
+                auto command = DequeueCommand();
+                if (auto* typedCommand = command.TryAs<TBatchCommand>()) {
+                    (*typedCommand)->FlushedPromise.Set(error);
+                } else if (command.Is<TCancelCommand>()) {
                     throw TFiberCanceledException();
                 } else {
                     // Ignore.
@@ -816,6 +816,7 @@ private:
             int lastLastIndex = firstBlockIndex + batch->Records.size() - 1;
 
             LOG_DEBUG("Flushing journal replica (Address: %s, BlockIds: %s:%d-%d)",
+                ~node->Descriptor.GetDefaultAddress(),
                 ~ToString(CurrentSession_->ChunkId),
                 firstBlockIndex,
                 lastLastIndex);

@@ -94,11 +94,53 @@
 namespace std {
 
 #ifdef __GNUC__
+
+// As of now, GCC does not support make_unique.
+// See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
     return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
 }
+
+// As of now, GCC does not have std::aligned_union.
+template <typename... _Types>
+  struct __strictest_alignment
+  {
+    static const size_t _S_alignment = 0;
+    static const size_t _S_size = 0;
+  };
+
+template <typename _Tp, typename... _Types>
+  struct __strictest_alignment<_Tp, _Types...>
+  {
+    static const size_t _S_alignment =
+      alignof(_Tp) > __strictest_alignment<_Types...>::_S_alignment
+ ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
+    static const size_t _S_size =
+      sizeof(_Tp) > __strictest_alignment<_Types...>::_S_size
+ ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
+  };
+
+template <size_t _Len, typename... _Types>
+  struct aligned_union
+  {
+  private:
+    static_assert(sizeof...(_Types) != 0, "At least one type is required");
+
+    using __strictest = __strictest_alignment<_Types...>;
+    static const size_t _S_len = _Len > __strictest::_S_size
+ ? _Len : __strictest::_S_size;
+  public:
+    /// The value of the strictest alignment of _Types.
+    static const size_t alignment_value = __strictest::_S_alignment;
+    /// The storage.
+    typedef typename aligned_storage<_S_len, alignment_value>::type type;
+  };
+
+template <size_t _Len, typename... _Types>
+  const size_t aligned_union<_Len, _Types...>::alignment_value;
+
 #endif
 
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7

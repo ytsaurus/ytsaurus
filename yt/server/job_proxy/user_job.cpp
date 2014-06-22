@@ -37,6 +37,8 @@
 
 #include <errno.h>
 
+#include <util/folder/dirut.h>
+
 #ifdef _linux_
     #include <core/misc/ioprio.h>
 

@@ -216,9 +216,6 @@ bool TFetchChunkVisitor::OnChunk(
         ToProto(chunkSpec->mutable_channel(), Channel_);
     }
 
-    // Default value for non-erasure chunks.
-    int firstParityPartIndex = 1;
-    
     auto erasureCodecId = chunk->GetErasureCodec();
     int firstInfeasibleReplicaIndex =
         erasureCodecId == NErasure::ECodec::None || FetchParityReplicas_

@@ -48,6 +48,7 @@ protected:
         KeyColumns = {"k1", "k2", "k3"};
 
         MemoryWriter = New<TMemoryWriter>();
+        MemoryWriter->Open();
 
         ChunkWriter = CreateVersionedChunkWriter(
             New<TChunkWriterConfig>(),
@@ -151,9 +152,9 @@ protected:
         EXPECT_TRUE(ChunkWriter->Close().Get().IsOK());
 
         // Initialize reader.
-        MemoryReader = New<TMemoryReader>(
-            std::move(MemoryWriter->GetChunkMeta()),
-            std::move(MemoryWriter->GetBlocks()));
+        MemoryReader = CreateMemoryReader(
+            MemoryWriter->GetChunkMeta(),
+            MemoryWriter->GetBlocks());
     }
 
     int CreateManyRows(std::vector<TVersionedRow>* rows, int startIndex)
