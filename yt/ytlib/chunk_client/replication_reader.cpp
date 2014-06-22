@@ -519,10 +519,10 @@ class TReplicationReader::TReadBlockSetSession
 public:
     TReadBlockSetSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
-        , Promise_(NewPromise<IReader::TReadBlocksResult>())
+        , Promise_(NewPromise<TReadBlocksResult>())
         , BlockIndexes_(blockIndexes)
     {
-        Logger.AddTag(Sprintf("ReadSession: %p", this));
+        Logger.AddTag(Sprintf("Session: %p", this));
     }
 
     ~TReadBlockSetSession()
@@ -532,7 +532,7 @@ public:
         }
     }
 
-    IReader::TAsyncReadBlocksResult Run()
+    TAsyncReadBlocksResult Run()
     {
         FetchBlocksFromCache();
 
@@ -548,7 +548,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<IReader::TReadBlocksResult> Promise_;
+    TPromise<TReadBlocksResult> Promise_;
 
     //! Block indexes to read during the session.
     std::vector<int> BlockIndexes_;
@@ -806,7 +806,7 @@ private:
             YCHECK(block);
             blocks.push_back(block);
         }
-        Promise_.Set(IReader::TReadBlocksResult(blocks));
+        Promise_.Set(TReadBlocksResult(blocks));
     }
 
     virtual void OnSessionFailed() override
@@ -843,11 +843,11 @@ public:
         int firstBlockIndex,
         int blockCount)
         : TSessionBase(reader)
-        , Promise_(NewPromise<IReader::TReadBlocksResult>())
+        , Promise_(NewPromise<TReadBlocksResult>())
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
-        Logger.AddTag(Sprintf("ReadSession: %p", this));
+        Logger.AddTag(Sprintf("Session: %p", this));
     }
 
     ~TReadBlockRangeSession()
@@ -857,7 +857,7 @@ public:
         }
     }
 
-    IReader::TAsyncReadBlocksResult Run()
+    TAsyncReadBlocksResult Run()
     {
         if (BlockCount_ == 0) {
             return MakeFuture(TReadBlocksResult());
@@ -869,7 +869,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<IReader::TReadBlocksResult> Promise_;
+    TPromise<TReadBlocksResult> Promise_;
 
     //! First block index to fetch.
     int FirstBlockIndex_;
@@ -1033,7 +1033,7 @@ private:
             FirstBlockIndex_,
             FirstBlockIndex_ + static_cast<int>(FetchedBlocks_.size()) - 1);
 
-        Promise_.Set(IReader::TReadBlocksResult(FetchedBlocks_));
+        Promise_.Set(TReadBlocksResult(FetchedBlocks_));
     }
 
     virtual void OnSessionFailed() override
@@ -1073,7 +1073,7 @@ public:
         const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
-        , Promise_(NewPromise<IReader::TGetMetaResult>())
+        , Promise_(NewPromise<TGetMetaResult>())
         , PartitionTag_(partitionTag)
     {
         if (extensionTags) {
@@ -1083,7 +1083,7 @@ public:
             AllExtensionTags_ = true;
         }
 
-        Logger.AddTag(Sprintf("GetMetaSession: %p", this));
+        Logger.AddTag(Sprintf("Session: %p", this));
     }
 
     ~TGetMetaSession()
@@ -1093,7 +1093,7 @@ public:
         }
     }
 
-    IReader::TAsyncGetMetaResult Run()
+    TAsyncGetMetaResult Run()
     {
         NextRetry();
         return Promise_;
@@ -1101,7 +1101,7 @@ public:
 
 private:
     //! Promise representing the session.
-    TPromise<IReader::TGetMetaResult> Promise_;
+    TPromise<TGetMetaResult> Promise_;
 
     std::vector<int> ExtensionTags_;
     TNullable<int> PartitionTag_;
@@ -1192,7 +1192,7 @@ private:
     void OnSessionSucceeded(const NProto::TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk meta obtained");
-        Promise_.Set(IReader::TGetMetaResult(chunkMeta));
+        Promise_.Set(TGetMetaResult(chunkMeta));
     }
 
     virtual void OnSessionFailed() override
