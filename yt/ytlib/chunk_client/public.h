@@ -66,9 +66,7 @@ DECLARE_ENUM(EErrorCode,
     ((ChunkPrecachingFailed)    (709))
     ((OutOfSpace)               (710))
     ((IOError)                  (711))
-
     ((MasterCommunicationFailed)(712))
-    ((AddressNotFound)          (713))
 );
 
 //! Values must be contiguous.

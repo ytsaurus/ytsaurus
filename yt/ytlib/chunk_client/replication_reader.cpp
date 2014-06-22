@@ -487,7 +487,7 @@ private:
                 SeedAddresses_.insert(*address);
             } else {
                 RegisterError(TError(
-                    NChunkClient::EErrorCode::AddressNotFound,
+                    NNodeTrackerClient::EErrorCode::NoSuchNetwork,
                     "Cannot find %s address for %s",
                     ~NetworkName_.Quote(),
                     ~descriptor.GetDefaultAddress()));
@@ -772,7 +772,7 @@ private:
                             blockIndex,
                             ~descriptor.GetDefaultAddress());
                     } else {
-                        LOG_WARNING("Peer descriptor ignored (Block: %d, Address: %s)",
+                        LOG_WARNING("Peer descriptor ignored, required network is missing (Block: %d, Address: %s)",
                             blockIndex,
                             ~descriptor.GetDefaultAddress());
                     }

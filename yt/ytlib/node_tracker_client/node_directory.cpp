@@ -39,8 +39,10 @@ const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
     auto it = Addresses_.find(name);
     if (it == Addresses_.end()) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchNetwork,
-            "Cannot find network ", ~name.Quote());
+            NNodeTrackerClient::EErrorCode::NoSuchNetwork,
+            "Cannot find %s address for %s",
+            ~name.Quote(),
+            ~GetDefaultAddress());
     }
     return it->second;
 }
