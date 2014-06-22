@@ -279,7 +279,8 @@ public:
             .GreaterThan(0)
             .Default(256);
 
-        RegisterParameter("multiplexed_changelog", MultiplexedChangelog);
+        RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
+            .Default(nullptr);
         RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
         RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
