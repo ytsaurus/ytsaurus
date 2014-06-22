@@ -862,7 +862,7 @@ void TReplicationWriter::DoClose()
         return;
     }
 
-    if (CurrentGroup_->GetSize() > 0) {
+    if (CurrentGroup_ && CurrentGroup_->GetSize() > 0) {
         FlushCurrentGroup();
     }
 
