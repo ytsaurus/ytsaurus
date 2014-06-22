@@ -88,7 +88,7 @@ void TAsyncTableReader::Open()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
 
     {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attr");
+        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
 
         auto type = EObjectType(rsp->type());
