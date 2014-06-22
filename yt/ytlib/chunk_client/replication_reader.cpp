@@ -262,11 +262,14 @@ protected:
     //! Set of peer addresses banned for the current retry.
     yhash_set<Stroka> BannedPeers_;
 
-    //! List of candidates to try.
-    std::vector<TNodeDescriptor> PeerList_;
+    //! List of candidates addresses to try.
+    std::vector<Stroka> PeerList_;
 
-    //! Set of default (!) addresses corresponding to PeerList_.
+    //! Set of addresses corresponding to PeerList_.
     yhash_set<Stroka> PeerSet_;
+
+    //! Maps addresses of peers (see PeerList_) to descriptors.
+    yhash_map<Stroka, TNodeDescriptor> AddressToDescriptor_;
 
     //! Current index in #PeerList.
     int PeerIndex_;
@@ -290,11 +293,26 @@ protected:
         Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId_)));
     }
 
-    void AddPeer(const TNodeDescriptor& descriptor)
+    void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor)
     {
-        if (PeerSet_.insert(descriptor.GetDefaultAddress()).second) {
-            PeerList_.push_back(descriptor);
+        if (PeerSet_.insert(address).second) {
+            PeerList_.push_back(address);
+            YCHECK(AddressToDescriptor_.insert(std::make_pair(address, descriptor)).second);
         }
+    }
+
+    const TNodeDescriptor& GetPeerDescriptor(const Stroka& address)
+    {
+        auto it = AddressToDescriptor_.find(address);
+        YCHECK(it != AddressToDescriptor_.end());
+        return it->second;
+    }
+
+    void ClearPeers()
+    {
+        PeerList_.clear();
+        PeerSet_.clear();
+        AddressToDescriptor_.clear();
     }
 
     void BanPeer(const Stroka& address)
@@ -315,7 +333,12 @@ protected:
         return SeedAddresses_.find(address) != SeedAddresses_.end();
     }
 
-    TNodeDescriptor PickNextPeer()
+    bool HasMorePeers()
+    {
+        return PeerIndex_ < PeerList_.size();
+    }
+
+    Stroka PickNextPeer()
     {
         // When the time comes to fetch from a non-seeding node, pick a random one.
         if (PeerIndex_ >= SeedReplicas_.size()) {
@@ -388,15 +411,13 @@ protected:
             PassIndex_ + 1,
             reader->Config_->PassCount);
 
-        PeerList_.clear();
-        PeerSet_.clear();
-        PeerIndex_ = 0;
+        ClearPeers();
 
         for (auto replica : SeedReplicas_) {
             const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
             auto address = descriptor.FindAddress(NetworkName_);
             if (address && !IsPeerBanned(*address)) {
-                AddPeer(descriptor);
+                AddPeer(*address, descriptor);
             }
         }
 
@@ -488,7 +509,7 @@ private:
             } else {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-                    "Cannot find %s address for %s",
+                    "Cannot find %s address for seed %s",
                     ~NetworkName_.Quote(),
                     ~descriptor.GetDefaultAddress()));
                 OnSessionFailed();
@@ -556,7 +577,7 @@ private:
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> Blocks_;
 
-    //! Maps known default (!) peer addresses to block indexes.
+    //! Maps peer addresses to block indexes.
     yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
 
 
@@ -567,8 +588,8 @@ private:
 
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
-        for (const auto& descriptor : PeerList_) {
-            PeerBlocksMap_[descriptor.GetDefaultAddress()] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
+        for (const auto& address : PeerList_) {
+            PeerBlocksMap_[address] = yhash_set<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();
@@ -586,14 +607,12 @@ private:
         return result;
     }
 
-    std::vector<int> GetRequestBlockIndexes(
-        const TNodeDescriptor& nodeDescriptor,
-        const std::vector<int>& indexesToFetch)
+    std::vector<int> GetRequestBlockIndexes(const Stroka& address, const std::vector<int>& indexesToFetch)
     {
         std::vector<int> result;
         result.reserve(indexesToFetch.size());
 
-        auto it = PeerBlocksMap_.find(nodeDescriptor.GetDefaultAddress());
+        auto it = PeerBlocksMap_.find(address);
         YCHECK(it != PeerBlocksMap_.end());
         const auto& peerBlockIndexes = it->second;
 
@@ -641,14 +660,13 @@ private:
                 break;
             }
 
-            if (PeerIndex_ >= PeerList_.size()) {
+            if (!HasMorePeers()) {
                 OnPassCompleted();
                 break;
             }
 
-            auto currentDescriptor = PickNextPeer();
-            auto blockIndexes = GetRequestBlockIndexes(currentDescriptor, unfetchedBlockIndexes);
-            const auto& currentAddress = currentDescriptor.GetAddress(NetworkName_);
+            auto currentAddress = PickNextPeer();
+            auto blockIndexes = GetRequestBlockIndexes(currentAddress, unfetchedBlockIndexes);
 
             if (!IsPeerBanned(currentAddress) && !blockIndexes.empty()) {
                 LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: [%s])",
@@ -682,7 +700,7 @@ private:
                     BIND(
                         &TReadBlockSetSession::OnGotBlocks,
                         MakeStrong(this),
-                        currentDescriptor,
+                        currentAddress,
                         req)
                     .Via(TDispatcher::Get()->GetReaderInvoker()));
                 break;
@@ -694,30 +712,29 @@ private:
     }
 
     void OnGotBlocks(
-        const TNodeDescriptor& requestedDescriptor,
+        const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockSetPtr req,
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
-        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
         if (!rsp->IsOK()) {
             RegisterError(TError("Error fetching blocks from node %s",
-                ~requestedAddress)
+                ~address)
                 << *rsp);
             if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
-                BanPeer(requestedAddress);
+                BanPeer(address);
             }
             RequestBlocks();
             return;
         }
 
-        ProcessResponse(requestedDescriptor, req, rsp)
+        ProcessResponse(address, req, rsp)
             .Subscribe(BIND(&TReadBlockSetSession::RequestBlocks, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     TFuture<void> ProcessResponse(
-        const TNodeDescriptor& requestedDescriptor,
+        const Stroka& adddress,
         TDataNodeServiceProxy::TReqGetBlockSetPtr req,
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
@@ -726,11 +743,9 @@ private:
             return VoidFuture;
         }
 
-        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
-
         if (rsp->throttling()) {
             LOG_INFO("Peer is throttling (Address: %s)",
-                ~requestedAddress);
+                ~adddress);
             return VoidFuture;
         }
 
@@ -749,10 +764,10 @@ private:
                 blockIndex);
 
             // Only keep source address if P2P is on.
-            auto source = reader->LocalDescriptor_
-                ? TNullable<TNodeDescriptor>(requestedDescriptor)
+            auto sourceDescriptor = reader->LocalDescriptor_
+                ? TNullable<TNodeDescriptor>(GetPeerDescriptor(adddress))
                 : TNullable<TNodeDescriptor>(Null);
-            reader->BlockCache_->Put(blockId, block, source);
+            reader->BlockCache_->Put(blockId, block, sourceDescriptor);
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
             blocksReceived += 1;
@@ -763,28 +778,29 @@ private:
             for (const auto& peerDescriptor : rsp->peer_descriptors()) {
                 int blockIndex = peerDescriptor.block_index();
                 TBlockId blockId(reader->ChunkId_, blockIndex);
-                for (const auto& protoNodeDescriptor : peerDescriptor.node_descriptors()) {
-                    auto descriptor = FromProto<TNodeDescriptor>(protoNodeDescriptor);
-                    if (descriptor.FindAddress(NetworkName_)) {
-                        AddPeer(descriptor);
-                        PeerBlocksMap_[descriptor.GetDefaultAddress()].insert(blockIndex);
+                for (const auto& protoPeerDescriptor : peerDescriptor.node_descriptors()) {
+                    auto peerDescriptor = FromProto<TNodeDescriptor>(protoPeerDescriptor);
+                    auto peerAddress = peerDescriptor.FindAddress(NetworkName_);
+                    if (peerAddress) {
+                        AddPeer(*peerAddress, peerDescriptor);
+                        PeerBlocksMap_[*peerAddress].insert(blockIndex);
                         LOG_INFO("Peer descriptor received (Block: %d, Address: %s)",
                             blockIndex,
-                            ~descriptor.GetDefaultAddress());
+                            ~*peerAddress);
                     } else {
                         LOG_WARNING("Peer descriptor ignored, required network is missing (Block: %d, Address: %s)",
                             blockIndex,
-                            ~descriptor.GetDefaultAddress());
+                            ~peerDescriptor.GetDefaultAddress());
                     }
                 }
             }
         }
 
 
-        if (IsSeed(requestedAddress) && !rsp->has_complete_chunk()) {
+        if (IsSeed(adddress) && !rsp->has_complete_chunk()) {
             LOG_INFO("Seed does not contain the chunk (Address: %s)",
-                ~requestedAddress);
-            BanPeer(requestedAddress);
+                ~adddress);
+            BanPeer(adddress);
         }
 
         LOG_INFO("Finished processing block response (BlocksReceived: %d, BytesReceived: %" PRId64 ")",
@@ -901,14 +917,12 @@ private:
                 return;
             }
 
-            if (PeerIndex_ >= PeerList_.size()) {
+            if (!HasMorePeers()) {
                 OnPassCompleted();
                 break;
             }
 
-            auto currentDescriptor = PickNextPeer();
-            const auto& currentAddress = currentDescriptor.GetAddress(NetworkName_);
-
+            auto currentAddress = PickNextPeer();
             if (!IsPeerBanned(currentAddress)) {
                 LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: %d-%d)",
                     ~currentAddress,
@@ -937,7 +951,7 @@ private:
                     BIND(
                         &TReadBlockRangeSession::OnGotBlocks,
                         MakeStrong(this),
-                        currentDescriptor,
+                        currentAddress,
                         req)
                     .Via(TDispatcher::Get()->GetReaderInvoker()));
                 break;
@@ -949,30 +963,29 @@ private:
     }
 
     void OnGotBlocks(
-        const TNodeDescriptor& requestedDescriptor,
+        const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockRangePtr req,
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
-        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
         if (!rsp->IsOK()) {
             RegisterError(TError("Error fetching blocks from node %s",
-                ~requestedAddress)
+                ~address)
                 << *rsp);
             if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
-                BanPeer(requestedAddress);
+                BanPeer(address);
             }
             RequestBlocks();
             return;
         }
 
-        ProcessResponse(requestedDescriptor, req, rsp)
+        ProcessResponse(address, req, rsp)
             .Subscribe(BIND(&TReadBlockRangeSession::RequestBlocks, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     TFuture<void> ProcessResponse(
-        const TNodeDescriptor& requestedDescriptor,
+        const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockRangePtr req,
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
@@ -981,17 +994,12 @@ private:
             return VoidFuture;
         }
 
-        const auto& requestedAddress = requestedDescriptor.GetAddress(NetworkName_);
-
         if (rsp->throttling()) {
             LOG_INFO("Peer is throttling (Address: %s)",
-                ~requestedAddress);
+                ~address);
             return VoidFuture;
         }
 
-        LOG_INFO("Started processing block response (Address: %s)",
-            ~requestedAddress);
-        
         int blocksReceived = static_cast<int>(rsp->Attachments().size());
         i64 bytesReceived = 0;
 
@@ -1007,16 +1015,16 @@ private:
             }
         }
 
-        if (IsSeed(requestedAddress) && !rsp->has_complete_chunk()) {
+        if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_INFO("Seed does not contain the chunk (Address: %s)",
-                ~requestedAddress);
-            BanPeer(requestedAddress);
+                ~address);
+            BanPeer(address);
         }
 
         if (blocksReceived == 0) {
             LOG_INFO("Peer has no relevant blocks (Address: %s)",
-                ~requestedAddress);
-            BanPeer(requestedAddress);
+                ~address);
+            BanPeer(address);
         }
 
         LOG_INFO("Finished processing block response (BlocksReceived: %d, BytesReceived: %" PRId64 ")",
@@ -1122,21 +1130,19 @@ private:
         if (!reader)
             return;
 
-        if (PeerIndex_ >= PeerList_.size()) {
+        if (!HasMorePeers()) {
             OnPassCompleted();
             return;
         }
 
-        const auto& descriptor = PeerList_[PeerIndex_];
-        const auto& address = descriptor.GetAddress(NetworkName_);
-
+        auto address = PickNextPeer();
         LOG_INFO("Requesting chunk meta (Address: %s)", ~address);
 
         IChannelPtr channel;
         try {
             channel = LightNodeChannelFactory->CreateChannel(address);
         } catch (const std::exception& ex) {
-            OnGetChunkMetaResponseFailed(descriptor, ex);
+            OnGetChunkMetaFailed(address, ex);
             return;
         }
 
@@ -1153,34 +1159,31 @@ private:
         ToProto(req->mutable_extension_tags(), ExtensionTags_);
 
         req->Invoke().Subscribe(
-            BIND(&TGetMetaSession::OnGetChunkMetaResponse, MakeStrong(this), descriptor)
+            BIND(&TGetMetaSession::OnGetChunkMeta, MakeStrong(this), address)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    void OnGetChunkMetaResponse(
-        const TNodeDescriptor& descriptor,
+    void OnGetChunkMeta(
+        const Stroka& address,
         TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
     {
         if (!rsp->IsOK()) {
-            OnGetChunkMetaResponseFailed(descriptor, *rsp);
+            OnGetChunkMetaFailed(address, *rsp);
             return;
         }
 
         OnSessionSucceeded(rsp->chunk_meta());
     }
 
-    void OnGetChunkMetaResponseFailed(
-        const TNodeDescriptor& descriptor,
+    void OnGetChunkMetaFailed(
+        const Stroka& address,
         const TError& error)
     {
-        const auto& address = descriptor.GetAddress(NetworkName_);
-
         LOG_WARNING(error, "Error requesting chunk meta (Address: %s)",
             ~address);
 
         RegisterError(error);
 
-        ++PeerIndex_;
         if (error.GetCode() !=  NRpc::EErrorCode::Unavailable) {
             BanPeer(address);
         }
