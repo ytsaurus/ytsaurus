@@ -10,16 +10,10 @@ build_dir = os.environ['YT_BUILD_DIR']
 Logging = {
     'flush_period' : 0,
     'writers' : {
-        'raw' :
-            {
-                'type' : 'raw',
-                'file_name' : "%(debug_log_path)s"
-            },
         'file' :
             {
                 'type' : "file",
                 'file_name' : "%(log_path)s",
-                'pattern' : "$(datetime) $(level) $(category) $(message)"
             },
         'stderr' :
             {
@@ -31,7 +25,7 @@ Logging = {
         {
             'categories' : [ "*" ],
             'min_level' : "debug",
-            'writers' : [ "raw" ]
+            'writers' : [ "file" ]
         },
         {
             'categories' : [ "*" ],
@@ -82,7 +76,8 @@ class Master(WinNode, Server):
                 },
                 'rpc_port' : r'%(port)d',
                 'monitoring_port' : r'%(monport)d',
-                'logging' : Logging
+                'logging' : Logging,
+                'tracing' : { }
         })
 
         def run(cls, fd):
