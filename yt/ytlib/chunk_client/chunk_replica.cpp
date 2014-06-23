@@ -128,7 +128,6 @@ int IndexFromErasurePartId(const TChunkId& id)
 
 TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
 {
-    YASSERT(TypeFromId(idWithIndex.Id) != EObjectType::ErasureChunk);
     return IsErasureChunkId(idWithIndex.Id)
         ? ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.Index)
         : idWithIndex.Id;
