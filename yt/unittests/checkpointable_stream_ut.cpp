@@ -5,6 +5,8 @@
 
 #include <util/stream/str.h>
 
+#include <array>
+
 namespace NYT {
 namespace {
 

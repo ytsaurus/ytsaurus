@@ -9,7 +9,9 @@
 
 #include <util/system/fs.h>
 
+#ifndef _win_
 #include <unistd.h>
+#endif
 
 namespace NYT {
 namespace NLog {

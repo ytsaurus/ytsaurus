@@ -7,6 +7,8 @@
 #include <util/system/thread.h>
 #include <util/system/event.h>
 
+#include <array>
+
 namespace NYT {
 namespace {
 
