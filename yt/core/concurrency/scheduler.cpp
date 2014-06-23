@@ -83,6 +83,34 @@ void WaitFor(TFuture<void> future, IInvokerPtr invoker)
     }
 }
 
+
+void SubscribeContextSwitched(TClosure callback)
+{
+    GetCurrentScheduler()->SubscribeContextSwitched(std::move(callback));
+}
+
+void UnsubscribeContextSwitched(TClosure callback)
+{
+    GetCurrentScheduler()->UnsubscribeContextSwitched(std::move(callback));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TContextSwitchedGuard::TContextSwitchedGuard(TClosure callback)
+    : Callback_(std::move(callback))
+{
+    if (Callback_) {
+        SubscribeContextSwitched(Callback_);
+    }
+}
+
+TContextSwitchedGuard::~TContextSwitchedGuard()
+{
+    if (Callback_) {
+        UnsubscribeContextSwitched(Callback_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency

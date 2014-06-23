@@ -273,6 +273,9 @@ void TSchedulerThread::ThreadMainStep()
         CurrentFiber->GetContext(),
         /* as per FiberTrampoline */ CurrentFiber.Get());
 
+    // Notify context switch subscribers.
+    OnContextSwitch();
+
     switch (CurrentFiber->GetState()) {
         case EFiberState::Sleeping:
             // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
@@ -392,7 +395,8 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
-    auto continuation = BIND(&GuardedInvoke,
+    auto continuation = BIND(
+        &GuardedInvoke,
         Passed(std::move(invoker)),
         Passed(BIND(&NDetail::ResumeFiber, fiber)),
         Passed(BIND(&NDetail::UnwindFiber, fiber)));
@@ -414,6 +418,12 @@ void TSchedulerThread::Crash(std::exception_ptr exception)
     } catch (...) {
         YUNREACHABLE();
     }
+}
+
+void TSchedulerThread::OnContextSwitch()
+{
+    ContextSwitchCallbacks.Fire();
+    ContextSwitchCallbacks.Clear();
 }
 
 TThreadId TSchedulerThread::GetId() const
@@ -468,6 +478,20 @@ void TSchedulerThread::Yield()
     if (fiber->IsCanceled()) {
         throw TFiberCanceledException();
     }
+}
+
+void TSchedulerThread::SubscribeContextSwitched(TClosure callback)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    ContextSwitchCallbacks.Subscribe(std::move(callback));
+}
+
+void TSchedulerThread::UnsubscribeContextSwitched(TClosure callback)
+{
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
+    ContextSwitchCallbacks.Unsubscribe(std::move(callback));
 }
 
 void TSchedulerThread::YieldTo(TFiberPtr&& other)

@@ -9,6 +9,7 @@
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
 #include <core/actions/future.h>
+#include <core/actions/signal.h>
 
 #include <core/profiling/profiler.h>
 
@@ -121,6 +122,8 @@ public:
     virtual void Yield() override;
     virtual void YieldTo(TFiberPtr&& other) override;
     virtual void SwitchTo(IInvokerPtr invoker) override;
+    virtual void SubscribeContextSwitched(TClosure callback) override;
+    virtual void UnsubscribeContextSwitched(TClosure callback) override;
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
 
 protected:
@@ -150,6 +153,8 @@ protected:
     void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
     void Crash(std::exception_ptr exception);
 
+    void OnContextSwitch();
+
     TEventCount* EventCount;
     Stroka ThreadName;
     bool EnableLogging;
@@ -175,6 +180,8 @@ protected:
 
     TFuture<void> WaitForFuture;
     IInvokerPtr SwitchToInvoker;
+
+    TCallbackList<void()> ContextSwitchCallbacks;
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 };

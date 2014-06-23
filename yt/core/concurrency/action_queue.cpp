@@ -343,6 +343,7 @@ class TSerializedInvoker
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
         : UnderlyingInvoker_(std::move(underlyingInvoker))
+        , FinishedCallback_(BIND(&TSerializedInvoker::OnFinished, MakeWeak(this)))
     {
         Lock_.clear();
     }
@@ -362,7 +363,30 @@ private:
     IInvokerPtr UnderlyingInvoker_;
     TLockFreeQueue<TClosure> Queue_;
     std::atomic_flag Lock_;
+    bool LockReleased_;
+    TClosure FinishedCallback_;
 
+
+    class TInvocationGuard
+    {
+    public:
+        explicit TInvocationGuard(TIntrusivePtr<TSerializedInvoker> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        TInvocationGuard(TInvocationGuard&& other) = default;
+
+        ~TInvocationGuard()
+        {
+            if (Owner_) {
+                Owner_->OnFinished();
+            }
+        }
+
+    private:
+        TIntrusivePtr<TSerializedInvoker> Owner_;
+
+    };
 
     void TrySchedule()
     {
@@ -371,21 +395,34 @@ private:
         }
 
         if (!Lock_.test_and_set(std::memory_order_acquire)) {
-            UnderlyingInvoker_->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this)));
+            UnderlyingInvoker_->Invoke(BIND(
+                &TSerializedInvoker::RunCallbacks,
+                MakeStrong(this),
+                Passed(TInvocationGuard(this))));
         }
     }
 
-    void DoInvoke()
+    void RunCallbacks(TInvocationGuard /*invocationGuard*/)
     {
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        TContextSwitchedGuard contextSwitchGuard(FinishedCallback_);
+
+        LockReleased_ = false;
+
         // Execute as many callbacks as possible to minimize context switches.
         TClosure callback;
         while (Queue_.Dequeue(&callback)) {
-            TCurrentInvokerGuard guard(this);
             callback.Run();
         }
+    }
 
-        Lock_.clear(std::memory_order_release);
-        TrySchedule();
+    void OnFinished()
+    {
+        if (!LockReleased_) {
+            LockReleased_ = true;
+            Lock_.clear(std::memory_order_release);
+            TrySchedule();
+        }
     }
 
 };
@@ -530,19 +567,19 @@ private:
     TLockFreeQueue<TClosure> Queue_;
 
 
-    class TGuard
+    class TInvocationGuard
     {
     public:
-        explicit TGuard(TIntrusivePtr<TBoundedConcurrencyInvoker> owner)
+        explicit TInvocationGuard(TIntrusivePtr<TBoundedConcurrencyInvoker> owner)
             : Owner_(std::move(owner))
         { }
 
-        TGuard(TGuard&& other) = default;
+        TInvocationGuard(TInvocationGuard&& other) = default;
 
-        ~TGuard()
+        ~TInvocationGuard()
         {
             if (Owner_) {
-                Owner_->OnCallbackFinished();
+                Owner_->OnFinished();
             }
         }
 
@@ -552,12 +589,13 @@ private:
     };
 
 
-    static void CallbackWrapper(const TClosure& callback, TGuard /*guard*/)
+    void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
     {
+        TCurrentInvokerGuard currentInvokerGuard(UnderlyingInvoker_); // sic!
         callback.Run();
     }
 
-    void OnCallbackFinished()
+    void OnFinished()
     {
         ReleaseSemaphore();
         ScheduleMore();
@@ -576,9 +614,10 @@ private:
             }
 
             UnderlyingInvoker_->Invoke(BIND(
-                &TBoundedConcurrencyInvoker::CallbackWrapper,
-                callback,
-                Passed(TGuard(this))));
+                &TBoundedConcurrencyInvoker::RunCallback,
+                MakeStrong(this),
+                Passed(std::move(callback)),
+                Passed(TInvocationGuard(this))));
         }        
     }
 

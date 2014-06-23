@@ -37,6 +37,19 @@ struct IScheduler
     //! fiber via the specified invoker.
     virtual void SwitchTo(IInvokerPtr invoker) = 0;
 
+    //! Subscribes to a one-time context switch notification.
+    /*!
+     *  The provided #callback will be invoked in the scheduler's context
+     *  when the current control context is switched. This happens on
+     *  #Yield or #SwitchTo calls, when the fiber is canceled, terminates,
+     *  or crashes due to an unhandled exception. Once invoked, the callback
+     *  is discarded.
+     */
+    virtual void SubscribeContextSwitched(TClosure callback) = 0;
+
+    //! Removes an earlier-added handler.
+    virtual void UnsubscribeContextSwitched(TClosure callback) = 0;
+
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
@@ -68,6 +81,23 @@ private:
 TFiberId GetCurrentFiberId();
 void Yield();
 void SwitchTo(IInvokerPtr invoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SubscribeContextSwitched(TClosure callback);
+void UnsubscribeContextSwitched(TClosure callback);
+
+class TContextSwitchedGuard
+{
+public:
+    TContextSwitchedGuard(TClosure callback);
+    TContextSwitchedGuard(TContextSwitchedGuard&& other) = default;
+    ~TContextSwitchedGuard();
+
+private:
+    TClosure Callback_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
