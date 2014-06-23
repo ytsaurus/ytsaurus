@@ -413,14 +413,11 @@ private:
     int GetBlockCount(const TChunkMeta& meta)
     {
         switch (TypeFromId(DecodeChunkId(ChunkId_).Id)) {
-            case EObjectType::Chunk: {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
                 auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
                 return blocksExt.blocks_size();
             }
-
-            case EObjectType::ErasureChunk:
-                THROW_ERROR_EXCEPTION("Cannot replicate an erasure chunk %s",
-                    ~ToString(ChunkId_));
 
             case EObjectType::JournalChunk: {
                 auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
