@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/cgroup/cgroup.h>
+
 #include <core/concurrency/action_queue.h>
 
 #include <core/formats/format.h>
@@ -26,6 +28,8 @@ public:
 
     bool IsFree() const;
     int GetUserId() const;
+    const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
+    std::vector<Stroka> GetCGroupPaths() const;
 
     void Acquire();
     void InitSandbox();
@@ -44,7 +48,10 @@ public:
         bool isExecutable);
 
     //! Writes data from producer to #fileName.
-    void MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer);
+    void MakeFile(
+        const Stroka& fileName, 
+        std::function<void (TOutputStream*)> dataProducer, 
+        bool isExecutable = false);
 
     void MakeEmptyFile(const Stroka& fileName);
 
@@ -62,9 +69,12 @@ private:
 
     NConcurrency::TActionQueuePtr SlotThread;
 
+    NCGroup::TNonOwningCGroup ProcessGroup;
+
     NLog::TTaggedLogger Logger;
 
-    void DoClean();
+    void DoCleanSandbox();
+    void DoCleanProcessGroups();
 
 };
 

@@ -124,11 +124,11 @@ struct TObjectRefSetSerializer
         std::sort(
             sortedObjects.begin(),
             sortedObjects.end(),
-            [] (V lhs, V rhs) {
+            [] (const V& lhs, const V& rhs) {
                 return CompareObjectsForSerialization(lhs, rhs);
             });
 
-        FOREACH (V object, sortedObjects) {
+        FOREACH (const V& object, sortedObjects) {
             SaveObjectRef(context, object);
         }
     }

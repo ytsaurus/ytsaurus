@@ -10,6 +10,7 @@ set( HDRS
   ${BASE}/cgroup.h
   ${BASE}/statistics.h
   ${BASE}/private.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

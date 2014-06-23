@@ -228,7 +228,7 @@ config = merge(config, {
     memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
     thread_limit      : opts.argv.t && parseInt(opts.argv.t),
     spare_threads     : opts.argv.s && parseInt(opts.argv.s),
-    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : true, raw : true },
+    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : false, raw : true },
     user              : opts.argv.u,
     group             : opts.argv.g
 });
@@ -256,6 +256,8 @@ function ensureFileExistsAndOwned(path, user, group) {
 
 function provideWinstonTransport() {
     if (config.logging) {
+        // XXX(sandello): We are forcing logging to use provided timestamps.
+        config.logging.timestamp = false;
         return Q.when(
             ensureFileExistsAndOwned(config.logging.filename, config.user, config.group),
             function() {
@@ -265,7 +267,7 @@ function provideWinstonTransport() {
     } else {
         return Q.fcall(function() {
             console.error("Setting up logging to console");
-            return new winston.transports.Console({ timestamp : true, raw : false, colorize : true });
+            return new winston.transports.Console({ timestamp : false, raw : false, colorize : true });
         });
     }
 }
@@ -289,7 +291,10 @@ function runProxy(logger) {
             args : []
     });
 
-    logger.info("Starting HTTP proxy master", { pid : process.pid });
+    logger.info("Starting HTTP proxy master", {
+        pid: process.pid,
+        timestamp: new Date().toISOString()
+    });
 
     var fake_server = net.createServer();
     fake_server.listen(config.port, config.address, function() {

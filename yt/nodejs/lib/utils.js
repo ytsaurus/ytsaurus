@@ -336,7 +336,11 @@ exports.TaggedLogger = function(logger, delta)
             payload = payload || {};
             for (var p in delta) {
                 if (delta.hasOwnProperty(p)) {
-                    payload[p] = delta[p];
+                    if (typeof(delta[p]) === "function") {
+                        payload[p] = delta[p]();
+                    } else {
+                        payload[p] = delta[p];
+                    }
                 }
             }
             return func.call(logger, message, payload);

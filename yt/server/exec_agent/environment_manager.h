@@ -16,6 +16,7 @@ public:
     IProxyControllerPtr CreateProxyController(
         const Stroka& envName,
         const TJobId& jobId,
+        const TSlot& slot,
         const Stroka& workingDirectory);
 
     void Register(
