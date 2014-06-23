@@ -181,11 +181,8 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
     NodeDirectory_->MergeFrom(rspExt.node_directory());
 
     NextSession_.Replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-    if (NextSession_.Replicas.size() < UploadReplicationFactor_) {
-        CompletionError_.TrySet(TError(
-            "Not enough data nodes available: %d received, %d needed",
-            static_cast<int>(NextSession_.Replicas.size()),
-            UploadReplicationFactor_));
+    if (NextSession_.Replicas.empty()) {
+        CompletionError_.TrySet(TError("Not enough data nodes available"));
         return;
     }
 

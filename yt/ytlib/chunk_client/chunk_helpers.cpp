@@ -75,10 +75,8 @@ void OnChunkCreated(
     const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
     nodeDirectory->MergeFrom(rspExt.node_directory());
     *replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-    if (replicas->size() < uploadReplicationFactor) {
-        THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
-            static_cast<int>(replicas->size()),
-            uploadReplicationFactor);
+    if (replicas->empty()) {
+        THROW_ERROR_EXCEPTION("Not enough data nodes available");
     }
 }
 
