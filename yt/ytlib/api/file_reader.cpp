@@ -119,6 +119,7 @@ private:
         {
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
             SetTransactionId(req, Transaction_);
+            SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             batchReq->AddRequest(req, "get_basic_attrs");
         }
 
