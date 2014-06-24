@@ -346,7 +346,7 @@ void TNode::DetachTabletCell(TTabletCell* cell)
 ui64 TNode::GenerateVisitMark()
 {
     static std::atomic<ui64> result(0);
-    return result++;
+    return ++result;
 }
 
 void TNode::AddTabletSlotHint()

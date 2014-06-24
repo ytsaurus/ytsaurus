@@ -75,7 +75,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
 ui64 TChunkList::GenerateVisitMark()
 {
     static std::atomic<ui64> counter(0);
-    return counter++;
+    return ++counter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
