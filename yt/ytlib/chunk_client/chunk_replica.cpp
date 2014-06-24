@@ -135,10 +135,13 @@ TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
 
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 {
-    YASSERT(TypeFromId(id) != EObjectType::ErasureChunk);
-    return IsErasureChunkPartId(id)
-        ? TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id))
-        : TChunkIdWithIndex(id, GenericChunkReplicaIndex);
+    if (IsErasureChunkId(id)) {
+        return TChunkIdWithIndex(id, AllChunkReplicasIndex);
+    } else if (IsErasureChunkPartId(id)) {
+        return TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id));
+    } else {
+        return TChunkIdWithIndex(id, GenericChunkReplicaIndex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

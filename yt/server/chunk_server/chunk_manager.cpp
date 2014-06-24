@@ -537,7 +537,7 @@ public:
         TNodePtrWithIndexList result;
         auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
-            if (replica.GetIndex() == index) {
+            if (index == AllChunkReplicasIndex || replica.GetIndex() == index) {
                 result.push_back(replica);
             }
         }

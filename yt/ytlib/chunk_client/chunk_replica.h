@@ -57,6 +57,7 @@ struct TChunkIdWithIndex
 ///////////////////////////////////////////////////////////////////////////////
 
 const int GenericChunkReplicaIndex = 0;
+const int AllChunkReplicasIndex = 255;
 
 //! Valid indexes are in range |[0, MaxChunkReplicaIndex)|.
 const int ChunkReplicaIndexBound = 16;
