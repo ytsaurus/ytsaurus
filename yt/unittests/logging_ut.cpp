@@ -162,7 +162,7 @@ TEST_F(TLoggingTest, LogManager)
         ];
         "writers" = {
             "error" = {
-                "file_name" = "test.error.log"; 
+                "file_name" = "test.error.log";
                 "type" = "file";
             };
             "info" = {
@@ -174,7 +174,7 @@ TEST_F(TLoggingTest, LogManager)
 
 
     TLogManager::Get()->Configure(ConvertToNode(TYsonString(config)));
-    
+
     LOG_DEBUG("Debug message");
     LOG_INFO("Info message");
     LOG_ERROR("Error message");
@@ -189,6 +189,37 @@ TEST_F(TLoggingTest, LogManager)
 
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
+}
+
+// This test is for manual checl of LOG_FATAL
+TEST_F(TLoggingTest, DISABLED_LogFatal)
+{
+    NFs::Remove("test.log");
+    NFs::Remove("test.error.log");
+
+    auto config = R"({
+        rules = [
+            {
+                "min_level" = "Info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "test.log";
+                "type" = "File";
+            };
+        };
+    })";
+
+    TLogManager::Get()->Configure(ConvertToNode(TYsonString(config)));
+
+    LOG_INFO("Info message");
+
+    sleep(1);
+
+    LOG_INFO("Info message");
+    LOG_FATAL("FATAL");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -291,7 +291,22 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
+        if (FatalShutdown) {
+            return;
+        }
+
         if (event.Level == ELogLevel::Fatal) {
+            FatalShutdown = true;
+
+            // Add fatal message to log and notify event log queue.
+            LoggingProfiler.Increment(EnqueueCounter);
+            LogEventQueue.Enqueue(event);
+            EventCount.Notify();
+
+            // Waiting for release log queue
+            while (!LogEventQueue.IsEmpty()) {
+            }
+
             // Flush everything and die.
             Shutdown();
 
@@ -668,6 +683,8 @@ private:
     NProfiling::TAggregateCounter BacklogCounter;
     bool Suspended;
     TSpinLock SpinLock;
+
+    std::atomic<bool> FatalShutdown;
 
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;
     TLockFreeQueue<TLogEvent> LogEventQueue;
