@@ -20,6 +20,7 @@
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
+#include <util/system/yield.h>
 
 #include <atomic>
 
@@ -229,6 +230,7 @@ public:
         , WriteCounter("/write_rate")
         , BacklogCounter("/backlog")
         , Suspended(false)
+        , FatalShutdown(false)
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStderrLogWriter>());
@@ -305,6 +307,7 @@ public:
 
             // Waiting for release log queue
             while (!LogEventQueue.IsEmpty()) {
+                SchedYield();
             }
 
             // Flush everything and die.

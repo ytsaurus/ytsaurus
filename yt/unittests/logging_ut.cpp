@@ -220,6 +220,9 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
 
     LOG_INFO("Info message");
     LOG_FATAL("FATAL");
+
+    NFs::Remove("test.log");
+    NFs::Remove("test.error.log");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
