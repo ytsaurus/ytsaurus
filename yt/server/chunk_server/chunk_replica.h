@@ -40,10 +40,10 @@ public:
     void Load(C& context);
 
 private:
-    static_assert(sizeof (intptr_t) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
 
     // Use compact 8-byte representation with index occupying the highest 8 bits.
-    intptr_t Value_;
+    uintptr_t Value_;
 
 };
 

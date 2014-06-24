@@ -18,9 +18,9 @@ TPtrWithIndex<T>::TPtrWithIndex()
 
 template <class T>
 TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
-    : Value_(reinterpret_cast<intptr_t>(ptr) | (static_cast<intptr_t>(index) << 56))
+    : Value_(reinterpret_cast<uintptr_t>(ptr) | (static_cast<uintptr_t>(index) << 56))
 {
-    YASSERT((reinterpret_cast<intptr_t>(ptr) & 0xff00000000000000LL) == 0);
+    YASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
     YASSERT(index >= 0 && index <= 0xff);
 }
 
