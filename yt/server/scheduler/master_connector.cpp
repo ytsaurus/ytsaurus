@@ -658,33 +658,6 @@ private:
             }
         }
 
-        void onError(TOperationPtr operation, TTransactionPtr transaction, TError error) {
-        }
-
-        void checkTransaction(TParallelAwaiterPtr awaiter, TOperationPtr operation, TTransactionPtr transaction) {
-//            auto batchRequest = TMultiCellBatchRequest(Owner->CellDirectory, false);
-//
-//            auto getRspName = [] (TOperationPtr operation) {
-//                return "ping_op_tx:" + ToString(operation->GetId());
-//            };
-//
-//            auto setCleanStart = [] (TOperationPtr operation) {
-//                if (!operation->GetCleanStart()) {
-//                    operation->SetCleanStart(true);
-//                }
-//                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
-//                    ~ToString(operation->GetId()));
-//            };
-//
-//            for (auto operation : Result.Operations) {
-//                auto schedulePing = [&] (ITransactionPtr transaction) {
-//                    if (transaction) {
-//                        auto req = TTransactionYPathProxy::Ping(FromObjectId(transaction->GetId()));
-//                        return batchRequest.AddRequestForTransaction(req, getRspName(operation), transaction->GetId());
-//                    }
-//                    return false;
-        };
-
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
@@ -717,29 +690,6 @@ private:
             }
 
             WaitFor(awaiter->Complete());
-//                schedulePing(operation->GetUserTransaction());
-//                if (!schedulePing(operation->GetSyncSchedulerTransaction()) ||
-//                    !schedulePing(operation->GetInputTransaction()) ||
-//                    !schedulePing(operation->GetOutputTransaction()))
-//                {
-//                    setCleanStart(operation);
-//                }
-//            }
-//
-//            auto batchResponse = batchRequest.Execute();
-//            for (const auto& operation : Result.Operations) {
-//                auto responses = batchResponse.FindResponses(getRspName(operation));
-//                if (!responses) {
-//                    setCleanStart(operation);
-//                    continue;
-//                }
-//                for (const auto& rsp : batchResponse.GetResponses(getRspName(operation))) {
-//                    if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
-//                        setCleanStart(operation);
-//                        break;
-//                    }
-//                }
-//            }
         }
 
         // - Check snapshots for existence and validate versions.
