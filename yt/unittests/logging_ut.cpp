@@ -191,7 +191,7 @@ TEST_F(TLoggingTest, LogManager)
     NFs::Remove("test.error.log");
 }
 
-// This test is for manual checl of LOG_FATAL
+// This test is for manual check of LOG_FATAL
 TEST_F(TLoggingTest, DISABLED_LogFatal)
 {
     NFs::Remove("test.log");
