@@ -1057,11 +1057,6 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
-    if (!chunk->GetRefreshScheduled()) {
-
-    } else {
-
-    }
     TRefreshEntry entry;
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay_;
