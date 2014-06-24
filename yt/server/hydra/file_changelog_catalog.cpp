@@ -338,7 +338,7 @@ private:
         {
             for (int id = initialId; ; ++id) {
                 auto path = Catalog->GetSplitChangelogPath(CellGuid, id);
-                if (NFS::Exists(path)) {
+                if (!NFS::Exists(path)) {
                     return id == initialId ? NonexistingSegmentId : id - 1;
                 }
             }
