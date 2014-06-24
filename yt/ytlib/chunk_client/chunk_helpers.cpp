@@ -62,7 +62,6 @@ void OnChunkCreated(
     std::vector<TChunkReplica>* replicas,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory)
 {
-    auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
     if (!rsp->IsOK()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
