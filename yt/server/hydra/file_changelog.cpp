@@ -60,13 +60,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(!SealForced_);
-        AppendQueue_.push_back(std::move(data));
-        ByteSize_ += data.Size();
+        TAsyncError result;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(!SealForced_ && !UnsealForced_);
+            AppendQueue_.push_back(std::move(data));
+            ByteSize_ += data.Size();
+            YCHECK(FlushPromise_);
+            result = FlushPromise_;
+        }
 
-        YCHECK(FlushPromise_);
-        return FlushPromise_;
+        return result;
     }
 
 
@@ -88,13 +92,31 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TAsyncError result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(!SealForced_ && !UnsealForced_);
             SealForced_ = true;
             SealRecordCount_ = recordCount;
+            result = SealPromise_ = NewPromise<TError>();
         }
 
-        return SealPromise_;
+        return result;
+    }
+
+    TAsyncError AsyncUnseal()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TAsyncError result;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(!SealForced_ && !UnsealForced_);
+            UnsealForced_ = true;
+            result = UnsealPromise_ = NewPromise<TError>();
+        }
+
+        return result;
     }
 
 
@@ -120,6 +142,10 @@ public:
             return true;
         }
 
+        if (UnsealForced_) {
+            return true;
+        }
+
         return false;
     }
 
@@ -127,8 +153,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
-        SyncFlush();
-        SyncSeal();
+        MaybeSyncFlush();
+        MaybeSyncSeal();
+        MaybeSyncUnseal();
     }
 
     bool TrySweep()
@@ -144,6 +171,10 @@ public:
             }
 
             if (SealForced_ && !SealPromise_.IsSet()) {
+                return false;
+            }
+
+            if (UnsealForced_ && !UnsealPromise_.IsSet()) {
                 return false;
             }
 
@@ -244,15 +275,18 @@ private:
     TAsyncErrorPromise FlushPromise_ = NewPromise<TError>();
     bool FlushForced_ = false;
 
-    TAsyncErrorPromise SealPromise_ = NewPromise<TError>();
+    TAsyncErrorPromise SealPromise_;
     bool SealForced_ = false;
     int SealRecordCount_ = -1;
+
+    TAsyncErrorPromise UnsealPromise_;
+    bool UnsealForced_ = false;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
 
-    void SyncFlush()
+    void MaybeSyncFlush()
     {
         TAsyncErrorPromise flushPromise;
         {
@@ -284,14 +318,15 @@ private:
         flushPromise.Set(TError());
     }
 
-    void SyncSeal()
+    void MaybeSyncSeal()
     {
-        TAsyncErrorPromise sealPromise;
+        TAsyncErrorPromise promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (!SealForced_)
                 return;
-            sealPromise = SealPromise_;
+            promise = SealPromise_;
+            SealPromise_.Reset();
             SealForced_ = false;
         }
 
@@ -301,14 +336,33 @@ private:
                 if (AppendQueue_.empty())
                     break;
             }
-            SyncFlush();
+            MaybeSyncFlush();
         }
 
         PROFILE_TIMING("/changelog_seal_io_time") {
             Changelog_->Seal(SealRecordCount_);
         }
 
-        sealPromise.Set(TError());
+        promise.Set(TError());
+    }
+
+    void MaybeSyncUnseal()
+    {
+        TAsyncErrorPromise promise;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (!UnsealForced_)
+                return;
+            promise = UnsealPromise_;
+            UnsealPromise_.Reset();
+            UnsealForced_ = false;
+        }
+
+        PROFILE_TIMING("/changelog_unseal_io_time") {
+            Changelog_->Unseal();
+        }
+
+        promise.Set(TError());
     }
 
 };
@@ -405,6 +459,15 @@ public:
     {
         auto queue = GetQueueAndLock(changelog);
         auto result = queue->AsyncSeal(recordCount);
+        queue->Unlock();
+        Wakeup();
+        return result;
+    }
+
+    TAsyncError Unseal(TSyncFileChangelogPtr changelog)
+    {
+        auto queue = GetQueueAndLock(changelog);
+        auto result = queue->AsyncUnseal();
         queue->Unlock();
         Wakeup();
         return result;
@@ -606,9 +669,9 @@ public:
         return DispatcherImpl_->Seal(SyncChangelog_, recordCount);
     }
 
-    virtual void Unseal() override
+    virtual TAsyncError Unseal() override
     {
-        SyncChangelog_->Unseal();
+        return DispatcherImpl_->Unseal(SyncChangelog_);
     }
 
     void Remove()

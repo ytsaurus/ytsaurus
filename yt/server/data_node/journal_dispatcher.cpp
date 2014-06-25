@@ -391,9 +391,9 @@ public:
         return UnderlyingChangelog_->Seal(recordCount);
     }
 
-    virtual void Unseal() override
+    virtual TAsyncError Unseal() override
     {
-        UnderlyingChangelog_->Unseal();
+        return UnderlyingChangelog_->Unseal();
     }
 
     TAsyncError GetLastAppendResult()

@@ -279,9 +279,9 @@ private:
             return SplitChangelog->Seal(recordCount);
         }
 
-        virtual void Unseal() override
+        virtual TAsyncError Unseal() override
         {
-            SplitChangelog->Unseal();
+            return SplitChangelog->Unseal();
         }
 
         TAsyncError GetLastAppendResult()

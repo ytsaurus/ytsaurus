@@ -70,9 +70,11 @@ struct IChangelog
      */
     virtual TAsyncError Seal(int recordCount) = 0;
 
-    //! Synchronously resets seal flag.
-    //! Mostly useful for administrative tools.
-    virtual void Unseal() = 0;
+    //! Asynchronously resets seal flag.
+    /*!
+     *  Mostly useful for administrative tools.
+     */
+    virtual TAsyncError Unseal() = 0;
 
 };
 

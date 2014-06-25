@@ -119,9 +119,14 @@ public:
         }));
     }
 
-    virtual void Unseal() override
+    virtual TAsyncError Unseal() override
     {
-        GetUnderlyingChangelog()->Unseal();
+        return FutureChangelogOrError_.Apply(BIND([=] (TErrorOr<IChangelogPtr> changelogOrError ) -> TAsyncError {
+            if (!changelogOrError.IsOK()) {
+                return MakeFuture<TError>(TError(changelogOrError));
+            }
+            return changelogOrError.Value()->Unseal();
+        }));
     }
 
 private:
@@ -165,6 +170,7 @@ private:
         for (const auto& record : BacklogRecords_) {
             lastBacklogAppendResult = UnderlyingChangelog_->Append(record);
         }
+        BacklogRecords_.clear();
 
         auto promise = BacklogAppendPromise_;
 
