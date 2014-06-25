@@ -46,21 +46,14 @@ class TRemoteSnapshotStore
 public:
     TRemoteSnapshotStore(
         TRemoteSnapshotStoreConfigPtr config,
-        const TCellGuid& cellGuid,
         const TYPath& remotePath,
         IClientPtr masterClient)
         : Config_(config)
-        , CellGuid_(cellGuid)
         , RemotePath_(remotePath)
         , MasterClient_(masterClient)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
-    }
-
-    virtual const TCellGuid& GetCellGuid() const override
-    {
-        return CellGuid_;
+        Logger.AddTag(Sprintf("Path: %s", ~RemotePath_));
     }
 
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
@@ -109,7 +102,6 @@ public:
 
 private:
     TRemoteSnapshotStoreConfigPtr Config_;
-    TCellGuid CellGuid_;
     TYPath RemotePath_;
     IClientPtr MasterClient_;
 
@@ -256,9 +248,8 @@ private:
             {
                 TTransactionStartOptions options;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Snapshot upload for cell %s, snapshot %d",
-                    ~ToString(CellGuid_),
-                    snapshotId));
+                attributes->Set("title", Sprintf("Snapshot upload to %s",
+                    ~remotePath));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -356,9 +347,13 @@ private:
 
     Stroka GetLocalPath(int snapshotId)
     {
-        return CombinePaths(
-            Config_->TempPath,
-            Sprintf("%s.%09d%s", ~ToString(CellGuid_), snapshotId, TempFileSuffix));
+        Stroka mangledRemotePath;
+        auto remotePath = GetRemotePath(snapshotId);
+        for (int index = 0; index < remotePath.length(); ++index) {
+            char ch = remotePath[index];
+            mangledRemotePath.append(ch == '/' ? '-' : ch);
+        }
+        return CombinePaths(Config_->TempPath, mangledRemotePath);
     }
 
     TYPath GetRemotePath(int snapshotId)
@@ -372,13 +367,11 @@ private:
 
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
-    const TCellGuid& cellGuid,
     const TYPath& remotePath,
     IClientPtr masterClient)
 {
     return New<TRemoteSnapshotStore>(
         config,
-        cellGuid,
         remotePath,
         masterClient);
 }

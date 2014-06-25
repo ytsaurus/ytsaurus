@@ -32,11 +32,6 @@ public:
         , FileStore_(fileStore)
     { }
 
-    virtual const TCellGuid& GetCellGuid() const override
-    {
-        return FileStore_->GetCellGuid();
-    }
-
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
     {
         return BIND(&TLocalSnapshotStore::DoCreateReader, MakeStrong(this))

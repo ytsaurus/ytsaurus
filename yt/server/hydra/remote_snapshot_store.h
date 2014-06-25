@@ -15,7 +15,6 @@ namespace NHydra {
 
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
-    const NElection::TCellGuid& cellGuid,
     const NYPath::TYPath& remotePath,
     NApi::IClientPtr masterClient);
 

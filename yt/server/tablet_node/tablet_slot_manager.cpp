@@ -287,7 +287,6 @@ public:
     {
         return CreateRemoteSnapshotStore(
             Config_->Snapshots,
-            cellGuid,
             Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
             Bootstrap_->GetMasterClient());
     }

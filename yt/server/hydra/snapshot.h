@@ -69,8 +69,6 @@ struct TSnapshotParams
 struct ISnapshotStore
     : public virtual TRefCounted
 {
-    virtual const TCellGuid& GetCellGuid() const = 0;
-
     //! Creates a reader for a given snapshot id.
     //! This call always succeeds but the reader may throw exceptions at any time.
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) = 0;
