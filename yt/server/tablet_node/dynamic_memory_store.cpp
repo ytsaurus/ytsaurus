@@ -157,7 +157,6 @@ public:
         , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
         , Pool_(TTabletReaderPoolTag(), TabletReaderPoolSize)
-        , Finished_(false)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
     }
@@ -222,7 +221,8 @@ private:
 
     TChunkedMemoryPool Pool_;
     
-    bool Finished_;
+    bool Finished_ = false;
+
 
     TVersionedRow ProduceRow()
     {
@@ -236,7 +236,7 @@ private:
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
         if (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
-            WaitFor(dynamicRow.GetTransaction()->GetFinished());
+            WaitOnRow(dynamicRow);
         }
 
         auto timestampList = dynamicRow.GetTimestampList(KeyColumnCount_);
@@ -361,6 +361,23 @@ private:
         return versionedRow;
     }
 
+
+    void WaitOnRow(TDynamicRow dynamicRow)
+    {
+        WaitFor(
+            BIND(&TReader::DoWaitOnRow, MakeStrong(this), dynamicRow)
+                .AsyncVia(Store_->Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
+                .Run());
+    }
+
+    void DoWaitOnRow(TDynamicRow dynamicRow)
+    {
+        auto* transaction = dynamicRow.GetTransaction();
+        if (transaction) {
+            WaitFor(transaction->GetFinished());
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,10 +390,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         id,
         tablet)
     , Config_(config)
-    , LockCount_(0)
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
-    , ValueCount_(0)
     , RowBuffer_(
         Config_->AlignedPoolChunkSize,
         Config_->UnalignedPoolChunkSize,
@@ -384,7 +399,6 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
         RowBuffer_.GetAlignedPool(),
         TKeyComparer(KeyColumnCount_)))
-    , MemoryUsage_(0)
 {
     State_ = EStoreState::ActiveDynamic;
 
