@@ -423,7 +423,9 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    transaction->ValidateActive();
+    if (transaction->GetState() == ETransactionState::PersistentlyPrepared) {
+        THROW_ERROR_EXCEPTION("Cannot abort a persistently prepared transaction");
+    }
 
     auto securityManager = Bootstrap->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
