@@ -761,6 +761,8 @@ void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transact
     auto* transaction = GetTransactionOrThrow(transactionId);
     transaction->ValidateActive();
 
+    transaction->SetState(ETransactionState::Aborting);
+
     LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
         ~ToString(transactionId));
 }
