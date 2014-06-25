@@ -9,8 +9,10 @@ import time
 
 class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
-        "chunk_scratch_period" : 500,
-        "cluster_directory_update_period": 500
+        "scheduler": {
+            "chunk_scratch_period" : 500,
+            "cluster_directory_update_period": 500
+        }
     }
 
     NUM_MASTERS = 3
