@@ -70,7 +70,6 @@ struct ISnapshotStore
     : public virtual TRefCounted
 {
     //! Creates a reader for a given snapshot id.
-    //! This call always succeeds but the reader may throw exceptions at any time.
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) = 0;
 
     //! Creates a writer for a given snapshot id.

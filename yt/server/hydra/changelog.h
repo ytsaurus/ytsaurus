@@ -98,8 +98,8 @@ struct IChangelogStore
     //! Returns |nullptr| if not changelog is found.
     virtual IChangelogPtr TryOpenChangelog(int id) = 0;
 
-    //! Given an initial id, scans for the maximum contiguous sequence of existing
-    //! changelogs and returns the id of the latest one.
+    //! Scans for the maximum contiguous sequence of existing
+    //! changelogs starting from #initialId and returns the id of the latest one.
     //! Returns |NonexistingSegmentId| if the initial changelog does not exist.
     virtual int GetLatestChangelogId(int initialId) = 0;
 
