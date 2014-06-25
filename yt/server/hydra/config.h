@@ -203,6 +203,24 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotDownloaderConfig)
 
+class TRemoteChangelogStoreConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NApi::TJournalReaderConfigPtr Reader;
+    NApi::TJournalWriterConfigPtr Writer;
+
+    TRemoteChangelogStoreConfig()
+    {
+        RegisterParameter("reader", Reader)
+            .DefaultNew();
+        RegisterParameter("writer", Writer)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
+
 class TChangelogDownloaderConfig
     : public NYTree::TYsonSerializable
 {

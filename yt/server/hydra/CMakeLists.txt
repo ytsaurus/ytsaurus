@@ -32,6 +32,7 @@ set( SRCS
   ${BASE}/local_snapshot_service.cpp
   ${BASE}/local_snapshot_store.cpp
   ${BASE}/remote_snapshot_store.cpp
+  ${BASE}/remote_changelog_store.cpp
   ${BASE}/lazy_changelog.cpp
 )
 set( HDRS
@@ -73,6 +74,7 @@ set( HDRS
   ${BASE}/snapshot_service_proxy.h
   ${BASE}/local_snapshot_service.h
   ${BASE}/local_snapshot_store.h
+  ${BASE}/remote_changelog_store.h
   ${BASE}/remote_snapshot_store.h
   ${BASE}/lazy_changelog.h
 )

@@ -6,16 +6,13 @@
 
 #include <ytlib/ypath/public.h>
 
-#include <ytlib/election/public.h>
-
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotStorePtr CreateRemoteSnapshotStore(
-    TRemoteSnapshotStoreConfigPtr config,
-    const NElection::TCellGuid& cellGuid,
+IChangelogStorePtr CreateRemoteChangelogStore(
+    TRemoteChangelogStoreConfigPtr config,
     const NYPath::TYPath& remotePath,
     NApi::IClientPtr masterClient);
 
