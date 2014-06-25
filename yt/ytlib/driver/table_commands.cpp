@@ -130,10 +130,10 @@ void TWriteTableCommand::DoExecute()
 
     consumer.AddWriter(writer);
 
-    auto format = Context_->GetInputFormat();
+    TTableOutput output(Context_->GetInputFormat(), &consumer);
     auto input = CreateSyncInputStream(Context_->Request().InputStream);
 
-    ReadToConsumer(format, &consumer, input.get(), config->BlockSize);
+    ReadToOutputStream(&output, input.get(), config->BlockSize);
 
     auto error = WaitFor(writer->Close());
     THROW_ERROR_EXCEPTION_IF_FAILED(error);

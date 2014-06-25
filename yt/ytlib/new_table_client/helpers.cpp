@@ -21,6 +21,39 @@ using namespace NTableClient;
 
 //////////////////////////////////////////////////////////////////////////////////
 
+TTableOutput::TTableOutput(const TFormat& format, TWritingTableConsumer* consumer)
+    : Consumer_(consumer)
+    , Parser_(CreateParserForFormat(format, EDataType::Tabular, consumer))
+    , IsParserValid_(true)
+{ }
+
+TTableOutput::~TTableOutput() throw()
+{ }
+
+void TTableOutput::DoWrite(const void* buf, size_t len)
+{
+    YCHECK(IsParserValid_);
+    try {
+        Parser_->Read(TStringBuf(static_cast<const char*>(buf), len));
+        Consumer_->Flush();
+    } catch (const std::exception& ex) {
+        IsParserValid_ = false;
+        throw;
+    }
+}
+
+void TTableOutput::DoFinish()
+{
+    if (IsParserValid_) {
+        // Dump everything into consumer.
+        Parser_->Finish();
+        // Flush everything into writer.
+        Consumer_->Flush();
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 void ReadToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int rowBufferSize)
 {
     std::vector<TUnversionedRow> rows;
@@ -41,14 +74,11 @@ void ReadToWriter(ISchemalessReaderPtr reader, ISchemalessWriterPtr writer, int 
     YCHECK(rows.empty());
 }
 
-void ReadToConsumer(
-    const TFormat& format, 
-    TWritingTableConsumer* consumer, 
+void ReadToOutputStream(
+    TOutputStream* output,
     TInputStream* input,
     int readBufferSize)
 {
-    auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer);
-
     struct TWriteBufferTag { };
     auto buffer = TSharedRef::Allocate<TWriteBufferTag>(readBufferSize);
 
@@ -57,14 +87,10 @@ void ReadToConsumer(
         if (length == 0)
             break;
 
-        parser->Read(TStringBuf(buffer.Begin(), length));
-        consumer->Flush();
+        output->Write(buffer.Begin(), length);
     }
 
-    // Dump everything into consumer.
-    parser->Finish();
-    // Flush everything into writer.
-    consumer->Flush();
+    output->Close();
 }
 
 //////////////////////////////////////////////////////////////////////////////////

@@ -224,8 +224,11 @@ public:
     TWritingTableConsumer();
 
     void AddWriter(NVersionedTableClient::ISchemalessWriterPtr writer);
+    void AddWriters(const std::vector<NVersionedTableClient::ISchemalessWriterPtr>& writers);
 
     void Flush();
+
+    void SetTableIndex(int tableIndex);
 
 private:
     std::vector<NVersionedTableClient::ISchemalessWriterPtr> Writers_;

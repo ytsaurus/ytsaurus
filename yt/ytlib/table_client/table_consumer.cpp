@@ -830,6 +830,13 @@ TWritingTableConsumer::TWritingTableConsumer()
     TreatMissingAsNull_ = false;
 }
 
+void TWritingTableConsumer::AddWriters(const std::vector<NVersionedTableClient::ISchemalessWriterPtr>& writers)
+{
+    for (const auto& writer : writers) {
+        AddWriter(writer);
+    }
+}
+
 void TWritingTableConsumer::AddWriter(ISchemalessWriterPtr writer)
 {
     Writers_.push_back(writer);
@@ -852,6 +859,11 @@ void TWritingTableConsumer::Flush()
     Rows_.clear();
     OwningRows_.clear();
     CurrentSize_ = 0;
+}
+
+void TWritingTableConsumer::SetTableIndex(int tableIndex)
+{
+    TableIndex_ = tableIndex;
 }
 
 TError TWritingTableConsumer::AttachLocationAttributes(TError error)
