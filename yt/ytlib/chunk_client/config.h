@@ -244,7 +244,7 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TEncodingWriterOptions
+class TEncodingWriterOptions
     : public virtual NYTree::TYsonSerializable
 {
 public:
