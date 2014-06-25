@@ -303,10 +303,10 @@ public:
             // Add fatal message to log and notify event log queue.
             LoggingProfiler.Increment(EnqueueCounter);
             LogEventQueue.Enqueue(event);
-            EventCount.Notify();
 
             // Waiting for release log queue
-            while (!LogEventQueue.IsEmpty()) {
+            while (!LogEventQueue.IsEmpty() && EventQueue->IsRunning()) {
+                EventCount.Notify();
                 SchedYield();
             }
 
