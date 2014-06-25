@@ -142,8 +142,7 @@ public:
         transaction->ValidateActive();
 
         transaction->SetPrepareTimestamp(prepareTimestamp);
-        transaction->SetState(
-            persistent
+        transaction->SetState(persistent
             ? ETransactionState::PersistentlyPrepared
             : ETransactionState::TransientlyPrepared);
 
