@@ -35,3 +35,5 @@ struct TChunkMetaHeader
 
 } // namespace NChunkClient
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NChunkClient::TChunkMetaHeader)

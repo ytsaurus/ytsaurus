@@ -188,9 +188,9 @@ TSyncFileChangelog::TImpl::TImpl(
     : FileName_(path)
     , IndexFileName_(path + IndexSuffix)
     , Config_(config)
-    , IsOpen_(false)
+    , Open_(false)
     , RecordCount_(-1)
-    , SealedRecordCount_(TChangelogHeader::NotSealedRecordCount)
+    , SealedRecordCount_(TChangelogHeader::UnsealedRecordCount)
     , CurrentBlockSize_(-1)
     , CurrentFilePosition_(-1)
     , LastFlushed_(TInstant::Now())
@@ -211,13 +211,13 @@ const Stroka& TSyncFileChangelog::TImpl::GetFileName() const
 
 void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 {
-    YCHECK(!IsOpen_);
+    YCHECK(!Open_);
 
     LOG_DEBUG("Creating changelog");
 
     Meta_ = meta;
     RecordCount_ = 0;
-    IsOpen_ = true;
+    Open_ = true;
 
     {
         TGuard<TMutex> guard(Mutex_);
@@ -230,7 +230,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 
             TChangelogHeader header(
                 Meta_.Size(),
-                TChangelogHeader::NotSealedRecordCount);
+                TChangelogHeader::UnsealedRecordCount);
             WritePod(tempFile, header);
 
             WritePadded(tempFile, Meta_);
@@ -275,7 +275,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 
 void TSyncFileChangelog::TImpl::Open()
 {
-    YCHECK(!IsOpen_);
+    YCHECK(!Open_);
 
     LOG_DEBUG("Opening changelog");
 
@@ -294,7 +294,7 @@ void TSyncFileChangelog::TImpl::Open()
         Meta_ = TSharedRef::Allocate(header.MetaSize);
         ReadPadded(*DataFile_, Meta_);
 
-        IsOpen_ = true;
+        Open_ = true;
         SealedRecordCount_ = header.SealedRecordCount;
 
         ReadIndex(header);
@@ -316,7 +316,7 @@ void TSyncFileChangelog::TImpl::Open()
 
 void TSyncFileChangelog::TImpl::Close()
 {
-    if (!IsOpen_)
+    if (!Open_)
         return;
 
     {
@@ -327,14 +327,14 @@ void TSyncFileChangelog::TImpl::Close()
 
     LOG_DEBUG("Changelog closed");
 
-    IsOpen_ = false;
+    Open_ = false;
 }
 
 void TSyncFileChangelog::TImpl::Append(
     int firstRecordId,
     const std::vector<TSharedRef>& records)
 {
-    YCHECK(IsOpen_);
+    YCHECK(Open_);
     YCHECK(!IsSealed());
     YCHECK(firstRecordId == RecordCount_);
 
@@ -371,7 +371,7 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     // Sanity check.
     YCHECK(firstRecordId >= 0);
     YCHECK(maxRecords >= 0);
-    YCHECK(IsOpen_);
+    YCHECK(Open_);
 
     LOG_DEBUG("Reading up to %d records and up to %" PRId64 " bytes from record %d",
         maxRecords,
@@ -434,12 +434,12 @@ i64 TSyncFileChangelog::TImpl::GetDataSize() const
 
 bool TSyncFileChangelog::TImpl::IsSealed() const
 {
-    return SealedRecordCount_ != TChangelogHeader::NotSealedRecordCount;
+    return SealedRecordCount_ != TChangelogHeader::UnsealedRecordCount;
 }
 
 void TSyncFileChangelog::TImpl::Seal(int recordCount)
 {
-    YCHECK(IsOpen_);
+    YCHECK(Open_);
     YCHECK(!IsSealed());
     YCHECK(recordCount >= 0);
 
@@ -499,12 +499,12 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
 
 void TSyncFileChangelog::TImpl::Unseal()
 {
-    YCHECK(IsOpen_);
+    YCHECK(Open_);
     YCHECK(IsSealed());
 
     LOG_DEBUG("Unsealing changelog");
 
-    SealedRecordCount_ = TChangelogHeader::NotSealedRecordCount;
+    SealedRecordCount_ = TChangelogHeader::UnsealedRecordCount;
 
     {
         TGuard<TMutex> guard(Mutex_);

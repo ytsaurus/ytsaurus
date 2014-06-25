@@ -3,10 +3,9 @@
 #include "serialize.h"
 
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 struct TBlockHeader
 {
@@ -17,7 +16,12 @@ struct TBlockHeader
     i64 Length;
 };
 
-} // anonymous namespace
+} // namespace
+} // namespace NYT
+
+DECLARE_PODTYPE(NYT::TBlockHeader)
+
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,127 +29,76 @@ class TCheckpointableInputStream
     : public ICheckpointableInputStream
 {
 public:
-    explicit TCheckpointableInputStream(TInputStream* underlyingStream);
+    explicit TCheckpointableInputStream(TInputStream* underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
 
-    virtual void SkipToCheckpoint() override;
+    virtual void SkipToCheckpoint() override
+    {
+        while (true) {
+            if (!ReadHeader()) {
+                break;
+            }
+            if (BlockLength_ == 0) {
+                BlockStarted_ = false;
+                break;
+            }
+            UnderlyingStream_->Skip(BlockLength_ - Offset_);
+            BlockStarted_ = false;
+        }
+    }
 
-    ~TCheckpointableInputStream() throw();
+    ~TCheckpointableInputStream() throw()
+    { }
 
 private:
-    virtual size_t DoRead(void* buf, size_t len) override;
-
-    bool ReadHeader();
-
     TInputStream* UnderlyingStream_;
 
     i64 BlockLength_;
     i64 Offset_;
-    bool BlockStarted_;
+    bool BlockStarted_ = false;
+
+
+    virtual size_t DoRead(void* buf_, size_t len) override
+    {
+        char* buf = reinterpret_cast<char*>(buf_);
+
+        i64 pos = 0;
+        while (pos < len) {
+            if (!ReadHeader()) {
+                break;
+            }
+            i64 size = std::min(BlockLength_ - Offset_, static_cast<i64>(len) - pos);
+            YCHECK(UnderlyingStream_->Read(buf + pos, size) == size);
+            pos += size;
+            Offset_ += size;
+            if (Offset_ == BlockLength_) {
+                BlockStarted_ = false;
+            }
+        }
+        return pos;
+    }
+
+    bool ReadHeader()
+    {
+        if (!BlockStarted_) {
+            TBlockHeader header;
+            i64 len = ReadPod(*UnderlyingStream_, header);
+            if (len == 0) {
+                return false;
+            }
+
+            YCHECK(len == sizeof(TBlockHeader));
+
+            BlockStarted_ = true;
+            BlockLength_ = header.Length;
+            Offset_ = 0;
+        }
+
+        return true;
+    }
+
 };
-
-TCheckpointableInputStream::TCheckpointableInputStream(TInputStream* underlyingStream)
-    : UnderlyingStream_(underlyingStream)
-    , BlockStarted_(false)
-{ }
-
-void TCheckpointableInputStream::SkipToCheckpoint()
-{
-    while (true) {
-        if (!ReadHeader()) {
-            break;
-        }
-        if (BlockLength_ == 0) {
-            BlockStarted_ = false;
-            break;
-        }
-        UnderlyingStream_->Skip(BlockLength_ - Offset_);
-        BlockStarted_ = false;
-    }
-}
-
-bool TCheckpointableInputStream::ReadHeader()
-{
-    if (!BlockStarted_) {
-        TBlockHeader header;
-        i64 len = ReadPod(*UnderlyingStream_, header);
-        if (len == 0) {
-            return false;
-        }
-
-        YCHECK(len == sizeof(TBlockHeader));
-
-        BlockStarted_ = true;
-        BlockLength_ = header.Length;
-        Offset_ = 0;
-    }
-
-    return true;
-}
-
-size_t TCheckpointableInputStream::DoRead(void* buf_, size_t len)
-{
-    char* buf = reinterpret_cast<char*>(buf_);
-
-    i64 pos = 0;
-    while (pos < len) {
-        if (!ReadHeader()) {
-            break;
-        }
-        i64 size = std::min(BlockLength_ - Offset_, static_cast<i64>(len) - pos);
-        YCHECK(UnderlyingStream_->Read(buf + pos, size) == size);
-        pos += size;
-        Offset_ += size;
-        if (Offset_ == BlockLength_) {
-            BlockStarted_ = false;
-        }
-    }
-    return pos;
-}
-
-TCheckpointableInputStream::~TCheckpointableInputStream() throw()
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCheckpointableOutputStream
-    : public ICheckpointableOutputStream
-{
-public:
-    explicit TCheckpointableOutputStream(TOutputStream* underlyingStream);
-
-    virtual void MakeCheckpoint() override;
-
-    ~TCheckpointableOutputStream() throw();
-
-private:
-    virtual void DoWrite(const void* buf, size_t len) override;
-
-    TOutputStream* UnderlyingStream_;
-};
-
-TCheckpointableOutputStream::TCheckpointableOutputStream(TOutputStream* underlyingStream)
-    : UnderlyingStream_(underlyingStream)
-{ }
-
-void TCheckpointableOutputStream::MakeCheckpoint()
-{
-    WritePod(*UnderlyingStream_, TBlockHeader(0));
-}
-
-void TCheckpointableOutputStream::DoWrite(const void* buf, size_t len)
-{
-    if (len == 0) {
-        return;
-    }
-
-    WritePod(*UnderlyingStream_, TBlockHeader(len));
-    UnderlyingStream_->Write(buf, len);
-}
-
-TCheckpointableOutputStream::~TCheckpointableOutputStream() throw()
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
     TInputStream* underlyingStream)
@@ -153,6 +106,40 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
     return std::unique_ptr<ICheckpointableInputStream>(
         new TCheckpointableInputStream(underlyingStream));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCheckpointableOutputStream
+    : public ICheckpointableOutputStream
+{
+public:
+    explicit TCheckpointableOutputStream(TOutputStream* underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
+
+    virtual void MakeCheckpoint() override
+    {
+        WritePod(*UnderlyingStream_, TBlockHeader(0));
+    }
+
+    ~TCheckpointableOutputStream() throw()
+    { }
+
+private:
+    TOutputStream* UnderlyingStream_;
+
+
+    virtual void DoWrite(const void* buf, size_t len) override
+    {
+        if (len == 0) {
+            return;
+        }
+
+        WritePod(*UnderlyingStream_, TBlockHeader(len));
+        UnderlyingStream_->Write(buf, len);
+    }
+
+};
 
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
     TOutputStream* underlyingStream)

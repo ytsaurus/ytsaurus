@@ -67,6 +67,16 @@ static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NHydra
+} // namespace NYT
+
+DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader)
+
+namespace NYT {
+namespace NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileSnapshotReader
     : public ISnapshotReader
 {

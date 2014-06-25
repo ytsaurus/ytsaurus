@@ -26,7 +26,7 @@ struct TChangelogHeader
     static const ui64 ExpectedSignature = 0x3330303044435459ull; // YTCD0003
 
     //! Indicates that the changelog is not yet sealed.
-    static const i32 NotSealedRecordCount = -2;
+    static const i32 UnsealedRecordCount = -2;
 
     ui64 Signature;
     i32 HeaderSize; // with padding
@@ -223,7 +223,7 @@ private:
     const Stroka IndexFileName_;
     const TFileChangelogConfigPtr Config_;
 
-    bool IsOpen_;
+    bool Open_;
     int RecordCount_;
     int SealedRecordCount_;
     i64 CurrentBlockSize_;
@@ -249,4 +249,7 @@ private:
 } // namespace NHydra
 } // namespace NYT
 
+DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
+DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
+DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);

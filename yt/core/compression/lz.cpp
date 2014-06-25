@@ -6,10 +6,9 @@
 
 namespace NYT {
 namespace NCompression {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 struct THeader
 {
@@ -28,7 +27,19 @@ struct TBlockHeader
 static_assert(sizeof(THeader) == sizeof(TBlockHeader),
     "Header and block header whould have the same size for compatibility reasons");
 
-} // anonymous namespace
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NCompression
+} // namespace NYT
+
+DECLARE_PODTYPE(NYT::NCompression::THeader)
+DECLARE_PODTYPE(NYT::NCompression::TBlockHeader)
+
+namespace NYT {
+namespace NCompression {
+
+////////////////////////////////////////////////////////////////////////////////
 
 int Lz4CompressionBound(const std::vector<int>& lengths)
 {
