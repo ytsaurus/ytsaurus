@@ -142,6 +142,7 @@ test_users()
     ./yt remove //sys/users/test_user
 }
 
+#TODO(ignat): move this test to python
 test_concurrent_upload_in_operation()
 {
     echo "cat" > script.sh
