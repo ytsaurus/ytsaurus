@@ -70,7 +70,7 @@ def prepare(options):
     if codename not in ["lucid", "precise"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
-    options.repositories = ["yt-" + codename, "yandex-" + codename]
+    options.repositories = ["yt-" + codename]
 
     # Now determine the compiler.
     options.cc = run_captured(["which", options.cc])
