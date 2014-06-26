@@ -256,6 +256,8 @@ public:
             .BeginMap()
                 .Item("snapshots").BeginMap()
                 .EndMap()
+                .Item("changelogs").BeginMap()
+                .EndMap()
             .EndMap());
      
         return cell;
