@@ -306,6 +306,9 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertTrue(yt.is_sorted(another_table))
         self.assertEqual(yt.records_count(another_table), 20)
 
+        yt.run_merge(TEST_DIR + "/unexisting", other_table)
+        self.assertEqual(yt.records_count(other_table), 0)
+
     def test_digit_names(self):
         table = TEST_DIR + '/123'
         yt.write_table(table, self.temp_records())

@@ -364,10 +364,12 @@ class TestNativeMode(YtTestBase, YTEnv):
                      "input_table_paths": [table],
                      "output_table_paths": [other_table]}})]:
 
+            operations_count = yt.get("//sys/operations/@count")
+
             self.check_command(
                 lambda: yson.loads(yt.driver.make_request(command, params)),
                 None,
-                lambda: yt.get("//sys/operations/@count") == 1,
+                lambda: yt.get("//sys/operations/@count") == operations_count + 1,
                 abort)
 
     def test_lock(self):
