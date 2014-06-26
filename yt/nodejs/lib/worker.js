@@ -25,6 +25,7 @@ var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
 // Set up logging (the hard way).
 var logger_mediate = function(level, message, payload) {
     // Capture real message timestamp before sending an event.
+    payload = payload || {};
     payload["timestamp"] = new Date().toISOString();
 
     process.send({

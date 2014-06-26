@@ -3,6 +3,8 @@
 
 #include <core/yson/consumer.h>
 
+#include <array>
+
 namespace NYT {
 namespace NFormats {
 

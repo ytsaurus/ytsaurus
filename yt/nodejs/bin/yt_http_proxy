@@ -259,6 +259,8 @@ function ensureFileExistsAndOwned(path, user, group) {
 
 function provideWinstonTransport() {
     if (config.logging) {
+        // XXX(sandello): We are forcing logging to use provided timestamps.
+        config.logging.timestamp = false;
         return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
             console.error("Setting up logging to file '%s'", config.logging.filename);
             return new winston.transports.File(config.logging);
@@ -290,7 +292,10 @@ function runProxy(logger) {
             args : []
     });
 
-    logger.info("Starting HTTP proxy master", { pid : process.pid });
+    logger.info("Starting HTTP proxy master", {
+        pid: process.pid,
+        timestamp: new Date().toISOString()
+    });
 
     var fake_server = net.createServer();
     fake_server.listen(config.port, config.address, function() {

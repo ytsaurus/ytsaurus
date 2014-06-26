@@ -98,18 +98,16 @@ private:
     class TReader;
 
     TTabletManagerConfigPtr Config_;
-
-    int LockCount_;
-
     int KeyColumnCount_;
     int SchemaColumnCount_;
 
-    int ValueCount_;
+    int LockCount_ = 0;
+    int ValueCount_ = 0;
 
     NVersionedTableClient::TRowBuffer RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
 
-    i64 MemoryUsage_;
+    i64 MemoryUsage_ = 0;
 
 
     TDynamicRow AllocateRow();

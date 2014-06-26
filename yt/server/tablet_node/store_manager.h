@@ -98,7 +98,8 @@ private:
     TDynamicMemoryStorePtr FindRelevantStoreAndCheckLocks(
         TTransaction* transaction,
         TUnversionedRow key,
-        ERowLockMode mode);
+        ERowLockMode mode,
+        bool checkChunkStores);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 

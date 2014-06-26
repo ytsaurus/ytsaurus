@@ -1061,6 +1061,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
         case EObjectType::ChunkList:
             SchedulePropertiesUpdate(chunkTree->AsChunkList());
             break;
+            
         default:
             YUNREACHABLE();
     }

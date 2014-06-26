@@ -99,7 +99,7 @@ typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 class TBufferedTableWriterConfig;
 typedef TIntrusivePtr<TBufferedTableWriterConfig> TBufferedTableWriterConfigPtr;
 
-struct TTableWriterOptions;
+class TTableWriterOptions;
 typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
 class TChunkReaderOptions;

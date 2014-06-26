@@ -226,7 +226,7 @@ class YTEnv(object):
         else:
             stdout = sys.stdout
             stderr = sys.stderr
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid,
+        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
                              stdout=stdout, stderr=stderr)
         self._process_to_kill[name].append(p)
         self._append_pid(p.pid)

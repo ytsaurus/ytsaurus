@@ -210,7 +210,8 @@ void TStoreManager::WriteRow(
     auto store = FindRelevantStoreAndCheckLocks(
         transaction,
         row,
-        ERowLockMode::Write);
+        ERowLockMode::Write,
+        prewrite);
 
     auto updatedRow = store->WriteRow(
         transaction,
@@ -233,7 +234,8 @@ void TStoreManager::DeleteRow(
     auto store = FindRelevantStoreAndCheckLocks(
         transaction,
         key,
-        ERowLockMode::Delete);
+        ERowLockMode::Delete,
+        prewrite);
 
     auto updatedRow = store->DeleteRow(
         transaction,
@@ -284,7 +286,8 @@ TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
 TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
     TTransaction* transaction,
     TUnversionedRow key,
-    ERowLockMode mode)
+    ERowLockMode mode,
+    bool checkChunkStores)
 {
     for (const auto& store : PassiveStores_) {
         auto row  = store->FindRowAndCheckLocks(
@@ -296,26 +299,28 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
         }
     }
 
-    bool logged = false;
-    auto startTimestamp = transaction->GetStartTimestamp();
-    for (auto it = LatestTimestampToStore_.rbegin();
-         it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
-         ++it)
-    {
-        // NB: Hold by value, LatestTimestampToStore_ may be changed in a concurrent fiber. 
-        auto store = it->second;
+    if (checkChunkStores) {
+        bool logged = false;
+        auto startTimestamp = transaction->GetStartTimestamp();
+        for (auto it = LatestTimestampToStore_.rbegin();
+             it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
+             ++it)
+        {
+            // NB: Hold by value, LatestTimestampToStore_ may be changed in a concurrent fiber. 
+            auto store = it->second;
 
-        if (!logged && store->GetType() == EStoreType::Chunk) {
-            LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
-                ~ToString(transaction->GetId()),
-                startTimestamp);
-            logged = true;
-        }
+            if (!logged && store->GetType() == EStoreType::Chunk) {
+                LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
+                    ~ToString(transaction->GetId()),
+                    startTimestamp);
+                logged = true;
+            }
 
-        auto latestTimestamp = store->GetLatestCommitTimestamp(key);
-        if (latestTimestamp > startTimestamp) {
-            THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
-                latestTimestamp);
+            auto latestTimestamp = store->GetLatestCommitTimestamp(key);
+            if (latestTimestamp > startTimestamp) {
+                THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
+                    latestTimestamp);
+            }
         }
     }
 
