@@ -744,6 +744,10 @@ def run_merge(source_table, destination_table, mode=None,
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
 
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        _remove_tables([destination_table], client=client)
+        return
+
     spec = compose(
         _configure_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
