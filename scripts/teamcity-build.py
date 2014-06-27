@@ -115,7 +115,7 @@ def configure(options):
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
         "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
-        "-DCMAKE_CC_COMPILER={0}".format(options.cc),
+        "-DCMAKE_C_COMPILER={0}".format(options.cc),
         options.checkout_directory],
         cwd=options.working_directory)
 
