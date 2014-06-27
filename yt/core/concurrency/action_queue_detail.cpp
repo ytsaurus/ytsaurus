@@ -86,6 +86,11 @@ void TInvokerQueue::Shutdown()
     Running = false;
 }
 
+bool TInvokerQueue::IsRunning() const
+{
+    return Running;
+}
+
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YASSERT(action->Finished);

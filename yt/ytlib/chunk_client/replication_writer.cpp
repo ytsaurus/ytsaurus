@@ -1002,6 +1002,10 @@ bool TReplicationWriter::WriteBlock(const TSharedRef& block)
     YCHECK(!IsClosing);
     YCHECK(!State.IsClosed());
 
+    if (!State.IsActive()) {
+        return false;
+    }
+
     WindowSlots.Acquire(block.Size());
     TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
         &TReplicationWriter::AddBlock,

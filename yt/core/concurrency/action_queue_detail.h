@@ -72,6 +72,8 @@ public:
     int GetSize() const;
     bool IsEmpty() const;
 
+    bool IsRunning() const;
+
 private:
     TEventCount* EventCount;
     TThreadId ThreadId;

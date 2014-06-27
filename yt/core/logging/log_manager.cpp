@@ -20,6 +20,7 @@
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
+#include <util/system/yield.h>
 
 #include <atomic>
 
@@ -229,6 +230,7 @@ public:
         , WriteCounter("/write_rate")
         , BacklogCounter("/backlog")
         , Suspended(false)
+        , FatalShutdown(false)
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStderrLogWriter>());
@@ -291,7 +293,23 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
+        if (FatalShutdown) {
+            return;
+        }
+
         if (event.Level == ELogLevel::Fatal) {
+            FatalShutdown = true;
+
+            // Add fatal message to log and notify event log queue.
+            LoggingProfiler.Increment(EnqueueCounter);
+            LogEventQueue.Enqueue(event);
+
+            // Waiting for release log queue
+            while (!LogEventQueue.IsEmpty() && EventQueue->IsRunning()) {
+                EventCount.Notify();
+                SchedYield();
+            }
+
             // Flush everything and die.
             Shutdown();
 
@@ -668,6 +686,8 @@ private:
     NProfiling::TAggregateCounter BacklogCounter;
     bool Suspended;
     TSpinLock SpinLock;
+
+    std::atomic<bool> FatalShutdown;
 
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;
     TLockFreeQueue<TLogEvent> LogEventQueue;
