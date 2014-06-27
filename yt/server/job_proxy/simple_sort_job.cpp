@@ -46,7 +46,7 @@ public:
         auto config = host->GetConfig();
 
         auto keyColumns = FromProto<Stroka>(SortJobSpecExt_.key_columns());
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);

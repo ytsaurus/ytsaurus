@@ -60,7 +60,7 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         auto readerFactory = parallelReader
             ? CreateSchemalessParallelMultiChunkReader

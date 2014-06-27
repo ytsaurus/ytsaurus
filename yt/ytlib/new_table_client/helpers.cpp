@@ -90,7 +90,7 @@ void ReadToOutputStream(
         output->Write(buffer.Begin(), length);
     }
 
-    output->Close();
+    output->Finish();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
