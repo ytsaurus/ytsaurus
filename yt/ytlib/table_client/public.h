@@ -119,9 +119,6 @@ class TLegacyTableConsumer;
 
 class TWritingTableConsumer;
 
-class TTableConsumerConfig;
-typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
-
 typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 

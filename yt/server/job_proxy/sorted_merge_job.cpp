@@ -43,7 +43,7 @@ public:
 
         auto keyColumns = FromProto<Stroka>(MergeJobSpecExt_.key_columns());
 
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
 
         for (const auto& inputSpec : SchedulerJobSpecExt_.input_specs()) {

@@ -6,6 +6,7 @@
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
+#include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
 
@@ -68,23 +69,7 @@ TJobResult TSimpleJobBase::Run()
 
         LOG_INFO("Reading and writing");
         {
-            std::vector<TUnversionedRow> rows;
-            rows.reserve(10000);
-
-            while (Reader_->Read(&rows)) {
-                if (rows.empty()) {
-                    auto error = WaitFor(Reader_->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
-                    continue;
-                }
-
-                if (!Writer_->Write(rows)) {
-                    auto error = WaitFor(Writer_->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error);
-                }
-            }
-
-            YCHECK(rows.empty());
+            ReadToWriter(Reader_, Writer_, 10000);
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");

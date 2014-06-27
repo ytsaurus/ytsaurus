@@ -44,7 +44,6 @@ template <class TKey, class TComparer>
 class TSkipList;
 
 class TBlobOutput;
-class TFakeStringBufStore;
 
 class TStringBuilder;
 

@@ -43,7 +43,7 @@ public:
         auto config = host->GetConfig();
 
         auto keyColumns = FromProto<Stroka>(SortJobSpecExt_.key_columns());
-        auto nameTable = New<TNameTable>();
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 

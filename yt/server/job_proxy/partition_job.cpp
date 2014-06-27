@@ -47,7 +47,8 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
-        auto nameTable = New<TNameTable>();
+        auto keyColumns = FromProto<Stroka>(PartitionJobSpecExt_.key_columns());
+        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         Reader_ = CreateSchemalessParallelMultiChunkReader(
             config->JobIO->NewTableReader,
@@ -79,7 +80,6 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        auto keyColumns = FromProto<Stroka>(PartitionJobSpecExt_.key_columns());
 
         Writer_ = CreatePartitionMultiChunkWriter(
             config->JobIO->NewTableWriter,
