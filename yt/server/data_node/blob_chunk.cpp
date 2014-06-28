@@ -57,11 +57,6 @@ TBlobChunkBase::~TBlobChunkBase()
     }
 }
 
-bool TBlobChunkBase::IsActive() const
-{
-    return false;
-}
-
 IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
     i64 priority,
     const std::vector<int>* tags)

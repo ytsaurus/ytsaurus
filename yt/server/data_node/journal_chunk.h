@@ -20,8 +20,6 @@ public:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
-    virtual bool IsActive() const override;
-
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;

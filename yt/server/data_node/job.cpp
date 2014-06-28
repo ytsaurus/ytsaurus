@@ -570,9 +570,7 @@ private:
 
     virtual void DoRun() override
     {
-        auto journalChunk = Chunk_->AsJournalChunk();
-
-        if (journalChunk->IsActive()) {
+        if (Chunk_->IsActive()) {
             THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %s",
                 ~ToString(ChunkId_));
         }
@@ -587,6 +585,7 @@ private:
             return;
         }
 
+        auto journalChunk = Chunk_->AsJournalChunk();
         journalChunk->AttachChangelog(changelog);
         try {
             int currentRecordCount = changelog->GetRecordCount();

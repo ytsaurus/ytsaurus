@@ -37,6 +37,8 @@ struct IChunk
     virtual const TChunkId& GetId() const = 0;
     virtual TLocationPtr GetLocation() const = 0;
     virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const = 0;
+
+    //! Returns |true| iff there is an active session for this chunk.
     virtual bool IsActive() const = 0;
 
     //! Returns the full path to the chunk data file.

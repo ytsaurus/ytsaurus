@@ -51,11 +51,6 @@ TJournalChunk::TJournalChunk(
     Meta_->set_version(0);
 }
 
-bool TJournalChunk::IsActive() const
-{
-    return (Changelog_ != nullptr);
-}
-
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)

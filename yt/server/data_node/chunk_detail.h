@@ -25,6 +25,7 @@ public:
     virtual const TChunkId& GetId() const override;
     virtual TLocationPtr GetLocation() const override;
     virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const override;
+    virtual bool IsActive() const override;
     virtual Stroka GetFileName() const override;
 
     virtual bool TryAcquireReadLock() override;

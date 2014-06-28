@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "chunk_detail.h"
-#include "private.h"
 #include "location.h"
+#include "session_manager.h"
+#include "private.h"
 
 #include <server/cell_node/bootstrap.h>
 
@@ -44,6 +45,12 @@ TLocationPtr TChunkBase::GetLocation() const
 const TChunkInfo& TChunkBase::GetInfo() const
 {
     return Info_;
+}
+
+bool TChunkBase::IsActive() const
+{
+    auto sessionManager = Bootstrap_->GetSessionManager();
+    return sessionManager->FindSession(Id_) != nullptr;
 }
 
 Stroka TChunkBase::GetFileName() const
