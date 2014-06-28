@@ -306,11 +306,19 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            return New<TCachedBlobChunk>(
-                Bootstrap_,
-                location,
-                descriptor.Id,
-                descriptor.Info);
+            if (location->GetType() == ELocationType::Store) {
+                return New<TStoredBlobChunk>(
+                    Bootstrap_,
+                    location,
+                    descriptor.Id,
+                    descriptor.Info);
+            } else {
+                return New<TCachedBlobChunk>(
+                    Bootstrap_,
+                    location,
+                    descriptor.Id,
+                    descriptor.Info);
+            }
 
         case EObjectType::JournalChunk:
             return New<TJournalChunk>(
