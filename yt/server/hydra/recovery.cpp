@@ -111,8 +111,6 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
             LOG_INFO("Changelog %d is missing and will be created",
                 changelogId);
 
-            YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
-
             NProto::TChangelogMeta meta;
             meta.set_prev_record_count(expectedPrevRecordCount);
             
@@ -133,7 +131,6 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
         YCHECK(DeserializeFromProto(&meta, changelog->GetMeta()));
 
         LOG_FATAL_IF(
-            expectedPrevRecordCount != UnknownPrevRecordCount &&
             meta.prev_record_count() != expectedPrevRecordCount,
             "PrevRecordCount mismatch in changelog %d: expected: %d, found %d",
             changelogId,

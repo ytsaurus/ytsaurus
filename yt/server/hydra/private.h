@@ -26,13 +26,9 @@ DECLARE_REFCOUNTED_CLASS(TChangelogRotation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A special value indicating that the number of records in the previous
+//! A sentinel value indicating that the number of records in the previous
 //! changelog is undetermined since there is no previous changelog.
 const int NonexistingPrevRecordCount = -1;
-
-//! A special value indicating that the number of records in the previous changelog
-//! is unknown.
-const int UnknownPrevRecordCount = -2;
 
 //! A special value representing an invalid snapshot (or changelog) id.
 const int NonexistingSegmentId = -1;
