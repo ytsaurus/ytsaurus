@@ -898,31 +898,32 @@ private:
     int DoGetLatestChangelogId(int initialId)
     {
         int latestId = NonexistingSegmentId;
-        int maxId = -1;
+        yhash_set<int> ids;
 
         auto fileNames = EnumerateFiles(Config_->Path);
         for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
-            if (extension == ChangelogIndexExtension) {
-                auto name = NFS::GetFileNameWithoutExtension(fileName);
-                try {
-                    int changelogId = FromString<int>(name);
-                    if (changelogId >= initialId && (changelogId > latestId || latestId == NonexistingSegmentId)) {
-                        latestId = changelogId;
-                    }
-                    if (changelogId > maxId) {
-                        maxId = changelogId;
-                    }
-                } catch (const std::exception&) {
-                    LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
+            if (extension != ChangelogExtension)
+                continue;
+            auto name = NFS::GetFileNameWithoutExtension(fileName);
+            try {
+                int id = FromString<int>(name);
+                YCHECK(ids.insert(id).second);
+                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
+                    latestId = id;
                 }
+            } catch (const std::exception&) {
+                LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }
 
-        if (latestId != NonexistingSegmentId && maxId > latestId) {
-            LOG_FATAL("Some changelogs are missing: latest id is %d, max id is %d",
-                latestId,
-                maxId);
+        if (latestId != NonexistingSegmentId) {
+            for (int id = initialId; id <= latestId; ++id) {
+                if (ids.find(id) == ids.end()) {
+                    LOG_FATAL("Interim changelog %d is missing",
+                        id);                    
+                }
+            }
         }
 
         return latestId;

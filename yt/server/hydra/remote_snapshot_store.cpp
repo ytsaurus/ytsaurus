@@ -203,16 +203,12 @@ private:
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        LOG_DEBUG("Requesting snapshot list from the remote store");
-
-        auto resultOrError = WaitFor(MasterClient_->ListNodes(RemotePath_));
-        if (resultOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
-            return NonexistingSegmentId;
-        }
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+        LOG_DEBUG("Requesting snapshot list from remote store");
+        auto result = WaitFor(MasterClient_->ListNodes(RemotePath_));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
         LOG_DEBUG("Snapshot list received");
 
-        auto keys = ConvertTo<std::vector<Stroka>>(resultOrError.Value());
+        auto keys = ConvertTo<std::vector<Stroka>>(result.Value());
         int lastestSnapshotId = NonexistingSegmentId;
         for (const auto& key : keys) {
             try {
@@ -221,8 +217,9 @@ private:
                     lastestSnapshotId = id;
                 }
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %s in remote snapshot store",
-                    ~key.Quote());
+                LOG_WARNING("Unrecognized item %s in remote store %s",
+                    ~key.Quote(),
+                    ~RemotePath_);
             }
         }
 
@@ -232,7 +229,7 @@ private:
     TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
         try {
-            LOG_DEBUG("Uploading snapshot %d to the remote store", snapshotId);
+            LOG_DEBUG("Uploading snapshot %d to remote store", snapshotId);
 
             auto localPath = GetLocalPath(snapshotId);
             auto remotePath = GetRemotePath(snapshotId);
@@ -257,10 +254,12 @@ private:
                 transaction = transactionOrError.ValueOrThrow();
             }
 
-            LOG_DEBUG("Creating snapshot node");
+            LOG_DEBUG("Creating snapshot");
             {
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
+                // TODO(babenko): make configurable
+                attributes->Set("replication_factor", 3);
                 attributes->Set("prev_record_count", params.PrevRecordCount);
                 options.Attributes = attributes.get();
                 auto result = WaitFor(transaction->CreateNode(
@@ -322,7 +321,7 @@ private:
 
     TSnapshotParams DoGetSnapshotParams(int snapshotId)
     {
-        LOG_DEBUG("Requesting parameters for snapshot %d from the remote store",
+        LOG_DEBUG("Requesting parameters for snapshot %d from remote store",
             snapshotId);
 
         auto remotePath = GetRemotePath(snapshotId);

@@ -2,17 +2,37 @@
 #include "remote_changelog_store.h"
 #include "changelog.h"
 #include "config.h"
+#include "lazy_changelog.h"
 #include "private.h"
 
+#include <core/misc/protobuf_helpers.h>
+
+#include <core/concurrency/scheduler.h>
+
 #include <core/logging/tagged_logger.h>
+
+#include <core/ytree/attribute_helpers.h>
+
+#include <ytlib/api/client.h>
+#include <ytlib/api/journal_reader.h>
+#include <ytlib/api/journal_writer.h>
+
+#include <ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {
 namespace NHydra {
 
+using namespace NConcurrency;
 using namespace NApi;
 using namespace NYPath;
+using namespace NYTree;
+using namespace NObjectClient;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteChangelogStore;
+typedef TIntrusivePtr<TRemoteChangelogStore> TRemoteChangelogStorePtr;
 
 class TRemoteChangelogStore
     : public IChangelogStore
@@ -35,21 +55,28 @@ public:
         YUNIMPLEMENTED();
     }
 
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
-        int id,
-        const TSharedRef& meta) override
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
     {
-        YUNIMPLEMENTED();
+        return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(id, meta);
     }
 
     virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
     {
-        YUNIMPLEMENTED();
+        return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(id);
     }
 
     virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
     {
-        YUNIMPLEMENTED();
+        return BIND(&TRemoteChangelogStore::DoGetLatestChangelog, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(initialId);
     }
 
 private:
@@ -60,62 +87,253 @@ private:
     NLog::TTaggedLogger Logger;
 
 
+    IChangelogPtr DoCreateChangelog(int id, const TSharedRef& metaBlob)
+    {
+        auto path = GetRemotePath(id);
+
+        TChangelogMeta meta;
+        YCHECK(DeserializeFromProto(&meta, metaBlob));
+
+        LOG_DEBUG("Creating changelog %d", id);
+        {
+            TCreateNodeOptions options;
+            auto attributes = CreateEphemeralAttributes();
+            // TODO(babenko): make configurable
+            attributes->Set("replication_factor", 3);
+            attributes->Set("read_quorum", 2);
+            attributes->Set("write_quorum", 2);
+            attributes->Set("prev_record_count", meta.prev_record_count());
+            options.Attributes = attributes.get();
+
+            auto result = WaitFor(MasterClient_->CreateNode(
+                path,
+                EObjectType::Journal,
+                options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        LOG_DEBUG("Changelog %d created", id);
+
+        return CreateRemoteChangelog(
+            id,
+            path,
+            metaBlob,
+            0,
+            0);
+    }
+
+    IChangelogPtr DoOpenChangelog(int id)
+    {
+        auto path = GetRemotePath(id);
+
+        TSharedRef metaBlob;
+        int recordCount;
+        i64 dataSize;
+
+        LOG_DEBUG("Getting attributes of changelog %d from remote store",
+            id);
+        {
+            TGetNodeOptions options;
+            options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+            options.AttributeFilter.Keys.push_back("prev_record_count");
+            options.AttributeFilter.Keys.push_back("record_count");
+            options.AttributeFilter.Keys.push_back("uncompressed_data_size");
+            auto result = WaitFor(MasterClient_->GetNode(path));
+            if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::NoSuchChangelog,
+                    "Changelog %d does not exist in remote store %s",
+                    id,
+                    ~RemotePath_);                
+            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+            auto node = ConvertToNode(result.Value());
+            const auto& attributes = node->Attributes();
+
+            TChangelogMeta meta;
+            meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
+            YCHECK(SerializeToProto(meta, &metaBlob));
+
+            recordCount = attributes.Get<int>("record_count");
+            dataSize = attributes.Get<i64>("uncompressed_data_size");
+        }
+        LOG_DEBUG("Changelog %d attributes received",
+            id);
+
+        return CreateRemoteChangelog(
+            id,
+            path,
+            metaBlob,
+            recordCount,
+            dataSize);
+    }
+
+    int DoGetLatestChangelog(int initialId)
+    {
+        LOG_DEBUG("Requesting changelog list from remote store");
+        auto result = WaitFor(MasterClient_->ListNodes(RemotePath_));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        LOG_DEBUG("Changelog list received");
+
+        auto keys = ConvertTo<std::vector<Stroka>>(result.Value());
+        int latestId = NonexistingSegmentId;
+        yhash_set<int> ids;
+
+        for (const auto& key : keys) {
+            try {
+                int id = FromString<int>(key);
+                YCHECK(ids.insert(id).second);
+                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
+                    latestId = id;
+                }
+            } catch (const std::exception&) {
+                LOG_WARNING("Unrecognized item %s in remote store %s",
+                    ~key.Quote(),
+                    ~RemotePath_);
+            }
+        }
+
+        if (latestId != NonexistingSegmentId) {
+            for (int id = initialId; id <= latestId; ++id) {
+                if (ids.find(id) == ids.end()) {
+                    THROW_ERROR_EXCEPTION("Interim changelog %d is missing in remote store %s",
+                        id,
+                        ~RemotePath_);                    
+                }
+            }
+        }
+
+        return latestId;
+    }
+
+    IChangelogPtr CreateRemoteChangelog(
+        int id,
+        const TYPath& path,
+        const TSharedRef& meta,
+        int recordCount,
+        i64 dataSize)
+    {
+        auto writer = MasterClient_->CreateJournalWriter(
+            path,
+            TJournalWriterOptions(),
+            Config_->Writer);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(writer->Open()));
+
+        return New<TRemoteChangelog>(
+            path,
+            meta,
+            recordCount,
+            dataSize,
+            writer, 
+            this);
+    }
+
+    TYPath GetRemotePath(int id)
+    {
+        return Sprintf("%s/%09d",
+            ~RemotePath_,
+            id);
+    }
+
+
     class TRemoteChangelog
         : public IChangelog
     {
     public:
+        TRemoteChangelog(
+            const TYPath& path,
+            const TSharedRef& meta,
+            int recordCount,
+            i64 dataSize,
+            IJournalWriterPtr writer,
+            TRemoteChangelogStorePtr owner)
+            : Path_(path)
+            , Meta_(meta)
+            , Writer_(writer)
+            , Owner_(owner)
+            , RecordCount_(recordCount)
+            , DataSize_(dataSize)
+        { }
+
         virtual TSharedRef GetMeta() const override
         {
-            YUNIMPLEMENTED();
+            return Meta_;
         }
 
         virtual int GetRecordCount() const override
         {
-            YUNIMPLEMENTED();
+            return RecordCount_;
         }
 
         virtual i64 GetDataSize() const override
         {
-            YUNIMPLEMENTED();
+            return DataSize_;
         }
 
         virtual bool IsSealed() const override
         {
-            YUNIMPLEMENTED();
+            return false;
         }
 
         virtual TAsyncError Append(const TSharedRef& data) override
         {
-            YUNIMPLEMENTED();
+            DataSize_ += data.Size();
+            RecordCount_ += 1;
+            FlushResult_ = Writer_->Write(std::vector<TSharedRef>(1, data));
+            return FlushResult_;
         }
 
         virtual TAsyncError Flush() override
         {
-            YUNIMPLEMENTED();
+            return FlushResult_;
         }
 
         virtual void Close() override
-        {
-            YUNIMPLEMENTED();
-        }
+        { }
 
         virtual std::vector<TSharedRef> Read(
             int firstRecordId,
             int maxRecords,
-            i64 maxBytes) const override
+            i64 /*maxBytes*/) const override
         {
-            YUNIMPLEMENTED();
+            TJournalReaderOptions options;
+            options.FirstRecordIndex = firstRecordId;
+            options.RecordCount = maxRecords;
+
+            auto reader = Owner_->MasterClient_->CreateJournalReader(
+                Path_,
+                options,
+                Owner_->Config_->Reader);
+
+            THROW_ERROR_EXCEPTION_IF_FAILED(WaitFor(reader->Open()));
+
+            auto result = WaitFor(reader->Read());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            return result.Value();
         }
 
         virtual TAsyncError Seal(int recordCount) override
         {
-            YUNIMPLEMENTED();
+            // TODO(babenko): implement
+            YCHECK(recordCount == RecordCount_);
+            return OKFuture;
         }
 
         virtual TAsyncError Unseal() override
         {
-            YUNIMPLEMENTED();
+            YUNREACHABLE();
         }
+
+    private:
+        TYPath Path_;
+        TSharedRef Meta_;
+        IJournalWriterPtr Writer_;
+        TRemoteChangelogStorePtr Owner_;
+        int RecordCount_;
+        i64 DataSize_;
+
+        TAsyncError FlushResult_ = OKFuture;
 
     };
 
