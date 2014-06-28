@@ -186,7 +186,8 @@ private:
         if (!error.IsOK()) {
             SetFailed(TError(
                 NHydra::EErrorCode::MaybeCommitted,
-                "Mutations are uncertain: local commit failed"));
+                "Mutations are uncertain: local commit failed")
+                << error);
             return;
         }
 
