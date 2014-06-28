@@ -52,19 +52,13 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto latestSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
-    THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
-    int latestSnapshotId = latestSnapshotIdOrError.Value();
+    auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
+    THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
 
-    RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
-}
-
-void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapshotId)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    int snapshotId = snapshotIdOrError.Value();
+    YCHECK(snapshotId <= targetVersion.SegmentId);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    YCHECK(snapshotId <= targetVersion.SegmentId);
     YCHECK(currentVersion <= targetVersion);
 
     LOG_INFO("Recoverying from %s to %s",
@@ -84,16 +78,10 @@ void TRecovery::RecoverToVersionWithSnapshot(TVersion targetVersion, int snapsho
         currentVersion = TVersion(snapshotId, 0);
     } else {
         // Recover using changelogs only.
-        LOG_INFO("Not using any snapshot for recovery");
+        LOG_INFO("Not using snapshots for recovery");
     }
 
-    int prevRecordCount = ComputePrevRecordCount(currentVersion.SegmentId);
-    ReplayChangelogs(targetVersion, prevRecordCount);
-}
-
-void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordCount)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    int expectedPrevRecordCount = ComputePrevRecordCount(currentVersion.SegmentId);
 
     LOG_INFO("Replaying changelogs to reach %s",
         ~ToString(targetVersion));
@@ -126,6 +114,8 @@ void TRecovery::ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordC
             YCHECK(DecoratedAutomaton_->GetLoggedVersion() <= newLoggedVersion);
             DecoratedAutomaton_->SetLoggedVersion(newLoggedVersion);
         }
+
+        DecoratedAutomaton_->SetChangelog(changelog);
 
         NProto::TChangelogMeta meta;
         YCHECK(DeserializeFromProto(&meta, changelog->GetMeta()));
@@ -334,11 +324,7 @@ void TLeaderRecovery::DoRun(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto latestSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
-    THROW_ERROR_EXCEPTION_IF_FAILED(latestSnapshotIdOrError, "Error computing the latest snapshot id");
-    int latestSnapshotId = latestSnapshotIdOrError.Value();
-
-    RecoverToVersionWithSnapshot(targetVersion, latestSnapshotId);
+    RecoverToVersion(targetVersion);
 }
 
 bool TLeaderRecovery::IsLeader() const

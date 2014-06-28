@@ -29,9 +29,6 @@ public:
         TEpochContextPtr epochContext);
 
 protected:
-    friend class TLeaderRecovery;
-    friend class TFollowerRecovery;
-
     //! Must be derived the the inheritors to control the recovery behavior.
     virtual bool IsLeader() const = 0;
 
@@ -39,13 +36,21 @@ protected:
     //! and then applying changelogs, if necessary.
     void RecoverToVersion(TVersion targetVersion);
 
-    //! Recovers to the desired version by first loading the given snapshot
-    //! and then applying changelogs, if necessary.
-    void RecoverToVersionWithSnapshot(TVersion targetVersion, int snapshotId);
 
-    //! Recovers to the desired state by applying changelogs.
-    void ReplayChangelogs(TVersion targetVersion, int expectedPrevRecordCount);
+    TDistributedHydraManagerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
+    TDecoratedAutomatonPtr DecoratedAutomaton_;
+    IChangelogStorePtr ChangelogStore_;
+    ISnapshotStorePtr SnapshotStore_;
+    TEpochContextPtr EpochContext_;
 
+    TVersion SyncVersion_;
+
+    NLog::TTaggedLogger Logger;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+private:
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.
     void SyncChangelog(IChangelogPtr changelog, int changelogId);
@@ -63,20 +68,6 @@ protected:
      *  If no changelog exists, then tries to consult the corresponding snapshot.
      */
     int ComputePrevRecordCount(int segmentId);
-
-
-    TDistributedHydraManagerConfigPtr Config_;
-    NElection::TCellManagerPtr CellManager_;
-    TDecoratedAutomatonPtr DecoratedAutomaton_;
-    IChangelogStorePtr ChangelogStore_;
-    ISnapshotStorePtr SnapshotStore_;
-    TEpochContextPtr EpochContext_;
-
-    TVersion SyncVersion_;
-
-    NLog::TTaggedLogger Logger;
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
 

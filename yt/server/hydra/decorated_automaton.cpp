@@ -387,7 +387,7 @@ void TDecoratedAutomaton::LoadSnapshot(int snapshotId, TInputStream* input)
 
     LOG_INFO("Started loading snapshot %d", snapshotId);
 
-    CurrentChangelog_.Reset();
+    Changelog_.Reset();
 
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
@@ -458,8 +458,7 @@ void TDecoratedAutomaton::LogMutationAtLeader(
     LOG_DEBUG("Logging mutation at version %s",
         ~ToString(LoggedVersion_));
 
-    auto changelog = GetCurrentChangelog();
-    *logResult = changelog->Append(*recordData);
+    *logResult = Changelog_->Append(*recordData);
     
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
@@ -491,8 +490,7 @@ void TDecoratedAutomaton::LogMutationAtFollower(
     LOG_DEBUG("Logging mutation at version %s",
         ~ToString(LoggedVersion_));
 
-    auto changelog = GetCurrentChangelog();
-    auto actualLogResult = changelog->Append(recordData);
+    auto actualLogResult = Changelog_->Append(recordData);
     if (logResult) {
         *logResult = std::move(actualLogResult);
     }
@@ -525,51 +523,45 @@ TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
     LOG_INFO("Rotating changelog at version %s",
         ~ToString(LoggedVersion_));
 
-    return
-        BIND(
-            &TDecoratedAutomaton::DoRotateChangelog,
-            MakeStrong(this),
-            GetCurrentChangelog(),
-            LoggedVersion_.SegmentId)
+    return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
         .Guarded()
-        .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+        .AsyncVia(epochContext->EpochUserAutomatonInvoker)
         .Run();
 }
 
-void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog, int changelogId)
+void TDecoratedAutomaton::DoRotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     {
-        auto result = WaitFor(changelog->Flush());
+        auto result = WaitFor(Changelog_->Flush());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
     
-    if (changelog->IsSealed()) {
+    if (Changelog_->IsSealed()) {
         LOG_WARNING("Changelog %d is already sealed",
-            changelogId);
+            LoggedVersion_.SegmentId);
     } else {
-        auto result = WaitFor(changelog->Seal(changelog->GetRecordCount()));
+        auto result = WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()));
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
     NProto::TChangelogMeta meta;
-    meta.set_prev_record_count(changelog->GetRecordCount());
+    meta.set_prev_record_count(Changelog_->GetRecordCount());
 
     TSharedRef metaBlob;
     YCHECK(SerializeToProto(meta, &metaBlob));
 
     auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
-        changelogId + 1,
+        LoggedVersion_.SegmentId + 1,
         metaBlob));
     THROW_ERROR_EXCEPTION_IF_FAILED(newChangelogOrError);
 
-    auto newChangelog = CurrentChangelog_ = newChangelogOrError.Value();
+    Changelog_ = newChangelogOrError.Value();
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        YCHECK(LoggedVersion_.SegmentId == changelogId);
-        LoggedVersion_ = TVersion(changelogId + 1, 0);
+        LoggedVersion_ = TVersion(LoggedVersion_.SegmentId + 1, 0);
     }
 
     LOG_INFO("Changelog rotated");
@@ -712,23 +704,19 @@ TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutati
     return TMutationResponse(std::move(data), true);
 }
 
-IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog() const
-{
-    if (!CurrentChangelog_) {
-        // TODO(babenko): I'm so unhappy :(
-        auto result = WaitFor(ChangelogStore_->OpenChangelog(LoggedVersion_.SegmentId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        CurrentChangelog_ = result.Value();
-    }
-    return CurrentChangelog_;
-}
-
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(VersionSpinLock_);
     return LoggedVersion_;
+}
+
+void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    Changelog_ = changelog;
 }
 
 void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
@@ -743,8 +731,7 @@ i64 TDecoratedAutomaton::GetLoggedDataSize() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto changelog = GetCurrentChangelog();
-    return changelog->GetDataSize();
+    return Changelog_->GetDataSize();
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const
@@ -800,7 +787,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 void TDecoratedAutomaton::Reset()
 {
     PendingMutations_.clear();
-    CurrentChangelog_.Reset();
+    Changelog_.Reset();
     SnapshotVersion_ = TVersion();
     SnapshotParamsPromise_.Reset();
 }

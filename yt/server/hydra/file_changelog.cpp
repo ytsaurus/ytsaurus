@@ -890,7 +890,7 @@ private:
             }
         }
 
-        auto changelogOrError = cookie.GetValue().Get();
+        auto changelogOrError = WaitFor(cookie.GetValue());
         THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
         return changelogOrError.Value();
     }

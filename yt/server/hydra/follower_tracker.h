@@ -22,8 +22,7 @@ public:
         TFollowerTrackerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        const TEpochId& epochId,
-        IInvokerPtr epochControlInvoker);
+        TEpochContextPtr epochContext);
 
     void Start();
 
@@ -34,15 +33,14 @@ public:
     TFuture<void> GetActiveQuorum();
 
 private:
-    TFollowerTrackerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
-    TDecoratedAutomatonPtr DecoratedAutomaton;
-    TEpochId EpochId;
-    IInvokerPtr EpochControlInvoker;
+    TFollowerTrackerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
+    TDecoratedAutomatonPtr DecoratedAutomaton_;
+    TEpochContextPtr EpochContext_;
 
-    std::vector<EPeerState> PeerStates;
-    int ActivePeerCount;
-    TPromise<void> ActiveQuorumPromise;
+    std::vector<EPeerState> PeerStates_;
+    int ActivePeerCount_ = 0;
+    TPromise<void> ActiveQuorumPromise_ = NewPromise();
 
     NLog::TTaggedLogger Logger;
 

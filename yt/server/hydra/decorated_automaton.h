@@ -76,6 +76,8 @@ public:
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
+    void SetChangelog(IChangelogPtr changelog);
+
     i64 GetLoggedDataSize() const;
 
     TVersion GetAutomatonVersion() const;
@@ -136,7 +138,7 @@ private:
 
     TEpochId Epoch_;
     TMutationContext* MutationContext_;
-    mutable IChangelogPtr CurrentChangelog_;
+    IChangelogPtr Changelog_;
 
     TSpinLock VersionSpinLock_;
     TVersion LoggedVersion_;
@@ -166,8 +168,6 @@ private:
     void DoApplyMutation(const TSharedRef& recordData);
     void DoApplyMutation(TMutationContext* context);
 
-    IChangelogPtr GetCurrentChangelog() const;
-
     bool TryAcquireUserLock();
     void ReleaseUserLock();
     void AcquireSystemLock();
@@ -175,7 +175,7 @@ private:
 
     void Reset();
 
-    void DoRotateChangelog(IChangelogPtr changelog, int changelogId);
+    void DoRotateChangelog();
 
     void SaveSnapshot(TOutputStream* output);
     void MaybeStartSnapshotBuilder();

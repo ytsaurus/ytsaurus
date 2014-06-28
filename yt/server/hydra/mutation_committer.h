@@ -31,8 +31,7 @@ public:
     TCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker,
+        TEpochContextPtr epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TCommitter();
@@ -43,8 +42,7 @@ protected:
 
     NElection::TCellManagerPtr CellManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
-    IInvokerPtr EpochControlInvoker_;
-    IInvokerPtr EpochAutomatonInvoker_;
+    TEpochContextPtr EpochContext_;
     NProfiling::TRateCounter CommitCounter_;
     NProfiling::TRateCounter BatchFlushCounter_;
 
@@ -66,10 +64,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
-        TFollowerTrackerPtr followerTracker,
-        const TEpochId& epoch,
-        IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker,
+        TEpochContextPtr epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TLeaderCommitter();
@@ -127,8 +122,6 @@ private:
 
     TDistributedHydraManagerConfigPtr Config_;
     IChangelogStorePtr ChangelogStore_;
-    TFollowerTrackerPtr FollowerTracker_;
-    TEpochId EpochId_;
 
     struct TPendingMutation
     {
@@ -136,7 +129,7 @@ private:
         TPromise<TErrorOr<TMutationResponse>> CommitPromise;
     };
     
-    bool LoggingSuspended_;
+    bool LoggingSuspended_ = false;
     TRingQueue<TPendingMutation> PendingMutations_;
 
     TSpinLock BatchSpinLock_;
@@ -158,8 +151,7 @@ public:
     TFollowerCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker,
+        TEpochContextPtr epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TFollowerCommitter();

@@ -45,7 +45,7 @@ public:
 
         Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
-                .Via(Owner_->EpochContext_->EpochSystemAutomatonInvoker));
+                .Via(Owner_->EpochContext_->EpochUserAutomatonInvoker));
     }
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> GetSnapshotResult()
@@ -272,7 +272,7 @@ private:
         if (!LocalRotationFlag_ || RemoteRotationCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
-        Owner_->EpochContext_->EpochSystemAutomatonInvoker->Invoke(
+        Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
             BIND(&TLeaderCommitter::ResumeLogging, Owner_->LeaderCommitter_));
 
         SetSucceded();
@@ -326,7 +326,7 @@ TChangelogRotation::TChangelogRotation(
     YCHECK(SnapshotStore_);
     YCHECK(EpochContext_);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
         ~ToString(CellManager_->GetCellGuid())));

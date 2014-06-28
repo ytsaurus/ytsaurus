@@ -867,18 +867,14 @@ private:
             Config_->FollowerTracker,
             CellManager_,
             DecoratedAutomaton_,
-            epochContext->EpochId,
-            epochContext->EpochControlInvoker);
+            epochContext);
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,
-            epochContext->FollowerTracker,
-            epochContext->EpochId,
-            epochContext->EpochControlInvoker,
-            epochContext->EpochUserAutomatonInvoker,
+            epochContext,
             Profiler);
         epochContext->LeaderCommitter->SubscribeChangelogLimitReached(
             BIND(&TDistributedHydraManager::OnChangelogLimitReached, MakeWeak(this), epochContext));
@@ -1014,8 +1010,7 @@ private:
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             CellManager_,
             DecoratedAutomaton_,
-            epochContext->EpochControlInvoker,
-            epochContext->EpochUserAutomatonInvoker,
+            epochContext,
             Profiler);
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
