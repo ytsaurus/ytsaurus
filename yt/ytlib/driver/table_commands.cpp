@@ -399,10 +399,6 @@ void TLookupCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(lookupResult);
     
     auto rowset = lookupResult.Value();
-    YCHECK(rowset->GetRows().size() == 1);
-    if (!rowset->GetRows()[0])
-        return;
-
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, output);
