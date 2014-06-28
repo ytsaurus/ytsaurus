@@ -36,8 +36,6 @@ private:
     void UpdateChunkInfo() const;
 
     virtual void DoStart() override;
-    void DoCreateChangelog();
-    void OnChangelogCreated();
 
     virtual TAsyncError DoPutBlocks(
         int startBlockIndex,

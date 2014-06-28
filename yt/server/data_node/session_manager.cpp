@@ -160,6 +160,9 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    LOG_INFO("Session finished (ChunkId: %s)",
+        ~ToString(session->GetChunkId()));
+
     UnregisterSession(session);
 }
 

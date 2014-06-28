@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -48,16 +49,6 @@ void TJournalSession::UpdateChunkInfo() const
 
 void TJournalSession::DoStart()
 {
-    BIND(&TJournalSession::DoCreateChangelog, MakeStrong(this))
-        .AsyncVia(WriteInvoker_)
-        .Run()
-        .Subscribe(
-            BIND(&TJournalSession::OnChangelogCreated, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()));
-}
-
-void TJournalSession::DoCreateChangelog()
-{
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
         Location_,
@@ -68,10 +59,7 @@ void TJournalSession::DoCreateChangelog()
     Changelog_ = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
 
     Chunk_->AttachChangelog(Changelog_);
-}
 
-void TJournalSession::OnChangelogCreated()
-{
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
 }

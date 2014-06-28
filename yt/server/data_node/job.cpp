@@ -586,7 +586,12 @@ private:
         }
 
         auto journalChunk = Chunk_->AsJournalChunk();
+        if (journalChunk->HasAttachedChangelog()) {
+            THROW_ERROR_EXCEPTION("Journal chunk %s is already being written to",
+                ~ToString(ChunkId_));
+        }
         journalChunk->AttachChangelog(changelog);
+
         try {
             int currentRecordCount = changelog->GetRecordCount();
             int sealRecordCount = SealJobSpecExt_.record_count();

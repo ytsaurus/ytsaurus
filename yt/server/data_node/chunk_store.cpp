@@ -114,7 +114,6 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
     DoRegisterChunk(chunk);
 }
 
-
 void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 {
     DoRegisterChunk(chunk);

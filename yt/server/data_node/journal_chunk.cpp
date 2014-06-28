@@ -187,6 +187,11 @@ void TJournalChunk::DetachChangelog()
     Changelog_.Reset();
 }
 
+bool TJournalChunk::HasAttachedChangelog() const
+{
+    return Changelog_ != nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDataNode

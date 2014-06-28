@@ -155,8 +155,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
-        UNUSED(response);
-
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto& meta = request->chunk_meta();
 

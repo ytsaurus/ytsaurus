@@ -31,6 +31,7 @@ public:
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
+    bool HasAttachedChangelog() const;
 
 private:
     NHydra::IChangelogPtr Changelog_;

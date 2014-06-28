@@ -412,8 +412,6 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
         return error;
     }
 
-    LOG_INFO("Session finished");
-
     auto chunk = New<TStoredBlobChunk>(
         Bootstrap_,
         Location_,
