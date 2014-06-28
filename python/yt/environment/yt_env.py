@@ -346,24 +346,23 @@ class YTEnv(object):
             config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
 
-            config['data_node']['cache_location']['path'] = \
-                os.path.join(current, 'chunk_cache')
-            config['data_node']['store_locations'].append(
-                {'path': os.path.join(current, 'chunk_store'),
-                 'low_watermark' : 0,
-                 'high_watermark' : 0})
+            config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')
+            config['data_node']['cache_location']['path'] = os.path.join(current, 'chunk_cache')
+            config['data_node']['store_locations'].append({
+                'path': os.path.join(current, 'chunk_store'),
+                'low_watermark' : 0,
+                'high_watermark' : 0
+            })
             config['exec_agent']['slot_manager']['start_uid'] = current_user
-            config['exec_agent']['slot_manager']['path'] = \
-                os.path.join(current, 'slots')
-            config['tablet_node']['snapshots']['temp_path'] = \
-                os.path.join(current, 'snapshots')
+            config['exec_agent']['slot_manager']['path'] = os.path.join(current, 'slots')
+            config['tablet_node']['snapshots']['temp_path'] = os.path.join(current, 'snapshots')
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
 
             config['logging'] = init_logging(config['logging'], current, 'node-%d' % i)
             config['tracing'] = init_tracing(config['rpc_port'])
             config['exec_agent']['job_proxy_logging'] = \
-                    init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
+                init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
             self.modify_node_config(config)
             update(config, self.DELTA_NODE_CONFIG)
