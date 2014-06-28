@@ -885,7 +885,7 @@ TFuture<TErrorOr<TTransactionPtr>> TTransactionManager::TImpl::Start(
             if (!error.IsOK()) {
                 return error;
             }
-            return New<TTransaction>(transaction);
+            return TTransaction::Create(transaction);
     }));
 }
 
@@ -895,7 +895,7 @@ TTransactionPtr TTransactionManager::TImpl::Attach(const TTransactionAttachOptio
 
     auto transaction = New<TTransaction::TImpl>(this);
     transaction->Attach(options);
-    return New<TTransaction>(transaction);
+    return TTransaction::Create(transaction);
 }
 
 void TTransactionManager::TImpl::AbortAll()
@@ -923,6 +923,11 @@ void TTransactionManager::TImpl::AbortAll()
 TTransaction::TTransaction(TIntrusivePtr<TImpl> impl)
     : Impl_(impl)
 { }
+
+TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
+{
+    return New<TTransaction>(impl);
+}
 
 TTransaction::~TTransaction()
 { }

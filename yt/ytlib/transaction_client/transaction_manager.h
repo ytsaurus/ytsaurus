@@ -22,6 +22,8 @@ class TTransaction
     : public TRefCounted
 {
 public:
+    ~TTransaction();
+
     //! Commits the transaction asynchronously.
     /*!
      *  Should not be called more than once.
@@ -85,10 +87,12 @@ private:
 
     friend class TTransactionManager;
 
-// TODO(ignat): fix this hack
-public:
+    template <class T, class... As>
+    friend TIntrusivePtr<T> NYT::New(As&&... args);
+
+    static TTransactionPtr Create(TIntrusivePtr<TImpl> impl);
     explicit TTransaction(TIntrusivePtr<TImpl> impl);
-    ~TTransaction();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransaction)
