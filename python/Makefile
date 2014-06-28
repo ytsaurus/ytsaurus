@@ -17,12 +17,11 @@ source:
 test: deb_clean
 	$(PYTHON) setup.py test
 
-html:
+docs:
 	rm -rf docs
 	mkdir docs
 	sphinx-apidoc -F -o docs yt
 	sphinx-build -b html docs docs/_build/ 
-	#sudo cp -r docs/_build/* /usr/share/nginx/www/python_api
 
 deb:
 	$(MAKE) test
@@ -42,8 +41,10 @@ deb_without_test: deb_clean
 deb_clean:
 	find . -name '*.pyc' -delete
 	sudo rm -rf tests yt/wrapper/tests/sandbox/*
-	sudo rm -rf build/ dist/ docs/ MANIFEST *.spec *.egg *.egg-info
+	sudo rm -rf build/ dist/ MANIFEST *.spec *.egg *.egg-info
 
 clean: deb_clean
-	rm -rf debian setup.py 
+	rm -rf debian setup.py docs/
+
+.PHONY: docs
 
