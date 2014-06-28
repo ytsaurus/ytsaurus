@@ -471,10 +471,6 @@ private:
                 auto node = New<TNode>(targets[index]);
                 node->LightProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
                 node->HeavyProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-                node->PingExecutor = New<TPeriodicExecutor>(
-                    GetCurrentInvoker(),
-                    BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(node), CurrentSession_),
-                    Config_->NodePingPeriod);
                 CurrentSession_->Nodes.push_back(node);
             }
 
@@ -505,6 +501,7 @@ private:
                     GetCurrentInvoker(),
                     BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(node), CurrentSession_),
                     Config_->NodePingPeriod);
+                node->PingExecutor->Start();
             }
 
             LOG_INFO("Attaching chunk");
@@ -629,7 +626,6 @@ private:
             auto session = CurrentSession_;
             CurrentSession_.Reset();
 
-            // NB: Fire-and-forget.
             LOG_INFO("Finishing chunk sessions");
             for (auto node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
@@ -637,9 +633,6 @@ private:
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(GetCurrentInvoker()));
-            }
-            
-            for (auto node : session->Nodes) {
                 node->PingExecutor->Stop();
             }
 

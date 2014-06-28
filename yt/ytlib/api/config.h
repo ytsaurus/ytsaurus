@@ -118,7 +118,7 @@ public:
             .Default(true);
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("node_ping_period", NodeRpcTimeout)
+        RegisterParameter("node_ping_period", NodePingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("max_chunk_open_attempts", MaxChunkOpenAttempts)
             .GreaterThan(0)
