@@ -128,7 +128,7 @@ public:
     void Initialize()
     {
         InitStrategy();
-        
+
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TThis::RequestPools,
             Unretained(this)));
@@ -426,6 +426,11 @@ public:
 
         TLeaseManager::RenewLease(node->GetLease());
 
+        if (!MasterConnector_->IsConnected()) {
+            context->Reply(GetMasterDisconnectedError());
+            return;
+        }
+
         auto oldResourceLimits = node->ResourceLimits();
         auto oldResourceUsage = node->ResourceUsage();
 
@@ -437,96 +442,92 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
-        if (MasterConnector_->IsConnected()) {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            yhash_set<TOperationPtr> operationsToLog;
-            PROFILE_TIMING ("/analysis_time") {
-                auto missingJobs = node->Jobs();
+        std::vector<TJobPtr> runningJobs;
+        bool hasWaitingJobs = false;
+        yhash_set<TOperationPtr> operationsToLog;
+        PROFILE_TIMING ("/analysis_time") {
+            auto missingJobs = node->Jobs();
 
-                FOREACH (auto& jobStatus, *request->mutable_jobs()) {
-                    auto jobType = EJobType(jobStatus.job_type());
-                    // Skip jobs that are not issued by the scheduler.
-                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                        continue;
+            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
+                auto jobType = EJobType(jobStatus.job_type());
+                // Skip jobs that are not issued by the scheduler.
+                if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                    continue;
 
-                    auto job = ProcessJobHeartbeat(
-                        node,
-                        request,
-                        response,
-                        &jobStatus);
-                    if (job) {
-                        YCHECK(missingJobs.erase(job) == 1);
-                        switch (job->GetState()) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            operationsToLog.insert(job->GetOperation());
-                            break;
-                        case EJobState::Running:
-                            runningJobs.push_back(job);
-                            break;
-                        case EJobState::Waiting:
-                            hasWaitingJobs = true;
-                            break;
-                        default:
-                            break;
-                        }
+                auto job = ProcessJobHeartbeat(
+                    node,
+                    request,
+                    response,
+                    &jobStatus);
+                if (job) {
+                    YCHECK(missingJobs.erase(job) == 1);
+                    switch (job->GetState()) {
+                    case EJobState::Completed:
+                    case EJobState::Failed:
+                    case EJobState::Aborted:
+                        operationsToLog.insert(job->GetOperation());
+                        break;
+                    case EJobState::Running:
+                        runningJobs.push_back(job);
+                        break;
+                    case EJobState::Waiting:
+                        hasWaitingJobs = true;
+                        break;
+                    default:
+                        break;
                     }
                 }
-
-                // Check for missing jobs.
-                FOREACH (auto job, missingJobs) {
-                    LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                        ~node->GetAddress(),
-                        ~ToString(job->GetId()),
-                        ~ToString(job->GetOperation()->GetId()));
-                    AbortJob(job, TError("Job vanished"));
-                    UnregisterJob(job);
-                }
             }
 
-            auto schedulingContext = CreateSchedulingContext(node, runningJobs);
-
-            if (hasWaitingJobs) {
-                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-            } else {
-                PROFILE_TIMING ("/schedule_time") {
-                    Strategy_->ScheduleJobs(~schedulingContext);
-                }
+            // Check for missing jobs.
+            FOREACH (auto job, missingJobs) {
+                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
+                    ~node->GetAddress(),
+                    ~ToString(job->GetId()),
+                    ~ToString(job->GetOperation()->GetId()));
+                AbortJob(job, TError("Job vanished"));
+                UnregisterJob(job);
             }
+        }
 
-            FOREACH (auto job, schedulingContext->PreemptedJobs()) {
-                ToProto(response->add_jobs_to_abort(), job->GetId());
-            }
+        auto schedulingContext = CreateSchedulingContext(node, runningJobs);
 
-            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-            FOREACH (auto job, schedulingContext->StartedJobs()) {
-                auto* startInfo = response->add_jobs_to_start();
-                ToProto(startInfo->mutable_job_id(), job->GetId());
-                *startInfo->mutable_resource_limits() = job->ResourceUsage();
-
-                // Build spec asynchronously.
-                awaiter->Await(
-                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
-                    .Run());
-
-                // Release to avoid circular references.
-                job->SetSpecBuilder(TJobSpecBuilder());
-                operationsToLog.insert(job->GetOperation());
-            }
-
-            awaiter->Complete(BIND([=] () {
-                context->Reply();
-            }));
-
-            FOREACH (auto operation, operationsToLog) {
-                LogOperationProgress(operation);
-            }
+        if (hasWaitingJobs) {
+            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         } else {
-            context->Reply(GetMasterDisconnectedError());
+            PROFILE_TIMING ("/schedule_time") {
+                Strategy_->ScheduleJobs(~schedulingContext);
+            }
+        }
+
+        FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+            ToProto(response->add_jobs_to_abort(), job->GetId());
+        }
+
+        auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+        FOREACH (auto job, schedulingContext->StartedJobs()) {
+            auto* startInfo = response->add_jobs_to_start();
+            ToProto(startInfo->mutable_job_id(), job->GetId());
+            *startInfo->mutable_resource_limits() = job->ResourceUsage();
+
+            // Build spec asynchronously.
+            awaiter->Await(
+                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                .AsyncVia(specBuilderInvoker)
+                .Run());
+
+            // Release to avoid circular references.
+            job->SetSpecBuilder(TJobSpecBuilder());
+            operationsToLog.insert(job->GetOperation());
+        }
+
+        awaiter->Complete(BIND([=] () {
+            context->Reply();
+        }));
+
+        FOREACH (auto operation, operationsToLog) {
+            LogOperationProgress(operation);
         }
 
         // Update total resource usage _after_ processing the heartbeat to avoid
@@ -544,7 +545,7 @@ public:
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
-    
+
     DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
 
@@ -797,7 +798,7 @@ private:
             TError("Scheduler transaction has expired or was aborted"));
     }
 
-    
+
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
@@ -825,7 +826,7 @@ private:
             LOG_ERROR(ex, "Error parsing pools configuration");
         }
     }
-    
+
     void RequestOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -851,7 +852,7 @@ private:
 
         auto operationNode = ConvertToNode(TYsonString(rsp->value()));
         auto attributesNode = ConvertToNode(operationNode->Attributes());
-        
+
         OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
     }
 
@@ -1130,7 +1131,7 @@ private:
         }
 
         OperationRegistered_.Fire(operation);
-        
+
         GetMasterConnector()->AddOperationWatcherRequester(
             operation,
             BIND(&TThis::RequestOperationRuntimeParams, Unretained(this), operation));
