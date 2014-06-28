@@ -102,28 +102,26 @@ private:
         auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
         auto this_ = MakeStrong(this);
 
-        if (Owner_->Config_->BuildSnapshotsAtFollowers) {
-            for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
-                if (peerId == Owner_->CellManager_->GetSelfId())
-                    continue;
+        for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
+            if (peerId == Owner_->CellManager_->GetSelfId())
+                continue;
 
-                auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
-                if (!channel)
-                    continue;
+            auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
+            if (!channel)
+                continue;
 
-                LOG_DEBUG("Requesting follower %d to build a snapshot", peerId);
+            LOG_DEBUG("Requesting follower %d to build a snapshot", peerId);
 
-                THydraServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
+            THydraServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
 
-                auto req = proxy.BuildSnapshot();
-                ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
-                req->set_revision(Version_.ToRevision());
+            auto req = proxy.BuildSnapshot();
+            ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
+            req->set_revision(Version_.ToRevision());
 
-                awaiter->Await(
-                    req->Invoke(),
-                    BIND(&TSession::OnRemoteSnapshotBuilt, this_, peerId));
-            }
+            awaiter->Await(
+                req->Invoke(),
+                BIND(&TSession::OnRemoteSnapshotBuilt, this_, peerId));
         }
 
         awaiter->Await(

@@ -79,8 +79,8 @@ public:
     void UpdateTablet(TTablet* tablet);
 
 
-    NHydra::IChangelogCatalogPtr GetChangelogCatalog();
     NHydra::ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid);
+    NHydra::IChangelogStorePtr GetChangelogStore(const TCellGuid& cellGuid);
 
     NYTree::IYPathServicePtr GetOrchidService();
 

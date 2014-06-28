@@ -482,12 +482,6 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
                 ~ToString(cellGuid));
             continue;
         }
-        if (slot->GetControlState() == EPeerState::Initializing || slot->GetControlState() == EPeerState::Finalizing) {
-            LOG_WARNING("Requested to configure slot %s in invalid state %s, ignored",
-                ~ToString(cellGuid),
-                ~FormatEnum(slot->GetControlState()));
-            continue;
-        }
         tabletSlotManager->ConfigureSlot(slot, info);
     }
 

@@ -1423,18 +1423,8 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
     TReqCreateObjects* request,
     TRspCreateObjects* response)
 {
-    int size = attributes->Get<int>("size");
-    attributes->Remove("size");
-
-    if (size < 1 || size > 9) {
-        THROW_ERROR_EXCEPTION("\"size\" must be in range [1,9]");
-    }
-
-    if (size %2 == 0) {
-        THROW_ERROR_EXCEPTION("\"size\" must be odd");
-    }
-
-    auto* cell = Owner_->CreateCell(size);
+    // TODO(babenko): support arbitrary size
+    auto* cell = Owner_->CreateCell(1);
     return cell;
 }
 

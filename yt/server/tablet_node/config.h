@@ -266,11 +266,11 @@ public:
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
     double ForcedRotationsMemoryRatio;
 
-    //! Changelog catalog.
-    NHydra::TFileChangelogCatalogConfigPtr Changelogs;
-
     //! Remote snapshots.
     NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
+
+    //! Remote changelogs.
+    NHydra::TRemoteChangelogStoreConfigPtr Changelogs;
 
     //! Generic configuration for all Hydra instances.
     NHydra::TDistributedHydraManagerConfigPtr HydraManager;
@@ -299,9 +299,10 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.8);
 
-        RegisterParameter("changelogs", Changelogs);
-        RegisterParameter("snapshots", Snapshots);
-
+        RegisterParameter("snapshots", Snapshots)
+            .DefaultNew();
+        RegisterParameter("changelogs", Changelogs)
+            .DefaultNew();
         RegisterParameter("hydra_manager", HydraManager)
             .DefaultNew();
         RegisterParameter("hive_manager", HiveManager)
@@ -318,12 +319,6 @@ public:
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
-
-        RegisterInitializer([&] () {
-            // Tablet snapshots are stored in Cypress.
-            // Must not build multiple copies simultaneously.
-            HydraManager->BuildSnapshotsAtFollowers = false;
-        });
     }
 };
 

@@ -181,7 +181,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
 
     // Look for timed out peers.
     for (TPeerId peerId = 0; peerId < static_cast<int>(cell->Peers().size()); ++peerId) {
-        if (IsFailoverNeeded(cell, peerId) && IsFailoverPossible(cell)) {
+        if (IsFailoverNeeded(cell, peerId)) {
             TReqRevokePeer request;
             ToProto(request.mutable_cell_id(), cellId);
             request.set_peer_id(peerId);
@@ -206,35 +206,6 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
         return false;
 
     return true;
-}
-
-bool TTabletTracker::IsFailoverPossible(TTabletCell* cell)
-{
-    switch (cell->GetState()) {
-        case ETabletCellState::Starting:
-            // Failover is always safe when starting.
-            return true;
-
-        case ETabletCellState::Running: {
-            // Must have at least quorum.
-            if (cell->GetOnlinePeerCount() < (cell->GetSize() + 1) /2)
-                return false;
-
-            // Must have completed recovery.
-            for (const auto& peer : cell->Peers()) {
-                if (peer.Node) {
-                    const auto* slot = peer.Node->GetTabletSlot(cell);
-                    if (slot->PeerState != EPeerState::Leading && slot->PeerState != EPeerState::Following) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

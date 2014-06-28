@@ -140,9 +140,6 @@ class Holder(WinNode, Server):
                 }
             },
             'tablet_node' : {
-                'changelogs' : {
-                    'path' : r'%(work_dir)s\changelogs'
-                },
                 'snapshots' : {
                     'temp_path' : r'%(work_dir)s\snapshots'
                 },
@@ -165,7 +162,6 @@ class Holder(WinNode, Server):
                 print >>fd, 'del %s' % cls.debug_log_path
                 print >>fd, 'rmdir /S /Q %s' % cls.config['data_node']['multiplexed_changelog']['path']
                 print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['snapshots']['temp_path']
-                print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['changelogs']['path']
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
                 print >>fd, 'rmdir /S /Q   %s' % cls.config['data_node']['cache_location']['path']

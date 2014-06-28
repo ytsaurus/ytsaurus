@@ -54,6 +54,8 @@ private:
     TInstant StartTime;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void ScanCells();
 
@@ -62,10 +64,6 @@ private:
     void SchedulePeerFailover(TTabletCell* cell);
 
     bool IsFailoverNeeded(TTabletCell* cell, TPeerId peerId);
-    bool IsFailoverPossible(TTabletCell* cell);
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
 

@@ -22,7 +22,6 @@ DECLARE_ENUM(EPeerState,
     ((Following)                  (5))
     ((LeaderRecovery)             (6))
     ((Leading)                    (7))
-    ((Finalizing)                 (8))
 );
 
 DECLARE_ENUM(EErrorCode,

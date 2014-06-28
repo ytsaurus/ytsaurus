@@ -7,8 +7,6 @@ set( SRCS
   ${BASE}/sync_file_changelog.cpp
   ${BASE}/sync_file_changelog_impl.cpp
   ${BASE}/file_changelog.cpp
-  ${BASE}/changelog_catalog.cpp
-  ${BASE}/file_changelog_catalog.cpp
   ${BASE}/file_snapshot_store.cpp
   ${BASE}/mutation_context.cpp
   ${BASE}/decorated_automaton.cpp
@@ -45,8 +43,6 @@ set( HDRS
   ${BASE}/sync_file_changelog_impl.h
   ${BASE}/file_changelog.h
   ${BASE}/config.h
-  ${BASE}/changelog_catalog.h
-  ${BASE}/file_changelog_catalog.h
   ${BASE}/snapshot.h
   ${BASE}/file_snapshot_store.h
   ${BASE}/automaton.h

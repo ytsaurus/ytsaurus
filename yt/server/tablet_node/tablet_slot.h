@@ -59,7 +59,6 @@ public:
 
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
    
-    void Load(const NHydra::TCellGuid& cellGuid);
     void Create(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     void Remove();

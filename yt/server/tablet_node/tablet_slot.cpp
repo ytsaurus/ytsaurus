@@ -31,7 +31,6 @@
 #include <server/election/election_manager.h>
 
 #include <server/hydra/changelog.h>
-#include <server/hydra/changelog_catalog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
@@ -214,26 +213,6 @@ public:
     }
 
 
-    void Load(const TCellGuid& cellGuid)
-    {
-        // NB: Load is called from bootstrap thread.
-        YCHECK(State_ == EPeerState::None);
-
-        SetCellGuid(cellGuid);
-
-        LOG_INFO("Loading slot");
-
-        State_ = EPeerState::Initializing;
-
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        ChangelogStore_ = tabletSlotManager->GetChangelogCatalog()->GetStore(CellGuid_);
-        SnapshotStore_ = tabletSlotManager->GetSnapshotStore(CellGuid_);
-
-        State_ = EPeerState::Stopped;
-
-        LOG_INFO("Slot loaded");
-    }
-
     void Create(const TCreateTabletSlotInfo& createInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -242,34 +221,19 @@ public:
         auto cellGuid = FromProto<TCellGuid>(createInfo.cell_guid());
         SetCellGuid(cellGuid);
 
-        LOG_INFO("Creating slot");
-
-        State_ = EPeerState::Initializing;
-
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
         SnapshotStore_ = tabletSlotManager->GetSnapshotStore(CellGuid_);
+        ChangelogStore_ = tabletSlotManager->GetChangelogStore(CellGuid_);
 
-        auto this_ = MakeStrong(this);
-        BIND([this, this_] () {
-            SwitchToIOThread();
+        State_ = EPeerState::Stopped;
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            ChangelogStore_ = tabletSlotManager->GetChangelogCatalog()->CreateStore(CellGuid_);
-
-            SwitchToControlThread();
-
-            State_ = EPeerState::Stopped;
-
-            LOG_INFO("Slot created");
-        })
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run();
+        LOG_INFO("Slot created");
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EPeerState::Initializing && State_ != EPeerState::Finalizing);
+        YCHECK(State_ != EPeerState::None);
 
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellGuid = CellGuid_;
@@ -369,50 +333,34 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
-        
-        LOG_INFO("Removing slot");
-        
-        State_ = EPeerState::Finalizing;
 
-        auto this_ = MakeStrong(this);
-        auto owner = MakeStrong(Owner_);
-        BIND([this, this_, owner] () {
-            SwitchToIOThread();
+        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        tabletSlotManager->UnregisterTablets(Owner_);
 
-            auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-            tabletSlotManager->GetChangelogCatalog()->RemoveStore(CellGuid_);
+        if (HydraManager_) {
+            HydraManager_->Stop();
+        }
 
-            SwitchToControlThread();
+        auto rpcServer = Bootstrap_->GetRpcServer();
+        if (TransactionSupervisor_) {
+            rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
+        }
+        if (HiveManager_) {
+            rpcServer->UnregisterService(HiveManager_->GetRpcService());
+        }
+        if (TabletService_) {
+            rpcServer->UnregisterService(TabletService_);
+        }
 
-            tabletSlotManager->UnregisterTablets(owner);
+        {
+            TGuard<TSpinLock> guard(InvokersSpinLock_);
+            EpochAutomatonInvokers_.clear();
+            GuardedAutomatonInvokers_.clear();
+        }
 
-            State_ = EPeerState::None;
+        State_ = EPeerState::None;
 
-            if (HydraManager_) {
-                HydraManager_->Stop();
-            }
-
-            auto rpcServer = Bootstrap_->GetRpcServer();
-            if (TransactionSupervisor_) {
-                rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
-            }
-            if (HiveManager_) {
-                rpcServer->UnregisterService(HiveManager_->GetRpcService());
-            }
-            if (TabletService_) {
-                rpcServer->UnregisterService(TabletService_);
-            }
-
-            {
-                TGuard<TSpinLock> guard(InvokersSpinLock_);
-                EpochAutomatonInvokers_.clear();
-                GuardedAutomatonInvokers_.clear();
-            }
-
-            LOG_INFO("Slot removed");
-        })
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run();
+        LOG_INFO("Slot removed");
     }
 
 
@@ -473,19 +421,6 @@ private:
         if (CellGuid_ != NullCellGuid) {
             Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
         }
-    }
-
-
-    void SwitchToIOThread()
-    {
-        SwitchTo(GetHydraIOInvoker());
-        VERIFY_THREAD_AFFINITY(IOThread);
-    }
-
-    void SwitchToControlThread()
-    {
-        SwitchTo(Bootstrap_->GetControlInvoker());
-        VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
 
@@ -557,7 +492,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-    DECLARE_THREAD_AFFINITY_SLOT(IOThread);
 
 };
 
@@ -660,11 +594,6 @@ TTabletManagerPtr TTabletSlot::GetTabletManager() const
 TObjectId TTabletSlot::GenerateId(EObjectType type)
 {
     return Impl_->GenerateId(type);
-}
-
-void TTabletSlot::Load(const TCellGuid& cellGuid)
-{
-    Impl_->Load(cellGuid);
 }
 
 void TTabletSlot::Create(const TCreateTabletSlotInfo& createInfo)

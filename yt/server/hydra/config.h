@@ -66,79 +66,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 
-class TMultiplexedFileChangelogConfig
-    : public TFileChangelogConfig
-{
-public:
-    //! Changelog record count limit.
-    /*!
-     *  When this limit is reached, the current multiplexed changelog is rotated.
-     */
-    int MaxChangelogRecordCount;
-
-    //! Changelog data size limit, in bytes.
-    /*!
-     *  See #MaxChangelogRecordCount.
-     */
-    i64 MaxChangelogDataSize;
-
-    TMultiplexedFileChangelogConfig()
-    {
-        RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
-            .Default(1000000)
-            .GreaterThan(0);
-        RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMultiplexedFileChangelogConfig)
-
-class TFileChangelogCatalogConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    //! A path where changelogs are stored.
-    Stroka Path;
-
-    //! Multiplexed changelogs configuration.
-    TMultiplexedFileChangelogConfigPtr Multiplexed;
-
-    //! Split changelogs configuration.
-    TFileChangelogConfigPtr Split;
-
-    //! Maximum number of cached split changelogs.
-    int MaxCachedChangelogs;
-
-    //! Maximum bytes of multiplexed changelog to read during
-    //! a single iteration of replay.
-    i64 ReplayBufferSize;
-
-    TFileChangelogCatalogConfig()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("multiplexed", Multiplexed)
-            .DefaultNew();
-        RegisterParameter("split", Split)
-            .DefaultNew();
-        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
-            .GreaterThan(0)
-            .Default(256);
-        RegisterParameter("replay_buffer_size", ReplayBufferSize)
-            .GreaterThan(0)
-            .Default(256 * 1024 * 1024);
-
-        RegisterInitializer([&] () {
-            // Expect many splits -- adjust configuration.
-            Split->FlushBufferSize = (i64) 16 * 1024 * 1024;
-            Split->FlushPeriod = TDuration::Seconds(15);
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TFileChangelogCatalogConfig)
-
 class TLocalSnapshotStoreConfig
     : public NYTree::TYsonSerializable
 {
@@ -308,9 +235,6 @@ public:
     //! Backoff time for unrecoverable internal errors.
     TDuration BackoffTime;
 
-    //! Should we build snapshots at followers?
-    bool BuildSnapshotsAtFollowers;
-
     //! Maximum number of bytes to read from a changelog at once.
     i64 MaxChangelogReadSize;
 
@@ -334,8 +258,6 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("backoff_time", BackoffTime)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("build_snapshots_at_followers", BuildSnapshotsAtFollowers)
-            .Default(true);
         RegisterParameter("max_changelog_read_size", MaxChangelogReadSize)
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);

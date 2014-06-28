@@ -137,7 +137,7 @@ private:
             options.AttributeFilter.Keys.push_back("prev_record_count");
             options.AttributeFilter.Keys.push_back("record_count");
             options.AttributeFilter.Keys.push_back("uncompressed_data_size");
-            auto result = WaitFor(MasterClient_->GetNode(path));
+            auto result = WaitFor(MasterClient_->GetNode(path, options));
             if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,

@@ -14,11 +14,10 @@
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/changelog_catalog.h>
-#include <server/hydra/file_changelog_catalog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/remote_snapshot_store.h>
+#include <server/hydra/changelog.h>
+#include <server/hydra/remote_changelog_store.h>
 
 #include <server/data_node/master_connector.h>
 
@@ -54,7 +53,6 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , UsedSlotCount_(0)
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
@@ -66,37 +64,14 @@ public:
     {
         LOG_INFO("Initializing tablet node");
 
-        ChangelogCatalog_ = CreateFileChangelogCatalog(Config_->Changelogs);
-
         // Clean snapshot temporary directory.
         ForcePath(Config_->Snapshots->TempPath);
         CleanTempFiles(Config_->Snapshots->TempPath);
-
-        // Look for existing changelog stores; readjust config.
-        yhash_set<TCellGuid> cellGuids;
-        for (auto store : ChangelogCatalog_->GetStores()) {
-            auto cellGuid = store->GetCellGuid();
-            YCHECK(cellGuids.insert(cellGuid).second);
-            LOG_INFO("Found slot %s", ~ToString(cellGuid));
-        }
-
-        if (Config_->Slots < cellGuids.size()) {
-            LOG_WARNING("Found %d active slots while at most %d is suggested by configuration; allowing more slots",
-                static_cast<int>(cellGuids.size()),
-                Config_->Slots);
-            Config_->Slots = static_cast<int>(cellGuids.size());
-        }
 
         // Create slots.
         for (int index = 0; index < Config_->Slots; ++index) {
             auto slot = CreateSlot(index);
             Slots_.push_back(slot);
-        }
-
-        // Load active slots.
-        YCHECK(UsedSlotCount_ == 0);
-        for (const auto& cellGuid : cellGuids) {
-            Slots_[UsedSlotCount_++]->Load(cellGuid);
         }
 
         SlotScanExecutor_->Start();
@@ -278,16 +253,19 @@ public:
     }
 
 
-    IChangelogCatalogPtr GetChangelogCatalog()
-    {
-        return ChangelogCatalog_;
-    }
-
     ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid)
     {
         return CreateRemoteSnapshotStore(
             Config_->Snapshots,
             Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
+            Bootstrap_->GetMasterClient());
+    }
+
+    IChangelogStorePtr GetChangelogStore(const TCellGuid& cellGuid)
+    {
+        return CreateRemoteChangelogStore(
+            Config_->Changelogs,
+            Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(cellGuid)),
             Bootstrap_->GetMasterClient());
     }
 
@@ -309,9 +287,7 @@ private:
     TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
-    IChangelogCatalogPtr ChangelogCatalog_;
-
-    int UsedSlotCount_;
+    int UsedSlotCount_ = 0;
     std::vector<TTabletSlotPtr> Slots_;
 
     TPeriodicExecutorPtr SlotScanExecutor_;
@@ -507,14 +483,14 @@ void TTabletSlotManager::UnregisterTablets(TTabletSlotPtr slot)
     Impl_->UnregisterTablets(std::move(slot));
 }
 
-IChangelogCatalogPtr TTabletSlotManager::GetChangelogCatalog()
-{
-    return Impl_->GetChangelogCatalog();
-}
-
 ISnapshotStorePtr TTabletSlotManager::GetSnapshotStore(const TCellGuid& cellGuid)
 {
     return Impl_->GetSnapshotStore(cellGuid);
+}
+
+IChangelogStorePtr TTabletSlotManager::GetChangelogStore(const TCellGuid& cellGuid)
+{
+    return Impl_->GetChangelogStore(cellGuid);
 }
 
 IYPathServicePtr TTabletSlotManager::GetOrchidService()

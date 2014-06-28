@@ -223,9 +223,6 @@ def get_node_config():
     };
 
     tablet_node = {
-        changelogs = {
-            path = "";
-        };
         snapshots = {
             temp_path = "";
         };

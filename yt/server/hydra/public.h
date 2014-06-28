@@ -14,7 +14,7 @@ DECLARE_REFCOUNTED_STRUCT(IHydraManager)
 
 DECLARE_REFCOUNTED_STRUCT(IChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
-DECLARE_REFCOUNTED_STRUCT(IChangelogCatalog)
+
 DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
 
 struct TSnapshotParams;
@@ -39,8 +39,6 @@ class TLoadContext;
 
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TMultiplexedFileChangelogConfig)
-DECLARE_REFCOUNTED_CLASS(TFileChangelogCatalogConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TSnapshotDownloaderConfig)
@@ -49,10 +47,6 @@ DECLARE_REFCOUNTED_CLASS(TChangelogDownloaderConfig)
 DECLARE_REFCOUNTED_CLASS(TFollowerTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitterConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IInvokerPtr GetHydraIOInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 
