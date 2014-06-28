@@ -147,7 +147,7 @@ class Holder(WinNode, Server):
                 },
                 'hydra_manager' : {
                     'leader_committer' : {
-                        'changelog_rotation_period' : 10
+                        'max_changelog_record_count' : 10
                     }
                 }
             },
