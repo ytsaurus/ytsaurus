@@ -14,6 +14,7 @@ YT="yt/wrapper/yt"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     make version
+    make docs
 fi
 
 # Build and upload package
