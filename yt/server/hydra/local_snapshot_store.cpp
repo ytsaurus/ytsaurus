@@ -93,8 +93,9 @@ private:
 
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
-        auto snapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
-        return snapshotInfo.SnapshotId;
+        auto remoteSnapshotInfo = WaitFor(DiscoverLatestSnapshot(Config_, CellManager_, maxSnapshotId));
+        int localSnnapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
+        return std::max(localSnnapshotId, remoteSnapshotInfo.SnapshotId);
     }
 
     TSnapshotParams DoConfirmSnapshot(int snapshotId)
