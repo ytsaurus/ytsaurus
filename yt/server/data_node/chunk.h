@@ -38,6 +38,9 @@ struct IChunk
     virtual TLocationPtr GetLocation() const = 0;
     virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const = 0;
 
+    virtual int GetVersion() const = 0;
+    virtual void IncrementVersion() = 0;
+
     //! Returns |true| iff there is an active session for this chunk.
     virtual bool IsActive() const = 0;
 

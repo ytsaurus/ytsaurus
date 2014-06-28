@@ -84,12 +84,21 @@ private:
     TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
-    yhash_map<TChunkId, IChunkPtr> ChunkMap_;
+    struct TChunkEntry
+    {
+        IChunkPtr Chunk;
+        i64 DiskSpace = 0;
+    };
 
-    void DoRegisterChunk(IChunkPtr chunk);
+    yhash_map<TChunkId, TChunkEntry> ChunkMap_;
+
+
+    void DoRegisterChunk(const TChunkEntry& entry);
+
     void OnLocationDisabled(TLocationPtr location);
 
-    IChunkPtr CreateChunkFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
+    static TChunkEntry BuildEntry(IChunkPtr chunk);
+    IChunkPtr CreateFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
 
 };
 

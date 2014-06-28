@@ -51,6 +51,16 @@ TJournalChunk::TJournalChunk(
     Meta_->set_version(0);
 }
 
+void TJournalChunk::SetActive(bool value)
+{
+    Active_ = value;
+}
+
+bool TJournalChunk::IsActive() const
+{
+    return Active_;
+}
+
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)

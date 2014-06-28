@@ -47,15 +47,19 @@ const TChunkInfo& TChunkBase::GetInfo() const
     return Info_;
 }
 
-bool TChunkBase::IsActive() const
-{
-    auto sessionManager = Bootstrap_->GetSessionManager();
-    return sessionManager->FindSession(Id_) != nullptr;
-}
-
 Stroka TChunkBase::GetFileName() const
 {
     return Location_->GetChunkFileName(Id_);
+}
+
+int TChunkBase::GetVersion() const
+{
+    return Version_;
+}
+
+void TChunkBase::IncrementVersion()
+{
+    ++Version_;
 }
 
 bool TChunkBase::TryAcquireReadLock()

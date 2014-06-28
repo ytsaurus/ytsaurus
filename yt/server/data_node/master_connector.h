@@ -58,8 +58,6 @@ public:
     void RegisterAlert(const Stroka& alert);
 
 private:
-    typedef yhash_set<IChunkPtr> TChunkSet;
-
     TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
@@ -90,16 +88,16 @@ private:
     TNodeId NodeId_;
 
     //! Chunks that were added since the last successful heartbeat.
-    TChunkSet AddedSinceLastSuccess_;
+    yhash_set<IChunkPtr> AddedSinceLastSuccess_;
 
-    //! Store chunks that were removed since the last successful heartbeat.
-    TChunkSet RemovedSinceLastSuccess_;
+    //! Chunks that were removed since the last successful heartbeat.
+    yhash_set<IChunkPtr> RemovedSinceLastSuccess_;
 
-    //! Store chunks that were reported added at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedAdded_;
+    //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
+    yhash_map<IChunkPtr, int> ReportedAdded_;
 
-    //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedRemoved_;
+    //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
+    yhash_set<IChunkPtr> ReportedRemoved_;
 
     //! Protects #Alerts.
     TSpinLock AlertsSpinLock_;

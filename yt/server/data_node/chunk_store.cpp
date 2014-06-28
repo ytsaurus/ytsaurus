@@ -57,7 +57,7 @@ void TChunkStore::Initialize()
             
         auto descriptors = location->Initialize();
         for (const auto& descriptor : descriptors) {
-            auto chunk = CreateChunkFromDescriptor(location, descriptor);
+            auto chunk = CreateFromDescriptor(location, descriptor);
             RegisterExistingChunk(chunk);
         }
 
@@ -69,22 +69,30 @@ void TChunkStore::Initialize()
 
 void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), chunk));
+    auto location = chunk->GetLocation();
+    if (!location->IsEnabled())
+        return;
+
+    auto entry = BuildEntry(chunk);
+    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
     if (!result.second) {
-        auto oldChunk = result.first->second;
+        auto oldChunk = result.first->second.Chunk;
         LOG_FATAL("Duplicate chunk (Current: %s, Previous: %s)",
             ~chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
             ~oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
     }
 
-    DoRegisterChunk(chunk);
+    DoRegisterChunk(entry);
 }
 
 void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 {
-    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), chunk));
+    YCHECK(chunk->GetLocation()->IsEnabled());
+
+    auto entry = BuildEntry(chunk);
+    auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
     if (!result.second) {
-        auto oldChunk = result.first->second;
+        auto oldChunk = result.first->second.Chunk;
         auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
         auto currentPath = chunk->GetLocation()->GetChunkFileName(chunk->GetId());
 
@@ -111,44 +119,30 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         return;
     }
 
-    DoRegisterChunk(chunk);
+    DoRegisterChunk(entry);
 }
 
-void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
+void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
 {
-    DoRegisterChunk(chunk);
-}
-
-void TChunkStore::UnregisterChunk(IChunkPtr chunk)
-{
-    auto location = chunk->GetLocation();
-    if (!location->IsEnabled())
-        return;
-
-    YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
-    location->UpdateChunkCount(-1);
-    location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
-    ChunkRemoved_.Fire(chunk);
-}
-
-void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
-{
+    auto chunk = entry.Chunk;
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
-    location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
+    location->UpdateUsedSpace(+entry.DiskSpace);
 
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
             LOG_DEBUG("Blob chunk registered (ChunkId: %s, DiskSpace: %" PRId64 ")",
                 ~ToString(chunk->GetId()),
-                chunk->GetInfo().disk_space());
+                entry.DiskSpace);
             break;
 
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk registered (ChunkId: %s, Sealed: %s)",
+            LOG_DEBUG("Journal chunk registered (ChunkId: %s, Version: %d, Sealed: %s, Active: %s)",
                 ~ToString(chunk->GetId()),
-                ~FormatBool(chunk->GetInfo().sealed()));
+                chunk->GetVersion(),
+                ~FormatBool(chunk->GetInfo().sealed()),
+                ~FormatBool(chunk->IsActive()));
             break;
 
         default:
@@ -158,10 +152,73 @@ void TChunkStore::DoRegisterChunk(IChunkPtr chunk)
     ChunkAdded_.Fire(chunk);
 }
 
+void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
+{
+    auto location = chunk->GetLocation();
+    if (!location->IsEnabled())
+        return;
+
+    chunk->IncrementVersion();
+
+    auto it = ChunkMap_.find(chunk->GetId());
+    YCHECK(it != ChunkMap_.end());
+    auto& entry = it->second;
+
+    location->UpdateUsedSpace(-entry.DiskSpace);
+
+    entry = BuildEntry(chunk);
+
+    location->UpdateUsedSpace(+entry.DiskSpace);
+
+    switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
+        case EObjectType::JournalChunk:
+            LOG_DEBUG("Journal chunk updated (ChunkId: %s, Version: %d, Sealed: %s, Active: %s)",
+                ~ToString(chunk->GetId()),
+                chunk->GetVersion(),
+                ~FormatBool(chunk->GetInfo().sealed()),
+                ~FormatBool(chunk->IsActive()));
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    ChunkAdded_.Fire(chunk);
+}
+
+void TChunkStore::UnregisterChunk(IChunkPtr chunk)
+{
+    auto location = chunk->GetLocation();
+    if (!location->IsEnabled())
+        return;
+
+    auto it = ChunkMap_.find(chunk->GetId());
+    YCHECK(it != ChunkMap_.end());
+    const auto& entry = it->second;
+
+    location->UpdateChunkCount(-1);
+    location->UpdateUsedSpace(-entry.DiskSpace);
+
+    YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
+
+    LOG_DEBUG("Chunk unregistered (ChunkId: %s)",
+        ~ToString(chunk->GetId()));
+
+    ChunkRemoved_.Fire(chunk);
+}
+
+TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
+{
+    TChunkEntry result;
+    result.Chunk = chunk;
+    result.DiskSpace = chunk->GetInfo().disk_space();
+    return result;
+}
+
 IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
     auto it = ChunkMap_.find(chunkId);
-    return it == ChunkMap_.end() ? nullptr : it->second;
+    return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
 }
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
@@ -207,7 +264,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
     TChunks result;
     result.reserve(ChunkMap_.size());
     for (const auto& pair : ChunkMap_) {
-        result.push_back(pair.second);
+        result.push_back(pair.second.Chunk);
     }
     return result;
 }
@@ -225,13 +282,13 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     auto it = ChunkMap_.begin();
     while (it != ChunkMap_.end()) {
         auto jt = it++;
-        auto chunk = jt->second;
+        auto chunk = jt->second.Chunk;
         if (chunk->GetLocation() == location) {
             ChunkMap_.erase(jt);
             ++count;
         }
     }
-    LOG_INFO("Chunk map cleaned, %d chunks removed", count);
+    LOG_INFO("Chunk map cleaned, %d chunks discarded", count);
 
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
@@ -241,7 +298,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     masterConnector->ForceRegister();
 }
 
-IChunkPtr TChunkStore::CreateChunkFromDescriptor(
+IChunkPtr TChunkStore::CreateFromDescriptor(
     TLocationPtr location,
     const TChunkDescriptor& descriptor)
 {

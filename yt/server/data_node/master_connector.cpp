@@ -323,14 +323,15 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         ToProto(request->mutable_alerts(), Alerts_);
     }
 
-    ReportedAdded_ = AddedSinceLastSuccess_;
-    ReportedRemoved_ = RemovedSinceLastSuccess_;
-
-    for (auto chunk : ReportedAdded_) {
+    ReportedAdded_.clear();
+    for (auto chunk : AddedSinceLastSuccess_) {
+        YCHECK(ReportedAdded_.insert(std::make_pair(chunk, chunk->GetVersion())).second);
         *request->add_added_chunks() = BuildAddChunkInfo(chunk);
     }
 
-    for (auto chunk : ReportedRemoved_) {
+    ReportedRemoved_.clear();
+    for (auto chunk : RemovedSinceLastSuccess_) {
+        YCHECK(ReportedRemoved_.insert(chunk).second);
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
@@ -427,21 +428,31 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
 
     LOG_INFO("Successfully reported incremental node heartbeat to master");
 
-    TChunkSet newAddedSinceLastSuccess;
-    for (const auto& id : AddedSinceLastSuccess_) {
-        if (ReportedAdded_.find(id) == ReportedAdded_.end()) {
-            newAddedSinceLastSuccess.insert(id);
+    {
+        auto it = AddedSinceLastSuccess_.begin();
+        while (it != AddedSinceLastSuccess_.end()) {
+            auto jt = it++;
+            auto chunk = *jt;
+            auto kt = ReportedAdded_.find(chunk);
+            if (kt != ReportedAdded_.end() && kt->second == chunk->GetVersion()) {
+                AddedSinceLastSuccess_.erase(jt);
+            }
         }
+        ReportedAdded_.clear();
     }
-    AddedSinceLastSuccess_.swap(newAddedSinceLastSuccess);
 
-    TChunkSet newRemovedSinceLastSuccess;
-    for (const auto& id : RemovedSinceLastSuccess_) {
-        if (ReportedRemoved_.find(id) == ReportedRemoved_.end()) {
-            newRemovedSinceLastSuccess.insert(id);
+    {
+        auto it = RemovedSinceLastSuccess_.begin();
+        while (it != RemovedSinceLastSuccess_.end()) {
+            auto jt = it++;
+            auto chunk = *jt;
+            auto kt = ReportedRemoved_.find(chunk);
+            if (kt != ReportedRemoved_.end()) {
+                RemovedSinceLastSuccess_.erase(jt);
+            }
         }
+        ReportedRemoved_.clear();
     }
-    RemovedSinceLastSuccess_.swap(newRemovedSinceLastSuccess);
 
     auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
     

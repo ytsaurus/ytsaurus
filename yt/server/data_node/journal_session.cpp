@@ -59,6 +59,7 @@ void TJournalSession::DoStart()
     Changelog_ = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
 
     Chunk_->AttachChangelog(Changelog_);
+    Chunk_->SetActive(true);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->RegisterNewChunk(Chunk_);
@@ -69,11 +70,12 @@ void TJournalSession::DoCancel()
     UpdateChunkInfo();
 
     Chunk_->DetachChangelog();
+    Chunk_->SetActive(false);
     
-    Finished_.Fire(TError());
-
     auto chunkStore = Bootstrap_->GetChunkStore();
     chunkStore->UpdateExistingChunk(Chunk_);
+
+    Finished_.Fire(TError());
 }
 
 TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& /*chunkMeta*/)
