@@ -28,8 +28,6 @@ public:
         bool buildSnapshot)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
-        , LocalRotationFlag_(false)
-        , RemoteRotationCount_(0)
         , SnapshotPromise_(NewPromise<TErrorOr<TRemoteSnapshotParams>>())
         , ChangelogPromise_(NewPromise<TError>())
         , Logger(Owner_->Logger)
@@ -47,7 +45,7 @@ public:
 
         Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
-                .Via(Owner_->EpochAutomatonInvoker_));
+                .Via(Owner_->EpochContext_->EpochSystemAutomatonInvoker));
     }
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> GetSnapshotResult()
@@ -64,8 +62,8 @@ private:
     TChangelogRotationPtr Owner_;
     bool BuildSnapshot_;
     
-    bool LocalRotationFlag_;
-    int RemoteRotationCount_;
+    bool LocalRotationFlag_ = false;
+    int RemoteRotationCount_ = 0;
 
     TVersion Version_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_;
@@ -89,9 +87,9 @@ private:
             RequestSnapshotCreation();
         }
 
-        RequestChangelogRotation();
-
         Owner_->DecoratedAutomaton_->CommitMutations(TVersion(Version_.SegmentId + 1, 0));
+
+        RequestChangelogRotation();
     }
 
 
@@ -101,7 +99,7 @@ private:
 
         SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
 
-        auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochControlInvoker_);
+        auto awaiter = SnapshotAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
         auto this_ = MakeStrong(this);
 
         if (Owner_->Config_->BuildSnapshotsAtFollowers) {
@@ -119,7 +117,7 @@ private:
                 proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
 
                 auto req = proxy.BuildSnapshot();
-                ToProto(req->mutable_epoch_id(), Owner_->EpochId_);
+                ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
                 req->set_revision(Version_.ToRevision());
 
                 awaiter->Await(
@@ -201,7 +199,7 @@ private:
 
     void RequestChangelogRotation()
     {
-        auto awaiter = ChangelogAwaiter_ = New<TParallelAwaiter>(Owner_->EpochControlInvoker_);
+        auto awaiter = ChangelogAwaiter_ = New<TParallelAwaiter>(Owner_->EpochContext_->EpochControlInvoker);
         auto this_ = MakeStrong(this);
 
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
@@ -218,7 +216,7 @@ private:
             proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
 
             auto req = proxy.RotateChangelog();
-            ToProto(req->mutable_epoch_id(), Owner_->EpochId_);
+            ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
             req->set_revision(Version_.ToRevision());
 
             awaiter->Await(
@@ -227,7 +225,7 @@ private:
         }
 
         awaiter->Await(
-            Owner_->DecoratedAutomaton_->RotateChangelog(),
+            Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_),
             BIND(&TSession::OnLocalChangelogRotated, this_));
 
         awaiter->Complete(
@@ -251,9 +249,14 @@ private:
         CheckRotationQuorum();
     }
 
-    void OnLocalChangelogRotated()
+    void OnLocalChangelogRotated(TError error)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
+        if (!error.IsOK()) {
+            SetFailed(TError("Error rotating local changelog") << error);
+            return;
+        }
 
         LOG_INFO("Local changelog rotated");
 
@@ -271,22 +274,30 @@ private:
         if (!LocalRotationFlag_ || RemoteRotationCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
-        LOG_INFO("Distributed changelog rotation complete");
-
-        ChangelogAwaiter_->Cancel();
-
-        Owner_->EpochAutomatonInvoker_->Invoke(
+        Owner_->EpochContext_->EpochSystemAutomatonInvoker->Invoke(
             BIND(&TLeaderCommitter::ResumeLogging, Owner_->LeaderCommitter_));
 
-        ChangelogPromise_.Set(TError());
+        SetSucceded();
     }
 
     void OnChangelogsComplete()
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        TError error("Distributed changelog rotation failed");
-        LOG_WARNING(error);
+        SetFailed(TError("Not enough successful replies"));
+    }
+
+
+    void SetSucceded()
+    {
+        LOG_INFO("Distributed changelog rotation complete");
+        ChangelogAwaiter_->Cancel();
+        ChangelogPromise_.Set(TError());
+    }
+
+    void SetFailed(const TError& error)
+    {
+        ChangelogAwaiter_->Cancel();
         ChangelogPromise_.Set(error);
     }
 
@@ -300,17 +311,13 @@ TChangelogRotation::TChangelogRotation(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderCommitterPtr leaderCommitter,
     ISnapshotStorePtr snapshotStore,
-    const TEpochId& epochId,
-    IInvokerPtr epochControlInvoker,
-    IInvokerPtr epochAutomatonInvoker)
+    TEpochContextPtr epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , LeaderCommitter_(leaderCommitter)
     , SnapshotStore_(snapshotStore)
-    , EpochId_(epochId)
-    , EpochControlInvoker_(epochControlInvoker)
-    , EpochAutomatonInvoker_(epochAutomatonInvoker)
+    , EpochContext_(epochContext)
     , SnapshotsInProgress_(0)
     , Logger(HydraLogger)
 {
@@ -319,10 +326,9 @@ TChangelogRotation::TChangelogRotation(
     YCHECK(DecoratedAutomaton_);
     YCHECK(LeaderCommitter_);
     YCHECK(SnapshotStore_);
-    YCHECK(EpochControlInvoker_);
-    YCHECK(EpochAutomatonInvoker_);
-    VERIFY_INVOKER_AFFINITY(EpochControlInvoker_, ControlThread);
-    VERIFY_INVOKER_AFFINITY(EpochAutomatonInvoker_, AutomatonThread);
+    YCHECK(EpochContext_);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
         ~ToString(CellManager_->GetCellGuid())));

@@ -31,9 +31,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderCommitterPtr leaderCommitter,
         ISnapshotStorePtr snapshotStore,
-        const TEpochId& epochId,
-        IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochAutomatonInvoker);
+        TEpochContextPtr epochContext);
 
     //! Starts a distributed changelog rotation.
     /*!
@@ -59,9 +57,7 @@ private:
     TDecoratedAutomatonPtr DecoratedAutomaton_;
     TLeaderCommitterPtr LeaderCommitter_;
     ISnapshotStorePtr SnapshotStore_;
-    TEpochId EpochId_;
-    IInvokerPtr EpochControlInvoker_;
-    IInvokerPtr EpochAutomatonInvoker_;
+    TEpochContextPtr EpochContext_;
 
     std::atomic<int> SnapshotsInProgress_;
 
@@ -73,6 +69,8 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChangelogRotation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

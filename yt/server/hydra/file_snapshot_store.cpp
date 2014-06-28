@@ -23,8 +23,6 @@ using namespace NCompression;
 
 static auto& Logger = HydraLogger;
 
-static const char* const SnapshotExtension = "snapshot";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma pack(push, 4)
@@ -467,7 +465,9 @@ private:
 
     Stroka GetSnapshotPath(int snapshotId)
     {
-        return NFS::CombinePaths(Config_->Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
+        return NFS::CombinePaths(
+            Config_->Path,
+            Sprintf("%09d.%s", snapshotId, ~SnapshotExtension));
     }
 
     TSnapshotParams ReadSnapshotParams(int snapshotId)

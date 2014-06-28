@@ -20,6 +20,7 @@ namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -482,7 +483,7 @@ public:
         changelog->Close();
 
         NFS::Remove(path);
-        NFS::Remove(path + IndexSuffix);
+        NFS::Remove(path + "." + ChangelogIndexExtension);
     }
 
 private:
@@ -790,13 +791,52 @@ public:
         return CellGuid_;
     }
 
-    virtual IChangelogPtr CreateChangelog(
-        int id,
-        const TSharedRef& meta) override
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
+    {
+        return BIND(&TFileChangelogStore::DoCreateChangelog, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(id, meta);
+    }
+
+    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
+    {
+        return BIND(&TFileChangelogStore::DoOpenChangelog, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(id);
+    }
+
+    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
+    {
+        return BIND(&TFileChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
+            .Guarded()
+            .AsyncVia(GetHydraIOInvoker())
+            .Run(initialId);
+    }
+
+private:
+    TFileChangelogDispatcherPtr Dispatcher_;
+
+    TCellGuid CellGuid_;
+    TFileChangelogStoreConfigPtr Config_;
+
+    NLog::TTaggedLogger Logger;
+
+
+    Stroka GetChangelogPath(int id)
+    {
+        return NFS::CombinePaths(
+            Config_->Path,
+            Sprintf("%09d.%s", id, ~ChangelogExtension));
+    }
+
+
+    IChangelogPtr DoCreateChangelog(int id, const TSharedRef& meta)
     {
         TInsertCookie cookie(id);
         if (!BeginInsert(&cookie)) {
-            LOG_FATAL("Trying to create an already existing changelog %d",
+            THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %d",
                 id);
         }
 
@@ -813,13 +853,16 @@ public:
                 changelog,
                 id));
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error creating changelog %d", id);
+            LOG_FATAL(ex, "Error creating changelog %d",
+                id);
         }
 
-        return cookie.GetValue().Get().Value();
+        auto result = WaitFor(cookie.GetValue());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        return result.Value();
     }
 
-    virtual IChangelogPtr TryOpenChangelog(int id) override
+    IChangelogPtr DoOpenChangelog(int id)
     {
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
@@ -841,37 +884,48 @@ public:
                         changelog,
                         id));
                 } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening changelog %d", id);
+                    LOG_FATAL(ex, "Error opening changelog %d",
+                        id);
                 }
             }
         }
 
         auto changelogOrError = cookie.GetValue().Get();
-        return changelogOrError.IsOK() ? changelogOrError.Value() : nullptr;
+        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+        return changelogOrError.Value();
     }
 
-    virtual int GetLatestChangelogId(int initialId) override
+    int DoGetLatestChangelogId(int initialId)
     {
-        for (int id = initialId; ; ++id) {
-            auto path = GetChangelogPath(id);
-            if (!NFS::Exists(~path)) {
-                return id == initialId ? NonexistingSegmentId : id - 1;
+        int latestId = NonexistingSegmentId;
+        int maxId = -1;
+
+        auto fileNames = EnumerateFiles(Config_->Path);
+        for (const auto& fileName : fileNames) {
+            auto extension = NFS::GetFileExtension(fileName);
+            if (extension == ChangelogIndexExtension) {
+                auto name = NFS::GetFileNameWithoutExtension(fileName);
+                try {
+                    int changelogId = FromString<int>(name);
+                    if (changelogId >= initialId && (changelogId > latestId || latestId == NonexistingSegmentId)) {
+                        latestId = changelogId;
+                    }
+                    if (changelogId > maxId) {
+                        maxId = changelogId;
+                    }
+                } catch (const std::exception&) {
+                    LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
+                }
             }
         }
-    }
 
-private:
-    TFileChangelogDispatcherPtr Dispatcher_;
+        if (latestId != NonexistingSegmentId && maxId > latestId) {
+            LOG_FATAL("Some changelogs are missing: latest id is %d, max id is %d",
+                latestId,
+                maxId);
+        }
 
-    TCellGuid CellGuid_;
-    TFileChangelogStoreConfigPtr Config_;
-
-    NLog::TTaggedLogger Logger;
-
-
-    Stroka GetChangelogPath(int id)
-    {
-        return NFS::CombinePaths(Config_->Path, Sprintf("%09d", id) + LogSuffix);
+        return latestId;
     }
 
 };

@@ -56,7 +56,10 @@ private:
     void OnPeerDeactivated();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TFollowerTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

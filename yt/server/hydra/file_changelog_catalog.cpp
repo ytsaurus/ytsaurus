@@ -317,7 +317,7 @@ private:
             return CellGuid;
         }
 
-        virtual IChangelogPtr CreateChangelog(
+        virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
             int id,
             const TSharedRef& meta) override
         {
@@ -327,19 +327,19 @@ private:
                 meta);
         }
 
-        virtual IChangelogPtr TryOpenChangelog(int id) override
+        virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
         {
-            return Catalog->ChangelogCache->TryOpenChangelog(
+            return Catalog->ChangelogCache->OpenChangelog(
                 this,
                 id);
         }
 
-        virtual int GetLatestChangelogId(int initialId) override
+        virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
         {
             for (int id = initialId; ; ++id) {
                 auto path = Catalog->GetSplitChangelogPath(CellGuid, id);
                 if (!NFS::Exists(path)) {
-                    return id == initialId ? NonexistingSegmentId : id - 1;
+                    return MakeFuture<TErrorOr<int>>(id == initialId ? NonexistingSegmentId : id - 1);
                 }
             }
         }
@@ -360,7 +360,7 @@ private:
             , Logger(HydraLogger)
         { }
 
-        IChangelogPtr CreateChangelog(
+        TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
             TStore* store,
             int id,
             const TSharedRef& meta)
@@ -394,12 +394,10 @@ private:
                     id);
             }
 
-            return cookie.GetValue().Get().Value();
+            return MakeFuture<TErrorOr<IChangelogPtr>>(IChangelogPtr(cookie.GetValue().Get().Value()));
         }
 
-        IChangelogPtr TryOpenChangelog(
-            TStore* store,
-            int id)
+        TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(TStore* store, int id)
         {
             auto cellGuid = store->GetCellGuid();
             TInsertCookie cookie(std::make_pair(cellGuid, id));
@@ -432,8 +430,7 @@ private:
                 }
             }
 
-            auto changelogOrError = cookie.GetValue().Get();
-            return changelogOrError.IsOK() ? changelogOrError.Value() : nullptr;
+            return MakeFuture<TErrorOr<IChangelogPtr>>(IChangelogPtr(cookie.GetValue().Get().Value()));
         }
 
     private:
@@ -458,7 +455,7 @@ private:
             int maxId = std::numeric_limits<int>::min();
             
             for (const auto& entry : entries) {
-                if (!entry.has_suffix(LogSuffix))
+                if (GetFileExtension(entry) != ChangelogExtension)
                     continue;
 
                 int id = NonexistingSegmentId;
@@ -767,7 +764,7 @@ private:
     {
         auto path = GetMultiplexedChangelogPath(changelogId);
         NFS::Rename(path, path + CleanSuffix);
-        NFS::Rename(path + IndexSuffix, path + IndexSuffix + CleanSuffix);
+        NFS::Rename(path + "." + ChangelogIndexExtension, path + "." + ChangelogIndexExtension + CleanSuffix);
         LOG_INFO("Multiplexed changelog %d is clean", changelogId);
     }
 
@@ -779,7 +776,7 @@ private:
 
     Stroka GetMultiplexedChangelogPath(int changelogId)
     {
-        return CombinePaths(GetMultiplexedPath(), Sprintf("%09d", changelogId) + LogSuffix);
+        return CombinePaths(GetMultiplexedPath(), Sprintf("%09d.%s", changelogId, ~ChangelogExtension));
     }
 
     Stroka GetSplitPath(const TCellGuid& cellGuid)
@@ -789,7 +786,7 @@ private:
 
     Stroka GetSplitChangelogPath(const TCellGuid& cellGuid, int changelogId)
     {
-        return CombinePaths(GetSplitPath(cellGuid), Sprintf("%09d", changelogId) + LogSuffix);
+        return CombinePaths(GetSplitPath(cellGuid), Sprintf("%09d.%s", changelogId, ~ChangelogExtension));
     }
 
 };

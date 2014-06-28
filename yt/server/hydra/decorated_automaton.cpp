@@ -288,7 +288,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
-    VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
     Logger.AddTag(Sprintf("CellGuid: %s",
         ~ToString(CellManager_->GetCellGuid())));
@@ -519,7 +518,7 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
     return promise;
 }
 
-TFuture<void> TDecoratedAutomaton::RotateChangelog()
+TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -532,28 +531,27 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
             MakeStrong(this),
             GetCurrentChangelog(),
             LoggedVersion_.SegmentId)
-        .AsyncVia(GetHydraIOInvoker())
+        .Guarded()
+        .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
         .Run();
 }
 
 void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog, int changelogId)
 {
-    VERIFY_THREAD_AFFINITY(IOThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (CurrentChangelog_ != changelog)
-        return;
-
-    WaitFor(changelog->Flush());
+    {
+        auto result = WaitFor(changelog->Flush());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
     
     if (changelog->IsSealed()) {
         LOG_WARNING("Changelog %d is already sealed",
             changelogId);
     } else {
-        WaitFor(changelog->Seal(changelog->GetRecordCount()));
+        auto result = WaitFor(changelog->Seal(changelog->GetRecordCount()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
-
-    if (CurrentChangelog_ != changelog)
-        return;
 
     NProto::TChangelogMeta meta;
     meta.set_prev_record_count(changelog->GetRecordCount());
@@ -561,15 +559,12 @@ void TDecoratedAutomaton::DoRotateChangelog(IChangelogPtr changelog, int changel
     TSharedRef metaBlob;
     YCHECK(SerializeToProto(meta, &metaBlob));
 
-    auto newChangelog = CurrentChangelog_ = ChangelogStore_->CreateChangelog(
+    auto newChangelogOrError = WaitFor(ChangelogStore_->CreateChangelog(
         changelogId + 1,
-        metaBlob);
+        metaBlob));
+    THROW_ERROR_EXCEPTION_IF_FAILED(newChangelogOrError);
 
-    SwitchTo(AutomatonInvoker_);
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    if (CurrentChangelog_ != newChangelog)
-        return;
+    auto newChangelog = CurrentChangelog_ = newChangelogOrError.Value();
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
@@ -720,7 +715,10 @@ TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutati
 IChangelogPtr TDecoratedAutomaton::GetCurrentChangelog() const
 {
     if (!CurrentChangelog_) {
-        CurrentChangelog_ = ChangelogStore_->OpenChangelogOrThrow(LoggedVersion_.SegmentId);
+        // TODO(babenko): I'm so unhappy :(
+        auto result = WaitFor(ChangelogStore_->OpenChangelog(LoggedVersion_.SegmentId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        CurrentChangelog_ = result.Value();
     }
     return CurrentChangelog_;
 }

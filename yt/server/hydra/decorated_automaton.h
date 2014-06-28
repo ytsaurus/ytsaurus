@@ -19,10 +19,31 @@
 #include <ytlib/hydra/version.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
+#include <server/election/election_manager.h>
+
 #include <atomic>
 
 namespace NYT {
 namespace NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEpochContext
+    : public NElection::TEpochContext
+{
+    IInvokerPtr EpochSystemAutomatonInvoker;
+    IInvokerPtr EpochUserAutomatonInvoker;
+    IInvokerPtr EpochControlInvoker;
+    TChangelogRotationPtr ChangelogRotation;
+    TLeaderRecoveryPtr LeaderRecovery;
+    TFollowerRecoveryPtr FollowerRecovery;
+    TLeaderCommitterPtr LeaderCommitter;
+    TFollowerCommitterPtr FollowerCommitter;
+    TFollowerTrackerPtr FollowerTracker;
+    bool IsActiveLeader = false;
+};
+
+DEFINE_REFCOUNTED_TYPE(TEpochContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +100,7 @@ public:
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
-    TFuture<void> RotateChangelog();
+    TAsyncError RotateChangelog(TEpochContextPtr epochContext);
 
     void CommitMutations(TVersion version);
 
@@ -162,9 +183,10 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(IOThread);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TDecoratedAutomaton)
 
 ////////////////////////////////////////////////////////////////////////////////
 

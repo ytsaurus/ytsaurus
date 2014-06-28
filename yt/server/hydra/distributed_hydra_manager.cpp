@@ -34,8 +34,6 @@
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
-#include <server/election/election_manager.h>
-
 #include <atomic>
 
 namespace NYT {
@@ -48,32 +46,6 @@ using namespace NYson;
 using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
-
-struct TEpochContext;
-typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TEpochContext
-    : public NElection::TEpochContext
-{
-    TEpochContext()
-        : IsActiveLeader(false)
-    { }
-
-    IInvokerPtr EpochSystemAutomatonInvoker;
-    IInvokerPtr EpochUserAutomatonInvoker;
-    IInvokerPtr EpochControlInvoker;
-    TChangelogRotationPtr ChangelogRotation;
-    TLeaderRecoveryPtr LeaderRecovery;
-    TFollowerRecoveryPtr FollowerRecovery;
-    TLeaderCommitterPtr LeaderCommitter;
-    TFollowerCommitterPtr FollowerCommitter;
-    TFollowerTrackerPtr FollowerTracker;
-    bool IsActiveLeader;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TDistributedHydraManager
     : public TServiceBase
@@ -438,7 +410,7 @@ private:
         context->SetRequestInfo("ChangelogId: %d",
             changelogId);
 
-        auto changelog = ChangelogStore_->OpenChangelogOrThrow(changelogId);
+        auto changelog = OpenChangelogOrThrow(changelogId);
         int recordCount = changelog->GetRecordCount();
         response->set_record_count(recordCount);
 
@@ -466,7 +438,7 @@ private:
         SwitchTo(GetHydraIOInvoker());
         VERIFY_THREAD_AFFINITY(IOThread);
 
-        auto changelog = ChangelogStore_->OpenChangelogOrThrow(changelogId);
+        auto changelog = OpenChangelogOrThrow(changelogId);
 
         std::vector<TSharedRef> recordData;
         auto recordsData = changelog->Read(
@@ -584,9 +556,7 @@ private:
                         DecoratedAutomaton_,
                         ChangelogStore_,
                         SnapshotStore_,
-                        epochContext->EpochId,
-                        epochContext->LeaderId,
-                        epochContext->EpochSystemAutomatonInvoker,
+                        epochContext,
                         loggedVersion);
 
                     epochContext->EpochControlInvoker->Invoke(
@@ -683,7 +653,7 @@ private:
                     return;
                 }
 
-                WaitFor(DecoratedAutomaton_->RotateChangelog());
+                WaitFor(DecoratedAutomaton_->RotateChangelog(epochContext));
 
                 context->Reply();
                 break;
@@ -784,6 +754,14 @@ private:
     }
 
 
+    IChangelogPtr OpenChangelogOrThrow(int id)
+    {
+        auto changelogOrError = WaitFor(ChangelogStore_->OpenChangelog(id));
+        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+        return changelogOrError.Value();
+    }
+
+
     TFuture<TVersion> ComputeReachableVersion()
     {
         return BIND(&TDistributedHydraManager::DoComputeReachableVersion, MakeStrong(this))
@@ -811,14 +789,17 @@ private:
                     LOG_INFO("The latest snapshot is %d", maxSnapshotId);
                 }
 
+                auto maxChangelogIdOrError = WaitFor(ChangelogStore_->GetLatestChangelogId(maxSnapshotId));
+                THROW_ERROR_EXCEPTION_IF_FAILED(maxChangelogIdOrError);
+                int maxChangelogId = maxChangelogIdOrError.Value();
+
                 TVersion version;
-                int maxChangelogId = ChangelogStore_->GetLatestChangelogId(maxSnapshotId);
                 if (maxChangelogId == NonexistingSegmentId) {
                     LOG_INFO("No changelogs found");
                     version = TVersion(maxSnapshotId, 0);
                 } else {
                     LOG_INFO("The latest changelog is %d", maxChangelogId);
-                    auto changelog = ChangelogStore_->OpenChangelogOrThrow(maxChangelogId);
+                    auto changelog = OpenChangelogOrThrow(maxChangelogId);
                     version = TVersion(maxChangelogId, changelog->GetRecordCount());
                 }
 
@@ -908,9 +889,7 @@ private:
             DecoratedAutomaton_,
             epochContext->LeaderCommitter,
             SnapshotStore_,
-            epochContext->EpochId,
-            epochContext->EpochControlInvoker,
-            epochContext->EpochUserAutomatonInvoker);
+            epochContext);
 
         epochContext->FollowerTracker->Start();
 
@@ -939,8 +918,7 @@ private:
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
-                epochContext->EpochId,
-                epochContext->EpochSystemAutomatonInvoker);
+                epochContext);
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -972,8 +950,7 @@ private:
 
             // Let's be neat and omit changelog rotation for the very first run.
             if (DecoratedAutomaton_->GetLoggedVersion() != TVersion()) {
-                auto asyncRotateResult = epochContext->ChangelogRotation->RotateChangelog();
-                auto rotateResult = WaitFor(asyncRotateResult);
+                auto rotateResult = WaitFor(epochContext->ChangelogRotation->RotateChangelog());
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
                 THROW_ERROR_EXCEPTION_IF_FAILED(rotateResult);
             }

@@ -66,7 +66,9 @@ private:
                 recordCount,
                 changelogId);
 
-            auto changelog = ChangelogStore->OpenChangelogOrThrow(changelogId);
+            auto changelogOrError = WaitFor(ChangelogStore->OpenChangelog(changelogId));
+            THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+            auto changelog = changelogOrError.Value();
             if (changelog->GetRecordCount() >= recordCount) {
                 LOG_INFO("Local changelog already contains %d records, no download needed",
                     changelog->GetRecordCount());

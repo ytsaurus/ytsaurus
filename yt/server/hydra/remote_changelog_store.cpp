@@ -35,19 +35,19 @@ public:
         YUNIMPLEMENTED();
     }
 
-    virtual IChangelogPtr CreateChangelog(
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
         int id,
         const TSharedRef& meta) override
     {
         YUNIMPLEMENTED();
     }
 
-    virtual IChangelogPtr TryOpenChangelog(int id) override
+    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
     {
         YUNIMPLEMENTED();
     }
 
-    virtual int GetLatestChangelogId(int initialId) override
+    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
     {
         YUNIMPLEMENTED();
     }

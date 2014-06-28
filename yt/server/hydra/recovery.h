@@ -26,9 +26,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        const TEpochId& epoch,
-        TPeerId leaderId,
-        IInvokerPtr epochAutomatonInvoker);
+        TEpochContextPtr epochContext);
 
 protected:
     friend class TLeaderRecovery;
@@ -67,15 +65,14 @@ protected:
     int ComputePrevRecordCount(int segmentId);
 
 
-    TDistributedHydraManagerConfigPtr Config;
-    NElection::TCellManagerPtr CellManager;
-    TDecoratedAutomatonPtr DecoratedAutomaton;
-    IChangelogStorePtr ChangelogStore;
-    ISnapshotStorePtr SnapshotStore;
-    TEpochId EpochId;
-    TPeerId LeaderId;
-    IInvokerPtr EpochAutomatonInvoker;
-    TVersion SyncVersion;
+    TDistributedHydraManagerConfigPtr Config_;
+    NElection::TCellManagerPtr CellManager_;
+    TDecoratedAutomatonPtr DecoratedAutomaton_;
+    IChangelogStorePtr ChangelogStore_;
+    ISnapshotStorePtr SnapshotStore_;
+    TEpochContextPtr EpochContext_;
+
+    TVersion SyncVersion_;
 
     NLog::TTaggedLogger Logger;
 
@@ -96,8 +93,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        const TEpochId& epochId,
-        IInvokerPtr epochAutomatonInvoker);
+        TEpochContextPtr epochContext);
 
     //! Performs leader recovery up to a given version.
     TAsyncError Run(TVersion targetVersion);
@@ -108,6 +104,8 @@ private:
     virtual bool IsLeader() const;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TLeaderRecovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,9 +120,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        const TEpochId& epoch,
-        TPeerId leaderId,
-        IInvokerPtr epochStateInvoker,
+        TEpochContextPtr epochContext,
         TVersion syncVersion);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
@@ -177,6 +173,8 @@ private:
     virtual bool IsLeader() const;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TFollowerRecovery)
 
 //////////////////////////////////////////////////////////////////////////////
 

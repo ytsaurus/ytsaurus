@@ -186,7 +186,7 @@ TSyncFileChangelog::TImpl::TImpl(
     const Stroka& path,
     TFileChangelogConfigPtr config)
     : FileName_(path)
-    , IndexFileName_(path + IndexSuffix)
+    , IndexFileName_(path + "." + ChangelogIndexExtension)
     , Config_(config)
     , Open_(false)
     , RecordCount_(-1)

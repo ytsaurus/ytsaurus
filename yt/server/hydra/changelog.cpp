@@ -1,23 +1,19 @@
 #include "stdafx.h"
 #include "changelog.h"
 
-#include <core/misc/error.h>
-
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChangelogPtr IChangelogStore::OpenChangelogOrThrow(int id)
+TFuture<TErrorOr<IChangelogPtr>> IChangelogStore::TryOpenChangelog(int id)
 {
-    auto changelog = TryOpenChangelog(id);
-    if (!changelog) {
-        THROW_ERROR_EXCEPTION(
-            NHydra::EErrorCode::NoSuchChangelog,
-            "No such changelog %d",
-            id);
-    }
-    return changelog;
+    return OpenChangelog(id).Apply(BIND([] (TErrorOr<IChangelogPtr> result) -> TErrorOr<IChangelogPtr> {
+        if (!result.IsOK() && result.GetCode() == NHydra::EErrorCode::NoSuchChangelog) {
+            return IChangelogPtr(nullptr);
+        }
+        return result;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

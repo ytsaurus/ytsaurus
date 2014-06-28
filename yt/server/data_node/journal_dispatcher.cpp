@@ -198,7 +198,7 @@ private:
         PROFILE_TIMING("/journal_chunk_remove_time") {
             try {
                 auto dataFileName = chunk->GetFileName();
-                auto indexFileName = dataFileName + IndexSuffix;
+                auto indexFileName = dataFileName + "." + ChangelogIndexExtension;
                 NFS::Remove(dataFileName);
                 NFS::Remove(indexFileName);
             } catch (const std::exception& ex) {
@@ -280,7 +280,9 @@ private:
 
     Stroka GetMultiplexedChangelogPath(int changelogId)
     {
-        return NFS::CombinePaths(GetMultiplexedPath(), Sprintf("%09d", changelogId) + LogSuffix);
+        return NFS::CombinePaths(
+            GetMultiplexedPath(),
+            Sprintf("%09d.%s", changelogId, ~ChangelogExtension));
     }
 
 
@@ -288,7 +290,7 @@ private:
     {
         auto path = GetMultiplexedChangelogPath(changelogId);
         NFS::Rename(path, path + CleanSuffix);
-        NFS::Rename(path + IndexSuffix, path + IndexSuffix + CleanSuffix);
+        NFS::Rename(path + "." + ChangelogIndexExtension, path + "." + ChangelogIndexExtension + CleanSuffix);
         LOG_INFO("Multiplexed changelog %d is clean", changelogId);
     }
 
@@ -426,20 +428,20 @@ public:
         auto path = Owner_->GetMultiplexedPath();
         NFS::ForcePath(path);
 
-        auto entries = NFS::EnumerateFiles(path);
-
         int minId = std::numeric_limits<int>::max();
         int maxId = std::numeric_limits<int>::min();
             
-        for (const auto& entry : entries) {
-            if (!entry.has_suffix(LogSuffix))
+        auto fileNames = NFS::EnumerateFiles(path);
+        for (const auto& fileName : fileNames) {
+            if (NFS::GetFileExtension(fileName) != ChangelogExtension)
                 continue;
 
             int id = NonexistingSegmentId;
             try {
-                id = FromString<int>(NFS::GetFileNameWithoutExtension(entry));
+                id = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
             } catch (const std::exception) {
-                THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s", ~entry.Quote());
+                THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s",
+                    ~fileName.Quote());
             }
 
             LOG_INFO("Found dirty multiplexed changelog %d", id);

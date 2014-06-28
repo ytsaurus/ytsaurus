@@ -408,7 +408,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
 {
     auto fileName = GetChunkFileName(chunkId);
     if (!NFS::Exists(fileName)) {
-        auto indexFileName = fileName + NHydra::IndexSuffix;
+        auto indexFileName = fileName + "." + NHydra::ChangelogIndexExtension;
         if (NFS::Exists(indexFileName)) {
             LOG_WARNING("Missing data file, removing index file %s",
                 ~indexFileName.Quote());

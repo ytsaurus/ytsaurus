@@ -11,31 +11,18 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSyncFileChangelog;
-typedef TIntrusivePtr<TSyncFileChangelog> TSyncFileChangelogPtr;
-
-class TDecoratedAutomaton;
-typedef TIntrusivePtr<TDecoratedAutomaton> TDecoratedAutomatonPtr;
-
-class TLeaderRecovery;
-typedef TIntrusivePtr<TLeaderRecovery> TLeaderRecoveryPtr;
-
-class TFollowerRecovery;
-typedef TIntrusivePtr<TFollowerRecovery> TFollowerRecoveryPtr;
-
-class TFollowerTracker;
-typedef TIntrusivePtr<TFollowerTracker> TFollowerTrackerPtr;
-
-class TLeaderCommitter;
-typedef TIntrusivePtr<TLeaderCommitter> TLeaderCommitterPtr;
-
-class TFollowerCommitter;
-typedef TIntrusivePtr<TFollowerCommitter> TFollowerCommitterPtr;
-
-class TChangelogRotation;
-typedef TIntrusivePtr<TChangelogRotation> TChangelogRotationPtr;
+DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 
 struct TRemoteSnapshotParams;
+
+DECLARE_REFCOUNTED_CLASS(TSyncFileChangelog)
+DECLARE_REFCOUNTED_CLASS(TDecoratedAutomaton)
+DECLARE_REFCOUNTED_CLASS(TLeaderRecovery)
+DECLARE_REFCOUNTED_CLASS(TFollowerRecovery)
+DECLARE_REFCOUNTED_CLASS(TFollowerTracker)
+DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
+DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
+DECLARE_REFCOUNTED_CLASS(TChangelogRotation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,8 +37,9 @@ const int UnknownPrevRecordCount = -2;
 //! A special value representing an invalid snapshot (or changelog) id.
 const int NonexistingSegmentId = -1;
 
-extern const Stroka LogSuffix;
-extern const Stroka IndexSuffix;
+extern const Stroka SnapshotExtension;
+extern const Stroka ChangelogExtension;
+extern const Stroka ChangelogIndexExtension;
 extern const Stroka MultiplexedDirectory;
 extern const Stroka SplitSuffix;
 extern const Stroka CleanSuffix;

@@ -89,26 +89,25 @@ struct IChangelogStore
     //! Returns the guid of the cell.
     virtual const TCellGuid& GetCellGuid() const = 0;
 
-    //! Synchronously creates a new changelog.
-    virtual IChangelogPtr CreateChangelog(
+    //! Creates a new changelog.
+    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
         int id,
         const TSharedRef& meta) = 0;
 
-    //! Synchronously opens an existing changelog.
-    //! Returns |nullptr| if not changelog is found.
-    virtual IChangelogPtr TryOpenChangelog(int id) = 0;
+    //! Opens an existing changelog.
+    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) = 0;
 
     //! Scans for the maximum contiguous sequence of existing
     //! changelogs starting from #initialId and returns the id of the latest one.
     //! Returns |NonexistingSegmentId| if the initial changelog does not exist.
-    virtual int GetLatestChangelogId(int initialId) = 0;
+    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) = 0;
 
 
     // Extension methods.
 
-    //! Synchronously opens an existing changelog.
-    //! Throws on failure.
-    IChangelogPtr OpenChangelogOrThrow(int id);
+    //! Opens an existing changelog.
+    //! If the requested changelog is not found then returns |nullptr|.
+    TFuture<TErrorOr<IChangelogPtr>> TryOpenChangelog(int id);
 
 };
 

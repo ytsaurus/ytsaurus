@@ -6,8 +6,9 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka LogSuffix(".log");
-const Stroka IndexSuffix(".index");
+const Stroka SnapshotExtension("snapshot");
+const Stroka ChangelogExtension("log");
+const Stroka ChangelogIndexExtension("index");
 const Stroka MultiplexedDirectory("multiplexed");
 const Stroka SplitSuffix(".split");
 const Stroka CleanSuffix(".clean");
