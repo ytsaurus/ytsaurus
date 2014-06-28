@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/actions/future.h>
+
+#include <core/concurrency/scheduler.h>
+#include <core/concurrency/fiber.h>
+
 #include <util/random/random.h>
 
 namespace NYT {
@@ -20,6 +25,9 @@ Stroka GenerateRandomFileName(const char* prefix)
 } // namespace NYT
 
 namespace testing {
+
+using namespace NYT;
+using namespace NYT::NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +64,40 @@ Matcher<Stroka>::Matcher(const Stroka& s)
 Matcher<Stroka>::Matcher(const char* s)
 {
     *this = Eq(Stroka(s));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackedVia(IInvokerPtr invoker, TClosure closure)
+{
+    auto promise = NewPromise<TFiberPtr>();
+
+    BIND([promise, closure] () mutable {
+        promise.Set(GetCurrentScheduler()->GetCurrentFiber());
+        closure.Run();
+    })
+    .Via(invoker)
+    .Run();
+
+    auto strongFiber = promise.Get();
+    auto weakFiber = MakeWeak(strongFiber);
+
+    promise.Reset();
+    strongFiber.Reset();
+
+    YASSERT(!promise);
+    YASSERT(!strongFiber);
+
+    auto startedAt = TInstant::Now();
+    while (weakFiber.Lock()) {
+        if (TInstant::Now() - startedAt > TDuration::Seconds(5)) {
+            GTEST_FAIL() << "Probably stuck.";
+            break;
+        }
+        Sleep(TDuration::MilliSeconds(10));
+    }
+
+    SUCCEED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

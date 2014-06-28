@@ -13,6 +13,8 @@
 #include <core/misc/preprocessor.h>
 #include <core/misc/enum.h>
 
+#include <core/actions/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,6 +201,42 @@ public:
     Matcher(const Stroka& s); // NOLINT
     Matcher(const char* s);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackedVia(NYT::IInvokerPtr invoker, NYT::TClosure closure);
+
+// Wraps tests in an extra fiber and awaits termination. Adapted from `gtest.h`.
+#define TEST_W_(test_case_name, test_name, parent_class, parent_id)\
+class GTEST_TEST_CLASS_NAME_(test_case_name, test_name) : public parent_class {\
+ public:\
+  GTEST_TEST_CLASS_NAME_(test_case_name, test_name)() {}\
+ private:\
+  virtual void TestBody();\
+  void TestInnerBody();\
+  static ::testing::TestInfo* const test_info_ GTEST_ATTRIBUTE_UNUSED_;\
+  GTEST_DISALLOW_COPY_AND_ASSIGN_(\
+    GTEST_TEST_CLASS_NAME_(test_case_name, test_name));\
+};\
+\
+::testing::TestInfo* const GTEST_TEST_CLASS_NAME_(test_case_name, test_name)\
+  ::test_info_ =\
+    ::testing::internal::MakeAndRegisterTestInfo(\
+        #test_case_name, #test_name, NULL, NULL, \
+        (parent_id), \
+        parent_class::SetUpTestCase, \
+        parent_class::TearDownTestCase, \
+        new ::testing::internal::TestFactoryImpl<\
+            GTEST_TEST_CLASS_NAME_(test_case_name, test_name)>);\
+void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestBody() {\
+  ::testing::TrackedVia(MainQueue->GetInvoker(), BIND(\
+    &GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody,\
+    this));\
+}\
+void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody()
+#define TEST_W(test_fixture, test_name)\
+  TEST_W_(test_fixture, test_name, test_fixture, \
+    ::testing::internal::GetTypeId<test_fixture>())
 
 ////////////////////////////////////////////////////////////////////////////////
 
