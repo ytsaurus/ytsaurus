@@ -199,6 +199,19 @@ TNodePtrWithIndexList TChunk::GetReplicas() const
     return result;
 }
 
+void TChunk::ApproveReplica(TNodePtrWithIndex replica)
+{
+    if (IsJournal()) {
+        for (auto& existingReplica : StoredReplicas_) {
+            if (existingReplica.GetPtr() == replica.GetPtr()) {
+                existingReplica = replica;
+                return;
+            }
+        }
+        YUNREACHABLE();
+    }
+}
+
 bool TChunk::IsConfirmed() const
 {
     return ChunkMeta_.type() != EChunkType::Unknown;

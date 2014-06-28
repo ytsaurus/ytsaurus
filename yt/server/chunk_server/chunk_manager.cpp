@@ -1298,7 +1298,8 @@ private:
             replicaIndex = chunkIdWithIndex.Index;
         }
 
-        auto chunkWithIndex = TChunkPtrWithIndex(chunk, replicaIndex);
+        TChunkPtrWithIndex chunkWithIndex(chunk, replicaIndex);
+        TNodePtrWithIndex nodeWithIndex(node, replicaIndex);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %d, Address: %s, ChunkId: %s)",
@@ -1307,6 +1308,7 @@ private:
                 ~ToString(chunkWithIndex));
 
             node->ApproveReplica(chunkWithIndex);
+            chunk->ApproveReplica(nodeWithIndex);
             return;
         }
 

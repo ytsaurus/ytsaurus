@@ -78,6 +78,8 @@ public:
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
     TNodePtrWithIndexList GetReplicas() const;
 
+    void ApproveReplica(TNodePtrWithIndex replica);
+
     bool IsConfirmed() const;
     void ValidateConfirmed();
 

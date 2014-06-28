@@ -130,12 +130,13 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
     if (cached) {
         YASSERT(!chunk->IsJournal());
         return CachedReplicas_.insert(replica).second;
-    } else {
+    } else  {
         if (chunk->IsJournal()) {
             StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
             StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
             StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
-        }
+        } 
+        // NB: For journal chunks result is always true.
         return StoredReplicas_.insert(replica).second;
     }
 }
@@ -201,6 +202,13 @@ bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
     YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
+    auto* chunk = replica.GetPtr();
+    if (chunk->IsJournal()) {
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
+        StoredReplicas_.insert(replica).second;
+    }
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
