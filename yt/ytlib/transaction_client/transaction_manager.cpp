@@ -416,9 +416,6 @@ private:
         if (!options.Ping) {
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
         }
-        if (options.PingAncestors) {
-            THROW_ERROR_EXCEPTION("Cannot ping ancestors for a tablet transaction");
-        }
     }
 
 
