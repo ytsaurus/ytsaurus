@@ -93,7 +93,6 @@ TPeerId TTabletCell::GetPeerId(TNode* node) const
 void TTabletCell::AssignPeer(TNode* node, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
-    YCHECK(!peer.Address);
     peer.Address = node->GetAddress();
 }
 
@@ -101,8 +100,8 @@ void TTabletCell::RevokePeer(TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(peer.Address);
-    YCHECK(!peer.Node);
     peer.Address = Null;
+    YCHECK(!peer.Node);
 }
 
 void TTabletCell::AttachPeer(TNode* node, TPeerId peerId, int slotIndex)

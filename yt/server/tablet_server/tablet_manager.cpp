@@ -982,6 +982,10 @@ private:
 
         YCHECK(request.node_ids_size() == cell->Peers().size());
         for (TPeerId peerId = 0; peerId < request.node_ids_size(); ++peerId) {
+            const auto& peer = cell->Peers()[peerId];
+            if (peer.Node)
+                continue;
+
             auto nodeId = request.node_ids(peerId);
             if (nodeId == InvalidNodeId)
                 continue;
@@ -990,13 +994,10 @@ private:
             if (!node)
                 continue;
 
-            if (cell->Peers()[peerId].Address)
-                continue;
-
             if (node->IsTabletCellStartScheduled(cell))
                 continue;
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation scheduled (CellId: %s, Address: %s, PeerId: %d)",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot start scheduled (CellId: %s, Address: %s, PeerId: %d)",
                 ~ToString(cellId),
                 ~node->GetAddress(),
                 peerId);
@@ -1128,7 +1129,7 @@ private:
         if (tablet->GetState() != ETabletState::Mounted &&
             tablet->GetState() != ETabletState::Unmounting)
         {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %s state, ignored (TabletId: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stores for a tablet in %s state, ignored (TabletId: %s)",
                 ~FormatEnum(tablet->GetState()).Quote(),
                 ~ToString(tabletId));
             return;
