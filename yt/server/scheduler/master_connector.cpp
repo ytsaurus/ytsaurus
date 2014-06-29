@@ -29,6 +29,7 @@
 #include <core/ypath/token.h>
 
 #include <ytlib/api/config.h>
+#include <ytlib/api/connection.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
@@ -1046,36 +1047,46 @@ private:
             watchTransaction(operation->GetOutputTransaction());
         }
 
+        yhash_map<TCellId, TObjectServiceProxy::TReqExecuteBatchPtr> batchRequests;
+
+        for (const auto& id : watchSet) {
+            auto cellId = CellIdFromId(id);
+            if (batchRequests.find(cellId) == batchRequests.end()) {
+                auto connection = ClusterDirectory->GetConnection(cellId);
+                auto objectServiceProxy = TObjectServiceProxy(connection->GetMasterChannel());
+                batchRequests[cellId] = objectServiceProxy.ExecuteBatch();
+            }
+
+            auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
+            batchRequests[cellId]->AddRequest(checkReq, "check_tx_" + ToString(id));
+        }
+
+        LOG_INFO("Refreshing transactions");
+        TransactionRefreshExecutor->ScheduleNext();
+
+
+        yhash_map<TCellId, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchResponses;
+
+        for (const auto& pair : batchRequests) {
+            TCellId cellId;
+            TObjectServiceProxy::TReqExecuteBatchPtr request;
+            std::tie(cellId, request) = pair;
+            auto response = WaitFor(request->Invoke(), CancelableControlInvoker);
+            if (!response->IsOK()) {
+                LOG_ERROR(*response, "Error refreshing transactions");
+            }
+            batchResponses[cellId] = response;
+        }
+
         yhash_set<TTransactionId> deadTransactionIds;
 
-        // Invoke GetBasicAttributes method for these transactions to see if they are alive.
-        auto batchRequest = TMultiCellBatchRequest(ClusterDirectory, false);
-
-        std::vector<TTransactionId> transactionIds;
         for (const auto& id : watchSet) {
-            auto checkReq = TObjectYPathProxy::GetBasicAttributes(FromObjectId(id));
-            if (batchRequest.AddRequestForTransaction(checkReq, "check_tx", id)) {
-                transactionIds.push_back(id);
-            } else {
+            auto cellId = CellIdFromId(id);
+            if (!batchResponses[cellId]->GetResponse("check_tx_" + ToString(id))->IsOK()) {
                 deadTransactionIds.insert(id);
             }
         }
 
-        LOG_INFO("Refreshing transactions");
-
-        TransactionRefreshExecutor->ScheduleNext();
-
-        auto batchResponse = batchRequest.Execute(CancelableControlInvoker);
-        if (!batchResponse.IsOK()) {
-            LOG_ERROR(batchResponse, "Error refreshing transactions");
-            return;
-        }
-
-        for (int index = 0; index < static_cast<int>(batchResponse.GetSize()); ++index) {
-            if (!batchResponse.GetResponse(index)->IsOK()) {
-                YCHECK(deadTransactionIds.insert(transactionIds[index]).second);
-            }
-        }
 
         LOG_INFO("Transactions refreshed");
 
