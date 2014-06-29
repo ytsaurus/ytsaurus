@@ -193,7 +193,7 @@ bool TMultiCellBatchRequest::AddRequest(TYPathRequestPtr req, const Stroka& key,
 
 bool TMultiCellBatchRequest::AddRequestForTransaction(TYPathRequestPtr req, const Stroka& key, const TTransactionId& id)
 {
-    return AddRequest(req, key, GetCellId(id, EObjectType::Transaction));
+    return AddRequest(req, key, CellIdFromId(id));
 }
 
 TMultiCellBatchResponse TMultiCellBatchRequest::Execute(IInvokerPtr invoker)

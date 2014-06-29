@@ -891,60 +891,40 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto getTransactionManager = [&] (TOperationId id) {
-            return CreateClient(Bootstrap->GetClusterDirectory()->GetConnection(GetCellId(id, EObjectType::Transaction)))->GetTransactionManager();
+        auto getTransaction = [&] (const TTransactionId& id, bool ping) -> TTransactionPtr {
+            if (id == NullTransactionId) {
+                return nullptr;
+            }
+            auto clusterDirectory = Bootstrap->GetClusterDirectory();
+            auto connection = clusterDirectory->GetConnection(CellIdFromId(id));
+            auto client = CreateClient(connection);
+            auto transactionManager = client->GetTransactionManager();
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = ping;
+            options.PingAncestors = false;
+            return transactionManager->Attach(options);
         };
 
-        TTransactionPtr userTransaction;
-        {
-            auto id = attributes.Get<TTransactionId>("user_transaction_id");
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = false;
-            options.PingAncestors = false;
-            userTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
-        }
+        auto userTransaction = getTransaction(
+            attributes.Get<TTransactionId>("user_transaction_id"),
+            false);
 
-        TTransactionPtr syncTransaction;
-        {
-            auto id = attributes.Get<TTransactionId>("sync_scheduler_transaction_id");
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            syncTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
-        }
+        auto syncTransaction = getTransaction(
+            attributes.Get<TTransactionId>("sync_scheduler_transaction_id"),
+            true);
 
+        auto asyncTransaction = getTransaction(
+            attributes.Get<TTransactionId>("async_scheduler_transaction_id"),
+            true);
 
-        TTransactionPtr asyncTransaction;
-        {
-            auto id = attributes.Get<TTransactionId>("async_scheduler_transaction_id");
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            asyncTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
-        }
+        auto inputTransaction = getTransaction(
+            attributes.Get<TTransactionId>("input_transaction_id"),
+            true);
 
-        TTransactionPtr inputTransaction;
-        {
-            auto id = attributes.Get<TTransactionId>("input_transaction_id");
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            inputTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
-        }
-
-        TTransactionPtr outputTransaction;
-        {
-            auto id = attributes.Get<TTransactionId>("output_transaction_id");
-            TTransactionAttachOptions options(id);
-            options.AutoAbort = false;
-            options.Ping = true;
-            options.PingAncestors = false;
-            outputTransaction = id == NullTransactionId ? nullptr : getTransactionManager(id)->Attach(options);
-        }
+        auto outputTransaction = getTransaction(
+            attributes.Get<TTransactionId>("output_transaction_id"),
+            true);
 
         auto operation = New<TOperation>(
             operationId,
