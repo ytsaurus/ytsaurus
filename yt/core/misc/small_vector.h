@@ -21,6 +21,7 @@
 #include <iterator>
 #include <memory>
 
+#include "mpl.h"
 #include "align_of.h"
 
 #define LLVM_ATTRIBUTE_UNUSED_RESULT
