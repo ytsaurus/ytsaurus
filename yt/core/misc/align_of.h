@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include "compiler.h"
 #include <cstddef>
 
 namespace NYT {

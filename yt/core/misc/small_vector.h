@@ -13,9 +13,6 @@
 
 #pragma once
 
-#include "mpl.h"
-#include "align_of.h"
-
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -23,6 +20,8 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+
+#include "align_of.h"
 
 #define LLVM_ATTRIBUTE_UNUSED_RESULT
 #define LLVM_HAS_RVALUE_REFERENCES 1
