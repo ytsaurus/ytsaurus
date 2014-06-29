@@ -253,18 +253,22 @@ public:
     }
 
 
-    ISnapshotStorePtr GetSnapshotStore(const TCellGuid& cellGuid)
+    ISnapshotStorePtr CreateSnapshotStore(const TCellGuid& cellGuid)
     {
         return CreateRemoteSnapshotStore(
             Config_->Snapshots,
+            // TODO(babenko): make configurable
+            New<TRemoteSnapshotStoreOptions>(),
             Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
             Bootstrap_->GetMasterClient());
     }
 
-    IChangelogStorePtr GetChangelogStore(const TCellGuid& cellGuid)
+    IChangelogStorePtr CreateChangelogStore(const TCellGuid& cellGuid)
     {
         return CreateRemoteChangelogStore(
             Config_->Changelogs,
+            // TODO(babenko): make configurable
+            New<TRemoteChangelogStoreOptions>(),
             Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(cellGuid)),
             Bootstrap_->GetMasterClient());
     }
@@ -483,14 +487,14 @@ void TTabletSlotManager::UnregisterTablets(TTabletSlotPtr slot)
     Impl_->UnregisterTablets(std::move(slot));
 }
 
-ISnapshotStorePtr TTabletSlotManager::GetSnapshotStore(const TCellGuid& cellGuid)
+ISnapshotStorePtr TTabletSlotManager::CreateSnapshotStore(const TCellGuid& cellGuid)
 {
-    return Impl_->GetSnapshotStore(cellGuid);
+    return Impl_->CreateSnapshotStore(cellGuid);
 }
 
-IChangelogStorePtr TTabletSlotManager::GetChangelogStore(const TCellGuid& cellGuid)
+IChangelogStorePtr TTabletSlotManager::CreateChangelogStore(const TCellGuid& cellGuid)
 {
-    return Impl_->GetChangelogStore(cellGuid);
+    return Impl_->CreateChangelogStore(cellGuid);
 }
 
 IYPathServicePtr TTabletSlotManager::GetOrchidService()

@@ -46,9 +46,11 @@ class TRemoteSnapshotStore
 public:
     TRemoteSnapshotStore(
         TRemoteSnapshotStoreConfigPtr config,
+        TRemoteSnapshotStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr masterClient)
         : Config_(config)
+        , Options_(options)
         , RemotePath_(remotePath)
         , MasterClient_(masterClient)
         , Logger(HydraLogger)
@@ -102,6 +104,7 @@ public:
 
 private:
     TRemoteSnapshotStoreConfigPtr Config_;
+    TRemoteSnapshotStoreOptionsPtr Options_;
     TYPath RemotePath_;
     IClientPtr MasterClient_;
 
@@ -258,8 +261,7 @@ private:
             {
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
-                // TODO(babenko): make configurable
-                attributes->Set("replication_factor", 3);
+                attributes->Set("replication_factor", Options_->SnapshotReplicationFactor);
                 attributes->Set("prev_record_count", params.PrevRecordCount);
                 options.Attributes = attributes.get();
                 auto result = WaitFor(transaction->CreateNode(
@@ -366,11 +368,13 @@ private:
 
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
+    TRemoteSnapshotStoreOptionsPtr options,
     const TYPath& remotePath,
     IClientPtr masterClient)
 {
     return New<TRemoteSnapshotStore>(
         config,
+        options,
         remotePath,
         masterClient);
 }

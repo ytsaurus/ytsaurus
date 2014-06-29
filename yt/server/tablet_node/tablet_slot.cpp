@@ -222,8 +222,8 @@ public:
         SetCellGuid(cellGuid);
 
         auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        SnapshotStore_ = tabletSlotManager->GetSnapshotStore(CellGuid_);
-        ChangelogStore_ = tabletSlotManager->GetChangelogStore(CellGuid_);
+        SnapshotStore_ = tabletSlotManager->CreateSnapshotStore(CellGuid_);
+        ChangelogStore_ = tabletSlotManager->CreateChangelogStore(CellGuid_);
 
         State_ = EPeerState::Stopped;
 

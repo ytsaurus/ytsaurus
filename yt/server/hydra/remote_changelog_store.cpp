@@ -40,9 +40,11 @@ class TRemoteChangelogStore
 public:
     TRemoteChangelogStore(
         TRemoteChangelogStoreConfigPtr config,
+        TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr masterClient)
         : Config_(config)
+        , Options_(options)
         , RemotePath_(remotePath)
         , MasterClient_(masterClient)
         , Logger(HydraLogger)
@@ -81,6 +83,7 @@ public:
 
 private:
     TRemoteChangelogStoreConfigPtr Config_;
+    TRemoteChangelogStoreOptionsPtr Options_;
     TYPath RemotePath_;
     IClientPtr MasterClient_;
 
@@ -98,10 +101,9 @@ private:
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
-            // TODO(babenko): make configurable
-            attributes->Set("replication_factor", 3);
-            attributes->Set("read_quorum", 2);
-            attributes->Set("write_quorum", 2);
+            attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
+            attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
+            attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
             attributes->Set("prev_record_count", meta.prev_record_count());
             options.Attributes = attributes.get();
 
@@ -341,11 +343,13 @@ private:
 
 IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,
+    TRemoteChangelogStoreOptionsPtr options,
     const TYPath& remotePath,
     IClientPtr masterClient)
 {
     return New<TRemoteChangelogStore>(
         config,
+        options,
         remotePath,
         masterClient);
 }

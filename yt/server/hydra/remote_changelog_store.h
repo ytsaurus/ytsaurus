@@ -13,6 +13,7 @@ namespace NHydra {
 
 IChangelogStorePtr CreateRemoteChangelogStore(
     TRemoteChangelogStoreConfigPtr config,
+    TRemoteChangelogStoreOptionsPtr options,
     const NYPath::TYPath& remotePath,
     NApi::IClientPtr masterClient);
 
