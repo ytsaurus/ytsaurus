@@ -599,8 +599,6 @@ protected:
     TError DoPrepare();
     void GetInputObjectIds();
     void GetOutputObjectIds();
-    void ValidateInputTypes();
-    void ValidateOutputTypes();
     void ValidateFileTypes();
     void RequestInputObjects();
     void RequestOutputObjects();

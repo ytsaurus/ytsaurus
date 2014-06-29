@@ -1068,8 +1068,6 @@ TError TOperationControllerBase::DoPrepare()
         GetInputObjectIds();
         GetOutputObjectIds();
 
-        ValidateInputTypes();
-        ValidateOutputTypes();
         ValidateFileTypes();
 
         RequestInputObjects();
@@ -1281,7 +1279,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Sprintf("Scheduler input for operation %s", ~ToString(operationId)));
         ToProto(req->mutable_object_attributes(), *attributes);
-            
+
         NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
@@ -2432,6 +2430,14 @@ void TOperationControllerBase::GetInputObjectIds()
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %s",
                     ~table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
+                auto type = EObjectType(rsp->type());
+
+                if (type != EObjectType::Table) {
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                        ~table.Path.GetPath(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
+                }
             }
         }
     }
@@ -2464,81 +2470,19 @@ void TOperationControllerBase::GetOutputObjectIds()
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %s",
                     ~table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
+                auto type = EObjectType(rsp->type());
+
+                if (type != EObjectType::Table) {
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                        ~table.Path.GetPath(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
+                }
             }
         }
     }
 
     LOG_INFO("Output object ids received");
-}
-
-void TOperationControllerBase::ValidateInputTypes()
-{
-    LOG_INFO("Getting input object types");
-
-    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : InputTables) {
-        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "get_input_types");
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting input object types");
-
-    auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
-    for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
-        auto& table = InputTables[index];
-        auto path = table.Path.GetPath();
-        auto rsp = getInputTypes[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
-            ~path);
-
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                ~path,
-                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                ~FormatEnum(type).Quote());
-        }
-    }
-
-    LOG_INFO("Input types received");
-}
-
-void TOperationControllerBase::ValidateOutputTypes()
-{
-    LOG_INFO("Getting output object types");
-
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : OutputTables) {
-        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, Operation->GetOutputTransaction());
-        batchReq->AddRequest(req, "get_output_types");
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting output object types");
-
-    auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
-    for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-        auto& table = OutputTables[index];
-        auto path = table.Path.GetPath();
-        auto rsp = getOutputTypes[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
-            ~path);
-
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                ~path,
-                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                ~FormatEnum(type).Quote());
-        }
-    }
 }
 
 void TOperationControllerBase::ValidateFileTypes()
