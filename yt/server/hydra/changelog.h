@@ -86,9 +86,6 @@ DEFINE_REFCOUNTED_TYPE(IChangelog)
 struct IChangelogStore
     : public virtual TRefCounted
 {
-    //! Returns the guid of the cell.
-    virtual const TCellGuid& GetCellGuid() const = 0;
-
     //! Creates a new changelog.
     virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(
         int id,

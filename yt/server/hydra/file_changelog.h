@@ -48,7 +48,6 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
 
 IChangelogStorePtr CreateFileChangelogStore(
     const Stroka& threadName,
-    const TCellGuid& cellGuid,
     TFileChangelogStoreConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////

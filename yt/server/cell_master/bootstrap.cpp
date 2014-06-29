@@ -273,11 +273,9 @@ void TBootstrap::Run()
 
     ChangelogStore = CreateFileChangelogStore(
         "ChangelogFlush",
-        GetCellGuid(),
         Config->Changelogs);
 
     auto fileSnapshotStore = New<TFileSnapshotStore>(
-        GetCellGuid(),
         Config->Snapshots);
 
     SnapshotStore = CreateLocalSnapshotStore(

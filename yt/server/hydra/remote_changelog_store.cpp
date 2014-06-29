@@ -52,11 +52,6 @@ public:
         Logger.AddTag(Sprintf("Path: %s", ~RemotePath_));
     }
 
-    virtual const TCellGuid& GetCellGuid() const override
-    {
-        YUNIMPLEMENTED();
-    }
-
     virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))

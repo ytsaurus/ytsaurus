@@ -15,15 +15,10 @@ class TFileSnapshotStore
     : public TRefCounted
 {
 public:
-    TFileSnapshotStore(
-        const TCellGuid& cellGuid,
-        TLocalSnapshotStoreConfigPtr config);
-
-    ~TFileSnapshotStore();
-
+    explicit TFileSnapshotStore(TLocalSnapshotStoreConfigPtr config);
     void Initialize();
 
-    const TCellGuid& GetCellGuid() const;
+    ~TFileSnapshotStore();
 
     ISnapshotReaderPtr CreateReader(int snapshotId);
     ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);

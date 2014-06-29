@@ -767,11 +767,9 @@ class TFileChangelogStore
 public:
     TFileChangelogStore(
         const Stroka& threadName,
-        const TCellGuid& cellGuid,
         TFileChangelogStoreConfigPtr config)
         : TSizeLimitedCache(config->MaxCachedChangelogs)
         , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
-        , CellGuid_(cellGuid)
         , Config_(config)
         , Logger(HydraLogger)
     {
@@ -784,11 +782,6 @@ public:
 
         NFS::ForcePath(Config_->Path);
         NFS::CleanTempFiles(Config_->Path);
-    }
-
-    virtual const TCellGuid& GetCellGuid() const override
-    {
-        return CellGuid_;
     }
 
     virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
@@ -817,8 +810,6 @@ public:
 
 private:
     TFileChangelogDispatcherPtr Dispatcher_;
-
-    TCellGuid CellGuid_;
     TFileChangelogStoreConfigPtr Config_;
 
     NLog::TTaggedLogger Logger;
@@ -933,12 +924,10 @@ private:
 
 IChangelogStorePtr CreateFileChangelogStore(
     const Stroka& threadName,
-    const TCellGuid& cellGuid,
     TFileChangelogStoreConfigPtr config)
 {
     auto store = New<TFileChangelogStore>(
         threadName,
-        cellGuid,
         config);
     store->Start();
     return store;

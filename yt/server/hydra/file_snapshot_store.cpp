@@ -332,11 +332,8 @@ class TFileSnapshotStore::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        const TCellGuid& cellGuid,
-        TLocalSnapshotStoreConfigPtr config)
-        : CellGuid_(cellGuid)
-        , Config_(config)
+    explicit TImpl(TLocalSnapshotStoreConfigPtr config)
+        : Config_(config)
         , Logger(HydraLogger)
     {
         Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
@@ -368,11 +365,6 @@ public:
         }
         
         LOG_INFO("Snapshot scan complete");
-    }
-
-    const TCellGuid& GetCellGuid() const
-    {
-        return CellGuid_;
     }
 
     TNullable<TSnapshotParams> FindSnapshotParams(int snapshotId)
@@ -453,7 +445,6 @@ public:
     }
 
 private:
-    TCellGuid CellGuid_;
     TLocalSnapshotStoreConfigPtr Config_;
 
     NLog::TTaggedLogger Logger;
@@ -525,12 +516,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileSnapshotStore::TFileSnapshotStore(
-    const TCellGuid& cellGuid,
-    TLocalSnapshotStoreConfigPtr config)
-    : Impl_(New<TImpl>(
-        cellGuid,
-        config))
+TFileSnapshotStore::TFileSnapshotStore(TLocalSnapshotStoreConfigPtr config)
+    : Impl_(New<TImpl>(config))
 { }
 
 TFileSnapshotStore::~TFileSnapshotStore()
@@ -539,11 +526,6 @@ TFileSnapshotStore::~TFileSnapshotStore()
 void TFileSnapshotStore::Initialize()
 {
     Impl_->Initialize();
-}
-
-const TCellGuid& TFileSnapshotStore::GetCellGuid() const
-{
-    return Impl_->GetCellGuid();
 }
 
 ISnapshotReaderPtr TFileSnapshotStore::CreateReader(int snapshotId)
