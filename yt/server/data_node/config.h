@@ -110,24 +110,27 @@ class TMultiplexedChangelogConfig
     : public NHydra::TFileChangelogConfig
 {
 public:
-    //! A path where multiplexed journals are stored.
+    //! A path where multiplexed changelogs are stored.
     Stroka Path;
 
-    //! Multiplexed journal record count limit.
+    //! Multiplexed changelog record count limit.
     /*!
-     *  When this limit is reached, the current multiplexed journal is rotated.
+     *  When this limit is reached, the current multiplexed changelog is rotated.
      */
     int MaxRecordCount;
 
-    //! Multiplexed journal data size limit, in bytes.
+    //! Multiplexed changelog data size limit, in bytes.
     /*!
      *  See #MaxRecordCount.
      */
     i64 MaxDataSize;
 
-    //! Maximum bytes of multiplexed journal to read during
+    //! Maximum bytes of multiplexed changelog to read during
     //! a single iteration of replay.
     i64 ReplayBufferSize;
+
+    //! Maximum number of clean multiplexed changelogs to keep.
+    int MaxCleanChangelogsToKeep;
 
     TMultiplexedChangelogConfig()
     {
@@ -141,6 +144,9 @@ public:
         RegisterParameter("replay_buffer_size", ReplayBufferSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("max_clean_changelogs_to_keep", MaxCleanChangelogsToKeep)
+            .GreaterThanOrEqual(0)
+            .Default(3);
     }
 };
 
@@ -181,7 +187,7 @@ public:
     //! Maximum number of cached split changelogs.
     int MaxCachedChangelogs;
 
-    //! Maximum number of cached opened journals.
+    //! Maximum number of cached opened changelogs.
     int ChangelogReaderCacheSize;
 
     //! Upload session timeout.

@@ -13,6 +13,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <server/hydra/private.h>
 #include <server/hydra/changelog.h>
@@ -33,7 +34,8 @@ using namespace NConcurrency;
 
 static auto& Logger = DataNodeLogger;
 
-static const Stroka CleanSuffix(".clean");
+static const auto CleanExtension = Stroka("clean");
+static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +150,8 @@ private:
     //! The set of changelogs whose records were added into the current multiplexed changelog.
     //! Safeguards marking multiplexed changelogs as clean.
     yhash_set<TCachedChangelogPtr> ActiveChangelogs_;
+
+    TPeriodicExecutorPtr CleanupExecutor_;
 
 
     IChangelogPtr DoCreateChangelog(IChunkPtr chunk)
@@ -289,8 +293,8 @@ private:
     void MarkMultiplexedChangelogClean(int changelogId)
     {
         auto path = GetMultiplexedChangelogPath(changelogId);
-        NFS::Rename(path, path + CleanSuffix);
-        NFS::Rename(path + "." + ChangelogIndexExtension, path + "." + ChangelogIndexExtension + CleanSuffix);
+        NFS::Rename(path, path + "." + CleanExtension);
+        NFS::Rename(path + "." + ChangelogIndexExtension, path + "." + ChangelogIndexExtension + "." + CleanExtension);
         LOG_INFO("Multiplexed changelog %d is clean", changelogId);
     }
 
@@ -308,6 +312,57 @@ private:
             id);
 
         return changelog;
+    }
+
+
+    void OnCleanup()
+    {
+        try {
+            auto path = GetMultiplexedPath();
+            auto fileNames = NFS::EnumerateFiles(path);
+
+            std::vector<int> ids;
+            for (const auto& fileName : fileNames) {
+                if (NFS::GetFileExtension(fileName) != CleanExtension) 
+                    continue;
+                auto fileNameWithoutClean = NFS::GetFileNameWithoutExtension(fileName);
+                if (NFS::GetFileExtension(fileNameWithoutClean) != ChangelogExtension)
+                    continue;
+                auto fileNameWithoutExtensions = NFS::GetFileNameWithoutExtension(fileNameWithoutClean);
+                try {
+                    int id = FromString<int>(fileNameWithoutExtensions);
+                    ids.push_back(id);
+                } catch (const std::exception& ex) {
+                    LOG_WARNING("Unrecognized item %s in multiplexed changelog store %s",
+                        ~fileName.Quote(),
+                        ~path);
+                }
+            }
+
+            if (ids.size() <= Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep)
+                return;
+
+            std::sort(ids.begin(), ids.end(), std::greater<int>());
+
+            for (int index = Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep;
+                index < static_cast<int>(ids.size());
+                ++index)
+            {
+                int id = ids[index];
+
+                LOG_INFO("Removing clean multiplexed changelog %d", id);
+
+                auto dataFileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
+                NFS::Remove(dataFileName);
+
+                auto indexFileName = GetMultiplexedChangelogPath(id) + "." + ChangelogIndexExtension + "." + CleanExtension;
+                if (NFS::Exists(indexFileName)) {
+                    NFS::Remove(indexFileName);
+                }
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error cleaning up multiplexed changelogs");
+        }
     }
 
 };
@@ -642,8 +697,15 @@ void TJournalDispatcher::TImpl::Initialize()
             MultiplexedChangelogId_ = newId;
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error starting journal dispatcher") << ex;
+        THROW_ERROR_EXCEPTION("Error starting journal dispatcher")
+            << ex;
     }
+
+    CleanupExecutor_ = New<TPeriodicExecutor>(
+        GetHydraIOInvoker(),
+        BIND(&TImpl::OnCleanup, MakeWeak(this)),
+        CleanupPeriod);
+    CleanupExecutor_->Start();
 
     LOG_INFO("Journal dispatcher started");
 }
@@ -757,7 +819,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
 
         auto multiplexedFlushResult = MultiplexedChangelog_->Flush();
 
-        // To mark the multiplexed changelog as clean we wait for
+        // To mark a multiplexed changelog as clean we wait for
         // * the multiplexed changelog to get flushed
         // * last appended records in all active changelogs to get flushed
         std::vector<TAsyncError> cleanResults;
