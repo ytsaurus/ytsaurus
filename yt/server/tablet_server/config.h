@@ -14,11 +14,15 @@ class TTabletManagerConfig
 {
 public:
     TDuration PeerFailoverTimeout;
+    int MaxSnapshotsToKeep;
 
     TTabletManagerConfig()
     {
         RegisterParameter("peer_failover_timeout", PeerFailoverTimeout)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
+            .GreaterThanOrEqual(0)
+            .Default(3);
     }
 };
 

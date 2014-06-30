@@ -12,6 +12,8 @@
 #include <core/misc/address.h>
 #include <core/misc/string.h>
 
+#include <core/concurrency/periodic_executor.h>
+
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schema.h>
@@ -55,6 +57,7 @@
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NObjectClient;
@@ -82,6 +85,8 @@ using NTabletNode::TTableMountConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = TabletServerLogger;
+
+static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -670,8 +675,11 @@ private:
 
     TTabletTrackerPtr TabletTracker_;
 
-    NHydra::TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
-    NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
+    TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
+    TEntityMap<TTabletId, TTablet> TabletMap_;
+
+    TPeriodicExecutorPtr CleanupExecutor_;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1221,6 +1229,12 @@ private:
             auto* cell = pair.second;
             UpdateCellDirectory(cell);
         }
+
+        CleanupExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
+            BIND(&TImpl::OnCleanup, MakeWeak(this)),
+            CleanupPeriod);
+        CleanupExecutor_->Start();
     }
 
     void OnStopLeading() override
@@ -1228,6 +1242,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TabletTracker_->Stop();
+
+        if (CleanupExecutor_) {
+            CleanupExecutor_->Stop();
+            CleanupExecutor_.Reset();
+        }
     }
 
 
@@ -1403,6 +1422,102 @@ private:
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
+    }
+
+
+    void OnCleanup()
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        for (const auto& pair : TabletCellMap_) {
+            const auto& cellId = pair.first;
+
+            auto snapshotsPath = Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellId));
+            auto snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
+            if (!snapshotsMap)
+                continue;
+
+            std::vector<int> snapshotIds;
+            auto snapshotKeys = SyncYPathList(snapshotsMap, "");
+            for (const auto& key : snapshotKeys) {
+                try {
+                    int snapshotId = FromString<int>(key);
+                    snapshotIds.push_back(snapshotId);
+                } catch (const std::exception& ex) {
+                    LOG_WARNING("Unrecognized item %s in tablet snapshot store (CellId: %s)",
+                        ~key.Quote(),
+                        ~ToString(cellId));
+                }
+            }
+
+            if (snapshotIds.size() <= Config_->MaxSnapshotsToKeep)
+                return;
+
+            std::sort(snapshotIds.begin(), snapshotIds.end());
+            int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
+
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto rootService = objectManager->GetRootService();
+
+            for (const auto& key : snapshotKeys) {
+                try {
+                    int snapshotId = FromString<int>(key);
+                    if (snapshotId < thresholdId) {
+                        LOG_INFO("Removing tablet cell snapshot (CellId: %s, SnapshotId: %d)",
+                            ~ToString(cellId),
+                            snapshotId);
+                        auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
+                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
+                            if (rsp->IsOK()) {
+                                LOG_INFO("Tablet cell snapshot removed successfully (CellId: %s, SnapshotId: %d)",
+                                    ~ToString(cellId),
+                                    snapshotId);
+                            } else {
+                                LOG_INFO(*rsp, "Error removing tablet cell snapshot (CellId: %s, SnapshotId: %d)",
+                                    ~ToString(cellId),
+                                    snapshotId);
+                            }
+                        }));
+                    }
+                    snapshotIds.push_back(snapshotId);
+                } catch (const std::exception& ex) {
+                    // Ignore, cf. logging above.
+                }
+            }
+
+            auto changelogsPath = Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(cellId));
+            auto changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
+            if (!changelogsMap)
+                continue;
+
+            auto changelogKeys = SyncYPathList(changelogsMap, "");
+            for (const auto& key : changelogKeys) {
+                try {
+                    int changelogId = FromString<int>(key);
+                    if (changelogId < thresholdId) {
+                        LOG_INFO("Removing tablet cell changelog (CellId: %s, ChangelogId: %d)",
+                            ~ToString(cellId),
+                            changelogId);
+                        auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
+                        ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
+                            if (rsp->IsOK()) {
+                                LOG_INFO("Tablet cell changelog removed successfully (CellId: %s, ChangelogId: %d)",
+                                    ~ToString(cellId),
+                                    changelogId);
+                            } else {
+                                LOG_INFO(*rsp, "Error removing tablet cell changelog (CellId: %s, ChangelogId: %d)",
+                                    ~ToString(cellId),
+                                    changelogId);
+                            }
+                        }));;
+                    }
+                } catch (const std::exception& ex) {
+                    LOG_WARNING("Unrecognized item %s in tablet changelog store (CellId: %s)",
+                        ~key.Quote(),
+                        ~ToString(cellId));
+                }
+            }
+        }
     }
 
 };
