@@ -10,8 +10,6 @@
 
 #include <core/logging/log_manager.h>
 
-#include <server/hydra/file_changelog.h>
-
 #include <util/datetime/base.h>
 
 #include <util/random/random.h>

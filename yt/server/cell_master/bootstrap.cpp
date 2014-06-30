@@ -39,7 +39,7 @@
 #include <ytlib/hive/cell_directory.h>
 
 #include <server/hydra/changelog.h>
-#include <server/hydra/file_changelog.h>
+#include <server/hydra/local_changelog_store.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/file_snapshot_store.h>
 #include <server/hydra/local_snapshot_service.h>
@@ -271,7 +271,7 @@ void TBootstrap::Run()
         GetBusChannelFactory(),
         selfId);
 
-    ChangelogStore = CreateFileChangelogStore(
+    ChangelogStore = CreateLocalChangelogStore(
         "ChangelogFlush",
         Config->Changelogs);
 

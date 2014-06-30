@@ -36,8 +36,6 @@
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
 
-#include <server/hydra/file_changelog.h>
-
 #include <tclap/CmdLine.h>
 
 #include <util/system/sigset.h>

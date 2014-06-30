@@ -30,7 +30,6 @@
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/changelog.h>
-#include <server/hydra/file_changelog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
 

@@ -1,6 +1,6 @@
 #include "stdafx.h"
+#include "file_changelog_dispatcher.h"
 #include "changelog.h"
-#include "file_changelog.h"
 #include "sync_file_changelog.h"
 #include "config.h"
 #include "private.h"
@@ -12,19 +12,15 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/periodic_executor.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <atomic>
 
 namespace NYT {
 namespace NHydra {
 
 using namespace NConcurrency;
-using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = HydraLogger;
 static auto& Profiler = HydraProfiler;
 
 static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
@@ -737,200 +733,6 @@ void TFileChangelogDispatcher::RemoveChangelog(IChangelogPtr changelog)
     auto* fileChangelog = dynamic_cast<TFileChangelog*>(changelog.Get());
     YCHECK(fileChangelog);
     fileChangelog->Remove();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCachedFileChangelog
-    : public TCacheValueBase<int, TCachedFileChangelog>
-    , public TFileChangelog
-{
-public:
-    explicit TCachedFileChangelog(
-        TFileChangelogDispatcherPtr dispather,
-        TFileChangelogConfigPtr config,
-        TSyncFileChangelogPtr changelog,
-        int id)
-        : TCacheValueBase(id)
-        , TFileChangelog(
-            dispather,
-            config,
-            changelog)
-    { }
-
-};
-
-class TFileChangelogStore
-    : public TSizeLimitedCache<int, TCachedFileChangelog>
-    , public IChangelogStore
-{
-public:
-    TFileChangelogStore(
-        const Stroka& threadName,
-        TFileChangelogStoreConfigPtr config)
-        : TSizeLimitedCache(config->MaxCachedChangelogs)
-        , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
-        , Config_(config)
-        , Logger(HydraLogger)
-    {
-        Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
-    }
-
-    void Start()
-    {
-        LOG_DEBUG("Preparing changelog store");
-
-        NFS::ForcePath(Config_->Path);
-        NFS::CleanTempFiles(Config_->Path);
-    }
-
-    virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override
-    {
-        return BIND(&TFileChangelogStore::DoCreateChangelog, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(id, meta);
-    }
-
-    virtual TFuture<TErrorOr<IChangelogPtr>> OpenChangelog(int id) override
-    {
-        return BIND(&TFileChangelogStore::DoOpenChangelog, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(id);
-    }
-
-    virtual TFuture<TErrorOr<int>> GetLatestChangelogId(int initialId) override
-    {
-        return BIND(&TFileChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(initialId);
-    }
-
-private:
-    TFileChangelogDispatcherPtr Dispatcher_;
-    TFileChangelogStoreConfigPtr Config_;
-
-    NLog::TTaggedLogger Logger;
-
-
-    Stroka GetChangelogPath(int id)
-    {
-        return NFS::CombinePaths(
-            Config_->Path,
-            Sprintf("%09d.%s", id, ~ChangelogExtension));
-    }
-
-
-    IChangelogPtr DoCreateChangelog(int id, const TSharedRef& meta)
-    {
-        TInsertCookie cookie(id);
-        if (!BeginInsert(&cookie)) {
-            THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %d",
-                id);
-        }
-
-        auto path = GetChangelogPath(id);
-
-        try {
-            auto changelog = New<TSyncFileChangelog>(
-                path,
-                Config_);
-            changelog->Create(meta);
-            cookie.EndInsert(New<TCachedFileChangelog>(
-                Dispatcher_,
-                Config_,
-                changelog,
-                id));
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error creating changelog %d",
-                id);
-        }
-
-        auto result = WaitFor(cookie.GetValue());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        return result.Value();
-    }
-
-    IChangelogPtr DoOpenChangelog(int id)
-    {
-        TInsertCookie cookie(id);
-        if (BeginInsert(&cookie)) {
-            auto path = GetChangelogPath(id);
-            if (!NFS::Exists(path)) {
-                cookie.Cancel(TError(
-                    NHydra::EErrorCode::NoSuchChangelog,
-                    "No such changelog %d",
-                    id));
-            } else {
-                try {
-                    auto changelog = New<TSyncFileChangelog>(
-                        path,
-                        Config_);
-                    changelog->Open();
-                    cookie.EndInsert(New<TCachedFileChangelog>(
-                        Dispatcher_,
-                        Config_,
-                        changelog,
-                        id));
-                } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening changelog %d",
-                        id);
-                }
-            }
-        }
-
-        auto changelogOrError = WaitFor(cookie.GetValue());
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        return changelogOrError.Value();
-    }
-
-    int DoGetLatestChangelogId(int initialId)
-    {
-        int latestId = NonexistingSegmentId;
-        yhash_set<int> ids;
-
-        auto fileNames = EnumerateFiles(Config_->Path);
-        for (const auto& fileName : fileNames) {
-            auto extension = NFS::GetFileExtension(fileName);
-            if (extension != ChangelogExtension)
-                continue;
-            auto name = NFS::GetFileNameWithoutExtension(fileName);
-            try {
-                int id = FromString<int>(name);
-                YCHECK(ids.insert(id).second);
-                if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
-                    latestId = id;
-                }
-            } catch (const std::exception&) {
-                LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
-            }
-        }
-
-        if (latestId != NonexistingSegmentId) {
-            for (int id = initialId; id <= latestId; ++id) {
-                if (ids.find(id) == ids.end()) {
-                    LOG_FATAL("Interim changelog %d is missing",
-                        id);                    
-                }
-            }
-        }
-
-        return latestId;
-    }
-
-};
-
-IChangelogStorePtr CreateFileChangelogStore(
-    const Stroka& threadName,
-    TFileChangelogStoreConfigPtr config)
-{
-    auto store = New<TFileChangelogStore>(
-        threadName,
-        config);
-    store->Start();
-    return store;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

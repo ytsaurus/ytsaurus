@@ -17,7 +17,7 @@
 
 #include <server/hydra/private.h>
 #include <server/hydra/changelog.h>
-#include <server/hydra/file_changelog.h>
+#include <server/hydra/file_changelog_dispatcher.h>
 #include <server/hydra/lazy_changelog.h>
 
 #include <server/cell_node/bootstrap.h>
