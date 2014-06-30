@@ -118,6 +118,8 @@ set( HDRS
   ${BASE}/ioprio.h
   ${BASE}/variant.h
   ${BASE}/variant-inl.h
+  ${BASE}/any.h
+  ${BASE}/any-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

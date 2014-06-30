@@ -81,6 +81,7 @@ set( SRCS
   ${BASE}/election_ut.cpp
   ${BASE}/scheduler_ut.cpp
   ${BASE}/variant_ut.cpp
+  ${BASE}/any_ut.cpp
   ${BASE}/framework.h
   ${BASE}/framework.cpp
 )
