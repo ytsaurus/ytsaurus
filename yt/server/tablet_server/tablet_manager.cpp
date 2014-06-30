@@ -1463,19 +1463,19 @@ private:
                 try {
                     int snapshotId = FromString<int>(key);
                     if (snapshotId < thresholdId) {
-                        LOG_INFO("Removing tablet cell snapshot (CellId: %s, SnapshotId: %d)",
-                            ~ToString(cellId),
-                            snapshotId);
+                        LOG_INFO("Removing tablet cell snapshot %d (CellId: %s)",
+                            snapshotId,
+                            ~ToString(cellId));
                         auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
                         ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
                             if (rsp->IsOK()) {
-                                LOG_INFO("Tablet cell snapshot removed successfully (CellId: %s, SnapshotId: %d)",
-                                    ~ToString(cellId),
-                                    snapshotId);
+                                LOG_INFO("Tablet cell snapshot %d removed successfully (CellId: %s)",
+                                    snapshotId,
+                                    ~ToString(cellId));
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell snapshot (CellId: %s, SnapshotId: %d)",
-                                    ~ToString(cellId),
-                                    snapshotId);
+                                LOG_INFO(*rsp, "Error removing tablet cell snapshot %d (CellId: %s)",
+                                    snapshotId,
+                                    ~ToString(cellId));
                             }
                         }));
                     }
@@ -1494,19 +1494,19 @@ private:
                 try {
                     int changelogId = FromString<int>(key);
                     if (changelogId < thresholdId) {
-                        LOG_INFO("Removing tablet cell changelog (CellId: %s, ChangelogId: %d)",
-                            ~ToString(cellId),
-                            changelogId);
+                        LOG_INFO("Removing tablet cell changelog %d (CellId: %s)",
+                            changelogId,
+                            ~ToString(cellId));
                         auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
                         ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
                             if (rsp->IsOK()) {
-                                LOG_INFO("Tablet cell changelog removed successfully (CellId: %s, ChangelogId: %d)",
-                                    ~ToString(cellId),
-                                    changelogId);
+                                LOG_INFO("Tablet cell changelog %d removed successfully (CellId: %s)",
+                                    changelogId,
+                                    ~ToString(cellId));
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell changelog (CellId: %s, ChangelogId: %d)",
-                                    ~ToString(cellId),
-                                    changelogId);
+                                LOG_INFO(*rsp, "Error removing tablet cell changelog %d (CellId: %s)",
+                                    changelogId,
+                                    ~ToString(cellId));
                             }
                         }));;
                     }
