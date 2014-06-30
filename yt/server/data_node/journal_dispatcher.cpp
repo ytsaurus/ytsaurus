@@ -342,14 +342,10 @@ private:
             if (ids.size() <= Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep)
                 return;
 
-            std::sort(ids.begin(), ids.end(), std::greater<int>());
+            std::sort(ids.begin(), ids.end());
+            ids.erase(ids.end() - Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep, ids.end());
 
-            for (int index = Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep;
-                index < static_cast<int>(ids.size());
-                ++index)
-            {
-                int id = ids[index];
-
+            for (int id : ids) {
                 LOG_INFO("Removing clean multiplexed changelog %d", id);
 
                 auto dataFileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
