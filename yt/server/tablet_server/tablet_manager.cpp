@@ -1479,7 +1479,6 @@ private:
                             }
                         }));
                     }
-                    snapshotIds.push_back(snapshotId);
                 } catch (const std::exception& ex) {
                     // Ignore, cf. logging above.
                 }
