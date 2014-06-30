@@ -65,7 +65,7 @@ public:
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         for (auto* chunk : chunkManager->Chunks().GetValues()) {
-            if (chunk->IsJournal()) {
+            if (chunk->IsAlive() && chunk->IsJournal()) {
                 ScheduleSeal(chunk);
             }
         }
