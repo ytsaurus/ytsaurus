@@ -48,6 +48,22 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMasterCellConfig)
 
+class TMasterHydraManagerConfig
+    : public NHydra::TDistributedHydraManagerConfig
+{
+public:
+    int MaxSnapshotsToKeep;
+
+    TMasterHydraManagerConfig()
+    {
+        RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
+            .GreaterThanOrEqual(0)
+            .Default(3);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)
+
 class TCellMasterConfig
     : public TServerConfig
 {
@@ -56,7 +72,7 @@ public:
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
-    NHydra::TDistributedHydraManagerConfigPtr HydraManager;
+    TMasterHydraManagerConfigPtr HydraManager;
 
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NHive::THiveManagerConfigPtr HiveManager;

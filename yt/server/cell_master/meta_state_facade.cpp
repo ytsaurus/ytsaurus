@@ -3,6 +3,8 @@
 #include "automaton.h"
 #include "config.h"
 
+#include <core/misc/fs.h>
+
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/ypath_client.h>
 
@@ -12,6 +14,7 @@
 #include <core/rpc/server.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/log.h>
 
@@ -32,6 +35,7 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
+#include <server/hydra/private.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -66,6 +70,8 @@ using namespace NSecurityServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Bootstrap");
+
+static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +117,12 @@ public:
     void Start()
     {
         HydraManager->Start();
+
+        CleanupExecutor = New<TPeriodicExecutor>(
+            GetHydraIOInvoker(),
+            BIND(&TImpl::OnCleanup, MakeWeak(this)),
+            CleanupPeriod);
+        CleanupExecutor->Start();
     }
 
     TMasterAutomatonPtr GetAutomaton() const
@@ -157,6 +169,9 @@ private:
     std::vector<IInvokerPtr> GuardedInvokers;
     std::vector<IInvokerPtr> EpochInvokers;
 
+    TPeriodicExecutorPtr CleanupExecutor;
+
+
     void OnStartEpoch()
     {
         YCHECK(EpochInvokers.empty());
@@ -172,6 +187,76 @@ private:
     void OnStopEpoch()
     {
         EpochInvokers.clear();
+    }
+
+
+    void OnCleanup()
+    {
+        auto snapshotsPath = Config->Snapshots->Path;
+
+        std::vector<int> snapshotIds;
+        auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
+        for (const auto& fileName : snapshotFileNames) {
+            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
+                continue;
+            try {
+                int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+                snapshotIds.push_back(snapshotId);
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Unrecognized item %s in snapshot store",
+                    ~fileName.Quote());
+            }
+        }
+
+        if (snapshotIds.size() <= Config->HydraManager->MaxSnapshotsToKeep)
+            return;
+
+        std::sort(snapshotIds.begin(), snapshotIds.end());
+        int thresholdId = snapshotIds[snapshotIds.size() - Config->HydraManager->MaxSnapshotsToKeep];
+
+        for (const auto& fileName : snapshotFileNames) {
+            if (NFS::GetFileExtension(fileName) != SnapshotExtension)
+                continue;
+
+            try {
+                int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+                if (snapshotId < thresholdId) {
+                    LOG_INFO("Removing snapshot (SnapshotId: %d)",
+                        snapshotId);
+
+                    auto dataFile = NFS::CombinePaths(snapshotsPath, fileName);
+                    NFS::Remove(dataFile);
+                }
+            } catch (const std::exception& ex) {
+                // Ignore, cf. logging above.
+            }
+        }
+
+        auto changelogsPath = Config->Changelogs->Path;
+        auto changelogFileNames = NFS::EnumerateFiles(changelogsPath);
+        for (const auto& fileName : changelogFileNames) {
+            if (NFS::GetFileExtension(fileName) != ChangelogExtension)
+                continue;
+
+            try {
+                int changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+                if (changelogId < thresholdId) {
+                    LOG_INFO("Removing changelog (ChangelogId: %d)",
+                        changelogId);
+
+                    auto dataFile = NFS::CombinePaths(changelogsPath, fileName);
+                    NFS::Remove(dataFile);
+                    
+                    auto indexFile = dataFile + "." + ChangelogIndexExtension;
+                    if (NFS::Exists(indexFile)) {
+                        NFS::Remove(indexFile);
+                    }
+                }
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Unrecognized item %s in changelog store",
+                    ~fileName.Quote());
+            }
+        }
     }
 
 };
