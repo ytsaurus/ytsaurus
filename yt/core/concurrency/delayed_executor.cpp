@@ -161,7 +161,9 @@ private:
                 
                 callback = std::move(entry->Callback); // prevent destruction under spin lock
             }
-            callback.Run();
+            if (callback) {
+                callback.Run();
+            }
         }
     }
 
