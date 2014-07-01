@@ -32,7 +32,7 @@ using NVersionedTableClient::TChunkReaderConfigPtr;
 
 TPartitionChunkReader::TPartitionChunkReader(
     TChunkReaderConfigPtr config,
-    IAsyncReaderPtr underlyingReader,
+    IReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
@@ -64,7 +64,7 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
         TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
-    auto errorOrMeta = WaitFor(UnderlyingReader_->AsyncGetChunkMeta(PartitionTag_, &extensionTags));
+    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, &extensionTags));
     THROW_ERROR_EXCEPTION_IF_FAILED(errorOrMeta);
 
     ChunkMeta_ = errorOrMeta.Value();
@@ -154,7 +154,7 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
 
 IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
-    IAsyncReaderPtr asyncReader)
+    IReaderPtr asyncReader)
 {
     YCHECK(!chunkSpec.has_channel());
     YCHECK(!chunkSpec.has_lower_limit());

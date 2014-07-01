@@ -1,6 +1,6 @@
 package NYT.NVersionedTableClient.NProto;
 
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/schema.proto";
 

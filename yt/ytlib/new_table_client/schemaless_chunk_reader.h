@@ -30,7 +30,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderConfigPtr config,
-    NChunkClient::IAsyncReaderPtr underlyingReader,
+    NChunkClient::IReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     const NChunkClient::NProto::TChunkMeta& masterMeta,

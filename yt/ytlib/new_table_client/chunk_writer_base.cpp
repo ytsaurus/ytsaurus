@@ -133,7 +133,7 @@ TError TChunkWriterBase::DoClose()
 TSequentialChunkWriterBase::TSequentialChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    IAsyncWriterPtr asyncWriter,
+    IWriterPtr asyncWriter,
     // We pass key columns here in order to use TSequentialChunkWriterBase and
     // TSortedChunkWriterBase as a template base interchangably.
     const TKeyColumns& keyColumns)
@@ -245,7 +245,7 @@ TSortedChunkWriterBase::TSortedChunkWriterBase(
     TChunkWriterOptionsPtr options,
     NChunkClient::IChunkWriterPtr chunkWriter,
     TKeyColumns keyColumns)
-    : TChunkWriterBase(config, options, asyncWriter, keyColumns)
+    : TSequentialChunkWriterBase(config, options, chunkWriter, keyColumns)
 { }
 
 TChunkMeta TSortedChunkWriterBase::GetMasterMeta() const

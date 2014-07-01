@@ -74,7 +74,7 @@ public:
     TSequentialChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr asyncWriter,
+        NChunkClient::IWriterPtr asyncWriter,
         const TKeyColumns& keyColumns = TKeyColumns());
 
     virtual TAsyncError Open() override;

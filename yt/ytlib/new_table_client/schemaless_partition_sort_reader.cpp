@@ -30,7 +30,7 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableReaderLogger;
+static auto& Logger = TableClientLogger;
 static auto& Profiler = TableReaderProfiler;
 
 static const int SortBucketSize = 10000;

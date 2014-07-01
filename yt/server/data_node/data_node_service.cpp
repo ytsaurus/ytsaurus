@@ -13,8 +13,6 @@
 #include "session.h"
 #include "master_connector.h"
 
-#include <ytlib/table_client/public.h>
-
 #include <server/cell_node/public.h>
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
@@ -32,11 +30,13 @@
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/public.h>
 #include <ytlib/table_client/private.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/private.h>
+
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
@@ -586,7 +586,11 @@ private:
         }
 
     };
-}
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
+    {
+        New<TGetBlockRangeSession>(this, std::move(context))->Run();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
@@ -622,9 +626,8 @@ private:
                 ? FilterChunkMetaByPartitionTag(meta, *partitionTag)
                 : TChunkMeta(meta);
 
-    std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);
-    for (int i = 0; i < keyIds.size(); ++i) {
-        idToKeyIndex[keyIds[i]] = 0;
+            context->Reply();
+        }).Via(WorkerThread_->GetInvoker()));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
@@ -696,14 +699,10 @@ private:
             }
 
             auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
-            if (keyColumnsExt.names_size() < keyColumns.size()) {
-                THROW_ERROR_EXCEPTION("Not enough key columns in chunk %v: expected %v, actual %v",
-                    chunkId,
-                    keyColumns.size(),
-                    keyColumnsExt.names_size());
-            }
+            auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
+            ValidateKeyColumns(keyColumns, chunkKeyColumns);
 
-    switch (meta.version()) {
+    switch (chunkMeta.version()) {
         case ETableChunkFormat::Old:
             MakeOldChunkSplits(
                 chunkSpec,
@@ -714,11 +713,11 @@ private:
                 chunkMeta);
             break;
 
-        case ETableChunkFormat::SchemalessHorizontal:
-        case ETableChunkFormat::VersionedSimple:
-            // ToDo(psushin): implement splitting.
-            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-            break;
+            case ETableChunkFormat::SchemalessHorizontal:
+            case ETableChunkFormat::VersionedSimple:
+                // ToDo(psushin): implement splitting.
+                splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+                break;
 
         default: {
             auto error = TError("Unsupported chunk version (ChunkId: %v; ChunkFormat: %v)",
@@ -750,12 +749,6 @@ void TDataNodeService::MakeOldChunkSplits(
         splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
         return;
     }
-        auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
-        if (indexExt.items_size() == 1) {
-            // Only one index entry available - no need to split.
-            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-            return;
-        }
 
         auto backIt = --indexExt.items().end();
         auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
@@ -782,11 +775,11 @@ void TDataNodeService::MakeOldChunkSplits(
                 result += (diff > 0) - (diff < 0);
             }
 
-        if (limit.HasKey()) {
-            TOwningKey indexKey;
-            FromProto(&indexKey, indexRow.key());
-            result += CompareRows(limit.GetKey(), indexKey, keyColumns.size());
-        }
+            if (limit.HasKey()) {
+                TOwningKey indexKey;
+                FromProto(&indexKey, indexRow.key());
+                result += CompareRows(limit.GetKey(), indexKey, keyColumnCount);
+            }
 
             if (result == 0) {
                 return isStartLimit ? -1 : 1;
@@ -849,7 +842,7 @@ void TDataNodeService::MakeOldChunkSplits(
                 break;
             }
 
-            if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
+            if (CompareKeys(nextIter->key(), beginIt->key(), keyColumnCount) == 0) {
                 continue;
             }
 
@@ -964,15 +957,10 @@ void TDataNodeService::MakeOldChunkSplits(
                     ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                     break;
 
-                default:
-                    THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
+            default:
+                THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
                         meta.version(),
                         chunkId);
-            }
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            LOG_WARNING(error);
-            ToProto(sampleResponse->mutable_error(), error);
         }
     }
 
@@ -1074,6 +1062,69 @@ void TDataNodeService::MakeOldChunkSplits(
         ToProto(chunkSamples->mutable_keys(), samples);
     }
 
+    void ProcessUnversionedChunkSamples(
+        const TReqGetTableSamples::TSampleRequest* sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const TKeyColumns& keyColumns,
+        const TChunkMeta& chunkMeta)
+    {
+        auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
+        auto nameTable = FromProto<TNameTablePtr>(nameTableExt);
+
+        std::vector<int> keyIds;
+        for (const auto& column : keyColumns) {
+            keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+        }
+
+        std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);
+        for (int i = 0; i < keyIds.size(); ++i) {
+            idToKeyIndex[keyIds[i]] = i;
+        }
+
+        auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
+        std::vector<TProtoStringType> samples;
+        samples.reserve(sampleRequest->sample_count());
+
+        RandomSampleN(
+            samplesExt.entries().begin(),
+            samplesExt.entries().end(),
+            std::back_inserter(samples),
+            sampleRequest->sample_count());
+
+        for (const auto& protoSample : samples) {
+            std::vector<TUnversionedValue> keyValues(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null));
+            TUnversionedOwningRow row = FromProto<TUnversionedOwningRow>(protoSample);
+
+            for (int i = 0; i < row.GetCount(); ++i) {
+                auto& value = row[i];
+                int keyIndex = idToKeyIndex[value.Id];
+                if (keyIndex < 0) {
+                    continue;
+                }
+
+                keyValues[keyIndex] = value;
+            }
+
+            size_t size = 0;
+            for (const auto& value : keyValues) {
+                size += GetByteSize(value);
+            }
+
+            while (size > MaxKeySize && keyValues.size() > 1) {
+                size -= GetByteSize(keyValues.back());
+                keyValues.pop_back();
+            }
+
+            if (size > MaxKeySize) {
+                YCHECK(keyValues.size() == 1);
+                YCHECK(keyValues.front().Type == EValueType::String);
+                keyValues.front().Length = MaxKeySize;
+            }
+
+            auto* key = chunkSamples->add_keys();
+            ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
+        }
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk)
     {

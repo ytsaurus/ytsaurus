@@ -71,7 +71,7 @@ protected:
 
     virtual TError DoOpen() = 0;
 
-    virtual IChunkReaderBasePtr CreateTemplateReader(const NProto::TChunkSpec& chunkSpec, IAsyncReaderPtr asyncReader) = 0;
+    virtual IChunkReaderBasePtr CreateTemplateReader(const NProto::TChunkSpec& chunkSpec, IReaderPtr asyncReader) = 0;
 
     virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) = 0;
 
@@ -114,7 +114,7 @@ private:
     std::vector<IChunkReaderBasePtr> FinishedReaders_;
 
 
-    IAsyncReaderPtr CreateRemoteReader(const NProto::TChunkSpec& chunkSpec);
+    IReaderPtr CreateRemoteReader(const NProto::TChunkSpec& chunkSpec);
 
     void OpenNextChunk();
     void DoOpenNextChunk();
@@ -176,10 +176,8 @@ public:
 
 private:
     typedef NConcurrency::TNonblockingQueue<TNullable<TSession>> TSessionQueue;
-    typedef TIntrusivePtr<TSessionQueue> TSessionQueuePtr;
 
-
-    TSessionQueuePtr ReadySessions_;
+    TSessionQueue ReadySessions_;
     int FinishedReaderCount_;
 
 

@@ -5,7 +5,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/compression/codec.h>
@@ -27,9 +27,9 @@ TChunkReaderBase::TChunkReaderBase(
     TChunkReaderConfigPtr config,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    NChunkClient::IAsyncReaderPtr underlyingReader,
+    NChunkClient::IReaderPtr underlyingReader,
     const NChunkClient::NProto::TMiscExt& misc)
-    : Logger(TableReaderLogger)
+    : Logger(TableClientLogger)
     , Config_(config)
     , LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)

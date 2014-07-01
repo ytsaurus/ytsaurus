@@ -10,9 +10,11 @@
 #include "schemaless_block_writer.h"
 #include "schemaless_row_reorderer.h"
 
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <ytlib/chunk_client/writer.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -59,7 +61,7 @@ using NTableClient::TTableYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto& Logger = TableWriterLogger;
+auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +170,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         TNameTablePtr nameTable,
-        IAsyncWriterPtr asyncWriter,
+        IWriterPtr asyncWriter,
         const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 
@@ -214,7 +216,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    IAsyncWriterPtr asyncWriter,
+    IWriterPtr asyncWriter,
     const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
     : TChunkWriterBase(config, options, asyncWriter)
@@ -361,7 +363,7 @@ ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
     TChunkWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IAsyncWriterPtr asyncWriter,
+    IWriterPtr asyncWriter,
     IPartitioner* partitioner)
 {
     return New<TPartitionChunkWriter>(
@@ -580,7 +582,7 @@ public:
 private:
     std::unique_ptr<IPartitioner> Partitioner_;
 
-    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IAsyncWriterPtr underlyingWriter) override
+    virtual ISchemalessChunkWriterPtr CreateChunkWriter(IWriterPtr underlyingWriter) override
     {
         return CreatePartitionChunkWriter(
             Config_,
@@ -679,7 +681,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     IChannelPtr masterChannel,
     TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager)
-    : Logger(TableWriterLogger)
+    : Logger(TableClientLogger)
     , Config_(config)
     , Options_(New<TTableWriterOptions>())
     , RichPath_(richPath)

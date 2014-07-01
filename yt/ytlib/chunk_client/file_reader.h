@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a local and synchronous implementation of IAsyncReader.
+//! Provides a local and synchronous implementation of IReader.
 class TFileReader
     : public IChunkReader
 {

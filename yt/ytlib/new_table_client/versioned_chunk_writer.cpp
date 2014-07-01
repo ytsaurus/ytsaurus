@@ -381,7 +381,7 @@ bool TVersionedMultiChunkWriter::Write(const std::vector<TVersionedRow> &rows)
     return CurrentWriter_->Write(rows) && !TrySwitchSession();
 }
 
-IChunkWriterBasePtr TVersionedMultiChunkWriter::CreateFrontalWriter(IWriterPtr underlyingWriter)
+IVersionedChunkWriterBasePtr TVersionedMultiChunkWriter::CreateChunkWriter(IChunkWriterPtr underlyingWriter)
 {
     return CreateVersionedChunkWriter(Config_, Options_, Schema_, KeyColumns_, underlyingWriter);
 }
