@@ -117,7 +117,7 @@ struct TLookupRowsOptions
     NVersionedTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
-    bool SkipMissingRows = true;
+    bool KeepMissingRows = false;
 };
 
 struct TSelectRowsOptions

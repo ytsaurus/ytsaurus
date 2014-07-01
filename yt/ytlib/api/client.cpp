@@ -559,7 +559,7 @@ private:
             readers.push_back(std::move(reader));
         }
 
-        if (options.SkipMissingRows) {
+        if (!options.KeepMissingRows) {
             resultRows.erase(
                 std::remove_if(
                     resultRows.begin(),
