@@ -79,6 +79,7 @@ public:
     void SetChangelog(IChangelogPtr changelog);
 
     i64 GetLoggedDataSize() const;
+    TInstant GetLastSnapshotTime() const;
 
     TVersion GetAutomatonVersion() const;
 
@@ -160,6 +161,8 @@ private:
     TRingQueue<TPendingMutation> PendingMutations_;
 
     NProfiling::TAggregateCounter BatchCommitTimeCounter_;
+
+    TInstant LastSnapshotTime_;
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;

@@ -825,7 +825,7 @@ private:
         return result;
     }
 
-    void OnChangelogLimitReached(TEpochContextPtr epochContext)
+    void OnCheckpointNeeded(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(GetAutomatonState() == EPeerState::Leading);
@@ -876,8 +876,8 @@ private:
             ChangelogStore_,
             epochContext,
             Profiler);
-        epochContext->LeaderCommitter->SubscribeChangelogLimitReached(
-            BIND(&TDistributedHydraManager::OnChangelogLimitReached, MakeWeak(this), epochContext));
+        epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
+            BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), epochContext));
 
         epochContext->ChangelogRotation = New<TChangelogRotation>(
             Config_,

@@ -8,8 +8,10 @@
 #include "changelog.h"
 
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/profiling/profiler.h>
+#include <core/profiling/timing.h>
 
 #include <core/tracing/trace_context.h>
 
@@ -21,6 +23,11 @@ namespace NHydra {
 using namespace NElection;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,6 +293,12 @@ TLeaderCommitter::TLeaderCommitter(
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(ChangelogStore_);
+
+    AutoCheckpointCheckExecutor_ = New<TPeriodicExecutor>(
+        EpochContext_->EpochUserAutomatonInvoker,
+        BIND(&TLeaderCommitter::OnAutoCheckpointCheck, MakeWeak(this)),
+        AutoCheckpointCheckPeriod);
+    AutoCheckpointCheckExecutor_->Start();
 }
 
 TLeaderCommitter::~TLeaderCommitter()
@@ -321,7 +334,7 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
         if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecordCount ||
             DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
         {
-            ChangelogLimitReached_.Fire();
+            CheckpointNeeded_.Fire();
         }
 
         return commitResult;
@@ -419,7 +432,6 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
 
     if (!CurrentBatch_) {
         CurrentBatch_ = New<TBatch>(this, version);
-
         CurrentBatch_->GetQuorumFlushResult().Subscribe(
             BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_)
                 .Via(EpochContext_->EpochUserAutomatonInvoker));
@@ -455,6 +467,17 @@ void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, TError error)
         return;
 
     DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion());
+}
+
+void TLeaderCommitter::OnAutoCheckpointCheck()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (EpochContext_->IsActiveLeader &&
+        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->LeaderCommitter->AutoSnapshotPeriod)
+    {
+        CheckpointNeeded_.Fire();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

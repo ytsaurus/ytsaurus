@@ -245,6 +245,10 @@ public:
      */
     i64 MaxChangelogDataSize;
 
+    //! Maximum time interval between consequent snapshots.
+    TDuration AutoSnapshotPeriod;
+
+
     TLeaderCommitterConfig()
     {
         RegisterParameter("max_batch_delay", MaxBatchDelay)
@@ -257,6 +261,8 @@ public:
         RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("auto_snapshot_period", AutoSnapshotPeriod)
+            .Default(TDuration::Minutes(60));
     }
 };
 

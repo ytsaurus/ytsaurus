@@ -309,6 +309,7 @@ void TDecoratedAutomaton::OnLeaderRecoveryComplete()
 {
     YCHECK(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Leading;
+    LastSnapshotTime_ = TInstant::Now();
 }
 
 void TDecoratedAutomaton::OnStopLeading()
@@ -328,6 +329,7 @@ void TDecoratedAutomaton::OnFollowerRecoveryComplete()
 {
     YCHECK(State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Following;
+    LastSnapshotTime_ = TInstant::Now();
 }
 
 void TDecoratedAutomaton::OnStopFollowing()
@@ -505,6 +507,7 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    LastSnapshotTime_ = TInstant::Now();
     SnapshotVersion_ = LoggedVersion_;
     auto promise = SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
 
@@ -732,6 +735,13 @@ i64 TDecoratedAutomaton::GetLoggedDataSize() const
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return Changelog_->GetDataSize();
+}
+
+TInstant TDecoratedAutomaton::GetLastSnapshotTime() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return LastSnapshotTime_;
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const

@@ -101,11 +101,11 @@ public:
     void ResumeLogging();
 
 
-    //! Raised each time the current changelog reaches its maximum size.
+    //! Raised each time a checkpoint is needed.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    DEFINE_SIGNAL(void(), ChangelogLimitReached);
+    DEFINE_SIGNAL(void(), CheckpointNeeded);
 
 private:
     class TBatch;
@@ -119,6 +119,9 @@ private:
         const TSharedRef& recordData,
         TAsyncError localResult);
     void FlushCurrentBatch();
+
+    void OnAutoCheckpointCheck();
+
 
     TDistributedHydraManagerConfigPtr Config_;
     IChangelogStorePtr ChangelogStore_;
@@ -135,6 +138,8 @@ private:
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
     NConcurrency::TDelayedExecutor::TCookie BatchTimeoutCookie_;
+
+    NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
 
 };
 
