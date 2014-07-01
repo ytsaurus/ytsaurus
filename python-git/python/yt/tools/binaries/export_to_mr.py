@@ -55,7 +55,7 @@ def export_table(object, args):
 
         record_count = yt.records_count(src)
 
-        user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
+        user_slots_path = "//sys/pools/{0}/@resource_limits/user_slots".format(params.yt_pool)
         if not yt.exists(user_slots_path):
             logger.error("Pool must have user slots limit")
             return CANCEL
@@ -64,8 +64,8 @@ def export_table(object, args):
 
         use_fastbone = "-opt net_table=fastbone" if params.fastbone else ""
 
-        command = "pv -q -L {} | "\
-            "{} USER=tmp MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
+        command = "pv -q -L {0} | "\
+            "{1} USER=tmp MR_USER={2} ./mapreduce -server {3} {4} -append -lenval -subkey -write {5}"\
                 .format(limit,
                         params.opts,
                         params.mr_user,

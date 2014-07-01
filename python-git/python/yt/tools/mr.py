@@ -22,7 +22,7 @@ class Mr(object):
         self.fastbone = fastbone
 
         self.supports_shared_transactions = \
-            subprocess.call("{} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
+            subprocess.call("{0} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
@@ -31,12 +31,12 @@ class Mr(object):
     def _make_address(self, address, port):
         if ":" in address and address.rsplit(":", 1)[1].isdigit():
             address = address.rsplit(":", 1)[0]
-        return "{}:{}".format(address, port)
+        return "{0}:{1}".format(address, port)
 
 
     def get_field_from_page(self, table, field):
         """ Extract value of given field from http page of the table """
-        http_content = sh.curl("{}/debug?info=table&table={}".format(self.http_server, table)).stdout
+        http_content = sh.curl("{0}/debug?info=table&table={1}".format(self.http_server, table)).stdout
         records_line = filter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0]
         records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
@@ -44,7 +44,7 @@ class Mr(object):
     def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
             output = subprocess.check_output(
-                "{} -server {} -list -prefix {} -jsonoutput"\
+                "{0} -server {1} -list -prefix {2} -jsonoutput"\
                     .format(self.binary, self.server, table),
                 shell=True)
             table_info = filter(lambda obj: obj["name"] == table, json.loads(output))
@@ -81,15 +81,15 @@ class Mr(object):
             count = self.get_field_from_server(table, "records", allow_cache=allow_cache)
             return count is None or count == 0
         """ Parse whether table is empty from html """
-        http_content = sh.curl("{}/debug?info=table&table={}".format(self.http_server, table)).stdout
+        http_content = sh.curl("{0}/debug?info=table&table={1}".format(self.http_server, table)).stdout
         empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        subprocess.check_call("USER=yt MR_USER={} {} -server {} -drop {}".format(self.mr_user, self.binary, self.server, table), shell=True)
+        subprocess.check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
 
     def copy(self, src, dst):
-        subprocess.check_call("USER=yt MR_USER={} {} -server {} -copy -src {} -dst {}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
+        subprocess.check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
 
     def _as_int(self, obj):
         if obj is None:
@@ -98,14 +98,14 @@ class Mr(object):
 
     def get_read_range_command(self, table):
         if self.proxies:
-            return 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
+            return 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
             fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
             shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
-            return '{} USER=yt MR_USER={} ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
+            return '{0} USER=yt MR_USER={1} ./mapreduce -server $server {2} -read {3}:[$start,$end] -lenval -subkey {4}'\
                         .format(self.opts, self.mr_user, fastbone_str, table, shared_tx_str)
 
     def get_write_command(self, table):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
-        return "{} USER=yt MR_USER={} ./mapreduce -server {} {} -append -lenval -subkey -write {}"\
+        return "{0} USER=yt MR_USER={1} ./mapreduce -server {2} {3} -append -lenval -subkey -write {4}"\
                 .format(self.opts, self.mr_user, self.server, fastbone_str, table)
