@@ -58,6 +58,8 @@ public:
     TDuration QueryTimeout;
     NCompression::ECodec WriteRequestCodec;
     NCompression::ECodec LookupRequestCodec;
+    int MaxRowsPerRead;
+    int MaxRowsPerWrite;
 
     TConnectionConfig();
 };

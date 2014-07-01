@@ -487,51 +487,155 @@ private:
         int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
-        struct TSubrequest
+        class TTabletSession
+            : public TIntrinsicRefCounted
         {
-            std::vector<NVersionedTableClient::TKey> Keys;
-            std::vector<int> Indexes;
+        public:
+            TTabletSession(
+                TClient* owner,
+                TTabletInfoPtr tabletInfo,
+                const TLookupRowsOptions& options,
+                const TWireProtocolWriter::TColumnIdMapping& idMapping)
+                : Config_(owner->Connection_->GetConfig())
+                , TabletId_(tabletInfo->TabletId)
+                , Options_(options)
+                , IdMapping_(idMapping)
+            { }
 
-            TTabletServiceProxy::TInvRead AsyncResponse;
+            void AddKey(int index, NVersionedTableClient::TKey key)
+            {
+                if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerRead) {
+                    Batches_.emplace_back(new TBatch());
+                }
+
+                auto& batch = Batches_.back();
+                batch->Indexes.push_back(index);
+                batch->Keys.push_back(key);
+            }
+
+            TAsyncError Invoke(IChannelPtr channel)
+            {
+                // Do all the heavy lifting here.
+                for (auto& batch : Batches_) {
+                    TWireProtocolWriter writer;
+                    writer.WriteCommand(EWireProtocolCommand::LookupRows);
+                    writer.WriteColumnFilter(Options_.ColumnFilter);
+                    writer.WriteUnversionedRowset(batch->Keys, &IdMapping_);
+                    writer.WriteCommand(EWireProtocolCommand::End);
+                    batch->RequestData = NCompression::CompressWithEnvelope(
+                        writer.Flush(),
+                        Config_->LookupRequestCodec);
+                }
+
+                InvokeChannel_ = channel;
+                InvokeNextBatch();
+                return InvokePromise_;
+            }
+
+            void ParseResponse(
+                std::vector<TUnversionedRow>* pooledRows,
+                std::vector<TUnversionedRow>* resultRows,
+                std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
+            {
+                for (const auto& batch : Batches_) {
+                    auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
+                    auto reader = std::make_unique<TWireProtocolReader>(data);
+                    
+                    pooledRows->clear();
+                    reader->ReadUnversionedRowset(pooledRows);
+
+                    for (int index = 0; index < static_cast<int>(pooledRows->size()); ++index) {
+                        (*resultRows)[batch->Indexes[index]] = (*pooledRows)[index];
+                    }
+
+                    readers->push_back(std::move(reader));
+                }
+            }
+
+        private:
+            TConnectionConfigPtr Config_;
+            TTabletId TabletId_;
+            TLookupRowsOptions Options_;
+            TWireProtocolWriter::TColumnIdMapping IdMapping_;
+
+            struct TBatch
+            {
+                std::vector<int> Indexes;
+                std::vector<NVersionedTableClient::TKey> Keys;
+                std::vector<TSharedRef> RequestData;
+                TTabletServiceProxy::TRspReadPtr Response;
+            };
+
+            std::vector<std::unique_ptr<TBatch>> Batches_;           
+
+            IChannelPtr InvokeChannel_;
+            int InvokeBatchIndex_ = 0;
+            TAsyncErrorPromise InvokePromise_ = NewPromise<TError>();
+
+
+            void InvokeNextBatch()
+            {
+                if (InvokeBatchIndex_ >= Batches_.size()) {
+                    InvokePromise_.Set(TError());
+                    return;
+                }
+
+                const auto& batch = Batches_[InvokeBatchIndex_];
+
+                TTabletServiceProxy proxy(InvokeChannel_);
+                auto req = proxy.Read();
+                ToProto(req->mutable_tablet_id(), TabletId_);
+                req->set_timestamp(Options_.Timestamp);
+                req->Attachments() = std::move(batch->RequestData);
+
+                req->Invoke().Subscribe(
+                    BIND(&TTabletSession::OnResponse, MakeStrong(this)));
+            }
+
+            void OnResponse(TTabletServiceProxy::TRspReadPtr rsp)
+            {
+                if (rsp->IsOK()) {
+                    Batches_[InvokeBatchIndex_]->Response = rsp;
+                    ++InvokeBatchIndex_;
+                    InvokeNextBatch();
+                } else {
+                    InvokePromise_.Set(rsp->GetError());
+                }
+            }
+
         };
 
-        yhash_map<TTabletInfoPtr, TSubrequest> subrequests;
+        typedef TIntrusivePtr<TTabletSession> TTabletSessionPtr;
 
+        yhash_map<TTabletInfoPtr, TTabletSessionPtr> tabletToSession;
+                
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
             ValidateClientKey(key, keyColumnCount);
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
-            auto it = subrequests.find(tabletInfo);
-            if (it == subrequests.end()) {
-                it = subrequests.insert(std::make_pair(tabletInfo, TSubrequest())).first;
+            auto it = tabletToSession.find(tabletInfo);
+            if (it == tabletToSession.end()) {
+                it = tabletToSession.insert(std::make_pair(
+                    tabletInfo,
+                    New<TTabletSession>(this, tabletInfo, options, idMapping))).first;
             }
-            auto& subrequest = it->second;
-            subrequest.Keys.push_back(key);
-            subrequest.Indexes.push_back(index);
+            const auto& session = it->second;
+            session->AddKey(index, key);
         }
 
         const auto& cellDirectory = Connection_->GetCellDirectory();
-        for (auto& subrequestPair : subrequests) {
-            const auto& tabletInfo = subrequestPair.first;
-            auto& subrequest = subrequestPair.second;
+        auto collector = New<TParallelCollector<void>>();
 
-            TWireProtocolWriter writer;
-            writer.WriteCommand(EWireProtocolCommand::LookupRows);
-            writer.WriteColumnFilter(options.ColumnFilter);
-            writer.WriteUnversionedRowset(subrequest.Keys, &idMapping);
-            writer.WriteCommand(EWireProtocolCommand::End);
-            auto requestData = writer.Flush();
-
+        for (const auto& pair : tabletToSession) {
+            const auto& tabletInfo = pair.first;
+            const auto& session = pair.second;
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
-            TTabletServiceProxy proxy(channel);
-            auto req = proxy.Read();
-            ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
-            req->set_timestamp(options.Timestamp);
-            req->Attachments() = NCompression::CompressWithEnvelope(
-                requestData,
-                Connection_->GetConfig()->LookupRequestCodec);
-         
-            subrequest.AsyncResponse = req->Invoke();
+            collector->Collect(session->Invoke(channel));
+        }
+
+        {
+            auto result = WaitFor(collector->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         std::vector<TUnversionedRow> resultRows;
@@ -542,21 +646,12 @@ private:
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
-        for (const auto& subrequestPair : subrequests) {
-            const auto& subrequest = subrequestPair.second;
-            auto rsp = WaitFor(subrequest.AsyncResponse);
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-            auto responseData = NCompression::DecompressWithEnvelope(rsp->Attachments());
-            auto reader = std::make_unique<TWireProtocolReader>(responseData);
-            pooledRows.clear();
-            reader->ReadUnversionedRowset(&pooledRows);
-
-            for (int index = 0; index < static_cast<int>(pooledRows.size()); ++index) {
-                resultRows[subrequest.Indexes[index]] = pooledRows[index];
-            }
-
-            readers.push_back(std::move(reader));
+        for (const auto& pair : tabletToSession) {
+            const auto& session = pair.second;
+            session->ParseResponse(
+                &pooledRows,
+                &resultRows,
+                &readers);
         }
 
         if (!options.KeepMissingRows) {
@@ -1223,7 +1318,7 @@ private:
             for (auto row : Rows_) {
                 ValidateClientDataRow(row, keyColumnCount);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
-                auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
+                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::WriteRow);
                 writer->WriteUnversionedRow(row, &idMapping);
             }
@@ -1256,7 +1351,7 @@ private:
             for (auto key : Keys_) {
                 ValidateClientKey(key, keyColumnCount);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
-                auto* writer = Transaction_->AddTabletParticipant(std::move(tabletInfo));
+                auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
                 writer->WriteUnversionedRow(key, &idMapping);
             }
@@ -1269,7 +1364,96 @@ private:
 
     std::vector<std::unique_ptr<TRequestBase>> Requests_;
 
-    std::map<TTabletInfoPtr, std::unique_ptr<TWireProtocolWriter>> TabletToWriter_;
+    class TTabletSession
+        : public TIntrinsicRefCounted
+    {
+    public:
+        TTabletSession(
+            TTransaction* owner,
+            TTabletInfoPtr tabletInfo)
+            : TransactionId_(owner->Transaction_->GetId())
+            , TabletId_(tabletInfo->TabletId)
+            , Config_(owner->Client_->Connection_->GetConfig())
+        { }
+        
+        TWireProtocolWriter* GetWriter()
+        {
+            if (Batches_.empty() || CurrentRowCount_ >= Config_->MaxRowsPerWrite) {
+                Batches_.emplace_back(new TBatch());
+                CurrentRowCount_ = 0;
+            }
+            ++CurrentRowCount_;
+            return &Batches_.back()->Writer;
+        }
+
+        TAsyncError Invoke(IChannelPtr channel)
+        {
+            // Do all the heavy lifting here.
+            for (auto& batch : Batches_) {
+                batch->Writer.WriteCommand(EWireProtocolCommand::End);
+                batch->RequestData = NCompression::CompressWithEnvelope(
+                    batch->Writer.Flush(),
+                    Config_->WriteRequestCodec);;
+            }
+
+            InvokeChannel_ = channel;
+            InvokeNextBatch();
+            return InvokePromise_;
+        }
+
+    private:
+        TTransactionId TransactionId_;
+        TTabletId TabletId_;
+        TConnectionConfigPtr Config_;
+
+        struct TBatch
+        {
+            TWireProtocolWriter Writer;
+            std::vector<TSharedRef> RequestData;
+        };
+
+        std::vector<std::unique_ptr<TBatch>> Batches_;
+        int CurrentRowCount_ = 0; // in the current batch
+        
+        IChannelPtr InvokeChannel_;
+        int InvokeBatchIndex_ = 0;
+        TAsyncErrorPromise InvokePromise_ = NewPromise<TError>();
+
+
+        void InvokeNextBatch()
+        {
+            if (InvokeBatchIndex_ >= Batches_.size()) {
+                InvokePromise_.Set(TError());
+                return;
+            }
+
+            const auto& batch = Batches_[InvokeBatchIndex_];
+
+            TTabletServiceProxy tabletProxy(InvokeChannel_);
+            auto req = tabletProxy.Write();
+            ToProto(req->mutable_transaction_id(), TransactionId_);
+            ToProto(req->mutable_tablet_id(), TabletId_);
+            req->Attachments() = std::move(batch->RequestData);
+
+            req->Invoke().Subscribe(
+                BIND(&TTabletSession::OnResponse, MakeStrong(this)));
+        }
+
+        void OnResponse(TTabletServiceProxy::TRspWritePtr rsp)
+        {
+            if (rsp->IsOK()) {
+                ++InvokeBatchIndex_;
+                InvokeNextBatch();
+            } else {
+                InvokePromise_.Set(rsp->GetError());
+            }
+        }
+
+    };
+
+    typedef TIntrusivePtr<TTabletSession> TTabletSessionPtr;
+
+    yhash_map<TTabletInfoPtr, TTabletSessionPtr> TabletToSession_;
     
     TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
@@ -1288,16 +1472,16 @@ private:
         return it->second;
     }
 
-    TWireProtocolWriter* AddTabletParticipant(TTabletInfoPtr tabletInfo)
+    TWireProtocolWriter* GetTabletWriter(const TTabletInfoPtr& tabletInfo)
     {
-        auto it = TabletToWriter_.find(tabletInfo);
-        if (it == TabletToWriter_.end()) {
+        auto it = TabletToSession_.find(tabletInfo);
+        if (it == TabletToSession_.end()) {
             TransactionStartCollector_->Collect(Transaction_->AddTabletParticipant(tabletInfo->CellId));
-            it = TabletToWriter_.insert(std::make_pair(
+            it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
-                std::make_unique<TWireProtocolWriter>())).first;
+                New<TTabletSession>(this, tabletInfo))).first;
         }
-        return it->second.get();
+        return it->second->GetWriter();
     }
 
     void DoCommit()
@@ -1306,34 +1490,20 @@ private:
             request->Run();
         }
 
-        auto startResult = WaitFor(TransactionStartCollector_->Complete());
-        THROW_ERROR_EXCEPTION_IF_FAILED(startResult);
+        {
+            auto result = WaitFor(TransactionStartCollector_->Complete());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
 
         auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
         auto writeCollector = New<TParallelCollector<void>>();
 
-        for (const auto& pair : TabletToWriter_) {
+        for (const auto& pair : TabletToSession_) {
             const auto& tabletInfo = pair.first;
-            
-            auto* writer = pair.second.get();
-            writer->WriteCommand(EWireProtocolCommand::End);
-            auto requestData = writer->Flush();
-
+            const auto& session = pair.second;
             auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
-
-            TTabletServiceProxy tabletProxy(channel);
-            auto writeReq = tabletProxy.Write();
-            ToProto(writeReq->mutable_transaction_id(), Transaction_->GetId());
-            ToProto(writeReq->mutable_tablet_id(), tabletInfo->TabletId);
-            writeReq->Attachments() = NCompression::CompressWithEnvelope(
-                requestData,
-                Client_->GetConnection()->GetConfig()->WriteRequestCodec);
-
-            writeCollector->Collect(
-                writeReq->Invoke().Apply(BIND([] (TTabletServiceProxy::TRspWritePtr rsp) {
-                    return rsp->GetError();
-                })));
+            writeCollector->Collect(session->Invoke(std::move(channel)));
         }
 
         {

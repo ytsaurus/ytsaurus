@@ -47,6 +47,12 @@ TConnectionConfig::TConnectionConfig()
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("lookup_request_codec", LookupRequestCodec)
         .Default(NCompression::ECodec::Lz4);
+    RegisterParameter("max_rows_per_read", MaxRowsPerRead)
+        .GreaterThan(0)
+        .Default(1000);
+    RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
+        .GreaterThan(0)
+        .Default(1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
