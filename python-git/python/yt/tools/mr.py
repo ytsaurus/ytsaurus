@@ -5,6 +5,14 @@ import subprocess
 import simplejson as json
 from urllib import quote_plus
 
+try:
+    _check_output = subprocess.check_output
+except AttributeError:
+    # There is no check_output function in python2.6 :(
+    import shlex
+    def _check_output(command, **kwargs):
+        return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
+
 class Mr(object):
     def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="userdata", fastbone=False, opts=""):
         self.binary = binary
@@ -26,7 +34,6 @@ class Mr(object):
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
-
     
     def _make_address(self, address, port):
         if ":" in address and address.rsplit(":", 1)[1].isdigit():
@@ -43,7 +50,7 @@ class Mr(object):
 
     def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
-            output = subprocess.check_output(
+            output = _check_output(
                 "{0} -server {1} -list -prefix {2} -jsonoutput"\
                     .format(self.binary, self.server, table),
                 shell=True)
