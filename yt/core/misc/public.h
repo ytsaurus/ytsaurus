@@ -9,6 +9,9 @@ namespace NYT {
 class TStreamSaveContext;
 class TStreamLoadContext;
 
+template <class TSaveContext, class TLoadContext>
+class TCustomPersistenceContext;
+
 struct TValueBoundComparer;
 struct TValueBoundSerializer;
 

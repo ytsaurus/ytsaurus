@@ -1,8 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
-// TODO(babenko): replace by public.h
-#include <core/misc/serialize.h>
+#include <core/misc/public.h>
 
 namespace NYT {
 namespace NCellMaster {
