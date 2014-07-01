@@ -69,7 +69,7 @@ def export_table(object, args):
 
         hosts = "hosts/fb" if params.fastbone else "hosts"
 
-        command = "YT_TOKEN={} YT_HOSTS={} yt2 write --proxy {} --format '<format=binary>yson' '<append=true>{}'"\
+        command = "YT_TOKEN={0} YT_HOSTS={1} yt2 write --proxy {2} --format '<format=binary>yson' '<append=true>{3}'"\
                 .format(params.yt_token, hosts, params.yt_proxy, dst)
 
         logger.info("Running map '%s'", command)
