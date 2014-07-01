@@ -149,7 +149,9 @@ private:
                     action = std::move(entry->Action);
                     entry->Action.Reset(); // typically redundant
                 }
-                action.Run();
+                if (action) {
+                    action.Run();
+                }
             }
             Sleep(SleepQuantum);
         }
