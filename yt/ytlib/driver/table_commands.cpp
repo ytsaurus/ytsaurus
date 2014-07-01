@@ -29,7 +29,6 @@
 #include <ytlib/new_table_client/schemaful_chunk_writer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/table_producer.h>
 #include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
