@@ -1068,9 +1068,8 @@ private:
         yhash_map<TCellId, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchResponses;
 
         for (const auto& pair : batchRequests) {
-            TCellId cellId;
-            TObjectServiceProxy::TReqExecuteBatchPtr request;
-            std::tie(cellId, request) = pair;
+            const auto& cellId = pair.first;
+            const auto& request = pair.second;
             auto response = WaitFor(request->Invoke(), CancelableControlInvoker);
             if (!response->IsOK()) {
                 LOG_ERROR(*response, "Error refreshing transactions");
