@@ -17,7 +17,7 @@ TJob::TJob(
     TOperationPtr operation,
     TExecNodePtr node,
     TInstant startTime,
-    const TNodeResources& resourceUsage,
+    const TNodeResources& resourceLimits,
     TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)
@@ -25,7 +25,8 @@ TJob::TJob(
     , Node_(node)
     , StartTime_(startTime)
     , State_(EJobState::Waiting)
-    , ResourceUsage_(resourceUsage)
+    , ResourceUsage_(resourceLimits)
+    , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
     , Preemptable_(false)
 { }

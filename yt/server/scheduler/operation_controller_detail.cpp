@@ -1546,7 +1546,7 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperation()->GetId())
-        .Item("resource_limits").Value(job->ResourceUsage());
+        .Item("resource_limits").Value(job->ResourceLimits());
 
     JobCounter.Start(1);
 }
@@ -3580,6 +3580,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
+        .Item("resource_limits").Value(job->ResourceLimits())
         .Item("statistics").Value(statistics);
 }
 

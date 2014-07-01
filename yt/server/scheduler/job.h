@@ -44,12 +44,8 @@ class TJob
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
-    //! Current resources usage limits.
-    /*!
-     *  Initially captures the limits suggested by the scheduler.
-     *  May change afterwards on heartbeats.
-     */
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
 
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
@@ -72,7 +68,7 @@ public:
         TOperationPtr operation,
         TExecNodePtr node,
         TInstant startTime,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         TJobSpecBuilder specBuilder);
 
 };
