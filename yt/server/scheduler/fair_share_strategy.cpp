@@ -1227,7 +1227,7 @@ public:
         TFairShareContext context(schedulingContext);
 
         // Run periodic update.
-        if (!LastUpdateTime || now > LastUpdateTime.Get() + Config->FairShareUpdatePeriod) {
+        if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
             PROFILE_TIMING ("/fair_share_update_time") {
                 // The root element get the whole cluster.
                 RootElement->Update();
@@ -1250,7 +1250,7 @@ public:
         RootElement->BeginHeartbeat(context);
 
         // Run periodic logging.
-        if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
+        if (Config->FairShareLogPeriod && (!LastLogTime || now > LastLogTime.Get() + *Config->FairShareLogPeriod)) {
             // Update satisfaction attributes.
             RootElement->PrescheduleJob(context, false);
             // Log pools information.

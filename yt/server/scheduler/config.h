@@ -32,8 +32,8 @@ public:
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
 
-    TDuration FairShareUpdatePeriod;
-    TDuration FairShareLogPeriod;
+    TNullable<TDuration> FairShareUpdatePeriod;
+    TNullable<TDuration> FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
