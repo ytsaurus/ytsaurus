@@ -46,14 +46,14 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
     source = temp_yamr_table
 
     if mr.proxies:
-        command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
+        command = 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
     else:
         use_fastbone = "-opt net_table=fastbone" if fastbone else ""
         shared_tx = "-sharedtransactionid yt" if mr.supports_shared_transactions else ""
-        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey {}'\
+        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {0} -read {1}:[$start,$end] -lenval -subkey {2}'\
                     .format(use_fastbone, source, shared_tx)
 
-    debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'"))
+    debug_str = 'echo "{0}" 1>&2; '.format(command.replace('"', "'"))
     command = 'while true; do '\
                   'IFS="\t" read -r server start end; '\
                   'if [ "$?" != "0" ]; then break; fi; '\
@@ -87,7 +87,7 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
 
     if speed_limit is not None:
         limit = speed_limit / job_count
-        speed_limit = "pv -q -L {} | ".format(limit)
+        speed_limit = "pv -q -L {0} | ".format(limit)
     else:
         speed_limit = ""
 
@@ -114,14 +114,14 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
         binary = os.path.basename(yt_binary)
 
     command = \
-        "{} -server {} "\
-            "-map '{} {} YT_TOKEN={} YT_HOSTS={} {} -server {} -ytspec '\"'\"'{}'\"'\"' -append -lenval -subkey -write {}' "\
-            "-src {} "\
-            "-dst {} "\
-            "-jobcount {} "\
+        "{0} -server {1} "\
+            "-map '{2} {3} YT_TOKEN={4} YT_HOSTS={5} {6} -server {7} -ytspec '\"'\"'{8}'\"'\"' -append -lenval -subkey -write {9}' "\
+            "-src {10} "\
+            "-dst {11} "\
+            "-jobcount {12} "\
             "-lenval "\
             "-subkey "\
-            "{} "\
+            "{13} "\
                 .format(
                     mr.binary,
                     mr.server,
