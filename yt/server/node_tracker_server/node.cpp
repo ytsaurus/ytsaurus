@@ -207,7 +207,7 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
         StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
         StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
         StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
-        StoredReplicas_.insert(replica).second;
+        YCHECK(StoredReplicas_.insert(replica).second);
     }
 }
 
