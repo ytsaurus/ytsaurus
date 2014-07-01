@@ -54,7 +54,7 @@ protected:
     bool VerifyActive();
     bool TrySwitchSession();
 
-    virtual IChunkWriterBasePtr CreateTemplateWriter(IAsyncWriterPtr underlyingWriter) = 0;
+    virtual IChunkWriterBasePtr CreateTemplateWriter(IWriterPtr underlyingWriter) = 0;
 
 private:
     struct TSession

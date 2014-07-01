@@ -23,7 +23,7 @@ public:
         TChunkReaderConfigPtr config,
         const NChunkClient::TReadLimit& lowerLimit,
         const NChunkClient::TReadLimit& upperLimit,
-        NChunkClient::IAsyncReaderPtr underlyingReader,
+        NChunkClient::IReaderPtr underlyingReader,
         const NChunkClient::NProto::TMiscExt& misc);
 
     virtual TAsyncError Open() override;
@@ -42,7 +42,7 @@ protected:
     NChunkClient::TReadLimit LowerLimit_;
     NChunkClient::TReadLimit UpperLimit_;
 
-    NChunkClient::IAsyncReaderPtr UnderlyingReader_;
+    NChunkClient::IReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialReaderPtr SequentialReader_;
 
     NChunkClient::NProto::TMiscExt Misc_;

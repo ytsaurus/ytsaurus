@@ -24,7 +24,7 @@ class TPartitionChunkReader
 public:
     TPartitionChunkReader(
         TChunkReaderConfigPtr config,
-        NChunkClient::IAsyncReaderPtr underlyingReader,
+        NChunkClient::IReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         const NChunkClient::NProto::TChunkMeta& masterMeta,
@@ -141,7 +141,7 @@ private:
 
     virtual NChunkClient::IChunkReaderBasePtr CreateTemplateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IAsyncReaderPtr asyncReader) override;
+        NChunkClient::IReaderPtr asyncReader) override;
 
     virtual void OnReaderSwitched() override;
 

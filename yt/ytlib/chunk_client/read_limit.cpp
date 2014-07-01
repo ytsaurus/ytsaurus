@@ -184,6 +184,16 @@ Stroka ToString(const TReadLimit& limit)
     return result;
 }
 
+bool IsNontrivial(const TReadLimit& limit)
+{
+    return !IsTrivial(limit);
+}
+
+bool IsNontrivial(const NProto::TReadLimit& limit)
+{
+    return !IsTrivial(limit);
+}
+
 bool IsTrivial(const TReadLimit& limit)
 {
     return limit.IsTrivial();

@@ -92,7 +92,7 @@ bool CompareSessions(
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
         bool enableTableIndex)
-    : Logger(TableReaderLogger)
+    : Logger(TableClientLogger)
     , EnableTableIndex_(enableTableIndex)
     , TableIndex_(0)
 {

@@ -67,7 +67,7 @@ class TSchemalessChunkReader
 public:
     TSchemalessChunkReader(
         TChunkReaderConfigPtr config,
-        IAsyncReaderPtr underlyingReader,
+        IReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         const TChunkMeta& masterMeta,
@@ -127,7 +127,7 @@ DEFINE_REFCOUNTED_TYPE(TSchemalessChunkReader)
 
 TSchemalessChunkReader::TSchemalessChunkReader(
     TChunkReaderConfigPtr config,
-    IAsyncReaderPtr underlyingReader,
+    IReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
@@ -175,7 +175,7 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
 
-    auto errorOrMeta = WaitFor(UnderlyingReader_->AsyncGetChunkMeta(partitionTag, &extensionTags));
+    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(partitionTag, &extensionTags));
     THROW_ERROR_EXCEPTION_IF_FAILED(errorOrMeta);
 
     ChunkMeta_ = errorOrMeta.Value();
@@ -367,7 +367,7 @@ i64 TSchemalessChunkReader::GetTableRowIndex() const
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TChunkReaderConfigPtr config,
-    IAsyncReaderPtr underlyingReader,
+    IReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
@@ -425,7 +425,7 @@ private:
     using TBase::CurrentSession_;
     using TBase::ChunkSpecs_;
 
-    virtual IChunkReaderBasePtr CreateTemplateReader(const TChunkSpec& chunkSpec, IAsyncReaderPtr asyncReader) override;
+    virtual IChunkReaderBasePtr CreateTemplateReader(const TChunkSpec& chunkSpec, IReaderPtr asyncReader) override;
     virtual void OnReaderSwitched() override;
 
 };
@@ -469,7 +469,7 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 template <class TBase>
 IChunkReaderBasePtr TSchemalessMultiChunkReader<TBase>::CreateTemplateReader(
     const TChunkSpec& chunkSpec,
-    IAsyncReaderPtr asyncReader)
+    IReaderPtr asyncReader)
 {
     using NYT::FromProto;
 
@@ -607,7 +607,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     IBlockCachePtr blockCache,
     const TRichYPath& richPath,
     TNameTablePtr nameTable)
-    : Logger(TableReaderLogger)
+    : Logger(TableClientLogger)
     , Config_(config)
     , MasterChannel_(masterChannel)
     , Transaction_(transaction)

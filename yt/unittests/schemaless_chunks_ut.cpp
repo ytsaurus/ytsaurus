@@ -71,7 +71,7 @@ protected:
     ISchemalessReaderPtr ChunkReader;
     ISchemalessChunkWriterPtr ChunkWriter;
 
-    IAsyncReaderPtr MemoryReader;
+    IReaderPtr MemoryReader;
     TMemoryWriterPtr MemoryWriter;
 
     TChunkMeta MasterMeta;

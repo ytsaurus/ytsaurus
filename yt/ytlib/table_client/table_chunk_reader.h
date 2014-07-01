@@ -45,7 +45,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
+//! Reads single table chunk row-after-row using given #NChunkClient::IReader.
 class TTableChunkReader
     : public virtual TRefCounted
 {
