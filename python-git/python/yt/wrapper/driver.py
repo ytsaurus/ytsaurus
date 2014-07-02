@@ -165,7 +165,7 @@ def make_request(command_name, params,
         client_provider = client
 
     if not hasattr(client_provider, "COMMANDS"):
-        require("v2" in get_api(proxy), "Old versions of API is not supported")
+        require("v2" in get_api(proxy), "Old versions of API are not supported")
         client_provider.COMMANDS = parse_commands(get_api(proxy, version="v2"))
         client_provider.API_PATH = "api/v2"
     commands = client_provider.COMMANDS
