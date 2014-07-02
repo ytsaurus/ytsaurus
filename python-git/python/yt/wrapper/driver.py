@@ -1,67 +1,142 @@
+"""YT requests misc"""
 import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid
+from common import require, generate_uuid, bool_to_string, get_value
 from errors import YtError, YtResponseError
 from version import VERSION
-from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
+from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, check_proxy, get_session, get_api
+from command import parse_commands
 
 from yt.yson.convert import json_to_yson
 
 import yt.packages.requests as requests
 
 import sys
-import socket
 import simplejson as json
 
-def iter_lines(response):
-    """
-    Iterates over the response data, one line at a time.  This avoids reading
-    the content at once into memory for large responses. It is get from
-    requests, but improved to ignore \r line breaks.
-    """
-    def add_eoln(str):
-        return str + "\n"
+def escape_utf8(obj):
+    def escape_symbol(sym):
+        if ord(sym) < 128:
+            return sym
+        else:
+            return chr(ord('\xC0') | (ord(sym) >> 6)) + chr(ord('\x80') | (ord(sym) & ~ord('\xC0')))
+    def escape_str(str):
+        return "".join(map(escape_symbol, str))
 
-    pending = None
-    for chunk in response.iter_content(chunk_size=config.READ_BUFFER_SIZE):
-        if pending is not None:
-            chunk = pending + chunk
-        lines = chunk.split('\n')
-        pending = lines.pop()
-        for line in lines:
-            yield add_eoln(line)
+    if isinstance(obj, unicode):
+        obj = escape_str(str(bytearray(obj, 'utf-8')))
+    elif isinstance(obj, str):
+        obj = escape_str(obj)
+    elif isinstance(obj, list):
+        obj = map(escape_utf8, obj)
+    elif isinstance(obj, dict):
+        obj = dict((escape_str(k), escape_utf8(v)) for k, v in obj.iteritems())
+    return obj
 
-    if pending is not None and pending:
-        yield add_eoln(pending)
+class ResponseStream(object):
+    """Iterator over response"""
+    def __init__(self, response, iter_type):
+        self.response = response
+        self.iter_type = iter_type
+        self._buffer = ""
+        self._pos = 0
+        self._iter_content = self.response.iter_content(config.READ_BUFFER_SIZE)
 
-def read_content(response, type):
-    if type == "iter_lines":
-        return iter_lines(response)
-    elif type == "iter_content":
-        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
-    elif type == "string":
-        return response.text
-    elif type == "raw":
-        return response
+    def read(self, length=None):
+        if length is None:
+            length = 2 ** 32
+
+        result = []
+        while length > len(self._buffer) - self._pos:
+            right = min(len(self._buffer), self._pos + length)
+            result.append(self._buffer[self._pos:right])
+            length -= right - self._pos
+            self._pos = right
+            if length == 0 or not self._fetch():
+                break
+        return "".join(result)
+
+    def readline(self):
+        result = []
+        while True:
+            index = self._buffer.find("\n", self._pos)
+            if index != -1:
+                result.append(self._buffer[self._pos: index + 1])
+                self._pos = index + 1
+                break
+
+            result.append(self._buffer[self._pos:])
+            if not self._fetch():
+                break
+        return "".join(result)
+
+    def _fetch(self):
+        try:
+            self._buffer = self._iter_content.next()
+            self._pos = 0
+            if not self._buffer:
+                return False
+            return True
+        except StopIteration:
+            return False
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.iter_type == "iter_lines":
+            line = self.readline()
+            if not line:
+                raise StopIteration()
+            return line
+        elif self.iter_type == "iter_content":
+            if self._pos == len(self._buffer) and not self._fetch():
+                raise StopIteration()
+            result = self._buffer[self._pos:]
+            self._pos = len(self._buffer)
+            return result
+        else:
+            raise YtError("Incorrect iter type: " + str(self.iter_type))
+
+
+def read_content(response, raw, format, response_type):
+    if raw:
+        if response_type == "string":
+            return response.text
+        elif response_type == "raw":
+            return response
+        else:
+            return ResponseStream(response, response_type)
     else:
-        raise YtError("Incorrent response type: " + type)
+        return format.load_rows(ResponseStream(response, response_type))
 
-def get_hosts():
-    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(config.http.PROXY), config.HOSTS))
 
-def get_host_for_heavy_operation():
+def get_hosts(client=None):
+    client = get_value(client, config.CLIENT)
+    if client is not None:
+        proxy = client.proxy
+    else:
+        proxy = config.http.PROXY
+    check_proxy(proxy)
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, config.HOSTS))
+
+def get_host_for_heavy_operation(client=None):
+    client = get_value(client, config.CLIENT)
     if config.USE_HOSTS:
-        hosts = get_hosts()
+        hosts = get_hosts(client=client)
         if hosts:
             return hosts[0]
-    return config.http.PROXY
+    if client is not None:
+        return client.proxy
+    else:
+        return config.http.PROXY
 
 
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_raw_response=False, verbose=False,
-                 retry_unavailable_proxy=True):
+                 retry_unavailable_proxy=True, client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     Option return_raw_response forces returning response of requests library
@@ -75,20 +150,29 @@ def make_request(command_name, params,
             print >>sys.stderr, msg % args
         logger.debug(msg, *args, **kwargs)
 
-    # Trying to set http retries in requests
-    requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
-    
-    # Set timeout for requests. Unfortunately, requests param timeout works incorrectly
-    # when data is a generator.
-    socket.setdefaulttimeout(config.http.CONNECTION_TIMEOUT)
-
     # Prepare request url.
+    client = get_value(client, config.CLIENT)
     if proxy is None:
-        proxy = config.http.PROXY
-    require(proxy, YtError("You should specify proxy"))
+        if client is None:
+            proxy = config.http.PROXY
+        else:
+            proxy = client.proxy
+    check_proxy(proxy)
+
+    if client is None:
+        client_provider = config
+    else:
+        client_provider = client
+
+    if not hasattr(client_provider, "COMMANDS"):
+        require("v2" in get_api(proxy), "Old versions of API is not supported")
+        client_provider.COMMANDS = parse_commands(get_api(proxy, version="v2"))
+        client_provider.API_PATH = "api/v2"
+    commands = client_provider.COMMANDS
+    api_path = client_provider.API_PATH
 
     # Get command description
-    command = config.COMMANDS[command_name]
+    command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
     allow_retries = \
@@ -100,8 +184,11 @@ def make_request(command_name, params,
         else:
             params["mutation_id"] = generate_uuid()
 
+    if config.TRACE is not None and config.TRACE:
+        params["trace"] = bool_to_string(config.TRACE)
+
     # prepare url
-    url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
+    url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
@@ -114,21 +201,13 @@ def make_request(command_name, params,
         require(data is None, YtError("Body should be empty in commands without input type"))
         if command.is_volatile:
             headers["Content-Type"] = "application/json"
-            data = json.dumps(params)
+            data = json.dumps(escape_utf8(params))
             params = {}
 
-    if config.API_PATH == "api":
-        if "input_format" in params:
-            headers["X-YT-Input-Format"] = json.dumps(params["input_format"])
-            del params["input_format"]
-        if "output_format" in params:
-            headers["X-YT-Output-Format"] = json.dumps(params["output_format"])
-            del params["output_format"]
-
     if params:
-        headers.update({"X-YT-Parameters": json.dumps(params)})
+        headers.update({"X-YT-Parameters": json.dumps(escape_utf8(params))})
 
-    token = get_token()
+    token = get_token(client=client)
     if token is not None:
         headers["Authorization"] = "OAuth " + token
 
@@ -151,7 +230,7 @@ def make_request(command_name, params,
 
     def request():
         try:
-            rsp = requests.request(
+            rsp = get_session().request(
                 url=url,
                 method=command.http_method(),
                 headers=headers,
@@ -194,7 +273,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
     else:
         params["output_format"] = format.json()
 
-    result = make_request(command_name, params)
+    result = make_request(command_name, params, **kwargs)
 
     if format is None:
         return json_to_yson(json.loads(result))

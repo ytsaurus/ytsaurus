@@ -3,7 +3,7 @@ import parser
 import yson_types
 
 try:
-    from yt.bindings.yson_lib import load, loads, dump, dumps
+    from yt.bindings.yson import load, loads, dump, dumps
 except ImportError as error:
     from parser import load, loads
     from writer import dump, dumps

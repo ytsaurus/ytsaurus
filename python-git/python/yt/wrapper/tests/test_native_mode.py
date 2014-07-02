@@ -1,19 +1,37 @@
 #!/usr/bin/python
 
+from yt.wrapper.client import Yt
 import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
-import yt.logger as logger
 import yt.wrapper as yt
 
+import inspect
 import os
+import time
 import tempfile
 import subprocess
 import simplejson as json
 
 import pytest
 
-class TestDefaultBehaviour(YtTestBase, YTEnv):
+def test_docs_exist():
+    functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith('_'))
+    functions_without_doc = filter(lambda (name, func): not inspect.getdoc(func), functions)
+    assert not functions_without_doc
+    #for name, f in functions:
+    #    assert inspect.getdoc(f), "function %s without doc! " % name
+
+    classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))
+    for name, cl  in classes:
+        assert inspect.getdoc(cl)
+        if name == "PingTransaction":
+            continue # Python Thread is not documented O_o
+        public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and not o.__name__.startswith('_'))
+        methods_without_doc = [method for name, method in public_methods if (not inspect.getdoc(method))]
+        assert not methods_without_doc
+
+class TestNativeMode(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
@@ -26,7 +44,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     # Check equality of records in dsv format
     def check(self, recordsA, recordsB):
         def prepare(records):
-            return map(yt.line_to_record, sorted(list(records)))
+            return map(yt.loads_row, sorted(list(records)))
         self.assertEqual(prepare(recordsA), prepare(recordsB))
 
 
@@ -87,8 +105,8 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             attributes=["row_count"],
             object_filter=\
                 lambda x: x.attributes.get("row_count", -1) == 0)
-        self.assertEqual(set(res),
-                set([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
+        self.assertEqual(sorted(res),
+                sorted([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
 
     def test_create(self):
         with pytest.raises(yt.YtError):
@@ -127,6 +145,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         yt.write_table(table, ["y=1\n"])
         self.check(["y=1\n"], yt.read_table(table))
+        assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
@@ -215,26 +234,6 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.run_sort(table, sort_by=["x"])
         self.assertItemsEqual(["y=2\n", "x=1\n"], yt.read_table(table))
 
-    def test_printing_stderr(self):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, ["x=1\n"])
-
-        # Prepare
-        yt.config.PRINT_STDERRS = True
-        old = logger.info
-        output = []
-        def print_info(msg, *args, **kwargs):
-            output.append(msg)
-        logger.info = print_info
-
-        yt.run_map("cat 1>&2", table, table)
-
-        # Return settings back
-        logger.info = old
-        yt.config.PRINT_STDERRS = False
-
-        self.assertTrue(any(map(lambda line: line.find("x=1") != -1, output)))
-
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
         table = TEST_DIR + "/table"
@@ -254,8 +253,15 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 sum += int(rec.get("y", 1))
             yield {"x": key["x"], "y": sum}
 
+        @yt.raw
+        def change_field(line):
+            yield "z=8\n"
 
         table = TEST_DIR + "/table"
+
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(change_x, table, table, format=yt.YsonFormat())
+        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_x, table, table)
@@ -270,12 +276,16 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
 
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(change_field, table, table)
+        self.assertItemsEqual(["z=8\n", "z=8\n"], yt.read_table(table))
+
     def test_binary_data_with_dsv(self):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, map(yt.record_to_line, [record]))
-        self.assertItemsEqual([record], map(yt.line_to_record, yt.read_table(table)))
+        yt.write_table(table, map(yt.dumps_row, [record]))
+        self.assertItemsEqual([record], map(yt.loads_row, yt.read_table(table)))
 
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -286,7 +296,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         self.assertEqual(proc.returncode, 0)
 
 
-    def check_command(self, command, post_action=None, check_action=None):
+    def check_command(self, command, post_action=None, check_action=None, final_action=None):
         mutation_id = yt.common.generate_uuid()
         def run_command():
             yt.config.MUTATION_ID = mutation_id
@@ -301,6 +311,9 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             assert result == run_command()
             if check_action is not None:
                 assert check_action()
+
+        if final_action is not None:
+            final_action(result)
 
     def test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
@@ -333,6 +346,10 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         self.check_command(lambda: yt.move(test_dir, test_dir2))
 
     def test_scheduler_mutation_id(self):
+        def abort(operation_id):
+            yt.abort_operation(operation_id)
+            time.sleep(1.0) # Wait for aborting transactions
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["x=1\n", "x=2\n"])
@@ -347,11 +364,13 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                      "input_table_paths": [table],
                      "output_table_paths": [other_table]}})]:
 
-            op_count = yt.get("//sys/operations/@count")
+            operations_count = yt.get("//sys/operations/@count")
+
             self.check_command(
-                lambda: yt.driver.make_request(command, params),
+                lambda: yson.loads(yt.driver.make_request(command, params)),
                 None,
-                lambda: yt.get("//sys/operations/@count") == op_count + 1)
+                lambda: yt.get("//sys/operations/@count") == operations_count + 1,
+                abort)
 
     def test_lock(self):
         dir = TEST_DIR + "/dir"
@@ -386,25 +405,155 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
 
-        rsp = yt.read_table(table, response_type="raw")
+        rsp = yt.read_table(table).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 0})
 
-        rsp = yt.read_table(yt.TablePath(table, start_index=1), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, start_index=1)).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 1})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"])).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {"start_row_index": 2})
 
-        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), response_type="raw")
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"])).response
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {})
+
+    def test_read_with_retries(self):
+        old_value = yt.config.RETRY_READ
+        yt.config.RETRY_READ = True
+        try:
+            table = TEST_DIR + "/table"
+
+            self.assertRaises(lambda: yt.read_table(table))
+
+            yt.create_table(table)
+            self.check([], list(yt.read_table(table)))
+
+            yt.write_table(table, ["x=1\n", "y=2\n"])
+            self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
+
+            self.check("x=1\n", yt.read_table(table).next())
+            self.assertRaises(lambda: yt.write_table(table, ["x=1\n", "y=2\n"]))
+
+        finally:
+            yt.config.RETRY_READ = old_value
+
+    def test_reduce_combiner(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+
+        yt.run_map_reduce(mapper=None, reduce_combiner="cat", reducer="cat", reduce_by=["x"],
+                          source_table=table, destination_table=output_table)
+        self.check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
+
+    def test_yamred_dsv(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\ty=2\n"])
+
+        yt.run_map(foo, table, table,
+                   input_format=yt.create_format("<key_column_names=[\"y\"]>yamred_dsv"),
+                   output_format=yt.YamrFormat(has_subkey=False, lenval=False))
+        self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
+
+    def test_schemed_dsv(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
+        self.check(["1\n", "\\n\n"], sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
+
+        yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
+        self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
+
+    def test_mount_unmount(self):
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+        yt.set(table + "/@key_columns", ["x"])
+
+        tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+        while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+            time.sleep(0.1)
+
+        yt.mount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+            time.sleep(0.1)
+
+        yt.unmount_table(table)
+        while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
+            time.sleep(0.1)
+
+    #def test_select(self):
+    #    table = TEST_DIR + "/table"
+
+    #    yt.create_table(table)
+    #    yt.run_sort(table, sort_by=["x"])
+
+    #    yt.set(table + "/@schema", [{"name": name, "type": "integer"} for name in ["x", "y", "z"]])
+    #    yt.set(table + "/@key_columns", ["x"])
+
+    #    self.check([], yt.select("x from [{}]".format(table)))
+
+    #    yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+
+    #    self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
+
+    def test_lenval_python_operations(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["key=1\tvalue=2\n"])
+        yt.run_map(foo, table, table, format=yt.YamrFormat(lenval=True))
+        self.check(["key=1\tvalue=2\n"], list(yt.read_table(table)))
+
+    def test_wait_strategy_timeout(self):
+        records = ["x=1\n", "y=2\n", "z=3\n"]
+        pause = 3.0
+        sleeep = "sleep {0}; cat > /dev/null".format(pause)
+        desired_timeout = 1.0
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, records)
+
+        # skip long loading time
+        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
+
+        start = time.time()
+        yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(), job_count=1)
+        usual_time = time.time() - start
+        loading_time = usual_time - pause
+
+        start = time.time()
+        with self.assertRaises(yt.YtTimeoutError):
+            yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
+        timeout_time = time.time() - start
+        self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
+
+    def test_client(self):
+        client = Yt(yt.config.http.PROXY)
+        assert client.get("/")
+        client.create("table", "//tmp/in")
+        client.write_table("//tmp/in", ["a=b\n"])
+        assert client.exists("//tmp/in")
+        client.run_map("cat", "//tmp/in", "//tmp/out")
+        assert client.exists("//tmp/out")
+        with client.Transaction():
+            yt.set("//@attr", 10)
+            assert yt.exists("//@attr")
+
 
 # Map method for test operations with python entities
 class ChangeX__(object):

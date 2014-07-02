@@ -11,26 +11,23 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <core/formats/format.h>
-
 #include <core/logging/log_manager.h>
+
+#include <core/tracing/trace_manager.h>
+
 #include <core/ytree/convert.h>
+
+#include <ytlib/formats/format.h>
+
+#include <ytlib/api/connection.h>
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/dispatcher.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/meta_state/meta_state_manager_proxy.h>
 
-// For at_exit
-#include <core/profiling/profiling_manager.h>
-
-#include <core/rpc/dispatcher.h>
-
-#include <core/bus/tcp_dispatcher.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/hydra/hydra_service_proxy.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
@@ -39,9 +36,6 @@
 
 namespace NYT {
 namespace NPython {
-
-
-///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,25 +47,37 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Py::Exception CreateYtError(const std::string& message)
+{
+    static PyObject* ytErrorClass = nullptr;
+    if (!ytErrorClass) {
+        ytErrorClass = PyObject_GetAttr(
+            PyImport_ImportModule("yt.common"),
+            PyString_FromString("YtError"));
+    }
+    return Py::Exception(ytErrorClass, message);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TDriver
     : public Py::PythonClass<TDriver>
 {
 public:
-    TDriver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-        : Py::PythonClass<TDriver>::PythonClass(self, args, kwds)
+    TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
     {
-        Py::Object configDict = ExtractArgument(args, kwds, "config");
-        if (args.length() > 0 || kwds.length() > 0) {
+        Py::Object configDict = ExtractArgument(args, kwargs, "config");
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
         auto config = New<TDriverConfig>();
         auto configNode = ConvertToNode(configDict);
         try {
             config->Load(configNode);
-        } catch(const TErrorException& error) {
-            throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
+        } catch(const std::exception& ex) {
+            throw Py::RuntimeError(Stroka("Error loading driver configuration\n") + ex.what());
         }
-        NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
         DriverInstance_ = CreateDriver(config);
     }
 
@@ -87,16 +93,16 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
-        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force metastate to build snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
 
         behaviors().readyType();
     }
 
-    Py::Object Execute(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto pyRequest = ExtractArgument(args, kwds, "request");
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto pyRequest = ExtractArgument(args, kwargs, "request");
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
@@ -107,7 +113,7 @@ public:
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
-        
+
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
             request.AuthenticatedUser = ConvertToStroka(Py::String(user));
@@ -133,46 +139,60 @@ public:
             }
         }
 
-        response->SetResponse(DriverInstance_->Execute(request));
+        try {
+            response->SetResponse(DriverInstance_->Execute(request));
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
+        }
+
         return pythonResponse;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute)
 
-    Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwds, "command_name")));
-        if (args.length() > 0 || kwds.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
-        
-        Py::Callable class_type(TCommandDescriptor::type());
-        Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
-        descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
-        return descriptor;
-    }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor)
-    
-    Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict &kwds)
-    {
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "command_name")));
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        auto descriptors = Py::List();
-        FOREACH (const auto& nativeDescriptor, DriverInstance_->GetCommandDescriptors()) {
-            Py::Callable class_type(TCommandDescriptor::type());
-            Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
-            descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
-            descriptors.append(descriptor);
+        Py::Callable class_type(TCommandDescriptor::type());
+        Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+        try {
+            descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
         }
-        return descriptors;
+
+        return descriptor;
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor)
+
+    Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+
+        try {
+            auto descriptors = Py::List();
+            for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
+                Py::Callable class_type(TCommandDescriptor::type());
+                Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+                descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
+                descriptors.append(descriptor);
+            }
+            return descriptors;
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
+        }
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
-    
-    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict &kwds)
+
+    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwds, "command_name")).asLongLong();
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "command_name")).asLongLong();
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
@@ -182,41 +202,49 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
-    Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
-        NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetMasterChannel());
-        proxy.SetDefaultTimeout(Null); // infinity
-        auto req = proxy.GCCollect();
-        auto rsp = req->Invoke().Get();
-        if (!rsp->IsOK()) {
-            return ConvertTo<Py::Object>(TError(*rsp));
+        try {
+            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.GCCollect();
+            auto rsp = req->Invoke().Get();
+            if (!rsp->IsOK()) {
+                return ConvertTo<Py::Object>(TError(*rsp));
+            }
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
         }
         return Py::None();
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GcCollect)
 
-    Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
         bool setReadOnly = false;
-        if (args.length() > 0 || kwds.length() > 0) {
-            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwds, "set_read_only")));
+        if (args.length() > 0 || kwargs.length() > 0) {
+            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
         }
-        if (args.length() > 0 || kwds.length() > 0) {
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NMetaState::TMetaStateManagerProxy proxy(DriverInstance_->GetMasterChannel());
-        proxy.SetDefaultTimeout(Null); // infinity
-        auto req = proxy.BuildSnapshot();
-        req->set_set_read_only(setReadOnly);
+        try {
+            NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetConnection()->GetMasterChannel());
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.BuildSnapshot();
+            req->set_set_read_only(setReadOnly);
 
-        auto rsp = req->Invoke().Get();
-        if (!rsp->IsOK()) {
-            return ConvertTo<Py::Object>(TError(*rsp));
+            auto rsp = req->Invoke().Get();
+            if (!rsp->IsOK()) {
+                return ConvertTo<Py::Object>(TError(*rsp));
+            }
+
+            int snapshotId = rsp->snapshot_id();
+            printf("Snapshot %d is built\n", snapshotId);
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
         }
-
-        int snapshotId = rsp->snapshot_id();
-        printf("Snapshot %d is built\n", snapshotId);
 
         return Py::None();
     }
@@ -228,12 +256,14 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
+
 class driver_module
     : public Py::ExtensionModule<driver_module>
 {
 public:
     driver_module()
-        : Py::ExtensionModule<driver_module>("driver")
+        // It should be the same as .so file name
+        : Py::ExtensionModule<driver_module>("driver_lib")
     {
         PyEval_InitThreads();
 
@@ -244,6 +274,9 @@ public:
         TDriverResponse::InitType();
         TCommandDescriptor::InitType();
 
+        add_keyword_method("configure_logging", &driver_module::ConfigureLogging, "configure logging of driver instances");
+        add_keyword_method("configure_tracing", &driver_module::ConfigureTracing, "configure tracing");
+
         initialize("Python bindings for driver");
 
         Py::Dict moduleDict(moduleDictionary());
@@ -251,6 +284,38 @@ public:
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
     }
 
+    Py::Object ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw CreateYtError("Incorrect arguments");
+        }
+
+        NLog::TLogManager::Get()->Configure(config->AsMap());
+
+        return Py::None();
+    }
+
+    Py::Object ConfigureTracing(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        auto config = ConvertToNode(ExtractArgument(args, kwargs, "config"));
+
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw CreateYtError("Incorrect arguments");
+        }
+
+        NTracing::TTraceManager::Get()->Configure(config->AsMap());
+
+        return Py::None();
+    }
+ 
     virtual ~driver_module()
     { }
 };
@@ -258,7 +323,6 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
-
 } // namespace NYT
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -280,4 +344,3 @@ extern "C" EXPORT_SYMBOL void initdriver_lib_d()
 {
     initdriver_lib();
 }
-

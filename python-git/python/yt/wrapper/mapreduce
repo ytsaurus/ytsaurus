@@ -9,7 +9,7 @@ from yt.wrapper.table_commands import copy_table, _remove_locks
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, get_value, die
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.yson as yson
@@ -23,6 +23,14 @@ from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
 from functools import partial
 from itertools import imap
+
+def unlist_destination_tables(tables):
+    if tables is None:
+        die("Destination table required")
+    elif len(tables) == 1:
+        return tables[0]
+    else:
+        die("Multiple desitnation tables are forbidden")
 
 def calculate_if_function(obj):
     if hasattr(obj, '__call__'):
@@ -99,9 +107,9 @@ def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexi
             return None
         table = yt.to_table(table)
         if "channel" in table.name.attributes:
-            return yt.Format("<line_prefix=tskv>dsv")
+            return yt.create_format("<line_prefix=tskv>dsv")
         elif yt.has_attribute(table.name, "_format"):
-            return yt.Format(yt.get(table.name + "/@_format", format=yt.YsonFormat()))
+            return yt.create_format(yt.get(table.name + "/@_format", format=yt.YsonFormat()))
         else:
             return None
     if not (smart_format_flag or "YT_SMART_FORMAT" in os.environ):
@@ -117,8 +125,8 @@ def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexi
     if formats:
         # Dirty hacks :(
         if formats[0].name() in ["yamr", "yamred_dsv"]:
-            formats[0].attributes()["has_subkey"] = has_subkey
-            formats[0].attributes()["lenval"] = lenval
+            formats[0].attributes["has_subkey"] = has_subkey
+            formats[0].attributes["lenval"] = lenval
         return formats[0]
 
 
@@ -406,7 +414,7 @@ Examples:
 
     for option in ["format", "inputformat", "outputformat"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = yt.Format((vars(args)[option]))
+            vars(args)[option] = yt.create_format((vars(args)[option]))
 
     inputformat = first_not_none(imap(calculate_if_function,
         [args.format,
@@ -423,13 +431,12 @@ Examples:
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
-    config.PING_ANSECTOR_TRANSACTIONS = args.pingtx
+    config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit) * config.MB
 
-    if args.detached is None or bool(args.detached):
-        config.DETACHED = True
+    config.DETACHED = (args.detached is None) or bool(args.detached)
 
     attributes = {}
 
@@ -493,7 +500,7 @@ Examples:
                    spec=spec)
     elif args.reduce is not None or args.reducews is not None:
         if inputformat.name() == "yamred_dsv" and args.reduceby is None:
-            args.reduceby = inputformat.attributes().get("key_column_names", [])
+            args.reduceby = inputformat.attributes.get("key_column_names", [])
         op = args.reduce if args.reduce is not None else args.reducews
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
@@ -510,17 +517,17 @@ Examples:
                 _remove_locks(args.drop)
             remove_with_empty_dirs(args.drop)
     if args.copy:
-        copy_table(args.src, unlist(dst))
+        copy_table(args.src, unlist_destination_tables(dst))
     if args.sort:
         if inputformat.name() == "yamred_dsv" and args.sortby is None:
-            args.sortby = inputformat.attributes().get("key_column_names", []) + \
-                          inputformat.attributes().get("subkey_column_names", [])
-        yt.run_sort(args.src, unlist(dst), sort_by=args.sortby,
+            args.sortby = inputformat.attributes.get("key_column_names", []) + \
+                          inputformat.attributes.get("subkey_column_names", [])
+        yt.run_sort(args.src, unlist_destination_tables(dst), sort_by=args.sortby,
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
                       spec=spec)
     if args.merge:
-        yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"),
+        yt.run_merge(args.src, unlist_destination_tables(dst), mode=get_value(args.mode, "sorted"),
                      replication_factor=replication_factor,
                      compression_codec=args.codec,
                      job_count=args.jobcount,
@@ -543,7 +550,7 @@ Examples:
         print bool_to_string(yt.exists(args.exists))
 
     if args.get is not None:
-        sys.stdout.write(yt.get(args.get, spec=spec, format=yt.Format("<format=pretty>json")))
+        sys.stdout.write(yt.get(args.get, spec=spec, format=yt.create_format("<format=pretty>json")))
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
@@ -556,7 +563,7 @@ Examples:
     if args.aborttx is not None:
         yt.abort_transaction(args.aborttx)
     if args.renewtx is not None:
-        yt.renew_transaction(args.renewtx)
+        yt.ping_transaction(args.renewtx)
 
     if args.ytlock is not None:
         print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)

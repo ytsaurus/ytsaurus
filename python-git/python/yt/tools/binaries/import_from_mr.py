@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-from yt.tools.atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
+from yt.wrapper.common import die
 
 import yt.logger as logger
 import yt.wrapper as yt
@@ -11,6 +12,8 @@ import os
 import copy
 import uuid
 import subprocess
+import sys
+import traceback
 from argparse import ArgumentParser
 from urllib import quote_plus
 
@@ -34,7 +37,7 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
 
     if pool is None:
         pool = "restricted"
-    spec = {"data_size_per_job": 1, "pool": pool}
+    spec = {"data_size_per_job": 1, "pool": pool, "job_io": {"table_writer": {"max_row_weight": 32 * 1024 * 1024}}}
     if job_count is not None:
         spec["job_count"] = job_count
 
@@ -43,12 +46,14 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
     source = temp_yamr_table
 
     if mr.proxies:
-        command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
+        command = 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
     else:
         use_fastbone = "-opt net_table=fastbone" if fastbone else ""
-        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, source)
+        shared_tx = "-sharedtransactionid yt" if mr.supports_shared_transactions else ""
+        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {0} -read {1}:[$start,$end] -lenval -subkey {2}'\
+                    .format(use_fastbone, source, shared_tx)
 
-    debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'"))
+    debug_str = 'echo "{0}" 1>&2; '.format(command.replace('"', "'"))
     command = 'while true; do '\
                   'IFS="\t" read -r server start end; '\
                   'if [ "$?" != "0" ]; then break; fi; '\
@@ -82,7 +87,7 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
 
     if speed_limit is not None:
         limit = speed_limit / job_count
-        speed_limit = "pv -q -L {} | ".format(limit)
+        speed_limit = "pv -q -L {0} | ".format(limit)
     else:
         speed_limit = ""
 
@@ -109,14 +114,14 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
         binary = os.path.basename(yt_binary)
 
     command = \
-        "{} -server {} "\
-            "-map '{} {} YT_TOKEN={} YT_HOSTS={} {} -server {} -ytspec '\"'\"'{}'\"'\"' -append -lenval -subkey -write {}' "\
-            "-src {} "\
-            "-dst {} "\
-            "-jobcount {} "\
+        "{0} -server {1} "\
+            "-map '{2} {3} YT_TOKEN={4} YT_HOSTS={5} {6} -server {7} -ytspec '\"'\"'{8}'\"'\"' -append -lenval -subkey -write {9}' "\
+            "-src {10} "\
+            "-dst {11} "\
+            "-jobcount {12} "\
             "-lenval "\
             "-subkey "\
-            "{} "\
+            "{13} "\
                 .format(
                     mr.binary,
                     mr.server,
@@ -156,27 +161,28 @@ def import_table(object, args):
             http_port=params.mr_http_port,
             proxies=params.mr_proxy,
             proxy_port=params.mr_proxy_port,
-            fetch_info_from_http=params.fetch_info_from_http)
+            fetch_info_from_http=params.fetch_info_from_http,
+            mr_user=params.mr_user)
 
     if mr.is_empty(src):
-        logger.info("Table '%s' is empty", src)
-        return -1
+        logger.info("Source table '%s' is empty", src)
+        return CANCEL
 
     record_count = mr.records_count(src)
     sorted = mr.is_sorted(src)
 
-    logger.info("Import table '%s' (row count: %d, sorted: %d, method: %s)", src, record_count, sorted, params.import_type)
+    logger.info("Importing table '%s' (row count: %d, sorted: %d, method: %s)", src, record_count, sorted, params.import_type)
 
     if params.force:
         yt.remove(dst, recursive=True, force=True)
     else:
         if yt.exists(dst):
             if not (yt.get_type(dst) == "table" and yt.is_empty(dst)):
-                logger.warning("Destination table '%s' is not empty, import cancelled", dst)
-                return
+                logger.warning("Destination table '%s' is not empty", dst)
+                return CANCEL
     yt.create_table(dst, recursive=True, ignore_existing=True)
 
-    logger.info("Import destination '%s' created", dst)
+    logger.info("Destination table '%s' created", dst)
 
     try:
         if params.import_type == "pull":
@@ -202,7 +208,7 @@ def import_table(object, args):
         # TODO: add checksum checking
         if yt.records_count(dst) != record_count:
             logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt.records_count(dst))
-            return -1
+            return REPEAT
 
         if sorted:
             logger.info("Sorting '%s'", dst)
@@ -226,16 +232,25 @@ def import_table(object, args):
             logger.info("Merging '%s' with spec '%s'", dst, repr(spec))
             yt.run_merge(dst, dst, mode=mode, spec=spec)
 
+        # Additional final check
+        if yt.records_count(dst) != record_count:
+            logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, yt.records_count(dst))
+            return REPEAT
+
     except yt.YtError:
-        logger.exception("Error occured while import")
+        logger.exception("Error occurred while import")
         yt.remove(dst, force=True)
-        return -1
+        return CANCEL
 
 def main():
+    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+
     parser = ArgumentParser()
-    parser.add_argument("--tables-queue", required=True,
-                        help="YT path to list with tables")
+    parser.add_argument("--tables-queue", help="YT path to list with tables")
     parser.add_argument("--destination-dir")
+
+    parser.add_argument("--src")
+    parser.add_argument("--dst")
 
     parser.add_argument("--import-type", default="pull",
                         help="push (run operation in Yamr that writes to YT) or pull (run operation in YT that reads from Yamr)")
@@ -244,6 +259,7 @@ def main():
     parser.add_argument("--mr-server-port", default="8013")
     parser.add_argument("--mr-http-port", default="13013")
     parser.add_argument("--mr-proxy", action="append")
+    parser.add_argument("--mr-user", default="tmp")
     parser.add_argument("--mr-proxy-port", default="13013")
     parser.add_argument("--mapreduce-binary", default="./mapreduce")
     parser.add_argument("--fetch-info-from-http", action="store_true", default=False,
@@ -266,6 +282,7 @@ def main():
     parser.add_argument("--yt-binary")
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool")
+    parser.add_argument("--yt-proxy")
 
     parser.add_argument("--push-mapper-opts", default="")
     parser.add_argument("--push-mapper-spec", default="{}")
@@ -273,9 +290,24 @@ def main():
 
     args = parser.parse_args()
 
-    process_tasks_from_list(
-        args.tables_queue,
-        lambda obj: import_table(obj, args))
+    if args.yt_proxy is not None:
+        yt.config.set_proxy(args.yt_proxy)
+
+    if args.tables_queue is not None:
+        assert args.src is None and args.dst is None
+        process_tasks_from_list(
+            args.tables_queue,
+            lambda obj: import_table(obj, args))
+    else:
+        assert args.src is not None and args.dst is not None
+        import_table({"src": args.src, "dst": args.dst}, args)
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()

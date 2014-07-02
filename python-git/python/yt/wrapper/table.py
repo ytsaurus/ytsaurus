@@ -13,21 +13,49 @@ def check_prefix(prefix):
 
 class TablePath(object):
     """
-    Represents path to table with attributes:
-    append -- append to table or overwrite
-    columns -- list of string (column) or string pairs (column range).
-    lower_key, upper_key -- tuple of strings to identify range of records
-    start_index, end_index
+    Table address in Cypress tree with some modifiers.
+
+    Attributes:
+
+    * append -- append to table or overwrite
+
+    * columns -- list of string (column) or string pairs (column range).
+
+    * lower_key, upper_key -- tuple of strings to identify range of rows
+
+    * start_index, end_index -- tuple of indexes to identify range of rows
+
+    * simplify -- request proxy to parse YPATH
+
+    .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/Design/YPath>`_
     """
-    def __init__(self, name,
-                 append=None, sorted_by=None,
+    def __init__(self,
+                 name,
+                 append=None,
+                 sorted_by=None,
                  columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None,
-                 simplify=True):
+                 simplify=True,
+                 client=None):
+        """
+        :param name: (Yson string) path with attribute
+        :param append: (bool) append to table or overwrite
+        :param sorted_by: (list of string) list of sort keys
+        :param columns: list of string (column) or string pairs (column range)
+        :param lower_key: (string or string tuple) lower key bound of rows
+        :param upper_key: (string or string tuple) upper bound of rows
+        :param start_index: (int) lower bound of rows
+        :param end_index: (int) upper bound of rows
+
+        .. note:: 'upper_key' and 'lower_key' are special YT terms. \
+        `See usage example. <https://wiki.yandex-team.ru/yt/Design/YPath#modifikatorydiapazonovtablicy>`_
+        .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously
+        .. note:: param `simplify` will be removed
+        """
         self._append = append
         if simplify:
-            self.name = parse_ypath(name)
+            self.name = parse_ypath(name, client=client)
             for key, value in self.name.attributes.items():
                 if "-" in key:
                     self.name.attributes[key.replace("-", "_")] = value
@@ -83,9 +111,11 @@ class TablePath(object):
         self.name.attributes["append"] = bool_to_string(self._append)
 
     def has_delimiters(self):
+        """Check attributes for delimiters (channel, lower or upper limits)"""
         return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
 
     def get_json(self):
+        """Get path in JSON representation (dict)"""
         return {"$value": str(self.name), "$attributes": self.name.attributes}
 
     def __eq__(self, other):
@@ -100,15 +130,16 @@ class TablePath(object):
     def __repr__(self):
         return str(self)
 
-def to_table(object):
+def to_table(object, client=None):
+    """Return `TablePath` object"""
     if isinstance(object, TablePath):
         return object
     else:
-        return TablePath(object)
+        return TablePath(object, client=client)
 
-def to_name(object):
-    return to_table(object).name
+def to_name(object, client=None):
+    """Return `YsonString` name of path"""
+    return to_table(object, client=client).name
 
-def prepare_path(object):
-    return to_table(object).get_json()
-
+def prepare_path(object, client=None):
+    return to_table(object, client=client).get_json()

@@ -1,4 +1,4 @@
-from driver_lib import Driver, BufferedStream
+from driver_lib import BufferedStream
 
 from yt.common import YtError
 from yt.yson.convert import to_yson_type

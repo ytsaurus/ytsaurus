@@ -4,6 +4,8 @@
 
 #include <ytlib/driver/driver.h>
 
+#include <util/system/mutex.h>
+
 #include <contrib/libs/pycxx/Extensions.hxx>
 
 namespace NYT {
@@ -15,9 +17,9 @@ class TBufferedStream
     : public NConcurrency::IAsyncOutputStream
 {
 public:
-    explicit TBufferedStream(i64 bufferSize);
+    explicit TBufferedStream(size_t bufferSize);
 
-    TSharedRef Read(i64 size = 0);
+    TSharedRef Read(size_t size = 0);
 
     bool Empty() const;
 
@@ -28,8 +30,8 @@ public:
     virtual TAsyncError GetReadyEvent() override;
 
 private:
-    i64 Size_;
-    i64 AllowedSize_;
+    size_t Size_;
+    size_t AllowedSize_;
 
     TSharedRef Data_;
     char* Begin_;
@@ -51,7 +53,7 @@ private:
 
     void Reallocate(size_t len);
     void Move(char* dest);
-    TSharedRef ExtractChunk(i64 size);
+    TSharedRef ExtractChunk(size_t size);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -60,12 +62,12 @@ class TBufferedStreamWrap
     : public Py::PythonClass<TBufferedStreamWrap>
 {
 public:
-    TBufferedStreamWrap(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwds);
+    TBufferedStreamWrap(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
 
-    Py::Object Read(Py::Tuple& args, Py::Dict &kwds);
+    Py::Object Read(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Read);
 
-    Py::Object Empty(Py::Tuple& args, Py::Dict &kwds);
+    Py::Object Empty(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Empty);
 
     TBufferedStreamPtr GetStream();

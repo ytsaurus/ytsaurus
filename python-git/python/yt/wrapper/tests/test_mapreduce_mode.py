@@ -3,7 +3,7 @@
 from yt.environment import YTEnv
 from yt.wrapper.table_commands import copy_table, move_table
 import yt.wrapper as yt
-from yt.wrapper import Record, YtError, YtResponseError, record_to_line, line_to_record, TablePath
+from yt.wrapper import Record, YtError, YtResponseError, dumps_row, loads_row, TablePath
 import yt.wrapper.config as config
 from yt.common import flatten
 
@@ -33,12 +33,12 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         YtTestBase._teardown_class()
 
     def read_records(self, table, format=None):
-        return map(partial(line_to_record, format=format),
+        return map(partial(loads_row, format=format),
                    yt.read_table(table, format))
 
     def temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
-        return map(record_to_line, starmap(Record, imap(flatten, reduce(izip, columns))))
+        return map(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns))))
 
 
     def create_temp_table(self):
@@ -48,7 +48,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
     def dsv_records(self):
         return map(
-            partial(record_to_line, format=yt.Format("dsv")),
+            partial(dumps_row, format=yt.DsvFormat()),
                 [{"a": 12,  "b": "ignat"},
                            {"b": "max",  "c": 17.5},
                  {"a": "x", "b": "name", "c": 0.5}])
@@ -103,7 +103,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         yt.create_table(table)
         yt.set_attribute(table, "my_attr", 10)
 
-        records = map(record_to_line, [Record("x", "y", "z"), Record("key", "subkey", "value")])
+        records = map(dumps_row, [Record("x", "y", "z"), Record("key", "subkey", "value")])
         yt.write_table(table, records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records))
         self.assertEqual(yt.get_attribute(table, "my_attr"), 10)
@@ -116,7 +116,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         POWER = 3
         records = \
             yt.StringIterIO(
-                imap(record_to_line,
+                imap(dumps_row,
                      (Record(str(i), str(i * i), "long long string with strange symbols #*@*&^$#%@(#!@:L|L|KL..,,.~`")
                  for i in xrange(10 ** POWER))))
         table = TEST_DIR + "/temp"
@@ -306,6 +306,9 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertTrue(yt.is_sorted(another_table))
         self.assertEqual(yt.records_count(another_table), 20)
 
+        yt.run_merge(TEST_DIR + "/unexisting", other_table)
+        self.assertEqual(yt.records_count(other_table), 0)
+
     def test_digit_names(self):
         table = TEST_DIR + '/123'
         yt.write_table(table, self.temp_records())
@@ -358,9 +361,9 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
         @yt.raw
         def func_smart(rec):
-            rec = yt.line_to_record(rec)
+            rec = yt.loads_row(rec)
             rec.key = "xxx"
-            yield yt.record_to_line(rec)
+            yield yt.dumps_row(rec)
 
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
@@ -403,8 +406,6 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
     def test_mapreduce_binary(self):
-        yt.mkdir("//statbox")
-        yt.create_table("//statbox/table")
         proc = subprocess.Popen(
             "YT_USE_TOKEN=0 YT_PROXY=%s %s" %
                 (config.http.PROXY,

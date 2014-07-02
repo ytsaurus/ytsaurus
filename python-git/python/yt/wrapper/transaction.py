@@ -11,31 +11,41 @@ from datetime import datetime, timedelta
 
 class Transaction(object):
     """
-    It is designed to use by with_statement:
-    > with Transaction():
-    >    ....
-    >    lock("//home/my_node")
-    >    ....
-    >    with Transaction():
-    >        ....
-    >        yt.run_map(...)
-    >
+    It is designed to use by with_statement::
+
+    >>> with Transaction():
+    >>>    ...
+    >>>    lock("//home/my_node")
+    >>>    ...
+    >>>    with Transaction():
+    >>>        ...
+    >>>        yt.run_map(...)
+    >>>
+
     Caution: if you use this class then do not use directly methods *_transaction.
+
+    .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
     stack = []
 
     initial_transaction = "0-0-0-0"
-    initial_ping_ansector_transactions = False
+    initial_ping_ancestor_transactions = False
 
-    def __init__(self, timeout=None, attributes=None):
-        if not Transaction.stack:
-            Transaction.initial_transaction = config.TRANSACTION
-            Transaction.initial_ping_ansector_transactions = config.PING_ANSECTOR_TRANSACTIONS
+    def __init__(self, timeout=None, attributes=None, client=None):
+        self.client = get_value(client, config.CLIENT)
 
-        self.transaction_id = start_transaction(timeout=timeout, attributes=attributes)
-        Transaction.stack.append(self.transaction_id)
+        if self.client is None:
+            if not Transaction.stack:
+                Transaction.initial_transaction = config.TRANSACTION
+                Transaction.initial_ping_ancestor_transactions = config.PING_ANCESTOR_TRANSACTIONS
 
-        self._update_global_config()
+        self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
+        if self.client is None:
+            Transaction.stack.append(self.transaction_id)
+            self._update_global_config()
+        else:
+            # TODO(ignat): eliminate hack with ping ancestor transactions
+            self.client._add_transaction(self.transaction_id, True)
 
         self.finished = False
 
@@ -56,35 +66,47 @@ class Transaction(object):
 
             try:
                 if type is None:
-                    commit_transaction(self.transaction_id)
+                    commit_transaction(self.transaction_id, client=self.client)
                 else:
-                    abort_transaction(self.transaction_id)
+                    abort_transaction(self.transaction_id, client=self.client)
             except YtResponseError as rsp:
                 if rsp.is_resolve_error():
                     logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
                 else:
                     raise
         finally:
-            Transaction.stack.pop()
-            self.finished = True
-            self._update_global_config()
+            if self.client is None:
+                Transaction.stack.pop()
+                self.finished = True
+                self._update_global_config()
+            else:
+                self.client._pop_transaction()
+
 
     def _update_global_config(self):
         if Transaction.stack:
             config.TRANSACTION = Transaction.stack[-1]
-            config.PING_ANSECTOR_TRANSACTIONS = True
+            config.PING_ANCESTOR_TRANSACTIONS = True
         else:
             config.TRANSACTION = Transaction.initial_transaction
-            config.PING_ANSECTOR_TRANSACTIONS = Transaction.initial_ping_ansector_transactions
+            config.PING_ANCESTOR_TRANSACTIONS = Transaction.initial_ping_ancestor_transactions
 
 class PingTransaction(Thread):
-    # delay and step in seconds
-    def __init__(self, transaction, delay):
+    """
+    Pinger for transaction.
+
+    Ping transaction in background thread.
+    """
+    def __init__(self, transaction, delay, client=None):
+        """
+        :param delay: delay in seconds
+        """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
-        self.step = 1.0
+        self.step = config.TRANSACTION_PING_BACKOFF / 1000.0 # in seconds
+        self.client = client
 
     def __enter__(self):
         self.start()
@@ -95,7 +117,7 @@ class PingTransaction(Thread):
 
     def stop(self):
         self.is_running = False
-        timeout = min(config.http.CONNECTION_TIMEOUT, config.http.HTTP_RETRIES_COUNT * config.http.HTTP_RETRY_TIMEOUT)
+        timeout = config.http.REQUEST_TIMEOUT
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
         if self.is_alive():
@@ -103,7 +125,7 @@ class PingTransaction(Thread):
 
     def run(self):
         while self.is_running:
-            ping_transaction(self.transaction)
+            ping_transaction(self.transaction, client=self.client)
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
@@ -112,15 +134,17 @@ class PingTransaction(Thread):
 
 
 class PingableTransaction(object):
-    def __init__(self, timeout=None, attributes=None):
-        self.timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+    """Self-pinged transaction"""
+    def __init__(self, timeout=None, attributes=None, client=None):
+        self.timeout = get_value(timeout, config.http.REQUEST_TIMEOUT)
         self.attributes = attributes
+        self.client = client
 
     def __enter__(self):
-        self.transaction = Transaction(self.timeout, self.attributes)
+        self.transaction = Transaction(self.timeout, self.attributes, client=self.client)
         self.transaction.__enter__()
 
-        self.ping = PingTransaction(config.TRANSACTION, delay=self.timeout / (1000 * 10))
+        self.ping = PingTransaction(config.TRANSACTION, delay=self.timeout / (1000 * 10), client=self.client)
         self.ping.start()
         return self
 

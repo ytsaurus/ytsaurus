@@ -1,7 +1,7 @@
 PYTHON ?= `which python`
 PROJECT = `dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
 BUILDIR = $(CURDIR)/debian/$(PROJECT)
-VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
+WRAPPER_VERSION=$(shell dpkg-parsechangelog -lyandex-yt-python/debian/changelog | grep "Version:" | awk '{print $$2}')
 
 all:
 	@echo "make source - Create source package"
@@ -9,7 +9,7 @@ all:
 	@echo "make clean - Get rid of scratch and byte files"
 
 version:
-	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
+	echo "VERSION='$(WRAPPER_VERSION)'" > yt/wrapper/version.py
 
 source:
 	$(PYTHON) setup.py sdist
@@ -17,12 +17,11 @@ source:
 test: deb_clean
 	$(PYTHON) setup.py test
 
-html:
+docs:
 	rm -rf docs
 	mkdir docs
 	sphinx-apidoc -F -o docs yt
 	sphinx-build -b html docs docs/_build/ 
-	#sudo cp -r docs/_build/* /usr/share/nginx/www/python_api
 
 deb:
 	$(MAKE) test
@@ -41,9 +40,11 @@ deb_without_test: deb_clean
 
 deb_clean:
 	find . -name '*.pyc' -delete
-	sudo rm -rf tests fennel.egg-info Yt.egg-info yt/wrapper/tests/sandbox/*
-	sudo rm -rf build/ dist/ docs/ MANIFEST *.spec *.egg
+	sudo rm -rf tests yt/wrapper/tests/sandbox/*
+	sudo rm -rf build/ dist/ MANIFEST *.spec *.egg *.egg-info
 
 clean: deb_clean
-	rm -rf debian setup.py 
+	rm -rf debian setup.py docs/
+
+.PHONY: docs
 
