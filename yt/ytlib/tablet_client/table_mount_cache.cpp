@@ -107,20 +107,14 @@ public:
         }
 
         const auto& infoOrError = promise.Get();
-        auto now = TInstant::Now();
-        if (infoOrError.IsOK()) {
-            if (entry.Timestamp < now - Config_->SuccessExpirationTime) {
-                // Return what we already have but refresh the cache in background.
-                guard.Release();
-                RequestTableMountInfo(path);
-            }
-        } else {
-            if (entry.Timestamp < now - Config_->FailureExpirationTime) {
-                // Evict and retry.
-                PathToEntry.erase(it);
-                guard.Release();
-                return GetTableInfo(path);
-            }
+        auto timeout = infoOrError.IsOK()
+            ? Config_->SuccessExpirationTime
+            : Config_->FailureExpirationTime;
+        if (entry.Timestamp < TInstant::Now() - timeout) {
+            // Evict and retry.
+            PathToEntry.erase(it);
+            guard.Release();
+            return GetTableInfo(path);
         }
 
         return promise;
