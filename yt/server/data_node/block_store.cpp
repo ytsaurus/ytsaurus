@@ -165,7 +165,11 @@ public:
                 if (!result.IsOK()) {
                     return TError(result);
                 }
-                return result.Value()[0];
+                const auto& blocks = result.Value();
+                if (blocks.empty()) {
+                    return TSharedRef();
+                }
+                return blocks[0];
             }));
     }
 
