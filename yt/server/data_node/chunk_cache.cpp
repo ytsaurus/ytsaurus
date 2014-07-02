@@ -129,7 +129,10 @@ public:
         }
 
         return cookieValue.Apply(BIND([] (TErrorOr<TCachedBlobChunkPtr> result) -> TDownloadResult {
-            return result.IsOK() ? TDownloadResult(result.Value()) : TDownloadResult(result);
+            if (!result.IsOK()) {
+                return TError(result);
+            }
+            return result.Value();
         }));
     }
 
