@@ -7,6 +7,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <ytlib/tablet_client/config.h>
+
 #include <server/object_server/object_detail.h>
 
 #include <server/node_tracker_server/node.h>
@@ -45,6 +47,20 @@ private:
         if (!cell->Tablets().empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove a cell with active tablets");
         }
+    }
+
+    virtual void ValidateUserAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override
+    {
+        // Prevent changing options after creation.
+        static auto optionsKeys = New<TTabletCellOptions>()->GetRegisteredKeys();
+        if (std::find(optionsKeys.begin(), optionsKeys.end(), key) != optionsKeys.end()) {
+            THROW_ERROR_EXCEPTION("Cannot change tablet cell options after creation");
+        }
+
+        return TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
     }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
