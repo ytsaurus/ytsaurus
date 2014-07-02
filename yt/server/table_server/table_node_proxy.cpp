@@ -13,6 +13,8 @@
 
 #include <core/ypath/token.h>
 
+#include <ytlib/tablet_client/config.h>
+
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/new_table_client/schema.h>
@@ -412,9 +414,9 @@ private:
             protoTablet->set_state(tablet->GetState());
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {
-                ToProto(protoTablet->mutable_cell_id(), cell->GetId());
-                protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
-
+                auto config = cell->GetConfig()->ToElection(cell->GetId());
+                protoTablet->set_cell_config_version(cell->GetConfigVersion());
+                protoTablet->set_cell_config(ConvertToYsonString(config).Data());
                 for (const auto& peer : cell->Peers()) {
                     if (peer.Node) {
                         const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];

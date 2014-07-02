@@ -38,7 +38,8 @@ public:
     NHydra::EPeerState GetControlState() const;
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
-    const NHydra::NProto::TCellConfig& GetCellConfig() const;
+    int GetCellConfigVersion() const;
+    TTabletCellConfigPtr GetCellConfig() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
     TTabletAutomatonPtr GetAutomaton() const;

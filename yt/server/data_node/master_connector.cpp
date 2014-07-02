@@ -16,9 +16,13 @@
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 
+#include <core/ytree/convert.h>
+
 #include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/hive/cell_directory.h>
+
+#include <ytlib/election/config.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 #include <ytlib/node_tracker_client/helpers.h>
@@ -40,6 +44,8 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NYTree;
+using namespace NElection;
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -341,15 +347,15 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
         info->set_peer_state(slot->GetControlState());
         info->set_peer_id(slot->GetPeerId());
-        info->set_config_version(slot->GetCellConfig().version());
+        info->set_config_version(slot->GetCellConfigVersion());
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
-    auto cellMap = cellDirectory->GetRegisteredCells();
-    for (const auto& pair : cellMap) {
+    auto cellDescriptors = cellDirectory->GetRegisteredCells();
+    for (const auto& descriptor : cellDescriptors) {
         auto* info = request->add_hive_cells();
-        ToProto(info->mutable_cell_guid(), pair.first);
-        info->set_config_version(pair.second.version());
+        ToProto(info->mutable_cell_guid(), descriptor.Config->CellGuid);
+        info->set_config_version(descriptor.Version);
     }
 
     request->Invoke().Subscribe(
@@ -500,6 +506,7 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
 
     for (const auto& info : rsp->hive_cells_to_unregister()) {
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        YCHECK(cellGuid != NullCellGuid);
         if (cellDirectory->UnregisterCell(cellGuid)) {
             LOG_DEBUG("Hive cell unregistered (CellGuid: %s)",
                 ~ToString(cellGuid));
@@ -507,11 +514,12 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
     }
 
     for (const auto& info : rsp->hive_cells_to_reconfigure()) {
-        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
-        if (cellDirectory->RegisterCell(cellGuid, info.config())) {
+        auto config = ConvertTo<TCellConfigPtr>(TYsonString(info.config()));
+        int configVersion = info.config_version();
+        if (cellDirectory->RegisterCell(config, configVersion)) {
             LOG_DEBUG("Hive cell reconfigured (CellGuid: %s, ConfigVersion: %d)",
-                ~ToString(cellGuid),
-                info.config().version());
+                ~ToString(config->CellGuid),
+                configVersion);
         }
     }
 

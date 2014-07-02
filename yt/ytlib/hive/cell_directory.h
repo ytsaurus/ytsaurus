@@ -29,8 +29,6 @@ public:
         NRpc::IChannelFactoryPtr channelFactory);
     ~TCellDirectory();
 
-    typedef NHydra::NProto::TCellConfig TCellConfig;
-
 
     //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).
     NRpc::IChannelPtr FindChannel(const TCellGuid& cellGuid);
@@ -40,26 +38,29 @@ public:
 
 
     //! Returns the registered cell by its id (or |nullptr| if none is known).
-    TNullable<TCellConfig> FindCellConfig(const TCellGuid& cellGuid);
+    NElection::TCellConfigPtr FindCellConfig(const TCellGuid& cellGuid);
 
     //! Returns the registered cell by its id (throws if none is known).
-    TCellConfig GetCellConfigOrThrow(const TCellGuid& cellGuid);
+    NElection::TCellConfigPtr GetCellConfigOrThrow(const TCellGuid& cellGuid);
 
 
-    //! Returns the list of all registered cells and their configurations.
-    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells();
+    struct TCellDescriptor
+    {
+        int Version;
+        NElection::TCellConfigPtr Config;
+    };
+
+    //! Returns the list of all registered cells, their versions, and configurations.
+    std::vector<TCellDescriptor> GetRegisteredCells();
 
 
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).
     //! Returns |true| if the cell was registered (or an update took place).
-    bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config);
+    bool RegisterCell(NElection::TCellConfigPtr config, int version = 1);
 
     //! Similar to the above but accepts discovery configuration.
-    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config);
-
-    //! Similar to the above but accepts cell configuration.
-    bool RegisterCell(NElection::TCellConfigPtr config);
+    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config, int version = 1);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     bool UnregisterCell(const TCellGuid& cellGuid);

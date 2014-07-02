@@ -47,7 +47,8 @@ class TTabletCell
     typedef SmallVector<TPeer, TypicalCellSize> TPeerList;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
     
-    DEFINE_BYREF_RW_PROPERTY(NHydra::NProto::TCellConfig, Config);
+    DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
+    DEFINE_BYVAL_RO_PROPERTY(TTabletCellConfigPtr, Config);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
 

@@ -2,11 +2,14 @@
 #include "tablet_cell.h"
 #include "tablet.h"
 
+#include <ytlib/tablet_client/config.h>
+
 #include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NTabletServer {
 
+using namespace NElection;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
 
@@ -27,10 +30,9 @@ TTabletCell::TTabletCell(const TTabletCellId& id)
     : TNonversionedObjectBase(id)
     , State_(ETabletCellState::Starting)
     , Size_(-1)
-{
-    Config_.set_version(0);
-    Config_.set_size(0);
-}
+    , ConfigVersion_(0)
+    , Config_(New<TTabletCellConfig>())
+{ }
 
 void TTabletCell::Save(TSaveContext& context) const
 {
@@ -40,7 +42,8 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, State_);
     Save(context, Size_);
     Save(context, Peers_);
-    Save(context, Config_);
+    Save(context, ConfigVersion_);
+    Save(context, *Config_);
     Save(context, Tablets_);
 }
 
@@ -52,7 +55,8 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, State_);
     Load(context, Size_);
     Load(context, Peers_);
-    Load(context, Config_);
+    Load(context, ConfigVersion_);
+    Load(context, *Config_);
     Load(context, Tablets_);
 }
 

@@ -48,61 +48,60 @@ public:
         return channel;
     }
 
-    TNullable<TCellConfig> FindCellConfig(const TCellGuid& cellGuid)
+    TCellConfigPtr FindCellConfig(const TCellGuid& cellGuid)
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = CellMap_.find(cellGuid);
-        return it == CellMap_.end() ? TNullable<TCellConfig>(Null) : it->second.Config;
+        return it == CellMap_.end() ? nullptr : it->second.Descriptor.Config;
     }
 
-    TCellConfig GetCellConfigOrThrow(const TCellGuid& cellGuid)
+    TCellConfigPtr GetCellConfigOrThrow(const TCellGuid& cellGuid)
     {
         auto config = FindCellConfig(cellGuid);
         if (!config) {
             THROW_ERROR_EXCEPTION("Unknown cell %s",
                 ~ToString(cellGuid));
         }
-        return *config;
+        return config;
     }
 
-    std::vector<std::pair<TCellGuid, TCellConfig>> GetRegisteredCells()
+    std::vector<TCellDescriptor> GetRegisteredCells()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        std::vector<std::pair<TCellGuid, TCellConfig>> result;
+        std::vector<TCellDescriptor> result;
         result.reserve(CellMap_.size());
         for (const auto& pair : CellMap_) {
-            result.push_back(std::make_pair(pair.first, pair.second.Config));
+            result.push_back(pair.second.Descriptor);
         }
         return result;
     }
 
-    bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
+    bool RegisterCell(TCellConfigPtr config, int version)
     {
         bool result = false;
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = CellMap_.find(cellGuid);
+        auto it = CellMap_.find(config->CellGuid);
         auto* entry = it == CellMap_.end() ? nullptr : &it->second;
         if (!entry ) {
-            auto it = CellMap_.insert(std::make_pair(cellGuid, TEntry())).first;
+            auto it = CellMap_.insert(std::make_pair(config->CellGuid, TEntry())).first;
             entry = &it->second;
             result = true;
         }
-        if (entry->Config.version() < config.version()) {
-            entry->Config = config;
-            InitChannel(cellGuid, entry);
+        if (entry->Descriptor.Version < version) {
+            entry->Descriptor.Config = config;
+            entry->Descriptor.Version = version;
+            InitChannel(entry);
             result = true;
         }
         return result;
     }
 
-    bool RegisterCell(TPeerConnectionConfigPtr config)
+    bool RegisterCell(TPeerConnectionConfigPtr config, int version)
     {
-        return RegisterCell(config->CellGuid, BuildProtoConfig(config->Addresses));
-    }
-
-    bool RegisterCell(TCellConfigPtr config)
-    {
-        return RegisterCell(config->CellGuid, BuildProtoConfig(config->Addresses));
+        auto cellConfig = New<TCellConfig>();
+        cellConfig->CellGuid = config->CellGuid;
+        cellConfig->Addresses = config->Addresses;
+        return RegisterCell(cellConfig, version);
     }
 
     bool UnregisterCell(const TCellGuid& cellGuid)
@@ -129,7 +128,7 @@ private:
 
     struct TEntry
     {
-        TCellConfig Config;
+        TCellDescriptor Descriptor;
         IChannelPtr Channel;
     };
 
@@ -137,38 +136,23 @@ private:
     yhash_map<TCellGuid, TEntry> CellMap_;
 
 
-    void InitChannel(const TCellGuid& cellGuid, TEntry* entry)
+    void InitChannel(TEntry* entry)
     {
-        if (entry->Config.version() == 0)
+        if (entry->Descriptor.Version == 0)
             return;
 
         auto peerConfig = New<TPeerConnectionConfig>();
-        peerConfig->CellGuid = cellGuid;
+        peerConfig->CellGuid = entry->Descriptor.Config->CellGuid;
+        peerConfig->Addresses = entry->Descriptor.Config->Addresses;
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
-        for (const auto& peer : entry->Config.peers()) {
-            peerConfig->Addresses.push_back(peer.address());
-        }
 
         auto leaderChannel = CreateLeaderChannel(peerConfig, ChannelFactory_);
         leaderChannel->SetDefaultTimeout(Config_->RpcTimeout);
         entry->Channel = leaderChannel;
     }
     
-    NHydra::NProto::TCellConfig BuildProtoConfig(const std::vector<Stroka>& addresses)
-    {
-        NHydra::NProto::TCellConfig protoConfig;
-        protoConfig.set_size(addresses.size());
-        protoConfig.set_version(1); // expect this to be a master cell whose config version never changes
-        for (const auto& address : addresses) {
-            auto* peer = protoConfig.add_peers();
-            peer->set_peer_id(protoConfig.peers_size() - 1);
-            peer->set_address(address);
-        }
-        return protoConfig;
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,34 +178,29 @@ IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellGuid& cellGuid)
     return Impl_->GetChannelOrThrow(cellGuid);
 }
 
-TNullable<TCellDirectory::TCellConfig> TCellDirectory::FindCellConfig(const TCellGuid& cellGuid)
+TCellConfigPtr TCellDirectory::FindCellConfig(const TCellGuid& cellGuid)
 {
     return Impl_->FindCellConfig(cellGuid);
 }
 
-TCellDirectory::TCellConfig TCellDirectory::GetCellConfigOrThrow(const TCellGuid& cellGuid)
+TCellConfigPtr TCellDirectory::GetCellConfigOrThrow(const TCellGuid& cellGuid)
 {
     return Impl_->GetCellConfigOrThrow(cellGuid);
 }
 
-std::vector<std::pair<TCellGuid, TCellDirectory::TCellConfig>> TCellDirectory::GetRegisteredCells()
+std::vector<TCellDirectory::TCellDescriptor> TCellDirectory::GetRegisteredCells()
 {
     return Impl_->GetRegisteredCells();
 }
 
-bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
+bool TCellDirectory::RegisterCell(TCellConfigPtr config, int version)
 {
-    return Impl_->RegisterCell(cellGuid, config);
+    return Impl_->RegisterCell(config, version);
 }
 
-bool TCellDirectory::RegisterCell(TPeerConnectionConfigPtr config)
+bool TCellDirectory::RegisterCell(TPeerConnectionConfigPtr config, int version)
 {
-    return Impl_->RegisterCell(config);
-}
-
-bool TCellDirectory::RegisterCell(TCellConfigPtr config)
-{
-    return Impl_->RegisterCell(config);
+    return Impl_->RegisterCell(config, version);
 }
 
 bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)

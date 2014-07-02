@@ -4,8 +4,34 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/election/config.h>
+
 namespace NYT {
 namespace NTabletClient {
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TTabletCellConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<Stroka> Addresses;
+
+    TTabletCellConfig()
+    {
+        RegisterParameter("addresses", Addresses);
+    }
+
+    NElection::TCellConfigPtr ToElection(const NElection::TCellGuid& cellGuid) const
+    {
+        auto result = New<NElection::TCellConfig>();
+        result->CellGuid = cellGuid;
+        result->Addresses = Addresses;
+        return result;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletCellConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

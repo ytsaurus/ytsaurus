@@ -14,6 +14,8 @@
 
 #include <core/concurrency/periodic_executor.h>
 
+#include <ytlib/election/config.h>
+
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/new_table_client/schema.h>
@@ -786,25 +788,26 @@ private:
             if (!response)
                 return;
 
-            auto* configureInfo = response->add_tablet_slots_configure();
+            auto* protoInfo = response->add_tablet_slots_configure();
 
             const auto& cellId = cell->GetId();
-            ToProto(configureInfo->mutable_cell_guid(), cell->GetId());
-            configureInfo->set_peer_id(cell->GetPeerId(node));
-            *configureInfo->mutable_config() = cell->Config();
+            ToProto(protoInfo->mutable_cell_guid(), cell->GetId());
+            protoInfo->set_config_version(cell->GetConfigVersion());
+            protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
+            protoInfo->set_peer_id(cell->GetPeerId(node));
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %s, CellId: %s, Version: %d)",
                 ~node->GetAddress(),
                 ~ToString(cellId),
-                cell->Config().version());
+                cell->GetConfigVersion());
         };
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
             if (!response)
                 return;
 
-            auto* removeInfo = response->add_tablet_slots_to_remove();
-            ToProto(removeInfo->mutable_cell_guid(), cellId);
+            auto* protoInfo = response->add_tablet_slots_to_remove();
+            ToProto(protoInfo->mutable_cell_guid(), cellId);
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %s, CellId: %s)",
                 ~node->GetAddress(),
@@ -898,7 +901,7 @@ private:
             // Request slot reconfiguration if states are appropriate and versions differ.
             if (slot.PeerState != EPeerState::Initializing &&
                 slot.Cell->GetState() == ETabletCellState::Running &&
-                slotInfo.config_version() != slot.Cell->Config().version())
+                slotInfo.config_version() != slot.Cell->GetConfigVersion())
             {
                 requestConfigureSlot(slot.Cell);
             }
@@ -934,9 +937,10 @@ private:
             if (!response)
                 return;
 
-            auto* reconfigureInfo = response->add_hive_cells_to_reconfigure();
-            ToProto(reconfigureInfo->mutable_cell_guid(), cell->GetId());
-            reconfigureInfo->mutable_config()->CopyFrom(cell->Config());
+            auto* protoInfo = response->add_hive_cells_to_reconfigure();
+            auto config = cell->GetConfig()->ToElection(cell->GetId());
+            protoInfo->set_config_version(cell->GetConfigVersion());
+            protoInfo->set_config(ConvertToYsonString(config).Data());
         };
 
         auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
@@ -960,7 +964,7 @@ private:
             auto* cell = FindTabletCell(cellId);
             if (cell) {
                 YCHECK(missingCells.erase(cell) == 1);
-                if (cellInfo.config_version() < cell->Config().version()) {
+                if (cellInfo.config_version() < cell->GetConfigVersion()) {
                     requestReconfigureCell(cell);
                 }
             } else {
@@ -1252,32 +1256,28 @@ private:
 
     void ReconfigureCell(TTabletCell* cell)
     {
-        auto& config = cell->Config();
-        config.set_size(cell->GetSize());
-        config.set_version(config.version() + 1);
-        config.clear_peers();
-
+        cell->SetConfigVersion(cell->GetConfigVersion() + 1);
+        
+        auto config = cell->GetConfig();
+        config->Addresses.clear();
         for (int index = 0; index < static_cast<int>(cell->Peers().size()); ++index) {
             const auto& peer = cell->Peers()[index];
-            if (!peer.Address)
-                continue;
-
-            auto* peerInfo = config.add_peers();
-            peerInfo->set_address(*peer.Address);
-            peerInfo->set_peer_id(index);
+            config->Addresses.push_back(peer.Address ? *peer.Address : "");
         }
 
         UpdateCellDirectory(cell);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %s, Version: %d)",
             ~ToString(cell->GetId()),
-            config.version());
+            cell->GetConfigVersion());
     }
 
     void UpdateCellDirectory(TTabletCell* cell)
     {
         auto cellDirectory = Bootstrap->GetCellDirectory();
-        cellDirectory->RegisterCell(cell->GetId(), cell->Config());
+        cellDirectory->RegisterCell(
+            cell->GetConfig()->ToElection(cell->GetId()),
+            cell->GetConfigVersion());
     }
 
 

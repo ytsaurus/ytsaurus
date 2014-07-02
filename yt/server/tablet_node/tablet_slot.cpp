@@ -25,6 +25,8 @@
 
 #include <ytlib/transaction_client/timestamp_provider.h>
 
+#include <ytlib/tablet_client/config.h>
+
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
@@ -127,7 +129,12 @@ public:
         return PeerId_;
     }
 
-    const NHydra::NProto::TCellConfig& GetCellConfig() const
+    int GetCellConfigVersion() const
+    {
+        return CellConfigVersion_;
+    }
+
+    TTabletCellConfigPtr GetCellConfig() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -235,22 +242,17 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
 
-        auto cellConfig = New<TCellConfig>();
-        cellConfig->CellGuid = CellGuid_;
-        // NB: Missing peers will be represented by empty strings.
-        cellConfig->Addresses.resize(configureInfo.config().size());
-        for (const auto& peer : configureInfo.config().peers()) {
-            cellConfig->Addresses[peer.peer_id()] = peer.address();
-        }
+        CellConfigVersion_ = configureInfo.config_version();
+        CellConfig_ = ConvertTo<TTabletCellConfigPtr>(TYsonString(configureInfo.config()));
 
         if (HydraManager_) {
-            CellManager_->Reconfigure(cellConfig);
+            CellManager_->Reconfigure(CellConfig_->ToElection(CellGuid_));
         } else {
             PeerId_ = configureInfo.peer_id();
             State_ = EPeerState::Elections;
 
             CellManager_ = New<TCellManager>(
-                cellConfig,
+                CellConfig_->ToElection(CellGuid_),
                 Bootstrap_->GetTabletChannelFactory(),
                 configureInfo.peer_id());
 
@@ -324,8 +326,6 @@ public:
             rpcServer->RegisterService(TabletService_);
         }
 
-        CellConfig_ = configureInfo.config();
-
         LOG_INFO("Slot configured");
     }
 
@@ -382,7 +382,8 @@ private:
     TCellGuid CellGuid_;
     mutable EPeerState State_;
     TPeerId PeerId_;
-    NHydra::NProto::TCellConfig CellConfig_;
+    int CellConfigVersion_ = 0;
+    TTabletCellConfigPtr CellConfig_;
 
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
@@ -536,7 +537,12 @@ TPeerId TTabletSlot::GetPeerId() const
     return Impl_->GetPeerId();
 }
 
-const NHydra::NProto::TCellConfig& TTabletSlot::GetCellConfig() const
+int TTabletSlot::GetCellConfigVersion() const
+{
+    return Impl_->GetCellConfigVersion();
+}
+
+TTabletCellConfigPtr TTabletSlot::GetCellConfig() const
 {
     return Impl_->GetCellConfig();
 }

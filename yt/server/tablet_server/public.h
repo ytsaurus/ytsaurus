@@ -47,6 +47,9 @@ using NTabletClient::TStoreId;
 using NTabletClient::ETabletState;
 using NTabletClient::TypicalCellSize;
 
+using NTabletClient::TTabletCellConfig;
+using NTabletClient::TTabletCellConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletServer

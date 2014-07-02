@@ -5,7 +5,9 @@
 
 #include <core/misc/string.h>
 
-#include <core/ytree//ypath.pb.h>
+#include <core/ytree/ypath.pb.h>
+
+#include <ytlib/election/config.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -22,9 +24,11 @@
 namespace NYT {
 namespace NTabletClient {
 
+using namespace NYTree;
 using namespace NYTree::NProto;
 using namespace NYPath;
 using namespace NRpc;
+using namespace NElection;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NTableClient;
@@ -194,13 +198,11 @@ private:
             tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
             tabletInfo->State = ETabletState(protoTabletInfo.state());
             tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
-            
-            if (protoTabletInfo.has_cell_id()) {
-                tabletInfo->CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id()); 
-            }
-            
+
             if (protoTabletInfo.has_cell_config()) {
-                CellDirectory_->RegisterCell(tabletInfo->CellId, protoTabletInfo.cell_config());
+                auto config = ConvertTo<TCellConfigPtr>(TYsonString(protoTabletInfo.cell_config()));
+                tabletInfo->CellId = config->CellGuid;
+                CellDirectory_->RegisterCell(config, protoTabletInfo.cell_config_version());
             }
             
             for (auto nodeId : protoTabletInfo.replica_node_ids()) {

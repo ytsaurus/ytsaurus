@@ -22,18 +22,3 @@ message TMutationHeader
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TPeerInfo
-{
-    required string address = 1;
-    required int32 peer_id = 2;
-}
-
-message TCellConfig
-{
-    required int32 version = 1;
-    required int32 size = 2;
-    repeated TPeerInfo peers = 3;
-}
-
-////////////////////////////////////////////////////////////////////////////////

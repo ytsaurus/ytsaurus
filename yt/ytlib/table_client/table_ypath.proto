@@ -78,8 +78,8 @@ message TTabletInfo
     required NYT.NProto.TGuid tablet_id = 1;
     required int32 state = 2;
     required bytes pivot_key = 3;
-    optional NYT.NProto.TGuid cell_id = 4;
-    optional NYT.NHydra.NProto.TCellConfig cell_config = 5;
+    optional int32 cell_config_version = 4;
+    optional bytes cell_config = 5; // NElection::TCellConfig
     repeated int32 replica_node_ids = 6;
 }
 

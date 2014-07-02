@@ -98,8 +98,9 @@ message TCreateTabletSlotInfo
 message TConfigureTabletSlotInfo
 {
     required NYT.NProto.TGuid cell_guid = 1;
-    required NYT.NHydra.NProto.TCellConfig config = 2;
-    required int32 peer_id = 3;
+    required int32 config_version = 2;
+    required bytes config = 3; // NTabletClient::TTabletCellConfig
+    required int32 peer_id = 4;
 }
 
 message TRemoveTabletSlotInfo
@@ -114,8 +115,8 @@ message TUnregisterHiveCellInfo
 
 message TReconfigureHiveCellInfo
 {
-    required NYT.NProto.TGuid cell_guid = 1;
-    required NYT.NHydra.NProto.TCellConfig config = 2;
+    required int32 config_version = 1;
+    required bytes config = 2; // NElection::TCellConfig
 }
 
 message TRspIncrementalHeartbeat
