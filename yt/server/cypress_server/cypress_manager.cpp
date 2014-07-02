@@ -158,7 +158,7 @@ public:
                 auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
                 std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-                trunkProxy->ListSystemAttributes(&systemAttributes);
+                trunkProxy->ListBuiltinAttributes(&systemAttributes);
 
                 yhash_set<Stroka> systemAttributeKeys;
                 for (const auto& attribute : systemAttributes) {
@@ -170,8 +170,8 @@ public:
                     if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
                         trunkProxy->MutableAttributes()->SetYson(key, value);
                     } else {
-                        if (!trunkProxy->SetSystemAttribute(key, value)) {
-                            ThrowCannotSetSystemAttribute(key);
+                        if (!trunkProxy->SetBuiltinAttribute(key, value)) {
+                            ThrowCannotSetBuiltinAttribute(key);
                         }
                     }
                 }        

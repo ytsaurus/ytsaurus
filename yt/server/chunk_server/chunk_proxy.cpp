@@ -92,7 +92,7 @@ private:
         attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
         attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
         attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec()));
+        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec(), false, true));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
@@ -110,7 +110,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -388,10 +388,10 @@ private:
             }
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto* chunk = GetThisTypedImpl();
         if (chunk->IsJournal() && key == "quorum_record_count") {
@@ -405,7 +405,7 @@ private:
                 return TError(recordCountOrError);
             }));
         }
-        return TBase::GetSystemAttributeAsync(key, consumer);
+        return TBase::GetBuiltinAttributeAsync(key, consumer);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override

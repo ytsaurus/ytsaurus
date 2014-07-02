@@ -588,6 +588,7 @@ private:
         auto* transaction = node->GetTransaction();
         if (!transaction)
             return;
+        auto transactionId = transaction->GetId();
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto rootService = objectManager->GetRootService();
@@ -628,7 +629,7 @@ private:
             {
                 auto req = TCypressYPathProxy::Lock(nodePath);
                 req->set_mode(ELockMode::Shared);
-                SetTransactionId(req, transaction->GetId());
+                SetTransactionId(req, transactionId);
 
                 auto asyncResult = ExecuteVerb(rootService, req);
                 auto result = WaitFor(asyncResult);

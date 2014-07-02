@@ -58,7 +58,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         auto* cell = GetThisTypedImpl();
 
@@ -115,7 +115,7 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
 };

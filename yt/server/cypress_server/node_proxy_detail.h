@@ -53,7 +53,7 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:
-    class TUserAttributeDictionary;
+    class TCustomAttributeDictionary;
     class TResourceUsageVisitor;
 
     INodeTypeHandlerPtr TypeHandler;
@@ -72,9 +72,9 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
     virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
@@ -146,7 +146,7 @@ protected:
     static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
     static const ICypressNodeProxy* ToProxy(NYTree::IConstNodePtr node);
 
-    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
+    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
     
     // TSupportsPermissions members
     virtual void ValidatePermission(
@@ -201,7 +201,7 @@ protected:
         TCypressNodeBase* trunkNode);
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
 
     virtual bool CanHaveChildren() const override;
 
@@ -428,8 +428,8 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     NObjectServer::IObjectProxyPtr FindTargetProxy() const;
     NObjectServer::IObjectProxyPtr GetTargetProxy() const;
@@ -474,8 +474,8 @@ private:
     virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
 };
 

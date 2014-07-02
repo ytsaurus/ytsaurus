@@ -395,6 +395,7 @@ private:
                 //jobSpec.operation_spec().environment(),
                 environmentType,
                 JobId,
+                *Slot,
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
@@ -438,7 +439,7 @@ private:
 
         auto exitResult = CheckedWaitFor(asyncError);
         // NB: we should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetUserId(), TError());
+        ProxyController->Kill(Slot->GetProcessGroup(), TError());
         
         THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
 
@@ -488,7 +489,7 @@ private:
 
         if (jobPhase >= EJobPhase::Running) {
             // NB: Kill() never throws.
-            ProxyController->Kill(Slot->GetUserId(), error);
+            ProxyController->Kill(Slot->GetProcessGroup(), error);
         }
 
         if (jobPhase >= EJobPhase::PreparingSandbox) {

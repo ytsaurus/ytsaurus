@@ -65,7 +65,7 @@ private:
         return ObjectServerLogger;
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
@@ -74,7 +74,7 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
 };

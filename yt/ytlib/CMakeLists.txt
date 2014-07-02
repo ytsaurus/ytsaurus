@@ -19,24 +19,12 @@ set( DIRS
   transaction_client
   tablet_client
   monitoring
+  cgroup
   hydra
   hive
   formats
   api
   journal_client
-)
-
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
-set( SRCS
-  ${BASE}/shutdown.cpp
-)
-set( HDRS
-  ${BASE}/shutdown.h
-)
-
-list(APPEND YT_SOURCE_FILES
-  ${SRCS}
-  ${HDRS}
 )
 
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )

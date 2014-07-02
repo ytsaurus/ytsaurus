@@ -86,10 +86,12 @@ private:
         attributes->push_back("key_columns");
         attributes->push_back(TAttributeInfo("sorted_by", node->GetSorted()));
         attributes->push_back(TAttributeInfo("tablets", true, true));
+        attributes->push_back(TAttributeInfo("channels", true, false, true));
+        attributes->push_back(TAttributeInfo("schema", true, false, true));
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
         const auto* chunkList = node->GetChunkList();
@@ -139,10 +141,10 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
+    bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         if (key == "key_columns") {
             ValidateNoTransaction();
@@ -163,10 +165,10 @@ private:
             return true;
         }
 
-        return TBase::SetSystemAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value);
     }
     
-    virtual void ValidateUserAttributeUpdate(
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
@@ -187,7 +189,7 @@ private:
             return;
         }
 
-        TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
+        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
     virtual void ValidateFetchParameters(
@@ -259,7 +261,6 @@ private:
             THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
         }
     }
-
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted)
     {

@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "null_strategy.h"
 #include "fair_share_strategy.h"
 #include "operation_controller.h"
 #include "map_controller.h"
@@ -130,6 +129,13 @@ public:
     void Initialize()
     {
         InitStrategy();
+        
+        MasterConnector_->AddGlobalWatcherRequester(BIND(
+            &TImpl::RequestPools,
+            Unretained(this)));
+        MasterConnector_->AddGlobalWatcherHandler(BIND(
+            &TImpl::HandlePools,
+            Unretained(this)));
 
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestConfig,
@@ -170,7 +176,7 @@ public:
         EventLogConsumer_.reset(new TTableConsumer(EventLogWriter_));
 
         LogEventFluently(ELogEventType::SchedulerStarted)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
     }
 
 
@@ -373,6 +379,7 @@ public:
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
+            ELogEventType::OperationAborted,
             error);
 
         return operation->GetFinished();
@@ -536,10 +543,13 @@ public:
     // ISchedulerStrategyHost implementation
     DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
+    DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
+    
+    DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -631,14 +641,8 @@ public:
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
+            ELogEventType::OperationFailed,
             error);
-
-        LogEventFluently(ELogEventType::OperationFailed)
-            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
-            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
-            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
-            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime())
-            .Item(STRINGBUF("error")).Value(error);
     }
 
 
@@ -685,6 +689,8 @@ private:
     NTableClient::IAsyncWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
+
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
 
@@ -713,7 +719,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LogEventFluently(ELogEventType::MasterConnected)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
 
         ReviveOperations(result.Operations);
     }
@@ -723,7 +729,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LogEventFluently(ELogEventType::MasterDisconnected)
-            .Item(STRINGBUF("address")).Value(ServiceAddress_);
+            .Item("address").Value(ServiceAddress_);
 
         auto operations = IdToOperation_;
         for (const auto& pair : operations) {
@@ -765,6 +771,7 @@ private:
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
+            ELogEventType::OperationAborted,
             TError("Operation transaction has expired or was aborted"));
     }
 
@@ -776,10 +783,67 @@ private:
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
+            ELogEventType::OperationFailed,
             TError("Scheduler transaction has expired or was aborted"));
     }
 
+    
+    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating pools");
 
+        auto req = TYPathProxy::Get("//sys/pools");
+        static auto poolConfigTemplate = New<TPoolConfig>();
+        static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_pools");
+    }
+
+    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error getting pools configuration");
+            return;
+        }
+
+        try {
+            auto poolsNode = ConvertToNode(TYsonString(rsp->value()));
+            PoolsUpdated_.Fire(poolsNode);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing pools configuration");
+        }
+    }
+    
+    void RequestOperationRuntimeParams(
+        TOperationPtr operation,
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
+        TAttributeFilter attributeFilter(
+            EAttributeFilterMode::MatchingOnly,
+            runtimeParamsTemplate->GetRegisteredKeys());
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        batchReq->AddRequest(req, "get_runtime_params");
+    }
+
+    void HandleOperationRuntimeParams(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_runtime_params");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating operation runtime parameters");
+            return;
+        }
+
+        auto operationNode = ConvertToNode(TYsonString(rsp->value()));
+        auto attributesNode = ConvertToNode(operationNode->Attributes());
+        
+        OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
+    }
 
     void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -824,6 +888,8 @@ private:
         try {
             auto controller = CreateController(operation.Get());
             operation->SetController(controller);
+
+            SwitchTo(controller->GetCancelableControlInvoker());
 
             RegisterOperation(operation);
             registered = true;
@@ -1058,6 +1124,13 @@ private:
         }
 
         OperationRegistered_.Fire(operation);
+        
+        GetMasterConnector()->AddOperationWatcherRequester(
+            operation,
+            BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));
+        GetMasterConnector()->AddOperationWatcherHandler(
+            operation,
+            BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetId()));
@@ -1379,16 +1452,7 @@ private:
 
     void InitStrategy()
     {
-        switch (Config_->Strategy) {
-            case ESchedulerStrategy::Null:
-                Strategy_ = CreateNullStrategy(this);
-                break;
-            case ESchedulerStrategy::FairShare:
-                Strategy_ = CreateFairShareStrategy(Config_, this);
-                break;
-            default:
-                YUNREACHABLE();
-        }
+        Strategy_ = CreateFairShareStrategy(Config_, this);
     }
 
     IOperationControllerPtr CreateController(TOperation* operation)
@@ -1506,10 +1570,10 @@ private:
         }
 
         LogEventFluently(ELogEventType::OperationCompleted)
-            .Item(STRINGBUF("operation_id")).Value(operation->GetId())
-            .Item(STRINGBUF("spec")).Value(operation->GetSpec())
-            .Item(STRINGBUF("start_time")).Value(operation->GetStartTime())
-            .Item(STRINGBUF("finish_time")).Value(operation->GetFinishTime());
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime());
 
     }
 
@@ -1517,6 +1581,7 @@ private:
         TOperationPtr operation,
         EOperationState intermediateState,
         EOperationState finalState,
+        ELogEventType logEventType,
         const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1559,6 +1624,13 @@ private:
         if (controller) {
             controller->Abort();
         }
+
+        LogEventFluently(logEventType)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec())
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("error").Value(error);
 
         FinishOperation(operation);
     }
@@ -1797,14 +1869,6 @@ private:
     std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs);
-
-
-    TFluentLogEvent LogEventFluently(ELogEventType eventType)
-    {
-        return TFluentLogEvent(GetEventLogConsumer())
-            .Item(STRINGBUF("timestamp")).Value(Now())
-            .Item(STRINGBUF("event_type")).Value(eventType);
-    }
 
 };
 

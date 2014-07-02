@@ -121,13 +121,6 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
 
-    // XXX(babenko): fix snapshot bloat caused by remote copy
-    RemoveProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NChunkClient::NProto::TErasurePlacementExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NVersionedTableClient::NProto::TSamplesExt>(ChunkMeta_.mutable_extensions());
-    RemoveProtoExtension<NTableClient::NProto::TIndexExt>(ChunkMeta_.mutable_extensions());
-
-    // COMPAT(babenko)
     if (context.GetVersion() < 100) {
         SetReplicationFactor(Load<i16>(context));
     } else {
@@ -135,10 +128,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         SetReadQuorum(Load<i8>(context));
         SetWriteQuorum(Load<i8>(context));
     }
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 20) {
-        SetErasureCodec(Load<NErasure::ECodec>(context));
-    }
+    SetErasureCodec(Load<NErasure::ECodec>(context));
+
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
     Load(context, Parents_);

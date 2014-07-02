@@ -7,8 +7,9 @@
 #include <core/misc/property.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/raw_formatter.h>
-#include <core/concurrency/periodic_executor.h>
 
+#include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue_detail.h>
 
 #include <core/ytree/ypath_client.h>
@@ -217,12 +218,12 @@ class TLogManager::TImpl
 public:
     TImpl()
         : WasShutdown(false)
-        , Queue(New<TInvokerQueue>(
+        , EventQueue(New<TInvokerQueue>(
             &EventCount,
             NProfiling::EmptyTagIds,
             false,
             false))
-        , Thread(New<TThread>(this))
+        , LoggingThread(New<TThread>(this))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
@@ -233,16 +234,16 @@ public:
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStderrLogWriter>());
-        DoUpdateConfig(TLogConfig::CreateDefault());
+        DoUpdateConfig(TLogConfig::CreateDefault(), false);
         Writers.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
-        Thread->Start();
-        Queue->SetThreadId(Thread->GetId());
+        LoggingThread->Start();
+        EventQueue->SetThreadId(LoggingThread->GetId());
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (Thread->IsRunning()) {
+        if (LoggingThread->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
             ConfigsToUpdate.Enqueue(config);
             EventCount.Notify();
@@ -264,8 +265,8 @@ public:
     void Shutdown()
     {
         WasShutdown = true;
-        Queue->Shutdown();
-        Thread->Shutdown();
+        EventQueue->Shutdown();
+        LoggingThread->Shutdown();
         FlushWriters();
     }
 
@@ -280,6 +281,8 @@ public:
 
     ELogLevel GetMinLevel(const Stroka& category) const
     {
+        TGuard<TSpinLock> guard(&SpinLock);
+
         ELogLevel level = ELogLevel::Maximum;
         for (const auto& rule : Config->Rules) {
             if (rule->IsApplicable(category)) {
@@ -313,7 +316,7 @@ public:
             std::terminate();
         }
 
-        if (!Thread->IsRunning() || Suspended) {
+        if (!LoggingThread->IsRunning() || Suspended) {
             return;
         }
 
@@ -386,7 +389,9 @@ private:
 
     EBeginExecuteResult BeginExecute()
     {
-        auto result = Queue->BeginExecute(&CurrentAction);
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
+        auto result = EventQueue->BeginExecute(&CurrentAction);
         if (result != EBeginExecuteResult::QueueEmpty) {
             return result;
         }
@@ -436,11 +441,15 @@ private:
 
     void EndExecute()
     {
-        Queue->EndExecute(&CurrentAction);
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
+        EventQueue->EndExecute(&CurrentAction);
     }
 
     ILogWriters GetWriters(const TLogEvent& event)
     {
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
         if (event.Category == SystemLoggingCategory) {
             return SystemWriters;
         } else {
@@ -472,6 +481,8 @@ private:
 
     void Write(const TLogEvent& event)
     {
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
         for (auto& writer : GetWriters(event)) {
             LoggingProfiler.Increment(WriteCounter);
             writer->Write(event);
@@ -487,16 +498,20 @@ private:
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
-                NotificationHandle.get(),
-                fileName.c_str(),
-                BIND(&ILogWriter::Reload, writer)));
+                    NotificationHandle.get(),
+                    fileName.c_str(),
+                    BIND(&ILogWriter::Reload, writer)));
         }
 #endif
         return nullptr;
     }
 
-    void DoUpdateConfig(TLogConfigPtr config)
+    void DoUpdateConfig(TLogConfigPtr config, bool verifyThreadAffinity = true)
     {
+        if (verifyThreadAffinity) {
+            VERIFY_THREAD_AFFINITY(LoggingThread);
+        }
+
         FlushWriters();
 
         {
@@ -506,82 +521,80 @@ private:
             CachedWriters.clear();
 
             Config = config;
+        }
 
-            for (const auto& pair : Config->WriterConfigs) {
-                const auto& name = pair.first;
-                const auto& config = pair.second;
+        for (const auto& pair : Config->WriterConfigs) {
+            const auto& name = pair.first;
+            const auto& config = pair.second;
 
-                ILogWriterPtr writer;
-                std::unique_ptr<TNotificationWatch> watch;
+            ILogWriterPtr writer;
+            std::unique_ptr<TNotificationWatch> watch;
 
-                switch (config->Type) {
-                    case EWriterType::Stdout:
-                        writer = New<TStdoutLogWriter>();
-                        break;
-                    case EWriterType::Stderr:
-                        writer = New<TStderrLogWriter>();
-                        break;
-                    case EWriterType::File:
-                        writer = New<TFileLogWriter>(config->FileName);
-                        watch = CreateNoficiationWatch(writer, config->FileName);
-                        break;
-                    default:
-                        YUNREACHABLE();
+            switch (config->Type) {
+                case EWriterType::Stdout:
+                    writer = New<TStdoutLogWriter>();
+                    break;
+                case EWriterType::Stderr:
+                    writer = New<TStderrLogWriter>();
+                    break;
+                case EWriterType::File:
+                    writer = New<TFileLogWriter>(config->FileName);
+                    watch = CreateNoficiationWatch(writer, config->FileName);
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+            YCHECK(Writers.insert(std::make_pair(name, std::move(writer))).second);
+
+            if (watch) {
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), watch.get())).second);
                 }
-
-                if (writer) {
-                    YCHECK(Writers.insert(std::make_pair(name, std::move(writer))).second);
-                }
-
-                if (watch) {
-                    if (watch->GetWd() >= 0) {
-                        // Watch can fail to initialize if the writer is disabled
-                        // e.g. due to the lack of space.
-                        YCHECK(NotificationWatchesIndex.insert(
-                            std::make_pair(watch->GetWd(), watch.get())).second);
-                    }
-                    NotificationWatches.emplace_back(std::move(watch));
-                }
+                NotificationWatches.emplace_back(std::move(watch));
             }
+        }
 
-            Version++;
+        Version++;
 
-            if (FlushExecutor) {
-                FlushExecutor->Stop();
-                FlushExecutor.Reset();
-            }
+        if (FlushExecutor) {
+            FlushExecutor->Stop();
+            FlushExecutor.Reset();
+        }
 
-            if (WatchExecutor) {
-                WatchExecutor->Stop();
-                WatchExecutor.Reset();
-            }
+        if (WatchExecutor) {
+            WatchExecutor->Stop();
+            WatchExecutor.Reset();
+        }
 
-            auto flushPeriod = Config->FlushPeriod;
-            if (flushPeriod) {
-                FlushExecutor = New<TPeriodicExecutor>(
-                    Queue,
-                    BIND(&TImpl::FlushWriters, MakeStrong(this)),
-                    *flushPeriod);
-                FlushExecutor->Start();
-            }
+        auto flushPeriod = Config->FlushPeriod;
+        if (flushPeriod) {
+            FlushExecutor = New<TPeriodicExecutor>(
+                EventQueue,
+                BIND(&TImpl::FlushWriters, MakeStrong(this)),
+                *flushPeriod);
+            FlushExecutor->Start();
+        }
 
-            auto watchPeriod = Config->WatchPeriod;
-            if (watchPeriod) {
-                WatchExecutor = New<TPeriodicExecutor>(
-                    Queue,
-                    BIND(&TImpl::WatchWriters, MakeStrong(this)),
-                    *watchPeriod);
-                WatchExecutor->Start();
-            }
+        auto watchPeriod = Config->WatchPeriod;
+        if (watchPeriod) {
+            WatchExecutor = New<TPeriodicExecutor>(
+                EventQueue,
+                BIND(&TImpl::WatchWriters, MakeStrong(this)),
+                TDuration::MilliSeconds(1000));
+            WatchExecutor->Start();
+        }
 
-            auto checkSpacePeriod = Config->CheckSpacePeriod;
-            if (checkSpacePeriod) {
-                CheckSpaceExecutor = New<TPeriodicExecutor>(
-                    Queue,
-                    BIND(&TImpl::CheckSpace, MakeStrong(this)),
-                    *checkSpacePeriod);
-                CheckSpaceExecutor->Start();
-            }
+        auto checkSpacePeriod = Config->CheckSpacePeriod;
+        if (checkSpacePeriod) {
+            CheckSpaceExecutor = New<TPeriodicExecutor>(
+                EventQueue,
+                BIND(&TImpl::CheckSpace, MakeStrong(this)),
+                *checkSpacePeriod);
+            CheckSpaceExecutor->Start();
         }
     }
 
@@ -609,6 +622,8 @@ private:
 
     void WatchWriters()
     {
+        VERIFY_THREAD_AFFINITY(LoggingThread);
+
         if (!NotificationHandle)
             return;
 
@@ -641,8 +656,11 @@ private:
 
     TEventCount EventCount;
     volatile bool WasShutdown;
-    TInvokerQueuePtr Queue;
-    TIntrusivePtr<TThread> Thread;
+    TInvokerQueuePtr EventQueue;
+
+    TIntrusivePtr<TThread> LoggingThread;
+    DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
+
     TEnqueuedAction CurrentAction;
 
     // Configuration.

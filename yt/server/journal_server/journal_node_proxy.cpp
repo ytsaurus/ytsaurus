@@ -60,7 +60,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
 
@@ -88,10 +88,10 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         if (key == "replication_factor") {
             // Prevent changing replication factor after construction.
@@ -99,9 +99,9 @@ private:
             auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
             if (node->GetReplicationFactor() != 0) {
-                ThrowCannotSetSystemAttribute("replication_factor");
+                ThrowCannotSetBuiltinAttribute("replication_factor");
             } else {
-                return TCypressNodeProxyBase::SetSystemAttribute(key, value);
+                return TCypressNodeProxyBase::SetBuiltinAttribute(key, value);
             }
         }
 
@@ -117,7 +117,7 @@ private:
 
             // Prevent changing read quorum after construction.
             if (node->GetReadQuorum() != 0) {
-                ThrowCannotSetSystemAttribute("read_quorum");
+                ThrowCannotSetBuiltinAttribute("read_quorum");
             }
             node->SetReadQuorum(readQuorum);
             return true;
@@ -135,16 +135,16 @@ private:
 
             // Prevent changing write quorum after construction.
             if (node->GetWriteQuorum() != 0) {
-                ThrowCannotSetSystemAttribute("write_quorum");
+                ThrowCannotSetBuiltinAttribute("write_quorum");
             }
             node->SetWriteQuorum(writeQuorum);
             return true;
         }
 
-        return TBase::SetSystemAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value);
     }
 
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
         if (key == "quorum_record_count") {
@@ -170,7 +170,7 @@ private:
             }));
         }
 
-        return TBase::GetSystemAttributeAsync(key, consumer);
+        return TBase::GetBuiltinAttributeAsync(key, consumer);
     }
 
 

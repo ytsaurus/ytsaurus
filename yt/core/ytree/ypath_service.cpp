@@ -8,15 +8,19 @@
 
 #include <core/rpc/dispatcher.h>
 
+#include <core/yson/writer.h>
+
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFromProducerYPathService
     : public TYPathServiceBase
+    , public TSupportsGet
 {
 public:
     explicit TFromProducerYPathService(TYsonProducer producer)
@@ -27,15 +31,59 @@ public:
         const TYPath& path,
         IServiceContextPtr context) override
     {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        builder->BeginTree();
-        Producer.Run(builder.get());
-        auto node = builder->EndTree();
-        return TResolveResult::There(node, path);
+        // Try to handle root get requests without constructing ephemeral YTree.
+        if (path.empty() && context->GetMethod() == "Get") {
+            return TResolveResult::Here(path);
+        } else {
+            auto node = BuildNodeFromProducer();
+            return TResolveResult::There(node, path);
+        }
     }
 
 private:
     TYsonProducer Producer;
+
+    virtual bool DoInvoke(IServiceContextPtr context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        return TYPathServiceBase::DoInvoke(context);
+    }
+
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+    {
+        if (!request->ignore_opaque() ||
+            request->attribute_filter().mode() != EAttributeFilterMode::All)
+        {
+            // Execute fallback.
+            auto node = BuildNodeFromProducer();
+            ExecuteVerb(node, IServiceContextPtr(context));
+            return;
+        }
+
+        Stroka result;
+        TStringOutput stream(result);
+        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+        Producer.Run(&writer);
+
+        response->set_value(result);
+        context->Reply();
+    }
+
+    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGetPtr context) override
+    {
+        YUNREACHABLE();
+    }
+
+
+    INodePtr BuildNodeFromProducer()
+    {
+        return ConvertTo<INodePtr>(Producer);
+    }
 
 };
 
@@ -125,7 +173,7 @@ private:
     TSpinLock SpinLock;
     INodePtr CachedTree;
     TInstant LastUpdateTime;
-
+    bool Updating = false;
 
     virtual bool DoInvoke(IServiceContextPtr /*context*/) override
     {
@@ -135,12 +183,15 @@ private:
 
     INodePtr GetCachedTree()
     {
-        bool needsUpdate;
+        bool needsUpdate = false;
         INodePtr cachedTree;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            needsUpdate = TInstant::Now() > LastUpdateTime + ExpirationPeriod;
             cachedTree = CachedTree;
+            if (TInstant::Now() > LastUpdateTime + ExpirationPeriod && !Updating) {
+                needsUpdate = true;
+                Updating = true;
+            }
         }
 
         if (needsUpdate) {
@@ -177,6 +228,7 @@ private:
         TGuard<TSpinLock> guard(SpinLock);
         CachedTree = tree;
         LastUpdateTime = TInstant::Now();
+        Updating = false;
     }
 
 };

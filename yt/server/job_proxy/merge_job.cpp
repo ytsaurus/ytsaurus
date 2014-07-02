@@ -147,7 +147,12 @@ public:
                                 key[it->second] = MakeKeyPart(pair.second, lexer);
                             }
                         }
-                        Writer->WriteRowUnsafe(*row, key);
+
+                        if (SchedulerJobSpecExt.enable_sort_verification()) {
+                            Writer->WriteRow(*row);
+                        } else {
+                            Writer->WriteRowUnsafe(*row, key);
+                        }
                     } else {
                         Writer->WriteRowUnsafe(*row);
                     }

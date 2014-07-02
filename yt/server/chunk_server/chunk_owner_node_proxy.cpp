@@ -485,23 +485,25 @@ NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() cons
     return NSecurityServer::TClusterResources(diskSpace, 1);
 }
 
-void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes)
+void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
-    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("chunk_ids", true, true));
-    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("compression_statistics", true, true));
-    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("erasure_statistics", true, true));
+    attributes->push_back(TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back(TAttributeInfo("compression_statistics", true, true));
+    attributes->push_back(TAttributeInfo("erasure_statistics", true, true));
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
     attributes->push_back("compression_ratio");
+    attributes->push_back(TAttributeInfo("compression_codec", true, false, true));
+    attributes->push_back(TAttributeInfo("erasure_codec", true, false, true));
     attributes->push_back("update_mode");
     attributes->push_back("replication_factor");
     attributes->push_back("vital");
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
-bool TChunkOwnerNodeProxy::GetSystemAttribute(
+bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
@@ -561,10 +563,10 @@ bool TChunkOwnerNodeProxy::GetSystemAttribute(
         return true;
     }
 
-    return TNontemplateCypressNodeProxyBase::GetSystemAttribute(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
+TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
@@ -612,10 +614,10 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
             consumer);
     }
 
-    return TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key, consumer);
 }
 
-void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
+void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
     const Stroka& key,
     const TNullable<NYTree::TYsonString>& oldValue,
     const TNullable<NYTree::TYsonString>& newValue)
@@ -639,7 +641,7 @@ void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
     }
 }
 
-bool TChunkOwnerNodeProxy::SetSystemAttribute(
+bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
@@ -690,7 +692,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
         return true;
     }
 
-    return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
+    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
 void TChunkOwnerNodeProxy::ValidateFetchParameters(

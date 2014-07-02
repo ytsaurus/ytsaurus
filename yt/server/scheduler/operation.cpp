@@ -35,22 +35,25 @@ TOperation::TOperation(
     , StderrCount_(0)
     , MaxStderrCount_(0)
     , CleanStart_(false)
-    , StartedPromise(NewPromise<TOperationStartResult>())
+    , StartedPromise(NewPromise<TError>())
     , FinishedPromise(NewPromise())
 { }
 
 TFuture<TOperationStartResult> TOperation::GetStarted()
 {
-    return StartedPromise;
+    auto this_ = MakeStrong(this);
+    return StartedPromise.ToFuture().Apply(BIND([this_] (TError error) -> TOperationStartResult {
+        if (error.IsOK()) {
+            return TOperationStartResult(this_);
+        } else {
+            return error;
+        }
+    }));
 }
 
 void TOperation::SetStarted(const TError& error)
 {
-    if (error.IsOK()) {
-        StartedPromise.Set(MakeStrong(this));
-    } else {
-        StartedPromise.Set(error);
-    }
+    StartedPromise.Set(error);
 }
 
 TFuture<void> TOperation::GetFinished()

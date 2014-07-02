@@ -33,6 +33,10 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/cgroup/cgroup.h>
+
+#include <util/folder/dirut.h>
+
 #include <util/stream/null.h>
 
 #include <errno.h>
@@ -75,6 +79,7 @@ static auto& Logger = JobProxyLogger;
 #ifdef _linux_
 
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
+static const char* CGroupPrefix = "user_jobs/yt-job-";
 
 class TUserJob
     : public TJob
@@ -83,13 +88,18 @@ public:
     TUserJob(
         IJobHost* host,
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
+        const NJobAgent::TJobId& jobId,
         std::unique_ptr<TUserJobIO> userJobIO)
         : TJob(host)
         , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
+        , JobId(jobId)
         , InitCompleted(false)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
+        , CpuAccounting(CGroupPrefix + ToString(jobId))
+        , BlockIO(CGroupPrefix + ToString(jobId))
+        , Memory(CGroupPrefix + ToString(jobId))
     {
         auto config = host->GetConfig();
         MemoryWatchdogExecutor = New<TPeriodicExecutor>(
@@ -106,6 +116,16 @@ public:
         InitPipes();
 
         InitCompleted = true;
+
+        if (UserJobSpec.enable_accounting()) {
+            CreateCGroup(CpuAccounting);
+            CreateCGroup(BlockIO);
+            CreateCGroup(Memory);
+
+            Memory.SetLimitInBytes(UserJobSpec.memory_limit());
+            Memory.DisableOom();
+            OomEvent = Memory.GetOomEvent();
+        }
 
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
@@ -130,6 +150,21 @@ public:
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
+
+        if (UserJobSpec.enable_accounting()) {
+            RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
+                    CpuAccountingStats = cgroup.GetStatistics();
+                });
+            RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
+                    BlockIOStats = cgroup.GetStatistics();
+                });
+            RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+
+            DestroyCGroup(CpuAccounting);
+            DestroyCGroup(BlockIO);
+            OomEvent.Destroy();
+            DestroyCGroup(Memory);
+        }
 
         if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
@@ -447,6 +482,12 @@ private:
                 }
             }
 
+            if (UserJobSpec.enable_accounting()) {
+                CpuAccounting.AddCurrentTask();
+                BlockIO.AddCurrentTask();
+                Memory.AddCurrentTask();
+            }
+
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
@@ -491,49 +532,29 @@ private:
             return;
         }
 
+        if (!Memory.IsCreated()) {
+            return;
+        }
+
         try {
-            LOG_DEBUG("Started checking memory usage (UID: %d)", uid);
-
-            auto pids = GetPidsByUid(uid);
-
             i64 memoryLimit = UserJobSpec.memory_limit();
-            i64 rss = 0;
-            for (int pid : pids) {
-                try {
-                    i64 processRss = GetProcessRss(pid);
-                    // ProcessId itself is skipped since it's always 'sh'.
-                    // This also helps to prevent taking proxy's own RSS into account
-                    // when it has fork-ed but not exec-uted the child process yet.
-                    bool skip = (pid == ProcessId);
-                    LOG_DEBUG("PID: %d, RSS: %" PRId64 "%s",
-                        pid,
-                        processRss,
-                        skip ? " (skipped)" : "");
-                    if (!skip) {
-                        rss += processRss;
-                    }
-                } catch (const std::exception& ex) {
-                    LOG_DEBUG(ex, "Failed to get RSS for PID %d",
-                        pid);
-                }
-            }
-
-            LOG_DEBUG("Finished checking memory usage (UID: %d, RSS: %" PRId64 ", MemoryLimit: %" PRId64 ")",
-                uid,
-                rss,
+            auto statistics = Memory.GetStatistics();
+            LOG_DEBUG("Get memory usage (JobId: %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+                ~ToString(JobId),
+                statistics.UsageInBytes,
                 memoryLimit);
 
-            if (rss > memoryLimit) {
+            if (OomEvent.Fired()) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                    << TErrorAttribute("rss", rss)
-                    << TErrorAttribute("limit", memoryLimit)
-                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
-                RunKiller(uid);
+                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
+                    << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
+                    << TErrorAttribute("limit", memoryLimit));
+                NCGroup::RunKiller(Memory.GetFullPath());
                 return;
             }
 
-            if (rss > MemoryUsage) {
-                i64 delta = rss - MemoryUsage;
+            if (statistics.UsageInBytes > MemoryUsage) {
+                i64 delta = statistics.UsageInBytes - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;
@@ -544,7 +565,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            RunKiller(uid);
+            NCGroup::RunKiller(Memory.GetFullPath());
         }
     }
 
@@ -555,13 +576,52 @@ private:
 
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
+
+        if (UserJobSpec.enable_accounting()) {
+            ToProto(result.mutable_cpu(), CpuAccountingStats);
+            ToProto(result.mutable_block_io(), BlockIOStats);
+        }
+
         return result;
     }
 
+    void CreateCGroup(NCGroup::TCGroup& cgroup)
+    {
+        try {
+            cgroup.Create();
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
+        }
+    }
+
+    template <typename T, typename Func>
+    void RetrieveStatistics(T& cgroup, Func retriever)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                retriever(cgroup);
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
+    }
+
+    void DestroyCGroup(NCGroup::TCGroup& cgroup)
+    {
+        if (cgroup.IsCreated()) {
+            try {
+                NCGroup::RunKiller(cgroup.GetFullPath());
+                cgroup.Destroy();
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
+            }
+        }
+    }
 
     std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
+    NJobAgent::TJobId JobId;
 
     volatile bool InitCompleted;
 
@@ -584,16 +644,26 @@ private:
     TInstant ProcessStartTime;
     int ProcessId;
 
+    NCGroup::TCpuAccounting CpuAccounting;
+    NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;
+
+    NCGroup::TBlockIO BlockIO;
+    NCGroup::TBlockIO::TStatistics BlockIOStats;
+
+    NCGroup::TMemory Memory;
+    NCGroup::TEvent OomEvent;
 };
 
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO,
+    const NJobAgent::TJobId& jobId)
 {
     return New<TUserJob>(
         host,
         userJobSpec,
+        jobId,
         std::move(userJobIO));
 }
 
@@ -602,7 +672,8 @@ TJobPtr CreateUserJob(
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    std::unique_ptr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO,
+    const NJobAgent::TJobId& jobId)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }

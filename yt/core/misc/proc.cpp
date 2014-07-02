@@ -30,49 +30,6 @@ static NLog::TLogger SILENT_UNUSED Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetPidsByUid(int uid)
-{
-#ifdef _linux_
-    std::vector<int> result;
-
-    DIR *dp = ::opendir("/proc");
-    YCHECK(dp != nullptr);
-
-    struct dirent *ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
-        const char* begin = ep->d_name;
-        char* end = nullptr;
-        int pid = static_cast<int>(strtol(begin, &end, 10));
-        if (begin == end) {
-            // Not a pid.
-            continue;
-        }
-
-        auto path = Sprintf("/proc/%d", pid);
-        struct stat buf;
-        int res = ::stat(path.c_str(), &buf);
-
-        if (res == 0) {
-            if (buf.st_uid == uid) {
-                result.push_back(pid);
-            }
-        } else {
-            // Assume that the process has already completed.
-            auto errno_ = errno;
-            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
-                pid);
-            YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
-        }
-    }
-
-    YCHECK(::closedir(dp) == 0);
-    return result;
-
-#else
-    return std::vector<int>();
-#endif
-}
-
 i64 GetProcessRss(int pid)
 {
 #ifdef _linux_
@@ -90,92 +47,6 @@ i64 GetProcessRss(int pid)
 }
 
 #ifdef _unix_
-
-i64 GetUserRss(int uid)
-{
-    YCHECK(uid > 0);
-
-    LOG_DEBUG("Started computing RSS (UID: %d)", uid);
-
-    auto pids = GetPidsByUid(uid);
-    i64 result = 0;
-    for (int pid : pids) {
-        try {
-            i64 rss = GetProcessRss(pid);
-            LOG_DEBUG("PID: %d, RSS: %" PRId64,
-                pid,
-                rss);
-            result += rss;
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(ex, "Failed to get RSS for PID %d",
-                pid);
-        }
-    }
-
-    LOG_DEBUG("Finished computing RSS (UID: %d, RSS: %" PRId64 ")",
-        uid,
-        result);
-
-    return result;
-}
-
-// The caller must be sure that it has root privileges.
-void RunKiller(int uid)
-{
-    LOG_INFO("Kill %d processes", uid);
-    YCHECK(uid > 0);
-
-    auto throwError = [=] (const TError& error) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to kill processes owned by %d",
-            uid) << error;
-    };
-
-    while (true) {
-        TProcess process(GetExecPath());
-        process.AddArgument("--killer");
-        process.AddArgument("--uid");
-        process.AddArgument(ToString(uid));
-
-        auto pids = GetPidsByUid(uid);
-        if (pids.empty())
-            return;
-
-        // We are forking here in order not to give the root privileges to the parent process ever,
-        // because we cannot know what other threads are doing.
-        auto error = process.Spawn();
-        if (!error.IsOK()) {
-            throwError(error);
-        }
-
-        error = process.Wait();
-        if (!error.IsOK()) {
-            throwError(error);
-        }
-
-        ThreadYield();
-    }
-}
-
-void KillallByUid(int uid)
-{
-    auto pids = GetPidsByUid(uid);
-    if (pids.empty())
-        return;
-
-    LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
-        uid,
-        ~JoinToString(pids));
-
-    YCHECK(setuid(0) == 0);
-
-    for (int pid : pids) {
-        auto result = kill(pid, 9);
-        if (result == -1) {
-            YCHECK(errno == ESRCH);
-        }
-    }
-}
 
 void RunCleaner(const Stroka& path)
 {
@@ -280,15 +151,14 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 #else
 
-void KillallByUid(int uid)
+void RunKiller(const Stroka&)
 {
-    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
-void RunKiller(int uid)
+
+void KillProcessGroup(const Stroka&)
 {
-    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 

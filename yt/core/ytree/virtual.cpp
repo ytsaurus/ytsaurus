@@ -137,7 +137,7 @@ void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("count");
 }
 
-bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -148,19 +148,19 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return false;
 }
 
-TAsyncError TVirtualMapBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TAsyncError TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     UNUSED(key);
     UNUSED(consumer);
     return Null;
 }
 
-ISystemAttributeProvider* TVirtualMapBase::GetSystemAttributeProvider()
+ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
 {
     return this;
 }
 
-bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     UNUSED(key);
     UNUSED(value);
@@ -226,7 +226,7 @@ private:
 
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary* GetUserAttributes() override
+    virtual IAttributeDictionary* GetCustomAttributes() override
     {
         return MutableAttributes();
     }

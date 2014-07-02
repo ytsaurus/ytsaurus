@@ -218,7 +218,11 @@ public:
                         key[keyIndex] = MakeKeyPart(keyPart);
                     }
 
-                    Writer->WriteRowUnsafe(row, key);
+                    if (SchedulerJobSpecExt.enable_sort_verification()) {
+                        Writer->WriteRow(row);
+                    } else {
+                        Writer->WriteRowUnsafe(row, key);
+                    }
 
                     if (progressIndex % 1000 == 0) {
                         Writer->SetProgress(double(progressIndex) / rowIndexBuffer.size());

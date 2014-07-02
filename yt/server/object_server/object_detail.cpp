@@ -92,11 +92,11 @@ bool TStagedObject::IsStaged() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectProxyBase::TUserAttributeDictionary
+class TObjectProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    explicit TUserAttributeDictionary(TObjectProxyBase* proxy)
+    explicit TCustomAttributeDictionary(TObjectProxyBase* proxy)
         : Proxy(proxy)
     { }
 
@@ -137,7 +137,7 @@ public:
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, value);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         const auto& id = Proxy->GetId();
         auto objectManager = Proxy->Bootstrap->GetObjectManager();
@@ -148,7 +148,7 @@ public:
     virtual bool Remove(const Stroka& key) override
     {
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateUserAttributeUpdate(key, oldValue, Null);
+        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         const auto& id = Proxy->GetId();
         auto objectManager = Proxy->Bootstrap->GetObjectManager();
@@ -196,12 +196,12 @@ const TObjectId& TObjectProxyBase::GetId() const
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return *const_cast<TObjectProxyBase*>(this)->GetUserAttributes();
+    return *const_cast<TObjectProxyBase*>(this)->GetCustomAttributes();
 }
 
 IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 {
-    return GetUserAttributes();
+    return GetCustomAttributes();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
@@ -460,14 +460,14 @@ void TObjectProxyBase::SerializeAttributes(
 
     TAttributesConsumer attributesConsumer(consumer);
 
-    const auto& userAttributes = Attributes();
+    const auto& customAttributes = Attributes();
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            ListSystemAttributes(&systemAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            ListBuiltinAttributes(&builtinAttributes);
 
-            auto userKeys = userAttributes.List();
+            auto userKeys = customAttributes.List();
 
             // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
             if (sortKeys) {
@@ -476,8 +476,8 @@ void TObjectProxyBase::SerializeAttributes(
                     userKeys.end());
 
                 std::sort(
-                    systemAttributes.begin(),
-                    systemAttributes.end(),
+                    builtinAttributes.begin(),
+                    builtinAttributes.end(),
                     [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
                         return lhs.Key < rhs.Key;
                     });
@@ -485,16 +485,16 @@ void TObjectProxyBase::SerializeAttributes(
 
             for (const auto& key : userKeys) {
                 attributesConsumer.OnKeyedItem(key);
-                attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+                attributesConsumer.OnRaw(customAttributes.GetYson(key).Data(), EYsonType::Node);
             }
 
-            for (const auto& attribute : systemAttributes) {
+            for (const auto& attribute : builtinAttributes) {
                 if (attribute.IsPresent){
                     attributesConsumer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         attributesConsumer.OnEntity();
                     } else {
-                        YCHECK(GetSystemAttribute(attribute.Key, &attributesConsumer));
+                        YCHECK(GetBuiltinAttribute(attribute.Key, &attributesConsumer));
                     }
                 }
             }
@@ -510,8 +510,8 @@ void TObjectProxyBase::SerializeAttributes(
 
             for (const auto& key : keys) {
                 TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
-                if (!GetSystemAttribute(key, &attributeValueConsumer)) {
-                    auto value = userAttributes.FindYson(key);
+                if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
+                    auto value = customAttributes.FindYson(key);
                     if (value) {
                         attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
                     }
@@ -562,22 +562,22 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
-IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
+IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
-    if (!UserAttributes) {
-        UserAttributes = DoCreateUserAttributes();
+    if (!CustomAttributes) {
+        CustomAttributes = DoCreateCustomAttributes();
     }
-    return UserAttributes.get();
+    return CustomAttributes.get();
 }
 
-ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
+ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
 {
     return this;
 }
 
-std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
+std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateCustomAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(this));
+    return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -591,13 +591,13 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("ref_counter");
     attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false));
     attributes->push_back(TAttributeInfo("acl", hasAcd, true));
     attributes->push_back(TAttributeInfo("owner", hasOwner, false));
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
-bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -664,12 +664,12 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TAsyncError TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     return Null;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
 {
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* acd = FindThisAcd();

@@ -28,9 +28,9 @@ public:
 
 protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual void ValidateUserAttributeUpdate(
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue) override;
@@ -40,7 +40,7 @@ protected:
         const NChunkClient::TReadLimit& lowerLimit);
     virtual void Clear();
 
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) = 0;
 

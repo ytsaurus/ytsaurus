@@ -25,13 +25,13 @@ private:
     virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
+    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override;
 
 };
 

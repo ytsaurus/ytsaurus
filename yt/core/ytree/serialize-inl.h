@@ -89,8 +89,11 @@ void Serialize(
 template <class T>
 void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 {
-    YASSERT(value);
-    Serialize(*value, consumer);
+    if (!value) {
+        consumer->OnEntity();
+    } else {
+        Serialize(*value, consumer);
+    }
 }
 
 // SmallVector
@@ -199,10 +202,14 @@ void Deserialize(
 template <class T>
 void Deserialize(TNullable<T>& value, INodePtr node)
 {
-    if (!value) {
-        value = T();
+    if (node->GetType() == ENodeType::Entity) {
+        value = Null;
+    } else {
+        if (!value) {
+            value = T();
+        }
+        Deserialize(*value, node);
     }
-    Deserialize(*value, node);
 }
 
 // SmallVector

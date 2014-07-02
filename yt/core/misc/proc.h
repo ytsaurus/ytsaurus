@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <core/actions/callback.h>
 #include <core/misc/error.h>
 
 #ifdef _linux_
@@ -12,17 +13,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetPidsByUid(int uid);
-
 //! Gets the resident set size of a process.
 /*!
    \note If |pid == -1| then self RSS is returned.
  */
 i64 GetProcessRss(int pid = -1);
-
-void RunKiller(int uid);
-
-void KillallByUid(int uid);
 
 TError StatusToError(int status);
 

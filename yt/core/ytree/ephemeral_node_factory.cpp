@@ -118,7 +118,7 @@ public:
 
 protected:
     // TSupportsAttributes members
-    virtual IAttributeDictionary* GetUserAttributes() override
+    virtual IAttributeDictionary* GetCustomAttributes() override
     {
         return MutableAttributes();
     }

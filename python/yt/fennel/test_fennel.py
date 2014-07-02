@@ -9,6 +9,7 @@ import pytest
 import mock
 import datetime
 import unittest
+import logging
 import json
 
 
@@ -21,21 +22,18 @@ def fake_state():
 
 def test_on_skip_new(fake_state):
     fake_state.on_skip(10);
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 10
 
 
 def test_on_skip_old(fake_state):
     fake_state.last_seqno_ = 20
     fake_state.on_skip(10);
-    assert not fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 20
 
 
 def test_on_save_ack_next(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(1)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 1
 
 
@@ -43,14 +41,12 @@ def test_on_save_ack_not_next(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(2)
     assert fake_state.last_seqno_ == 0
-    assert not fake_state.event_log_.set_next_line_to_save.called
 
 
 def test_on_save_ack_reordered(fake_state):
     assert fake_state.last_seqno_ == 0
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(1)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 2
 
 
@@ -58,7 +54,6 @@ def test_on_skip_removes_old_acks(fake_state):
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(11)
     fake_state.on_skip(10)
-    assert fake_state.event_log_.set_next_line_to_save.called
     assert fake_state.last_seqno_ == 11
 
 
@@ -72,16 +67,6 @@ def test_save(fake_state):
     fake_state.last_saved_seqno_ = 0
     fake_state.maybe_save_another_chunk()
     assert fake_state.last_saved_seqno_ == 1
-
-
-def test_event_log_get_data():
-    fake_yt = mock.Mock(name="yt")
-    fake_yt.get = mock.Mock(return_value=200)
-    fake_yt.read_table = mock.Mock(return_value=[json.dumps("1")])
-    fake_yt.Transaction = mock.MagicMock()
-    event_log = fennel.EventLog(fake_yt, table_name="//tmp/event_log")
-    event_log.get_data(200, 1000)
-    fake_yt.read_table.assert_called_with("//tmp/event_log[#0:#1000]", format="json")
 
 
 @pytest.fixture
@@ -287,6 +272,8 @@ class TestSaveChunk(IOLoopedTestCase):
         state.on_session_changed = save_all
 
         self.start()
+        # the first one stops when the fake session stream is over
+        self.start()
 
         assert "session" in self.stream_holder
         assert "store" in self.stream_holder
@@ -297,3 +284,17 @@ class TestSaveChunk(IOLoopedTestCase):
         assert chunks[1][0]["key1"] == "value1"
         assert chunks[2][1]["key3"] == "value3"
 
+
+def xtest_session_integration():
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
+    io_loop = ioloop.IOLoop()
+    def stop():
+        io_loop.stop()
+
+    io_loop.add_timeout(datetime.timedelta(seconds=3), stop)
+    s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream, source_id="WHt4FAA")
+    s.connect()
+    io_loop.start()
+    assert s.id_ is not None

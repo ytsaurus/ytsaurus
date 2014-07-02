@@ -264,7 +264,11 @@ public:
 
                         auto* facade = Writer->GetCurrentWriter();
                         if (facade) {
-                            facade->WriteRowUnsafe(row, key);
+                            if (SchedulerJobSpecExt.enable_sort_verification()) {
+                                facade->WriteRow(row);
+                            } else {
+                                facade->WriteRowUnsafe(row, key);
+                            }
                         } else {
                             break;
                         }
@@ -279,15 +283,34 @@ public:
 
                 YCHECK(isRowReady || rowIndexHeap.empty());
 
+                auto writeRowVerified = [&] () {
+                    try {
+                        syncWriter->WriteRow(row);
+                    } catch (const TErrorException& ex) {
+                        LOG_FATAL_IF(
+                            ex.Error().FindMatching(NTableClient::EErrorCode::SortOrderViolation), 
+                            "Sort order violation in sort job.");
+                        throw;
+                    }
+                };
+
                 if (isRowReady) {
-                    syncWriter->WriteRowUnsafe(row, key);
+                    if (SchedulerJobSpecExt.enable_sort_verification()) {
+                        writeRowVerified();
+                    } else {
+                        syncWriter->WriteRowUnsafe(row, key);
+                    }
                     ++writtenRowCount;
                 }
 
                 // Synchronously write the rest of the rows.
                 while (!rowIndexHeap.empty()) {
                     prepareRow();
-                    syncWriter->WriteRowUnsafe(row, key);
+                    if (SchedulerJobSpecExt.enable_sort_verification()) {
+                        writeRowVerified();
+                    } else {
+                        syncWriter->WriteRowUnsafe(row, key);
+                    }
                     ++writtenRowCount;
                     setProgress();
                 }

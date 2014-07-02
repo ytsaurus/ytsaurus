@@ -47,7 +47,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         auto* user = this->GetThisTypedImpl();
         auto securityManager = Bootstrap->GetSecurityManager();
@@ -82,10 +82,10 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(key, consumer);
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* user = this->GetThisTypedImpl();
         auto securityManager = this->Bootstrap->GetSecurityManager();
@@ -105,7 +105,7 @@ private:
             return true;
         }
 
-        return TBase::SetSystemAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value);
     }
 
 };

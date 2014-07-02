@@ -70,6 +70,8 @@ static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
+const size_t MaxSampleSize = 4 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeService
@@ -775,7 +777,7 @@ private:
         auto createNewSplit = [&] () {
             currentSplit = splittedChunk->add_chunk_specs();
             currentSplit->CopyFrom(*chunkSpec);
-            boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(currentSplit->chunk_meta().extensions());
+            boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
             startRowIndex = endRowIndex;
             dataSize = 0;
         };
@@ -806,6 +808,9 @@ private:
                 auto key = beginIt->key();
 
                 *boundaryKeysExt.mutable_end() = key;
+
+                // Sanity check.
+                YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
                 SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
 
                 endRowIndex = beginIt->row_index();
@@ -827,6 +832,8 @@ private:
             }
         }
 
+        // Sanity check.
+        YCHECK(CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end()) <= 0);
         SetProtoExtension(currentSplit->mutable_chunk_meta()->mutable_extensions(), boundaryKeysExt);
         endRowIndex = (--endIt)->row_index();
 
@@ -942,7 +949,7 @@ private:
             auto* key = chunkSamples->add_keys();
             size_t size = 0;
             for (const auto& column : keyColumns) {
-                if (size >= MaxKeySize)
+                if (size >= MaxSampleSize)
                     break;
 
                 auto it = std::lower_bound(
@@ -967,7 +974,7 @@ private:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
                         case EKeyPartType::String: {
-                            auto partSize = std::min(it->key_part().str_value().size(), MaxKeySize - size);
+                            auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
                             auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
                             keyPart = MakeUnversionedStringValue(value);
                             size += partSize;
@@ -1092,7 +1099,6 @@ private:
         return Bootstrap_->GetSessionManager()->GetPendingWriteSize();
     }
 
-
     bool IsOutThrottling() const
     {
         i64 pendingSize = GetPendingOutSize();
@@ -1130,7 +1136,6 @@ private:
             Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

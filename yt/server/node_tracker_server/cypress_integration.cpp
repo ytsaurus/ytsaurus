@@ -78,7 +78,7 @@ private:
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = FindNode();
 
@@ -162,10 +162,10 @@ private:
             }
         }
 
-        return TMapNodeProxy::GetSystemAttribute(key, consumer);
+        return TMapNodeProxy::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual void ValidateUserAttributeUpdate(
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
@@ -191,7 +191,7 @@ private:
         ConvertTo<TNodeConfigPtr>(attributes->ToMap());
     }
 
-    virtual void OnUserAttributesUpdated() override
+    virtual void OnCustomAttributesUpdated() override
     {
         auto* node = FindNode();
         if (!node)
@@ -267,7 +267,7 @@ private:
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto nodeTracker = Bootstrap->GetNodeTracker();
         auto chunkManager = Bootstrap->GetChunkManager();
@@ -325,7 +325,7 @@ private:
             return true;
         }
 
-        return TMapNodeProxy::GetSystemAttribute(key, consumer);
+        return TMapNodeProxy::GetBuiltinAttribute(key, consumer);
     }
 };
 

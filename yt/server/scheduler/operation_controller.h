@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "job.h"
+#include "event_log.h"
 
 #include <core/misc/error.h>
 
@@ -32,6 +33,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
+    : public virtual TEventLogHostBase
 {
     virtual ~IOperationHost()
     { }

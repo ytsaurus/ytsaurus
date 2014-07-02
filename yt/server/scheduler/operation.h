@@ -121,7 +121,7 @@ class TOperation
         bool suspended = false);
 
 private:
-    TPromise<TOperationStartResult> StartedPromise;
+    TPromise<TError> StartedPromise;
     TPromise<void> FinishedPromise;
 };
     

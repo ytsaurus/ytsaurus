@@ -45,7 +45,7 @@
 
 #include <ytlib/hydra/rpc_helpers.h>
 
-#include <ytlib/formats/format.h>
+#include <ytlib/cgroup/statistics.h>
 
 #include <cmath>
 
@@ -519,6 +519,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
         auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         schedulerJobSpecExt->set_job_proxy_memory_control(Controller->Spec->JobProxyMemoryControl);
+        schedulerJobSpecExt->set_enable_sort_verification(Controller->Spec->EnableSortVerification);
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
@@ -1573,8 +1574,8 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LogEventFluently(ELogEventType::JobStarted)
-        .Item(STRINGBUF("job_id")).Value(job->GetId())
-        .Item(STRINGBUF("resource_limits")).Value(job->ResourceUsage());
+        .Item("job_id").Value(job->GetId())
+        .Item("resource_limits").Value(job->ResourceUsage());
 
     JobCounter.Start(1);
 }
@@ -1616,7 +1617,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     auto error = FromProto<TError>(result.error());
 
     LogFinishedJobFluently(ELogEventType::JobFailed, job)
-        .Item(STRINGBUF("error")).Value(error);
+        .Item("error").Value(error);
 
     JobCounter.Failed(1);
     FailedJobStatistics += result.statistics();
@@ -1648,7 +1649,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     const auto& result = job->Result();
 
     LogFinishedJobFluently(ELogEventType::JobAborted, job)
-        .Item(STRINGBUF("reason")).Value(abortReason);
+        .Item("reason").Value(abortReason);
 
     JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics += result.statistics();
@@ -3401,6 +3402,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
     jobSpec->set_enable_io_prio(config->EnableIOPrio);
+    jobSpec->set_enable_accounting(Config->EnableAccounting);
 
     {
         // Set input and output format.
@@ -3534,21 +3536,22 @@ void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
-    return TFluentLogEvent(Host->GetEventLogConsumer())
-        .Item(STRINGBUF("timestamp")).Value(Now())
-        .Item(STRINGBUF("event_type")).Value(eventType)
-        .Item(STRINGBUF("operation_id")).Value(Operation->GetId());
+    return EventLogger.LogEventFluently(Host->GetEventLogConsumer())
+        .Item("timestamp").Value(Now())
+        .Item("event_type").Value(eventType)
+        .Item("operation_id").Value(Operation->GetId());
 }
 
 TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
     const auto& result = job->Result();
+    const auto& statistics = result.statistics();
 
     return LogEventFluently(eventType)
-        .Item(STRINGBUF("job_id")).Value(job->GetId())
-        .Item(STRINGBUF("start_time")).Value(job->GetStartTime())
-        .Item(STRINGBUF("finish_time")).Value(job->GetFinishTime())
-        .Item(STRINGBUF("statistics")).Value(result.statistics());
+        .Item("job_id").Value(job->GetId())
+        .Item("start_time").Value(job->GetStartTime())
+        .Item("finish_time").Value(job->GetFinishTime())
+        .Item("statistics").Value(statistics);
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)

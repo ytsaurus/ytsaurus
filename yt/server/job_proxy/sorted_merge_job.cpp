@@ -116,9 +116,15 @@ public:
 
             // Run the actual merge.
             LOG_INFO("Merging");
+
             while (const TRow* row = Reader->GetRow()) {
-                Writer->WriteRowUnsafe(*row, Reader->GetKey());
+                if (SchedulerJobSpecExt.enable_sort_verification()) {
+                    Writer->WriteRow(*row);
+                } else {
+                    Writer->WriteRowUnsafe(*row, Reader->GetKey());
+                }
             }
+            
             PROFILE_TIMING_CHECKPOINT("merge");
 
             LOG_INFO("Finalizing");
