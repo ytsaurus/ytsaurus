@@ -67,26 +67,21 @@ public:
         TVersion startVersion)
         : Owner_(owner)
         , StartVersion_(startVersion)
-        , LocalFlushResult_(NewPromise<TError>())
-        , QuorumFlushResult_(NewPromise<TError>())
         , Logger(Owner_->Logger)
     {
         Logger.AddTag(Sprintf("StartVersion: %s", ~ToString(StartVersion_)));
     }
 
-    void AddMutation(const TSharedRef& recordData)
+    void AddMutation(const TSharedRef& recordData, TAsyncError localFlushResult)
     {
         TVersion currentVersion(
             StartVersion_.SegmentId,
             StartVersion_.RecordId + BatchedRecordsData_.size());
+
         BatchedRecordsData_.push_back(recordData);
+        LocalFlushResult_ = std::move(localFlushResult);
 
         LOG_DEBUG("Mutation is batched at version %s", ~ToString(currentVersion));
-    }
-
-    void SetLocalFlushResult(TAsyncError result)
-    {
-        LocalFlushResult_ = std::move(result);
     }
 
     TAsyncError GetQuorumFlushResult()
@@ -134,10 +129,7 @@ public:
                 ToProto(request->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
                 request->set_start_revision(StartVersion_.ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
-                request->Attachments().insert(
-                    request->Attachments().end(),
-                    BatchedRecordsData_.begin(),
-                    BatchedRecordsData_.end());
+                request->Attachments() = BatchedRecordsData_;
 
                 Awaiter_->Await(
                     request->Invoke(),
@@ -243,14 +235,17 @@ private:
 
     void SetFailed(const TError& error)
     {
-        LOG_ERROR(error);
-
         Owner_->Profiler.TimingCheckpoint(
             Timer_,
             Owner_->CellManager_->GetPeerQuorumTags());
 
         Awaiter_->Cancel();
         QuorumFlushResult_.Set(error);
+
+        Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND(
+            &TLeaderCommitter::FireCommitFailed,
+            MakeStrong(Owner_),
+            error));
     }
 
 
@@ -263,7 +258,7 @@ private:
 
     TParallelAwaiterPtr Awaiter_;
     TAsyncError LocalFlushResult_;
-    TAsyncErrorPromise QuorumFlushResult_;
+    TAsyncErrorPromise QuorumFlushResult_ = NewPromise<TError>();
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
@@ -321,15 +316,18 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
         auto version = DecoratedAutomaton_->GetLoggedVersion();
 
         TSharedRef recordData;
-        TAsyncError logResult;
+        TAsyncError localFlushResult;
         auto commitResult = NewPromise<TErrorOr<TMutationResponse>>();
-        DecoratedAutomaton_->LogMutationAtLeader(
+        DecoratedAutomaton_->LogLeaderMutation(
             request,
             &recordData,
-            &logResult,
+            &localFlushResult,
             commitResult);
 
-        AddToBatch(version, std::move(recordData), std::move(logResult));
+        AddToBatch(
+            version,
+            std::move(recordData),
+            std::move(localFlushResult));
 
         if (version.RecordId + 1 >= Config_->LeaderCommitter->MaxChangelogRecordCount ||
             DecoratedAutomaton_->GetLoggedDataSize() > Config_->LeaderCommitter->MaxChangelogDataSize)
@@ -382,14 +380,14 @@ void TLeaderCommitter::ResumeLogging()
         auto version = DecoratedAutomaton_->GetAutomatonVersion();
 
         TSharedRef recordData;
-        TAsyncError logResult;
-        DecoratedAutomaton_->LogMutationAtLeader(
+        TAsyncError localFLushResult;
+        DecoratedAutomaton_->LogLeaderMutation(
             pendingMutation.Request,
             &recordData,
-            &logResult,
+            &localFLushResult,
             pendingMutation.CommitPromise);
 
-        AddToBatch(version, recordData, logResult);
+        AddToBatch(version, recordData, localFLushResult);
 
         PendingMutations_.pop();
     }
@@ -401,12 +399,11 @@ void TLeaderCommitter::ResumeLogging()
 void TLeaderCommitter::AddToBatch(
     TVersion version,
     const TSharedRef& recordData,
-    TAsyncError localResult)
+    TAsyncError localFlushResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(version);
-    batch->AddMutation(recordData);
-    batch->SetLocalFlushResult(localResult);
+    batch->AddMutation(recordData, std::move(localFlushResult));
     if (batch->GetMutationCount() >= Config_->LeaderCommitter->MaxBatchSize) {
         FlushCurrentBatch();
     }
@@ -480,6 +477,13 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
     }
 }
 
+void TLeaderCommitter::FireCommitFailed(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    CommitFailed_.Fire(error);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerCommitter::TFollowerCommitter(
@@ -532,11 +536,11 @@ TAsyncError TFollowerCommitter::DoLogMutations(
             ~ToString(expectedVersion)));
     }
 
-    TAsyncError logResult;
+    TAsyncError localFlushResult;
     for (const auto& recordData : recordsData) {
-        DecoratedAutomaton_->LogMutationAtFollower(recordData, &logResult);
+        DecoratedAutomaton_->LogFollowerMutation(recordData, &localFlushResult);
     }
-    return logResult;
+    return localFlushResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

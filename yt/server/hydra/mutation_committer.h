@@ -107,6 +107,13 @@ public:
      */
     DEFINE_SIGNAL(void(), CheckpointNeeded);
 
+    //! Raised on commit failure.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    DEFINE_SIGNAL(void(const TError& error), CommitFailed);
+
+
 private:
     class TBatch;
     typedef TIntrusivePtr<TBatch> TBatchPtr;
@@ -117,10 +124,12 @@ private:
     void AddToBatch(
         TVersion version,
         const TSharedRef& recordData,
-        TAsyncError localResult);
+        TAsyncError localFlushResult);
     void FlushCurrentBatch();
 
     void OnAutoCheckpointCheck();
+
+    void FireCommitFailed(const TError& error);
 
 
     TDistributedHydraManagerConfigPtr Config_;

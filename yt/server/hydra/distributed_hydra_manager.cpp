@@ -341,8 +341,7 @@ public:
             }
         }
 
-        return epochContext->LeaderCommitter->Commit(request)
-            .Apply(BIND(&TDistributedHydraManager::OnMutationCommitted, MakeStrong(this)));
+        return epochContext->LeaderCommitter->Commit(request);
     }
 
     virtual void RegisterKeptResponse(
@@ -813,18 +812,6 @@ private:
     }
 
 
-    TErrorOr<TMutationResponse> OnMutationCommitted(TErrorOr<TMutationResponse> result)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!result.IsOK()) {
-            LOG_ERROR(result, "Error committing mutation, restarting");
-            Restart();
-        }
-
-        return result;
-    }
-
     void OnCheckpointNeeded(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -839,6 +826,17 @@ private:
             changelogRotation->BuildSnapshot();
         }
     }
+
+    void OnCommitFailed(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        DecoratedAutomaton_->CancelPendingLeaderMutations(error);
+
+        LOG_ERROR(error, "Error committing mutation, restarting");
+        Restart();
+    }
+
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> DoBuildSnapshotDistributed(TEpochContextPtr epochContext) 
     {
@@ -878,6 +876,8 @@ private:
             Profiler);
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this), epochContext));
+        epochContext->LeaderCommitter->SubscribeCommitFailed(
+            BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
 
         epochContext->ChangelogRotation = New<TChangelogRotation>(
             Config_,

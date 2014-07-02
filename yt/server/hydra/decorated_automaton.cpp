@@ -426,23 +426,23 @@ void TDecoratedAutomaton::RotateChangelogDuringRecovery()
     }
 }
 
-void TDecoratedAutomaton::LogMutationAtLeader(
+void TDecoratedAutomaton::LogLeaderMutation(
     const TMutationRequest& request,
     TSharedRef* recordData,
     TAsyncError* logResult,
-    TPromise<TErrorOr<TMutationResponse>> commitResult)
+    TPromise<TErrorOr<TMutationResponse>> commitPromise)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(recordData);
     YASSERT(logResult);
-    YASSERT(commitResult);
+    YASSERT(commitPromise);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
     pendingMutation.Request = request;
     pendingMutation.Timestamp = TInstant::Now();
     pendingMutation.RandomSeed  = RandomNumber<ui64>();
-    pendingMutation.CommitPromise = std::move(commitResult);
+    pendingMutation.CommitPromise = std::move(commitPromise);
     PendingMutations_.push(pendingMutation);
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
@@ -468,7 +468,18 @@ void TDecoratedAutomaton::LogMutationAtLeader(
     }
 }
 
-void TDecoratedAutomaton::LogMutationAtFollower(
+void TDecoratedAutomaton::CancelPendingLeaderMutations(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    while (!PendingMutations_.empty()) {
+        auto& pendingMutation = PendingMutations_.front();
+        pendingMutation.CommitPromise.Set(error);
+        PendingMutations_.pop();
+    }
+}
+
+void TDecoratedAutomaton::LogFollowerMutation(
     const TSharedRef& recordData,
     TAsyncError* logResult)
 {

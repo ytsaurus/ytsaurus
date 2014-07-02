@@ -389,7 +389,7 @@ void TFollowerRecovery::DoRun()
         for (const auto& mutation : mutations) {
             switch (mutation.Type) {
                 case TPostponedMutation::EType::Mutation:
-                    DecoratedAutomaton_->LogMutationAtFollower(mutation.RecordData, nullptr);
+                    DecoratedAutomaton_->LogFollowerMutation(mutation.RecordData, nullptr);
                     break;
 
                 case TPostponedMutation::EType::ChangelogRotation: {

@@ -91,15 +91,17 @@ public:
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
     void RotateChangelogDuringRecovery();
 
-    void LogMutationAtLeader(
+    void LogLeaderMutation(
         const TMutationRequest& request,
         TSharedRef* recordData,
-        TAsyncError* logResult,
+        TAsyncError* localFlushResult,
         TPromise<TErrorOr<TMutationResponse>> commitResult);
 
-    void LogMutationAtFollower(
+    void CancelPendingLeaderMutations(const TError& error);
+
+    void LogFollowerMutation(
         const TSharedRef& recordData,
-        TAsyncError* logResult);
+        TAsyncError* localFlushResult);
 
     TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
