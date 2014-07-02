@@ -61,12 +61,12 @@ class TStoreCompactor
 {
 public:
     TStoreCompactor(
-        TStoreCompactorConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreCompact"))
-        , Semaphore_(Config_->MaxConcurrentCompactions)
+        , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
+        , Semaphore_(Config_->StoreCompactor->MaxConcurrentCompactions)
     { }
 
     void Start()
@@ -76,7 +76,7 @@ public:
     }
 
 private:
-    TStoreCompactorConfigPtr Config_;
+    TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
@@ -130,9 +130,9 @@ private:
             return;
 
         // Limit the number of chunks to process at once.
-        if (static_cast<int>(stores.size()) > Config_->MaxChunksPerCompaction) {
+        if (static_cast<int>(stores.size()) > Config_->StoreCompactor->MaxChunksPerCompaction) {
             stores.erase(
-                stores.begin() + Config_->MaxChunksPerCompaction,
+                stores.begin() + Config_->StoreCompactor->MaxChunksPerCompaction,
                 stores.end());
         }
 
@@ -209,7 +209,7 @@ private:
 
         return std::vector<IStorePtr>(
             allStores.begin(),
-            allStores.begin() + std::min(chunkCount, Config_->MaxChunksPerCompaction));
+            allStores.begin() + std::min(chunkCount, Config_->StoreCompactor->MaxChunksPerCompaction));
     }
 
 
@@ -305,7 +305,7 @@ private:
                     ~ToString(nextPivotKey));
 
                 currentWriter = CreateVersionedMultiChunkWriter(
-                    Config_->Writer,
+                    Config_->ChunkWriter,
                     writerOptions,
                     schema,
                     keyColumns,
@@ -515,7 +515,7 @@ private:
             }
 
             auto writer = CreateVersionedMultiChunkWriter(
-                Config_->Writer,
+                Config_->ChunkWriter,
                 writerOptions,
                 schema,
                 keyColumns,
@@ -592,7 +592,7 @@ private:
 };
 
 void StartStoreCompactor(
-    TStoreCompactorConfigPtr config,
+    TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
     New<TStoreCompactor>(config, bootstrap)->Start();

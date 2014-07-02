@@ -172,8 +172,6 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
 
-    NVersionedTableClient::TTableWriterConfigPtr Writer;
-
     TStoreFlusherConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
@@ -182,9 +180,6 @@ public:
         RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
             .GreaterThan(0)
             .Default(1);
-
-        RegisterParameter("writer", Writer)
-            .DefaultNew();
     }
 };
 
@@ -211,9 +206,6 @@ public:
         RegisterParameter("max_chunks_per_compaction", MaxChunksPerCompaction)
             .GreaterThan(0)
             .Default(10);
-
-        RegisterParameter("writer", Writer)
-            .DefaultNew();
     }
 };
 
@@ -286,6 +278,8 @@ public:
     TStoreCompactorConfigPtr StoreCompactor;
     TPartitionBalancerConfigPtr PartitionBalancer;
 
+    NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
+
     TTabletNodeConfig()
     {
         RegisterParameter("slots", Slots)
@@ -318,6 +312,9 @@ public:
         RegisterParameter("store_compactor", StoreCompactor)
             .DefaultNew();
         RegisterParameter("partition_balancer", PartitionBalancer)
+            .DefaultNew();
+
+        RegisterParameter("chunk_writer", ChunkWriter)
             .DefaultNew();
     }
 };

@@ -362,8 +362,8 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    StartStoreFlusher(Config->TabletNode->StoreFlusher, this);
-    StartStoreCompactor(Config->TabletNode->StoreCompactor, this);
+    StartStoreFlusher(Config->TabletNode, this);
+    StartStoreCompactor(Config->TabletNode, this);
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();

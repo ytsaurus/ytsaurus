@@ -83,12 +83,12 @@ class TStoreFlusher
 {
 public:
     TStoreFlusher(
-        TStoreFlusherConfigPtr config,
+        TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreFlush"))
-        , Semaphore_(Config_->MaxConcurrentFlushes)
+        , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
+        , Semaphore_(Config_->StoreFlusher->MaxConcurrentFlushes)
     { }
 
     void Start()
@@ -100,7 +100,7 @@ public:
     }
 
 private:
-    TStoreFlusherConfigPtr Config_;
+    TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
@@ -171,7 +171,7 @@ private:
                 ~ToString(candidate.TabletId),
                 Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::Tablet),
                 candidate.MemoryUsage,
-                Bootstrap_->GetConfig()->TabletNode->MemoryLimit);
+                Config_->MemoryLimit);
 
             invoker->Invoke(BIND([slot, tabletId] () {
                 auto tabletManager = slot->GetTabletManager();
@@ -317,7 +317,7 @@ private:
             }
 
             auto writer = CreateVersionedMultiChunkWriter(
-                Config_->Writer,
+                Config_->ChunkWriter,
                 writerOptions,
                 schema,
                 keyColumns,
@@ -377,7 +377,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void StartStoreFlusher(
-    TStoreFlusherConfigPtr config,
+    TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
     New<TStoreFlusher>(config, bootstrap)->Start();
