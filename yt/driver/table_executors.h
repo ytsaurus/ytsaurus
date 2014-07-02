@@ -148,7 +148,8 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> QueryArg;
     TCLAP::ValueArg<NTransactionClient::TTimestamp> TimestampArg;
-    TCLAP::ValueArg<int> RowLimitArg;
+    TCLAP::ValueArg<int> InputRowLimitArg;
+    TCLAP::ValueArg<int> OutputRowLimitArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

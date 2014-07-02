@@ -679,7 +679,8 @@ private:
         auto fragment = TPlanFragment::Prepare(
             Connection_->GetQueryPrepareCallbacks(),
             query,
-            options.RowLimit,
+            options.InputRowLimit,
+            options.OutputRowLimit,
             options.Timestamp);
 
         auto executor = Connection_->GetQueryExecutor();

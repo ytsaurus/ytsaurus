@@ -191,14 +191,17 @@ struct TSelectRequest
 {
     Stroka Query;
     NVersionedTableClient::TTimestamp Timestamp;
-    i64 RowLimit;
+    i64 InputRowLimit;
+    i64 OutputRowLimit;
 
     TSelectRequest()
     {
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Timestamp)
             .Default(NVersionedTableClient::LastCommittedTimestamp);
-        RegisterParameter("row_limit", RowLimit)
+        RegisterParameter("input_row_limit", InputRowLimit)
+            .Default(std::numeric_limits<i64>::max());
+        RegisterParameter("output_row_limit", OutputRowLimit)
             .Default(std::numeric_limits<i64>::max());
     }
 };

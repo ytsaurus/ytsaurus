@@ -91,7 +91,8 @@ public:
                 result.RowsWritten += subqueryResult.RowsWritten;
                 result.SyncTime += subqueryResult.SyncTime;
                 result.AsyncTime += subqueryResult.AsyncTime;
-                result.Incomplete |= subqueryResult.Incomplete;
+                result.IncompleteInput |= subqueryResult.IncompleteInput;
+                result.IncompleteOutput |= subqueryResult.IncompleteOutput;
 
                 return result;
             })

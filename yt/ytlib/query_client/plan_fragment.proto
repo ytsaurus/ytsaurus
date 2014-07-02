@@ -10,7 +10,8 @@ message TPlanFragment
     required TOperator head = 1;
     required NYT.NProto.TGuid id = 2;
     required uint64 timestamp = 3;
-    required int64 row_limit = 4;
+    required int64 input_row_limit = 5;
+    required int64 output_row_limit = 4;
 }
 
 message TQueryStatistics
@@ -19,7 +20,8 @@ message TQueryStatistics
     required int64 rows_written = 2;
     required uint64 sync_time = 3;
     required uint64 async_time = 4;
-    required bool incomplete = 5;
+    required bool incomplete_input = 6;
+    required bool incomplete_output = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

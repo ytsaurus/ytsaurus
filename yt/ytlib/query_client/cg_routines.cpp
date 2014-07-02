@@ -33,7 +33,7 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 #define CHECK_STACK() \
     { \
         int dummy; \
-        size_t currentStackSize = P->StackSizeGuardHelper - reinterpret_cast<intptr_t>(&dummy); \
+        size_t currentStackSize = executionContext->StackSizeGuardHelper - reinterpret_cast<intptr_t>(&dummy); \
         YCHECK(currentStackSize < 10000); \
     }
 #else
@@ -42,16 +42,16 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TRow row, TPassedFragmentParams* P)
+void WriteRow(TRow row, TExecutionContext* executionContext)
 {
     CHECK_STACK()
 
-    --P->RowLimit;
-    ++P->Statistics->RowsWritten;
+    --executionContext->OutputRowLimit;
+    ++executionContext->Statistics->RowsWritten;
 
-    auto* batch = P->Batch;
-    auto* writer = P->Writer;
-    auto* rowBuffer = P->RowBuffer;
+    auto* batch = executionContext->Batch;
+    auto* writer = executionContext->Writer;
+    auto* rowBuffer = executionContext->RowBuffer;
 
     YASSERT(batch->size() < batch->capacity());
 
@@ -59,7 +59,7 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
 
     if (batch->size() == batch->capacity()) {
         if (!writer->Write(*batch)) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&P->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
             auto error = WaitFor(writer->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
@@ -69,14 +69,14 @@ void WriteRow(TRow row, TPassedFragmentParams* P)
 }
 
 void ScanOpHelper(
-    TPassedFragmentParams* P,
+    TExecutionContext* executionContext,
     int dataSplitsIndex,
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size))
 {
-    auto* callbacks = P->Callbacks;
-    auto* context = P->Context;
-    auto dataSplits = (*P->DataSplitsArray)[dataSplitsIndex];
+    auto* callbacks = executionContext->Callbacks;
+    auto* context = executionContext->Context;
+    auto dataSplits = (*executionContext->DataSplitsArray)[dataSplitsIndex];
 
     std::vector<ISchemafulReaderPtr> splitReaders;
     TTableSchema schema;
@@ -99,36 +99,42 @@ void ScanOpHelper(
     rows.reserve(MaxRowsPerRead);
 
     while (true) {
-        P->ScratchSpace->Clear();
+        executionContext->ScratchSpace->Clear();
 
         bool hasMoreData = mergingReader->Read(&rows);
         bool shouldWait = rows.empty();
 
-        P->Statistics->RowsRead += rows.size();
+        if (executionContext->InputRowLimit < rows.size()) {
+            rows.resize(executionContext->InputRowLimit);
+            executionContext->Statistics->IncompleteInput = true;
+        }
+        executionContext->InputRowLimit -= rows.size();
+        executionContext->Statistics->RowsRead += rows.size();        
 
         i64 rowsLeft = rows.size();
         auto* currentRow = rows.data();
 
-        while (rowsLeft > 0 && P->RowLimit > 0) {
-            size_t consumeSize = std::min(P->RowLimit, rowsLeft);
+        size_t consumeSize;
+        while ((consumeSize = std::min(executionContext->OutputRowLimit, rowsLeft)) > 0) {
             consumeRows(consumeRowsClosure, currentRow, consumeSize);
             currentRow += consumeSize;
             rowsLeft -= consumeSize;
         }
 
-        rows.clear();
-
-        if (!hasMoreData) {
-            break;
+        if (!(executionContext->OutputRowLimit >= 0 && rowsLeft == 0)) {
+            executionContext->Statistics->IncompleteOutput = true;
         }
 
-        if (P->RowLimit <= 0) {
-            P->Statistics->Incomplete = true;
+        rows.clear();
+
+        if (!hasMoreData
+            || executionContext->InputRowLimit <= 0
+            || executionContext->OutputRowLimit <= 0) {
             break;
         }
 
         if (shouldWait) {
-            NProfiling::TAggregatingTimingGuard timingGuard(&P->Statistics->AsyncTime);
+            NProfiling::TAggregatingTimingGuard timingGuard(&executionContext->Statistics->AsyncTime);
             auto error = WaitFor(mergingReader->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(error);
         }
@@ -153,7 +159,7 @@ void GroupOpHelper(
     consumeRows(consumeRowsClosure, &groupedRows, &lookupRows);
 }
 
-const TRow* FindRow(TPassedFragmentParams* P, TLookupRows* rows, TRow row)
+const TRow* FindRow(TExecutionContext* executionContext, TLookupRows* rows, TRow row)
 {
     CHECK_STACK()
 
@@ -162,7 +168,7 @@ const TRow* FindRow(TPassedFragmentParams* P, TLookupRows* rows, TRow row)
 }
 
 void AddRow(
-    TPassedFragmentParams* P,
+    TExecutionContext* executionContext,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
     TRow* newRow,
@@ -170,18 +176,18 @@ void AddRow(
 {
     CHECK_STACK()
 
-    --P->RowLimit;
+    --executionContext->OutputRowLimit;
 
-    groupedRows->push_back(P->RowBuffer->Capture(*newRow));
+    groupedRows->push_back(executionContext->RowBuffer->Capture(*newRow));
     lookupRows->insert(groupedRows->back());
-    *newRow = TRow::Allocate(P->ScratchSpace, valueCount);
+    *newRow = TRow::Allocate(executionContext->ScratchSpace, valueCount);
 }
 
-void AllocateRow(TPassedFragmentParams* P, int valueCount, TRow* row)
+void AllocateRow(TExecutionContext* executionContext, int valueCount, TRow* row)
 {
     CHECK_STACK()
 
-    *row = TRow::Allocate(P->ScratchSpace, valueCount);
+    *row = TRow::Allocate(executionContext->ScratchSpace, valueCount);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)

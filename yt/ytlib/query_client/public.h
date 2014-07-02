@@ -70,7 +70,8 @@ struct TQueryStatistics
     i64 RowsWritten = 0;
     TDuration SyncTime;
     TDuration AsyncTime;
-    bool Incomplete = false;
+    bool IncompleteInput = false;
+    bool IncompleteOutput = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -357,18 +357,19 @@ public:
                 std::vector<TRow> batch;
                 batch.reserve(MaxRowsPerWrite);
 
-                TPassedFragmentParams passedFragmentParams;
-                passedFragmentParams.Callbacks = callbacks;
-                passedFragmentParams.Context = fragment.GetContext().Get();
-                passedFragmentParams.DataSplitsArray = &fragmentParams.DataSplitsArray;
-                passedFragmentParams.RowBuffer = &rowBuffer;
-                passedFragmentParams.ScratchSpace = &scratchSpace;
-                passedFragmentParams.Writer = writer.Get();
-                passedFragmentParams.Batch = &batch;
-                passedFragmentParams.Statistics = &statistics;
-                passedFragmentParams.RowLimit = fragment.GetContext()->GetRowLimit();
+                TExecutionContext executionContext;
+                executionContext.Callbacks = callbacks;
+                executionContext.Context = fragment.GetContext().Get();
+                executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
+                executionContext.RowBuffer = &rowBuffer;
+                executionContext.ScratchSpace = &scratchSpace;
+                executionContext.Writer = writer.Get();
+                executionContext.Batch = &batch;
+                executionContext.Statistics = &statistics;
+                executionContext.InputRowLimit = fragment.GetContext()->GetInputRowLimit();
+                executionContext.OutputRowLimit = fragment.GetContext()->GetOutputRowLimit();
 
-                CallCodegenedFunctionPtr_(codegenedFunction, constants, &passedFragmentParams);
+                CallCodegenedFunctionPtr_(codegenedFunction, constants, &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
@@ -400,7 +401,8 @@ public:
             TRACE_ANNOTATION("rows_written", statistics.RowsWritten);
             TRACE_ANNOTATION("sync_time", statistics.SyncTime);
             TRACE_ANNOTATION("async_time", statistics.AsyncTime);
-            TRACE_ANNOTATION("incomplete", statistics.Incomplete);
+            TRACE_ANNOTATION("incomplete_input", statistics.IncompleteInput);
+            TRACE_ANNOTATION("incomplete_output", statistics.IncompleteOutput);
 
             return statistics;
         }        
@@ -447,19 +449,19 @@ private:
     static void CallCodegenedFunction(
         TCodegenedFunction codegenedFunction,
         TRow constants,
-        TPassedFragmentParams* passedFragmentParams)
+        TExecutionContext* executionContext)
     {
 #ifdef DEBUG
         int dummy;
-        passedFragmentParams->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+        executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        codegenedFunction(constants, passedFragmentParams);
+        codegenedFunction(constants, executionContext);
     }
 
     void(* volatile CallCodegenedFunctionPtr_)(
         TCodegenedFunction codegenedFunction,
         TRow constants,
-        TPassedFragmentParams* passedFragmentParams);
+        TExecutionContext* executionContext);
 
 private:
     TCGFragmentCompiler Compiler_;

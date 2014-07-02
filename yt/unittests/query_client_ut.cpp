@@ -1292,7 +1292,8 @@ protected:
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
-        i64 rowLimit = std::numeric_limits<i64>::max())
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         auto result = BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .Guarded()
@@ -1301,7 +1302,8 @@ protected:
                 query,
                 owningSource,
                 owningResult,
-                rowLimit)
+                inputRowLimit,
+                outputRowLimit)
             .Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
@@ -1310,7 +1312,8 @@ protected:
         const Stroka& query,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
-        i64 rowLimit)
+        i64 inputRowLimit,
+        i64 outputRowLimit)
     {
         std::vector<TRow> source(owningSource.size());
         std::vector<std::vector<TRow>> results;
@@ -1363,7 +1366,7 @@ protected:
         TEvaluator evaluator;
         evaluator.Run(
             &EvaluateMock_,
-            TPlanFragment::Prepare(&PrepareMock_, query, rowLimit),
+            TPlanFragment::Prepare(&PrepareMock_, query, inputRowLimit, outputRowLimit),
             WriterMock_);
     }
 
@@ -1723,7 +1726,41 @@ TEST_F(TQueryEvaluateTest, TestIf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestRowLimit)
+TEST_F(TQueryEvaluateTest, TestInputRowLimit)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Integer);
+    columns.emplace_back("b", EValueType::Integer);
+    columns.emplace_back("c", EValueType::Integer);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
+    result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
+
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, 3);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
 {
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Integer);
@@ -1753,7 +1790,7 @@ TEST_F(TQueryEvaluateTest, TestRowLimit)
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
     result.push_back(BuildRow("a=4;b=40", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, std::numeric_limits<i64>::max(), 3);
 
     SUCCEED();
 }

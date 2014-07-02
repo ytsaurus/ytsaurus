@@ -32,7 +32,8 @@ public:
     static TPlanFragment Prepare(
         IPrepareCallbacks* callbacks,
         const Stroka& source,
-        i64 rowLimit = std::numeric_limits<i64>::max(),
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
         TTimestamp timestamp = NullTimestamp);
 
 };

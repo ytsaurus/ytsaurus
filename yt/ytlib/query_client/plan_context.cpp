@@ -53,9 +53,10 @@ void TPlanContext::TTrackedObject::operator delete(void*) throw()
 
 struct TPlanContextPoolTag { };
 
-TPlanContext::TPlanContext(TTimestamp timestamp, i64 rowLimit)
+TPlanContext::TPlanContext(TTimestamp timestamp, i64 inputRowLimit, i64 outputRowLimit)
     : Timestamp_(timestamp)
-    , RowLimit_(rowLimit)
+    , InputRowLimit_(inputRowLimit)
+    , OutputRowLimit_(outputRowLimit)
     , NodeDirectory_(New<TNodeDirectory>())
     , MemoryPool_(TPlanContextPoolTag())
 { }

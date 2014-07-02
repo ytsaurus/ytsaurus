@@ -149,7 +149,8 @@ TQueryStatistics TCoordinator::GetStatistics() const
         result.RowsWritten += subResult.RowsWritten;
         result.SyncTime += subResult.SyncTime;
         result.AsyncTime += subResult.AsyncTime;
-        result.Incomplete |= subResult.Incomplete;
+        result.IncompleteInput |= subResult.IncompleteInput;
+        result.IncompleteOutput |= subResult.IncompleteOutput;
     }
 
     result.SyncTime += QueryStat.SyncTime;

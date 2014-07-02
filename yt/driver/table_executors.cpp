@@ -227,11 +227,13 @@ Stroka TInsertExecutor::GetCommandName() const
 TSelectExecutor::TSelectExecutor()
     : QueryArg("query", "query to execute", true, "", "QUERY")
     , TimestampArg("", "timestamp", "timestamp to use", false, NTransactionClient::LastCommittedTimestamp, "TIMESTAMP")
-    , RowLimitArg("", "row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
+    , InputRowLimitArg("", "input_row_limit", "input rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
+    , OutputRowLimitArg("", "output_row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);
-    CmdLine.add(RowLimitArg);
+    CmdLine.add(InputRowLimitArg);
+    CmdLine.add(OutputRowLimitArg);
 }
 
 void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -241,8 +243,11 @@ void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
         .DoIf(TimestampArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("timestamp").Value(TimestampArg.getValue());
         })
-        .DoIf(RowLimitArg.isSet(), [&] (TFluentMap fluent) {
-            fluent.Item("row_limit").Value(RowLimitArg.getValue());
+        .DoIf(InputRowLimitArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("input_row_limit").Value(InputRowLimitArg.getValue());
+        })
+        .DoIf(OutputRowLimitArg.isSet(), [&] (TFluentMap fluent) {
+            fluent.Item("output_row_limit").Value(OutputRowLimitArg.getValue());
         });
 }
 

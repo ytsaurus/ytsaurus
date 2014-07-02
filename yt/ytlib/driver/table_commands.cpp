@@ -341,7 +341,8 @@ void TSelectCommand::DoExecute()
 {
     TSelectRowsOptions options;
     options.Timestamp = Request_->Timestamp;
-    options.RowLimit = Request_->RowLimit;
+    options.InputRowLimit = Request_->InputRowLimit;
+    options.OutputRowLimit = Request_->OutputRowLimit;
 
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
@@ -356,19 +357,21 @@ void TSelectCommand::DoExecute()
     const auto& statistics = queryStatisticsOrError.Value();
     
     LOG_INFO(
-        "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 ", SyncTime: %" PRIi64 ", Incomplete: %s)",
+        "Query result statistics (RowsRead: %" PRIi64 ", RowsWritten: %" PRIi64 ", AsyncTime: %" PRIi64 ", SyncTime: %" PRIi64 ", IncompleteInput: %s, IncompleteOutput: %s)",
         statistics.RowsRead,
         statistics.RowsWritten,
         statistics.AsyncTime.MilliSeconds(),
         statistics.SyncTime.MilliSeconds(),
-        ~FormatBool(statistics.Incomplete));
+        ~FormatBool(statistics.IncompleteInput),
+        ~FormatBool(statistics.IncompleteOutput));
 
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("rows_read").Value(statistics.RowsRead)
         .Item("rows_written").Value(statistics.RowsWritten)
         .Item("async_time").Value(statistics.AsyncTime)
         .Item("sync_time").Value(statistics.SyncTime)
-        .Item("incomplete").Value(statistics.Incomplete);
+        .Item("incomplete_input").Value(statistics.IncompleteInput)
+        .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

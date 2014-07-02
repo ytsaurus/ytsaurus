@@ -34,8 +34,7 @@ using NVersionedTableClient::TRowBuffer;
 class TPlanFragment;
 class TCGFragment;
 
-// TODO(lukyan): rename to TExecutionContext
-struct TPassedFragmentParams
+struct TExecutionContext
 {
 #ifdef DEBUG
     size_t StackSizeGuardHelper;
@@ -50,7 +49,8 @@ struct TPassedFragmentParams
     std::vector<TRow>* Batch;
 
     TQueryStatistics* Statistics;
-    i64 RowLimit;
+    i64 InputRowLimit;
+    i64 OutputRowLimit;
 };
 
 namespace NDetail {
@@ -76,7 +76,7 @@ struct TCGVariables
 
 typedef void (*TCodegenedFunction)(
     TRow constants,
-    TPassedFragmentParams* passedFragmentParams);
+    TExecutionContext* executionContext);
 
 typedef
     std::remove_pointer<TCodegenedFunction>::type
@@ -146,7 +146,7 @@ using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
-using NYT::NQueryClient::TPassedFragmentParams;
+using NYT::NQueryClient::TExecutionContext;
 
 // Opaque types
 
@@ -161,7 +161,7 @@ class TypeBuilder<TLookupRows*, Cross>
 { };
 
 template <bool Cross>
-class TypeBuilder<TPassedFragmentParams*, Cross>
+class TypeBuilder<TExecutionContext*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
