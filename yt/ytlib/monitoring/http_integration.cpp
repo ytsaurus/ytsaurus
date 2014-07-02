@@ -3,15 +3,16 @@
 
 #include <core/misc/url.h>
 
-#include <core/formats/json_writer.h>
-#include <core/formats/config.h>
-
 #include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <core/yson/parser.h>
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/virtual.h>
+
+#include <ytlib/formats/json_writer.h>
+#include <ytlib/formats/config.h>
 
 #include <library/json/json_writer.h>
 
@@ -37,7 +38,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
     // TODO(babenko): maybe extract method
     TStringStream output;
     auto writer = NFormats::CreateJsonConsumer(&output);
-    Consume(TYsonString(rsp->value()), ~writer);
+    Consume(TYsonString(rsp->value()), writer.get());
 
     return FormatOKResponse(output.Str());
 }
@@ -45,7 +46,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 {
     auto params = splitStroku(query, "&");
-    FOREACH (const auto& param, params) {
+    for (const auto& param : params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
             THROW_ERROR_EXCEPTION("Missing value of query parameter %s",
@@ -76,15 +77,13 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
         // TODO(babenko): rewrite using some standard URL parser
         auto unescapedUrl = UnescapeUrl(url);
         auto queryIndex = unescapedUrl.find_first_of('?');
-        auto req = TYPathProxy::Get();
-        TYPath path;
-        if (queryIndex == Stroka::npos) {
-            path = unescapedUrl;
-        } else {
-            path = unescapedUrl.substr(0, queryIndex);
-            ParseQuery(req->MutableAttributes(), unescapedUrl.substr(queryIndex + 1));
+        auto path = queryIndex == Stroka::npos ? unescapedUrl : unescapedUrl.substr(0, queryIndex);
+        auto req = TYPathProxy::Get(path);
+        if (queryIndex != Stroka::npos) {
+            auto options = CreateEphemeralAttributes();
+            ParseQuery(options.get(), unescapedUrl.substr(queryIndex + 1));
+            ToProto(req->mutable_options(), *options);
         }
-        req->SetPath(path);
         return ExecuteVerb(service, req).Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.

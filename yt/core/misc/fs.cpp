@@ -16,7 +16,8 @@
     #include <sys/param.h>
     #include <sys/mount.h>
 #elif defined (_win_)
-    #include <windows.h>
+    #include <comutil.h>
+    #include <shlobj.h>
 #endif
 
 // For JoinPaths
@@ -37,30 +38,57 @@ static NLog::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
 
-bool Remove(const Stroka& name)
+bool Exists(const Stroka& path)
 {
-#ifdef _win_
-    return DeleteFileA(~name);
+#ifdef _win32_
+    return GetFileAttributesA(~path) != 0xFFFFFFFF;
 #else
-    struct stat sb;
-
-    if (int result = lstat(~name, &sb))
-        return result == 0;
-
-    if (!S_ISDIR(sb.st_mode))
-        return ::remove(~name) == 0;
-
-    return ::rmdir(~name) == 0;
+    return access(~path, F_OK) == 0;
 #endif
 }
 
-bool Rename(const Stroka& oldName, const Stroka& newName)
+void Remove(const Stroka& path)
 {
-#if defined(_win_)
-    return MoveFileEx(~oldName, ~newName, MOVEFILE_REPLACE_EXISTING) != 0;
+    bool ok;
+#ifdef _win_
+    ok = DeleteFileA(~path);
 #else
-    return ::rename(~oldName, ~newName) == 0;
+    struct stat sb;
+    ok = lstat(~path, &sb) == 0;
+    if (ok) {
+        if (S_ISDIR(sb.st_mode)) {
+            ok = rmdir(~path) == 0;
+        } else {
+            ok = remove(~path) == 0;
+        }
+    }
 #endif
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Cannot remove %s",
+            ~path.Quote())
+            << TError::FromSystem();
+    }   
+}
+
+void RemoveRecursive(const Stroka& path)
+{
+    RemoveDirWithContents(path);
+}
+
+void Rename(const Stroka& oldPath, const Stroka& newPath)
+{
+    bool ok;
+#if defined(_win_)
+    ok = MoveFileEx(~oldPath, ~newPath, MOVEFILE_REPLACE_EXISTING) != 0;
+#else
+    ok = rename(~oldPath, ~newPath) == 0;
+#endif
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Cannot rename %s into %s",
+            ~oldPath.Quote(),
+            ~newPath.Quote())
+            << TError::FromSystem();
+    }
 }
 
 Stroka GetFileName(const Stroka& path)
@@ -106,65 +134,62 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s",
-        ~path.Quote());
+    LOG_INFO("Cleaning temp files in %s", ~path.Quote());
 
-    if (!isexist(~path))
-        return;
-
-    TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
-    i32 size = fileList.Size();
-    for (i32 i = 0; i < size; ++i) {
-        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
-        if (fileName.has_suffix(TempFileSuffix)) {
-            LOG_INFO("Removing temp file %s",
-                ~fileName.Quote());
-            if (!NFS::Remove(~fileName)) {
-                LOG_ERROR("Error removing temp file %s", 
-                    ~fileName.Quote());
-            }
+    auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
+    for (const auto& entry : entries) {
+        if (entry.has_suffix(TempFileSuffix)) {
+            auto fileName = NFS::CombinePaths(path, entry);
+            LOG_INFO("Removing file %s", ~fileName.Quote());
+            NFS::Remove(fileName);
         }
     }
 }
 
-void CleanFiles(const Stroka& path)
+std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth)
 {
-    LOG_INFO("Cleaning files in %s",
-        ~path.Quote());
-
-    if (!isexist(~path))
-        return;
-
-    TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
-    i32 size = fileList.Size();
-    for (i32 i = 0; i < size; ++i) {
-        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
-        LOG_INFO("Removing file %s",
-            ~fileName.Quote());
-        if (!NFS::Remove(~fileName)) {
-            LOG_ERROR("Error removing file %s",
-                ~fileName.Quote());
+    std::vector<Stroka> result;
+    if (NFS::Exists(path)) {
+        TFileList list;
+        list.Fill(path, TStringBuf(), TStringBuf(), depth);
+        int size = list.Size();
+        for (int i = 0; i < size; ++i) {
+            result.push_back(list.Next());
         }
     }
+    return result;
+}
+
+std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth)
+{
+    std::vector<Stroka> result;
+    if (NFS::Exists(path)) {
+        TDirsList list;
+        list.Fill(path, TStringBuf(), TStringBuf(), depth);
+        int size = list.Size();
+        for (int i = 0; i < size; ++i) {
+            result.push_back(list.Next());
+        }
+    }
+    return result;
 }
 
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 {
     TDiskSpaceStatistics result;
-
+    bool ok;
 #ifdef _win_
-    bool ok = GetDiskFreeSpaceEx(
+    ok = GetDiskFreeSpaceEx(
         ~path,
         (PULARGE_INTEGER) &result.AvailableSpace,
         (PULARGE_INTEGER) &result.TotalSpace,
-        (PULARGE_INTEGER) NULL) != 0;
+        (PULARGE_INTEGER) &result.FreeSpace) != 0;
 #else
     struct statfs fsData;
-    bool ok = statfs(~path, &fsData) == 0;
+    ok = statfs(~path, &fsData) == 0;
     result.TotalSpace = (i64) fsData.f_blocks * fsData.f_bsize;
     result.AvailableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
+    result.FreeSpace = (i64) fsData.f_bfree * fsData.f_bsize;
 #endif
 
     if (!ok) {
@@ -313,7 +338,7 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 {
 #ifdef _linux_
-    auto wrappedStat = [] (const Stroka& path, struct stat* buffer) {
+    auto guardedStat = [] (const Stroka& path, struct stat* buffer) {
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
@@ -324,12 +349,25 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
     };
 
     struct stat lhsBuffer, rhsBuffer;
-    wrappedStat(lhsPath, &lhsBuffer);
-    wrappedStat(rhsPath, &rhsBuffer);
+    guardedStat(lhsPath, &lhsBuffer);
+    guardedStat(rhsPath, &rhsBuffer);
 
-    return (lhsBuffer.st_dev == rhsBuffer.st_dev) && (lhsBuffer.st_ino == rhsBuffer.st_ino);
+    return
+        lhsBuffer.st_dev == rhsBuffer.st_dev &&
+        lhsBuffer.st_ino == rhsBuffer.st_ino;
 #else
     return false;
+#endif
+}
+
+Stroka GetHomePath()
+{
+#ifdef _win_
+    std::array<char, 1024> buffer;
+    SHGetSpecialFolderPath(0, buffer.data(), CSIDL_PROFILE, 0);
+    return Stroka(buffer.data());
+#else
+    return std::getenv("HOME");
 #endif
 }
 

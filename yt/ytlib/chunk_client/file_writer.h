@@ -1,10 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "async_writer.h"
+#include "writer.h"
 #include "format.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+
 #include <core/misc/checksum.h>
 
 #include <util/system/file.h>
@@ -16,26 +17,28 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of #IAsyncWriter.
 class TFileWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     explicit TFileWriter(
         const Stroka& fileName,
         bool syncOnClose = true);
 
-    virtual void Open();
+    virtual void Open() override;
 
-    virtual bool WriteBlock(const TSharedRef& block);
-    virtual TAsyncError GetReadyEvent();
+    virtual bool WriteBlock(const TSharedRef& block) override;
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override;
 
-    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    virtual TAsyncError GetReadyEvent() override;
+
+    virtual TAsyncError Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
 
     void Abort();
 
     //! Returns chunk info. The writer must be already closed.
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
 
-    virtual const std::vector<int> GetWrittenIndexes() const override;
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override;
 
     //! The writer must be already closed.
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
@@ -44,24 +47,24 @@ public:
     i64 GetDataSize() const;
 
 private:
-    Stroka FileName;
-    bool SyncOnClose;
+    Stroka FileName_;
+    bool SyncOnClose_;
 
-    bool IsOpen;
-    bool IsClosed;
-    i64 DataSize;
-    std::unique_ptr<TFile> DataFile;
-    NChunkClient::NProto::TChunkInfo ChunkInfo;
-    NChunkClient::NProto::TBlocksExt BlocksExt;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    bool IsOpen_;
+    bool IsClosed_;
+    i64 DataSize_;
+    std::unique_ptr<TFile> DataFile_;
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    TChecksumOutput ChecksumOutput;
-
-    TAsyncError Result;
+    TAsyncError Result_;
 
     bool EnsureOpen();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TFileWriter)
 
 ///////////////////////////////////////////////////////////////////////////////
 

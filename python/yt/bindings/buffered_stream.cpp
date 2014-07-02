@@ -1,15 +1,12 @@
-#include "buffered_stream.h"
-
 #include "common.h"
-
-#include <core/actions/future.h>
+#include "buffered_stream.h"
 
 namespace NYT {
 namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBufferedStream::TBufferedStream(i64 bufferSize)
+TBufferedStream::TBufferedStream(size_t bufferSize)
     : Size_(0)
     , AllowedSize_(bufferSize / 2)
     , Data_(TSharedRef::Allocate(bufferSize))
@@ -20,7 +17,7 @@ TBufferedStream::TBufferedStream(i64 bufferSize)
     , AllowRead_(NewPromise())
 { }
 
-TSharedRef TBufferedStream::Read(i64 size)
+TSharedRef TBufferedStream::Read(size_t size)
 {
     YCHECK(State_ != EState::WaitingData);
 
@@ -131,11 +128,11 @@ void TBufferedStream::Move(char* dest)
     Begin_ = dest;
 }
 
-TSharedRef TBufferedStream::ExtractChunk(i64 size)
+TSharedRef TBufferedStream::ExtractChunk(size_t size)
 {
     TGuard<TMutex> guard(Mutex_);
 
-    size = std::min(size, End_ - Begin_);
+    size = std::min(size, static_cast<size_t>(End_ - Begin_));
 
     TSharedRef result = Data_.Slice(TRef(Begin_, size));
     Begin_ += size;
@@ -151,19 +148,19 @@ TSharedRef TBufferedStream::ExtractChunk(i64 size)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-    : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwds)
-    , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwds, "size")).asLongLong()))
+TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+    : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
+    , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwargs, "size")).asLongLong()))
 {
-    if (args.length() > 0 || kwds.length() > 0) {
+    if (args.length() > 0 || kwargs.length() > 0) {
         throw Py::RuntimeError("Incorrect arguments for read command");
     }
 }
 
-Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
 {
-    auto size = Py::Int(ExtractArgument(args, kwds, "size"));
-    if (args.length() > 0 || kwds.length() > 0) {
+    auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
+    if (args.length() > 0 || kwargs.length() > 0) {
         throw Py::RuntimeError("Incorrect arguments for read function");
     }
 
@@ -176,9 +173,9 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict &kwds)
     return Py::String(result.Begin(), result.Size());
 }
 
-Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (args.length() > 0 || kwds.length() > 0) {
+    if (args.length() > 0 || kwargs.length() > 0) {
         throw Py::RuntimeError("Incorrect arguments for empty function");
     }
     return Py::Boolean(Stream_->Empty());

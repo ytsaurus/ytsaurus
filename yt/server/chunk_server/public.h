@@ -46,12 +46,6 @@ using NNodeTrackerServer::TNodeSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
-
-class TJobList;
-typedef TIntrusivePtr<TJobList> TJobListPtr;
-
 class TChunkTree;
 class TChunkReplica;
 class TChunk;
@@ -65,19 +59,17 @@ class TPtrWithIndex;
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
 
-class TChunkManager;
-typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TJob)
+DECLARE_REFCOUNTED_CLASS(TJobList)
 
-class TChunkReplicator;
-typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkManager)
+DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
+DECLARE_REFCOUNTED_CLASS(TChunkSealer)
+DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 
-class TChunkPlacement;
-typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 
-class TChunkManagerConfig;
-typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
-
-//! Used as an expected upper bound in TSmallVector.
+//! Used as an expected upper bound in SmallVector.
 const int TypicalChunkParentCount = 2;
 
 //! The number of supported replication priorities.
@@ -94,7 +86,9 @@ DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((Lost)              (0x0004))
     ((DataMissing)       (0x0008))
     ((ParityMissing)     (0x0010))
-    ((Safe)              (0x0020))
+    ((QuorumMissing)     (0x0020))
+    ((Safe)              (0x0040))
+    ((Sealed)            (0x0080))
 );
 
 typedef std::list<TChunk*> TChunkRepairQueue;

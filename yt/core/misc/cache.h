@@ -19,7 +19,7 @@ class TCacheValueBase
 public:
     virtual ~TCacheValueBase();
 
-    TKey GetKey() const;
+    const TKey& GetKey() const;
 
 protected:
     explicit TCacheValueBase(const TKey& key);
@@ -28,8 +28,8 @@ private:
     typedef TCacheBase<TKey, TValue, THash> TCache;
     friend class TCacheBase<TKey, TValue, THash>;
 
-    TIntrusivePtr<TCache> Cache;
-    TKey Key;
+    TIntrusivePtr<TCache> Cache_;
+    TKey Key_;
 
 };
 
@@ -40,8 +40,6 @@ class TCacheBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
-
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TErrorOr<TValuePtr> TValuePtrOrError;
     typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrErrorResult;
@@ -53,17 +51,23 @@ public:
     std::vector<TValuePtr> GetAll();
 
 protected:
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
 
     class TInsertCookie
     {
     public:
+        TInsertCookie();
         explicit TInsertCookie(const TKey& key);
+        TInsertCookie(TInsertCookie&& other);
+        TInsertCookie(const TInsertCookie& other) = delete;
         ~TInsertCookie();
 
-        inline TKey GetKey() const;
-        inline TAsyncValuePtrOrErrorResult GetValue() const;
-        inline bool IsActive() const;
+        TInsertCookie& operator = (TInsertCookie&& other);
+        TInsertCookie& operator = (const TInsertCookie& other) = delete;
+
+        TKey GetKey() const;
+        TAsyncValuePtrOrErrorResult GetValue() const;
+        bool IsActive() const;
 
         void Cancel(const TError& error);
         void EndInsert(TValuePtr value);
@@ -71,10 +75,12 @@ protected:
     private:
         friend class TCacheBase;
 
-        TKey Key;
-        TPtr Cache;
-        TAsyncValuePtrOrErrorResult ValueOrError;
-        bool Active;
+        TKey Key_;
+        TIntrusivePtr<TCacheBase> Cache_;
+        TAsyncValuePtrOrErrorResult ValueOrError_;
+        bool Active_;
+
+        void Abort();
 
     };
 
@@ -84,6 +90,7 @@ protected:
     bool BeginInsert(TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
+    bool Remove(TValuePtr value);
 
     //! Called under #SpinLock.
     virtual bool IsTrimNeeded() const = 0;
@@ -98,7 +105,7 @@ private:
     friend class TCacheValueBase<TKey, TValue, THash>;
 
     struct TItem
-        : TIntrusiveListItem<TItem>
+        : public TIntrusiveListItem<TItem>
     {
         TItem()
             : ValueOrError(NewPromise<TValuePtrOrError>())
@@ -119,10 +126,10 @@ private:
     typedef yhash_map<TKey, TItem*, THash> TItemMap;
     typedef TIntrusiveListWithAutoDelete<TItem, TDelete> TItemList;
 
-    TValueMap ValueMap;
-    TItemMap ItemMap;
-    TItemList LruList;
-    int ItemMapSize;
+    TValueMap ValueMap_;
+    TItemMap ItemMap_;
+    TItemList LruList_;
+    int ItemMapSize_;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
@@ -139,12 +146,12 @@ class TSizeLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TSizeLimitedCache(int maxSize);
+    explicit TSizeLimitedCache(int maxSize);
 
     virtual bool IsTrimNeeded() const;
 
 private:
-    int MaxSize;
+    int MaxSize_;
 
 };
 
@@ -155,7 +162,7 @@ class TWeightLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TWeightLimitedCache(i64 maxWeight);
+    explicit TWeightLimitedCache(i64 maxWeight);
 
     virtual i64 GetWeight(TValue* value) const = 0;
 
@@ -165,8 +172,8 @@ protected:
     virtual bool IsTrimNeeded() const override;
 
 private:
-    i64 TotalWeight;
-    i64 MaxWeight;
+    i64 TotalWeight_;
+    i64 MaxWeight_;
 
 };
 

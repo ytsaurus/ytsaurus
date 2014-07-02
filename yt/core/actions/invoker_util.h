@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "invoker.h"
 
 namespace NYT {
 
@@ -10,30 +11,37 @@ namespace NYT {
 //! method invokes the closure immediately.
 IInvokerPtr GetSyncInvoker();
 
-//! Returns the current active invoker.
-/*!
- *  Current invokers are maintained in a per-fiber variable that
- *  can be modified by calling #SetCurrentInvoker.
- *  
- *  Initially the sync invoker is assumed to be the current one.
- */
-IInvokerPtr GetCurrentInvoker();
-
-//! Set a given invoker as the current one.
-void SetCurrentInvoker(IInvokerPtr invoker);
+//! Tries to invoke #onSuccess via #invoker.
+//! If the invoker discards the callback without executing it then
+//! #onCancel is run.
+void GuardedInvoke(
+    IInvokerPtr invoker,
+    TClosure onSuccess,
+    TClosure onCancel);
 
 ////////////////////////////////////////////////////////////////////////////////
+// Provides a way to work with the current invoker (per-fiber).
+// Invoker is fiber-scoped so this is an access to FLS.
 
-//! Ensures that calls to #SetCurrentInvoker come in pairs.
+namespace NConcurrency {
+class TFiber;
+} // namespace NConcurrency
+
+IInvokerPtr GetCurrentInvoker();
+
+void SetCurrentInvoker(IInvokerPtr invoker);
+
+void SetCurrentInvoker(IInvokerPtr invoker, NConcurrency::TFiber* fiber);
+
+//! Swaps the current active invoker with a provided one.
 class TCurrentInvokerGuard
 {
 public:
-    explicit TCurrentInvokerGuard(IInvokerPtr newInvoker);
+    explicit TCurrentInvokerGuard(IInvokerPtr invoker);
     ~TCurrentInvokerGuard();
 
 private:
-    IInvokerPtr OldInvoker;
-
+    IInvokerPtr SavedInvoker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,13 @@ TEST(TGuidTest, SerializationToProto)
     EXPECT_EQ(guid, deserializedGuid);
 }
 
+TEST(TGuidTest, DifferentGuids)
+{
+    auto guid = TGuid::Create();
+    auto otherGuid = TGuid::Create();
+    EXPECT_FALSE(guid == otherGuid);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -4,8 +4,6 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <server/job_agent/public.h>
-
 #include <server/exec_agent/supervisor_service.pb.h>
 
 #include <server/cell_node/public.h>
@@ -22,8 +20,6 @@ public:
     explicit TSupervisorService(NCellNode::TBootstrap* bootstrap);
 
 private:
-    typedef TSupervisorService TThis;
-
     NCellNode::TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);

@@ -116,8 +116,7 @@ typedef TIntrusivePtr<TStrategyOperationSpec> TStrategyOperationSpecPtr;
 class TOperationRuntimeParams;
 typedef TIntrusivePtr<TOperationRuntimeParams> TOperationRuntimeParamsPtr;
 
-class TSchedulerConnectionConfig;
-typedef TIntrusivePtr<TSchedulerConnectionConfig> TSchedulerConnectionConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

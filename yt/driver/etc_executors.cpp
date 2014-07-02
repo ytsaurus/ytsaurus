@@ -5,9 +5,11 @@
 
 #include <core/logging/log_manager.h>
 
-#include <ytlib/meta_state/meta_state_manager_proxy.h>
+#include <ytlib/hydra/hydra_service_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/api/connection.h>
 
 namespace NYT {
 namespace NDriver {
@@ -15,7 +17,7 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,9 +28,9 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
     CmdLine.add(SetReadOnlyArg);
 }
 
-EExitCode TBuildSnapshotExecutor::DoExecute()
+void TBuildSnapshotExecutor::DoExecute()
 {
-    TMetaStateManagerProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.BuildSnapshot();
     req->set_set_read_only(SetReadOnlyArg.getValue());
@@ -38,8 +40,6 @@ EExitCode TBuildSnapshotExecutor::DoExecute()
 
     int snapshotId = rsp->snapshot_id();
     printf("Snapshot %d is built\n", snapshotId);
-
-    return EExitCode::OK;
 }
 
 Stroka TBuildSnapshotExecutor::GetCommandName() const
@@ -52,14 +52,13 @@ Stroka TBuildSnapshotExecutor::GetCommandName() const
 TGCCollectExecutor::TGCCollectExecutor()
 { }
 
-EExitCode TGCCollectExecutor::DoExecute()
+void TGCCollectExecutor::DoExecute()
 {
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.GCCollect();
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error collecting garbage");
-    return EExitCode::OK;
 }
 
 Stroka TGCCollectExecutor::GetCommandName() const

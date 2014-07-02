@@ -9,15 +9,15 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TGILLock
-    : TNonCopyable
+class TGilGuard
+    : private TNonCopyable
 {
 public:
-    TGILLock()
+    TGilGuard()
         : State_(PyGILState_Ensure())
     { }
 
-    ~TGILLock()
+    ~TGilGuard()
     {
         PyGILState_Release(State_);
     }
@@ -26,6 +26,7 @@ private:
     PyGILState_STATE State_;
 };
 
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT

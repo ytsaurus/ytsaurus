@@ -16,23 +16,23 @@ message TRspModifyAttachments { }
 message TReqModifyAttributes { }
 message TRspModifyAttributes { }
 
-message TReqReplyingCall { }
-message TRspReplyingCall { }
-
-message TReqEmptyCall { }
-message TRspEmptyCall { }
+message TReqDoNothing{ }
+message TRspDoNothing{ }
 
 message TReqCustomMessageError { }
 message TRspCustomMessageError { }
 
-message TReqNotRegisteredCall { }
-message TRspNotRegisteredCall { }
+message TReqNotRegistered { }
+message TRspNotRegistered { }
 
 message TReqLongReply { }
 message TRspLongReply { }
 
 message TReqOneWay { }
 message TReqNotRegistredOneWay { }
+
+message TReqNoReply { }
+message TRspNoReply { }
 
 message TReqCheckAll
 {

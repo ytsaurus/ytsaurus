@@ -2,13 +2,13 @@
 #include "lexer.h"
 
 #include "token.h"
-#include "zigzag.h"
-#include "varint.h"
 
 #include "lexer_detail.h"
 
 #include <core/misc/error.h>
 #include <core/misc/property.h>
+#include <core/misc/varint.h>
+#include <core/misc/zigzag.h>
 
 #include <util/string/escape.h>
 

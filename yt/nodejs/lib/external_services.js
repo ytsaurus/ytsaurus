@@ -1,6 +1,5 @@
-var Q = require("q");
+var Q = require("bluebird");
 var url = require("url");
-var uuid = require("node-uuid");
 var querystring = require("querystring");
 
 var YtError = require("./error").that;
@@ -10,12 +9,17 @@ var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+function generateMarker()
+{
+    return require("crypto").pseudoRandomBytes(16).toString("base64");
+}
+
 exports.blackboxValidateToken = function(logger, party, token)
 {
     "use strict";
 
     var config = YtRegistry.get("config", "services", "blackbox");
-    var marker = uuid.v4();
+    var marker = generateMarker();
 
     return (function inner(retry)
     {
@@ -64,7 +68,7 @@ exports.blackboxValidateToken = function(logger, party, token)
                 return data;
             }
         })
-        .fail(function(err) {
+        .catch(function(err) {
             var error = YtError.ensureWrapped(err);
             tagged_logger.info("Retrying to query Blackbox", {
                 // XXX(sandello): Embed.
@@ -82,7 +86,7 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
     "use strict";
 
     var config = YtRegistry.get("config", "services", "oauth");
-    var marker = uuid.v4();
+    var marker = generateMarker();
 
     return (function inner(retry) {
         var tagged_logger = new utils.TaggedLogger(

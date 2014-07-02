@@ -27,8 +27,6 @@ class TChunkCache
     : public TRefCounted
 {
 public:
-    typedef std::vector<TCachedChunkPtr> TChunks;
-
     TChunkCache(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
@@ -38,20 +36,17 @@ public:
     ~TChunkCache();
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TCachedChunkPtr FindChunk(const TChunkId& chunkId);
+    IChunkPtr FindChunk(const TChunkId& chunkId);
 
     //! Returns the list of all registered chunks.
-    TChunks GetChunks();
+    std::vector<IChunkPtr> GetChunks();
 
     //! Returns the number of registered chunks.
     int GetChunkCount();
 
-    const TGuid& GetCellGuid() const;
-    void UpdateCellGuid(const TGuid& cellGuid);
-
     bool IsEnabled() const;
 
-    typedef TErrorOr<TCachedChunkPtr> TDownloadResult;
+    typedef TErrorOr<IChunkPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 
     //! Downloads a chunk into the cache.
@@ -62,16 +57,18 @@ public:
     TAsyncDownloadResult DownloadChunk(const TChunkId& chunkId);
 
     //! Raised when a chunk is added to the cache.
-    DECLARE_SIGNAL(void(TChunkPtr), ChunkAdded);
+    DECLARE_SIGNAL(void(IChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the cache.
-    DECLARE_SIGNAL(void(TChunkPtr), ChunkRemoved);
+    DECLARE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

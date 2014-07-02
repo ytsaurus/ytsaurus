@@ -11,7 +11,7 @@ message TRequestStatisticsUpdate
     required int64 request_counter_delta = 3;    
 }
 
-message TMetaReqUpdateRequestStatistics
+message TReqUpdateRequestStatistics
 {
     repeated TRequestStatisticsUpdate updates = 1;
 }

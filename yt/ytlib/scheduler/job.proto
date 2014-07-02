@@ -2,8 +2,9 @@ package NYT.NScheduler.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/chunk_client/schema.proto";
 import "yt/ytlib/chunk_client/chunk_owner_ypath.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
@@ -156,7 +157,7 @@ message TUserJobSpec
 message TUserJobResult
 {
     // Used for reordering chunks from operations that produce sorted output.
-    repeated NTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 2;
+    repeated NTableClient.NProto.TOldBoundaryKeysExt output_boundary_keys = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,11 +244,15 @@ message TPartitionJobSpecExt
 
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
-    repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
+
+    // Deprecated
+    //repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
 
     repeated string key_columns = 3;
 
     optional TUserJobSpec mapper_spec = 4;
+
+    repeated string partition_keys = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +318,7 @@ message TRemoteCopyJobSpecExt
         optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
     }
 
-    required string master_discovery_config = 1;
+    required string connection_config = 1;
     optional NYT.NNodeTrackerClient.NProto.TNodeDirectory remote_node_directory = 2;
     required string network_name = 3;
 }

@@ -6,6 +6,7 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <server/job_agent/public.h>
 #include <server/job_agent/job_controller.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -55,7 +56,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
     const auto& result = request->result();
-    auto error = FromProto(result.error());
+    auto error = FromProto<TError>(result.error());
     context->SetRequestInfo("JobId: %s, Error: %s",
         ~ToString(jobId),
         ~ToString(error));

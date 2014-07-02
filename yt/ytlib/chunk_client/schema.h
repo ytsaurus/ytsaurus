@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/schema.pb.h>
 
 #include <core/ytree/public.h>
 #include <core/yson/consumer.h>
@@ -16,16 +16,14 @@ namespace NChunkClient {
 class TRange
 {
 public:
+    //! Creates a finite range.
     TRange(const Stroka& begin, const Stroka& end);
 
-    //! Creates infinite range.
-    explicit TRange(const Stroka& begin);
+    //! Creates an infinite range.
+    explicit TRange(const Stroka& begin = Stroka());
 
     Stroka Begin() const;
     Stroka End() const;
-
-    NProto::TRange ToProto() const;
-    static TRange FromProto(const NProto::TRange& protoRange);
 
     bool Contains(const TStringBuf& value) const;
     bool Contains(const TRange& range) const;
@@ -46,6 +44,9 @@ class TChannel
 {
 public:
     TChannel();
+    TChannel(
+        std::vector<Stroka> columns,
+        std::vector<TRange> ranges);
 
     void AddColumn(const Stroka& column);
     void AddRange(const TRange& range);
@@ -61,9 +62,6 @@ public:
 
     bool IsEmpty() const;
     bool IsUniversal() const;
-
-    NProto::TChannel ToProto() const;
-    static TChannel FromProto(const NProto::TChannel& protoChannel);
 
     const std::vector<Stroka>& GetColumns() const;
     const std::vector<TRange>& GetRanges() const;
@@ -84,17 +82,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TRange* protoRange, const TRange& range);
+void FromProto(TRange* range, const NProto::TRange& protoRange);
+
+void ToProto(NProto::TChannel* protoChannel, const TChannel& channel);
+void FromProto(TChannel* channel, const NProto::TChannel& protoChannel);
+
 void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer);
 void Deserialize(TChannel& channel, NYTree::INodePtr node);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
-void Deserialize(NProto::TReadLimit& readLimit, NYTree::INodePtr node);
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

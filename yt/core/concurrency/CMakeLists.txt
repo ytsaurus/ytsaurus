@@ -10,7 +10,12 @@ set( SRCS
   ${BASE}/throughput_throttler.cpp
   ${BASE}/async_stream.cpp
   ${BASE}/coroutine.cpp
+  ${BASE}/thread.cpp
   ${BASE}/fiber.cpp
+  ${BASE}/scheduler.cpp
+  ${BASE}/execution_stack.cpp
+  ${BASE}/execution_context.cpp
+  ${BASE}/fls.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -28,12 +33,14 @@ set( HDRS
   ${BASE}/throughput_throttler.h
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
+  ${BASE}/rw_spinlock.h
   ${BASE}/coroutine.h
-  ${BASE}/fiber-inl.h
+  ${BASE}/thread.h
+  ${BASE}/scheduler.h
+  ${BASE}/scheduler-inl.h
   ${BASE}/fiber.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
-  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -43,11 +50,11 @@ list(APPEND YT_SOURCE_FILES
 
 if (NOT WIN32)
   list(APPEND YT_SOURCE_FILES
-    ${BASE}/fiber-supp.S
+    ${BASE}/execution_context-supp.S
   )
-  
+
   set_source_files_properties(
-    ${BASE}/fiber-supp.S
+    ${BASE}/execution_context-supp.S
     PROPERTIES LANGUAGE C
   )
 endif()

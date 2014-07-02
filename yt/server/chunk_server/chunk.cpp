@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "chunk.h"
-#include "private.h"
 #include "chunk_tree_statistics.h"
 #include "chunk_list.h"
 
@@ -9,26 +8,24 @@
 
 // XXX(babenko): fix snapshot bloat caused by remote copy
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <core/misc/protobuf_helpers.h>
+
+#include <ytlib/object_client/helpers.h>
 
 #include <core/erasure/codec.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NSecurityServer;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto& Logger = ChunkServerLogger;
-
-const i64 TChunk::UnknownDiskSpace = -1;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,26 +50,27 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , ReplicationFactor(1)
-    , ErasureCodec(NErasure::ECodec::None)
+    , ReplicationFactor_(1)
+    , ReadQuorum_(0)
+    , WriteQuorum_(0)
+    , ErasureCodec_(NErasure::ECodec::None)
 {
-    Zero(Flags);
-    ChunkInfo_.set_disk_space(UnknownDiskSpace);
-    ChunkMeta_.set_type(EChunkType::Unknown);
-    ChunkMeta_.mutable_extensions();
-    ChunkMeta_.set_version(-1);
-}
+    Zero(Flags_);
 
-TChunk::~TChunk()
-{ }
+    ChunkMeta_.set_type(EChunkType::Unknown);
+    ChunkMeta_.set_version(-1);
+    ChunkMeta_.mutable_extensions();
+}
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
-    YASSERT(ChunkInfo_.disk_space() != TChunk::UnknownDiskSpace);
+    YASSERT(IsConfirmed());
+
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
+    result.RecordCount = miscExt.record_count();
     result.UncompressedDataSize = miscExt.uncompressed_data_size();
     result.CompressedDataSize = miscExt.compressed_data_size();
     result.DataWeight = miscExt.data_weight();
@@ -103,13 +101,15 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkInfo_);
     Save(context, ChunkMeta_);
-    Save(context, ReplicationFactor);
+    Save(context, ReplicationFactor_);
+    Save(context, ReadQuorum_);
+    Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetVital());
-    SaveObjectRefs(context, Parents_);
-    SaveObjectRefs(context, StoredReplicas_);
-    SaveNullableObjectRefs(context, CachedReplicas_);
+    Save(context, Parents_);
+    Save(context, StoredReplicas_);
+    Save(context, CachedReplicas_);
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -119,41 +119,41 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ChunkInfo_);
+    Load(context, ChunkMeta_);
 
-    // XXX(babenko): fix snapshot bloat caused by remote copy
-    NChunkClient::NProto::TChunkMeta loadedChunkMeta;
-    Load(context, loadedChunkMeta);
-
-    static const yhash_set<int> correctMetaTags({
-        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value });
-
-    ChunkMeta_ = loadedChunkMeta;
-    FilterProtoExtensions(
-        ChunkMeta_.mutable_extensions(),
-        loadedChunkMeta.extensions(),
-        correctMetaTags);
-
-    SetReplicationFactor(Load<i16>(context));
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 20) {
-        SetErasureCodec(Load<NErasure::ECodec>(context));
+    if (context.GetVersion() < 100) {
+        SetReplicationFactor(Load<i16>(context));
+    } else {
+        SetReplicationFactor(Load<i8>(context));
+        SetReadQuorum(Load<i8>(context));
+        SetWriteQuorum(Load<i8>(context));
     }
+    SetErasureCodec(Load<NErasure::ECodec>(context));
+
     SetMovable(Load<bool>(context));
     SetVital(Load<bool>(context));
-    LoadObjectRefs(context, Parents_);
-    LoadObjectRefs(context, StoredReplicas_);
-    LoadNullableObjectRefs(context, CachedReplicas_);
+    Load(context, Parents_);
+    Load(context, StoredReplicas_);
+    Load(context, CachedReplicas_);
 }
 
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
+        YASSERT(!IsJournal());
         if (!CachedReplicas_) {
             CachedReplicas_.reset(new yhash_set<TNodePtrWithIndex>());
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
+        if (IsJournal()) {
+            for (auto& existingReplica : StoredReplicas_) {
+                if (existingReplica.GetPtr() == replica.GetPtr()) {
+                    existingReplica = replica;
+                    return;
+                }
+            }
+        }
         StoredReplicas_.push_back(replica);
     }
 }
@@ -161,15 +161,19 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YASSERT(~CachedReplicas_);
+        YASSERT(CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {
             CachedReplicas_.reset();
         }
     } else {
         for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {
-            if (*it == replica) {
-                StoredReplicas_.erase(it);
+            auto& existingReplica = *it;
+            if (existingReplica == replica ||
+                IsJournal() && existingReplica.GetPtr() == replica.GetPtr())
+            {
+                std::swap(existingReplica, StoredReplicas_.back());
+                StoredReplicas_.resize(StoredReplicas_.size() - 1);
                 return;
             }
         }
@@ -177,13 +181,26 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
     }
 }
 
-TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TChunk::GetReplicas() const
+TNodePtrWithIndexList TChunk::GetReplicas() const
 {
-    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> result(StoredReplicas_.begin(), StoredReplicas_.end());
-    if (~CachedReplicas_) {
+    TNodePtrWithIndexList result(StoredReplicas_.begin(), StoredReplicas_.end());
+    if (CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }
     return result;
+}
+
+void TChunk::ApproveReplica(TNodePtrWithIndex replica)
+{
+    if (IsJournal()) {
+        for (auto& existingReplica : StoredReplicas_) {
+            if (existingReplica.GetPtr() == replica.GetPtr()) {
+                existingReplica = replica;
+                return;
+            }
+        }
+        YUNREACHABLE();
+    }
 }
 
 bool TChunk::IsConfirmed() const
@@ -194,107 +211,169 @@ bool TChunk::IsConfirmed() const
 void TChunk::ValidateConfirmed()
 {
     if (!IsConfirmed()) {
-        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(Id));
+        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed",
+            ~ToString(Id));
     }
-}
-
-bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const
-{
-    if (ChunkInfo_.disk_space() == UnknownDiskSpace)
-        return true;
-
-    if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
-        ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
-    {
-        return false;
-    }
-
-    if (ChunkInfo_.disk_space() != chunkInfo.disk_space()) {
-        return false;
-    }
-
-    return true;
 }
 
 bool TChunk::GetMovable() const
 {
-    return Flags.Movable;
+    return Flags_.Movable;
 }
 
 void TChunk::SetMovable(bool value)
 {
-    Flags.Movable = value;
+    Flags_.Movable = value;
 }
 
 bool TChunk::GetVital() const
 {
-    return Flags.Vital;
+    return Flags_.Vital;
 }
 
 void TChunk::SetVital(bool value)
 {
-    Flags.Vital = value;
+    Flags_.Vital = value;
 }
 
 bool TChunk::GetRefreshScheduled() const
 {
-    return Flags.RefreshScheduled;
+    return Flags_.RefreshScheduled;
 }
 
 void TChunk::SetRefreshScheduled(bool value)
 {
-    Flags.RefreshScheduled = value;
+    Flags_.RefreshScheduled = value;
 }
 
 bool TChunk::GetPropertiesUpdateScheduled() const
 {
-    return Flags.PropertiesUpdateScheduled;
+    return Flags_.PropertiesUpdateScheduled;
 }
 
 void TChunk::SetPropertiesUpdateScheduled(bool value)
 {
-    Flags.PropertiesUpdateScheduled = value;
+    Flags_.PropertiesUpdateScheduled = value;
+}
+
+bool TChunk::GetSealScheduled() const
+{
+    return Flags_.SealScheduled;
+}
+
+void TChunk::SetSealScheduled(bool value)
+{
+    Flags_.SealScheduled = value;
 }
 
 int TChunk::GetReplicationFactor() const
 {
-    return ReplicationFactor;
+    return ReplicationFactor_;
 }
 
 void TChunk::SetReplicationFactor(int value)
 {
-    ReplicationFactor = value;
+    ReplicationFactor_ = value;
+}
+
+int TChunk::GetReadQuorum() const
+{
+    return ReadQuorum_;
+}
+
+void TChunk::SetReadQuorum(int value)
+{
+    ReadQuorum_ = value;
+}
+
+int TChunk::GetWriteQuorum() const
+{
+    return WriteQuorum_;
+}
+
+void TChunk::SetWriteQuorum(int value)
+{
+    WriteQuorum_ = value;
 }
 
 NErasure::ECodec TChunk::GetErasureCodec() const
 {
-    return NErasure::ECodec(ErasureCodec);
+    return NErasure::ECodec(ErasureCodec_);
 }
 
 void TChunk::SetErasureCodec(NErasure::ECodec value)
 {
-    ErasureCodec = static_cast<i16>(value);
+    ErasureCodec_ = static_cast<i16>(value);
 }
 
 bool TChunk::IsErasure() const
 {
-    return GetErasureCodec() != NErasure::ECodec::None;
+    return TypeFromId(Id) == EObjectType::ErasureChunk;
+}
+
+bool TChunk::IsJournal() const
+{
+    return TypeFromId(Id) == EObjectType::JournalChunk;
+}
+
+bool TChunk::IsRegular() const
+{
+    return TypeFromId(Id) == EObjectType::Chunk;
 }
 
 bool TChunk::IsAvailable() const
 {
-    auto codecId = GetErasureCodec();
-    if (codecId == NErasure::ECodec::None) {
+    if (IsRegular()) {
         return !StoredReplicas_.empty();
-    } else {
-        auto* codec = NErasure::GetCodec(codecId);
+    } else if (IsErasure()) {
+        auto* codec = NErasure::GetCodec(GetErasureCodec());
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-        FOREACH (auto replica, StoredReplicas_) {
+        for (auto replica : StoredReplicas_) {
             missingIndexSet.reset(replica.GetIndex());
         }
         return !missingIndexSet.any();
+    } else if (IsJournal()) {
+        if (StoredReplicas_.size() >= GetReadQuorum()) {
+            return true;
+        }
+        for (auto replica : StoredReplicas_) {
+            if (replica.GetIndex() == EJournalReplicaType::Sealed) {
+                return true;
+            }
+        }
+        return false;
+    } else {
+        YUNREACHABLE();
     }
+}
+
+bool TChunk::IsSealed() const
+{
+    if (!IsConfirmed()) {
+        return false;
+    }
+
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    return miscExt.sealed();
+}
+
+int TChunk::GetSealedRecordCount() const
+{
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    YCHECK(miscExt.sealed());
+    return miscExt.record_count();
+}
+
+void TChunk::Seal(int recordCount)
+{
+    YASSERT(IsConfirmed());
+
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    YASSERT(!miscExt.sealed());
+    miscExt.set_sealed(true);
+    miscExt.set_record_count(recordCount);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
 }
 
 TChunkProperties TChunk::GetChunkProperties() const

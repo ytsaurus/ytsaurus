@@ -8,6 +8,7 @@
 #include <ytlib/table_client/sync_reader.h>
 
 #include <core/misc/proc.h>
+#include <core/concurrency/scheduler.h>
 
 #include <util/system/file.h>
 
@@ -19,10 +20,6 @@
     #include <sys/stat.h>
 #endif
 
-#if defined(_linux_)
-    #include <sys/epoll.h>
-#endif
-
 #if defined(_win_)
     #include <io.h>
 #endif
@@ -31,12 +28,12 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using NConcurrency::WaitFor;
 
 ////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
 
-static const i64 InputBufferSize  = (i64) 1 * 1024 * 1024;
 static const i64 OutputBufferSize = (i64) 1 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
@@ -190,6 +187,7 @@ TOutputPipe::TOutputPipe(
     , IsFinished(false)
     , IsClosed(false)
     , Buffer(OutputBufferSize)
+    , Reader(Pipe.ReadFd)
 {
     YCHECK(JobDescriptor);
 }
@@ -219,66 +217,42 @@ void TOutputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
-int TOutputPipe::GetEpollDescriptor() const
+TError TOutputPipe::DoAll()
 {
-    YASSERT(!IsFinished);
-
-    return Pipe.ReadFd;
+    return ReadAll();
 }
 
-int TOutputPipe::GetEpollFlags() const
+TError TOutputPipe::ReadAll()
 {
-    YASSERT(!IsFinished);
+    bool isClosed = false;
 
-#ifdef _linux_
-    return EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
-#else
-    YUNIMPLEMENTED();
-#endif
-}
+    TBlob buffer;
+    while (!isClosed)
+    {
+        TBlob data;
+        std::tie(data, isClosed) = Reader.Read(std::move(buffer));
 
-bool TOutputPipe::ProcessData(ui32 epollEvent)
-{
-    YASSERT(!IsFinished);
-
-    while (true) {
-        int bytesRead = ::read(Pipe.ReadFd, Buffer.Begin(), Buffer.Size());
-
-        LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)",
-            bytesRead,
-            JobDescriptor);
-
-        if (bytesRead > 0) {
+        if (data.Size() > 0) {
             try {
-                OutputStream->Write(Buffer.Begin(), static_cast<size_t>(bytesRead));
+                OutputStream->Write(data.Begin(), data.Size());
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to write into output (Fd: %d)",
-                    JobDescriptor) << ex;
+                return TError("Failed to write into output (Fd: %d)",
+                    JobDescriptor) << TError(ex);
             }
-        } else if (bytesRead == 0) {
-            return false;
-        } else { // size < 0
-            switch (errno) {
-                case EAGAIN:
-                    errno = 0; // this is NONBLOCK socket, nothing read; return
-                    return true;
-                case EINTR:
-                    // retry
-                    break;
-                default:
-                    return false;
+        } else {
+            if (!isClosed) {
+                auto error = WaitFor(Reader.GetReadyEvent());
+                RETURN_IF_ERROR(error);
             }
         }
+        buffer = std::move(data);
     }
-
-    return true;
+    return TError();
 }
 
-void TOutputPipe::CloseHandles()
+TError TOutputPipe::Close()
 {
-    SafeClose(Pipe.ReadFd);
-    LOG_DEBUG("Output pipe closed (JobDescriptor: %d)",
-        JobDescriptor);
+    return Reader.Abort();
 }
 
 void TOutputPipe::Finish()
@@ -302,10 +276,11 @@ TInputPipe::TInputPipe(
     , Position(0)
     , HasData(true)
     , IsFinished(false)
+    , Writer(Pipe.WriteFd)
 {
-    YCHECK(~TableProducer);
-    YCHECK(~Buffer);
-    YCHECK(~Consumer);
+    YCHECK(TableProducer);
+    YCHECK(Buffer);
+    YCHECK(Consumer);
 }
 
 void TInputPipe::PrepareJobDescriptors()
@@ -332,77 +307,32 @@ void TInputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.WriteFd);
 }
 
-int TInputPipe::GetEpollDescriptor() const
+TError TInputPipe::DoAll()
 {
-    YASSERT(!IsFinished);
-
-    return Pipe.WriteFd;
+    return WriteAll();
 }
 
-int TInputPipe::GetEpollFlags() const
+TError TInputPipe::WriteAll()
 {
-    YASSERT(!IsFinished);
+    while (HasData) {
+        HasData = TableProducer->ProduceRow();
+        bool enough = Writer.Write(Buffer->Begin(), Buffer->Size());
+        Buffer->Clear();
 
-#ifdef _linux_
-    return EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET;
-#else
-    YUNIMPLEMENTED();
-#endif
-}
-
-bool TInputPipe::ProcessData(ui32 epollEvents)
-{
-    if (IsFinished) {
-        return false;
+        if (enough) {
+            auto error = WaitFor(Writer.GetReadyEvent());
+            RETURN_IF_ERROR(error);
+        }
     }
-
-    while (true) {
-        if (Position == Buffer->Size()) {
-            Position = 0;
-            Buffer->Clear();
-            while (HasData && Buffer->Size() < InputBufferSize) {
-                HasData = TableProducer->ProduceRow();
-            }
-        }
-
-        if (Position == Buffer->Size()) {
-            YCHECK(!HasData);
-            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)",
-                JobDescriptor);
-            return false;
-        }
-
-        YASSERT(Position < Buffer->Size());
-
-        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->Size() - Position);
-        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
-            res,
-            JobDescriptor);
-
-        if (res < 0)  {
-            if (errno == EAGAIN) {
-                // Pipe blocked, pause writing.
-                return true;
-            } else {
-                // Error with pipe.
-                THROW_ERROR_EXCEPTION("Writing to pipe failed (Fd: %d, JobDescriptor: %d)",
-                    Pipe.WriteFd,
-                    JobDescriptor)
-                    << TError::FromSystem();
-            }
-        }
-
-        Position += res;
-        YASSERT(Position <= Buffer->Size());
+    {
+        auto error = WaitFor(Writer.AsyncClose());
+        return error;
     }
-
 }
 
-void TInputPipe::CloseHandles()
+TError TInputPipe::Close()
 {
-    LOG_DEBUG("Input pipe closed (JobDescriptor: %d)",
-        JobDescriptor);
-    SafeClose(Pipe.WriteFd);
+    return WaitFor(Writer.AsyncClose());
 }
 
 void TInputPipe::Finish()

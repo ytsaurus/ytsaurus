@@ -13,10 +13,12 @@
 
 #include <core/ypath/token.h>
 
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/composite_meta_state.h>
+#include <core/profiling/profiling_manager.h>
 
 #include <ytlib/object_client/helpers.h>
+
+#include <server/hydra/entity_map.h>
+#include <server/hydra/composite_automaton.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -24,7 +26,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction.h>
 
@@ -37,7 +39,7 @@
 namespace NYT {
 namespace NSecurityServer {
 
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -96,8 +98,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            false);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* Create(
@@ -152,8 +153,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            false);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* Create(
@@ -194,8 +194,7 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden,
-            false);
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* Create(
@@ -222,17 +221,14 @@ private:
 /////////////////////////////////////////////////////////////////////////// /////
 
 class TSecurityManager::TImpl
-    : public TMetaStatePart
+    : public TMasterAutomatonPart
 {
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
-        : TMetaStatePart(
-            bootstrap->GetMetaStateFacade()->GetManager(),
-            bootstrap->GetMetaStateFacade()->GetState())
+        : TMasterAutomatonPart(bootstrap)
         , Config(config)
-        , Bootstrap(bootstrap)
         , RecomputeResources(false)
         , SysAccount(nullptr)
         , TmpAccount(nullptr)
@@ -242,53 +238,32 @@ public:
         , UsersGroup(nullptr)
         , RequestTracker(New<TRequestTracker>(config, bootstrap))
     {
-        YCHECK(bootstrap);
+        RegisterLoader(
+            "SecurityManager.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "SecurityManager.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
-        {
-            NCellMaster::TLoadContext context;
-            context.SetBootstrap(bootstrap);
+        RegisterSaver(
+            ESerializationPriority::Keys,
+            "SecurityManager.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "SecurityManager.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
-            RegisterLoader(
-                "SecurityManager.Keys",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadKeys, MakeStrong(this)),
-                context);
-            RegisterLoader(
-                "SecurityManager.Values",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadValues, MakeStrong(this)),
-                context);
-        }
+        auto cellId = Bootstrap->GetCellId();
 
-        {
-            NCellMaster::TSaveContext context;
+        SysAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
+        TmpAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
 
-            RegisterSaver(
-                ESerializationPriority::Keys,
-                "SecurityManager.Keys",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveKeys, MakeStrong(this)),
-                context);
-            RegisterSaver(
-                ESerializationPriority::Values,
-                "SecurityManager.Values",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveValues, MakeStrong(this)),
-                context);
-        }
+        RootUserId = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
+        GuestUserId = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
 
-        {
-            auto cellId = Bootstrap->GetObjectManager()->GetCellId();
-
-            SysAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
-            TmpAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
-
-            RootUserId = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
-            GuestUserId = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
-
-            EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
-            UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
-        }
+        EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
+        UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
 
         RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }
@@ -302,17 +277,19 @@ public:
     }
 
 
-    DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
     TMutationPtr CreateUpdateRequestStatisticsMutation(
-        const NProto::TMetaReqUpdateRequestStatistics& request)
+        const NProto::TReqUpdateRequestStatistics& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TImpl::UpdateRequestStatistics);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request,
+            this,
+            &TImpl::UpdateRequestStatistics);
     }
 
 
@@ -339,6 +316,15 @@ public:
     {
         auto it = AccountNameMap.find(name);
         return it == AccountNameMap.end() ? nullptr : it->second;
+    }
+
+    TAccount* GetAccountByNameOrThrow(const Stroka& name)
+    {
+        auto* account = FindAccountByName(name);
+        if (!account) {
+            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
+        }
+        return account;
     }
 
 
@@ -454,11 +440,11 @@ public:
 
     void DestroySubject(TSubject* subject)
     {
-        FOREACH (auto* group , subject->MemberOf()) {
+        for (auto* group  : subject->MemberOf()) {
             YCHECK(group->Members().erase(subject) == 1);
         }
 
-        FOREACH (const auto& pair, subject->LinkedObjects()) {
+        for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
             acd->OnSubjectDestroyed(subject, GuestUser);
         }
@@ -498,6 +484,29 @@ public:
         return it == UserNameMap.end() ? nullptr : it->second;
     }
 
+    TUser* GetUserByNameOrThrow(const Stroka& name)
+    {
+        auto* user = FindUserByName(name);
+        if (!IsObjectAlive(user)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user %s",
+                ~name.Quote());
+        }
+        return user;
+    }
+
+    TUser* GetUserOrThrow(const TUserId& id)
+    {
+        auto* user = FindUser(id);
+        if (!IsObjectAlive(user)) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user %s",
+                ~ToString(id));
+        }
+        return user;
+    }
 
     TUser* GetRootUser()
     {
@@ -537,7 +546,7 @@ public:
     {
         YCHECK(GroupNameMap.erase(group->GetName()) == 1);
 
-        FOREACH (auto* subject, group->Members()) {
+        for (auto* subject : group->Members()) {
             YCHECK(subject->MemberOf().erase(group) == 1);
         }
 
@@ -580,6 +589,16 @@ public:
 
         return nullptr;
     }
+
+    TSubject* GetSubjectByNameOrThrow(const Stroka& name)
+    {
+        auto* subject = FindSubjectByName(name);
+        if (!IsObjectAlive(subject)) {
+            THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
+        }
+        return subject;
+    }
+
 
     void AddMember(TGroup* group, TSubject* member)
     {
@@ -727,9 +746,9 @@ public:
 
             // Check the current ACL, if any.
             if (acd) {
-                FOREACH (const auto& ace, acd->Acl().Entries) {
+                for (const auto& ace : acd->Acl().Entries) {
                     if (CheckPermissionMatch(ace.Permissions, permission)) {
-                        FOREACH (auto* subject, ace.Subjects) {
+                        for (auto* subject : ace.Subjects) {
                             if (CheckSubjectMatch(subject, user)) {
                                 result.Action = ace.Action;
                                 result.Object = currentObject;
@@ -738,7 +757,7 @@ public:
                                 if (result.Action == ESecurityAction::Deny) {
                                     LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
                                         ~ToString(object->GetId()),
-                                        ~permission.ToString(),
+                                        ~ToString(permission),
                                         ~user->GetName(),
                                         ~ToString(result.Object->GetId()),
                                         ~result.Subject->GetName());
@@ -762,7 +781,7 @@ public:
         if (result.Action == ESecurityAction::Undefined) {
             LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %s, Permission: %s, User: %s)",
                 ~ToString(object->GetId()),
-                ~permission.ToString(),
+                ~ToString(permission),
                 ~user->GetName());
             result.Action = ESecurityAction::Deny;
             return result;
@@ -770,7 +789,7 @@ public:
             YASSERT(result.Action == ESecurityAction::Allow);
             LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
                 ~ToString(object->GetId()),
-                ~permission.ToString(),
+                ~ToString(permission),
                 ~user->GetName(),
                 ~ToString(result.Object->GetId()),
                 ~result.Subject->GetName());
@@ -876,11 +895,10 @@ private:
 
 
     TSecurityManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
 
     bool RecomputeResources;
 
-    NMetaState::TMetaStateMap<TAccountId, TAccount> AccountMap;
+    NHydra::TEntityMap<TAccountId, TAccount> AccountMap;
     yhash_map<Stroka, TAccount*> AccountNameMap;
 
     TAccountId SysAccountId;
@@ -889,7 +907,7 @@ private:
     TAccountId TmpAccountId;
     TAccount* TmpAccount;
 
-    NMetaState::TMetaStateMap<TUserId, TUser> UserMap;
+    NHydra::TEntityMap<TUserId, TUser> UserMap;
     yhash_map<Stroka, TUser*> UserNameMap;
 
     TUserId RootUserId;
@@ -898,7 +916,7 @@ private:
     TUserId GuestUserId;
     TUser* GuestUser;
 
-    NMetaState::TMetaStateMap<TGroupId, TGroup> GroupMap;
+    NHydra::TEntityMap<TGroupId, TGroup> GroupMap;
     yhash_map<Stroka, TGroup*> GroupNameMap;
 
     TGroupId EveryoneGroupId;
@@ -1018,7 +1036,7 @@ private:
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
         if (added && subject->GetType() == EObjectType::Group) {
             auto* subjectGroup = subject->AsGroup();
-            FOREACH (auto* member, subjectGroup->Members()) {
+            for (auto* member : subjectGroup->Members()) {
                 PropagateRecursiveMemberOf(member, ancestorGroup);
             }
         }
@@ -1026,17 +1044,17 @@ private:
 
     void RecomputeMembershipClosure()
     {
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             auto* group = pair.second;
-            FOREACH (auto* member, group->Members()) {
+            for (auto* member : group->Members()) {
                 PropagateRecursiveMemberOf(member, group);
             }
         }
@@ -1080,7 +1098,7 @@ private:
             case EObjectType::Group: {
                 auto* subjectGroup = subject->AsGroup();
                 return user->RecursiveMemberOf().find(subjectGroup) != user->RecursiveMemberOf().end();
-                                     }
+            }
 
             default:
                 YUNREACHABLE();
@@ -1108,7 +1126,7 @@ private:
     }
 
 
-    virtual void OnBeforeLoaded() override
+    virtual void OnBeforeSnapshotLoaded() override
     {
         DoClear();
 
@@ -1134,25 +1152,25 @@ private:
         }
     }
 
-    virtual void OnAfterLoaded() override
+    virtual void OnAfterSnapshotLoaded() override
     {
         // Reconstruct account name map.
         AccountNameMap.clear();
-        FOREACH (const auto& pair, AccountMap) {
+        for (const auto& pair : AccountMap) {
             auto* account = pair.second;
             YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
         }
 
         // Reconstruct user name map.
         UserNameMap.clear();
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             auto* user = pair.second;
             YCHECK(UserNameMap.insert(std::make_pair(user->GetName(), user)).second);
         }
 
         // Reconstruct group name map.
         GroupNameMap.clear();
-        FOREACH (const auto& pair, GroupMap) {
+        for (const auto& pair : GroupMap) {
             auto* group = pair.second;
             YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
         }
@@ -1164,16 +1182,16 @@ private:
         if (RecomputeResources) {
             LOG_INFO("Recomputing resource usage");
 
-            YCHECK(Bootstrap->GetTransactionManager()->GetTransactionCount() == 0);
+            YCHECK(Bootstrap->GetTransactionManager()->Transactions().GetSize() == 0);
 
-            FOREACH (const auto& pair, AccountMap) {
+            for (const auto& pair : AccountMap) {
                 auto* account = pair.second;
                 account->ResourceUsage() = ZeroClusterResources();
                 account->CommittedResourceUsage() = ZeroClusterResources();
             }
 
             auto cypressManager = Bootstrap->GetCypressManager();
-            FOREACH (auto* node, cypressManager->GetNodes()) {
+            for (auto* node : cypressManager->Nodes().GetValues()) {
                 auto resourceUsage = node->GetResourceUsage();
                 auto* account = node->GetAccount();
                 if (account) {
@@ -1221,7 +1239,7 @@ private:
     void InitDefaultSchemaAcds()
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+        for (auto type : objectManager->GetRegisteredTypes()) {
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
@@ -1243,12 +1261,6 @@ private:
                 }
             }
         }
-    }
-
-
-    bool IsRecovery() const
-    {
-        return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
     }
 
     void InitBuiltin()
@@ -1303,11 +1315,11 @@ private:
     }
 
 
-    virtual void OnActiveQuorumEstablished() override
+    virtual void OnLeaderActive() override
     {
         RequestTracker->StartFlush();
 
-        FOREACH (const auto& pair, UserMap) {
+        for (const auto& pair : UserMap) {
             auto* user = pair.second;
             user->ResetRequestRate();
         }
@@ -1319,10 +1331,11 @@ private:
     }
 
 
-    void UpdateRequestStatistics(const NProto::TMetaReqUpdateRequestStatistics& request)
+    void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
+        auto* profilingManager = NProfiling::TProfilingManager::Get();
         auto now = TInstant::Now();
-        FOREACH (const auto& update, request.updates()) {
+        for (const auto& update : request.updates()) {
             auto userId = FromProto<TUserId>(update.user_id());
             auto* user = FindUser(userId);
             if (user) {
@@ -1335,8 +1348,10 @@ private:
                 // Update request counter.
                 i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
                 user->SetRequestCounter(requestCounter);
-                // TODO(babenko): use tags in master
-                Profiler.Enqueue("/user_request_counter/" + ToYPathLiteral(user->GetName()), requestCounter);
+
+                NProfiling::TTagIdList tags;
+                tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
+                Profiler.Enqueue("/user_request_counter", requestCounter, tags);
 
                 // Recompute request rate.
                 if (now > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod) {
@@ -1357,9 +1372,9 @@ private:
 
 };
 
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap)
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap)
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1495,7 +1510,7 @@ void TSecurityManager::Initialize()
 }
 
 TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
-    const NProto::TMetaReqUpdateRequestStatistics& request)
+    const NProto::TReqUpdateRequestStatistics& request)
 {
     return Impl->CreateUpdateRequestStatisticsMutation(request);
 }
@@ -1503,6 +1518,11 @@ TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
 TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
 {
     return Impl->FindAccountByName(name);
+}
+
+TAccount* TSecurityManager::GetAccountByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetAccountByNameOrThrow(name);
 }
 
 TAccount* TSecurityManager::GetSysAccount()
@@ -1548,6 +1568,16 @@ TUser* TSecurityManager::FindUserByName(const Stroka& name)
     return Impl->FindUserByName(name);
 }
 
+TUser* TSecurityManager::GetUserByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetUserByNameOrThrow(name);
+}
+
+TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
+{
+    return Impl->GetUserOrThrow(id);
+}
+
 TUser* TSecurityManager::GetRootUser()
 {
     return Impl->GetRootUser();
@@ -1576,6 +1606,11 @@ TGroup* TSecurityManager::GetUsersGroup()
 TSubject* TSecurityManager::FindSubjectByName(const Stroka& name)
 {
     return Impl->FindSubjectByName(name);
+}
+
+TSubject* TSecurityManager::GetSubjectByNameOrThrow(const Stroka& name)
+{
+    return Impl->GetSubjectByNameOrThrow(name);
 }
 
 void TSecurityManager::AddMember(TGroup* group, TSubject* member)
@@ -1674,9 +1709,9 @@ double TSecurityManager::GetRequestRate(TUser* user)
     return Impl->GetRequestRate(user);
 }
 
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl)
 
 ///////////////////////////////////////////////////////////////////////////////
 

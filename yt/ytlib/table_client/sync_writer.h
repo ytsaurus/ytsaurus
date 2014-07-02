@@ -5,8 +5,9 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/misc/ref_counted.h>
 #include <core/misc/nullable.h>
@@ -29,7 +30,7 @@ struct ISyncWriterUnsafe
     : public ISyncWriter
 {
     virtual void WriteRowUnsafe(const TRow& row) = 0;
-    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) = 0;
+    virtual void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key) = 0;
 
     virtual const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const = 0;
 
@@ -40,12 +41,12 @@ struct ISyncWriterUnsafe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
+template <class TProvider>
 class TSyncWriterAdapter
     : public ISyncWriterUnsafe
 {
 public:
-    typedef NChunkClient::TMultiChunkSequentialWriter<TChunkWriter> TAsyncWriter;
+    typedef NChunkClient::TOldMultiChunkSequentialWriter<TProvider> TAsyncWriter;
     typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
     TSyncWriterAdapter(TAsyncWriterPtr writer)
@@ -56,7 +57,7 @@ public:
     inline void EnsureOpen()
     {
         if (!IsOpen) {
-            Sync(~Writer, &TAsyncWriter::AsyncOpen);
+            Sync(Writer.Get(), &TAsyncWriter::Open);
             IsOpen = true;
         }
     }
@@ -73,7 +74,7 @@ public:
         GetCurrentWriter()->WriteRowUnsafe(row);
     }
 
-    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) override
+    virtual void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key) override
     {
         EnsureOpen();
         GetCurrentWriter()->WriteRowUnsafe(row, key);
@@ -81,12 +82,7 @@ public:
 
     virtual void Close() override
     {
-        Sync(~Writer, &TAsyncWriter::AsyncClose);
-    }
-
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
-    {
-        return Writer->GetProvider()->GetKeyColumns();
+        Sync(Writer.Get(), &TAsyncWriter::Close);
     }
 
     virtual i64 GetRowCount() const override
@@ -115,12 +111,12 @@ public:
      }
 
 private:
-    typename TChunkWriter::TFacade* GetCurrentWriter()
+    typename TProvider::TFacade* GetCurrentWriter()
     {
-        typename TChunkWriter::TFacade* facade = nullptr;
+        typename TProvider::TFacade* facade = nullptr;
 
         while ((facade = Writer->GetCurrentWriter()) == nullptr) {
-            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+            Sync(Writer.Get(), &TAsyncWriter::GetReadyEvent);
         }
         return facade;
     }
@@ -132,11 +128,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
+template <class TProvider>
 ISyncWriterUnsafePtr CreateSyncWriter(
-    typename TSyncWriterAdapter<TChunkWriter>::TAsyncWriterPtr asyncWriter)
+    typename TSyncWriterAdapter<TProvider>::TAsyncWriterPtr asyncWriter)
 {
-    return New< TSyncWriterAdapter<TChunkWriter> >(asyncWriter);
+    return New< TSyncWriterAdapter<TProvider> >(asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

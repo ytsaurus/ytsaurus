@@ -44,11 +44,8 @@ public:
 
     virtual NYTree::ENodeType GetType() const override;
 
-
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
@@ -68,7 +65,8 @@ protected:
     mutable NYTree::INodeResolverPtr CachedResolver;
 
     bool AccessTrackingSuppressed;
-    
+
+    virtual NLog::TLogger CreateLogger() const override;
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
@@ -179,9 +177,9 @@ protected:
         NYTree::INodePtr value,
         bool recursive);
 
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Copy);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
+    DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
 };
 

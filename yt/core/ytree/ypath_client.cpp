@@ -16,6 +16,8 @@
 #include <core/ypath/token.h>
 #include <core/ypath/tokenizer.h>
 
+#include <core/ytree/ypath.pb.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -23,14 +25,27 @@ namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb, const TYPath& path)
+TYPathRequest::TYPathRequest(const TRequestHeader& header)
+    : Header_(header)
+{ }
+
+TYPathRequest::TYPathRequest(
+    const Stroka& service,
+    const Stroka& method,
+    const TYPath& path,
+    bool mutating)
 {
-    Header_.set_verb(verb);
-    Header_.set_path(path);
+    Header_.set_service(service);
+    Header_.set_method(method);
+
+    auto* headerExt = Header_.MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    headerExt->set_mutating(mutating);
+    headerExt->set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -53,19 +68,20 @@ TRequestId TYPathRequest::GetRequestId() const
     return NullRequestId;
 }
 
-const Stroka& TYPathRequest::GetVerb() const
+const Stroka& TYPathRequest::GetMethod() const
 {
-    return Header_.verb();
+    return Header_.method();
+}
+
+const Stroka& TYPathRequest::GetService() const
+{
+    return Header_.service();
 }
 
 const Stroka& TYPathRequest::GetPath() const
 {
-    return Header_.path();
-}
-
-void TYPathRequest::SetPath(const Stroka& path)
-{
-    Header_.set_path(path);
+    const auto& headerExt = Header_.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return headerExt.path();
 }
 
 TInstant TYPathRequest::GetStartTime() const
@@ -76,16 +92,6 @@ TInstant TYPathRequest::GetStartTime() const
 void TYPathRequest::SetStartTime(TInstant /*value*/)
 {
     YUNREACHABLE();
-}
-
-const IAttributeDictionary& TYPathRequest::Attributes() const
-{
-    return TEphemeralAttributeOwner::Attributes();
-}
-
-IAttributeDictionary* TYPathRequest::MutableAttributes()
-{
-    return TEphemeralAttributeOwner::MutableAttributes();
 }
 
 const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const 
@@ -101,14 +107,8 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
 TSharedRefArray TYPathRequest::Serialize() const
 {
     auto bodyData = SerializeBody();
-
-    auto header = Header_;
-    if (HasAttributes()) {
-        ToProto(header.mutable_attributes(), Attributes());
-    }
-
     return CreateRequestMessage(
-        header,
+        Header_,
         std::move(bodyData),
         Attachments_);
 }
@@ -125,10 +125,7 @@ void TYPathResponse::Deserialize(TSharedRefArray message)
         return;
     }
 
-    Error_ = NYT::FromProto(header.error());
-    if (header.has_attributes()) {
-        SetAttributes(FromProto(header.attributes()));
-    }
+    Error_ = NYT::FromProto<TError>(header.error());
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -157,9 +154,24 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath)
+const TYPath& GetRequestYPath(IServiceContextPtr context)
+{
+    return GetRequestYPath(context->RequestHeader());
+}
+
+const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
+{
+    const auto& headerExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    return headerExt.path();
+}
+
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path)
+{
+    auto* headerExt = header->MutableExtension(NProto::TYPathHeaderExt::ypath_header_ext);
+    headerExt->set_path(path);
+}
+
+TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPath)
 {
     int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
     YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
@@ -181,10 +193,9 @@ void ResolveYPath(
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    const auto& path = context->GetPath();
-    const auto& verb = context->GetVerb();
-
     auto currentService = rootService;
+
+    const auto& path = GetRequestYPath(context);
     auto currentPath = path;
 
     while (true) {
@@ -196,7 +207,7 @@ void ResolveYPath(
                 NYTree::EErrorCode::ResolveError,
                 "Error resolving path %s",
                 ~path)
-                << TErrorAttribute("verb", ~verb)
+                << TErrorAttribute("method", context->GetMethod())
                 << TErrorAttribute("resolved_path", ComputeResolvedYPath(path, currentPath))
                 << ex;
         }
@@ -219,7 +230,7 @@ void OnYPathResponse(
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-    auto error = NYT::FromProto(responseHeader.error());
+    auto error = NYT::FromProto<TError>(responseHeader.error());
 
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);
@@ -231,23 +242,18 @@ void OnYPathResponse(
 }
 
 TFuture<TSharedRefArray>
-ExecuteVerb(
-    IYPathServicePtr service,
-    TSharedRefArray requestMessage)
+ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 {
-    NLog::TLogger Logger(service->GetLoggingCategory());
-
-    auto context = CreateYPathContext(
-        requestMessage,
-        "",
-        TYPathResponseHandler());
-
     IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
+        auto resolveContext = CreateYPathContext(
+            requestMessage,
+            NLog::TLogger(),
+            TYPathResponseHandler());
         ResolveYPath(
             service,
-            context,
+            resolveContext,
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
@@ -256,17 +262,19 @@ ExecuteVerb(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    requestHeader.set_path(suffixPath);
-    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+    SetRequestYPath(&requestHeader, suffixPath);
 
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+    
     auto asyncResponseMessage = NewPromise<TSharedRefArray>();
-    auto updatedContext = CreateYPathContext(
+
+    auto invokeContext = CreateYPathContext(
         updatedRequestMessage,
-        suffixService->GetLoggingCategory(),
+        suffixService->GetLogger(),
         BIND(&OnYPathResponse, asyncResponseMessage));
 
     // This should never throw.
-    suffixService->Invoke(updatedContext);
+    suffixService->Invoke(invokeContext);
 
     return asyncResponseMessage;
 }
@@ -321,10 +329,29 @@ TYsonString SyncYPathGet(
         .ValueOrThrow();
 }
 
-bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
+TFuture< TErrorOr<bool> > AsyncYPathExists(
+    IYPathServicePtr service,
+    const TYPath& path)
 {
     auto request = TYPathProxy::Exists(path);
-    return ExecuteVerb(service, request).Get()->value();
+    return
+        ExecuteVerb(service, request)
+            .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
+                return
+                    response->IsOK()
+                    ? TErrorOr<bool>(response->value())
+                    : TErrorOr<bool>(response->GetError());
+            }));
+}
+
+bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
+{
+    return
+        AsyncYPathExists(
+            service,
+            path)
+        .Get()
+        .ValueOrThrow();
 }
 
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)
@@ -562,7 +589,7 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
     }
     std::reverse(tokens.begin(), tokens.end());
     TYPath path;
-    FOREACH (const auto& token, tokens) {
+    for (const auto& token : tokens) {
         path.append('/');
         path.append(token);
     }
@@ -581,7 +608,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         auto resultMap = result->AsMap();
         auto patchMap = patch->AsMap();
         auto baseMap = base->AsMap();
-        FOREACH (const auto& key, patchMap->GetKeys()) {
+        for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
                 YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
@@ -615,30 +642,10 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
     // Check attributes.
     const auto& lhsAttributes = lhs->Attributes();
     const auto& rhsAttributes = rhs->Attributes();
-    
-    auto lhsAttributeKeys = lhsAttributes.List();
-    auto rhsAttributeKeys = rhsAttributes.List();
-    
-    if (lhsAttributeKeys.size() != rhsAttributeKeys.size()) {
+    if (lhsAttributes != rhsAttributes) {
         return false;
     }
-
-    std::sort(lhsAttributeKeys.begin(), lhsAttributeKeys.end());
-    std::sort(rhsAttributeKeys.begin(), rhsAttributeKeys.end());
-
-    for (size_t index = 0; index < lhsAttributeKeys.size(); ++index) {
-        if (lhsAttributeKeys[index] != rhsAttributeKeys[index]) {
-            return false;
-        }
-        auto lhsYson = lhsAttributes.GetYson(lhsAttributeKeys[index]);
-        auto rhsYson = lhsAttributes.GetYson(rhsAttributeKeys[index]);
-        auto lhsNode = ConvertToNode(lhsYson);
-        auto rhsNode = ConvertToNode(rhsYson);
-        if (!AreNodesEqual(lhsNode, rhsNode)) {
-            return false;
-        }
-    }
-
+    
     // Check content.
     switch (lhsType) {
         case ENodeType::Map: {

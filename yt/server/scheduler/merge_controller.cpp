@@ -6,20 +6,20 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "chunk_splits_fetcher.h"
-#include "chunk_info_collector.h"
 #include "helpers.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/chunk_slice.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/chunk_splits_fetcher.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -42,6 +42,9 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
+
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -181,12 +184,12 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -430,7 +433,7 @@ protected:
             LOG_INFO("Processing inputs");
 
             ClearCurrentTaskStripes();
-            FOREACH (auto chunk, CollectInputChunks()) {
+            for (auto chunk : CollectInputChunks()) {
                 ProcessInputChunk(chunk);
             }
         }
@@ -478,23 +481,11 @@ protected:
 
     // Unsorted helpers.
 
-    //! Returns True iff the chunk has nontrivial limits.
+    //! Returns |true| iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
     static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
     {
-        return IsStartingSlice(chunkSpec) && IsEndingSlice(chunkSpec);
-    }
-
-    static bool IsStartingSlice(const TChunkSpec& chunkSpec)
-    {
-        return !chunkSpec.start_limit().has_key() &&
-               !chunkSpec.start_limit().has_row_index();
-    }
-
-    static bool IsEndingSlice(const TChunkSpec& chunkSpec)
-    {
-        return !chunkSpec.end_limit().has_key() &&
-               !chunkSpec.end_limit().has_row_index();
+        return IsTrivial(chunkSpec.upper_limit()) && IsTrivial(chunkSpec.lower_limit());
     }
 
     virtual bool IsSingleStripeInput() const
@@ -528,10 +519,10 @@ protected:
 
     bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
-        YCHECK(!IsNontrivial(chunkSpec.start_limit()));
-        YCHECK(!IsNontrivial(chunkSpec.end_limit()));
+        YCHECK(IsTrivial(chunkSpec.upper_limit()));
+        YCHECK(IsTrivial(chunkSpec.lower_limit()));
 
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
@@ -612,7 +603,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -660,7 +651,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        for (const auto& slice : CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -915,7 +906,8 @@ protected:
     {
         EEndpointType Type;
         TRefCountedChunkSpecPtr ChunkSpec;
-        TBoundaryKeysExt BoundaryKeys;
+        TOwningKey StartBoundaryKey;
+        TOwningKey EndBoundaryKey;
         bool IsTeleport;
 
         void Persist(TPersistenceContext& context)
@@ -923,15 +915,16 @@ protected:
             using NYT::Persist;
             Persist(context, Type);
             Persist(context, ChunkSpec);
-            Persist(context, BoundaryKeys);
+            Persist(context, StartBoundaryKey);
+            Persist(context, EndBoundaryKey);
             Persist(context, IsTeleport);
         }
 
-        const NChunkClient::NProto::TKey& GetKey() const
+        const TOwningKey& GetKey() const
         {
             return Type == EEndpointType::Left
-                ? BoundaryKeys.start()
-                : BoundaryKeys.end();
+                ? StartBoundaryKey
+                : EndBoundaryKey;
         }
     };
 
@@ -941,7 +934,6 @@ protected:
     std::vector<Stroka> KeyColumns;
 
     TChunkSplitsFetcherPtr ChunkSplitsFetcher;
-    TChunkSplitsCollectorPtr ChunkSplitsCollector;
 
     TJobSpec ManiacJobSpecTemplate;
 
@@ -977,23 +969,18 @@ protected:
         CalculateSizes();
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
-            Config,
-            Spec,
-            Operation->GetId(),
+            Config->Fetcher,
+            ChunkSliceSize,
             KeyColumns,
-            ChunkSliceSize);
-
-        ChunkSplitsCollector = New<TChunkSplitsCollector>(
             NodeDirectory,
-            ChunkSplitsFetcher,
-            Host->GetBackgroundInvoker());
+            Host->GetBackgroundInvoker(),
+            Logger);
 
         ProcessInputs();
 
         {
-            auto asyncCollectorResult = ChunkSplitsCollector->Run();
-            auto collectorResult = WaitFor(asyncCollectorResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(collectorResult);
+            auto result = WaitFor(ChunkSplitsFetcher->Fetch());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
         CollectEndpoints();
@@ -1010,7 +997,7 @@ protected:
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         chunkSpec->set_partition_tag(PartitionTag);
-        ChunkSplitsCollector->AddChunk(chunkSpec);
+        ChunkSplitsFetcher->AddChunk(chunkSpec);
         ++PartitionTag;
     }
 
@@ -1021,23 +1008,21 @@ protected:
     void CollectEndpoints()
     {
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
-        FOREACH (const auto& chunk, chunks) {
-            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
-            {
-                TKeyEndpoint endpoint;
-                endpoint.Type = EEndpointType::Left;
-                endpoint.ChunkSpec = chunk;
-                endpoint.BoundaryKeys = boundaryKeysExt;
-                endpoint.IsTeleport = false;
-                Endpoints.push_back(endpoint);
-            } {
-                TKeyEndpoint endpoint;
-                endpoint.Type = EEndpointType::Right;
-                endpoint.ChunkSpec = chunk;
-                endpoint.BoundaryKeys = boundaryKeysExt;
-                endpoint.IsTeleport = false;
-                Endpoints.push_back(endpoint);
-            }
+        for (const auto& chunk : chunks) {
+            // XXX(psushin): handle new chunks.
+            auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(chunk->chunk_meta().extensions());
+
+            TKeyEndpoint leftEndpoint;
+            leftEndpoint.Type = EEndpointType::Left;
+            leftEndpoint.ChunkSpec = chunk;
+            FromProto(&leftEndpoint.StartBoundaryKey, boundaryKeysExt.start());
+            FromProto(&leftEndpoint.EndBoundaryKey, boundaryKeysExt.end());
+            leftEndpoint.IsTeleport = false;
+            Endpoints.push_back(leftEndpoint);
+
+            TKeyEndpoint rightEndpoint = leftEndpoint;
+            rightEndpoint.Type = EEndpointType::Right;
+            Endpoints.push_back(rightEndpoint);
         }
     }
 
@@ -1081,17 +1066,17 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareKeys(lhs.GetKey(), rhs.GetKey(), prefixLength);
+                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey(), prefixLength);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
 
-                cmpResult = CompareKeys(lhs.BoundaryKeys.start(), rhs.BoundaryKeys.start(), prefixLength);
+                cmpResult = CompareRows(lhs.StartBoundaryKey, rhs.StartBoundaryKey, prefixLength);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
 
-                cmpResult = CompareKeys(lhs.BoundaryKeys.end(), rhs.BoundaryKeys.end(), prefixLength);
+                cmpResult = CompareRows(lhs.EndBoundaryKey, rhs.EndBoundaryKey, prefixLength);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
@@ -1123,11 +1108,11 @@ private:
 
             if (currentPartitionTag != DefaultPartitionTag) {
                 if (chunkSpec->partition_tag() == currentPartitionTag) {
-                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->end_limit())) {
+                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
                         currentPartitionTag = DefaultPartitionTag;
                         auto completeChunk = CreateCompleteChunk(chunkSpec);
 
-                        bool isManiacTeleport = CompareKeys(
+                        bool isManiacTeleport = CompareRows(
                             Endpoints[startTeleportIndex].GetKey(),
                             endpoint.GetKey(),
                             KeyColumns.size()) == 0;
@@ -1147,9 +1132,7 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left &&
-                IsTrivial(chunkSpec->start_limit()))
-            {
+            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->upper_limit())) {
                 currentPartitionTag = chunkSpec->partition_tag();
                 startTeleportIndex = i;
             }
@@ -1161,7 +1144,7 @@ private:
         const int prefixLength = static_cast<int>(KeyColumns.size());
 
         yhash_set<TRefCountedChunkSpecPtr> globalOpenedSlices;
-        TNullable<NChunkClient::NProto::TKey> lastBreakpoint = Null;
+        TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
         while (startIndex < Endpoints.size()) {
@@ -1179,7 +1162,7 @@ private:
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
 
-                if (CompareKeys(key, currentKey, prefixLength) != 0) {
+                if (CompareRows(key, currentKey, prefixLength) != 0) {
                     // This key is over.
                     break;
                 }
@@ -1228,17 +1211,17 @@ private:
             globalOpenedSlices.insert(localOpenedSlices.begin(), localOpenedSlices.end());
 
             auto endTask = [&] () {
-                if (lastBreakpoint && CompareKeys(key, *lastBreakpoint) == 0) {
+                if (lastBreakpoint && CompareRows(key, *lastBreakpoint) == 0) {
                     // Already flushed at this key.
                     return;
                 }
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
-                LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                LOG_TRACE("Finish current task, flushing %" PRISZT " chunks at key %s",
                     globalOpenedSlices.size(),
                     ~ToString(nextBreakpoint));
 
-                FOREACH (const auto& chunkSpec, globalOpenedSlices) {
+                for (const auto& chunkSpec : globalOpenedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
                         chunkSpec,
                         lastBreakpoint,
@@ -1257,7 +1240,7 @@ private:
             if (!maniacs.empty()) {
                 endTask();
 
-                FOREACH(auto& chunkSpec, maniacs) {
+                for (auto& chunkSpec : maniacs) {
                     AddPendingChunk(CreateChunkSlice(chunkSpec));
                     if (HasLargeActiveTask()) {
                         EndManiacTask();
@@ -1269,7 +1252,7 @@ private:
             if (!TeleportChunks.empty()) {
                 endTask();
 
-                FOREACH(auto& chunkSpec, TeleportChunks) {
+                for (auto& chunkSpec : TeleportChunks) {
                     AddTeleportChunk(chunkSpec);
                 }
             }
@@ -1449,7 +1432,7 @@ private:
             Endpoints.begin(),
             Endpoints.end(),
             [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareKeys(lhs.GetKey(), rhs.GetKey());
+                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }
@@ -1485,8 +1468,7 @@ private:
         int startTeleportIndex = -1;
 
         int openedSlicesCount = 0;
-        NChunkClient::NProto::TKey previousKey;
-        previousKey = GetKeySuccessor(previousKey);
+        auto previousKey = EmptyKey();
 
         for (int i = 0; i < Endpoints.size(); ++i) {
             auto& endpoint = Endpoints[i];
@@ -1501,7 +1483,7 @@ private:
                 continue;
             }
 
-            if (CompareKeys(key, previousKey, prefixLength) == 0) {
+            if (CompareRows(key, previousKey, prefixLength) == 0) {
                 currentPartitionTag = DefaultPartitionTag;
                 // Don't update previous key - it's equal to current.
                 continue;
@@ -1510,7 +1492,7 @@ private:
             if (currentPartitionTag != DefaultPartitionTag) {
                 auto& previousEndpoint = Endpoints[i - 1];
                 auto& chunkSpec = previousEndpoint.ChunkSpec;
-                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->end_limit())) {
+                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
                     }
@@ -1523,7 +1505,7 @@ private:
             // No current Teleport candidate.
             auto& chunkSpec = endpoint.ChunkSpec;
             if (endpoint.Type == EEndpointType::Left &&
-                IsTrivial(chunkSpec->start_limit()) &&
+                IsTrivial(chunkSpec->upper_limit()) &&
                 IsTeleportInputTable(chunkSpec->table_index()) &&
                 openedSlicesCount == 1)
             {
@@ -1537,7 +1519,7 @@ private:
             auto& previousEndpoint = Endpoints.back();
             auto& chunkSpec = previousEndpoint.ChunkSpec;
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
-            if (IsTrivial(chunkSpec->end_limit())) {
+            if (IsTrivial(chunkSpec->lower_limit())) {
                 for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }
@@ -1550,7 +1532,7 @@ private:
         const int prefixLength = static_cast<int>(KeyColumns.size());
 
         yhash_set<TRefCountedChunkSpecPtr> openedSlices;
-        TNullable<NChunkClient::NProto::TKey> lastBreakpoint = Null;
+        TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
         while (startIndex < Endpoints.size()) {
@@ -1562,7 +1544,7 @@ private:
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
 
-                if (CompareKeys(key, currentKey, prefixLength) != 0) {
+                if (CompareRows(key, currentKey, prefixLength) != 0) {
                     // This key is over.
                     break;
                 }
@@ -1601,14 +1583,14 @@ private:
             }
 
             if (HasLargeActiveTask()) {
-                YCHECK(!lastBreakpoint || CompareKeys(key, *lastBreakpoint, prefixLength) != 0);
+                YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
-                LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
-                    openedSlices.size(),
-                    ~ToString(nextBreakpoint));
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                //LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
+                //    openedSlices.size(),
+                //    ~ToString(nextBreakpoint));
 
-                FOREACH (const auto& chunkSpec, openedSlices) {
+                for (const auto& chunkSpec : openedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
                         chunkSpec,
                         lastBreakpoint,
@@ -1646,7 +1628,7 @@ private:
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;
-        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+        for (const auto& path : Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
         return result;
@@ -1705,7 +1687,7 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
-        FOREACH(const auto& inputTable, InputTables) {
+        for (const auto& inputTable : InputTables) {
             if (inputTable.Path.Attributes().Get<bool>("teleport", false)) {
                 return false;
             }

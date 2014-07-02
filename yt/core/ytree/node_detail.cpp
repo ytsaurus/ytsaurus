@@ -27,13 +27,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsWriteRequest(context);
-}
-
 bool TNodeBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetKey);
@@ -55,7 +48,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     bool ignoreOpaque = request->ignore_opaque();
 
     context->SetRequestInfo("AttributeFilterMode: %s, IgnoreOpaque: %s",
-        ~attributeFilter.Mode.ToString(),
+        ~ToString(attributeFilter.Mode),
         ~FormatBool(ignoreOpaque));
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -137,7 +130,7 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYPath::TYPath& path,
     IServiceContextPtr context)
 {
-    if (context->GetVerb() == "Exists") {
+    if (context->GetMethod() == "Exists") {
         return TResolveResult::Here(path);
     }
 
@@ -160,7 +153,7 @@ void TCompositeNodeMixin::SetRecursive(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
-    auto value = ConvertToNode(TYsonString(request->value()), ~factory);
+    auto value = ConvertToNode(TYsonString(request->value()), factory.Get());
     SetChild(factory, "/" + path, value, false);
     factory->Commit();
 
@@ -203,15 +196,15 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
+    const auto& method = context->GetMethod();
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
     if (tokenizer.GetToken() == WildcardToken) {
-        if (verb != "Remove") {
-            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove verb",
+        if (method != "Remove") {
+            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove method",
                 WildcardToken);
         }
 
@@ -227,8 +220,8 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         auto child = FindChild(key);
         if (!child) {
-            if (verb == "Exists" || verb == "Create" || verb == "Remove" ||
-                ((verb == "Set" || verb == "Copy") &&
+            if (method == "Exists" || method == "Create" || method == "Remove" ||
+                ((method == "Set" || method == "Copy") &&
                  tokenizer.Advance() == NYPath::ETokenType::EndOfStream))
             {
                 return IYPathService::TResolveResult::Here("/" + path);
@@ -268,7 +261,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     size_t counter = 0;
 
     writer.OnBeginList();
-    FOREACH (const auto& pair, children) {
+    for (const auto& pair : children) {
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
@@ -357,8 +350,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         int index = ParseListIndex(token);
         int adjustedIndex = AdjustChildIndex(index);
         auto child = FindChild(adjustedIndex);
-        const auto& verb = context->GetVerb();
-        if (!child && verb == "Exists") {
+        const auto& method = context->GetMethod();
+        if (!child && method == "Exists") {
             return IYPathService::TResolveResult::Here("/" + path);
         }
         return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());

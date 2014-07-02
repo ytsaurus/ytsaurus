@@ -4,8 +4,6 @@ set( SRCS
   ${BASE}/file_chunk_output.cpp
   ${BASE}/file_chunk_reader.cpp
   ${BASE}/file_chunk_writer.cpp
-  ${BASE}/file_reader.cpp
-  ${BASE}/file_writer.cpp
   ${BASE}/private.cpp
 )
 set( HDRS
@@ -14,8 +12,6 @@ set( HDRS
   ${BASE}/file_chunk_output.h
   ${BASE}/file_chunk_reader.h
   ${BASE}/file_chunk_writer.h
-  ${BASE}/file_reader.h
-  ${BASE}/file_writer.h
   ${BASE}/file_ypath_proxy.h
   ${BASE}/private.h
   ${BASE}/public.h

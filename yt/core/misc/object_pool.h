@@ -4,6 +4,8 @@
 
 #include <util/thread/lfqueue.h>
 
+#include <util/generic/singleton.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,8 +24,6 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
-    TObjectPool();
-
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
@@ -31,19 +31,23 @@ public:
     void Reclaim(T* obj);
 
 private:
-	struct THeader
-	{
-		TInstant ExpireTime;
-	};
+    struct THeader
+    {
+        TInstant ExpireTime;
+    };
 
     TLockFreeQueue<T*> PooledObjects_;
     TAtomic PoolSize_;
 
 
+    TObjectPool();
+
     T* AllocateInstance();
     void FreeInstance(T* obj);
     THeader* GetHeader(T* obj);
 
+
+    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
 };
 
 template <class T>
@@ -69,7 +73,7 @@ struct TPooledObjectTraits
 //! Basic version of traits. Others may consider inheriting from it.
 struct TPooledObjectTraitsBase
 {
-	template <class T>
+    template <class T>
     static void Clean(T*)
     { }
 
@@ -85,7 +89,7 @@ struct TPooledObjectTraitsBase
 
     static TDuration GetMaxLifetimeSplay()
     {
-    	return TDuration::Seconds(60);
+        return TDuration::Seconds(60);
     }
 };
 

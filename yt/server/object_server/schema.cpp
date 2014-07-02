@@ -3,6 +3,10 @@
 #include "private.h"
 #include "type_handler.h"
 
+#include <core/misc/string.h>
+
+#include <core/ytree/fluent.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -51,19 +55,22 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TSchemaObject* object)
         : TBase(bootstrap, object)
-    {
-        Logger = ObjectServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ObjectServerLogger;
+    }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
             BuildYsonFluently(consumer)
-                .Value(Sprintf("schema:%s", ~CamelCaseToUnderscoreCase(type.ToString())));
+                .Value(Sprintf("schema:%s", ~FormatEnum(type)));
             return true;
         }
 
@@ -146,17 +153,6 @@ private:
         UNUSED(object);
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->GetSchemaProxy(Type);
-    }
-
-    virtual void DoUnstage(
-        TSchemaObject* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
-    {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
-        YUNREACHABLE();
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override

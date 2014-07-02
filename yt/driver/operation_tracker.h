@@ -8,8 +8,7 @@
 
 #include <core/ytree/yson_string.h>
 
-#include <server/job_proxy/config.h>
-
+#include <server/job_proxy/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -24,7 +23,7 @@ public:
         NDriver::IDriverPtr driver,
         const NScheduler::TOperationId& operationId);
 
-    EExitCode Run();
+    void Run();
 
 private:
     TExecutorConfigPtr Config;
@@ -37,7 +36,7 @@ private:
 
     Stroka FormatProgress(const NYTree::TYsonString& progress);
     void DumpProgress();
-    EExitCode DumpResult();
+    void DumpResult();
 
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
 

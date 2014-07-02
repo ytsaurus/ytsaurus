@@ -17,8 +17,6 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TFuture<void> PresetResult = MakePromise();
-
 class TLimitedThroughputThrottler
     : public IThroughputThrottler
 {
@@ -40,7 +38,7 @@ public:
         YCHECK(count >= 0);
 
         if (count == 0) {
-            return PresetResult;
+            return VoidFuture;
         }
 
         TGuard<TSpinLock> guard(SpinLock);
@@ -48,7 +46,7 @@ public:
         if (Available > 0) {
             // Execute immediately.
             Available -= count;
-            return PresetResult;
+            return VoidFuture;
         }
 
         // Enqueue request to be executed later.
@@ -91,7 +89,7 @@ private:
             }
         }
 
-        FOREACH (auto promise, releaseList) {
+        for (auto promise : releaseList) {
             promise.Set();
         }
     }
@@ -154,7 +152,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(count >= 0);
 
-        return PresetResult;
+        return VoidFuture;
     }
 };
 

@@ -6,24 +6,29 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
-TBindStateBase::TBindStateBase(const ::NYT::TSourceLocation& location)
-    : Location_(location)
-{ }
+TBindStateBase::TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+    const TSourceLocation& location
 #endif
+    )
+    : TraceContext(NTracing::GetCurrentTraceContext())
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+    , Location(location)
+#endif
+{ }
 
 TBindStateBase::~TBindStateBase()
 { }
 
-TCallbackBase::operator TUnspecifiedBoolType() const
+TCallbackBase::operator bool() const
 {
-    return BindState.Get() != NULL ? &TCallbackBase::MemberForUnspecifiedBoolType : 0;
+    return static_cast<bool>(BindState);
 }
 
 void TCallbackBase::Reset()
 {
-    BindState = NULL;
-    UntypedInvoke = NULL;
+    BindState = nullptr;
+    UntypedInvoke = nullptr;
 }
 
 void* TCallbackBase::GetHandle() const
@@ -43,22 +48,17 @@ void TCallbackBase::Swap(TCallbackBase& other)
     UntypedInvoke = std::move(tempUntypedInvoke);
 }
 
-bool TCallbackBase::Equals(const TCallbackBase& other) const
+bool TCallbackBase::operator == (const TCallbackBase& other) const
 {
     return
-        BindState.Get() == other.BindState.Get() &&
+        BindState == other.BindState &&
         UntypedInvoke == other.UntypedInvoke;
 }
 
-TCallbackBase::TCallbackBase(const TCallbackBase& other)
-    : BindState(other.BindState)
-    , UntypedInvoke(other.UntypedInvoke)
-{ }
-
-TCallbackBase::TCallbackBase(TCallbackBase&& other)
-    : BindState(std::move(other.BindState))
-    , UntypedInvoke(std::move(other.UntypedInvoke))
-{ }
+bool TCallbackBase::operator != (const TCallbackBase& other) const
+{
+    return !(*this == other);
+}
 
 TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))

@@ -44,22 +44,25 @@ class TActionQueue::TImpl
     : public TRefCounted
 {
 public:
-    explicit TImpl(const Stroka& threadName)
-        : Queue(New<TInvokerQueue>(
-            &EventCount,
+    explicit TImpl(
+        const Stroka& threadName,
+        bool enableLogging,
+        bool enableProfiling)
+        : Queue_(New<TInvokerQueue>(
+            &EventCount_,
             GetThreadTagIds(threadName),
-            true,
-            true))
-        , Thread(New<TSingleQueueExecutorThread>(
-            Queue,
-            &EventCount,
+            enableLogging,
+            enableProfiling))
+        , Thread_(New<TSingleQueueSchedulerThread>(
+            Queue_,
+            &EventCount_,
             threadName,
             GetThreadTagIds(threadName),
-            true,
-            true))
+            enableLogging,
+            enableProfiling))
     {
-        Thread->Start();
-        Queue->SetThreadId(Thread->GetId());
+        Thread_->Start();
+        Queue_->SetThreadId(Thread_->GetId());
     }
 
     ~TImpl()
@@ -69,24 +72,30 @@ public:
 
     void Shutdown()
     {
-        Queue->Shutdown();
-        Thread->Shutdown();
+        Queue_->Shutdown();
+        Thread_->Shutdown();
     }
 
     IInvokerPtr GetInvoker()
     {
-        return Queue;
+        return Queue_;
     }
 
 private:
-    TEventCount EventCount;
-    TInvokerQueuePtr Queue;
-    TSingleQueueExecutorThreadPtr Thread;
+    TEventCount EventCount_;
+    TInvokerQueuePtr Queue_;
+    TSingleQueueSchedulerThreadPtr Thread_;
 
 };
 
-TActionQueue::TActionQueue(const Stroka& threadName)
-    : Impl(New<TImpl>(threadName))
+TActionQueue::TActionQueue(
+    const Stroka& threadName,
+    bool enableLogging,
+    bool enableProfiling)
+    : Impl(New<TImpl>(
+        threadName,
+        enableLogging,
+        enableProfiling))
 { }
 
 TActionQueue::~TActionQueue()
@@ -102,34 +111,38 @@ IInvokerPtr TActionQueue::GetInvoker()
     return Impl->GetInvoker();
 }
 
-TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(const Stroka& threadName)
+TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(
+    const Stroka& threadName,
+    bool enableLogging,
+    bool enableProfiling)
 {
-    return BIND([=] () {
-        return New<TActionQueue>(threadName);
-    });
+    return BIND(&New<TActionQueue, const Stroka&, const bool&, const bool&>,
+        threadName,
+        enableLogging,
+        enableProfiling);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 class TFairShareActionQueue::TImpl
-    : public TExecutorThread
+    : public TSchedulerThread
 {
 public:
     TImpl(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames)
-        : TExecutorThread(
+        : TSchedulerThread(
             &EventCount,
             threadName,
             GetThreadTagIds(threadName),
             true,
             true)
-        , Buckets(bucketNames.size())
-        , CurrentBucket(nullptr)
+        , Buckets_(bucketNames.size())
+        , CurrentBucket_(nullptr)
     {
         Start();
         for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
-            auto& queue = Buckets[index].Queue;
+            auto& queue = Buckets_[index].Queue;
             queue = New<TInvokerQueue>(
                 &EventCount,
                 GetBucketTagIds(threadName, bucketNames[index]),
@@ -146,16 +159,16 @@ public:
 
     void Shutdown()
     {
-        FOREACH (auto& bucket, Buckets) {
+        for (auto& bucket : Buckets_) {
             bucket.Queue->Shutdown();
         }
-        TExecutorThread::Shutdown();
+        TSchedulerThread::Shutdown();
     }
 
     IInvokerPtr GetInvoker(int index)
     {
-        YASSERT(0 <= index && index < static_cast<int>(Buckets.size()));
-        return Buckets[index].Queue;
+        YASSERT(0 <= index && index < static_cast<int>(Buckets_.size()));
+        return Buckets_[index].Queue;
     }
 
 private:
@@ -171,19 +184,19 @@ private:
         TCpuDuration ExcessTime;
     };
 
-    std::vector<TBucket> Buckets;
-    TCpuInstant StartInstant;
+    std::vector<TBucket> Buckets_;
+    TCpuInstant StartInstant_;
 
-    TEnqueuedAction CurrentAction;
-    TBucket* CurrentBucket;
-    
+    TEnqueuedAction CurrentCallback_;
+    TBucket* CurrentBucket_;
+
 
     TBucket* GetStarvingBucket()
     {
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
         TBucket* minBucket = nullptr;
-        for (auto& bucket : Buckets) {
+        for (auto& bucket : Buckets_) {
             auto queue = bucket.Queue;
             // NB: queue can be null during startup due to race with ctor
             if (queue && !queue->IsEmpty()) {
@@ -198,32 +211,32 @@ private:
 
     virtual EBeginExecuteResult BeginExecute() override
     {
-        YCHECK(!CurrentBucket);
+        YCHECK(!CurrentBucket_);
 
-        // Check if any action is ready at all.
-        CurrentBucket = GetStarvingBucket();
-        if (!CurrentBucket) {
+        // Check if any callback is ready at all.
+        CurrentBucket_ = GetStarvingBucket();
+        if (!CurrentBucket_) {
             return EBeginExecuteResult::QueueEmpty;
         }
 
         // Reduce excesses (with truncation).
-        FOREACH (auto& bucket, Buckets) {
-            bucket.ExcessTime = std::max<i64>(0, bucket.ExcessTime - CurrentBucket->ExcessTime);
+        for (auto& bucket : Buckets_) {
+            bucket.ExcessTime = std::max<i64>(0, bucket.ExcessTime - CurrentBucket_->ExcessTime);
         }
 
         // Pump the starving queue.
-        StartInstant = GetCpuInstant();
-        return CurrentBucket->Queue->BeginExecute(&CurrentAction);
+        StartInstant_ = GetCpuInstant();
+        return CurrentBucket_->Queue->BeginExecute(&CurrentCallback_);
     }
 
     virtual void EndExecute() override
     {
-        if (!CurrentBucket)
+        if (!CurrentBucket_)
             return;
 
-        CurrentBucket->Queue->EndExecute(&CurrentAction);
-        CurrentBucket->ExcessTime += (GetCpuInstant() - StartInstant);
-        CurrentBucket = nullptr;
+        CurrentBucket_->Queue->EndExecute(&CurrentCallback_);
+        CurrentBucket_->ExcessTime += (GetCpuInstant() - StartInstant_);
+        CurrentBucket_ = nullptr;
     }
 
 };
@@ -231,7 +244,7 @@ private:
 TFairShareActionQueue::TFairShareActionQueue(
     const Stroka& threadName,
     const std::vector<Stroka>& bucketNames)
-    : Impl(New<TImpl>(threadName, bucketNames))
+    : Impl_(New<TImpl>(threadName, bucketNames))
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue()
@@ -239,12 +252,12 @@ TFairShareActionQueue::~TFairShareActionQueue()
 
 IInvokerPtr TFairShareActionQueue::GetInvoker(int index)
 {
-    return Impl->GetInvoker(index);
+    return Impl_->GetInvoker(index);
 }
 
 void TFairShareActionQueue::Shutdown()
 {
-    return Impl->Shutdown();
+    return Impl_->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -254,21 +267,21 @@ class TThreadPool::TImpl
 {
 public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
-        : Queue(New<TInvokerQueue>(
-            &EventCount,
+        : Queue_(New<TInvokerQueue>(
+            &EventCount_,
             GetThreadTagIds(threadNamePrefix),
             true,
             true))
     {
         for (int i = 0; i < threadCount; ++i) {
-            auto thread = New<TSingleQueueExecutorThread>(
-                Queue,
-                &EventCount,
+            auto thread = New<TSingleQueueSchedulerThread>(
+                Queue_,
+                &EventCount_,
                 Sprintf("%s:%d", ~threadNamePrefix, i),
                 GetThreadTagIds(threadNamePrefix),
                 true,
                 true);
-            Threads.push_back(thread);
+            Threads_.push_back(thread);
             thread->Start();
         }
     }
@@ -280,21 +293,21 @@ public:
 
     void Shutdown()
     {
-        Queue->Shutdown();
-        FOREACH (auto thread, Threads) {
+        Queue_->Shutdown();
+        for (auto thread : Threads_) {
             thread->Shutdown();
         }
     }
 
     IInvokerPtr GetInvoker()
     {
-        return Queue;
+        return Queue_;
     }
 
 private:
-    TEventCount EventCount;
-    TInvokerQueuePtr Queue;
-    std::vector<TExecutorThreadPtr> Threads;
+    TEventCount EventCount_;
+    TInvokerQueuePtr Queue_;
+    std::vector<TSchedulerThreadPtr> Threads_;
 
 };
 
@@ -329,50 +342,87 @@ class TSerializedInvoker
 {
 public:
     explicit TSerializedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(std::move(underlyingInvoker))
-        , Lock(0)
-    { }
-
-    virtual bool Invoke(const TClosure& action) override
+        : UnderlyingInvoker_(std::move(underlyingInvoker))
+        , FinishedCallback_(BIND(&TSerializedInvoker::OnFinished, MakeWeak(this)))
     {
-        Queue.Enqueue(action);
+        Lock_.clear();
+    }
+
+    virtual void Invoke(const TClosure& callback) override
+    {
+        Queue_.Enqueue(callback);
         TrySchedule();
-        return true;
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    IInvokerPtr UnderlyingInvoker;
-    TLockFreeQueue<TClosure> Queue;
-    TAtomic Lock;
+    IInvokerPtr UnderlyingInvoker_;
+    TLockFreeQueue<TClosure> Queue_;
+    std::atomic_flag Lock_;
+    bool LockReleased_;
+    TClosure FinishedCallback_;
+
+
+    class TInvocationGuard
+    {
+    public:
+        explicit TInvocationGuard(TIntrusivePtr<TSerializedInvoker> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        TInvocationGuard(TInvocationGuard&& other) = default;
+
+        ~TInvocationGuard()
+        {
+            if (Owner_) {
+                Owner_->OnFinished();
+            }
+        }
+
+    private:
+        TIntrusivePtr<TSerializedInvoker> Owner_;
+
+    };
 
     void TrySchedule()
     {
-        if (Queue.IsEmpty()) {
+        if (Queue_.IsEmpty()) {
             return;
         }
 
-        if (AtomicTryAndTryLock(&Lock)) {
-            UnderlyingInvoker->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this)));
+        if (!Lock_.test_and_set(std::memory_order_acquire)) {
+            UnderlyingInvoker_->Invoke(BIND(
+                &TSerializedInvoker::RunCallbacks,
+                MakeStrong(this),
+                Passed(TInvocationGuard(this))));
         }
     }
 
-    void DoInvoke()
+    void RunCallbacks(TInvocationGuard /*invocationGuard*/)
     {
-        // Execute as many actions as possible to minimize context switches.
-        TClosure action;
-        while (Queue.Dequeue(&action)) {
-            TCurrentInvokerGuard guard(this);
-            action.Run();
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        TContextSwitchedGuard contextSwitchGuard(FinishedCallback_);
+
+        LockReleased_ = false;
+
+        // Execute as many callbacks as possible to minimize context switches.
+        TClosure callback;
+        while (Queue_.Dequeue(&callback)) {
+            callback.Run();
         }
+    }
 
-        AtomicUnlock(&Lock);
-
-        TrySchedule();
+    void OnFinished()
+    {
+        if (!LockReleased_) {
+            LockReleased_ = true;
+            Lock_.clear(std::memory_order_release);
+            TrySchedule();
+        }
     }
 
 };
@@ -389,37 +439,34 @@ class TPrioritizedInvoker
 {
 public:
     explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(std::move(underlyingInvoker))
+        : UnderlyingInvoker_(std::move(underlyingInvoker))
     { }
 
-    virtual bool Invoke(const TClosure& callback, i64 priority) override
+    virtual void Invoke(const TClosure& callback, i64 priority) override
     {
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
             TEntry entry;
             entry.Callback = callback;
             entry.Priority = priority;
-            EntryHeap.emplace_back(std::move(entry));
-            std::push_heap(EntryHeap.begin(), EntryHeap.end());
+            Heap_.emplace_back(std::move(entry));
+            std::push_heap(Heap_.begin(), Heap_.end());
         }
-        // TODO(babenko): there's no easy way to evict the entry; for now, we do not allow the
-        // underlying invoker to reject the action.
-        YCHECK(UnderlyingInvoker->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this))));
-        return true;
+        UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
     }
 
-    virtual bool Invoke(const TClosure& callback) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        return UnderlyingInvoker->Invoke(callback);
+        UnderlyingInvoker_->Invoke(callback);
     }
 
     virtual TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    IInvokerPtr UnderlyingInvoker;
+    IInvokerPtr UnderlyingInvoker_;
 
     struct TEntry
     {
@@ -432,15 +479,15 @@ private:
         }
     };
 
-    TSpinLock SpinLock;
-    std::vector<TEntry> EntryHeap;
+    TSpinLock SpinLock_;
+    std::vector<TEntry> Heap_;
 
     void DoExecute()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        std::pop_heap(EntryHeap.begin(), EntryHeap.end());
-        auto callback = std::move(EntryHeap.back().Callback);
-        EntryHeap.pop_back();
+        TGuard<TSpinLock> guard(SpinLock_);
+        std::pop_heap(Heap_.begin(), Heap_.end());
+        auto callback = std::move(Heap_.back().Callback);
+        Heap_.pop_back();
         guard.Release();
         callback.Run();
     }
@@ -459,32 +506,144 @@ class TFakePrioritizedInvoker
 {
 public:
     explicit TFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
-        : UnderlyingInvoker(std::move(underlyingInvoker))
+        : UnderlyingInvoker_(std::move(underlyingInvoker))
     { }
 
-    virtual bool Invoke(const TClosure& callback, i64 /*priority*/) override
+    virtual void Invoke(const TClosure& callback, i64 /*priority*/) override
     {
-        return UnderlyingInvoker->Invoke(callback);
+        return UnderlyingInvoker_->Invoke(callback);
     }
 
-    virtual bool Invoke(const TClosure& callback) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        return UnderlyingInvoker->Invoke(callback);
+        return UnderlyingInvoker_->Invoke(callback);
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    IInvokerPtr UnderlyingInvoker;
+    IInvokerPtr UnderlyingInvoker_;
 
 };
 
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
 {
     return New<TFakePrioritizedInvoker>(std::move(underlyingInvoker));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TBoundedConcurrencyInvoker
+    : public IInvoker
+{
+public:
+    TBoundedConcurrencyInvoker(
+        IInvokerPtr underlyingInvoker,
+        int maxConcurrentInvocations)
+        : UnderlyingInvoker_(underlyingInvoker)
+        , MaxConcurrentInvocations_(maxConcurrentInvocations)
+        , Semaphore_(0)
+    { }
+
+    virtual void Invoke(const TClosure& callback) override
+    {
+        Queue_.Enqueue(callback);
+        ScheduleMore();
+    }
+
+    virtual TThreadId GetThreadId() const
+    {
+        return UnderlyingInvoker_->GetThreadId();
+    }
+
+private:
+    IInvokerPtr UnderlyingInvoker_;
+    int MaxConcurrentInvocations_;
+
+    std::atomic<int> Semaphore_;
+    TLockFreeQueue<TClosure> Queue_;
+
+
+    class TInvocationGuard
+    {
+    public:
+        explicit TInvocationGuard(TIntrusivePtr<TBoundedConcurrencyInvoker> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        TInvocationGuard(TInvocationGuard&& other) = default;
+
+        ~TInvocationGuard()
+        {
+            if (Owner_) {
+                Owner_->OnFinished();
+            }
+        }
+
+    private:
+        TIntrusivePtr<TBoundedConcurrencyInvoker> Owner_;
+
+    };
+
+
+    void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
+    {
+        TCurrentInvokerGuard currentInvokerGuard(UnderlyingInvoker_); // sic!
+        callback.Run();
+    }
+
+    void OnFinished()
+    {
+        ReleaseSemaphore();
+        ScheduleMore();
+    }
+
+    void ScheduleMore()
+    {
+        while (true) {
+            if (!AcquireSemaphore())
+                break;
+
+            TClosure callback;
+            if (!Queue_.Dequeue(&callback)) {
+                ReleaseSemaphore();
+                break;
+            }
+
+            UnderlyingInvoker_->Invoke(BIND(
+                &TBoundedConcurrencyInvoker::RunCallback,
+                MakeStrong(this),
+                Passed(std::move(callback)),
+                Passed(TInvocationGuard(this))));
+        }        
+    }
+
+    bool AcquireSemaphore()
+    {
+        if (++Semaphore_ <= MaxConcurrentInvocations_) {
+            return true;
+        }
+        ReleaseSemaphore();
+        return false;
+    }
+
+    void ReleaseSemaphore()
+    {
+        YCHECK(--Semaphore_ >= 0);
+    }
+
+};
+
+IInvokerPtr CreateBoundedConcurrencyInvoker(
+    IInvokerPtr underlyingInvoker,
+    int maxConcurrentInvocations)
+{
+    return New<TBoundedConcurrencyInvoker>(
+        underlyingInvoker,
+        maxConcurrentInvocations);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

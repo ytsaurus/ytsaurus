@@ -6,10 +6,10 @@
 
 #include <core/misc/string.h>
 
-#include <ytlib/object_client/public.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/node_detail.h>
@@ -65,7 +65,7 @@ public:
 
         auto transactions = transactionManager->GetTransactionPath(Proxy->Transaction);
 
-        FOREACH (const auto* transaction, transactions) {
+        for (const auto* transaction : transactions) {
             TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
             const auto* userAttributes = objectManager->FindAttributes(versionedId);
             if (userAttributes) {
@@ -113,13 +113,13 @@ public:
 
         const TTransaction* containingTransaction = nullptr;
         bool contains = false;
-        FOREACH (const auto* transaction, transactions) {
+        for (const auto* transaction : transactions) {
             TVersionedObjectId versionedId(Proxy->TrunkNode->GetId(), GetObjectId(transaction));
             const auto* userAttributes = objectManager->FindAttributes(versionedId);
             if (userAttributes) {
                 auto it = userAttributes->Attributes().find(key);
                 if (it != userAttributes->Attributes().end()) {
-                    contains = it->second;
+                    contains = it->second.HasValue();
                     if (contains) {
                         containingTransaction = transaction;
                     }
@@ -203,230 +203,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeFactory
-    : public ICypressNodeFactory
-{
-public:
-    TNodeFactory(
-        NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        bool preserveAccount);
-
-    ~TNodeFactory();
-
-    virtual IStringNodePtr CreateString() override;
-    virtual IIntegerNodePtr CreateInteger() override;
-    virtual IDoubleNodePtr CreateDouble() override;
-    virtual IMapNodePtr CreateMap() override;
-    virtual IListNodePtr CreateList() override;
-    virtual IEntityNodePtr CreateEntity() override;
-
-    virtual NTransactionServer::TTransaction* GetTransaction() override;
-
-    virtual NSecurityServer::TAccount* GetNewNodeAccount() override;
-    virtual NSecurityServer::TAccount* GetClonedNodeAccount(
-        TCypressNodeBase* sourceNode) override;
-
-    virtual ICypressNodeProxyPtr CreateNode(
-        NObjectClient::EObjectType type,
-        IAttributeDictionary* attributes = nullptr,
-        TReqCreate* request = nullptr,
-        TRspCreate* response = nullptr) override;
-
-    virtual TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode) override;
-
-    virtual void Commit() override;
-
-private:
-    NCellMaster::TBootstrap* Bootstrap;
-    NTransactionServer::TTransaction* Transaction;
-    NSecurityServer::TAccount* Account;
-    bool PreserveAccount;
-
-    std::vector<TCypressNodeBase*> CreatedNodes;
-
-
-    void ValidateNodeCreation(NObjectClient::EObjectType type);
-    void RegisterCreatedNode(TCypressNodeBase* node);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeFactory::TNodeFactory(
-    TBootstrap* bootstrap,
-    TTransaction* transaction,
-    TAccount* account,
-    bool preserveAccount)
-    : Bootstrap(bootstrap)
-    , Transaction(transaction)
-    , Account(account)
-    , PreserveAccount(preserveAccount)
-{
-    YCHECK(bootstrap);
-    YCHECK(account);
-}
-
-TNodeFactory::~TNodeFactory()
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, CreatedNodes) {
-        objectManager->UnrefObject(node);
-    }
-}
-
-IStringNodePtr TNodeFactory::CreateString()
-{
-    return CreateNode(EObjectType::StringNode)->AsString();
-}
-
-IIntegerNodePtr TNodeFactory::CreateInteger()
-{
-    return CreateNode(EObjectType::IntegerNode)->AsInteger();
-}
-
-IDoubleNodePtr TNodeFactory::CreateDouble()
-{
-    return CreateNode(EObjectType::DoubleNode)->AsDouble();
-}
-
-IMapNodePtr TNodeFactory::CreateMap()
-{
-    return CreateNode(EObjectType::MapNode)->AsMap();
-}
-
-IListNodePtr TNodeFactory::CreateList()
-{
-    return CreateNode(EObjectType::ListNode)->AsList();
-}
-
-IEntityNodePtr TNodeFactory::CreateEntity()
-{
-    THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
-}
-
-TTransaction* TNodeFactory::GetTransaction()
-{
-    return Transaction;
-}
-
-TAccount* TNodeFactory::GetNewNodeAccount()
-{
-    return Account;
-}
-
-TAccount* TNodeFactory::GetClonedNodeAccount(
-    TCypressNodeBase* sourceNode)
-{
-    return PreserveAccount ? sourceNode->GetAccount() : Account;
-}
-
-ICypressNodeProxyPtr TNodeFactory::CreateNode(
-    EObjectType type,
-    IAttributeDictionary* attributes,
-    TReqCreate* request,
-    TRspCreate* response)
-{
-    ValidateNodeCreation(type);
-
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto handler = cypressManager->FindHandler(type);
-    if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %s",
-            ~FormatEnum(type).Quote());
-    }
-
-    auto* node = cypressManager->CreateNode(
-        handler,
-        this,
-        request,
-        response);
-    auto* trunkNode = node->GetTrunkNode();
-
-    RegisterCreatedNode(trunkNode);
-
-    if (attributes) {
-        handler->SetDefaultAttributes(attributes, Transaction);
-        auto keys = attributes->List();
-        std::sort(keys.begin(), keys.end());
-        if (!keys.empty()) {
-            auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
-
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            trunkProxy->ListBuiltinAttributes(&builtinAttributes);
-
-            yhash_set<Stroka> builtinAttributeKeys;
-            FOREACH (const auto& attribute, builtinAttributes) {
-                YCHECK(builtinAttributeKeys.insert(attribute.Key).second);
-            }
-
-            FOREACH (const auto& key, keys) {
-                auto value = attributes->GetYson(key);
-                if (builtinAttributeKeys.find(key) == builtinAttributeKeys.end()) {
-                    trunkProxy->MutableAttributes()->SetYson(key, value);
-                } else {
-                    if (!trunkProxy->SetBuiltinAttribute(key, value)) {
-                        ThrowCannotSetBuiltinAttribute(key);
-                    }
-                }
-            }        
-        }        
-    }
-
-    cypressManager->LockNode(trunkNode, Transaction, ELockMode::Exclusive);
-
-    return cypressManager->GetNodeProxy(trunkNode, Transaction);
-}
-
-TCypressNodeBase* TNodeFactory::CloneNode(
-    TCypressNodeBase* sourceNode)
-{
-    ValidateNodeCreation(sourceNode->GetType());
-
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
-
-    RegisterCreatedNode(clonedTrunkNode);
-
-    cypressManager->LockNode(clonedTrunkNode, Transaction, ELockMode::Exclusive);
-
-    return clonedTrunkNode;
-}
-
-void TNodeFactory::Commit()
-{
-    if (Transaction) {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        FOREACH (auto* node, CreatedNodes) {
-            transactionManager->StageNode(Transaction, node);
-        }
-    }
-}
-
-void TNodeFactory::ValidateNodeCreation(EObjectType type)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto* schema = objectManager->GetSchema(type);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-    securityManager->ValidatePermission(schema, EPermission::Create);
-}
-
-void TNodeFactory::RegisterCreatedNode(TCypressNodeBase* node)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RefObject(node);
-    CreatedNodes.push_back(node);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     TCypressNodeBase* trunkNode)
     : TObjectProxyBase(bootstrap, trunkNode)
     , TypeHandler(typeHandler)
@@ -440,8 +220,6 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     YASSERT(bootstrap);
     YASSERT(trunkNode);
     YASSERT(trunkNode->IsTrunk());
-
-    Logger = CypressServerLogger;
 }
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
@@ -454,8 +232,8 @@ ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory(
 {
     const auto* impl = GetThisImpl();
     auto* account = impl->GetAccount();
-    return New<TNodeFactory>(
-        Bootstrap,
+    auto cypressManager = Bootstrap->GetCypressManager();
+    return cypressManager->CreateNodeFactory(
         Transaction,
         account,
         preserveAccount);
@@ -470,7 +248,7 @@ INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
     return CachedResolver;
 }
 
-NTransactionServer::TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
+TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const
 {
     return Transaction;
 }
@@ -497,14 +275,6 @@ void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
     impl->SetParent(parent ? ToProxy(INodePtr(parent))->GetTrunkNode() : nullptr);
 }
 
-bool TNontemplateCypressNodeProxyBase::IsWriteRequest(NRpc::IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
-    return TNodeBase::IsWriteRequest(context);
-}
-
 const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const
 {
     return TObjectProxyBase::Attributes();
@@ -517,7 +287,7 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
 
 TAsyncError TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     const Stroka& key,
-    NYson::IYsonConsumer* consumer)
+    IYsonConsumer* consumer)
 {
     if (key == "recursive_resource_usage") {
         auto visitor = New<TResourceUsageVisitor>(Bootstrap, consumer);
@@ -536,10 +306,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         auto securityManager = Bootstrap->GetSecurityManager();
 
         auto name = ConvertTo<Stroka>(value);
-        auto* account = securityManager->FindAccountByName(name);
-        if (!IsObjectAlive(account)) {
-            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
-        }
+        auto* account = securityManager->GetAccountByNameOrThrow(name);
 
         ValidatePermission(account, EPermission::Use);
 
@@ -600,11 +367,11 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                     .Item("state").Value(lock->GetState())
                     .Item("transaction_id").Value(lock->GetTransaction()->GetId())
                     .Item("mode").Value(lock->Request().Mode)
-                    .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
+                    .DoIf(lock->Request().ChildKey.HasValue(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("child_key").Value(*lock->Request().ChildKey);
                     })
-                    .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
+                    .DoIf(lock->Request().AttributeKey.HasValue(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("attribute_key").Value(*lock->Request().AttributeKey);
                     })
@@ -703,13 +470,17 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
     AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
+
+    TObjectProxyBase::BeforeInvoke(std::move(context));
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
+void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr context)
 {
     if (!AccessTrackingSuppressed) {
         SetAccessed();
     }
+
+    TObjectProxyBase::AfterInvoke(std::move(context));
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -815,6 +586,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
     bool recursive /*= false*/)
 {
     // NB: Cannot use |CachedNode| here.
+    CachedNode = nullptr;
     return LockImpl(TrunkNode, request, recursive);
 }
 
@@ -826,12 +598,12 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
 
 ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
 {
-    return dynamic_cast<ICypressNodeProxy*>(~node);
+    return dynamic_cast<ICypressNodeProxy*>(node.Get());
 }
 
 const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr node)
 {
-    return dynamic_cast<const ICypressNodeProxy*>(~node);
+    return dynamic_cast<const ICypressNodeProxy*>(node.Get());
 }
 
 std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateCustomAttributes()
@@ -864,7 +636,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* trunkNode = node->GetTrunkNode();
         auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
-        FOREACH (auto* descendant, descendants) {
+        for (auto* descendant : descendants) {
             ValidatePermission(descendant, permission);
         }
     }
@@ -894,7 +666,7 @@ void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
 {   
     auto node = GetResolver()->ResolvePath(path);
-    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~node);
+    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
     YCHECK(nodeProxy);
     return nodeProxy;
 }
@@ -918,8 +690,15 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
     return TClusterResources(0, 1);
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+NLog::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
 {
+    return CypressServerLogger;
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
+{
+    DeclareMutating();
+
     auto mode = ELockMode(request->mode());
     bool waitable = request->waitable();
 
@@ -932,7 +711,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     }
 
     context->SetRequestInfo("Mode: %s, Waitable: %s",
-        ~mode.ToString(),
+        ~ToString(mode),
         ~FormatBool(waitable));
 
     ValidateTransaction();
@@ -955,13 +734,15 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
+    DeclareMutating();
+
     auto type = EObjectType(request->type());
-    auto path = context->GetPath();
+    const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
-        ~type.ToString(),
+        ~ToString(type),
         ~FormatBool(request->ignore_existing()),
         ~FormatBool(request->recursive()));
 
@@ -992,7 +773,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto newProxy = factory->CreateNode(
         type,
-        ~attributes,
+        attributes.get(),
         request,
         response);
 
@@ -1005,12 +786,14 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
+    DeclareMutating();
+
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();
-    auto targetPath = context->GetPath();
+    auto targetPath = GetRequestYPath(context);
 
     context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s, RemoveSource: %s",
         ~sourcePath,
@@ -1153,14 +936,14 @@ void TMapNodeProxy::Clear()
     typedef std::pair<Stroka, TCypressNodeBase*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChild.size());
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
         auto* childImpl = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, childImpl));
     }
 
     // Insert tombstones (if in transaction).
-    FOREACH (const auto& pair, children) {
+    for (const auto& pair : children) {
         const auto& key = pair.first;
         auto* child = pair.second;
         DoRemoveChild(impl, key, child);
@@ -1178,7 +961,7 @@ int TMapNodeProxy::GetChildCount() const
     // NB: No need to reverse transactions.
 
     int result = 0;
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
@@ -1195,7 +978,7 @@ std::vector< std::pair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 
     std::vector< std::pair<Stroka, INodePtr> > result;
     result.reserve(keyToChild.size());
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
     }
 
@@ -1207,7 +990,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
     auto keyToChild = GetMapNodeChildren(Bootstrap, TrunkNode, Transaction);
 
     std::vector<Stroka> result;
-    FOREACH (const auto& pair, keyToChild) {
+    for (const auto& pair : keyToChild) {
         result.push_back(pair.first);
     }
 
@@ -1309,7 +1092,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
-    FOREACH (const auto* currentTransaction, transactions) {
+    for (const auto* currentTransaction : transactions) {
         TVersionedNodeId versionedId(Object->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
@@ -1394,12 +1177,12 @@ void TListNodeProxy::Clear()
 
     // Lock children and collect impls.
     std::vector<TCypressNodeBase*> children;
-    FOREACH (auto* trunkChild, impl->IndexToChild()) {
+    for (auto* trunkChild : impl->IndexToChild()) {
         children.push_back(LockImpl(trunkChild));
     }
 
     // Detach children.
-    FOREACH (auto* child, children) {
+    for (auto* child : children) {
         DetachChild(Bootstrap, TrunkNode, child, true);
     }
 
@@ -1421,7 +1204,7 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
     const auto* impl = GetThisTypedImpl();
     const auto& indexToChild = impl->IndexToChild();
     result.reserve(indexToChild.size());
-    FOREACH (auto* child, indexToChild) {
+    for (auto* child : indexToChild) {
         result.push_back(GetProxy(child));
     }
     return result;
@@ -1620,10 +1403,10 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
+    const auto& method = context->GetMethod();
 
     auto propagate = [&] () -> TResolveResult {
-        if (verb == "Exists") {
+        if (method == "Exists") {
             auto proxy = FindTargetProxy();
             static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();
             return
@@ -1642,9 +1425,9 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle Remove and Create locally.
-            if (verb == "Remove" || verb == "Create") {
+            if (method == "Remove" || method == "Create") {
                 return TResolveResult::Here(path);
-            } else if (verb == "Exists") {
+            } else if (method == "Exists") {
                 return propagate();
             } else {
                 return TResolveResult::There(GetTargetProxy(), path);
@@ -1808,7 +1591,7 @@ void DelegateInvocation(
     typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
 
-    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetPath());
+    auto clientRequest = New<TClientRequest>(context->RequestHeader());
     clientRequest->MergeFrom(*serverRequest);
 
     auto clientResponse = ExecuteVerb(service, clientRequest).Get();

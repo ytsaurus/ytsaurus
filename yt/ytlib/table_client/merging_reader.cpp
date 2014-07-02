@@ -3,8 +3,8 @@
 #include "config.h"
 #include "table_chunk_reader.h"
 
-#include <ytlib/chunk_client/key.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 
 #include <core/misc/sync.h>
 #include <core/misc/heap.h>
@@ -18,6 +18,7 @@ namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +28,7 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    int result = CompareKeys(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey());
+    int result = CompareRows(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey());
     if (result == 0) {
         result = lhs->GetFacade()->GetTableIndex() - rhs->GetFacade()->GetTableIndex();
     }
@@ -54,7 +55,7 @@ public:
             TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
 
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             awaiter->Await(
                 reader->AsyncOpen(),
                 BIND([&] (TError error) {
@@ -67,15 +68,14 @@ public:
         awaiter->Complete().Get();
 
         if (!errors.empty()) {
-            TError wrappedError("Error opening merging reader");
-            wrappedError.InnerErrors() = errors;
-            THROW_ERROR wrappedError;
+            THROW_ERROR_EXCEPTION("Error opening merging reader")
+                << errors;
         }
 
         // Push all non-empty readers to the heap.
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             if (reader->GetFacade()) {
-                ReaderHeap.push_back(~reader);
+                ReaderHeap.push_back(reader.Get());
             }
         }
 
@@ -94,7 +94,7 @@ public:
             }
             auto* readerFacade = currentReader->GetFacade();
             if (readerFacade) {
-                AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+                AdjustHeapFront(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
             } else {
                 ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
                 ReaderHeap.pop_back();
@@ -109,7 +109,7 @@ public:
         }
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const NVersionedTableClient::TKey& GetKey() const override
     {
         return ReaderHeap.front()->GetFacade()->GetKey();
     }
@@ -117,7 +117,7 @@ public:
     virtual i64 GetSessionRowCount() const override
     {
         i64 total = 0;
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             total += reader->GetProvider()->GetRowCount();
         }
         return total;
@@ -127,7 +127,7 @@ public:
     {
         NChunkClient::NProto::TDataStatistics dataStatistics = NChunkClient::NProto::ZeroDataStatistics();
 
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             dataStatistics += reader->GetProvider()->GetDataStatistics();
         }
         return dataStatistics;
@@ -141,7 +141,7 @@ public:
     virtual i64 GetSessionRowIndex() const override
     {
         i64 total = 0;
-        FOREACH (const auto& reader, Readers) {
+        for (const auto& reader : Readers) {
             total += reader->GetProvider()->GetRowIndex();
         }
         return total;
@@ -155,7 +155,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         std::vector<TChunkId> result;
-        FOREACH (auto reader, Readers) {
+        for (auto reader : Readers) {
             auto part = reader->GetFailedChunkIds();
             result.insert(result.end(), part.begin(), part.end());
         }

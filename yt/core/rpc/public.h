@@ -8,13 +8,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IClientRequest;
-typedef TIntrusivePtr<IClientRequest> IClientRequestPtr;
-
 class TClientRequest;
-
-struct IClientResponseHandler;
-typedef TIntrusivePtr<IClientResponseHandler> IClientResponseHandlerPtr;
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest;
@@ -24,45 +18,42 @@ class TClientResponse;
 template <class TResponseMessage>
 class TTypedClientResponse;
 
-class TOneWayClientResponse;
-typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
+struct TServiceId;
 
-class TRetryingChannelConfig;
-typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IClientRequest)
+DECLARE_REFCOUNTED_STRUCT(IClientResponseHandler)
+DECLARE_REFCOUNTED_STRUCT(IServer)
+DECLARE_REFCOUNTED_STRUCT(IService)
+DECLARE_REFCOUNTED_STRUCT(IServiceContext)
+DECLARE_REFCOUNTED_STRUCT(IChannel)
+DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
 
-class TThrottlingChannelConfig;
-typedef TIntrusivePtr<TThrottlingChannelConfig> TThrottlingChannelConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TClientContext)
+DECLARE_REFCOUNTED_CLASS(TServiceBase)
+DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
+DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
+DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
 
-struct IServer;
-typedef TIntrusivePtr<IServer> IServerPtr;
+////////////////////////////////////////////////////////////////////////////////
 
-struct IService;
-typedef TIntrusivePtr<IService> IServicePtr;
-
-struct IServiceContext;
-typedef TIntrusivePtr<IServiceContext> IServiceContextPtr;
-
-struct IChannel;
-typedef TIntrusivePtr<IChannel> IChannelPtr;
-
-class TChannelCache;
-
-class TServiceBase;
-typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;
-
-class TServerConfig;
-typedef TIntrusivePtr<TServerConfig> TServerConfigPtr;
-
-class TServiceConfig;
-typedef TIntrusivePtr<TServiceConfig> TServiceConfigPtr;
-
-class TMethodConfig;
-typedef TIntrusivePtr<TMethodConfig> TMethodConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TServerConfig)
+DECLARE_REFCOUNTED_CLASS(TServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TMethodConfig)
+DECLARE_REFCOUNTED_CLASS(TRetryingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TBalancingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TGuid TRequestId;
 extern const TRequestId NullRequestId;
+
+typedef TGuid TRealmId;
+extern const TRealmId NullRealmId;
+
+typedef TGuid TMutationId;
+extern const TMutationId NullMutationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +61,7 @@ DECLARE_ENUM(EErrorCode,
     ((TransportError)  (100))
     ((ProtocolError)   (101))
     ((NoSuchService)   (102))
-    ((NoSuchVerb)      (103))
+    ((NoSuchMethod)    (103))
     ((Timeout)         (104))
     ((Unavailable)     (105))
     ((PoisonPill)      (106))

@@ -14,9 +14,9 @@ def parse(stream):
         yield {"system": "scheduler", "time": time, "log_level": log_level, "subsystem": system, "value": value}
 
 if __name__ == "__main__":
-    yt.config.DEFAULT_FORMAT = yt.DsvFormat() 
+    yt.config.DEFAULT_FORMAT = yt.DsvFormat()
 
     table_name = sys.argv[1]
     records = parse(sys.stdin)
-    lines = imap(yt.record_to_line, records)
+    lines = imap(yt.dumps_row, records)
     yt.write_table(table_name, lines)

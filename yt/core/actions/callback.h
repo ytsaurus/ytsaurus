@@ -106,13 +106,16 @@
 
 #include <core/misc/mpl.h>
 
-#ifdef ENABLE_BIND_LOCATION_TRACKING
-    #include <core/misc/source_location.h>
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+#include <core/misc/source_location.h>
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TErrorOr;
 
 template <class T>
 TPromise<T> NewPromise();
@@ -134,8 +137,8 @@ TPromise<T> NewPromise();
 
 namespace NDetail {
 
-template <class Runnable, class Signature, class BoundArgs>
-class TBindState;
+template <class TRunnable, class TSignature, class TBoundArgs>
+struct TBindState;
 
 // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
 template <class R>
@@ -144,10 +147,7 @@ struct TFutureHelper
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 0
-    };
+    static const bool WrappedInFuture = false;
 };
 
 template <class R>
@@ -156,10 +156,7 @@ struct TFutureHelper< TFuture<R> >
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 1
-    };
+    static const bool WrappedInFuture = true;
 };
 
 template <class R>
@@ -168,10 +165,7 @@ struct TFutureHelper< TPromise<R> >
     typedef TFuture<R> TFutureType;
     typedef TPromise<R> TPromiseType;
     typedef R TValueType;
-    enum
-    {
-        WrappedInFuture = 1
-    };
+    static const bool WrappedInFuture = true;
 };
 
 } // namespace NDetail
@@ -182,7 +176,7 @@ class TCallback<R(TArgs...)>
     : public NYT::NDetail::TCallbackBase
 {
 public:
-    typedef R(Signature)(TArgs...);
+    typedef R(TSignature)(TArgs...);
 
     TCallback()
         : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
@@ -196,23 +190,24 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    template <class Runnable, class Signature, class BoundArgs>
+    template <class TRunnable, class TSignature, class TBoundArgs>
     explicit TCallback(TIntrusivePtr<
-            NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
+            NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
         >&& bindState)
         : TCallbackBase(std::move(bindState))
     {
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
-        TTypedInvokeFunction invokeFunction =
-            &NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
+        auto invokeFunction =
+            &NYT::NDetail::TBindState<TRunnable, TSignature, TBoundArgs>
             ::TInvokerType::Run;
         UntypedInvoke =
             reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
-    using TCallbackBase::Equals;
+    using TCallbackBase::operator ==;
+    using TCallbackBase::operator !=;
 
     TCallback& operator=(const TCallback& other)
     {
@@ -228,29 +223,30 @@ public:
 
     R Run(TArgs... args) const
     {
-        TTypedInvokeFunction invokeFunction =
-            reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
-        return invokeFunction(BindState.Get(),
+        auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
+        return invokeFunction(
+            BindState.Get(),
             std::forward<TArgs>(args)...);
     }
 
-    // XXX(sandello): This is legacy. Due to forced migration to new callbacks.
+
     TCallback Via(TIntrusivePtr<IInvoker> invoker);
+
     TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType(TArgs...)>
     AsyncVia(TIntrusivePtr<IInvoker> invoker);
 
+    // TODO(babenko): currently only implemented for simple return types (no TErrorOr).
+    TCallback<TErrorOr<R>(TArgs...)> Guarded();
+
 private:
     typedef R(*TTypedInvokeFunction)(
-        NYT::NDetail::TBindStateBase*, TArgs&& ...);
+        NYT::NDetail::TBindStateBase*,
+        TArgs&& ...);
 
 };
-// Syntactic sugar to make Callbacks<void()> easier to declare since it
-// will be used in a lot of APIs with delayed execution.
-typedef TCallback<void()> TClosure;
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
 } // namespace NYT
 
 #include "bind.h"
-#include "callback_via.h"

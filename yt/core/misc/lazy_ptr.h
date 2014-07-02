@@ -4,6 +4,8 @@
 
 #include <core/actions/callback.h>
 
+#include <core/tracing/trace_context.h>
+
 #include <util/system/spinlock.h>
 
 namespace NYT
@@ -38,10 +40,11 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
+                NTracing::TNullTraceContextGuard guard;
                 Value = Factory.Run();
             }
         }
-        return ~Value;
+        return Value.Get();
     }
 
     bool HasValue() const throw()
@@ -55,14 +58,6 @@ private:
     mutable TIntrusivePtr<T> Value;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-T* operator ~ (const TLazyIntrusivePtr<T>& ptr)
-{
-    return ptr.Get();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,10 +88,11 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
+                NTracing::TNullTraceContextGuard guard;
                 Value.reset(Factory.Run());
             }
         }
-        return ~Value;
+        return Value.get();
     }
 
     bool HasValue() const throw()
@@ -110,14 +106,6 @@ private:
     mutable std::unique_ptr<T> Value;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-T* operator ~ (const TLazyUniquePtr<T>& ptr)
-{
-    return ptr.Get();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

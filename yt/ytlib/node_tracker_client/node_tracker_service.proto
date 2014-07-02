@@ -3,7 +3,9 @@ package NYT.NNodeTrackerClient.NProto;
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +15,8 @@ message TChunkAddInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required bool cached = 2;
-    required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 3;
+    required bool active = 3;
+    required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 4;
 }
 
 message TChunkRemoveInfo
@@ -53,20 +56,78 @@ message TRspFullHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TTabletSlotInfo
+{
+    // Null GUID indicates empty slot.
+    required NYT.NProto.TGuid cell_guid = 1;
+    required int32 peer_state = 2;
+    required int32 peer_id = 3;
+    required int32 config_version = 4;
+}
+
+message THiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required int32 config_version = 2;
+}
+
 message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
 
     // Node Tracker stuff.
     required TNodeStatistics statistics = 2;
-    repeated string alerts = 5;
+    repeated string alerts = 3;
 
     // Chunk Manager stuff.
-    repeated TChunkAddInfo added_chunks = 3;
-    repeated TChunkRemoveInfo removed_chunks = 4;
+    repeated TChunkAddInfo added_chunks = 4;
+    repeated TChunkRemoveInfo removed_chunks = 5;
+
+    // Tablet Manager stuff.
+    repeated TTabletSlotInfo tablet_slots = 6;
+
+    // Hive Manager stuff.
+    repeated THiveCellInfo hive_cells = 7;
+}
+
+message TCreateTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TConfigureTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NHydra.NProto.TCellConfig config = 2;
+    required int32 peer_id = 3;
+}
+
+message TRemoveTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TUnregisterHiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TReconfigureHiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NHydra.NProto.TCellConfig config = 2;
 }
 
 message TRspIncrementalHeartbeat
-{ }
+{
+    // Tablet Manager stuff.
+    repeated TCreateTabletSlotInfo tablet_slots_to_create = 1;
+    repeated TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
+    repeated TConfigureTabletSlotInfo tablet_slots_configure = 3;
+
+    // Hive Manager stuff.
+    repeated TUnregisterHiveCellInfo hive_cells_to_unregister = 4;
+    repeated TReconfigureHiveCellInfo hive_cells_to_reconfigure = 5;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

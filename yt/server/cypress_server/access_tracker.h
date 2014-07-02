@@ -43,20 +43,16 @@ private:
     TCypressManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NProto::TMetaReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
+    NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void Reset();
-
     void OnFlush();
-    void OnCommitSucceeded();
-    void OnCommitFailed(const TError& error);
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 

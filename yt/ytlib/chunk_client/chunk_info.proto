@@ -1,0 +1,19 @@
+package NYT.NChunkClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkInfo
+{
+    // Exact full size (data size plus meta size).
+    // For erasure chunks this is the sum for all parts.
+    // For journal chunks this is zero.
+    optional int64 disk_space = 1 [default = 0];
+
+    // For journal chunks only.
+    optional int32 record_count = 2 [default = 0];
+
+    // For journal chunks only.
+    optional bool sealed = 3 [default = false];
+}
+
+////////////////////////////////////////////////////////////////////////////////

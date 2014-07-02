@@ -15,20 +15,17 @@ namespace NFS {
 //! File suffix for temporary files.
 const char* const TempFileSuffix = "~";
 
-//! Removes file.
-/*!
- * \param name File name
- * \return True when succeeds
- */
-bool Remove(const Stroka& name);
+//! Returns |true| if a given path points to an existing file or directory.
+bool Exists(const Stroka& path);
 
-//! Renames file.
-/*!
- * \param oldName Old name
- * \param newName New name
- * \return True when succeeds
- */
-bool Rename(const Stroka& oldName, const Stroka& newName);
+//! Removes a given file or directory. Throws on failure.
+void Remove(const Stroka& path);
+
+//! Removes a given directory recursively. Throws on failure.
+void RemoveRecursive(const Stroka& path);
+
+//! Renames a given file or directory. Throws on failure.
+void Rename(const Stroka& oldPath, const Stroka& newPath);
 
 //! Returns name of file.
 Stroka GetFileName(const Stroka& path);
@@ -48,13 +45,17 @@ Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
 //! Deletes all files with extension #TempFileSuffix in a given directory.
 void CleanTempFiles(const Stroka& path);
 
-//! Deletes all files in a given directory.
-void CleanFiles(const Stroka& path);
+//! Returns all files in a given directory.
+std::vector<Stroka> EnumerateFiles(const Stroka& path, int depth = 1);
+
+//! Returns all directories in a given directory.
+std::vector<Stroka> EnumerateDirectories(const Stroka& path, int depth = 1);
 
 //! Describes total, free, and available space on a disk drive.
 struct TDiskSpaceStatistics
 {
     i64 TotalSpace;
+    i64 FreeSpace;
     i64 AvailableSpace;
 };
 
@@ -82,7 +83,13 @@ void SetExecutableMode(const Stroka& path, bool executable);
 //! Makes a symbolic link on file #fileName with #linkName.
 void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath);
 
+//! Returns |true| if given paths refer to the same inode.
+//! Always returns |false| under Windows.
 bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
+
+//! Returns the home directory of the current user.
+//! Interestingly, implemented for both Windows and *nix.
+Stroka GetHomePath();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,15 +9,14 @@
 
 #include <ytlib/ypath/rich.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/file_client/config.h>
+#include <ytlib/api/config.h>
 
-#include <ytlib/meta_state/public.h>
-#include <ytlib/meta_state/config.h>
+#include <ytlib/table_client/config.h>
+
+#include <ytlib/formats/format.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <core/formats/format.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -30,7 +29,7 @@ class TJobIOConfig
 public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
-    NFileClient::TFileWriterConfigPtr ErrorFileWriter;
+    NApi::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {
@@ -66,7 +65,7 @@ public:
     EUnavailableChunkAction UnavailableChunkTactics;
 
     TNullable<int> MaxFailedJobCount;
-    TNullable<int> MaxStdErrCount;
+    TNullable<int> MaxStderrCount;
 
     bool JobProxyMemoryControl;
 
@@ -88,7 +87,7 @@ public:
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
-        RegisterParameter("max_stderr_count", MaxStdErrCount)
+        RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(Null);
 
         RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
@@ -218,8 +217,8 @@ public:
     {
         TOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 
@@ -298,8 +297,8 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePath = OutputTablePath.Simplify();
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
     }
 };
 
@@ -335,7 +334,7 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        TablePath = TablePath.Simplify();
+        TablePath = TablePath.Normalize();
     }
 };
 
@@ -371,8 +370,8 @@ public:
     {
         TMergeOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 
@@ -450,7 +449,7 @@ public:
     {
         TOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
     }
 };
 
@@ -516,7 +515,7 @@ public:
     {
         TSortOperationSpecBase::OnLoaded();
 
-        OutputTablePath = OutputTablePath.Simplify();
+        OutputTablePath = OutputTablePath.Normalize();
     }
 };
 
@@ -601,7 +600,7 @@ public:
             ReduceBy = SortBy;
         }
 
-        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
     }
 };
 
@@ -644,8 +643,8 @@ public:
     {
         TOperationSpecBase::OnLoaded();
 
-        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
-        OutputTablePath.Simplify();
+        InputTablePaths = NYPath::Normalize(InputTablePaths);
+        OutputTablePath = OutputTablePath.Normalize();
     }
 };
 
@@ -782,6 +781,8 @@ public:
             .Default(TDuration::Seconds(60));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////
 

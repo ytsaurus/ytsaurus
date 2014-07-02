@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/yson/public.h>
+#include <core/ytree/yson_producer.h>
 
 namespace NYT {
 
@@ -66,7 +66,7 @@ public:
     }
 
     Stroka GetDebugInfo(int sortByColumn = -1) const;
-    void GetMonitoringInfo(NYson::IYsonConsumer* consumer) const;
+    NYTree::TYsonProducer GetMonitoringProducer() const;
 
     i64 GetObjectsAllocated(TKey key);
     i64 GetObjectsAlive(TKey key);

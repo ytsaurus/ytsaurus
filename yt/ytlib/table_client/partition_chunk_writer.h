@@ -6,13 +6,15 @@
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/compression/public.h>
+#include <core/yson/lexer.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 namespace NYT {
@@ -31,7 +33,7 @@ public:
     void WriteRowUnsafe(const TRow& row);
 
     // Required by SyncWriterAdapter.
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
 
 private:
     friend class TPartitionChunkWriter;
@@ -51,19 +53,16 @@ class TPartitionChunkWriter
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
 
 public:
-    typedef TPartitionChunkWriterProvider TProvider;
-    typedef TPartitionChunkWriterFacade TFacade;
-
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter,
+        NChunkClient::IWriterPtr chunkWriter,
         IPartitioner* partitioner);
 
     ~TPartitionChunkWriter();
 
-    TFacade* GetFacade();
-    TAsyncError AsyncClose();
+    TPartitionChunkWriterFacade* GetFacade();
+    TAsyncError Close();
 
     i64 GetMetaSize() const;
 
@@ -82,6 +81,9 @@ private:
 
     i64 BasicMetaSize;
 
+    NVersionedTableClient::TKey PartitionKey;
+    TChunkedMemoryPool Pool;
+
     NProto::TPartitionsExt PartitionsExt;
 
     void PrepareBlock();
@@ -95,12 +97,15 @@ class TPartitionChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TPartitionChunkWriter TChunkWriter;
+    typedef TPartitionChunkWriterFacade TFacade;
+
     TPartitionChunkWriterProvider(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IPartitioner* partitioner);
 
-    TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TPartitionChunkWriterPtr writer);
 

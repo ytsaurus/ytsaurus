@@ -5,7 +5,7 @@
 
 #include <core/misc/fs.h>
 
-#include <yt/build.h>
+#include <core/build.h>
 
 namespace NYT {
 namespace NLog {
@@ -24,9 +24,9 @@ TLogEvent GetBannerEvent()
         SystemLoggingCategory,
         ELogLevel::Info,
         Sprintf("Logging started (Version: %s, BuildHost: %s, BuildTime: %s)",
-            YT_VERSION,
-            YT_BUILD_HOST,
-            YT_BUILD_TIME));
+            GetVersion(),
+            GetBuildHost(),
+            GetBuildTime()));
 }
 
 } // namespace
@@ -42,19 +42,27 @@ void TStreamLogWriter::Write(const TLogEvent& event)
         return;
     }
 
-    auto* buffer = ~Buffer_;
+    auto* buffer = Buffer_.get();
     buffer->Reset();
 
     FormatDateTime(buffer, event.DateTime);
     buffer->AppendChar('\t');
-    FormatLevel(~Buffer_, event.Level);
+    FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
     buffer->AppendString(~event.Category);
     buffer->AppendChar('\t');
     FormatMessage(buffer, event.Message);
     buffer->AppendChar('\t');
-    if (event.ThreadId != 0) {
+    if (event.ThreadId != NConcurrency::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
+    }
+    buffer->AppendChar('\t');
+    if (event.FiberId != NConcurrency::InvalidFiberId) {
+        buffer->AppendNumber(event.FiberId, 16);
+    }
+    buffer->AppendChar('\t');
+    if (event.TraceId != NTracing::InvalidTraceId) {
+        buffer->AppendNumber(event.TraceId, 16);
     }
     buffer->AppendChar('\n');
 
@@ -143,7 +151,7 @@ void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
         return;
     }
 
-    Stream_ = ~FileOutput_;
+    Stream_ = FileOutput_.get();
 
     if (writeTrailingNewline) {
         *FileOutput_ << Endl;

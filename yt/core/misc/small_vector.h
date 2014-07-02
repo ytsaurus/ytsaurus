@@ -1,4 +1,4 @@
-//===- llvm/ADT/TSmallVector.h - 'Normally small' vectors --------*- C++ -*-===//
+//===- llvm/ADT/SmallVector.h - 'Normally small' vectors --------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,13 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the TSmallVector class.
+// This file defines the SmallVector class.
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
-#include "mpl.h"
 
 #include <algorithm>
 #include <cassert>
@@ -23,6 +21,12 @@
 #include <iterator>
 #include <memory>
 
+#include "mpl.h"
+#include "align_of.h"
+
+#define LLVM_ATTRIBUTE_UNUSED_RESULT
+#define LLVM_HAS_RVALUE_REFERENCES 1
+
 namespace NYT {
 
 /// SmallVectorBase - This is all the non-templated stuff common to all
@@ -31,36 +35,13 @@ class SmallVectorBase {
 protected:
   void *BeginX, *EndX, *CapacityX;
 
-  // Allocate raw space for N elements of type T.  If T has a ctor or dtor, we
-  // don't want it to be automatically run, so we need to represent the space as
-  // something else.  An array of char would work great, but might not be
-  // aligned sufficiently.  Instead we use some number of union instances for
-  // the space, which guarantee maximal alignment.
-  union U {
-    double D;
-    // XXX(babenko): the following is commented out since hopefully we never need 16 bytes alignment
-    // long double LD;
-    long long L;
-    void *P;
-  } FirstEl;
-  // Space after 'FirstEl' is clobbered, do not add any instance vars after it.
-
 protected:
-  SmallVectorBase(size_t Size)
-    : BeginX(&CapacityX + 1), EndX(BeginX), CapacityX((char*)BeginX+Size) {}
-
-  /// isSmall - Return true if this is a smallvector which has not had dynamic
-  /// memory allocated for it.
-  bool isSmall() const {
-    // here we have dirty hack to get rid of FirstEl (in llvm no such dirty hack)
-    return BeginX == static_cast<const void*>(&CapacityX + 1);
-    // originally was:
-    //return BeginX == static_cast<const void*>(&FirstEl);
-  }
+  SmallVectorBase(void *FirstEl, size_t Size)
+    : BeginX(FirstEl), EndX(FirstEl), CapacityX((char*)FirstEl+Size) {}
 
   /// grow_pod - This is an implementation of the grow() method which only works
   /// on POD-like data types and is out of line to reduce code duplication.
-  void grow_pod(size_t MinSizeInBytes, size_t TSize);
+  void grow_pod(void *FirstEl, size_t MinSizeInBytes, size_t TSize);
 
 public:
   /// size_in_bytes - This returns size()*sizeof(T).
@@ -73,13 +54,44 @@ public:
     return size_t((char*)CapacityX - (char*)BeginX);
   }
 
-  bool empty() const { return BeginX == EndX; }
+  bool LLVM_ATTRIBUTE_UNUSED_RESULT empty() const { return BeginX == EndX; }
 };
 
-template <typename T>
+template <typename T, unsigned N> struct SmallVectorStorage;
+
+/// SmallVectorTemplateCommon - This is the part of SmallVectorTemplateBase
+/// which does not depend on whether the type T is a POD. The extra dummy
+/// template argument is used by ArrayRef to avoid unnecessarily requiring T
+/// to be complete.
+template <typename T, typename = void>
 class SmallVectorTemplateCommon : public SmallVectorBase {
+private:
+  template <typename, unsigned> friend struct SmallVectorStorage;
+
+  // Allocate raw space for N elements of type T.  If T has a ctor or dtor, we
+  // don't want it to be automatically run, so we need to represent the space as
+  // something else.  Use an array of char of sufficient alignment.
+  typedef AlignedCharArrayUnion<T> U;
+  U FirstEl;
+  // Space after 'FirstEl' is clobbered, do not add any instance vars after it.
+
 protected:
-  SmallVectorTemplateCommon(size_t Size) : SmallVectorBase(Size) {}
+  SmallVectorTemplateCommon(size_t Size) : SmallVectorBase(&FirstEl, Size) {}
+
+  void grow_pod(size_t MinSizeInBytes, size_t TSize) {
+    SmallVectorBase::grow_pod(&FirstEl, MinSizeInBytes, TSize);
+  }
+
+  /// isSmall - Return true if this is a smallvector which has not had dynamic
+  /// memory allocated for it.
+  bool isSmall() const {
+    return BeginX == static_cast<const void*>(&FirstEl);
+  }
+
+  /// resetToSmall - Put this vector in a state of being small.
+  void resetToSmall() {
+    BeginX = EndX = CapacityX = &FirstEl;
+  }
 
   void setEnd(T *P) { this->EndX = P; }
 public:
@@ -135,23 +147,27 @@ public:
   }
 
   reference front() {
+    assert(!empty());
     return begin()[0];
   }
   const_reference front() const {
+    assert(!empty());
     return begin()[0];
   }
 
   reference back() {
+    assert(!empty());
     return end()[-1];
   }
   const_reference back() const {
+    assert(!empty());
     return end()[-1];
   }
 };
 
-/// SmallVectorTemplateBase<NMpl::TIsPod = false> - This is where we put method
+/// SmallVectorTemplateBase<isPodLike = false> - This is where we put method
 /// implementations that are designed to work with non-POD-like T's.
-template <typename T, bool IsPod>
+template <typename T, bool isPodLike>
 class SmallVectorTemplateBase : public SmallVectorTemplateCommon<T> {
 protected:
   SmallVectorTemplateBase(size_t Size) : SmallVectorTemplateCommon<T>(Size) {}
@@ -163,22 +179,65 @@ protected:
     }
   }
 
-  /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
-  /// starting with "Dest", constructing elements into it as needed.
+  /// move - Use move-assignment to move the range [I, E) onto the
+  /// objects starting with "Dest".  This is just <memory>'s
+  /// std::move, but not all stdlibs actually provide that.
+  template <typename It1, typename It2>
+  static It2 move(It1 I, It1 E, It2 Dest) {
+#if LLVM_HAS_RVALUE_REFERENCES
+    for (; I != E; ++I, ++Dest)
+      *Dest = ::std::move(*I);
+    return Dest;
+#else
+    return ::std::copy(I, E, Dest);
+#endif
+  }
+
+  /// move_backward - Use move-assignment to move the range
+  /// [I, E) onto the objects ending at "Dest", moving objects
+  /// in reverse order.  This is just <algorithm>'s
+  /// std::move_backward, but not all stdlibs actually provide that.
+  template <typename It1, typename It2>
+  static It2 move_backward(It1 I, It1 E, It2 Dest) {
+#if LLVM_HAS_RVALUE_REFERENCES
+    while (I != E)
+      *--Dest = ::std::move(*--E);
+    return Dest;
+#else
+    return ::std::copy_backward(I, E, Dest);
+#endif
+  }
+
+  /// uninitialized_move - Move the range [I, E) into the uninitialized
+  /// memory starting with "Dest", constructing elements as needed.
+  template <typename It1, typename It2>
+  static void uninitialized_move(It1 I, It1 E, It2 Dest) {
+#if LLVM_HAS_RVALUE_REFERENCES
+    for (; I != E; ++I, ++Dest)
+      ::new ((void*) &*Dest) T(::std::move(*I));
+#else
+    ::std::uninitialized_copy(I, E, Dest);
+#endif
+  }
+
+  /// uninitialized_copy - Copy the range [I, E) onto the uninitialized
+  /// memory starting with "Dest", constructing elements as needed.
   template <typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     std::uninitialized_copy(I, E, Dest);
   }
 
-  /// grow - double the size of the allocated memory, guaranteeing space for at
-  /// least one more element or MinSize if specified.
+  /// grow - Grow the allocated memory (without initializing new
+  /// elements), doubling the size of the allocated memory.
+  /// Guarantees space for at least one more element, or MinSize more
+  /// elements if specified.
   void grow(size_t MinSize = 0);
 
 public:
   void push_back(const T &Elt) {
     if (this->EndX < this->CapacityX) {
     Retry:
-      new (this->end()) T(Elt);
+      ::new ((void*) this->end()) T(Elt);
       this->setEnd(this->end()+1);
       return;
     }
@@ -186,24 +245,50 @@ public:
     goto Retry;
   }
 
+#if LLVM_HAS_RVALUE_REFERENCES
+  void push_back(T &&Elt) {
+    if (this->EndX < this->CapacityX) {
+    Retry:
+      ::new ((void*) this->end()) T(::std::move(Elt));
+      this->setEnd(this->end()+1);
+      return;
+    }
+    this->grow();
+    goto Retry;
+  }
+#endif
+
   void pop_back() {
     this->setEnd(this->end()-1);
     this->end()->~T();
   }
 };
 
+/// NextPowerOf2 - Returns the next power of two (in 64-bits)
+/// that is strictly greater than A.  Returns zero on overflow.
+inline uint64_t NextPowerOf2(uint64_t A) {
+  A |= (A >> 1);
+  A |= (A >> 2);
+  A |= (A >> 4);
+  A |= (A >> 8);
+  A |= (A >> 16);
+  A |= (A >> 32);
+  return A + 1;
+}
+
 // Define this out-of-line to dissuade the C++ compiler from inlining it.
-template <typename T, bool IsPod>
-void SmallVectorTemplateBase<T, IsPod>::grow(size_t MinSize) {
+template <typename T, bool isPodLike>
+void SmallVectorTemplateBase<T, isPodLike>::grow(size_t MinSize) {
   size_t CurCapacity = this->capacity();
   size_t CurSize = this->size();
-  size_t NewCapacity = 2*CurCapacity + 1; // Always grow, even from zero.
+  // Always grow, even from zero.  
+  size_t NewCapacity = size_t(NextPowerOf2(CurCapacity+2));
   if (NewCapacity < MinSize)
     NewCapacity = MinSize;
   T *NewElts = static_cast<T*>(malloc(NewCapacity*sizeof(T)));
 
-  // Copy the elements over.
-  this->uninitialized_copy(this->begin(), this->end(), NewElts);
+  // Move the elements over.
+  this->uninitialized_move(this->begin(), this->end(), NewElts);
 
   // Destroy the original elements.
   destroy_range(this->begin(), this->end());
@@ -218,7 +303,7 @@ void SmallVectorTemplateBase<T, IsPod>::grow(size_t MinSize) {
 }
 
 
-/// SmallVectorTemplateBase<NMpl::TIsPod = true> - This is where we put method
+/// SmallVectorTemplateBase<Nmpl::TIsPod = true> - This is where we put method
 /// implementations that are designed to work with POD-like T's.
 template <typename T>
 class SmallVectorTemplateBase<T, true> : public SmallVectorTemplateCommon<T> {
@@ -227,6 +312,29 @@ protected:
 
   // No need to do a destroy loop for POD's.
   static void destroy_range(T *, T *) {}
+
+  /// move - Use move-assignment to move the range [I, E) onto the
+  /// objects starting with "Dest".  For PODs, this is just memcpy.
+  template <typename It1, typename It2>
+  static It2 move(It1 I, It1 E, It2 Dest) {
+    return ::std::copy(I, E, Dest);
+  }
+
+  /// move_backward - Use move-assignment to move the range
+  /// [I, E) onto the objects ending at "Dest", moving objects
+  /// in reverse order.
+  template <typename It1, typename It2>
+  static It2 move_backward(It1 I, It1 E, It2 Dest) {
+    return ::std::copy_backward(I, E, Dest);
+  }
+
+  /// uninitialized_move - Move the range [I, E) onto the uninitialized memory
+  /// starting with "Dest", constructing elements into it as needed.
+  template <typename It1, typename It2>
+  static void uninitialized_move(It1 I, It1 E, It2 Dest) {
+    // Just do a copy.
+    uninitialized_copy(I, E, Dest);
+  }
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
@@ -240,7 +348,7 @@ protected:
   /// starting with "Dest", constructing elements into it as needed.
   template <typename T1, typename T2>
   static void uninitialized_copy(T1 *I, T1 *E, T2 *Dest) {
-    // Use memcpy for PODs iterated by pointers (which includes TSmallVector
+    // Use memcpy for PODs iterated by pointers (which includes SmallVector
     // iterators): std::uninitialized_copy optimizes to memmove, but we can
     // use memcpy here.
     memcpy(Dest, I, (E-I)*sizeof(T));
@@ -255,7 +363,7 @@ public:
   void push_back(const T &Elt) {
     if (this->EndX < this->CapacityX) {
     Retry:
-      *this->end() = Elt;
+      memcpy(this->end(), &Elt, sizeof(T));
       this->setEnd(this->end()+1);
       return;
     }
@@ -270,7 +378,7 @@ public:
 
 
 /// SmallVectorImpl - This class consists of common code factored out of the
-/// TSmallVector class to reduce code duplication based on the TSmallVector 'N'
+/// SmallVector class to reduce code duplication based on the SmallVector 'N'
 /// template parameter.
 template <typename T>
 class SmallVectorImpl : public SmallVectorTemplateBase<T, NMpl::TIsPod<T>::Value> {
@@ -332,15 +440,19 @@ public:
       this->grow(N);
   }
 
-  T pop_back_val() {
+  T LLVM_ATTRIBUTE_UNUSED_RESULT pop_back_val() {
+#if LLVM_HAS_RVALUE_REFERENCES
+    T Result = ::std::move(this->back());
+#else
     T Result = this->back();
+#endif
     this->pop_back();
     return Result;
   }
 
   void swap(SmallVectorImpl &RHS);
 
-  /// append - Add the specified range to the end of the TSmallVector.
+  /// append - Add the specified range to the end of the SmallVector.
   ///
   template <typename in_iter>
   void append(in_iter in_start, in_iter in_end) {
@@ -356,7 +468,7 @@ public:
     this->setEnd(this->end() + NumInputs);
   }
 
-  /// append - Add the specified range to the end of the TSmallVector.
+  /// append - Add the specified range to the end of the SmallVector.
   ///
   void append(size_type NumInputs, const T &Elt) {
     // Grow allocated space if needed.
@@ -376,24 +488,74 @@ public:
     std::uninitialized_fill(this->begin(), this->end(), Elt);
   }
 
+  template <class other_iterator>
+  void assign(other_iterator begin, other_iterator end) {
+    unsigned NumElts = std::distance(begin, end);
+    clear();
+    if (this->capacity() < NumElts)
+      this->grow(NumElts);
+    this->setEnd(this->begin()+NumElts);
+    std::uninitialized_copy(begin, end, this->begin());
+  }
+
   iterator erase(iterator I) {
+    assert(I >= this->begin() && "Iterator to erase is out of bounds.");
+    assert(I < this->end() && "Erasing at past-the-end iterator.");
+
     iterator N = I;
     // Shift all elts down one.
-    std::copy(I+1, this->end(), I);
+    this->move(I+1, this->end(), I);
     // Drop the last elt.
     this->pop_back();
     return(N);
   }
 
   iterator erase(iterator S, iterator E) {
+    assert(S >= this->begin() && "Range to erase is out of bounds.");
+    assert(S <= E && "Trying to erase invalid range.");
+    assert(E <= this->end() && "Trying to erase past the end.");
+
     iterator N = S;
     // Shift all elts down.
-    iterator I = std::copy(E, this->end(), S);
+    iterator I = this->move(E, this->end(), S);
     // Drop the last elts.
     this->destroy_range(I, this->end());
     this->setEnd(I);
     return(N);
   }
+
+#if LLVM_HAS_RVALUE_REFERENCES
+  iterator insert(iterator I, T &&Elt) {
+    if (I == this->end()) {  // Important special case for empty vector.
+      this->push_back(::std::move(Elt));
+      return this->end()-1;
+    }
+
+    assert(I >= this->begin() && "Insertion iterator is out of bounds.");
+    assert(I <= this->end() && "Inserting past the end of the vector.");
+
+    if (this->EndX < this->CapacityX) {
+    Retry:
+      ::new ((void*) this->end()) T(::std::move(this->back()));
+      this->setEnd(this->end()+1);
+      // Push everything else over.
+      this->move_backward(I, this->end()-1, this->end());
+
+      // If we just moved the element we're inserting, be sure to update
+      // the reference.
+      T *EltPtr = &Elt;
+      if (I <= EltPtr && EltPtr < this->EndX)
+        ++EltPtr;
+
+      *I = ::std::move(*EltPtr);
+      return I;
+    }
+    size_t EltNo = I-this->begin();
+    this->grow();
+    I = this->begin()+EltNo;
+    goto Retry;
+  }
+#endif
 
   iterator insert(iterator I, const T &Elt) {
     if (I == this->end()) {  // Important special case for empty vector.
@@ -401,12 +563,15 @@ public:
       return this->end()-1;
     }
 
+    assert(I >= this->begin() && "Insertion iterator is out of bounds.");
+    assert(I <= this->end() && "Inserting past the end of the vector.");
+
     if (this->EndX < this->CapacityX) {
     Retry:
-      new (this->end()) T(this->back());
+      ::new ((void*) this->end()) T(this->back());
       this->setEnd(this->end()+1);
       // Push everything else over.
-      std::copy_backward(I, this->end()-1, this->end());
+      this->move_backward(I, this->end()-1, this->end());
 
       // If we just moved the element we're inserting, be sure to update
       // the reference.
@@ -424,13 +589,16 @@ public:
   }
 
   iterator insert(iterator I, size_type NumToInsert, const T &Elt) {
-    if (I == this->end()) {  // Important special case for empty vector.
-      append(NumToInsert, Elt);
-      return this->end()-1;
-    }
-
     // Convert iterator to elt# to avoid invalidating iterator when we reserve()
     size_t InsertElt = I - this->begin();
+
+    if (I == this->end()) {  // Important special case for empty vector.
+      append(NumToInsert, Elt);
+      return this->begin()+InsertElt;
+    }
+
+    assert(I >= this->begin() && "Insertion iterator is out of bounds.");
+    assert(I <= this->end() && "Inserting past the end of the vector.");
 
     // Ensure there is enough space.
     reserve(static_cast<unsigned>(this->size() + NumToInsert));
@@ -447,7 +615,7 @@ public:
       append(this->end()-NumToInsert, this->end());
 
       // Copy the existing elements that get replaced.
-      std::copy_backward(I, OldEnd-NumToInsert, OldEnd);
+      this->move_backward(I, OldEnd-NumToInsert, OldEnd);
 
       std::fill_n(I, NumToInsert, Elt);
       return I;
@@ -456,11 +624,11 @@ public:
     // Otherwise, we're inserting more elements than exist already, and we're
     // not inserting at the end.
 
-    // Copy over the elements that we're about to overwrite.
+    // Move over the elements that we're about to overwrite.
     T *OldEnd = this->end();
     this->setEnd(this->end() + NumToInsert);
     size_t NumOverwritten = OldEnd-I;
-    this->uninitialized_copy(I, OldEnd, this->end()-NumOverwritten);
+    this->uninitialized_move(I, OldEnd, this->end()-NumOverwritten);
 
     // Replace the overwritten part.
     std::fill_n(I, NumOverwritten, Elt);
@@ -472,14 +640,18 @@ public:
 
   template <typename ItTy>
   iterator insert(iterator I, ItTy From, ItTy To) {
-    if (I == this->end()) {  // Important special case for empty vector.
-      append(From, To);
-      return this->end()-1;
-    }
-
-    size_t NumToInsert = std::distance(From, To);
     // Convert iterator to elt# to avoid invalidating iterator when we reserve()
     size_t InsertElt = I - this->begin();
+
+    if (I == this->end()) {  // Important special case for empty vector.
+      append(From, To);
+      return this->begin()+InsertElt;
+    }
+
+    assert(I >= this->begin() && "Insertion iterator is out of bounds.");
+    assert(I <= this->end() && "Inserting past the end of the vector.");
+
+    size_t NumToInsert = std::distance(From, To);
 
     // Ensure there is enough space.
     reserve(static_cast<unsigned>(this->size() + NumToInsert));
@@ -496,7 +668,7 @@ public:
       append(this->end()-NumToInsert, this->end());
 
       // Copy the existing elements that get replaced.
-      std::copy_backward(I, OldEnd-NumToInsert, OldEnd);
+      this->move_backward(I, OldEnd-NumToInsert, OldEnd);
 
       std::copy(From, To, I);
       return I;
@@ -505,16 +677,16 @@ public:
     // Otherwise, we're inserting more elements than exist already, and we're
     // not inserting at the end.
 
-    // Copy over the elements that we're about to overwrite.
+    // Move over the elements that we're about to overwrite.
     T *OldEnd = this->end();
     this->setEnd(this->end() + NumToInsert);
     size_t NumOverwritten = OldEnd-I;
-    this->uninitialized_copy(I, OldEnd, this->end()-NumOverwritten);
+    this->uninitialized_move(I, OldEnd, this->end()-NumOverwritten);
 
     // Replace the overwritten part.
-    for (; NumOverwritten > 0; --NumOverwritten) {
-      *I = *From;
-      ++I; ++From;
+    for (T *J = I; NumOverwritten > 0; --NumOverwritten) {
+      *J = *From;
+      ++J; ++From;
     }
 
     // Insert the non-overwritten middle part.
@@ -522,8 +694,11 @@ public:
     return I;
   }
 
-  const SmallVectorImpl
-  &operator=(const SmallVectorImpl &RHS);
+  SmallVectorImpl &operator=(const SmallVectorImpl &RHS);
+
+#if LLVM_HAS_RVALUE_REFERENCES
+  SmallVectorImpl &operator=(SmallVectorImpl &&RHS);
+#endif
 
   bool operator==(const SmallVectorImpl &RHS) const {
     if (this->size() != RHS.size()) return false;
@@ -538,8 +713,8 @@ public:
                                         RHS.begin(), RHS.end());
   }
 
-  /// set_size - Set the array size to \arg N, which the current array must have
-  /// enough capacity for.
+  /// Set the array size to \p N, which the current array must have enough
+  /// capacity for.
   ///
   /// This does not construct or destroy any elements in the vector.
   ///
@@ -593,7 +768,7 @@ void SmallVectorImpl<T>::swap(SmallVectorImpl<T> &RHS) {
 }
 
 template <typename T>
-const SmallVectorImpl<T> &SmallVectorImpl<T>::
+SmallVectorImpl<T> &SmallVectorImpl<T>::
   operator=(const SmallVectorImpl<T> &RHS) {
   // Avoid self-assignment.
   if (this == &RHS) return *this;
@@ -620,6 +795,7 @@ const SmallVectorImpl<T> &SmallVectorImpl<T>::
 
   // If we have to grow to have enough elements, destroy the current elements.
   // This allows us to avoid copying them during the grow.
+  // FIXME: don't do this if they're efficiently moveable.
   if (this->capacity() < RHSSize) {
     // Destroy current elements.
     this->destroy_range(this->begin(), this->end());
@@ -640,8 +816,82 @@ const SmallVectorImpl<T> &SmallVectorImpl<T>::
   return *this;
 }
 
+#if LLVM_HAS_RVALUE_REFERENCES
+template <typename T>
+SmallVectorImpl<T> &SmallVectorImpl<T>::operator=(SmallVectorImpl<T> &&RHS) {
+  // Avoid self-assignment.
+  if (this == &RHS) return *this;
 
-/// TSmallVector - This is a 'vector' (really, a variable-sized array), optimized
+  // If the RHS isn't small, clear this vector and then steal its buffer.
+  if (!RHS.isSmall()) {
+    this->destroy_range(this->begin(), this->end());
+    if (!this->isSmall()) free(this->begin());
+    this->BeginX = RHS.BeginX;
+    this->EndX = RHS.EndX;
+    this->CapacityX = RHS.CapacityX;
+    RHS.resetToSmall();
+    return *this;
+  }
+
+  // If we already have sufficient space, assign the common elements, then
+  // destroy any excess.
+  size_t RHSSize = RHS.size();
+  size_t CurSize = this->size();
+  if (CurSize >= RHSSize) {
+    // Assign common elements.
+    iterator NewEnd = this->begin();
+    if (RHSSize)
+      NewEnd = this->move(RHS.begin(), RHS.end(), NewEnd);
+
+    // Destroy excess elements and trim the bounds.
+    this->destroy_range(NewEnd, this->end());
+    this->setEnd(NewEnd);
+
+    // Clear the RHS.
+    RHS.clear();
+
+    return *this;
+  }
+
+  // If we have to grow to have enough elements, destroy the current elements.
+  // This allows us to avoid copying them during the grow.
+  // FIXME: this may not actually make any sense if we can efficiently move
+  // elements.
+  if (this->capacity() < RHSSize) {
+    // Destroy current elements.
+    this->destroy_range(this->begin(), this->end());
+    this->setEnd(this->begin());
+    CurSize = 0;
+    this->grow(RHSSize);
+  } else if (CurSize) {
+    // Otherwise, use assignment for the already-constructed elements.
+    this->move(RHS.begin(), RHS.end(), this->begin());
+  }
+
+  // Move-construct the new elements in place.
+  this->uninitialized_move(RHS.begin()+CurSize, RHS.end(),
+                           this->begin()+CurSize);
+
+  // Set end.
+  this->setEnd(this->begin()+RHSSize);
+
+  RHS.clear();
+  return *this;
+}
+#endif
+
+/// Storage for the SmallVector elements which aren't contained in
+/// SmallVectorTemplateCommon. There are 'N-1' elements here. The remaining '1'
+/// element is in the base class. This is specialized for the N=1 and N=0 cases
+/// to avoid allocating unnecessary storage.
+template <typename T, unsigned N>
+struct SmallVectorStorage {
+  typename SmallVectorTemplateCommon<T>::U InlineElts[N - 1];
+};
+template <typename T> struct SmallVectorStorage<T, 1> {};
+template <typename T> struct SmallVectorStorage<T, 0> {};
+
+/// SmallVector - This is a 'vector' (really, a variable-sized array), optimized
 /// for the case when the array is small.  It contains some number of elements
 /// in-place, which allows it to avoid heap allocation when the actual number of
 /// elements is below that threshold.  This allows normal "small" cases to be
@@ -650,83 +900,49 @@ const SmallVectorImpl<T> &SmallVectorImpl<T>::
 /// Note that this does not attempt to be exception safe.
 ///
 template <typename T, unsigned N>
-class TSmallVector : public SmallVectorImpl<T> {
-  /// InlineElts - These are 'N-1' elements that are stored inline in the body
-  /// of the vector.  The extra '1' element is stored in SmallVectorImpl.
-  typedef typename SmallVectorImpl<T>::U U;
-  enum {
-    // MinUs - The number of U's require to cover N T's.
-    MinUs = (static_cast<unsigned int>(sizeof(T))*N +
-             static_cast<unsigned int>(sizeof(U)) - 1) /
-            static_cast<unsigned int>(sizeof(U)),
-
-    // NumInlineEltsElts - The number of elements actually in this array.  There
-    // is already one in the parent class, and we have to round up to avoid
-    // having a zero-element array.
-    NumInlineEltsElts = MinUs > 1 ? (MinUs - 1) : 1,
-
-    // NumTsAvailable - The number of T's we actually have space for, which may
-    // be more than N due to rounding.
-    NumTsAvailable = (NumInlineEltsElts+1)*static_cast<unsigned int>(sizeof(U))/
-                     static_cast<unsigned int>(sizeof(T))
-  };
-  U InlineElts[NumInlineEltsElts];
+class SmallVector : public SmallVectorImpl<T> {
+  /// Storage - Inline space for elements which aren't stored in the base class.
+  SmallVectorStorage<T, N> Storage;
 public:
-  TSmallVector() : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector() : SmallVectorImpl<T>(N) {
   }
 
-  explicit TSmallVector(unsigned Size, const T &Value = T())
-    : SmallVectorImpl<T>(NumTsAvailable) {
+  explicit SmallVector(unsigned Size, const T &Value = T())
+    : SmallVectorImpl<T>(N) {
     this->assign(Size, Value);
   }
 
   template <typename ItTy>
-  TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(N) {
     this->append(S, E);
   }
 
-  TSmallVector(const TSmallVector &RHS) : SmallVectorImpl<T>(NumTsAvailable) {
+  SmallVector(const SmallVector &RHS) : SmallVectorImpl<T>(N) {
     if (!RHS.empty())
       SmallVectorImpl<T>::operator=(RHS);
   }
 
-  const TSmallVector &operator=(const TSmallVector &RHS) {
+  const SmallVector &operator=(const SmallVector &RHS) {
     SmallVectorImpl<T>::operator=(RHS);
     return *this;
   }
 
-};
-
-/// Specialize TSmallVector at N=0.  This specialization guarantees
-/// that it can be instantiated at an incomplete T if none of its
-/// members are required.
-template <typename T>
-class TSmallVector<T,0> : public SmallVectorImpl<T> {
-public:
-  TSmallVector() : SmallVectorImpl<T>(0) {}
-
-  explicit TSmallVector(unsigned Size, const T &Value = T())
-    : SmallVectorImpl<T>(0) {
-    this->assign(Size, Value);
+#if LLVM_HAS_RVALUE_REFERENCES
+  SmallVector(SmallVector &&RHS) : SmallVectorImpl<T>(N) {
+    if (!RHS.empty())
+      SmallVectorImpl<T>::operator=(::std::move(RHS));
   }
 
-  template <typename ItTy>
-  TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(0) {
-    this->append(S, E);
+  const SmallVector &operator=(SmallVector &&RHS) {
+    SmallVectorImpl<T>::operator=(::std::move(RHS));
+    return *this;
   }
-
-  TSmallVector(const TSmallVector &RHS) : SmallVectorImpl<T>(0) {
-    SmallVectorImpl<T>::operator=(RHS);
-  }
-
-  TSmallVector &operator=(const SmallVectorImpl<T> &RHS) {
-    return SmallVectorImpl<T>::operator=(RHS);
-  }
+#endif
 
 };
 
 template <typename T, unsigned N>
-static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
+static inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
   return X.capacity_in_bytes();
 }
 
@@ -734,16 +950,19 @@ static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
 
 namespace std {
 
-/// Implement std::swap in terms of TSmallVector swap.
+  /// Implement std::swap in terms of SmallVector swap.
 template <typename T>
 inline void swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
 }
 
-/// Implement std::swap in terms of TSmallVector swap.
+/// Implement std::swap in terms of SmallVector swap.
 template <typename T, unsigned N>
-inline void swap(NYT::TSmallVector<T, N> &LHS, NYT::TSmallVector<T, N> &RHS) {
+inline void swap(NYT::SmallVector<T, N> &LHS, NYT::SmallVector<T, N> &RHS) {
     LHS.swap(RHS);
 }
 
 } // namespace std
+
+#undef LLVM_HAS_RVALUE_REFERENCES
+#undef LLVM_ATTRIBUTE_UNUSED_RESULT

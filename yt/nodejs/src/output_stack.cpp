@@ -83,7 +83,7 @@ void TNodeJSOutputStack::DoFinish()
 {
     GetBaseStream()->SetCompleted();
 
-    FOREACH (auto* current, *this) {
+    for (auto* current : *this) {
         current->Finish();
     }
 }

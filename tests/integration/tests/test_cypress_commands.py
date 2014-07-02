@@ -547,13 +547,6 @@ class TestCypressCommands(YTEnvSetup):
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
 
-    def test_link7(self):
-        tx = start_transaction()
-        set("//tmp/t1", 1, tx=tx)
-        link("//tmp/t1", "//tmp/l1", tx=tx)
-        assert get("//tmp/l1", tx=tx) == 1
-        abort_transaction(tx)
-
     def test_access_stat1(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
@@ -653,6 +646,12 @@ class TestCypressCommands(YTEnvSetup):
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2
 
+    def test_chunk_maps(self):
+        gc_collect()
+        assert get('//sys/chunks/@count') == 0
+        assert get('//sys/underreplicated_chunks/@count') == 0
+        assert get('//sys/overreplicated_chunks/@count') == 0
+
     def test_list_attributes(self):
         create('map_node', '//tmp/map', attributes={'user_attr1': 10})
         set('//tmp/map/@user_attr2', 'abc')
@@ -663,4 +662,3 @@ class TestCypressCommands(YTEnvSetup):
         
         create('file', '//tmp/file')
         assert get('//tmp/file/@user_attribute_keys') == []
-

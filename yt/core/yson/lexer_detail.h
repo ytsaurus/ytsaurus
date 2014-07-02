@@ -53,16 +53,16 @@ private:
     static EReadStartCase GetStartState(char ch)
     {
 #define NN EReadStartCase::None
-#define BS EReadStartCase::BinaryString	
-#define BI EReadStartCase::BinaryInteger	
-#define BD EReadStartCase::BinaryDouble	
+#define BS EReadStartCase::BinaryString
+#define BI EReadStartCase::BinaryInteger
+#define BD EReadStartCase::BinaryDouble
 #define SP NN 
         //EReadStartCase::Space
 #define DM EReadStartCase::DigitOrMinus
 #define ST EReadStartCase::String
 #define PL EReadStartCase::Plus
 #define QU EReadStartCase::Quote
-	
+
         static const ui8 lookupTable[] = 
         {
             NN,BS,BI,BD,NN,NN,NN,NN,NN,SP,SP,SP,SP,SP,NN,NN,
@@ -114,7 +114,7 @@ private:
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN
         };
-		
+
 #undef NN
 #undef BS
 #undef BI
@@ -183,7 +183,7 @@ public:
                     *token = TToken(value);
                 } else { // None
                     YASSERT(state == EReadStartCase::None);
-                    THROW_ERROR_EXCEPTION("Unexpected character %s",
+                    THROW_ERROR_EXCEPTION("Unexpected %s",
                         ~Stroka(ch).Quote());
                 }
             } else { // BinaryIntegerOrBinaryDouble = x01b
@@ -224,17 +224,19 @@ public:
             try {
                 *token = TToken(FromString<double>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to parse Double literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Error parsing double literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
         } else {
             try {
                 *token = TToken(FromString<i64>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to parse Integer literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Error parsing integer literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
         }
     } 

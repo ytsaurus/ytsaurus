@@ -145,13 +145,12 @@ inline T ParseEnum(
     return T::FromString(UnderscoreCaseToCamelCase(value));
 }
 
-
 template <class T>
 Stroka FormatEnum(
     T value,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0)
 {
-    return CamelCaseToUnderscoreCase(value.ToString());
+    return CamelCaseToUnderscoreCase(ToString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

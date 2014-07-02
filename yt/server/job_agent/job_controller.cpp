@@ -72,7 +72,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
 std::vector<IJobPtr> TJobController::GetJobs()
 {
     std::vector<IJobPtr> result;
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         result.push_back(pair.second);
     }
     return result;
@@ -87,9 +87,10 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);
     result.set_removal_slots(Config->ResourceLimits->RemovalSlots);
     result.set_repair_slots(Config->ResourceLimits->RepairSlots);
+    result.set_seal_slots(Config->ResourceLimits->SealSlots);
 
-    const auto& tracker = Bootstrap->GetMemoryUsageTracker();
-    result.set_memory(tracker.GetFree() + tracker.GetUsed(EMemoryConsumer::Job));
+    const auto* tracker = Bootstrap->GetMemoryUsageTracker();
+    result.set_memory(tracker->GetFree() + tracker->GetUsed(EMemoryConsumer::Job));
 
     return result;
 }
@@ -97,7 +98,7 @@ TNodeResources TJobController::GetResourceLimits()
 TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         if (includeWaiting || pair.second->GetState() != EJobState::Waiting) {
             auto usage = pair.second->GetResourceUsage();
             result += usage;
@@ -108,25 +109,25 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 
 void TJobController::StartWaitingJobs()
 {
-    auto& tracker = Bootstrap->GetMemoryUsageTracker();
+    auto* tracker = Bootstrap->GetMemoryUsageTracker();
 
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;
 
         auto usedResources = GetResourceUsage(false);
         {
-            auto memoryToRelease = tracker.GetUsed(EMemoryConsumer::Job) - usedResources.memory();
+            auto memoryToRelease = tracker->GetUsed(EMemoryConsumer::Job) - usedResources.memory();
             YCHECK(memoryToRelease >= 0);
-            tracker.Release(EMemoryConsumer::Job, memoryToRelease);
+            tracker->Release(EMemoryConsumer::Job, memoryToRelease);
         }
 
         auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
         if (Dominates(spareResources, jobResources)) {
-            auto error = tracker.TryAcquire(EMemoryConsumer::Job, jobResources.memory());
+            auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
                 LOG_INFO("Starting job (JobId: %s)", ~ToString(job->GetId()));
@@ -172,7 +173,7 @@ IJobPtr TJobController::CreateJob(
 
     LOG_INFO("Job created (JobId: %s, Type: %s)",
         ~ToString(jobId),
-        ~type.ToString());
+        ~ToString(type));
 
     YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();
@@ -234,8 +235,8 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
     }
 
     if (delta.memory() > 0) {
-        auto& tracker = Bootstrap->GetMemoryUsageTracker();
-        auto error = tracker.TryAcquire(EMemoryConsumer::Job, delta.memory());
+        auto* tracker = Bootstrap->GetMemoryUsageTracker();
+        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
         if (!error.IsOK()) {
             job->Abort(TError(
                 NExecAgent::EErrorCode::ResourceOverdraft,
@@ -278,7 +279,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage();
 
-    FOREACH (const auto& pair, Jobs) {
+    for (const auto& pair : Jobs) {
         auto job = pair.second;
         auto type = EJobType(job->GetSpec().type());
         auto state = job->GetState();
@@ -307,7 +308,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
 
 void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
 {
-    FOREACH (const auto& protoJobId, response->jobs_to_remove()) {
+    for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);
         auto job = FindJob(jobId);
         if (job) {
@@ -318,7 +319,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         }
     }
 
-    FOREACH (const auto& protoJobId, response->jobs_to_abort()) {
+    for (const auto& protoJobId : response->jobs_to_abort()) {
         auto jobId = FromProto<TJobId>(protoJobId);
         auto job = FindJob(jobId);
         if (job) {
@@ -329,7 +330,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         }
     }
 
-    FOREACH (auto& info, *response->mutable_jobs_to_start()) {
+    for (auto& info : *response->mutable_jobs_to_start()) {
         auto jobId = FromProto<TJobId>(info.job_id());
         const auto& resourceLimits = info.resource_limits();
         auto& spec = *info.mutable_spec();

@@ -2,6 +2,8 @@
 #include "chunk_replica.h"
 #include "chunk.h"
 
+#include <core/misc/string.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -16,16 +18,26 @@ using namespace NChunkClient;
 
 Stroka ToString(TNodePtrWithIndex value)
 {
-    return Sprintf("%s/%d", ~value.GetPtr()->GetAddress(), value.GetIndex());
+    return Sprintf("%s/%d",
+        ~value.GetPtr()->GetAddress(),
+        value.GetIndex());
 }
 
 Stroka ToString(TChunkPtrWithIndex value)
 {
     auto* chunk = value.GetPtr();
     int index = value.GetIndex();
-    return !chunk->IsErasure() || index == GenericChunkPartIndex
-        ? ToString(chunk->GetId())
-        : Sprintf("%s/%d", ~ToString(chunk->GetId()), index);
+    if (chunk->IsErasure() && index != GenericChunkReplicaIndex) {
+        return Sprintf("%s/%d",
+            ~ToString(chunk->GetId()),
+            index);
+    } else if (chunk->IsJournal()) {
+        return Sprintf("%s/%s",
+            ~ToString(chunk->GetId()),
+            ~FormatEnum(EJournalReplicaType(index)));
+    } else {
+        return ToString(chunk->GetId());
+    }
 }
 
 void ToProto(ui32* protoValue, TNodePtrWithIndex value)
@@ -39,9 +51,8 @@ void ToProto(ui32* protoValue, TNodePtrWithIndex value)
 TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
-    int index = chunkWithIndex.GetIndex();
-    return chunk->IsErasure() && index != GenericChunkPartIndex
-        ? ErasurePartIdFromChunkId(chunk->GetId(), index)
+    return chunk->IsErasure()
+        ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
         : chunk->GetId();
 }
 

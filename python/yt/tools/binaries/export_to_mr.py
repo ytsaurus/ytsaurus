@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 
-from yt.tools.atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list, REPEAT, CANCEL
 from yt.tools.common import update_args
 from yt.tools.mr import Mr
+from yt.wrapper.common import die
 
 import yt.logger as logger
 import yt.wrapper as yt
 
 import os
 import copy
+import sys
+import traceback
+import subprocess
 
 from argparse import ArgumentParser
 
@@ -21,9 +25,9 @@ def export_table(object, args):
         del object["dst"]
         params = update_args(args, object)
     else:
+        params = args
         src = object
         dst = os.path.join(params.destination_dir, src.strip("/"))
-        params = args
 
     mr = Mr(binary=params.mapreduce_binary,
             server=params.mr_server,
@@ -32,55 +36,73 @@ def export_table(object, args):
             proxies=params.mr_proxy,
             proxy_port=params.mr_proxy_port,
             fetch_info_from_http=params.fetch_info_from_http,
-            cache=False)
+            cache=False,
+            mr_user=params.mr_user)
 
-    logger.info("Exporting '%s' to '%s'", src, dst)
+    try:
+        logger.info("Exporting '%s' to '%s'", src, dst)
 
-    if not yt.exists(src):
-        logger.warning("Export table '%s' is empty", src)
-        return -1
+        if not yt.exists(src):
+            logger.warning("Export table '%s' is empty", src)
+            return CANCEL
 
-    if not mr.is_empty(dst):
-        if params.force:
-            mr.drop(dst)
+        if not mr.is_empty(dst):
+            if params.force:
+                mr.drop(dst)
+            else:
+                logger.error("Destination table '%s' is not empty" % dst)
+                return CANCEL
+
+        record_count = yt.records_count(src)
+
+        user_slots_path = "//sys/pools/{0}/@resource_limits/user_slots".format(params.yt_pool)
+        if not yt.exists(user_slots_path):
+            logger.error("Pool must have user slots limit")
+            return CANCEL
         else:
-            logger.error("Destination table '%s' is not empty" % dst)
-            return -1
+            limit = params.speed_limit / yt.get(user_slots_path)
 
-    record_count = yt.records_count(src)
+        use_fastbone = "-opt net_table=fastbone" if params.fastbone else ""
 
-    user_slots_path = "//sys/pools/{}/@resource_limits/user_slots".format(params.yt_pool)
-    if not yt.exists(user_slots_path):
-        logger.error("Use pool with bounded number of user slots")
-    else:
-        limit = params.speed_limit / yt.get(user_slots_path)
+        command = "pv -q -L {0} | "\
+            "{1} USER=tmp MR_USER={2} ./mapreduce -server {3} {4} -append -lenval -subkey -write {5}"\
+                .format(limit,
+                        params.opts,
+                        params.mr_user,
+                        mr.server,
+                        use_fastbone,
+                        dst)
+        logger.info("Running map '%s'", command)
+        yt.run_map(command, src, yt.create_temp_table(),
+                   files=mr.binary,
+                   format=yt.YamrFormat(has_subkey=True, lenval=True),
+                   memory_limit=2500 * yt.config.MB,
+                   spec={"pool": params.yt_pool,
+                         "data_size_per_job": 2 * 1024 * yt.config.MB})
 
-    command = "pv -q -L {} | "\
-        "{} USER=tmp MR_USER={} ./mapreduce -server {} -append -lenval -subkey -write {}"\
-            .format(limit,
-                    args.opts,
-                    params.mr_user,
-                    mr.server,
-                    dst)
-    logger.info("Running map '%s'", command)
-    yt.run_map(command, src, yt.create_temp_table(),
-               files=mr.binary,
-               format=yt.YamrFormat(has_subkey=True, lenval=True),
-               memory_limit=2500 * yt.config.MB,
-               spec={"pool": params.yt_pool,
-                     "data_size_per_job": 2 * 1024 * yt.config.MB})
-
-    result_record_count = mr.records_count(dst)
-    if record_count != result_record_count:
-        logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
-        mr.drop(dst)
-        return -1
+        result_record_count = mr.records_count(dst)
+        if record_count != result_record_count:
+            logger.error("Incorrect record count (expected: %d, actual: %d)", record_count, result_record_count)
+            mr.drop(dst)
+            return REPEAT
+    
+    except subprocess.CalledProcessError:
+        logger.exception("Mapreduce binary failed")
+        return CANCEL
+    except yt.YtOperationFailedError:
+        logger.exception("Operation failed")
+        return CANCEL
 
 
 def main():
+    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+
     parser = ArgumentParser()
     parser.add_argument("--tables-queue")
     parser.add_argument("--destination-dir")
+
+    parser.add_argument("--src")
+    parser.add_argument("--dst")
 
     parser.add_argument("--mr-server")
     parser.add_argument("--mr-server-port", default="8013")
@@ -93,15 +115,34 @@ def main():
 
     parser.add_argument("--speed-limit", type=int, default=500 * yt.config.MB)
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--skip-empty-tables", action="store_true", default=False,
+                        help="do not return empty source tables back to queue")
     parser.add_argument("--fastbone", action="store_true", default=False)
 
+    parser.add_argument("--yt-proxy")
     parser.add_argument("--yt-pool", default="export_restricted")
+
+    parser.add_argument("--opts", default="")
 
     args = parser.parse_args()
 
-    process_tasks_from_list(
-        args.tables_queue,
-        lambda obj: export_table(obj, args))
+    if args.yt_proxy is not None:
+        yt.config.set_proxy(args.yt_proxy)
+
+    if args.tables_queue is not None:
+        assert args.src is None and args.dst is None
+        process_tasks_from_list(
+            args.tables_queue,
+            lambda obj: export_table(obj, args))
+    else:
+        assert args.src is not None and args.dst is not None
+        export_table({"src": args.src, "dst": args.dst}, args)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except yt.YtError as error:
+        die(str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()

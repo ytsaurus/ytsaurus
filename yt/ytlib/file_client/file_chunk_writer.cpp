@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/encoding_writer.h>
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 namespace NYT {
@@ -17,21 +17,21 @@ using namespace NChunkClient;
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IAsyncWriterPtr chunkWriter)
+    IWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
-    , AsyncWriter(chunkWriter)
+    , ChunkWriter(chunkWriter)
     , Facade(this)
     , Size(0)
     , BlockCount(0)
-    , Logger(FileWriterLogger)
+    , Logger(FileClientLogger)
 { }
 
 TFileChunkWriter::~TFileChunkWriter()
 { }
 
-auto TFileChunkWriter::GetFacade() -> TFacade*
+TFileChunkWriterFacade* TFileChunkWriter::GetFacade()
 {
     if (State.IsActive() && EncodingWriter->IsReady()) {
         return &Facade;
@@ -68,7 +68,7 @@ void TFileChunkWriter::FlushBlock()
     ++BlockCount;
 }
 
-TAsyncError TFileChunkWriter::AsyncClose()
+TAsyncError TFileChunkWriter::Close()
 {
     YCHECK(!State.IsClosed());
 
@@ -76,9 +76,9 @@ TAsyncError TFileChunkWriter::AsyncClose()
 
     FlushBlock();
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TFileChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-        .Via(TDispatcher::Get()->GetWriterInvoker()));
+            .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
@@ -103,7 +103,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
-    AsyncWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
@@ -140,7 +140,7 @@ void TFileChunkWriter::Write(const TRef& data)
     Size += data.Size();
 }
 
-i64 TFileChunkWriter::GetCurrentSize() const
+i64 TFileChunkWriter::GetDataSize() const
 {
     return EncodingWriter->GetCompressedSize() + Buffer.Size();
 }
@@ -191,11 +191,11 @@ TFileChunkWriterProvider::TFileChunkWriterProvider(
     , ActiveWriters(0)
 { }
 
-TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriters == 0);
     ++ActiveWriters;
-    return New<TFileChunkWriter>(Config, Options, asyncWriter);
+    return New<TFileChunkWriter>(Config, Options, chunkWriter);
 }
 
 void TFileChunkWriterProvider::OnChunkFinished()
@@ -204,10 +204,8 @@ void TFileChunkWriterProvider::OnChunkFinished()
     YCHECK(ActiveWriters == 0);
 }
 
-void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr writer)
-{
-    UNUSED(writer);
-}
+void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr /*writer*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

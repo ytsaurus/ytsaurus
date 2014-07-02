@@ -11,6 +11,8 @@
 
 #include <server/cell_master/public.h>
 
+#include <util/generic/map.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -36,12 +38,14 @@ public:
         int replicaCount,
         const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
         int targetCount,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList GetRemovalTargets(
         TChunkPtrWithIndex chunkWithIndex,
@@ -55,23 +59,24 @@ public:
 
     TNode* AllocateBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillFactor);
+        double maxFillFactor,
+        NObjectClient::EObjectType chunkType);
 
 private:
-    TChunkManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
+    typedef ymultimap<double, TNode*> TFactorToNode;
+    typedef yhash_map<TNode*, TFactorToNode::iterator> TNodeToFactorIt;
 
-    std::vector<TNode*> LoadRankToNode;
+    TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
 
-    typedef ymultimap<double, TNode*> TFillFactorToNode;
-    typedef yhash_map<TNode*, TFillFactorToNode::iterator> TNodeToFillFactorIt;
+    std::vector<TNode*> LoadRankToNode_;
 
     //! Enables traversing nodes by increasing fill factor, which is useful for finding balancing targets.
     //! Nodes with the number of replication write sessions exceeding the limits are omitted.
-    TFillFactorToNode FillFactorToNode;
+    TFactorToNode FillFactorToNode_;
 
-    //! Provides backpointers from nodes to positions in #FillFactorToNode.
-    TNodeToFillFactorIt NodeToFillFactorIt;
+    //! Provides backpointers from nodes to positions in #FillFactorToNode_.
+    TNodeToFactorIt NodeToFillFactorIt_;
 
 
     static int GetLoadFactor(TNode* node);
@@ -80,26 +85,33 @@ private:
         int targetCount,
         const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
         int targetCount,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
 
     TNode* GetBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillFactor);
+        double maxFillFactor,
+        NObjectClient::EObjectType chunkType);
 
     static bool IsFull(TNode* node);
 
+    static bool AcceptsChunkType(TNode* node, NObjectClient::EObjectType type);
+
     static bool IsValidWriteTarget(
         TNode* node,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::EWriteSessionType sessionType,
+        NObjectClient::EObjectType chunkType);
     
     bool IsValidBalancingTarget(
         TNode* node,
-        TChunkPtrWithIndex chunkWithIndex) const;
+        TChunkPtrWithIndex chunkWithIndex,
+        NObjectClient::EObjectType chunkType) const;
     
     bool IsValidRemovalTarget(TNode* node);
 
@@ -108,6 +120,8 @@ private:
         NChunkClient::EWriteSessionType sessionType);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
 
 ////////////////////////////////////////////////////////////////////////////////
 

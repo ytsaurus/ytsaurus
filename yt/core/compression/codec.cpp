@@ -1,61 +1,95 @@
 #include "stdafx.h"
 #include "codec.h"
-#include "helpers.h"
+#include "details.h"
 #include "snappy.h"
 #include "zlib.h"
 #include "lz.h"
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NCompression {
 
 struct TCompressedBlockTag { };
-
 struct TDecompressedBlockTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int ZeroFunction(const std::vector<int>&)
+class TCodecBase
+    : public ICodec
 {
-    return 0;
-}
-
-//TODO(ignat): rename these methods
-template <class TBlockTag>
-TSharedRef Apply(TConverter converter, const TSharedRef& ref)
-{
-    ByteArraySource source(ref.Begin(), ref.Size());
-    TBlob output;
-    converter(&source, &output);
-    return TSharedRef::FromBlob<TBlockTag>(std::move(output));
-}
-
-template <class TBlockTag>
-TSharedRef Apply(
-    TConverter converter,
-    const std::vector<TSharedRef>& refs,
-    std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroFunction)
-{
-    if (refs.size() == 1) {
-        return Apply<TBlockTag>(converter, refs.front());
+protected:
+    static int ZeroSizeEstimator(const std::vector<int>&)
+    {
+        return 0;
     }
-    TVectorRefsSource source(refs);
 
-    std::vector<int> lengths;
-    for (const auto& ref: refs) {
-        lengths.push_back(ref.Size());
+    template <class TBlockTag>
+    TSharedRef Run(
+        TConverter converter,
+        // TODO(ignat): change bool to enum
+        bool compress,
+        const TSharedRef& ref)
+    {
+        auto guard = CreateTraceContextGuard(compress);
+        
+        ByteArraySource input(ref.Begin(), ref.Size());
+        TRACE_ANNOTATION("input_size", ref.Size());
+        
+        TBlob output;
+        converter(&input, &output);
+        TRACE_ANNOTATION("output_size", output.Size());
+        
+        return TSharedRef::FromBlob<TBlockTag>(std::move(output));
     }
-    
-    TBlob output;
-    output.Reserve(outputSizeEstimator(lengths));
 
-    converter(&source, &output);
-    return TSharedRef::FromBlob<TBlockTag>(std::move(output));
-}
+    template <class TBlockTag>
+    TSharedRef Run(
+        TConverter converter,
+        bool compress,
+        const std::vector<TSharedRef>& refs,
+        std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
+    {
+        auto guard = CreateTraceContextGuard(compress);
+
+        if (refs.size() == 1) {
+            return Run<TBlockTag>(
+                converter,
+                compress,
+                refs.front());
+        }
+
+        std::vector<int> inputSizes;
+        i64 totalInputSize = 0;
+        for (const auto& ref : refs) {
+            inputSizes.push_back(ref.Size());
+            totalInputSize += ref.Size();
+        }
+        TRACE_ANNOTATION("input_size", totalInputSize);
+
+        TBlob output;
+        output.Reserve(outputSizeEstimator(inputSizes));
+
+        TVectorRefsSource input(refs);
+        converter(&input, &output);
+        TRACE_ANNOTATION("output_size", output.Size());
+
+        return TSharedRef::FromBlob<TBlockTag>(std::move(output));
+    }
+
+private:
+    static NTracing::TChildTraceContextGuard CreateTraceContextGuard(bool compress)
+    {
+        return NTracing::TChildTraceContextGuard(
+            "Compression",
+            compress ? "Compress" : "Decompress");
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNoneCodec
-    : public ICodec
+    : public TCodecBase
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
@@ -82,35 +116,34 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnappyCodec
-    : public ICodec
+    : public TCodecBase
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Apply<TCompressedBlockTag>(NCompression::SnappyCompress, block);
+        return Run<TCompressedBlockTag>(NCompression::SnappyCompress, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Apply<TCompressedBlockTag>(NCompression::SnappyCompress, blocks);
+        return Run<TCompressedBlockTag>(NCompression::SnappyCompress, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Apply<TDecompressedBlockTag>(NCompression::SnappyDecompress, block);
+        return Run<TDecompressedBlockTag>(NCompression::SnappyDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
     {
         return ECodec::Snappy;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGzipCodec
-    : public ICodec
+    : public TCodecBase
 {
 public:
     explicit TGzipCodec(int level)
@@ -120,17 +153,17 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, block);
+        return Run<TCompressedBlockTag>(Compressor_, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, blocks);
+        return Run<TCompressedBlockTag>(Compressor_, false, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Apply<TDecompressedBlockTag>(NCompression::ZlibDecompress, block);
+        return Run<TDecompressedBlockTag>(NCompression::ZlibDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -146,14 +179,13 @@ public:
 
 private:
     NCompression::TConverter Compressor_;
-
     int Level_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLz4Codec
-    : public ICodec
+    : public TCodecBase
 {
 public:
     explicit TLz4Codec(bool highCompression)
@@ -163,17 +195,20 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, block);
+        return Run<TCompressedBlockTag>(
+            Compressor_,
+            true,
+            block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, blocks, Lz4CompressionBound);
+        return Run<TCompressedBlockTag>(Compressor_, true, blocks, Lz4CompressionBound);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Apply<TDecompressedBlockTag>(NCompression::Lz4Decompress, block);
+        return Run<TDecompressedBlockTag>(NCompression::Lz4Decompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -183,14 +218,13 @@ public:
 
 private:
     NCompression::TConverter Compressor_;
-
     ECodec CodecId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQuickLzCodec
-    : public ICodec
+    : public TCodecBase
 {
 public:
     explicit TQuickLzCodec()
@@ -199,17 +233,23 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, block);
+        return Run<TCompressedBlockTag>(
+            Compressor_,
+            true,
+            block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Apply<TCompressedBlockTag>(Compressor_, blocks);
+        return Run<TCompressedBlockTag>(
+            Compressor_,
+            true,
+            blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Apply<TDecompressedBlockTag>(NCompression::QuickLzDecompress, block);
+        return Run<TDecompressedBlockTag>(NCompression::QuickLzDecompress, false, block);
     }
 
     virtual ECodec GetId() const override
@@ -264,7 +304,6 @@ ICodec* GetCodec(ECodec id)
             YUNREACHABLE();
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

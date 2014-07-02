@@ -5,8 +5,11 @@
 
 #include <core/misc/address.h>
 
-#include <core/rpc/channel.h>
-#include <core/rpc/channel_cache.h>
+#include <core/bus/config.h>
+#include <core/bus/client.h>
+#include <core/bus/tcp_client.h>
+
+#include <core/rpc/helpers.h>
 
 #include <core/profiling/profiling_manager.h>
 
@@ -14,64 +17,87 @@ namespace NYT {
 namespace NElection {
 
 using namespace NYTree;
+using namespace NBus;
+using namespace NRpc;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ElectionLogger;
-static NRpc::TChannelCache ChannelCache;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCellManager::TCellManager(TCellConfigPtr config)
+TCellManager::TCellManager(
+    TCellConfigPtr config,
+    IChannelFactoryPtr channelFactory,
+    TPeerId selfId)
     : Config(config)
-{ }
-
-void TCellManager::Initialize()
+    , ChannelFactory(channelFactory)
+    , SelfId(selfId)
+    , Logger(ElectionLogger)
 {
-    OrderedAddresses = Config->Addresses;
-    std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
+    BuildTags();
 
-    SelfAddress_ = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config->RpcPort);
-
-    SelfId_ = std::distance(
-        OrderedAddresses.begin(),
-        std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_));
-    if (SelfId_ == OrderedAddresses.size()) {
-        THROW_ERROR_EXCEPTION("Self address %s is missing in the cell members list",
-            ~SelfAddress_.Quote());
+    PeerChannels.resize(GetPeerCount());
+    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
+        if (id != selfId) {
+            PeerChannels[id] = CreatePeerChannel(id);
+        }
     }
 
+    Logger.AddTag(Sprintf("CellGuid: %s",
+        ~ToString(Config->CellGuid)));
+
+    LOG_INFO("Cell initialized (SelfId: %d, PeerAddresses: [%s])",
+        SelfId,
+        ~JoinToString(Config->Addresses));
+}
+
+void TCellManager::BuildTags()
+{
+    PeerTags.clear();
     auto* profilingManager = NProfiling::TProfilingManager::Get();
     for (TPeerId id = 0; id < GetPeerCount(); ++id) {
         NProfiling::TTagIdList tags;
-        tags.push_back(profilingManager->RegisterTag("address", OrderedAddresses[id]));
+        tags.push_back(profilingManager->RegisterTag("address", GetPeerAddress(id)));
         PeerTags.push_back(tags);
     }
 
+    AllPeersTags.clear();
     AllPeersTags.push_back(profilingManager->RegisterTag("address", "all"));
+    
+    PeerQuorumTags.clear();
     PeerQuorumTags.push_back(profilingManager->RegisterTag("address", "quorum"));
 }
 
-int TCellManager::GetQuorum() const
+const TCellGuid& TCellManager::GetCellGuid() const
+{
+    return Config->CellGuid;
+}
+
+TPeerId TCellManager::GetSelfId() const
+{
+    return SelfId;
+}
+
+const Stroka& TCellManager::GetSelfAddress() const
+{
+    return GetPeerAddress(GetSelfId());
+}
+
+int TCellManager::GetQuorumCount() const
 {
     return GetPeerCount() / 2 + 1;
 }
 
 int TCellManager::GetPeerCount() const
 {
-    return OrderedAddresses.size();
+    return Config->Addresses.size();
 }
 
 const Stroka& TCellManager::GetPeerAddress(TPeerId id) const
 {
-    return OrderedAddresses[id];
+    return Config->Addresses[id];
 }
 
-NRpc::IChannelPtr TCellManager::GetMasterChannel(TPeerId id) const
+IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 {
-    return ChannelCache.GetChannel(GetPeerAddress(id));
+    return PeerChannels[id];
 }
 
 const NProfiling::TTagIdList& TCellManager::GetPeerTags(TPeerId id) const
@@ -87,6 +113,51 @@ const NProfiling::TTagIdList& TCellManager::GetAllPeersTags() const
 const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 {
     return PeerQuorumTags;
+}
+
+void TCellManager::Reconfigure(TCellConfigPtr newConfig)
+{
+    if (Config->CellGuid != newConfig->CellGuid) {
+        THROW_ERROR_EXCEPTION("Cannot change cell GUID from %s to %s",
+            ~ToString(Config->CellGuid),
+            ~ToString(newConfig->CellGuid));
+    }
+
+    auto addresses = Config->Addresses;
+    auto newAddresses = newConfig->Addresses;
+
+    if (addresses.size() != newAddresses.size()) {
+        THROW_ERROR_EXCEPTION("Cannot change cell size from %" PRISZT " to %" PRISZT,
+            addresses.size(),
+            newAddresses.size());
+    }
+
+    if (addresses[SelfId] != newAddresses[SelfId]) {
+        THROW_ERROR_EXCEPTION("Cannot change self address from %s to %s",
+            ~addresses[SelfId].Quote(),
+            ~newAddresses[SelfId].Quote());
+    }
+
+    BuildTags();
+    Config = newConfig;
+
+    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
+        if (addresses[id] != newAddresses[id]) {
+            LOG_INFO("Peer %d reconfigured: %s -> %s",
+                id,
+                ~addresses[id],
+                ~newAddresses[id]);
+            PeerChannels[id] = CreatePeerChannel(id);
+            PeerReconfigured_.Fire(id);
+        }
+    }
+}
+
+IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
+{
+    return CreateRealmChannel(
+        ChannelFactory->CreateChannel(GetPeerAddress(id)),
+        Config->CellGuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

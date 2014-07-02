@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <core/concurrency/throughput_throttler.h>
-
 #include <core/concurrency/action_queue.h>
 
 #include <core/bus/public.h>
@@ -16,7 +15,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/cell_directory/public.h>
+#include <ytlib/api/public.h>
 
 #include <server/data_node/public.h>
 
@@ -28,6 +27,7 @@
 
 #include <server/job_proxy/public.h>
 
+#include <server/tablet_node/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -44,22 +44,25 @@ public:
 
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
-    NRpc::IChannelPtr GetMasterChannel() const;
-    NRpc::IChannelPtr GetSchedulerChannel() const;
+    IInvokerPtr GetQueryWorkerInvoker() const;
+    NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
+    NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
+    NTabletNode::TTabletSlotManagerPtr GetTabletSlotManager() const;
     NExecAgent::TSlotManagerPtr GetSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
-    TNodeMemoryTracker& GetMemoryUsageTracker();
+    TNodeMemoryTracker* GetMemoryUsageTracker();
     NDataNode::TChunkStorePtr GetChunkStore() const;
     NDataNode::TChunkCachePtr GetChunkCache() const;
     NDataNode::TChunkRegistryPtr GetChunkRegistry() const;
     NDataNode::TSessionManagerPtr GetSessionManager() const;
     NDataNode::TBlockStorePtr GetBlockStore() const;
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
-    NDataNode::TReaderCachePtr GetReaderCache() const;
+    NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
+    NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
@@ -74,7 +77,6 @@ public:
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
     const TGuid& GetCellGuid() const;
-    void UpdateCellGuid(const TGuid& cellGuid);
 
     void Run();
 
@@ -83,10 +85,15 @@ private:
     TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;
+    IInvokerPtr ControlInvoker;
+
+    NConcurrency::TThreadPoolPtr QueryWorkerPool;
+    IInvokerPtr QueryWorkerInvoker;
+
     NBus::IBusServerPtr BusServer;
-    NRpc::IChannelPtr MasterChannel;
-    NRpc::IChannelPtr SchedulerChannel;
+    NApi::IClientPtr MasterClient;
     NRpc::IServerPtr RpcServer;
+    NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
     NExecAgent::TSlotManagerPtr SlotManager;
@@ -101,12 +108,15 @@ private:
     NDataNode::TBlockStorePtr BlockStore;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
-    NDataNode::TReaderCachePtr ReaderCache;
+    NDataNode::TBlobReaderCachePtr BlobReaderCache;
+    NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
+
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
+    NTabletNode::TTabletSlotManagerPtr TabletSlotManager;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;

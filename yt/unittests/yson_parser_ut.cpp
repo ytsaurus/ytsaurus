@@ -13,6 +13,7 @@ namespace {
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
+using ::testing::HasSubstr;
 
 using namespace NYTree;
 
@@ -413,7 +414,6 @@ TEST_F(TYsonParserTest, MemoryLimitExceeded)
 
     EXPECT_THROW(Run("{key=" + Stroka(10000, 'a') + "}", EYsonType::Node, 1024), std::exception);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

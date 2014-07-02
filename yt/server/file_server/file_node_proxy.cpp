@@ -1,15 +1,12 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
 #include "file_node.h"
-
-#include <core/misc/string.h>
+#include "private.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_owner_node_proxy.h>
 
 namespace NYT {
@@ -20,10 +17,11 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NYTree;
-using namespace NYson;
 using namespace NTransactionServer;
+using namespace NCellMaster;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +31,7 @@ class TFileNodeProxy
 public:
     TFileNodeProxy(
         INodeTypeHandlerPtr typeHandler,
-        NCellMaster::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         TTransaction* transaction,
         TFileNode* trunkNode)
         : TBase(
@@ -45,6 +43,11 @@ public:
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return FileServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
@@ -58,8 +61,6 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        UNUSED(oldValue);
-
         if (key == "executable" && newValue) {
             ConvertTo<bool>(*newValue);
             return;
@@ -78,17 +79,17 @@ private:
         return ELockMode::Exclusive;
     }
 
-    virtual void ValidatePathAttributes(
-        const TNullable<TChannel>& channel,
+    virtual void ValidateFetchParameters(
+        const TChannel& channel,
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override
     {
-        if (channel) {
+        if (!channel.IsUniversal()) {
             THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }
 
-        if (upperLimit.has_key() || upperLimit.has_row_index() ||
-            lowerLimit.has_key() || lowerLimit.has_row_index())
+        if (upperLimit.HasKey() || upperLimit.HasRowIndex() ||
+            lowerLimit.HasKey() || lowerLimit.HasRowIndex())
         {
             THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
         }
@@ -100,7 +101,7 @@ private:
 
 ICypressNodeProxyPtr CreateFileNodeProxy(
     INodeTypeHandlerPtr typeHandler,
-    NCellMaster::TBootstrap* bootstrap,
+    TBootstrap* bootstrap,
     TTransaction* transaction,
     TFileNode* trunkNode)
 {

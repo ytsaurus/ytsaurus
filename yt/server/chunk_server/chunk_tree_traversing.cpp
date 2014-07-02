@@ -4,9 +4,10 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 
+#include <core/misc/singleton.h>
+
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -17,38 +18,42 @@ namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
-using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 using namespace NTableClient::NProto;
+using namespace NVersionedTableClient;
 
-namespace {
+////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxChunksPerAction = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKey GetMaxKey(const TChunk* chunk);
-TKey GetMaxKey(const TChunkList* chunkList);
-TKey GetMaxKey(const TChunkTree* chunkTree);
+TOwningKey GetMaxKey(const TChunk* chunk);
+TOwningKey GetMaxKey(const TChunkList* chunkList);
+TOwningKey GetMaxKey(const TChunkTree* chunkTree);
 
-TKey GetMinKey(const TChunk* chunk);
-TKey GetMinKey(const TChunkList* chunkList);
-TKey GetMinKey(const TChunkTree* chunkTree);
+TOwningKey GetMinKey(const TChunk* chunk);
+TOwningKey GetMinKey(const TChunkList* chunkList);
+TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
-TKey GetMaxKey(const TChunk* chunk)
+TOwningKey GetMaxKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    // XXX(psushin): check chunk version.
+    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return GetKeySuccessor(boundaryKeysExt.end());
+    TOwningKey key;
+    FromProto(&key, boundaryKeysExt.end());
+    return GetKeySuccessor(key.Get());
 }
 
-TKey GetMaxKey(const TChunkList* chunkList)
+TOwningKey GetMaxKey(const TChunkList* chunkList)
 {
     const auto& children = chunkList->Children();
     YASSERT(!children.empty());
     return GetMaxKey(children.back());
 }
 
-TKey GetMaxKey(const TChunkTree* chunkTree)
+TOwningKey GetMaxKey(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
@@ -63,21 +68,23 @@ TKey GetMaxKey(const TChunkTree* chunkTree)
     }
 }
 
-TKey GetMinKey(const TChunk* chunk)
+TOwningKey GetMinKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
+    auto boundaryKeysExt = GetProtoExtension<TOldBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return boundaryKeysExt.start();
+    TOwningKey key;
+    FromProto(&key, boundaryKeysExt.start());
+    return key;
 }
 
-TKey GetMinKey(const TChunkList* chunkList)
+TOwningKey GetMinKey(const TChunkList* chunkList)
 {
     const auto& children = chunkList->Children();
     YASSERT(!children.empty());
     return GetMinKey(children.front());
 }
 
-TKey GetMinKey(const TChunkTree* chunkTree)
+TOwningKey GetMinKey(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
@@ -90,12 +97,6 @@ TKey GetMinKey(const TChunkTree* chunkTree)
         default:
             YUNREACHABLE();
     }
-}
-
-bool LessComparer(const TKey& key, const TChunkTree* chunkTree)
-{
-    auto maxKey = GetMaxKey(chunkTree);
-    return CompareKeys(key, maxKey) > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,10 +132,10 @@ protected:
     void DoTraverse()
     {
         int visitedChunkCount = 0;
-        while (visitedChunkCount < MaxChunksPerAction) {
+        while (visitedChunkCount < MaxChunksPerAction || !Callbacks_->IsPreemptable()) {
             if (IsStackEmpty()) {
                 Shutdown();
-                Visitor->OnFinish();
+                Visitor_->OnFinish();
                 return;
             }
 
@@ -143,7 +144,7 @@ protected:
 
             if (chunkList->GetVersion() != entry.ChunkListVersion) {
                 Shutdown();
-                Visitor->OnError(TError(
+                Visitor_->OnError(TError(
                     NRpc::EErrorCode::Unavailable,
                     "Optimistic locking failed for chunk list %s",
                     ~ToString(chunkList->GetId())));
@@ -155,90 +156,106 @@ protected:
                 continue;
             }
 
+            const auto& statistics = chunkList->Statistics();
             auto* child = chunkList->Children()[entry.ChildIndex];
+
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
-            auto childLowerRowIndex = 
-                (entry.ChildIndex == 0)
+            auto fetchPrevSum = [&] (const std::vector<i64>& sums) -> i64 {
+                return entry.ChildIndex == 0
                     ? 0
-                    : chunkList->RowCountSums()[entry.ChildIndex - 1];
+                    : sums[entry.ChildIndex - 1];
+            };
 
-            if (entry.UpperBound.has_row_index()) {
-                if (entry.UpperBound.row_index() <= childLowerRowIndex) {
-                    PopStack();
-                    continue;
+            auto fetchCurrentSum = [&] (const std::vector<i64>& sums, i64 fallback) {
+                return entry.ChildIndex == chunkList->Children().size() - 1
+                    ? fallback
+                    : sums[entry.ChildIndex];
+            };
+
+            // Row index
+            i64 rowIndex;
+            {
+                i64 childLimit = fetchPrevSum(chunkList->RowCountSums());
+                rowIndex =  entry.RowIndex + childLimit;
+                if (entry.UpperBound.HasRowIndex()) {
+                    if (entry.UpperBound.GetRowIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetRowIndex(childLimit);
+                    childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), statistics.RowCount));
+                } else if (entry.LowerBound.HasRowIndex()) {
+                    childLowerBound.SetRowIndex(childLimit);
                 }
-                
-                childLowerBound.set_row_index(childLowerRowIndex);
-                childUpperBound.set_row_index(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().RowCount
-                        : chunkList->RowCountSums()[entry.ChildIndex]
-                );
-            } else if (entry.LowerBound.has_row_index()) {
-                childLowerBound.set_row_index(childLowerRowIndex);
             }
 
-            auto childLowerChunkIndex = 
-                (entry.ChildIndex == 0)
-                    ? 0
-                    : chunkList->ChunkCountSums()[entry.ChildIndex - 1];
-            if (entry.UpperBound.has_chunk_index()) {
-                if (entry.UpperBound.chunk_index() <= childLowerChunkIndex) {
-                    PopStack();
-                    continue;
+            // Record index
+            {
+                i64 childLimit = fetchPrevSum(chunkList->RecordCountSums());
+                if (entry.UpperBound.HasRecordIndex()) {
+                    if (entry.UpperBound.GetRecordIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetRecordIndex(childLimit);
+                    // NB: The last chunk may be non-sealed.
+                    childUpperBound.SetRecordIndex(fetchCurrentSum(chunkList->RecordCountSums(), std::numeric_limits<i64>::max()));
+                } else if (entry.LowerBound.HasRecordIndex()) {
+                    childLowerBound.SetRecordIndex(childLimit);
                 }
-                
-                childLowerBound.set_chunk_index(childLowerChunkIndex);
-                childUpperBound.set_chunk_index(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().ChunkCount
-                        : chunkList->ChunkCountSums()[entry.ChildIndex]
-                );
-            } else if (entry.LowerBound.has_chunk_index()) {
-                childLowerBound.set_chunk_index(childLowerChunkIndex);
             }
 
-            auto childLowerOffset =
-                (entry.ChildIndex == 0)
-                    ? 0
-                    : chunkList->DataSizeSums()[entry.ChildIndex - 1];
-            if (entry.UpperBound.has_offset()) {
-                if (entry.UpperBound.offset() <= childLowerOffset) {
-                    PopStack();
-                    continue;
+            // Chunk index
+            {
+                i64 childLimit = fetchPrevSum(chunkList->ChunkCountSums());
+                if (entry.UpperBound.HasChunkIndex()) {
+                    if (entry.UpperBound.GetChunkIndex() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetChunkIndex(childLimit);
+                    childUpperBound.SetChunkIndex(fetchCurrentSum(chunkList->ChunkCountSums(), statistics.ChunkCount));
+                } else if (entry.LowerBound.HasChunkIndex()) {
+                    childLowerBound.SetChunkIndex(childLimit);
                 }
-
-                childLowerBound.set_offset(childLowerOffset);
-                childUpperBound.set_offset(
-                    entry.ChildIndex == chunkList->Children().size() - 1
-                        ? chunkList->Statistics().UncompressedDataSize
-                        : chunkList->DataSizeSums()[entry.ChildIndex]
-                );
-            } else if (entry.LowerBound.has_offset()) {
-                childLowerBound.set_offset(childLowerOffset);
             }
 
-            if (entry.UpperBound.has_key()) {
-                *childLowerBound.mutable_key() = GetMinKey(child);
-
-                if (entry.UpperBound.key() <= childLowerBound.key()) {
-                    PopStack();
-                    continue;
+            // Offset
+            {
+                i64 childLimit = fetchPrevSum(chunkList->DataSizeSums());
+                if (entry.UpperBound.HasOffset()) {
+                    if (entry.UpperBound.GetOffset() <= childLimit) {
+                        PopStack();
+                        continue;
+                    }
+                    childLowerBound.SetOffset(childLimit);
+                    childUpperBound.SetOffset(fetchCurrentSum(chunkList->DataSizeSums(), statistics.UncompressedDataSize));
+                } else if (entry.LowerBound.HasOffset()) {
+                    childLowerBound.SetOffset(childLimit);
                 }
-                *childUpperBound.mutable_key() = GetMaxKey(child);
-            } else if (entry.LowerBound.has_key()) {
-                *childLowerBound.mutable_key() = GetMinKey(child);
+            }
+
+            // Key
+            {
+                if (entry.UpperBound.HasKey()) {
+                    childLowerBound.SetKey(GetMinKey(child));
+                    if (entry.UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                        PopStack();
+                        continue;
+                    }
+                    childUpperBound.SetKey(GetMaxKey(child));
+                } else if (entry.LowerBound.HasKey()) {
+                    childLowerBound.SetKey(GetMinKey(child));
+                }
             }
 
             ++entry.ChildIndex;
 
-            auto rowIndex = entry.RowIndex + childLowerRowIndex;
-
             TReadLimit subtreeStartLimit;
             TReadLimit subtreeEndLimit;
-            GetSubtreeLimits(
+            GetInducedSubtreeLimits(
                 entry,
                 childLowerBound,
                 childUpperBound,
@@ -248,10 +265,10 @@ protected:
             switch (child->GetType()) {
                 case EObjectType::ChunkList: {
                     auto* childChunkList = child->AsChunkList();
-                    int index = GetStartChildIndex(childChunkList, subtreeStartLimit);
+                    int childIndex = GetStartChildIndex(childChunkList, subtreeStartLimit);
                     PushStack(TStackEntry(
                         childChunkList,
-                        index,
+                        childIndex,
                         rowIndex,
                         subtreeStartLimit,
                         subtreeEndLimit));
@@ -259,9 +276,10 @@ protected:
                 }
 
                 case EObjectType::Chunk:
-                case EObjectType::ErasureChunk: {
+                case EObjectType::ErasureChunk: 
+                case EObjectType::JournalChunk: {
                     auto* childChunk = child->AsChunk();
-                    if (!Visitor->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
+                    if (!Visitor_->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();
                         return;
                     }
@@ -275,17 +293,12 @@ protected:
         }
 
         // Schedule continuation.
-        {
-            auto invoker = TraverserCallbacks->GetInvoker();
-            auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
-            if (!result) {
-                Shutdown();
-                Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
-            }
-        }
+        Callbacks_
+            ->GetInvoker()
+            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
-    int GetStartChildIndex(
+    static int GetStartChildIndex(
         const TChunkList* chunkList,
         const TReadLimit& lowerBound)
     {
@@ -293,161 +306,184 @@ protected:
             return 0;
         }
 
-        int index = 0;
+        int result = 0;
+        const auto& statistics = chunkList->Statistics();
 
-        if (lowerBound.has_row_index()) {
-            if (lowerBound.row_index() >= chunkList->Statistics().RowCount) {
-                return chunkList->Children().size();
+        auto adjustResult = [&] (i64 limit, i64 total, const std::vector<i64>& sums) {
+            if (limit < total) {
+                auto it = std::upper_bound(
+                    sums.begin(),
+                    sums.end(),
+                    limit);
+                result = std::max(result, static_cast<int>(it - sums.begin()));
+            } else {
+                result = chunkList->Children().size();
             }
+        };
 
-            auto begin = chunkList->RowCountSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->RowCountSums().end(),
-                lowerBound.row_index()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+        // Row Index
+        if (lowerBound.HasRowIndex()) {
+            adjustResult(lowerBound.GetRowIndex(), statistics.RowCount, chunkList->RowCountSums());
         }
 
-        if (lowerBound.has_chunk_index()) {
-            if (lowerBound.chunk_index() >= chunkList->Statistics().ChunkCount) {
-                return chunkList->Children().size();
-            }
-
-            auto begin = chunkList->ChunkCountSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->ChunkCountSums().end(),
-                lowerBound.chunk_index()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+        // Record index
+        if (lowerBound.HasRecordIndex()) {
+            // NB: The last chunk may be non-sealed.
+            adjustResult(lowerBound.GetRecordIndex(), std::numeric_limits<i64>::max(), chunkList->RecordCountSums());
         }
 
-        if (lowerBound.has_offset()) {
-            if (lowerBound.offset() >= chunkList->Statistics().UncompressedDataSize) {
-                return chunkList->Children().size();
-            }
-
-            auto begin = chunkList->DataSizeSums().begin();
-            int childIndex = std::upper_bound(
-                begin,
-                chunkList->DataSizeSums().end(),
-                lowerBound.offset()) - begin;
-            index = std::max(index, childIndex);
-            YCHECK(index < chunkList->Children().size());
+        // Chunk index
+        if (lowerBound.HasChunkIndex()) {
+            adjustResult(lowerBound.GetChunkIndex(), statistics.ChunkCount, chunkList->ChunkCountSums());
         }
 
-        if (lowerBound.has_key()) {
-            typedef decltype(chunkList->Children().begin()) TChildIter;
-            std::reverse_iterator<TChildIter> rbegin(chunkList->Children().end());
-            std::reverse_iterator<TChildIter> rend(chunkList->Children().begin());
+        // Offset
+        if (lowerBound.HasOffset()) {
+            adjustResult(lowerBound.GetOffset(), statistics.UncompressedDataSize, chunkList->DataSizeSums());
+        }
 
-            int childIndex = rend - std::upper_bound(
+        // Key
+        if (lowerBound.HasKey()) {
+            typedef std::vector<TChunkTree*>::const_iterator TChildrenIterator;
+            std::reverse_iterator<TChildrenIterator> rbegin(chunkList->Children().end());
+            std::reverse_iterator<TChildrenIterator> rend(chunkList->Children().begin());
+            auto it = std::upper_bound(
                 rbegin,
                 rend,
-                lowerBound.key(),
-                LessComparer);
-            index = std::max(index, childIndex);
-            YCHECK(index <= chunkList->Children().size());
+                lowerBound.GetKey(),
+                [] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                    return key > GetMaxKey(chunkTree);
+                });
+            result = std::max(result, static_cast<int>(rend - it));
         }
 
-        return index;
+        return result;
     }
 
-    void GetSubtreeLimits(
+    static void GetInducedSubtreeLimits(
         const TStackEntry& stackEntry,
         const TReadLimit& childLowerBound,
         const TReadLimit& childUpperBound,
         TReadLimit* startLimit,
         TReadLimit* endLimit)
     {
-        if (stackEntry.LowerBound.has_row_index()) {
-            i64 newLowerBound = stackEntry.LowerBound.row_index() - childLowerBound.row_index();
+        // Row index
+        if (stackEntry.LowerBound.HasRowIndex()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetRowIndex() - childLowerBound.GetRowIndex();
             if (newLowerBound > 0) {
-                startLimit->set_row_index(newLowerBound);
+                startLimit->SetRowIndex(newLowerBound);
             }
         }
-
-        if (stackEntry.UpperBound.has_row_index() &&
-            stackEntry.UpperBound.row_index() < childUpperBound.row_index())
+        if (stackEntry.UpperBound.HasRowIndex() &&
+            stackEntry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
         {
-            i64 newUpperBound = stackEntry.UpperBound.row_index() - childLowerBound.row_index();
-            YCHECK(newUpperBound > 0);
-            endLimit->set_row_index(newUpperBound);
+            i64 newUpperBound = stackEntry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetRowIndex(newUpperBound);
         }
 
-        if (stackEntry.LowerBound.has_offset()) {
-            i64 newLowerBound = stackEntry.LowerBound.offset() - childLowerBound.offset();
+        // Record index
+        if (stackEntry.LowerBound.HasRecordIndex()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
             if (newLowerBound > 0) {
-                startLimit->set_offset(newLowerBound);
+                startLimit->SetRecordIndex(newLowerBound);
             }
         }
-
-        if (stackEntry.UpperBound.has_offset() &&
-            stackEntry.UpperBound.offset() < childUpperBound.offset())
+        if (stackEntry.UpperBound.HasRecordIndex() &&
+            stackEntry.UpperBound.GetRecordIndex() < childUpperBound.GetRecordIndex())
         {
-            i64 newUpperBound = stackEntry.UpperBound.offset() - childLowerBound.offset();
-            YCHECK(newUpperBound > 0);
-            endLimit->set_offset(newUpperBound);
+            i64 newUpperBound = stackEntry.UpperBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetRecordIndex(newUpperBound);
         }
 
-        if (stackEntry.LowerBound.has_key() &&
-            stackEntry.LowerBound.key() > childLowerBound.key())
+        // Chunk index
+        if (stackEntry.LowerBound.HasChunkIndex()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
+            if (newLowerBound > 0) {
+                startLimit->SetChunkIndex(newLowerBound);
+            }
+        }
+        if (stackEntry.UpperBound.HasChunkIndex() &&
+            stackEntry.UpperBound.GetChunkIndex() < childUpperBound.GetChunkIndex())
         {
-            *startLimit->mutable_key() = stackEntry.LowerBound.key();
+            i64 newUpperBound = stackEntry.UpperBound.GetChunkIndex() - childLowerBound.GetChunkIndex();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetChunkIndex(newUpperBound);
         }
 
-        if (stackEntry.UpperBound.has_key() &&
-            stackEntry.UpperBound.key() < childUpperBound.key())
+        // Offset
+        if (stackEntry.LowerBound.HasOffset()) {
+            i64 newLowerBound = stackEntry.LowerBound.GetOffset() - childLowerBound.GetOffset();
+            if (newLowerBound > 0) {
+                startLimit->SetOffset(newLowerBound);
+            }
+        }
+        if (stackEntry.UpperBound.HasOffset() &&
+            stackEntry.UpperBound.GetOffset() < childUpperBound.GetOffset())
         {
-            *endLimit->mutable_key() = stackEntry.UpperBound.key();
+            i64 newUpperBound = stackEntry.UpperBound.GetOffset() - childLowerBound.GetOffset();
+            YASSERT(newUpperBound > 0);
+            endLimit->SetOffset(newUpperBound);
+        }
+
+        // Key
+        if (stackEntry.LowerBound.HasKey() &&
+            stackEntry.LowerBound.GetKey() > childLowerBound.GetKey())
+        {
+            startLimit->SetKey(stackEntry.LowerBound.GetKey());
+        }
+        if (stackEntry.UpperBound.HasKey() &&
+            stackEntry.UpperBound.GetKey() < childUpperBound.GetKey())
+        {
+            endLimit->SetKey(stackEntry.UpperBound.GetKey());
         }
     }
 
     bool IsStackEmpty()
     {
-        return Stack.empty();
+        return Stack_.empty();
     }
 
     void PushStack(const TStackEntry& newEntry)
     {
-        TraverserCallbacks->OnPush(newEntry.ChunkList);
-        Stack.push_back(newEntry);
+        Callbacks_->OnPush(newEntry.ChunkList);
+        Stack_.push_back(newEntry);
     }
 
     TStackEntry& PeekStack()
     {
-        return Stack.back();
+        return Stack_.back();
     }
 
     void PopStack()
     {
-        auto& entry = Stack.back();
-        TraverserCallbacks->OnPop(entry.ChunkList);
-        Stack.pop_back();
+        auto& entry = Stack_.back();
+        Callbacks_->OnPop(entry.ChunkList);
+        Stack_.pop_back();
     }
 
     void Shutdown()
     {
         std::vector<TChunkTree*> nodes;
-        FOREACH (const auto& entry, Stack) {
+        for (const auto& entry : Stack_) {
             nodes.push_back(entry.ChunkList);
         }
-        TraverserCallbacks->OnShutdown(nodes);
-        Stack.clear();
+        Callbacks_->OnShutdown(nodes);
+        Stack_.clear();
     }
 
-    IChunkTraverserCallbacksPtr TraverserCallbacks;
-    IChunkVisitorPtr Visitor;
+    IChunkTraverserCallbacksPtr Callbacks_;
+    IChunkVisitorPtr Visitor_;
 
-    std::vector<TStackEntry> Stack;
+    std::vector<TStackEntry> Stack_;
 
 public:
     TChunkTreeTraverser(
-        IChunkTraverserCallbacksPtr traverserCallbacks,
+        IChunkTraverserCallbacksPtr callbacks,
         IChunkVisitorPtr visitor)
-        : TraverserCallbacks(traverserCallbacks)
-        , Visitor(visitor)
+        : Callbacks_(callbacks)
+        , Visitor_(visitor)
     { }
 
     void Run(
@@ -455,12 +491,6 @@ public:
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
-        bool keyRangeRequest = lowerBound.has_key() || upperBound.has_key();
-        if (keyRangeRequest && chunkList->SortedBy().empty()) {
-            Visitor->OnError(TError("Cannot fetch a keyed range of unsorted table"));
-            return;
-        }
-
         int childIndex = GetStartChildIndex(chunkList, lowerBound);
         PushStack(TStackEntry(
             chunkList,
@@ -475,67 +505,162 @@ public:
 
 };
 
+void TraverseChunkTree(
+    IChunkTraverserCallbacksPtr traverserCallbacks,
+    IChunkVisitorPtr visitor,
+    TChunkList* root,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit)
+{
+    auto traverser = New<TChunkTreeTraverser>(
+        std::move(traverserCallbacks),
+        std::move(visitor));
+    traverser->Run(root, lowerLimit, upperLimit);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkTraverserCallbacks
+class TPreemptableChunkTraverserCallbacks
     : public IChunkTraverserCallbacks
 {
 public:
-    explicit TChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    explicit TPreemptableChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
     { }
+
+    virtual bool IsPreemptable() const override
+    {
+        return true;
+    }
 
     virtual IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+        return Bootstrap_->GetMetaStateFacade()->GetGuardedInvoker();
     }
 
     virtual void OnPop(TChunkTree* node) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakUnrefObject(node);
     }
 
     virtual void OnPush(TChunkTree* node) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(node);
     }
 
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (const auto& node, nodes) {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (const auto& node : nodes) {
             objectManager->WeakUnrefObject(node);
         }
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap;
+    NCellMaster::TBootstrap* Bootstrap_;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
     NCellMaster::TBootstrap* bootstrap)
 {
-    return New<TChunkTraverserCallbacks>(bootstrap);
+    return New<TPreemptableChunkTraverserCallbacks>(bootstrap);
 }
 
-void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr traverserCallbacks,
-    IChunkVisitorPtr visitor,
-    TChunkList* root,
-    const TReadLimit& lowerBound,
-    const TReadLimit& upperBound)
+////////////////////////////////////////////////////////////////////////////////
+
+class TNonpreemptableChunkTraverserCallbacks
+    : public IChunkTraverserCallbacks
 {
-    auto traverser = New<TChunkTreeTraverser>(traverserCallbacks, visitor);
-    traverser->Run(root, lowerBound, upperBound);
+public:
+    virtual bool IsPreemptable() const override
+    {
+        return false;
+    }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return GetSyncInvoker();
+    }
+
+    virtual void OnPop(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnPush(TChunkTree* /*node*/) override
+    { }
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
+    { }
+
+};
+
+IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks()
+{
+    return RefCountedSingleton<TNonpreemptableChunkTraverserCallbacks>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEnumeratingChunkVisitor
+    : public IChunkVisitor
+{
+public:
+    explicit TEnumeratingChunkVisitor(std::vector<TChunk*>* chunks)
+        : Chunks_(chunks)
+    { }
+
+    virtual bool OnChunk(
+        TChunk* chunk,
+        i64 /*rowIndex*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override
+    {
+        Chunks_->push_back(chunk);
+        return true;
+    }
+
+    virtual void OnError(const TError& /*error*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnFinish() override
+    { }
+
+private:
+    std::vector<TChunk*>* Chunks_;
+
+};
+
+void EnumerateChunksInChunkTree(
+    TChunkList* root,
+    std::vector<TChunk*>* chunks,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit)
+{
+    auto visitor = New<TEnumeratingChunkVisitor>(chunks);
+    TraverseChunkTree(
+        GetNonpreemptableChunkTraverserCallbacks(),
+        visitor,
+        root,
+        lowerLimit,
+        upperLimit);
+}
+
+std::vector<TChunk*> EnumerateChunksInChunkTree(
+    TChunkList* root,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit)
+{
+    std::vector<TChunk*> chunks;
+    EnumerateChunksInChunkTree(
+        root,
+        &chunks,
+        lowerLimit,
+        upperLimit);
+    return chunks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

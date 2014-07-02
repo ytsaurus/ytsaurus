@@ -5,10 +5,13 @@
 
 #include <core/ypath/tokenizer.h>
 
+#include <server/hydra/hydra_manager.h>
+
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -57,16 +60,9 @@ public:
         Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return "";
-    }
-
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-
-        return false;
+        return NLog::TLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -95,7 +91,8 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        if (!hydraManager->IsActiveLeader()) {
             return TResolveResult::There(
                 New<TFailedLeaderValidationWrapper>(Bootstrap),
                 path);
@@ -109,14 +106,9 @@ public:
         UnderlyingService->Invoke(context);
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return UnderlyingService->GetLoggingCategory();
-    }
-
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
-    {
-        return UnderlyingService->IsWriteRequest(context);
+        return UnderlyingService->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -165,9 +157,9 @@ private:
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
-        const auto& verb = context->GetVerb();
+        const auto& method = context->GetMethod();
         if (Options & EVirtualNodeOptions::RedirectSelf &&
-            verb != "Remove")
+            method != "Remove")
         {
             return TResolveResult::There(Service, path);
         } else {
@@ -190,7 +182,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        auto* provider = GetTargetSystemAttributeProvider();
+        auto* provider = GetTargetBuiltinAttributeProvider();
         if (provider) {
             provider->ListSystemAttributes(attributes);
         }
@@ -200,7 +192,7 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto* provider = GetTargetSystemAttributeProvider();
+        auto* provider = GetTargetBuiltinAttributeProvider();
         if (provider && provider->GetBuiltinAttribute(key, consumer)) {
             return true;
         }
@@ -210,7 +202,7 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto* provider = GetTargetSystemAttributeProvider();
+        auto* provider = GetTargetBuiltinAttributeProvider();
         if (provider && provider->SetBuiltinAttribute(key, value)) {
             return true;
         }
@@ -221,16 +213,19 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        if ((Options & EVirtualNodeOptions::RequireLeader) && !metaStateFacade->GetManager()->GetMutationContext()) {
+        auto hydraManager = metaStateFacade->GetManager();
+
+        // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
+        if ((Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
             metaStateFacade->ValidateActiveLeader();
         }
 
         return TBase::DoInvoke(context);
     }
 
-    ISystemAttributeProvider* GetTargetSystemAttributeProvider()
+    ISystemAttributeProvider* GetTargetBuiltinAttributeProvider()
     {
-        return dynamic_cast<ISystemAttributeProvider*>(~Service);
+        return dynamic_cast<ISystemAttributeProvider*>(Service.Get());
     }
 
 };
@@ -280,7 +275,6 @@ private:
             service,
             Options);
     }
-
 
 };
 

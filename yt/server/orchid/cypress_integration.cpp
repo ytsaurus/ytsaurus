@@ -8,14 +8,21 @@
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/ypath_detail.h>
 
-#include <ytlib/orchid/orchid_service_proxy.h>
+#include <core/ytree/ypath.pb.h>
+
 #include <ytlib/orchid/private.h>
 
 #include <core/rpc/channel.h>
 #include <core/rpc/message.h>
-#include <core/rpc/channel_cache.h>
+#include <core/rpc/caching_channel_factory.h>
+#include <core/rpc/bus_channel.h>
+
+#include <ytlib/orchid/orchid_service_proxy.h>
+
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_proxy.h>
@@ -23,12 +30,16 @@
 #include <server/cypress_server/node.h>
 #include <server/cypress_server/virtual.h>
 
+#include <server/hydra/mutation_context.h>
+#include <server/hydra/hydra_manager.h>
+
 namespace NYT {
 namespace NOrchid {
 
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NHydra;
 using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -40,7 +51,7 @@ using namespace NConcurrency;
 
 static auto& Logger = OrchidLogger;
 
-static TChannelCache ChannelCache;
+static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
 static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,26 +71,35 @@ public:
         YCHECK(trunkNode->IsTrunk());
     }
 
-    TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
+    TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         return TResolveResult::Here(path);
     }
 
     void Invoke(IServiceContextPtr context) override
     {
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        
+        // Prevent regarding the request as a mutating one.
+        if (hydraManager->IsMutating()) {
+            auto* mutationContext = hydraManager->GetMutationContext();
+            mutationContext->SuppressMutation();
+        }
+
+        // Prevent doing anything during recovery and at followers.
+        if (!hydraManager->IsLeader()) {
+            return;
+        }
+
         auto manifest = LoadManifest();
 
-        auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
+        auto channel = ChannelFactory->CreateChannel(manifest->RemoteAddress);
 
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, context->GetPath());
-        auto verb = context->GetVerb();
+        auto path = GetRedirectPath(manifest, GetRequestYPath(context));
+        const auto& method = context->GetMethod();
 
         auto requestMessage = context->GetRequestMessage();
         NRpc::NProto::TRequestHeader requestHeader;
@@ -88,16 +108,17 @@ public:
             return;
         }
 
-        requestHeader.set_path(path);
+        SetRequestYPath(&requestHeader, path);
+
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_INFO("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
+        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Method: %s, RequestId: %s)",
             ~manifest->RemoteAddress,
             ~path,
-            ~verb,
+            ~method,
             ~ToString(outerRequest->GetRequestId()));
 
         outerRequest->Invoke().Subscribe(
@@ -107,19 +128,13 @@ public:
                 context,
                 manifest,
                 path,
-                verb)
+                method)
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return OrchidLogger.GetCategory();
-    }
-
-    bool IsWriteRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-        return false;
+        return OrchidLogger;
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -136,7 +151,7 @@ private:
     TCypressNodeBase* TrunkNode;
     TTransaction* Transaction;
 
-    TOrchidManifest::TPtr LoadManifest()
+    TOrchidManifestPtr LoadManifest()
     {
         auto objectManager = Bootstrap->GetObjectManager();
         auto proxy = objectManager->GetProxy(TrunkNode, Transaction);
@@ -153,28 +168,29 @@ private:
 
     void OnResponse(
         IServiceContextPtr context,
-        TOrchidManifest::TPtr manifest,
+        TOrchidManifestPtr manifest,
         const TYPath& path,
-        const Stroka& verb,
+        const Stroka& method,
         TOrchidServiceProxy::TRspExecutePtr response)
     {
-        LOG_INFO(*response, "Reply from a remote Orchid received (RequestId: %s)",
-            ~ToString(context->GetRequestId()));
-
         if (response->IsOK()) {
+            LOG_DEBUG("Orchid request succeded (RequestId: %s)",
+                ~ToString(context->GetRequestId()));
             auto innerResponseMessage = TSharedRefArray(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)",
+            LOG_DEBUG(*response, "Orchid request failed (RequestId: %s)",
+                ~ToString(context->GetRequestId()));
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Method: %s, RemoteAddress: %s, RemoteRoot: %s)",
                 ~path,
-                ~verb,
+                ~method,
                 ~manifest->RemoteAddress,
                 ~manifest->RemoteRoot)
                 << response->GetError());
         }
     }
 
-    static Stroka GetRedirectPath(TOrchidManifest::TPtr manifest, const TYPath& path)
+    static Stroka GetRedirectPath(TOrchidManifestPtr manifest, const TYPath& path)
     {
         return manifest->RemoteRoot + path;
     }

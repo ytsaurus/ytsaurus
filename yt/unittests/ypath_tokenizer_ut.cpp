@@ -3,8 +3,6 @@
 
 #include <core/ypath/tokenizer.h>
 
-#include <core/misc/foreach.h>
-
 #include <util/string/vector.h>
 
 namespace NYT {
@@ -52,7 +50,7 @@ public:
     {
         Stroka result;
         result.reserve(TokenTypes.size());
-        FOREACH (auto type, TokenTypes) {
+        for (auto type : TokenTypes) {
             switch (type) {
                 case ETokenType::Literal:   result.append('L'); break;
                 case ETokenType::Slash:     result.append('/'); break;

@@ -16,7 +16,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     T result;
     i32 tag = TProtoExtensionTag<T>::Value;
     bool found = false;
-    FOREACH (const auto& extension, extensions.extensions()) {
+    for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             YCHECK(result.ParseFromArray(data.begin(), data.length()));
@@ -29,11 +29,23 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
 }
 
 template <class T>
+bool HasProtoExtension(const NProto::TExtensionSet& extensions)
+{
+    i32 tag = TProtoExtensionTag<T>::Value;
+    for (const auto& extension : extensions.extensions()) {
+        if (extension.tag() == tag) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <class T>
 TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 {
     TNullable<T> result;
     i32 tag = TProtoExtensionTag<T>::Value;
-    FOREACH (const auto& extension, extensions.extensions()) {
+    for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.Assign(T());
@@ -49,7 +61,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
     i32 tag = TProtoExtensionTag<T>::Value;
     NYT::NProto::TExtension* extension = NULL;
-    FOREACH (auto& currentExtension, *extensions->mutable_extensions()) {
+    for (auto& currentExtension : *extensions->mutable_extensions()) {
         if (currentExtension.tag() == tag) {
             extension = &currentExtension;
             break;

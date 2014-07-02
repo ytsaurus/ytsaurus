@@ -4,7 +4,7 @@
 #include "object_detail.h"
 #include "object_manager.h"
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -53,12 +53,15 @@ public:
         YUNREACHABLE();
     }
 
-    virtual void Unstage(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
+    virtual NTransactionServer::TTransaction* GetStagingTransaction(
+        TObjectBase* object) override
     {
-        DoUnstage(static_cast<TObject*>(object), transaction, recursive);
+        return DoGetStagingTransaction(static_cast<TObject*>(object));
+    }
+
+    virtual void Unstage(TObjectBase* object, bool recursive) override
+    {
+        DoUnstage(static_cast<TObject*>(object), recursive);
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
@@ -91,10 +94,13 @@ protected:
         return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
     }
 
-    virtual void DoUnstage(
-        TObject* /*object*/,
-        NTransactionServer::TTransaction* /*transaction*/,
-        bool /*recursive*/)
+    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
+        TObject* /*object*/)
+    {
+        return nullptr;
+    }
+
+    virtual void DoUnstage(TObject* /*object*/, bool /*recursive*/)
     {
         YUNREACHABLE();
     }
@@ -118,7 +124,7 @@ class TObjectTypeHandlerWithMapBase
     : public TObjectTypeHandlerBase<TObject>
 {
 public:
-    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
+    typedef typename NHydra::TEntityMap<TObjectId, TObject> TMap;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)

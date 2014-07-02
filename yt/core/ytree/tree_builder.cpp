@@ -54,7 +54,6 @@ public:
 
     virtual void OnMyIntegerScalar(i64 value) override
     {
-
         auto node = Factory->CreateInteger();
         node->SetValue(value);
         AddNode(node, false);
@@ -108,8 +107,8 @@ public:
     {
         YASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
-        AttributeConsumer.reset(new TAttributeConsumer(~Attributes));
-        Forward(~AttributeConsumer, TClosure(), NYson::EYsonType::MapFragment);
+        AttributeConsumer.reset(new TAttributeConsumer(Attributes.get()));
+        Forward(AttributeConsumer.get(), TClosure(), NYson::EYsonType::MapFragment);
     }
 
     virtual void OnMyEndAttributes() override

@@ -46,7 +46,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 # out job should burn enough cpu
                 assert int(stats['cpu']['user_time']) > 0
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_one_chunk(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -67,7 +67,67 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]['v2'].endswith("/mytmp")
         assert res[2]['v2'].startswith("/")
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_big_input(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        count = 1000 * 1000
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t1', original_data)
+
+        command = 'cat'
+        map(in_='//tmp/t1', out='//tmp/t2', command=command)
+
+        new_data = read('//tmp/t2', verbose=False)
+        assert sorted(row.items() for row in new_data) == [[('index', i)] for i in xrange(count)]
+
+    def test_two_inputs_at_the_same_time(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 1000
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data)
+
+        file = '//tmp/some_file.txt'
+        create('file', file)
+        upload(file, '{value=42};\n')
+
+        command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
+        map(in_='//tmp/t_input',
+            out=['//tmp/t_output1', '//tmp/t_output2'],
+            command=command,
+            file=[file],
+            verbose=True)
+
+        assert read('//tmp/t_output2') == [{'value': 42}]
+        assert sorted([row.items() for row in read('//tmp/t_output1')]) == [[('index', i)] for i in xrange(count)]
+
+    def test_first_after_second(self):
+        create('table', '//tmp/t_input')
+        create('table', '//tmp/t_output1')
+        create('table', '//tmp/t_output2')
+
+        count = 10000
+        original_data = [{'index': i} for i in xrange(count)]
+        write('//tmp/t_input', original_data)
+
+        file1 = '//tmp/some_file.txt'
+        create('file', file1)
+        upload(file1, '}}}}};\n')
+
+        command = 'cat some_file.txt >&4; cat >&4; echo "{value=42}"'
+        op_id = map(dont_track=True,
+                    in_='//tmp/t_input',
+                    out=['//tmp/t_output1', '//tmp/t_output2'],
+                    command=command,
+                    file=[file1],
+                    verbose=True)
+        with pytest.raises(YtError):
+            track_op(op_id)
+
+    @only_linux
     def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
         write('//tmp/t1', {"foo": "bar"})
@@ -84,7 +144,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             assert download(jobs_path + '/' + job_id + '/stderr') == expected_content
 
     # check that stderr is captured for successfull job
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_stderr_ok(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -99,22 +159,23 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self._check_all_stderrs(op_id, 'stderr\n', 1)
 
     # check that stderr is captured for failed jobs
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', {"foo": "bar"})
 
-        command = '''cat > /dev/null; echo stderr 1>&2; echo "{x=y}{v=};{a=b}"'''
+        command = '''echo "{x=y}{v=};{a=b}"; while echo xxx 2>/dev/null; do false; done; echo stderr 1>&2; cat > /dev/null;'''
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         self._check_all_stderrs(op_id, 'stderr\n', 10)
 
     # check max_stderr_count
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_stderr_limit(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -124,7 +185,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         self._check_all_stderrs(op_id, 'stderr\n', 5)
 
@@ -144,7 +206,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
                      fi;'''
 
         op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            track_op(op_id)
 
         # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
         # that is last one.
@@ -164,7 +227,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 opt='/spec/mapper/format=yamr',
                 command=command)
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_sorted_output(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
@@ -212,7 +275,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 opt=['/spec/job_count=2'])
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
@@ -231,7 +294,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check('//tmp/t2', 3, 3)
         check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_with_user_files(self):
         create('table', '//tmp/input')
         write('//tmp/input', {"foo": "bar"})
@@ -259,7 +322,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_empty_user_files(self):
         create('table', '//tmp/input')
         write('//tmp/input', {"foo": "bar"})
@@ -281,7 +344,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/output') == []
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_multi_chunk_user_files(self):
         create('table', '//tmp/input')
         write('//tmp/input', {"foo": "bar"})
@@ -337,7 +400,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}, {"text": "info"}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def run_many_output_tables(self, yamr_mode=False):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
@@ -365,15 +428,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_output_tables_switch(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
@@ -396,7 +459,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read(output_tables[1]) == []
         assert read(output_tables[2]) == [{'v': 0}, {'v': 1}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_tskv_input_format(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"foo": "bar"})
@@ -421,7 +484,7 @@ print '{hello=world}'
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_tskv_output_format(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"foo": "bar"})
@@ -448,7 +511,7 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_yamr_output_format(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"foo": "bar"})
@@ -477,7 +540,7 @@ print "key\\tsubkey\\tvalue"
 
         assert read('//tmp/t_out') == [{'key': 'key', 'subkey': 'subkey', 'value': 'value'}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_yamr_input_format(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -502,7 +565,7 @@ print '{hello=world}'
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_executable_mapper(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"foo": "bar"})
@@ -533,7 +596,7 @@ cat > /dev/null; echo {hello=world}
         op_id = map(dont_track=True,
             in_='//tmp/t',
             out='//tmp/t',
-            command="sleep 2")
+            command="sleep 1")
 
         path = '//sys/operations/%s/@state' % op_id
         # check running
@@ -541,7 +604,7 @@ cat > /dev/null; echo {hello=world}
         assert get(path) == 'aborted'
 
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_table_index(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')

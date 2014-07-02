@@ -102,6 +102,22 @@ TJobPtr TJob::CreateRepair(
         resourceUsage);
 }
 
+TJobPtr TJob::CreateSeal(
+    const TChunkId& chunkId,
+    TNode* node,
+    const TNodeResources& resourceUsage)
+{
+    return New<TJob>(
+        EJobType::SealChunk,
+        TJobId::Create(),
+        TChunkIdWithIndex(chunkId, 0),
+        node,
+        TNodeList(),
+        TPartIndexList(),
+        TInstant::Now(),
+        resourceUsage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

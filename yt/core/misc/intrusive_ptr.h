@@ -13,111 +13,20 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// === THas{Ref,Unref}Method ===
-//
-// Use the Substitution Failure Is Not An Error (SFINAE) trick to inspect T
-// for the existence of Ref() and Unref() methods.
-//
-// http://en.wikipedia.org/wiki/Substitution_failure_is_not_an_error
-// http://stackoverflow.com/questions/257288/is-it-possible-to-write-a-c-template-to-check-for-a-functions-existence
-// http://stackoverflow.com/questions/4358584/sfinae-approach-comparison
-// http://stackoverflow.com/questions/1966362/sfinae-to-check-for-inherited-member-functions
-//
-// The last link in particular show the method used below.
-// Works on gcc-4.2, gcc-4.4, and Visual Studio 2008.
-//
-
-//! An MPL functor which tests for existance of Ref() method in a given type.
+// Default (generic) implementation of Ref/Unref strategy.
+// Assumes the existence of Ref/Unref members.
+// Only works if |T| is fully defined.
 template <class T>
-struct THasRefMethod
+void Ref(T* obj)
 {
-private:
-    struct TMixin
-    {
-        void Ref();
-    };
-    // MSVC warns when you try to use TMixed if T has a private destructor,
-    // the common pattern for reference-counted types. It does this even though
-    // no attempt to instantiate TMixed is made.
-    // We disable the warning for this definition.
-#ifdef _win_
-#pragma warning(disable:4624)
-#endif
-    struct TMixed
-        : public T
-        , public TMixin
-    { };
-#ifdef _win_
-#pragma warning(default:4624)
-#endif
-    template <void(TMixin::*)()>
-    struct THelper
-    { };
+    obj->Ref();
+}
 
-    template <class U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::Ref>*);
-    template <class>
-    static NMpl::NDetail::TYesType Test(...);
-
-public:
-    enum
-    {
-        Value = (sizeof(Test<TMixed>(0)) == sizeof(NMpl::NDetail::TYesType))
-    };
-};
-
-//! An MPL functor which tests for existance of Unref() method in a given type.
 template <class T>
-struct THasUnrefMethod
+void Unref(T* obj)
 {
-private:
-    struct TMixin
-    {
-        void Unref();
-    };
-#ifdef _win_
-#pragma warning(disable:4624)
-#endif
-    struct TMixed
-        : public T
-        , public TMixin
-    { };
-#ifdef _win_
-#pragma warning(default:4624)
-#endif
-
-    template <void(TMixin::*)()>
-    struct THelper
-    { };
-
-    template <class U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::Unref>*);
-    template <class>
-    static NMpl::NDetail::TYesType Test(...);
-
-public:
-    enum
-    {
-        Value = (sizeof(Test<TMixed>(0)) == sizeof(NMpl::NDetail::TYesType))
-    };
-};
-
-//! An MPL functor which tests for existance of both Ref() and Unref() methods.
-template <class T>
-struct THasRefAndUnrefMethods
-    : NMpl::TIntegralConstant<bool, NMpl::TAnd<
-        THasRefMethod<T>,
-        THasUnrefMethod<T>
-    >::Value>
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
+    obj->Unref();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,7 +38,7 @@ public:
 
     //! Empty constructor.
     TIntrusivePtr() // noexcept
-        : T_(NULL)
+        : T_(nullptr)
     { }
 
     //! Constructor from an unqualified reference.
@@ -140,28 +49,20 @@ public:
      * Note that it notoriously hard to make this constructor explicit
      * given the current amount of code written.
      */
-    TIntrusivePtr(T* p) // noexcept
-        : T_(p)
+    TIntrusivePtr(T* obj) // noexcept
+        : T_(obj)
     {
-        static_assert(
-            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
-            "T must have Ref() and UnRef() methods");
-
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
     //! Constructor from an unqualified reference.
-    TIntrusivePtr(T* p, bool addReference) // noexcept
-        : T_(p)
+    TIntrusivePtr(T* obj, bool addReference) // noexcept
+        : T_(obj)
     {
-        static_assert(
-            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
-            "T must have Ref() and UnRef() methods");
-
         if (T_ && addReference) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
@@ -170,7 +71,7 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
@@ -182,15 +83,15 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            T_->Ref();
+            Ref(T_);
         }
     }
 
     //! Move constructor.
-    explicit TIntrusivePtr(TIntrusivePtr&& other) // noexcept
+    explicit TIntrusivePtr(TIntrusivePtr&& other) noexcept
         : T_(other.Get())
     {
-        other.T_ = NULL;
+        other.T_ = nullptr;
     }
 
     //! Move constructor with an upcast.
@@ -200,14 +101,14 @@ public:
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(other.Get())
     {
-        other.T_ = NULL;
+        other.T_ = nullptr;
     }
 
     //! Destructor.
     ~TIntrusivePtr()
     {
         if (T_) {
-            T_->Unref();
+            Unref(T_);
         }
     }
 
@@ -230,7 +131,7 @@ public:
     }
 
     //! Move assignment operator.
-    TIntrusivePtr& operator=(TIntrusivePtr&& other) // noexcept
+    TIntrusivePtr& operator=(TIntrusivePtr&& other) noexcept
     {
         TIntrusivePtr(std::move(other)).Swap(*this);
         return *this;
@@ -281,7 +182,7 @@ public:
     typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const // noexcept
     {
-        return T_ ? &TIntrusivePtr::T_ : NULL;
+        return T_ ? &TIntrusivePtr::T_ : nullptr;
     }
 
     //! Swap the pointer with the other one.
@@ -374,6 +275,62 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
         "U* have to be convertible to T*");
     return lhs != rhs.Get();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// A bunch of helpful macros that enable working with intrusive pointers to incomplete types.
+/*
+ *  Typically when you have a forward-declared type |T| and an instance
+ *  of |TIntrusivePtr<T>| you need the complete definition of |T| to work with
+ *  the pointer even if you're not actually using the members of |T|.
+ *  E.g. the dtor of |TIntrusivePtr<T>|, should you ever need it, must be able
+ *  to unref an instance of |T| and eventually destroy it.
+ *  This may force #inclusion of way more headers than really seems necessary.
+ *
+ *  |DECLARE_REFCOUNTED_STRUCT|, |DECLARE_REFCOUNTED_CLASS|, and |DEFINE_REFCOUNTED_TYPE|
+ *  alleviate this issue by forcing TIntrusivePtr to work with the free-standing overloads
+ *  of |Ref| and |Unref| instead of their template version.
+ *  These overloads are declared together with the forward declaration of |T| and
+ *  are subsequently defined afterwards.
+ */
+
+#ifdef __GNUC__
+    // Prevent GCC from throwing out our precious Ref/Unref functions in
+    // release builds.
+    #define REF_UNREF_DECLARATION_ATTRIBUTES __attribute__((used))
+#else
+    #define REF_UNREF_DECLARATION_ATTRIBUTES
+#endif
+
+#define DECLARE_REFCOUNTED_TYPE(kind, type) \
+    kind type; \
+    typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
+    \
+    void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+
+//! Forward-declares a class type, defines an intrusive pointer for it, and finally
+//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
+#define DECLARE_REFCOUNTED_CLASS(type) \
+    DECLARE_REFCOUNTED_TYPE(class, type)
+
+//! Forward-declares a struct type, defines an intrusive pointer for it, and finally
+//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
+#define DECLARE_REFCOUNTED_STRUCT(type) \
+    DECLARE_REFCOUNTED_TYPE(struct, type)
+
+//! Provides implementations for Ref/Unref overloads. Use this macro right
+//! after the type's full definition.
+#define DEFINE_REFCOUNTED_TYPE(type) \
+    inline void Ref(type* obj) \
+    { \
+        obj->Ref(); \
+    } \
+    \
+    inline void Unref(type* obj) \
+    { \
+        obj->Unref(); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,7 +6,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
 
 #include <server/cell_master/public.h>
 
@@ -24,39 +24,55 @@ struct IChunkVisitor
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
-        const NChunkClient::NProto::TReadLimit& startLimit,
-        const NChunkClient::NProto::TReadLimit& endLimit) = 0;
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit) = 0;
 
     virtual void OnError(const TError& error) = 0;
 
     virtual void OnFinish() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkTraverserCallbacks
     : public virtual TRefCounted
 {
+    virtual bool IsPreemptable() const = 0;
     virtual IInvokerPtr GetInvoker() const = 0;
 
     virtual void OnPop(TChunkTree* node) = 0;
-    
     virtual void OnPush(TChunkTree* node) = 0;
-
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IChunkTraverserCallbacks)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
     NCellMaster::TBootstrap* bootstrap);
 
+IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks();
+
 void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr bootstrap,
+    IChunkTraverserCallbacksPtr callbacks,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NChunkClient::NProto::TReadLimit& lowerBound = NChunkClient::NProto::TReadLimit(),
-    const NChunkClient::NProto::TReadLimit& upperBound = NChunkClient::NProto::TReadLimit());
+    const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit());
+
+void EnumerateChunksInChunkTree(
+    TChunkList* root,
+    std::vector<TChunk*>* chunks,
+    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
+
+std::vector<TChunk*> EnumerateChunksInChunkTree(
+    TChunkList* root,
+    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
+    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
 
 ////////////////////////////////////////////////////////////////////////////////
 

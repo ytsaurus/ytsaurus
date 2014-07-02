@@ -9,12 +9,14 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/yson/lexer.h>
 
@@ -22,6 +24,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NYTree;
@@ -29,13 +32,17 @@ using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
 
+using NVersionedTableClient::TKey;
+using NTableClient::TRow;
+using NTableClient::TTableWriterOptionsPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
-typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+typedef TOldMultiChunkParallelReader<TTableChunkReader> TReader;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +101,7 @@ public:
                 config->JobIO->TableWriter,
                 options);
 
-            Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+            Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
                 config->JobIO->TableWriter,
                 options,
                 writerProvider,
@@ -125,7 +132,7 @@ public:
                     keyColumnToIndex[name] = i;
                 }
 
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
 
                 valueBuffer.reserve(1000000);
                 keyBuffer.reserve(estimatedRowCount * keyColumnCount);
@@ -148,7 +155,7 @@ public:
 
                     keyBuffer.resize(keyBuffer.size() + keyColumnCount);
 
-                    FOREACH (const auto& pair, facade->GetRow()) {
+                    for (const auto& pair : facade->GetRow()) {
                         auto it = keyColumnToIndex.find(pair.first);
                         if (it != keyColumnToIndex.end()) {
                             auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + it->second];
@@ -160,7 +167,7 @@ public:
                     valueIndexBuffer.push_back(valueBuffer.size());
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
             }
@@ -192,10 +199,11 @@ public:
             LOG_INFO("Writing");
             {
                 TRow row;
-                TNonOwningKey key(keyColumnCount);
+                TChunkedMemoryPool keyMemoryPool;
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {
                     row.clear();
-                    key.Clear();
+                    ResetRowValues(&key);
 
                     ui32 rowIndex = rowIndexBuffer[progressIndex];
                     for (ui32 valueIndex = valueIndexBuffer[rowIndex];
@@ -207,7 +215,7 @@ public:
 
                     for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                         auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
-                        SetKeyPart(&key, keyPart, keyIndex);
+                        key[keyIndex] = MakeKeyPart(keyPart);
                     }
 
                     if (SchedulerJobSpecExt.enable_sort_verification()) {

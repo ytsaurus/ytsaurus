@@ -5,6 +5,8 @@
 #include "chunk_manager.h"
 #include "helpers.h"
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -27,18 +29,15 @@ class TChunkListProxy
 public:
     TChunkListProxy(NCellMaster::TBootstrap* bootstrap, TChunkList* chunkList)
         : TBase(bootstrap, chunkList)
-    {
-        Logger = ChunkServerLogger;
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
-        return TBase::IsWriteRequest(context);
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TChunkList> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ChunkServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
@@ -69,7 +68,7 @@ private:
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();
-                FOREACH (auto* child, chunkList->Children()) {
+                for (auto* child : chunkList->Children()) {
                     consumer->OnListItem();
                     TraverseTree(child, consumer);
                 }
@@ -135,20 +134,23 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Attach)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Attach)
     {
         UNUSED(response);
 
+        DeclareMutating();
+
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
+        context->SetRequestInfo("Children: [%s]",
+            ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto chunkManager = Bootstrap->GetChunkManager();
 
         std::vector<TChunkTree*> children;
         children.reserve(childrenIds.size());
-        FOREACH (const auto& childId, childrenIds) {
+        for (const auto& childId : childrenIds) {
             auto* child = chunkManager->GetChunkTreeOrThrow(childId);
             children.push_back(child);
         }

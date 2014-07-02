@@ -7,7 +7,6 @@ from yt_commands import *
 class TestSnapshot(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
-    START_SCHEDULER = False
 
     def test(self):
     	set('//tmp/a', 42)

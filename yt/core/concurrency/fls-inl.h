@@ -9,48 +9,52 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TFlsValue<T>::TFlsValue()
-    : Index_(TFiber::FlsRegister(&ValueCtor, &ValueDtor))
+TFls<T>::TFls()
+    : Index_(NDetail::FlsAllocateSlot(&ValueCtor, &ValueDtor))
 { }
 
 template <class T>
-T* TFlsValue<T>::operator -> ()
+T* TFls<T>::operator->()
 {
     return Get();
 }
 
 template <class T>
-const T* TFlsValue<T>::operator -> () const
+const T* TFls<T>::operator->() const
 {
     return Get();
 }
 
 template <class T>
-T& TFlsValue<T>::operator * ()
-{
-    return Get();
-}
-
-template <class T>
-const T& TFlsValue<T>::operator * () const
+T& TFls<T>::operator*()
 {
     return *Get();
 }
 
 template <class T>
-T* TFlsValue<T>::Get() const
+const T& TFls<T>::operator*() const
 {
-    return reinterpret_cast<T*>(TFiber::GetCurrent()->FlsGet(Index_));
+    return *Get();
 }
 
 template <class T>
-TFiber::TFlsSlotValue TFlsValue<T>::ValueCtor()
+T* TFls<T>::Get(TFiber* fiber) const
 {
-    return reinterpret_cast<TFiber::TFlsSlotValue>(new T());
+    auto& slot = NDetail::FlsAt(Index_, fiber);
+    if (!slot) {
+        slot = NDetail::FlsConstruct(Index_);
+    }
+    return reinterpret_cast<T*>(slot);
 }
 
 template <class T>
-void TFlsValue<T>::ValueDtor(TFiber::TFlsSlotValue value)
+uintptr_t TFls<T>::ValueCtor()
+{
+    return reinterpret_cast<uintptr_t>(new T());
+}
+
+template <class T>
+void TFls<T>::ValueDtor(uintptr_t value)
 {
     delete reinterpret_cast<T*>(value);
 }

@@ -9,9 +9,11 @@
 #include "yson_serializable.h"
 
 #include <core/misc/nullable.h>
-#include <core/misc/serialize.h>
 #include <core/misc/string.h>
 #include <core/misc/error.h>
+#include <core/misc/collection_helpers.h>
+
+#include <numeric>
 
 #include <numeric>
 
@@ -70,7 +72,7 @@ void Serialize(T* value, NYson::IYsonConsumer* consumer)
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
 {
-    Serialize(~value, consumer);
+    Serialize(value.Get(), consumer);
 }
 
 // TEnumBase
@@ -94,12 +96,12 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
     }
 }
 
-// TSmallVector
+// SmallVector
 template <class T, unsigned N>
-void Serialize(const TSmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
+void Serialize(const SmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         consumer->OnListItem();
         Serialize(item, consumer);
     }
@@ -111,7 +113,7 @@ template <class T>
 void Serialize(const std::vector<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         consumer->OnListItem();
         Serialize(item, consumer);
     }
@@ -123,10 +125,9 @@ template <class T>
 void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(items);
-    FOREACH (const auto& item, sortedItems) {
+    for (auto it : GetSortedIterators(items)) {
         consumer->OnListItem();
-        Serialize(*item, consumer);
+        Serialize(*it, consumer);
     }
     consumer->OnEndList();
 }
@@ -136,10 +137,9 @@ template <class T>
 void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(items);
-    FOREACH (const auto& pair, sortedItems) {
-        consumer->OnKeyedItem(pair->first);
-        Serialize(pair->second, consumer);
+    for (auto it : GetSortedIterators(items)) {
+        consumer->OnKeyedItem(it->first);
+        Serialize(it->second, consumer);
     }
     consumer->OnEndMap();
 }
@@ -150,7 +150,7 @@ void Serialize(const std::map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(items);
-    FOREACH (const auto& pair, sortedItems) {
+    for (const auto& pair : sortedItems) {
         consumer->OnKeyedItem(pair->first);
         Serialize(pair->second, consumer);
     }
@@ -212,9 +212,9 @@ void Deserialize(TNullable<T>& value, INodePtr node)
     }
 }
 
-// TSmallVector
+// SmallVector
 template <class T, unsigned N>
-void Deserialize(TSmallVector<T, N>& value, INodePtr node)
+void Deserialize(SmallVector<T, N>& value, INodePtr node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -254,11 +254,11 @@ template <class T>
 void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
-    FOREACH (const auto& pair, mapNode->GetChildren()) {
+    for (const auto& pair : mapNode->GetChildren()) {
         auto& key = pair.first;
-        T value;
-        Deserialize(value, pair.second);
-        value.insert(std::make_pair(key, std::move(value)));
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
     }
 }
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "group.h"
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -18,14 +18,16 @@ void TGroup::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
     
-    SaveObjectRefs(context, Members_);
+    using NYT::Save;
+    Save(context, Members_);
 }
 
 void TGroup::Load(NCellMaster::TLoadContext& context)
 {
     TSubject::Load(context);
 
-    LoadObjectRefs(context, Members_);
+    using NYT::Load;
+    Load(context, Members_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

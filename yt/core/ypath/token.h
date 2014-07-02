@@ -24,7 +24,7 @@ DECLARE_ENUM(ETokenType,
     (Range)
 );
 
-Stroka ToYPathLiteral(const Stroka& value);
+Stroka ToYPathLiteral(const TStringBuf& value);
 Stroka ToYPathLiteral(i64 value);
 
 TStringBuf ExtractListIndex(const TStringBuf& token);

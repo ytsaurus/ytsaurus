@@ -46,9 +46,9 @@ public:
 
         while (!(TBase::IsFinished() && TBase::IsEmpty())) {
             if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
-                THROW_ERROR_EXCEPTION("Input is already parsed but unexpected symbol %s found (%s)",
-                    ~Stroka(*TBase::Begin()).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Stray %s found",
+                    ~Stroka(*TBase::Begin()).Quote())
+                    << *this;
             } else if (!TBase::IsEmpty()) {
                 TBase::Advance(1);
             }
@@ -147,9 +147,9 @@ public:
                     TBase::template ReadUnquotedString<AllowFinish>(&value);
                     Consumer->OnStringScalar(value);
                 } else {
-                    THROW_ERROR_EXCEPTION("Unexpected character %s while parsing Node (%s)",
-                        ~Stroka(ch).Quote(),
-                        ~TBase::GetPositionInfo());
+                    THROW_ERROR_EXCEPTION("Unexpected %s while parsing node",
+                        ~Stroka(ch).Quote())
+                        << *this;
                 }
             }
         }
@@ -183,9 +183,9 @@ public:
                     TBase::ReadUnquotedString(&value);
                     Consumer->OnKeyedItem(value);
                 } else {
-                    THROW_ERROR_EXCEPTION("Unexpected character %s while parsing Key (%s)",
-                        ~Stroka(ch).Quote(),
-                        ~TBase::GetPositionInfo());
+                    THROW_ERROR_EXCEPTION("Unexpected %s while parsing key",
+                        ~Stroka(ch).Quote())
+                        << *this;
                 }
             }
         }
@@ -202,10 +202,10 @@ public:
             if (ch == KeyValueSeparatorSymbol) {
                 TBase::Advance(1);
             } else {
-                THROW_ERROR_EXCEPTION("Expected '%c' but character %s found (%s)",
-                    KeyValueSeparatorSymbol,
-                    ~Stroka(ch).Quote(),
-                    ~TBase::GetPositionInfo());
+                THROW_ERROR_EXCEPTION("Expected %s but %s found",
+                    ~Stroka(KeyValueSeparatorSymbol).Quote(),
+                    ~Stroka(ch).Quote())
+                    << *this;
             }
             ParseNode<AllowFinish>();
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
@@ -213,11 +213,11 @@ public:
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
-                THROW_ERROR_EXCEPTION("Expected '%c' or %s but character %s found (%s)",
-                    KeyedItemSeparatorSymbol,
+                THROW_ERROR_EXCEPTION("Expected %s or %s but %s found",
+                    ~Stroka(KeyedItemSeparatorSymbol).Quote(),
                     ~Stroka(endSymbol).Quote(),
-                    ~Stroka(ch).Quote(),
-                    ~TBase::GetPositionInfo());
+                    ~Stroka(ch).Quote())
+                    << *this;
             }
             
         }
@@ -241,11 +241,11 @@ public:
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
-                THROW_ERROR_EXCEPTION("Expected '%c' or %s but character %s found (%s)",
-                    ListItemSeparatorSymbol,
+                THROW_ERROR_EXCEPTION("Expected %s or %s but %s found",
+                    ~Stroka(ListItemSeparatorSymbol).Quote(),
                     ~Stroka(endSymbol).Quote(),
-                    ~Stroka(ch).Quote(),
-                    ~TBase::GetPositionInfo());
+                    ~Stroka(ch).Quote())
+                    << *this;
             }            
         }
     }
@@ -266,10 +266,11 @@ public:
             try {
                 value = FromString<double>(valueBuffer);
             } catch (const std::exception& ex) {
-                // This exception is wrapped in parser
-                THROW_ERROR_EXCEPTION("Failed to parse Double literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                // This exception is wrapped in parser.
+                THROW_ERROR_EXCEPTION("Failed to parse double literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
             Consumer->OnDoubleScalar(value);
         } else {
@@ -277,10 +278,11 @@ public:
             try {
                 value = FromString<i64>(valueBuffer);
             } catch (const std::exception& ex) {
-                // This exception is wrapped in parser
-                THROW_ERROR_EXCEPTION("Failed to parse Integer literal %s (%s)",
-                    ~Stroka(valueBuffer).Quote(),
-                    ~TBase::GetPositionInfo());
+                // This exception is wrapped in parser.
+                THROW_ERROR_EXCEPTION("Failed to parse integer literal %s",
+                    ~Stroka(valueBuffer).Quote())
+                    << *this
+                    << ex;
             }
             Consumer->OnIntegerScalar(value);
         }
@@ -295,9 +297,9 @@ template <class TConsumer, class TBlockStream>
 void ParseYsonStreamImpl(
     const TBlockStream& blockStream, 
     IYsonConsumer* consumer, 
-    EYsonType parsingMode = EYsonType::Node, 
-    bool enableLinePositionInfo = false,
-    TNullable<i64> memoryLimit = Null)
+    EYsonType parsingMode, 
+    bool enableLinePositionInfo,
+    TNullable<i64> memoryLimit)
 {
     if (enableLinePositionInfo) {
         typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
@@ -320,15 +322,16 @@ public:
 };
 
 template <class TConsumer, bool EnableLinePositionInfo>
-class TStatelessYsonParserImpl : public TStatelessYsonParserImplBase
+class TStatelessYsonParserImpl
+    : public TStatelessYsonParserImplBase
 {
 private:
     typedef NDetail::TParser<TConsumer, TStringReader, EnableLinePositionInfo> TParser;
     TParser Parser;
 
 public:
-    TStatelessYsonParserImpl(TConsumer* consumer)
-        : Parser(TStringReader(), consumer, Null)
+    TStatelessYsonParserImpl(TConsumer* consumer, TNullable<i64> memoryLimit)
+        : Parser(TStringReader(), consumer, memoryLimit)
     { }
     
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) override

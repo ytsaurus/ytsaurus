@@ -3,48 +3,28 @@
 #include "public.h"
 
 #ifdef _linux_
-    #include <unistd.h>
-    #include <syscall.h>
     #include <linux/futex.h>
     #include <sys/time.h>
+    #include <sys/syscall.h>
 #else
-    #include <util/system/event.h>
+    #include <util/system/mutex.h>
+    #include <util/system/condvar.h>
 #endif
 
 #include <limits>
-
-#include <util/system/atomic.h>
-
-// This is an adapted version from Facebook's folly.
-// See https://raw.github.com/facebook/folly/master/folly/experimental/EventCount.h
+#include <atomic>
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-
-namespace NDetail {
-
-inline int futex(
-    int* uaddr, int op, int val, const timespec* timeout,
-    int* uaddr2, int val3)
-{
-    return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
-}
-
-} // namespace NDetail
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Event count: a condition variable for lock free algorithms.
- *
- * See http://www.1024cores.net/home/lock-free-algorithms/eventcounts for
- * details.
+//! Event count: a condition variable for lock free algorithms.
+/*!
+ * This is an adapted version from Facebook's Folly. See
+ * https://raw.github.com/facebook/folly/master/folly/experimental/EventCount.h
+ * http://www.1024cores.net/home/lock-free-algorithms/eventcounts
+ * for details.
  *
  * Event counts allow you to convert a non-blocking lock-free / wait-free
  * algorithm into a blocking one, by isolating the blocking logic. You call
@@ -67,12 +47,12 @@ inline int futex(
  * Waiter:
  *   if (!condition()) { // Handle fast path first.
  *     for (;;) {
- *       auto key = ec.PepareWait();
+ *       auto cookie = ec.PepareWait();
  *       if (condition()) {
  *         ec.CancelWait();
  *         break;
  *       } else {
- *         ec.Wait(key);
+ *         ec.Wait(cookie);
  *       }
  *     }
  *  }
@@ -90,60 +70,75 @@ inline int futex(
  * data structure (push into a lock-free queue, etc) and returning true on
  * success and false on failure.
  */
-
 class TEventCount
+    : private TNonCopyable
 {
 public:
     TEventCount()
-        : Epoch(0)
-        , Waiters(0)
-#ifndef _linux_
-        , Event()
-#endif
+        : Value_(0)
     { }
 
     class TCookie
     {
         friend class TEventCount;
 
-        explicit TCookie(TAtomicBase epoch)
-            : Epoch(epoch)
+        explicit TCookie(ui32 epoch)
+            : Epoch_(epoch)
         { }
 
-        TAtomicBase Epoch;
+        ui32 Epoch_;
     };
 
     void Notify();
     void NotifyAll();
+
     TCookie PrepareWait();
     void CancelWait();
-    void Wait(TCookie key);
+    void Wait(TCookie cookie);
 
-    /**
-     * Wait for condition() to become true. Will clean up appropriately if
-     * condition() throws, and then rethrow.
-     */
+    //! Wait for |condition()| to become |true|.
+    //! Will clean up appropriately if |condition()| throws, and then rethrow.
     template <class TCondition>
     void Await(TCondition condition);
 
 private:
     void DoNotify(int n);
 
-    TEventCount(const TEventCount&);
-    TEventCount(TEventCount&&);
-    TEventCount& operator=(const TEventCount&);
-    TEventCount& operator=(TEventCount&&);
+    //! Lower 32 bits: number of waiters.
+    //! Upper 32 bits: epoch
+    std::atomic<ui64> Value_;
 
-    // NB: You have to atomically work with these two.
-    // XXX(sandello): Replace with std::atomic<int>.
-    TAtomic Epoch;
-    TAtomic Waiters;
+    static const ui64 AddWaiter  = static_cast<ui64>(1);
+    static const ui64 SubWaiter  = static_cast<ui64>(-1);
+
+    static const int  EpochShift = 32;
+    static const ui64 AddEpoch   = static_cast<ui64>(1) << EpochShift;
+    
+    static const ui64 WaiterMask = AddEpoch - 1;
 
 #ifndef _linux_
-    Event Event;
+    TCondVar ConditionVariable_;
+    TMutex Mutex_;
 #endif
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+
+namespace NDetail {
+
+inline int futex(
+    int* uaddr, int op, int val, const timespec* timeout,
+    int* uaddr2, int val3)
+{
+    return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
+}
+
+} // namespace NDetail
+
+#endif
 
 inline void TEventCount::Notify()
 {
@@ -160,42 +155,62 @@ inline void TEventCount::DoNotify(int n)
     // The order is important: Epoch is incremented before Waiters is checked.
     // prepareWait() increments Waiters before checking Epoch, so it is
     // impossible to miss a wakeup.
-    AtomicIncrement(Epoch);
-    if (AtomicGet(Waiters) != 0) {
+#ifndef _linux_
+    TGuard<TMutex> guard(Mutex_);
+#endif
+
+    ui64 prev = Value_.fetch_add(AddEpoch, std::memory_order_acq_rel);
+    if (UNLIKELY((prev & WaiterMask) != 0)) {
 #ifdef _linux_
-        NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
+        NDetail::futex(
+            reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
+            FUTEX_WAKE_PRIVATE,
+            n,
+            nullptr,
+            nullptr,
+            0);
 #else
-        Event.Signal();
+        if (n == 1) {
+            ConditionVariable_.Signal();
+        } else {
+            ConditionVariable_.BroadCast();
+        }   
 #endif
     }
 }
 
 inline TEventCount::TCookie TEventCount::PrepareWait()
 {
-    AtomicIncrement(Waiters);
-    return TCookie(AtomicGet(Epoch));
+    ui64 prev = Value_.fetch_add(AddWaiter, std::memory_order_acq_rel);
+    return TCookie(static_cast<ui32>(prev >> EpochShift));
 }
 
 inline void TEventCount::CancelWait()
 {
-    AtomicDecrement(Waiters);
+    ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
+    YASSERT((prev & WaiterMask) != 0);
 }
 
-inline void TEventCount::Wait(TCookie key)
+inline void TEventCount::Wait(TCookie cookie)
 {
 #ifdef _linux_
-    while (AtomicGet(Epoch) == key.Epoch) {
-        NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
+    while ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
+        NDetail::futex(
+            reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture
+            FUTEX_WAIT_PRIVATE,
+            cookie.Epoch_,
+            nullptr,
+            nullptr,
+            0);
     }
 #else
-    if (AtomicGet(Epoch) == key.Epoch) {
-        Event.Reset();
-        if (AtomicGet(Epoch) == key.Epoch) {
-            YCHECK(Event.Wait());
-        }
+    TGuard<TMutex> guard(Mutex_);
+    if ((Value_.load(std::memory_order_acquire) >> EpochShift) == cookie.Epoch_) {
+        ConditionVariable_.WaitI(Mutex_);
     }
 #endif
-    AtomicDecrement(Waiters);
+    ui64 prev = Value_.fetch_add(SubWaiter, std::memory_order_seq_cst);
+    YASSERT((prev & WaiterMask) != 0);
 }
 
 template <class TCondition>
@@ -210,12 +225,12 @@ void TEventCount::Await(TCondition condition)
     // noexcept, so we can hoist the try/catch block outside of the loop
     try {
         for (;;) {
-            auto key = PrepareWait();
+            auto cookie = PrepareWait();
             if (condition()) {
                 CancelWait();
                 break;
             } else {
-                Wait(key);
+                Wait(cookie);
             }
         }
     } catch (...) {

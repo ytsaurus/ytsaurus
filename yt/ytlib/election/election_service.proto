@@ -25,7 +25,6 @@ message TRspGetStatus
     required NYT.NProto.TGuid vote_epoch_id = 3;
     required int64 priority = 4;
     required int32 self_id = 5;
-    repeated bytes peer_addresses = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

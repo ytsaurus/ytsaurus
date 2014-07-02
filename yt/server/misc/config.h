@@ -8,22 +8,27 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/chunk_client/config.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServerConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     TAddressResolverConfigPtr AddressResolver;
     NRpc::TServerConfigPtr RpcServer;
+    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
 
     TServerConfig()
     {
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
         RegisterParameter("rpc_server", RpcServer)
+            .DefaultNew();
+        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
     }
 };

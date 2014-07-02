@@ -1,0 +1,79 @@
+package NYT.NVersionedTableClient.NProto;
+
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/chunk_client/schema.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TColumnSchema
+{
+    required string name = 1;
+    required int32 type = 2;
+}
+
+message TTableSchemaExt
+{
+    repeated TColumnSchema columns = 1;
+}
+
+message TNameTableExt
+{
+    repeated string names = 1;
+}
+
+message TBlockMeta
+{
+    required int32 row_count = 1;
+    required int32 block_size = 2;
+    required int64 chunk_row_count = 3;
+
+    // ToDo: move to extension
+    repeated int32 fixed_column_sizes = 4;
+    optional int32 variable_buffer_offset = 5;
+    optional int32 end_of_key_flags_offset = 6;
+
+    extensions 100 to max;
+}
+
+message TSimpleVersionedBlockMeta
+{
+    extend TBlockMeta
+    {
+        optional TSimpleVersionedBlockMeta block_meta_ext = 100;
+    }
+
+    required int32 value_count = 1;
+    required int32 timestamp_count = 2;
+}
+
+message TBlockMetaExt
+{
+    repeated TBlockMeta entries = 1;
+}
+
+// For each column in block, stores corresponding index in name table.
+message TBlockIndexesExt
+{
+    repeated int32 index_in_name_table = 1;
+}
+
+message TBlockIndexExt
+{
+    // Number of entries equals to block count.
+    repeated bytes entries = 1;
+}
+
+// Chunk meta extension.
+
+message TBoundaryKeysExt
+{
+    required bytes min = 1;
+    required bytes max = 2;
+}
+
+message TSamplesExt
+{
+    repeated bytes entries = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

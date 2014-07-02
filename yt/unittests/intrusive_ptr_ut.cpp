@@ -23,8 +23,6 @@ using ::testing::StrictMock;
 class TIntricateObject
 {
 public:
-    typedef TIntrusivePtr<TIntricateObject> TPtr;
-
     int Increments;
     int Decrements;
     int Zeros;
@@ -57,6 +55,9 @@ private:
     TIntricateObject& operator=(const TIntricateObject&);
     TIntricateObject& operator=(TIntricateObject&&);
 };
+
+typedef TIntrusivePtr<TIntricateObject> TIntricateObjectPtr;
+
 
 void InitializeTracking(TIntricateObject* object, void* cookie, size_t size)
 {
@@ -175,7 +176,7 @@ public:
 
 TEST(TIntrusivePtrTest, Empty)
 {
-    TIntricateObject::TPtr emptyPointer;
+    TIntricateObjectPtr emptyPointer;
     EXPECT_EQ(NULL, emptyPointer.Get());
 }
 
@@ -186,7 +187,7 @@ TEST(TIntrusivePtrTest, Basic)
     EXPECT_THAT(object, HasRefCounts(0, 0, 0));
 
     {
-        TIntricateObject::TPtr owningPointer(&object);
+        TIntricateObjectPtr owningPointer(&object);
         EXPECT_THAT(object, HasRefCounts(1, 0, 0));
         EXPECT_EQ(&object, owningPointer.Get());
     }
@@ -194,7 +195,7 @@ TEST(TIntrusivePtrTest, Basic)
     EXPECT_THAT(object, HasRefCounts(1, 1, 1));
 
     {
-        TIntricateObject::TPtr nonOwningPointer(&object, false);
+        TIntricateObjectPtr nonOwningPointer(&object, false);
         EXPECT_THAT(object, HasRefCounts(1, 1, 1));
         EXPECT_EQ(&object, nonOwningPointer.Get());
     }
@@ -205,7 +206,7 @@ TEST(TIntrusivePtrTest, Basic)
 TEST(TIntrusivePtrTest, ResetToNull)
 {
     TIntricateObject object;
-    TIntricateObject::TPtr ptr(&object);
+    TIntricateObjectPtr ptr(&object);
 
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
     EXPECT_EQ(&object, ptr.Get());
@@ -221,7 +222,7 @@ TEST(TIntrusivePtrTest, ResetToOtherObject)
     TIntricateObject firstObject;
     TIntricateObject secondObject;
 
-    TIntricateObject::TPtr ptr(&firstObject);
+    TIntricateObjectPtr ptr(&firstObject);
 
     EXPECT_THAT(firstObject, HasRefCounts(1, 0, 0));
     EXPECT_THAT(secondObject, HasRefCounts(0, 0, 0));
@@ -238,11 +239,11 @@ TEST(TIntrusivePtrTest, CopySemantics)
 {
     TIntricateObject object;
 
-    TIntricateObject::TPtr foo(&object);
+    TIntricateObjectPtr foo(&object);
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
 
     {
-        TIntricateObject::TPtr bar(foo);
+        TIntricateObjectPtr bar(foo);
         EXPECT_THAT(object, HasRefCounts(2, 0, 0));
         EXPECT_EQ(&object, foo.Get());
         EXPECT_EQ(&object, bar.Get());
@@ -251,7 +252,7 @@ TEST(TIntrusivePtrTest, CopySemantics)
     EXPECT_THAT(object, HasRefCounts(2, 1, 0));
 
     {
-        TIntricateObject::TPtr bar;
+        TIntricateObjectPtr bar;
         bar = foo;
 
         EXPECT_THAT(object, HasRefCounts(3, 1, 0));
@@ -266,11 +267,11 @@ TEST(TIntrusivePtrTest, MoveSemantics)
 {
     TIntricateObject object;
 
-    TIntricateObject::TPtr foo(&object);
+    TIntricateObjectPtr foo(&object);
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
 
     {
-        TIntricateObject::TPtr bar(std::move(foo));
+        TIntricateObjectPtr bar(std::move(foo));
         EXPECT_THAT(object, HasRefCounts(1, 0, 0));
         EXPECT_THAT(foo.Get(), IsNull());
         EXPECT_EQ(&object, bar.Get());
@@ -281,7 +282,7 @@ TEST(TIntrusivePtrTest, MoveSemantics)
     EXPECT_THAT(object, HasRefCounts(2, 1, 1));
 
     {
-        TIntricateObject::TPtr bar;
+        TIntricateObjectPtr bar;
         bar = std::move(foo);
         EXPECT_THAT(object, HasRefCounts(2, 1, 1));
         EXPECT_THAT(foo.Get(), IsNull());
@@ -293,8 +294,8 @@ TEST(TIntrusivePtrTest, Swap)
 {
     TIntricateObject object;
 
-    TIntricateObject::TPtr foo(&object);
-    TIntricateObject::TPtr bar;
+    TIntricateObjectPtr foo(&object);
+    TIntricateObjectPtr bar;
 
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
     EXPECT_THAT(foo.Get(), NotNull());
@@ -336,8 +337,8 @@ TEST(TIntrusivePtrTest, UnspecifiedBoolType)
 {
     TIntricateObject object;
 
-    TIntricateObject::TPtr foo;
-    TIntricateObject::TPtr bar(&object);
+    TIntricateObjectPtr foo;
+    TIntricateObjectPtr bar(&object);
 
     EXPECT_FALSE(foo);
     EXPECT_TRUE(bar);
@@ -346,7 +347,7 @@ TEST(TIntrusivePtrTest, UnspecifiedBoolType)
 TEST(TIntrusivePtrTest, NewDoesNotAcquireAdditionalReferences)
 {
     TIntricateObject* rawPtr = NULL;
-    TIntricateObject::TPtr ptr = New<TIntricateObject>();
+    TIntricateObjectPtr ptr = New<TIntricateObject>();
 
     // There was no acquision during construction. Note that
     // TRefCountedBase has initial reference counter set to 1,
@@ -375,10 +376,10 @@ TEST(TIntrusivePtrTest, EqualityOperator)
 {
     TIntricateObject object, anotherObject;
 
-    TIntricateObject::TPtr emptyPointer;
-    TIntricateObject::TPtr somePointer(&object);
-    TIntricateObject::TPtr samePointer(&object);
-    TIntricateObject::TPtr anotherPointer(&anotherObject);
+    TIntricateObjectPtr emptyPointer;
+    TIntricateObjectPtr somePointer(&object);
+    TIntricateObjectPtr samePointer(&object);
+    TIntricateObjectPtr anotherPointer(&anotherObject);
 
     EXPECT_TRUE(NULL == emptyPointer);
     EXPECT_TRUE(emptyPointer == NULL);

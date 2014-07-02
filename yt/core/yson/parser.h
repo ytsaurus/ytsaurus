@@ -36,7 +36,8 @@ class TStatelessYsonParser
 public:
     TStatelessYsonParser(
         IYsonConsumer* consumer,
-        bool enableLinePositionInfo = false);
+        bool enableLinePositionInfo = false,
+        TNullable<i64> memoryLimit = Null);
 
     ~TStatelessYsonParser();
 
@@ -54,7 +55,8 @@ void ParseYsonStringBuffer(
     const TStringBuf& buffer,
     IYsonConsumer* consumer,
     EYsonType type = EYsonType::Node,
-    bool enableLinePositionInfo = false);
+    bool enableLinePositionInfo = false,
+    TNullable<i64> memoryLimit = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 

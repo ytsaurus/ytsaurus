@@ -7,12 +7,14 @@
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/ref_tracked.h>
-
-#include <ytlib/chunk_client/chunk.pb.h>
-
-#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <core/misc/nullable.h>
 
 #include <core/erasure/public.h>
+
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
+
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <server/cell_master/public.h>
 
@@ -43,10 +45,11 @@ class TChunk
     , public NObjectServer::TStagedObject
     , public TRefTracked<TChunk>
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
 
-    typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
+    typedef SmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
@@ -59,14 +62,11 @@ class TChunk
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
     //! Contains a valid iterator for those chunks belonging to the repair queue
-    //! and a default-constructed instance for others.
-    DEFINE_BYVAL_RW_PROPERTY(TChunkRepairQueueIterator, RepairQueueIterator);
+    //! and |Null| for others.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TChunkRepairQueueIterator>, RepairQueueIterator);
 
 public:
-    static const i64 UnknownDiskSpace;
-
     explicit TChunk(const TChunkId& id);
-    ~TChunk();
 
     TChunkTreeStatistics GetStatistics() const;
     NSecurityServer::TClusterResources GetResourceUsage() const;
@@ -76,10 +76,10 @@ public:
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
-    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
+    TNodePtrWithIndexList GetReplicas() const;
 
-    bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
-    
+    void ApproveReplica(TNodePtrWithIndex replica);
+
     bool IsConfirmed() const;
     void ValidateConfirmed();
 
@@ -95,14 +95,29 @@ public:
     bool GetPropertiesUpdateScheduled() const;
     void SetPropertiesUpdateScheduled(bool value);
 
+    bool GetSealScheduled() const;
+    void SetSealScheduled(bool value);
+
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);
+
+    int GetReadQuorum() const;
+    void SetReadQuorum(int value);
+
+    int GetWriteQuorum() const;
+    void SetWriteQuorum(int value);
 
     NErasure::ECodec GetErasureCodec() const;
     void SetErasureCodec(NErasure::ECodec value);
 
-    //! Returns |true| iff erasure codec is not #EErasureCodec::Null.
+    //! Returns |true| iff this is an erasure chunk.
     bool IsErasure() const;
+
+    //! Returns |true| iff this is a journal chunk.
+    bool IsJournal() const;
+    
+    //! Returns |true| iff this is a regular chunk.
+    bool IsRegular() const;
 
     //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
     /*!
@@ -110,6 +125,15 @@ public:
      *  For erasure chunks this is equivalent to the existence of replicas for all data parts.
      */
     bool IsAvailable() const;
+
+    //! Returns |true| iff this is a sealed journal chunk.
+    bool IsSealed() const;
+
+    //! Returns the number of records in a sealed chunk.
+    int GetSealedRecordCount() const;
+
+    //! Marks the chunk as sealed, i.e. sets its ultimate record count.
+    void Seal(int recordCount);
 
     TChunkProperties GetChunkProperties() const;
 
@@ -119,10 +143,13 @@ private:
         bool Vital : 1;
         bool RefreshScheduled : 1;
         bool PropertiesUpdateScheduled : 1;
-    } Flags;
+        bool SealScheduled : 1;
+    } Flags_;
 
-    i16 ReplicationFactor;
-    i16 ErasureCodec;
+    i8 ReplicationFactor_;
+    i8 ReadQuorum_;
+    i8 WriteQuorum_;
+    i8 ErasureCodec_;
 
 };
 

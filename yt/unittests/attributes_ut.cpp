@@ -11,7 +11,8 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAttributesTest: public ::testing::Test
+class TAttributesTest
+    : public ::testing::Test
 {
 protected:
     virtual void SetUp()
@@ -21,28 +22,7 @@ protected:
     { }
 };
 
-
-namespace {
-
-bool IsEqual (
-    const IAttributeDictionary& lhs,
-    const IAttributeDictionary& rhs)
-{
-    if (lhs.List() != rhs.List()) {
-        return false;
-    }
-    FOREACH (const auto& key, lhs.List()) {
-        auto value = rhs.FindYson(key);
-        if (!value) {
-            return false;
-        }
-    }
-    return true;
-}
-
-} //anonymous namespace
-
-TEST_F(TAttributesTest, CheckAccessors)
+TEST(TAttributesTest, CheckAccessors)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
@@ -72,8 +52,7 @@ TEST_F(TAttributesTest, CheckAccessors)
     EXPECT_THROW(attributes->Get<double>("unknown_key"), std::exception);
 }
 
-
-TEST_F(TAttributesTest, MergeFromTest)
+TEST(TAttributesTest, MergeFromTest)
 {
     auto attributesX = CreateEphemeralAttributes();
     attributesX->Set<Stroka>("name", "Petr");
@@ -86,13 +65,13 @@ TEST_F(TAttributesTest, MergeFromTest)
     EXPECT_EQ("Oleg", attributesX->Get<Stroka>("name"));
     EXPECT_EQ(30, attributesX->Get<int>("age"));
 
-    NYT::NYTree::INodePtr node = ConvertToNode(NYT::NYTree::TYsonString("{age=20}"));
+    auto node = ConvertToNode(TYsonString("{age=20}"));
     attributesX->MergeFrom(node->AsMap());
     EXPECT_EQ("Oleg", attributesX->Get<Stroka>("name"));
     EXPECT_EQ(20, attributesX->Get<int>("age"));
 }
 
-TEST_F(TAttributesTest, SerializeToNode)
+TEST(TAttributesTest, SerializeToNode)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
@@ -100,19 +79,19 @@ TEST_F(TAttributesTest, SerializeToNode)
 
     auto node = ConvertToNode(*attributes);
     auto convertedAttributes = ConvertToAttributes(node);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
-TEST_F(TAttributesTest, SerializeToProto)
+TEST(TAttributesTest, SerializeToProto)
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->Set<Stroka>("name", "Petr");
     attributes->Set<int>("age", 30);
 
-    NYT::NYTree::NProto::TAttributes protoAttributes;
-    NYT::NYTree::ToProto(&protoAttributes, *attributes);
-    auto convertedAttributes = NYT::NYTree::FromProto(protoAttributes);
-    EXPECT_TRUE(IsEqual(*attributes, *convertedAttributes));
+    NProto::TAttributes protoAttributes;
+    ToProto(&protoAttributes, *attributes);
+    auto convertedAttributes = FromProto(protoAttributes);
+    EXPECT_EQ(*attributes, *convertedAttributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,4 +99,3 @@ TEST_F(TAttributesTest, SerializeToProto)
 } // namespace
 } // namespace NYTree
 } // namespace NYT
-

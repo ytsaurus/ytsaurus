@@ -3,28 +3,66 @@ import simplejson as json
 
 """This module provides default ytserver configs"""
 
+def get_logging_pattern():
+    return yson.loads(
+"""
+{
+    rules = [
+        {
+            min_level = Info;
+            writers = [ info ];
+        };
+        {
+            min_level = Debug;
+            writers = [ debug ];
+        };
+        {
+            min_level = Error;
+            writers = [ stderr ];
+        };
+    ];
+    writers = {
+        stderr = {
+            type = stderr;
+        };
+        info = {
+            type = file;
+            file_name = "{path}/{name}.log";
+        };
+        debug = {
+            type = file;
+            file_name = "{path}/{name}.debug.log";
+        };
+    };
+}
+""")
+
+def get_tracing_config():
+    return {}
+
 def get_master_config():
     return yson.loads(
 """
 {
-    meta_state = {
-        cell = {
-            addresses = [ ];
-        };
-        follower_tracker = {
-            ping_interval = 3000;
-        };
-        changelogs = {
-            path = "";
-        };
-        snapshots = {
-            path = "";
-        };
-        max_changes_between_snapshots = 1000000;
-        max_batch_delay = 0;
-        leader_committer = {
-            rpc_timeout = 10000;
-        };
+    master = {
+        addresses = [ ];
+    };
+
+    timestamp_provider = {
+        addresses = [ ];
+    };
+
+    changelogs = {
+        path = "";
+    };
+
+    snapshots = {
+        path = "";
+    };
+
+    cell_directory = {
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
     };
 
     transaction_manager = {
@@ -54,35 +92,14 @@ def get_master_config():
         gc_sweep_period = 10;
     };
 
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = stderr;
-            };
-            file = {
-                type = file;
-                file_name = "master-0.log";
-            };
-            raw = {
-                type = file;
-                file_name = "master-0.debug.log";
-            };
-        }
-  };
+    hive_manager = {
+        ping_period = 1000;
+        rpc_timeout = 1000;
+    };
+
+    logging = { };
+
+    tracing = { };
 }
 """)
 
@@ -90,10 +107,18 @@ def get_scheduler_config():
     return yson.loads(
 """
 {
-    masters = {
-        addresses = [
-            "localhost:9000";
-        ];
+    cluster_connection = {
+        master = {
+            addresses = [ ];
+        };
+
+        timestamp_provider = {
+            addresses = [ ];
+        };
+
+        transaction_manager = {
+            ping_period = 500;
+        };
     };
 
     scheduler = {
@@ -102,9 +127,9 @@ def get_scheduler_config():
         snapshot_period = 100000000;
         connect_retry_period = 2000;
         lock_transaction_timeout = 2000;
-        transactions_refresh_period = 1000;
-        operations_update_period = 1000;
-        watchers_update_period = 1000;
+        transactions_refresh_period = 500;
+        operations_update_period = 500;
+        watchers_update_period = 500;
         connect_grace_delay = 0;
         environment = {
              PYTHONUSERBASE = "/tmp"
@@ -118,91 +143,9 @@ def get_scheduler_config():
         ping_period = 500;
     };
 
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = stderr;
-            };
-            file = {
-                type = file;
-                file_name = "scheduler-0.log";
-            };
-            raw = {
-                type = file;
-                file_name = "scheduler-0.debug.log";
-            };
-        }
-    }
-}
-""")
+    logging = { };
 
-
-def get_driver_config():
-    return yson.loads(
-"""
-{
-    masters = {
-        addresses = [
-            "localhost";
-        ];
-        rpc_timeout = 30000;
-    };
-
-    logging = {
-        rules = [
-            {
-                min_level = Info;
-                writers = [ file ];
-            };
-            {
-                min_level = Debug;
-                writers = [ raw ];
-            };
-            {
-                min_level = Error;
-                writers = [ stderr ];
-            };
-        ];
-        writers = {
-            stderr = {
-                type = stderr;
-            };
-            file = {
-                type = file;
-                file_name = "ytdriver.log";
-            };
-            raw = {
-                type = file;
-                file_name = "ytdriver.debug.log";
-            };
-        };
-    };
-    "format_defaults" = {
-        "structured" = <
-            "format" = "text"
-        > "yson";
-        "tabular" = <
-            "format" = "text"
-        > "yson"
-    };
-    "operation_wait_timeout" = 3000;
-    "transaction_manager" = {
-        "ping_period" = 5000
-    }
+    tracing = { };
 }
 """)
 
@@ -210,11 +153,27 @@ def get_node_config():
     return yson.loads(
 """
 {
+    orchid_cache_expiration_period = 0;
+
+    cluster_connection = {
+        master = {
+            addresses = [];
+            rpc_timeout = 5000
+        };
+
+        timestamp_provider = {
+            addresses = [ ];
+        };
+    };
+
     data_node = {
         cache_location = {
             path = "";
         };
         store_locations = [];
+        multiplexed_changelog = {
+            path = "";
+        };
         incremental_heartbeat_period = 100;
     };
 
@@ -245,64 +204,103 @@ def get_node_config():
         job_proxy_logging = {
             rules = [
                 {
-                    min_level = Info;
-                    writers = [ file ];
+                    min_level = info;
+                    writers = [ info ];
                 };
                 {
-                    min_level = Debug;
-                    writers = [ raw ];
-                };
-                {
-                    min_level = Error;
-                    writers = [ stderr ];
+                    min_level = debug;
+                    writers = [ debug ];
                 };
             ];
             writers = {
-                stderr = {
-                    type = stderr;
-                };
-                file = {
+                info = {
                     type = file;
-                    file_name = "job_proxy-0.log";
+                    file_name = "{path}/{name}.log";
                 };
-                raw = {
+                debug = {
                     type = file;
-                    file_name = "job_proxy-0.debug.log";
+                    file_name = "{path}/{name}.debug.log";
                 };
             }
         };
     };
 
-    masters = {
-        addresses = [];
-        rpc_timeout = 5000
+    tablet_node = {
+        snapshots = {
+            temp_path = "";
+        };
     };
+
+    query_agent = {
+    };
+
+    tracing = { };
 
     logging = {
         rules = [
             {
                 min_level = info;
-                writers = [ file ];
+                writers = [ info ];
             };
             {
                 min_level = debug;
-                writers = [ raw ];
+                writers = [ debug ];
             };
         ];
         writers = {
-            stderr = {
-                type = stderr;
-            };
-            file = {
+            info = {
                 type = file;
-                file_name = "node-0.log";
+                file_name = "{path}/{name}.log";
             };
-            raw = {
+            debug = {
                 type = file;
-                file_name = "node-0.debug.log";
+                file_name = "{path}/{name}.debug.log";
             };
         }
     };
+}
+""")
+
+def get_driver_config():
+    return yson.loads(
+"""
+{
+    master = {
+        addresses = [ ];
+        rpc_timeout = 30000;
+    };
+
+    timestamp_provider = {
+        addresses = [ ];
+    };
+
+    master_cache = {
+        addresses = [ ];
+        rpc_timeout = 30000;
+    };
+
+    transaction_manager = {
+        ping_period = 5000
+    };
+
+    format_defaults = {
+        structured = <
+            format = text;
+        > yson;
+        tabular = <
+            format = text;
+        > yson
+    };
+}
+""")
+
+def get_console_driver_config():
+    return yson.loads(
+"""
+{
+    driver = { };
+    logging = { };
+    tracing = { };
 }
 """)
 
@@ -333,11 +331,9 @@ def get_proxy_config():
     },
 
     "proxy" : {
-        "logging" : {
-            "rules" : [ ],
-            "writers" : { }
-        },
-        "driver" : { }
+        "driver" : { },
+        "logging" : { },
+        "tracing" : { }
     }
 }
 """)

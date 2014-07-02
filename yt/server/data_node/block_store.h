@@ -33,6 +33,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
 };
 
+DEFINE_REFCOUNTED_TYPE(TCachedBlock)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages cached blocks.
@@ -48,34 +50,42 @@ public:
 
     ~TBlockStore();
 
-    typedef TErrorOr<TCachedBlockPtr> TGetBlockResult;
+    typedef TErrorOr<TSharedRef> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
 
-    //! Gets (asynchronously) a block from the store.
+    typedef TErrorOr<std::vector<TSharedRef>> TGetBlocksResult;
+    typedef TFuture<TGetBlocksResult> TAsyncGetBlocksResult;
+
+    //! Asynchronously retrieves a block from the store.
     /*!
-     * This call returns an async result that becomes set when the
-     * block is fetched. Fetching an already-cached block is cheap
-     * (i.e. requires no context switch). Fetching an uncached block
-     * enqueues a disk-read action to the appropriate IO queue.
+     *  Fetching an already-cached block is cheap (i.e. requires no context switch).
+     *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
+     * 
+     *  If the requested block is missing then null is returned.
      */
     TAsyncGetBlockResult GetBlock(
-        const TBlockId& blockId,
+        const TChunkId& chunkId,
+        int blockIndex,
         i64 priority,
         bool enableCaching);
 
-    //! Tries to find a block in the cache.
+    //! Asynchronously retrieves a range of blocks from the store.
     /*!
-     *  If the block is not available immediately, it returns NULL.
-     *  No IO is queued.
+     *  The resulting list may contain less blocks than requested.
+     *  An empty list indicates that the requested blocks are out of range.
      */
-    TCachedBlockPtr FindBlock(const TBlockId& blockId);
+    TAsyncGetBlocksResult GetBlocks(
+        const TChunkId& chunkId,
+        int firstBlockIndex,
+        int blockCount,
+        i64 priority);
 
     //! Puts a block into the store.
     /*!
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    TCachedBlockPtr PutBlock(
+    void PutBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
@@ -86,20 +96,23 @@ public:
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
+    //! Updates (increments or decrements) pending read size.
+    void UpdatePendingReadSize(i64 delta);
+
     //! Returns a caching adapter.
     NChunkClient::IBlockCachePtr GetBlockCache();
 
 private:
     class TStoreImpl;
-    friend class TStoreImpl;
-
     class TCacheImpl;
-    friend class TCacheImpl;
+    class TGetBlocksSession;
 
-    TIntrusivePtr<TStoreImpl> StoreImpl;
-    TIntrusivePtr<TCacheImpl> CacheImpl;
+    TIntrusivePtr<TStoreImpl> StoreImpl_;
+    TIntrusivePtr<TCacheImpl> CacheImpl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TBlockStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

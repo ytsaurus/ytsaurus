@@ -13,7 +13,9 @@
 
 #include <core/ytree/public.h>
 
-#include <core/rpc/public.h>
+#include <ytlib/scheduler/job.pb.h>
+
+#include <ytlib/api/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
 
@@ -23,7 +25,7 @@
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
-#include <ytlib/cell_directory/public.h>
+#include <ytlib/hive/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -40,7 +42,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NApi::IClientPtr GetMasterClient() = 0;
 
     /*!
      *  \note Thread affinity: any
@@ -50,18 +52,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NCellDirectory::TCellDirectoryPtr GetCellDirectory() = 0;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
-    
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
-        const NObjectClient::TTransactionId& transactionId) = 0;
+    virtual NHive::TClusterDirectoryPtr GetClusterDirectory() = 0;
 
     //! Returns the control invoker of the scheduler.
     /*!

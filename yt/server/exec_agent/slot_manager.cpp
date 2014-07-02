@@ -74,7 +74,7 @@ void TSlotManager::Initialize(int slotCount)
 
 TSlotPtr TSlotManager::AcquireSlot()
 {
-    FOREACH (auto slot, Slots) {
+    for (auto slot : Slots) {
         if (slot->IsFree()) {
             slot->Acquire();
             return slot;

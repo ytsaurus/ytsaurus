@@ -11,20 +11,21 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 namespace NYT {
-
 namespace NYPath {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
-using NChunkClient::NProto::TKey;
-using NChunkClient::NProto::TKeyPart;
-using NChunkClient::NProto::TReadLimit;
+using namespace NTableClient;
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +47,7 @@ TRichYPath::TRichYPath()
 
 TRichYPath::TRichYPath(const TRichYPath& other)
     : Path_(other.Path_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
+    , Attributes_(other.Attributes_ ? other.Attributes_->Clone() : nullptr)
 { }
 
 TRichYPath::TRichYPath(const char* path)
@@ -79,7 +80,7 @@ void TRichYPath::SetPath(const TYPath& path)
 
 const IAttributeDictionary& TRichYPath::Attributes() const
 {
-    return ~Attributes_ ? *Attributes_ : EmptyAttributes();
+    return Attributes_ ? *Attributes_ : EmptyAttributes();
 }
 
 IAttributeDictionary& TRichYPath::Attributes()
@@ -94,7 +95,7 @@ TRichYPath& TRichYPath::operator = (const TRichYPath& other)
 {
     if (this != &other) {
         Path_ = other.Path_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : NULL;
+        Attributes_ = other.Attributes_ ? other.Attributes_->Clone() : nullptr;
     }
     return *this;
 }
@@ -105,7 +106,8 @@ namespace {
 
 void ThrowUnexpectedToken(const TToken& token)
 {
-    THROW_ERROR_EXCEPTION("Token is unexpected: %s", ~token.ToString());
+    THROW_ERROR_EXCEPTION("Unexpected token %s",
+        ~ToString(token).Quote());
 }
 
 Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
@@ -222,29 +224,26 @@ void ParseChannel(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes
 
 void ParseKeyPart(
     NYson::TTokenizer& tokenizer,
-    TKey* key)
+    TUnversionedOwningRowBuilder* rowBuilder)
 {
-    auto *keyPart = key->add_parts();
+    // We don't fill id here, because key part columns are well known.
+    // Also we don't have a name table for them :)
+    TUnversionedValue value;
 
     switch (tokenizer.GetCurrentType()) {
         case NYson::ETokenType::String: {
-            auto value = tokenizer.CurrentToken().GetStringValue();
-            keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyPartType::String);
+            auto str = tokenizer.CurrentToken().GetStringValue();
+            value = MakeUnversionedStringValue(str);
             break;
         }
 
         case NYson::ETokenType::Integer: {
-            auto value = tokenizer.CurrentToken().GetIntegerValue();
-            keyPart->set_int_value(value);
-            keyPart->set_type(EKeyPartType::Integer);
+            value = MakeUnversionedIntegerValue(tokenizer.CurrentToken().GetIntegerValue());
             break;
         }
 
         case NYson::ETokenType::Double: {
-            auto value = tokenizer.CurrentToken().GetDoubleValue();
-            keyPart->set_double_value(value);
-            keyPart->set_type(EKeyPartType::Double);
+            value = MakeUnversionedDoubleValue(tokenizer.CurrentToken().GetDoubleValue());
             break;
         }
 
@@ -252,6 +251,7 @@ void ParseKeyPart(
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;
     }
+    rowBuilder->AddValue(value);
     tokenizer.ParseNext();
 }
 
@@ -265,18 +265,20 @@ void ParseRowLimit(
         return;
     }
 
+    TUnversionedOwningRowBuilder rowBuilder;
+    bool hasKeyLimit = false;
     switch (tokenizer.GetCurrentType()) {
         case RowIndexMarkerToken:
             tokenizer.ParseNext();
-            limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
+            limit->SetRowIndex(tokenizer.CurrentToken().GetIntegerValue());
             tokenizer.ParseNext();
             break;
 
         case BeginTupleToken:
             tokenizer.ParseNext();
-            limit->mutable_key();
+            hasKeyLimit = true;
             while (tokenizer.GetCurrentType() != EndTupleToken) {
-                ParseKeyPart(tokenizer, limit->mutable_key());
+                ParseKeyPart(tokenizer, &rowBuilder);
                 switch (tokenizer.GetCurrentType()) {
                     case KeySeparatorToken:
                         tokenizer.ParseNext();
@@ -292,8 +294,14 @@ void ParseRowLimit(
             break;
 
         default:
-            ParseKeyPart(tokenizer, limit->mutable_key());
+            ParseKeyPart(tokenizer, &rowBuilder);
+            hasKeyLimit = true;
             break;
+    }
+
+    if (hasKeyLimit) {
+        auto key = rowBuilder.GetRowAndReset();
+        limit->SetKey(key);
     }
 
     tokenizer.CurrentToken().CheckType(separator);
@@ -309,11 +317,11 @@ void ParseRowLimits(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
         ParseRowLimit(tokenizer, RangeToken, &lowerLimit);
         ParseRowLimit(tokenizer, EndRowSelectorToken, &upperLimit);
 
-        if (lowerLimit.has_key() || lowerLimit.has_row_index()) {
-            attributes->SetYson("lower_limit", ConvertToYsonString(lowerLimit));
+        if (!lowerLimit.IsTrivial()) {
+            attributes->Set("lower_limit", lowerLimit);
         }
-        if (upperLimit.has_key() || upperLimit.has_row_index()) {
-            attributes->SetYson("upper_limit", ConvertToYsonString(upperLimit));
+        if (!upperLimit.IsTrivial()) {
+            attributes->Set("upper_limit", upperLimit);
         }
     }
 }
@@ -324,7 +332,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
 {
     auto attributes = CreateEphemeralAttributes();
 
-    auto strWithoutAttributes = ParseAttributes(str, ~attributes);
+    auto strWithoutAttributes = ParseAttributes(str, attributes.get());
     TTokenizer ypathTokenizer(strWithoutAttributes);
 
     while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
@@ -336,15 +344,15 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
     if (ypathTokenizer.GetType() == ETokenType::Range) {
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
-        ParseChannel(ysonTokenizer, ~attributes);
-        ParseRowLimits(ysonTokenizer, ~attributes);
+        ParseChannel(ysonTokenizer, attributes.get());
+        ParseRowLimits(ysonTokenizer, attributes.get());
         ysonTokenizer.CurrentToken().CheckType(NYson::ETokenType::EndOfStream);
     }
 
     return TRichYPath(path, *attributes);
 }
 
-TRichYPath TRichYPath::Simplify() const
+TRichYPath TRichYPath::Normalize() const
 {
     auto parsed = TRichYPath::Parse(Path_);
     parsed.Attributes().MergeFrom(Attributes());
@@ -365,6 +373,26 @@ void TRichYPath::Load(TStreamLoadContext& context)
     Load(context, Attributes_);
 }
 
+bool TRichYPath::GetAppend() const
+{
+    return Attributes_->Get("append", false);
+}
+
+TChannel TRichYPath::GetChannel() const
+{
+    return Attributes_->Get("channel", TChannel::Universal());
+}
+
+TReadLimit TRichYPath::GetLowerLimit() const
+{
+    return Attributes_->Get("lower_limit", TReadLimit());
+}
+
+TReadLimit TRichYPath::GetUpperLimit() const
+{
+    return Attributes_->Get("upper_limit", TReadLimit());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)
@@ -381,13 +409,39 @@ Stroka ToString(const TRichYPath& path)
         path.GetPath();
 }
 
-std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths)
+std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)
 {
     std::vector<TRichYPath> result;
-    FOREACH (const auto& path, paths) {
-        result.push_back(path.Simplify());
+    for (const auto& path : paths) {
+        result.push_back(path.Normalize());
     }
     return result;
+}
+
+void InitializeFetchRequest(
+    NChunkClient::NProto::TReqFetch* request,
+    const TRichYPath& richPath)
+{
+    auto channel = richPath.GetChannel();
+    if (channel.IsUniversal()) {
+        request->clear_channel();
+    } else {
+        ToProto(request->mutable_channel(), channel);
+    }
+
+    auto lowerLimit = richPath.GetLowerLimit();
+    if (lowerLimit.IsTrivial()) {
+        request->clear_lower_limit();
+    } else {
+        ToProto(request->mutable_lower_limit(), lowerLimit);
+    }
+
+    auto upperLimit = richPath.GetUpperLimit();
+    if (upperLimit.IsTrivial()) {
+        request->clear_upper_limit();
+    } else {
+        ToProto(request->mutable_upper_limit(), upperLimit);
+    }
 }
 
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)

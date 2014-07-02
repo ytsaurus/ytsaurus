@@ -17,6 +17,8 @@
 
 #include <server/chunk_server/chunk_manager.h>
 
+#include <server/tablet_server/tablet_cell.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -72,6 +74,7 @@ private:
         attributes->push_back(TAttributeInfo("alerts", node));
         attributes->push_back(TAttributeInfo("stored_replica_count", node));
         attributes->push_back(TAttributeInfo("cached_replica_count", node));
+        attributes->push_back(TAttributeInfo("tablet_slots", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
@@ -102,6 +105,7 @@ private:
                         .Item("total_chunk_count").Value(statistics.total_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
                         .Item("full").Value(statistics.full())
+                        .Item("accepted_chunk_types").Value(FromProto<EObjectType, std::vector<EObjectType>>(statistics.accepted_chunk_types()))
                         .Item("locations").DoListFor(statistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                             fluent
                                 .Item().BeginMap()
@@ -138,6 +142,22 @@ private:
             if (key == "cached_replica_count") {
                 BuildYsonFluently(consumer)
                     .Value(node->CachedReplicas().size());
+                return true;
+            }
+
+            if (key == "tablet_slots") {
+                BuildYsonFluently(consumer)
+                    .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TTabletSlot& slot) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("state").Value(slot.PeerState)
+                                .DoIf(slot.Cell, [&] (TFluentMap fluent) {
+                                    fluent
+                                        .Item("cell_id").Value(slot.Cell->GetId())
+                                        .Item("peer_id").Value(slot.PeerId);
+                                })
+                            .EndMap();
+                    });
                 return true;
             }
         }
@@ -265,7 +285,7 @@ private:
         if (key == "registered" || key == "online") {
             auto expectedState = key == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
-                .DoListFor(nodeTracker->GetNodes(), [=] (TFluentList fluent, TNode* node) {
+                .DoListFor(nodeTracker->Nodes().GetValues(), [=] (TFluentList fluent, TNode* node) {
                     if (node->GetState() == expectedState) {
                         fluent.Item().Value(node->GetAddress());
                     }

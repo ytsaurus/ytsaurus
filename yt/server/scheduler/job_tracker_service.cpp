@@ -41,8 +41,6 @@ public:
     }
 
 private:
-    typedef TJobTrackerService TThis;
-
     TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)

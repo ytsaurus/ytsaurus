@@ -16,7 +16,9 @@
 
 #include <core/actions/invoker_util.h>
 
+#include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/proc.h>
 #include <core/misc/ref_counted_tracker.h>
@@ -33,16 +35,17 @@
 #include <server/scheduler/job_resources.h>
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -71,6 +74,7 @@ TJobProxy::TJobProxy(
     : Config(config)
     , JobId(jobId)
     , Logger(JobProxyLogger)
+    , JobThread(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
@@ -122,7 +126,7 @@ void TJobProxy::RetrieveJobSpec()
     ResourceUsage = rsp->resource_usage();
 
     LOG_INFO("Job spec received (JobType: %s, ResourceLimits: {%s})\n%s",
-        ~NScheduler::EJobType(rsp->job_spec().type()).ToString(),
+        ~ToString(NScheduler::EJobType(rsp->job_spec().type())),
         ~FormatResources(ResourceUsage),
         ~rsp->job_spec().DebugString());
 
@@ -131,7 +135,9 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-    auto result = DoRun();
+    auto result = BIND(&TJobProxy::DoRun, Unretained(this))
+        .AsyncVia(JobThread->GetInvoker())
+        .Run().Get();
 
     if (HeartbeatExecutor) {
         HeartbeatExecutor->Stop();
@@ -147,7 +153,7 @@ void TJobProxy::Run()
 
         // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        FOREACH (const auto& chunkId, failedChunkIds) {
+        for (const auto& chunkId : failedChunkIds) {
             auto actualChunkId = IsErasureChunkPartId(chunkId)
                 ? ErasureChunkIdFromPartId(chunkId)
                 : chunkId;
@@ -165,11 +171,12 @@ void TJobProxy::Run()
 TJobResult TJobProxy::DoRun()
 {
     auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
-
-    auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
+    auto supervisorChannel = CreateBusChannel(supervisorClient);
+    
     SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
+    SupervisorProxy->SetDefaultTimeout(Config->SupervisorRpcTimeout);
 
-    MasterChannel = CreateBusChannel(supervisorClient, Null);
+    MasterChannel = CreateBusChannel(supervisorClient);
 
     RetrieveJobSpec();
 
@@ -190,10 +197,10 @@ TJobResult TJobProxy::DoRun()
         Config->HeartbeatPeriod);
 
     if (schedulerJobSpecExt.job_proxy_memory_control()) {
-	    MemoryWatchdogExecutor = New<TPeriodicExecutor>(
-    	    GetSyncInvoker(),
-        	BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-        	Config->MemoryWatchdogPeriod);
+        MemoryWatchdogExecutor = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            Config->MemoryWatchdogPeriod);
     }
 
     try {

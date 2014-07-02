@@ -2,15 +2,17 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <ytlib/chunk_client/config.h>
 
 #include <core/rpc/config.h>
 
 #include <ytlib/table_client/config.h>
 
-#include <ytlib/file_client/config.h>
+#include <ytlib/api/config.h>
 
 #include <ytlib/ypath/public.h>
+
+#include <core/ytree/yson_serializable.h>
 
 #include <server/job_proxy/config.h>
 
@@ -73,7 +75,6 @@ class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
-    //! Interval between consecutive master connection attempts.
     TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
@@ -85,16 +86,13 @@ public:
 
     TDuration WatchersUpdatePeriod;
 
-    TDuration CellDirectoryUpdatePeriod;
+    TDuration ClusterDirectoryUpdatePeriod;
 
     TDuration ResourceDemandSanityCheckPeriod;
 
     TDuration LockTransactionTimeout;
 
     TDuration OperationTransactionTimeout;
-
-    //! Timeout used for direct RPC requests to nodes.
-    TDuration NodeRpcTimeout;
 
     TDuration ChunkScratchPeriod;
 
@@ -108,7 +106,7 @@ public:
     int MaxMemoryReserveAbortJobCount;
 
     //! Limits the number of stderrs the operation is allowed to produce.
-    int MaxStdErrCount;
+    int MaxStderrCount;
 
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
@@ -198,12 +196,12 @@ public:
     bool EnableSnapshotLoading;
 
     Stroka SnapshotTempPath;
-    NFileClient::TFileReaderConfigPtr SnapshotReader;
-    NFileClient::TFileWriterConfigPtr SnapshotWriter;
+    NApi::TFileReaderConfigPtr SnapshotReader;
+    NApi::TFileWriterConfigPtr SnapshotWriter;
+
+    NChunkClient::TFetcherConfigPtr Fetcher;
 
     TEventLogConfigPtr EventLog;
-
-    NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TSchedulerConfig()
     {
@@ -217,7 +215,7 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("watchers_update_period", WatchersUpdatePeriod)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("cell_directory_update_period", CellDirectoryUpdatePeriod)
+        RegisterParameter("cluster_directory_update_period", ClusterDirectoryUpdatePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
@@ -225,8 +223,6 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Minutes(60));
-        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
-            .Default(TDuration::Seconds(15));
 
         RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
             .Default(TDuration::Seconds(10));
@@ -242,7 +238,7 @@ public:
         RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
             .Default(100)
             .GreaterThanOrEqual(0);
-        RegisterParameter("max_stderr_count", MaxStdErrCount)
+        RegisterParameter("max_stderr_count", MaxStderrCount)
             .Default(100)
             .GreaterThanOrEqual(0);
 
@@ -360,10 +356,9 @@ public:
         RegisterParameter("snapshot_writer", SnapshotWriter)
             .DefaultNew();
 
-        RegisterParameter("event_log", EventLog)
+        RegisterParameter("fetcher", Fetcher)
             .DefaultNew();
-
-        RegisterParameter("node_channel", NodeChannel)
+        RegisterParameter("event_log", EventLog)
             .DefaultNew();
     }
 };

@@ -9,41 +9,45 @@ namespace NYT {
 template <class T>
 void RefCountedSingletonDestroyer(void* ctx)
 {
-    T** obj = reinterpret_cast<T**>(ctx);
-    (*obj)->Unref();
+    std::atomic<T*>* obj = reinterpret_cast<std::atomic<T*>*>(ctx);
+    T* objToUnref = (*obj).load();
+    objToUnref->Unref();
     *obj = reinterpret_cast<T*>(-1);
 }
 
 template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
-    static T* volatile instance;
+    static std::atomic<T*> holder;
+
+    auto* relaxedInstance = holder.load(std::memory_order_relaxed);
 
     // Failure here means that singleton is requested after it has been destroyed.
-    YASSERT(instance != reinterpret_cast<T*>(-1));
+    YASSERT(relaxedInstance != reinterpret_cast<T*>(-1));
 
-    if (LIKELY(instance)) {
-        return instance;
+    if (LIKELY(relaxedInstance)) {
+        return relaxedInstance;
     }
 
     static TSpinLock spinLock;
     TGuard<TSpinLock> guard(spinLock);
 
-    if (instance) {
-        return instance;
+    auto* orderedInstance = holder.load();
+    if (orderedInstance) {
+        return orderedInstance;
     }
 
-    T* obj = new T();
-    obj->Ref();
+    auto* newInstance = new T();
+    newInstance->Ref();
 
-    instance = obj;
+    holder.store(newInstance);
 
     AtExit(
         RefCountedSingletonDestroyer<T>,
-        const_cast<T**>(&instance),
+        &holder,
         TSingletonTraits<T>::Priority);
 
-    return instance;
+    return newInstance;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

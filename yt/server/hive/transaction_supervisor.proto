@@ -1,0 +1,48 @@
+package NYT.NHive.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartDistributedCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid mutation_id = 2;
+    repeated NYT.NProto.TGuid participant_cell_guids = 3;
+    required int64 prepare_timestamp = 4;
+}
+
+message TReqPrepareTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 prepare_timestamp = 2;
+    required NYT.NProto.TGuid coordinator_cell_guid = 3;
+}
+
+message TReqOnTransactionPrepared
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid participant_cell_guid = 2;
+    optional NYT.NProto.TError error = 3;
+}
+
+message TReqFinalizeDistributedCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
+}
+
+message TReqCommitPreparedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
+    required bool is_distributed = 3;
+}
+
+message TReqAbortFailedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

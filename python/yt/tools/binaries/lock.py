@@ -25,13 +25,13 @@ def main():
                 return
             raise
 
-        logger.info("Running command")
+        logger.info("Running command %s", args.command)
         proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy())
 
         while True:
             if not tx.ping.is_alive():
                 logger.error("Pinging thread failed. Terminating command.")
-                proc.signal(2)
+                proc.send_signal(2)
                 time.sleep(args.step)
                 proc.terminate()
                 time.sleep(args.step)
@@ -42,6 +42,8 @@ def main():
                 break
 
             time.sleep(args.step)
+
+    sys.exit(proc.returncode)
 
 if __name__ == "__main__":
     main()

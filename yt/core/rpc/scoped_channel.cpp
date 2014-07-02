@@ -9,22 +9,22 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 class TScopedChannel
     : public IChannel
 {
 public:
     explicit TScopedChannel(IChannelPtr underlyingChannel);
 
-    TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
 
-    void Send(
+    virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override;
+        TNullable<TDuration> timeout,
+        bool requestAck) override;
 
-    TFuture<void> Terminate(const TError& error) override;
+    virtual TFuture<void> Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -87,10 +87,16 @@ TNullable<TDuration> TScopedChannel::GetDefaultTimeout() const
     return UnderlyingChannel->GetDefaultTimeout();
 }
 
+void TScopedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
+{
+    UnderlyingChannel->SetDefaultTimeout(timeout);
+}
+
 void TScopedChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout)
+    TNullable<TDuration> timeout,
+    bool requestAck)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -102,7 +108,11 @@ void TScopedChannel::Send(
         ++OutstandingRequestCount;
     }
     auto scopedHandler = New<TScopedResponseHandler>(std::move(responseHandler), this);
-    UnderlyingChannel->Send(request, std::move(scopedHandler), timeout);
+    UnderlyingChannel->Send(
+        std::move(request),
+        std::move(scopedHandler),
+        timeout,
+        requestAck);
 }
 
 TFuture<void> TScopedChannel::Terminate(const TError& error)
@@ -115,7 +125,7 @@ TFuture<void> TScopedChannel::Terminate(const TError& error)
     }
 
     if (OutstandingRequestCount == 0) {
-        return MakeFuture();
+        return VoidFuture;
     }
 
     return OutstandingRequestsCompleted;
@@ -130,8 +140,6 @@ void TScopedChannel::OnRequestCompleted()
         OutstandingRequestsCompleted.Set();
     }
 }
-
-} // anonymous namespace
 
 IChannelPtr CreateScopedChannel(IChannelPtr underlyingChannel)
 {

@@ -14,38 +14,37 @@ public:
     TCancelableInvoker(
         TCancelableContextPtr context,
         IInvokerPtr underlyingInvoker)
-        : Context(std::move(context))
-        , UnderlyingInvoker(std::move(underlyingInvoker))
+        : Context_(std::move(context))
+        , UnderlyingInvoker_(std::move(underlyingInvoker))
     {
-        YCHECK(Context);
-        YCHECK(UnderlyingInvoker);
+        YCHECK(Context_);
+        YCHECK(UnderlyingInvoker_);
     }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        YASSERT(action);
+        YASSERT(callback);
 
-        if (Context->Canceled) {
-            return false;
-        }
+        if (Context_->Canceled)
+            return;
 
         auto this_ = MakeStrong(this);
-        return UnderlyingInvoker->Invoke(BIND([this, this_, action] {
-            if (!Context->Canceled) {
+        return UnderlyingInvoker_->Invoke(BIND([this, this_, callback] {
+            if (!Context_->Canceled) {
                 TCurrentInvokerGuard guard(this_);
-                action.Run();
+                callback.Run();
             }
         }));
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
     {
-        return UnderlyingInvoker->GetThreadId();
+        return UnderlyingInvoker_->GetThreadId();
     }
 
 private:
-    TCancelableContextPtr Context;
-    IInvokerPtr UnderlyingInvoker;
+    TCancelableContextPtr Context_;
+    IInvokerPtr UnderlyingInvoker_;
 
 };
 

@@ -16,23 +16,35 @@ using namespace NCellNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkRegistry::TChunkRegistry(TBootstrap* bootstrap)
-    : Bootstrap(bootstrap)
+    : Bootstrap_(bootstrap)
 { }
 
-TChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId) const
+IChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId)
 {
     // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
-    auto storedChunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
+    auto storedChunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
     if (storedChunk) {
         return storedChunk;
     }
 
-    auto cachedChunk = Bootstrap->GetChunkCache()->FindChunk(chunkId);
+    auto cachedChunk = Bootstrap_->GetChunkCache()->FindChunk(chunkId);
     if (cachedChunk) {
         return cachedChunk;
     }
 
-    return NULL;
+    return nullptr;
+}
+
+IChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
+{
+    auto chunk = FindChunk(chunkId);
+    if (!chunk) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchChunk,
+            "No such chunk %s",
+            ~ToString(chunkId));
+    }
+    return chunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

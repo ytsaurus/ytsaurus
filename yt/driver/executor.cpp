@@ -1,9 +1,8 @@
 #include "executor.h"
 #include "preprocess.h"
 
-#include <yt/build.h>
+#include <core/build.h>
 
-#include <core/misc/home.h>
 #include <core/misc/fs.h>
 #include <core/misc/assert.h>
 
@@ -19,7 +18,7 @@
 
 #include <core/logging/log_manager.h>
 
-#include <util/folder/dirut.h>
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NDriver {
@@ -43,7 +42,7 @@ static const i64 OutputBufferSize = (1 << 16);
 ////////////////////////////////////////////////////////////////////////////////
 
 TExecutor::TExecutor()
-    : CmdLine("Command line", ' ', YT_VERSION)
+    : CmdLine("Command line", ' ', GetVersion())
     , ConfigArg("", "config", "configuration file", false, "", "STRING")
     , ConfigOptArg("", "config_opt", "override configuration option", false, "YPATH=YSON")
 {
@@ -51,12 +50,11 @@ TExecutor::TExecutor()
     CmdLine.add(ConfigOptArg);
 }
 
-
 Stroka TExecutor::GetConfigFileName()
 {
     Stroka fromCommandLine = ConfigArg.getValue();;
     Stroka fromEnv = Stroka(getenv(ConfigEnvVar));
-    Stroka user = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+    Stroka user = NFS::CombinePaths(NFS::GetHomePath(), UserConfigFileName);
     Stroka system = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
 
     if (!fromCommandLine.empty()) {
@@ -67,11 +65,11 @@ Stroka TExecutor::GetConfigFileName()
         return fromEnv;
     }
 
-    if (isexist(~user)) {
+    if (NFS::Exists(user)) {
         return user;
     }
 
-    if (isexist(~system)) {
+    if (NFS::Exists(system)) {
         return system;
     }
 
@@ -114,7 +112,7 @@ void TExecutor::InitConfig()
     configNode = ConvertToNode(Config);
 
     // Patch config from command line.
-    FOREACH (const auto& opt, ConfigOptArg.getValue()) {
+    for (const auto& opt : ConfigOptArg.getValue()) {
         ApplyYPathOverride(configNode, opt);
     }
 
@@ -127,20 +125,24 @@ void TExecutor::InitConfig()
     }
 }
 
-EExitCode TExecutor::Execute(const std::vector<std::string>& args)
+void TExecutor::Execute(const std::vector<std::string>& args)
 {
     auto argsCopy = args;
     CmdLine.parse(argsCopy);
 
     InitConfig();
 
+    NTracing::TTraceContextGuard guard(Config->Trace
+        ? NTracing::CreateRootTraceContext()
+        : NTracing::NullTraceContext);
+
     NLog::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
-    TDispatcher::Get()->Configure(Config->HeavyPoolSize);
-    Driver = CreateDriver(Config);
+    TDispatcher::Get()->Configure(Config->Driver->HeavyPoolSize);
+    Driver = CreateDriver(Config->Driver);
 
-    return DoExecute();
+    DoExecute();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,16 +153,17 @@ TRequestExecutor::TRequestExecutor()
     , InputFormatArg("", "in_format", "input format", false, "", "YSON")
     , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
     , OptArg("", "opt", "override command option", false, "YPATH=YSON")
+    , ResponseParametersArg("", "response_parameters", "print response parameters", false)
 {
     CmdLine.add(AuthenticatedUserArg);
     CmdLine.add(FormatArg);
     CmdLine.add(InputFormatArg);
     CmdLine.add(OutputFormatArg);
     CmdLine.add(OptArg);
+    CmdLine.add(ResponseParametersArg);
 }
 
-
-EExitCode TRequestExecutor::DoExecute()
+void TRequestExecutor::DoExecute()
 {
     auto commandName = GetCommandName();
 
@@ -213,14 +216,18 @@ EExitCode TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing output format") << ex;
     }
 
-    return DoExecute(request);
+    TYsonWriter ysonWriter(&StdErrStream(), NYson::EYsonFormat::Pretty);
+    if (ResponseParametersArg.getValue()) {
+        request.ResponseParametersConsumer = &ysonWriter;
+    }
+
+    DoExecute(request);
 }
 
-EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
+void TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
     auto response = Driver->Execute(request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
-    return EExitCode::OK;
 }
 
 IMapNodePtr TRequestExecutor::GetArgs()
@@ -228,13 +235,13 @@ IMapNodePtr TRequestExecutor::GetArgs()
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
 
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Do(BIND(&TRequestExecutor::BuildArgs, Unretained(this)))
         .EndMap();
 
     auto args = builder->EndTree()->AsMap();
-    FOREACH (const auto& opt, OptArg.getValue()) {
+    for (const auto& opt : OptArg.getValue()) {
         ApplyYPathOverride(args, opt);
     }
     return args;
@@ -300,7 +307,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .DoIf(txId, [=] (TFluentMap fluent) {
+        .DoIf(txId.HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("transaction_id").Value(txId.Get());
         })
         .Item("ping_ancestor_transactions").Value(PingAncestorTxsArg.getValue());

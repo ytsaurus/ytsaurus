@@ -50,6 +50,17 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
+    def checked_yes_no(s):
+        s = s.upper()
+        if s != "YES" and s != "NO":
+            raise RuntimeError("'{0}' must be either 'YES' or 'NO'".format(s))
+        return s
+
+    options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
+    options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_llvm = checked_yes_no(os.environ.get("BUILD_ENABLE_LLVM", "YES"))
+
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = re.sub(r"/0.\d\d$", "", options.branch)
 
@@ -59,7 +70,7 @@ def prepare(options):
     if codename not in ["lucid", "precise"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
-    options.repositories = ["yt-" + codename, "yandex-" + codename]
+    options.repositories = ["yt-" + codename]
 
     # Now determine the compiler.
     options.cc = run_captured(["which", options.cc])
@@ -99,9 +110,14 @@ def configure(options):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
+        "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
+        "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
+        "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
+        "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
+        "-DCMAKE_C_COMPILER={0}".format(options.cc),
         options.checkout_directory],
-        cwd=options.working_directory,
-        env={"CC": options.cc, "CXX": options.cxx})
+        cwd=options.working_directory)
 
 
 @yt_register_build_step
@@ -137,10 +153,10 @@ def package(options):
         with open("ytversion") as handle:
             version = handle.read().strip()
 
-        teamcity_interact("setParameter", name="yt.package_version", value=version)
-
         teamcity_message("We have built a package")
         teamcity_interact("setParameter", name="yt.package_built", value=1)
+        teamcity_interact("setParameter", name="yt.package_version", value=version)
+        teamcity_interact("buildStatus", text="{{build.status.text}}; Package: {0}".format(version))
 
         artifacts = glob.glob("./ARTIFACTS/yandex-yt*{0}*.changes".format(version))
         if artifacts:
@@ -173,6 +189,7 @@ def run_unit_tests(options):
             "--args",
             "./bin/unittester",
             "--gtest_color=no",
+            "--gtest_death_test_style=threadsafe",
             "--gtest_output=xml:gtest_unittester.xml"],
             cwd=options.working_directory)
     except ChildHasNonZeroExitCode as err:
@@ -181,6 +198,9 @@ def run_unit_tests(options):
 
 @yt_register_build_step
 def run_javascript_tests(options):
+    if options.build_enable_nodejs != "YES":
+        return
+
     try:
         run(
             ["./run_tests.sh", "-R", "xunit"],
@@ -190,7 +210,10 @@ def run_javascript_tests(options):
         raise StepFailedWithNonCriticalError(str(err))
 
 
-def run_python_tests(options, suite_name, suite_path):
+def run_pytest(options, suite_name, suite_path):
+    if options.build_enable_python != "YES":
+        return
+
     sandbox_current = "{0}/{1}".format(options.sandbox_directory, suite_name)
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
@@ -246,26 +269,34 @@ def run_python_tests(options, suite_name, suite_path):
     finally:
         shutil.rmtree(sandbox_current)
 
+
 def kill_by_name(name):
     # Cannot use check_output because of python2.6 on Lucid
-    proc = subprocess.Popen(["pgrep", "-f", name], stdout=subprocess.PIPE)
-    stdout, _ = proc.communicate()
-    for pid in stdout.strip().split("\n"):
+    pids = run_captured(["pgrep", "-f", name])
+    for pid in pids.split("\n"):
         if not pid:
             continue
-        os.kill(int(pid), signal.SIGTERM)
+        os.kill(int(pid), signal.SIGKILL)
 
 
 @yt_register_build_step
 def run_integration_tests(options):
     kill_by_name("ytserver")
-    run_python_tests(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
+    run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
-    run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory))
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory))
+
+
+@yt_register_build_step
+def run_perl_tests(options):
+    if options.build_enable_perl != "YES":
+        return
+    kill_by_name("ytserver")
+    run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
 @yt_register_cleanup_step
@@ -322,13 +353,22 @@ def clean_failed_tests(options, n=5):
 def teamcity_escape(s):
     s = re.sub("(['\\[\\]|])", "|\\1", s)
     s = s.replace("\n", "|n").replace("\r", "|r")
+    s = "'" + s + "'"
     return s
 
 
-def teamcity_interact(*args, **kwargs):
+def teamcity_interact(message, *args, **kwargs):
+
     r = " ".join(itertools.chain(
-        (str(x) for x in args),
-        ("{0}='{1}'".format(str(k), teamcity_escape(str(v))) for k, v in kwargs.iteritems())))
+        [message],
+        (
+            teamcity_escape(str(x))
+            for x in args
+        ),
+        (
+            "{0}={1}".format(str(k), teamcity_escape(str(v)))
+            for k, v in kwargs.iteritems())
+        ))
     r = "##teamcity[" + r + "]\n"
     sys.stdout.flush()
     sys.stderr.write(r)
@@ -384,8 +424,11 @@ def cwd(*args):
         os.chdir(new_path)
         yield
     finally:
-        teamcity_message("Changing current directory to {0}".format(old_path))
-        os.chdir(old_path)
+        if os.path.exists(old_path):
+            teamcity_message("Changing current directory to {0}".format(old_path))
+            os.chdir(old_path)
+        else:
+            teamcity_message("Previous directory {0} has vanished!".format(old_path), status="WARNING")
 
 
 def ls(path, reverse=True, select=None, start=0, stop=None):
@@ -620,10 +663,10 @@ def main():
 
     parser.add_argument(
         "--cc",
-        type=str, action="store", required=False, default="gcc-4.7")
+        type=str, action="store", required=False, default="gcc-4.8")
     parser.add_argument(
         "--cxx",
-        type=str, action="store", required=False, default="g++-4.7")
+        type=str, action="store", required=False, default="g++-4.8")
 
     options = parser.parse_args()
     status = 0

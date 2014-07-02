@@ -6,6 +6,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/api/connection.h>
+
 #include <util/stream/format.h>
 
 namespace NYT {
@@ -26,14 +28,14 @@ TOperationTracker::TOperationTracker(
     , OperationId(operationId)
 { }
 
-EExitCode TOperationTracker::Run()
+void TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     while (!CheckFinished())  {
         DumpProgress();
         Sleep(Config->OperationPollPeriod);
     }
-    return DumpResult();
+    DumpResult();
 }
 
 void TOperationTracker::AppendPhaseProgress(
@@ -102,7 +104,7 @@ void TOperationTracker::DumpProgress()
 {
     auto operationPath = GetOperationPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -135,21 +137,21 @@ void TOperationTracker::DumpProgress()
     if (!PrevProgress || *PrevProgress != progress) {
         if (state == EOperationState::Running) {
             printf("%s: %s\n",
-                ~state.ToString(),
+                ~ToString(state),
                 ~FormatProgress(progress));
         } else {
-            printf("%s\n", ~state.ToString());
+            printf("%s\n", ~ToString(state));
         }
         PrevProgress = progress;
     }
 }
 
-EExitCode TOperationTracker::DumpResult()
+void TOperationTracker::DumpResult()
 {
     auto operationPath = GetOperationPath(OperationId);
     auto jobsPath = GetJobsPath(OperationId);
 
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -176,7 +178,7 @@ EExitCode TOperationTracker::DumpResult()
         attributeFilter->add_keys("error");
         batchReq->AddRequest(req, "get_jobs");
     }
-    EExitCode exitCode;
+
     auto batchRsp = batchReq->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation result");
     {
@@ -184,29 +186,23 @@ EExitCode TOperationTracker::DumpResult()
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation result");
         auto resultNode = ConvertToNode(TYsonString(rsp->value()));
         auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
-        if (error.IsOK()) {
-            TInstant startTime;
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
-                startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
-            }
-
-            TInstant endTime;
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
-                endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
-            }
-            TDuration duration = endTime - startTime;
-
-            printf("Operation completed successfully in %s\n", ~ToString(duration));
-            exitCode = EExitCode::OK;
-
-        } else {
-            fprintf(stderr, "%s\n", ~ToString(error));
-            exitCode = EExitCode::Error;
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        TInstant startTime;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
+            startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
         }
+
+        TInstant endTime;
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
+            endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
+        }
+        TDuration duration = endTime - startTime;
+
+        printf("Operation completed successfully in %s\n", ~ToString(duration));
     }
 
     {
@@ -221,12 +217,12 @@ EExitCode TOperationTracker::DumpResult()
 
         auto jobs = ConvertToNode(TYsonString(rsp->value()))->AsMap();
         if (jobs->GetChildCount() == 0) {
-            return exitCode;
+            return;
         }
 
         std::list<TJobId> failedJobIds;
         std::list<TJobId> stdErrJobIds;
-        FOREACH (const auto& pair, jobs->GetChildren()) {
+        for (const auto& pair : jobs->GetChildren()) {
             auto jobId = TJobId::FromString(pair.first);
             auto job = pair.second->AsMap();
 
@@ -260,7 +256,7 @@ EExitCode TOperationTracker::DumpResult()
         for (int jobType = 0; jobType < jobTypeCount; ++jobType) {
             if (totalJobCount[jobType] > 0) {
                 printf("%-16s %10d %10d %10d %10d\n",
-                    ~EJobType(jobType).ToString(),
+                    ~ToString(EJobType(jobType)),
                     totalJobCount[jobType],
                     completedJobCount[jobType],
                     failedJobCount[jobType],
@@ -271,7 +267,7 @@ EExitCode TOperationTracker::DumpResult()
         if (!failedJobIds.empty()) {
             printf("\n");
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
-            FOREACH (const auto& jobId, failedJobIds) {
+            for (const auto& jobId : failedJobIds) {
                 auto job = jobs->GetChild(ToString(jobId));
                 auto error = ConvertTo<TError>(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
@@ -286,19 +282,18 @@ EExitCode TOperationTracker::DumpResult()
             printf("\n");
             printf("%" PRISZT " stderr(s) have been captured, use the following commands to view:\n",
                 stdErrJobIds.size());
-            FOREACH (const auto& jobId, stdErrJobIds) {
+            for (const auto& jobId : stdErrJobIds) {
                 printf("yt download '%s'\n",
-                    ~GetStdErrPath(OperationId, jobId));
+                    ~GetStderrPath(OperationId, jobId));
             }
         }
     }
-    return exitCode;
 }
 
 EOperationType TOperationTracker::GetOperationType(const TOperationId& operationId)
 {
     auto operationPath = GetOperationPath(OperationId);
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
     auto rsp = proxy.Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation type");
@@ -307,7 +302,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
 
 bool TOperationTracker::CheckFinished()
 {
-    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    TObjectServiceProxy proxy(Driver->GetConnection()->GetMasterChannel());
     auto operationPath = GetOperationPath(OperationId);
     auto req = TYPathProxy::Get(operationPath + "/@state");
     auto rsp = proxy.Execute(req).Get();

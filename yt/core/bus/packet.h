@@ -12,7 +12,12 @@ namespace NBus {
 
 DECLARE_ENUM(EPacketType,
     ((Message)(0))
-    ((Ack)(1))
+    ((Ack)    (1))
+);
+
+DECLARE_FLAGGED_ENUM(EPacketFlags,
+    ((None)      (0x0000))
+    ((RequestAck)(0x0001))
 );
 
 #pragma pack(push, 4)
@@ -24,8 +29,9 @@ const int TypicalPacketPartCount = 64;
 
 struct TPacketHeader
 {
-    ui32 Signature;
-    EPacketType Type;
+    ui32 Signature;     // == PacketSignature
+    ui16 Type;          // EPacketType
+    ui16 Flags;         // EPacketFlags
     TPacketId PacketId;
 };
 
@@ -48,20 +54,20 @@ class TPacketTranscoderBase
 public:
     TPacketTranscoderBase();
 
-    TRef GetChunk();
+    TRef GetFragment();
     bool IsFinished() const;
 
 protected:
     EPacketPhase Phase;
-    char* Chunk;
-    size_t PendingSize;
+    char* Fragment;
+    size_t FragmentRemaining;
     TPacketHeader Header;
-    TSmallVector<i32, TypicalPacketPartCount> PartSizes;
+    SmallVector<i32, TypicalPacketPartCount> PartSizes;
     i32 PartCount;
     int PartIndex;
     TSharedRefArray Message;
 
-    void BeginPhase(EPacketPhase phase, void* chunk, size_t size);
+    void BeginPhase(EPacketPhase phase, void* fragment, size_t size);
     bool EndPhase();
     void SetFinished();
 
@@ -80,6 +86,7 @@ public:
     void Restart();
 
     EPacketType GetPacketType() const;
+    EPacketFlags GetPacketFlags() const;
     const TPacketId& GetPacketId() const;
     TSharedRefArray GetMessage() const;
     size_t GetPacketSize() const;
@@ -112,10 +119,18 @@ class TPacketEncoder
 public:
     TPacketEncoder();
 
-    static i64 GetPacketSize(EPacketType type, TSharedRefArray message);
+    static i64 GetPacketSize(
+        EPacketType type,
+        const TSharedRefArray& message);
 
-    bool Start(EPacketType type, const TPacketId& packetId, TSharedRefArray message);
-    void NextChunk();
+    bool Start(
+        EPacketType type,
+        EPacketFlags flags,
+        const TPacketId& packetId,
+        TSharedRefArray message);
+
+    bool IsFragmentOwned() const;
+    void NextFragment();
 
 private:
     friend class TPacketTranscoderBase<TPacketEncoder>;
@@ -134,16 +149,16 @@ private:
 template <class TDerived>
 TPacketTranscoderBase<TDerived>::TPacketTranscoderBase()
     : Phase(EPacketPhase::Unstarted)
-    , Chunk(NULL)
-    , PendingSize(0)
+    , Fragment(NULL)
+    , FragmentRemaining(0)
     , PartCount(-1)
     , PartIndex(-1)
 { }
 
 template <class TDerived>
-TRef TPacketTranscoderBase<TDerived>::GetChunk()
+TRef TPacketTranscoderBase<TDerived>::GetFragment()
 {
-    return TRef(Chunk, PendingSize);
+    return TRef(Fragment, FragmentRemaining);
 }
 
 template <class TDerived>
@@ -156,16 +171,16 @@ template <class TDerived>
 void TPacketTranscoderBase<TDerived>::BeginPhase(EPacketPhase phase, void* buffer, size_t size)
 {
     Phase = phase;
-    Chunk = static_cast<char*>(buffer);
-    PendingSize = size;
+    Fragment = static_cast<char*>(buffer);
+    FragmentRemaining = size;
 }
 
 template <class TDerived>
 void TPacketTranscoderBase<TDerived>::SetFinished()
 {
     Phase = EPacketPhase::Finished;
-    Chunk = NULL;
-    PendingSize = 0;
+    Fragment = NULL;
+    FragmentRemaining = 0;
 }
 
 template <class TDerived>

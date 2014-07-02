@@ -19,26 +19,16 @@ extern NProfiling::TProfiler BusProfiler;
 typedef TGuid TConnectionId;
 typedef TGuid TPacketId;
 
-class TTcpConnection;
-typedef TIntrusivePtr<TTcpConnection> TTcpConnectionPtr;
+DECLARE_REFCOUNTED_STRUCT(IEventLoopObject)
 
-struct IEventLoopObject;
-typedef TIntrusivePtr<IEventLoopObject> IEventLoopObjectPtr;
-
-class TTcpDispatcherThread;
-typedef TIntrusivePtr<TTcpDispatcherThread> TTcpDispatcherThreadPtr;
+DECLARE_REFCOUNTED_CLASS(TTcpConnection)
+DECLARE_REFCOUNTED_CLASS(TTcpDispatcherThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EConnectionType,
     (Client)
     (Server)
-);
-
-DECLARE_ENUM(EConnectionEvent,
-    (AddressResolved)
-    (Terminated)
-    (MessageEnqueued)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

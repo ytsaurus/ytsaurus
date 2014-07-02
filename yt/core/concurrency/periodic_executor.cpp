@@ -55,6 +55,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
     if (Busy) {
         OutOfBandRequested = true;
     } else {
+        guard.Release();
         PostCallback();
     }
 }
@@ -74,6 +75,7 @@ void TPeriodicExecutor::ScheduleNext()
 
     if (OutOfBandRequested) {
         OutOfBandRequested = false;
+        guard.Release();
         PostCallback();
     } else {
         PostDelayedCallback(Period);
@@ -92,10 +94,10 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 void TPeriodicExecutor::PostCallback()
 {
     auto this_ = MakeStrong(this);
-    bool result = Invoker->Invoke(BIND(&TPeriodicExecutor::OnCallbackSuccess, this_));
-    if (!result) {
-    	OnCallbackFailure();
-    }
+    GuardedInvoke(
+        Invoker,
+        BIND(&TPeriodicExecutor::OnCallbackSuccess, this_),
+        BIND(&TPeriodicExecutor::OnCallbackFailure, this_));
 }
 
 void TPeriodicExecutor::OnCallbackSuccess()

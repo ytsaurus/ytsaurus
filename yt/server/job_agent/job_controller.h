@@ -88,9 +88,6 @@ public:
         const NJobTrackerClient::NProto::TJobResult& result);
 
     //! Prepares a heartbeat request.
-    /*!
-     *  Only jobs with type matching #jobTypes are listed.
-     */
     void PrepareHeartbeat(NJobTrackerClient::NProto::TReqHeartbeat* request);
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.

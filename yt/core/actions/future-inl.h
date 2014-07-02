@@ -5,6 +5,9 @@
 
 #include "bind.h"
 #include "callback.h"
+#include "invoker.h"
+#include "future.h"
+#include "invoker_util.h"
 
 #include <core/concurrency/delayed_executor.h>
 
@@ -15,6 +18,19 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Implemented in concurrency library.
+namespace NConcurrency {
+
+namespace NDetail {
+TClosure GetCurrentFiberCanceler();
+} // namespace NDetail
+
+struct IScheduler;
+IScheduler* GetCurrentScheduler();
+IScheduler* TryGetCurrentScheduler();
+
+} // namespace NConcurrency
 
 namespace NDetail {
 
@@ -27,10 +43,10 @@ class TPromiseState
 {
 public:
     typedef TCallback<void(T)> TResultHandler;
-    typedef TSmallVector<TResultHandler, 8> TResultHandlers;
+    typedef SmallVector<TResultHandler, 8> TResultHandlers;
 
     typedef TClosure TCancelHandler;
-    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
+    typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
     TNullable<T> Value_;
@@ -40,6 +56,48 @@ private:
     bool Canceled_;
     TCancelHandlers CancelHandlers_;
 
+    template <class U, bool MustSet>
+    bool DoSet(U&& value)
+    {
+        static_assert(
+            NMpl::TIsConvertible<U, T>::Value,
+            "U have to be convertible to T");
+
+        // Calling subscribers may release the last reference to this.
+        auto this_ = MakeStrong(this);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Canceled_) {
+                return false;
+            }
+
+            if (MustSet) {
+                YCHECK(!Value_);
+            } else {
+                if (Value_) {
+                    return false;
+                }
+            }
+
+            Value_.Assign(std::forward<U>(value));
+        }
+
+        if (ReadyEvent_) {
+            ReadyEvent_->Signal();
+        }
+
+        for (const auto& handler : ResultHandlers_) {
+            handler.Run(*Value_);
+        }
+
+        ResultHandlers_.clear();
+        CancelHandlers_.clear();
+
+        return true;
+    }
+
 public:
     TPromiseState()
         : Canceled_(false)
@@ -48,25 +106,32 @@ public:
     template <class U>
     explicit TPromiseState(U&& value)
         : Value_(std::forward<U>(value))
+        , Canceled_(false)
     {
         static_assert(
             NMpl::TIsConvertible<U, T>::Value,
             "U have to be convertible to T");
     }
 
+    ~TPromiseState()
+    {
+        DoCancel();
+    }
+
     const T& Get() const
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Value_) {
-            return Value_.Get();
+            if (Value_) {
+                return Value_.Get();
+            }
+
+            if (!ReadyEvent_) {
+                ReadyEvent_.reset(new Event());
+            }
         }
 
-        if (!ReadyEvent_) {
-            ReadyEvent_.reset(new Event());
-        }
-
-        guard.Release();
         ReadyEvent_->Wait();
 
         return Value_.Get();
@@ -82,7 +147,7 @@ public:
     {
         // Guard is typically redundant.
         TGuard<TSpinLock> guard(SpinLock_);
-        return Value_;
+        return Value_.HasValue();
     }
 
     bool IsCanceled() const
@@ -95,34 +160,13 @@ public:
     template <class U>
     void Set(U&& value)
     {
-        static_assert(
-            NMpl::TIsConvertible<U, T>::Value,
-            "U have to be convertible to T");
+        DoSet<U, true>(std::forward<U>(value));
+    }
 
-        TResultHandlers handlers;
-        Event* event;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (Canceled_)
-                return;
-
-            YASSERT(!Value_);
-            Value_.Assign(std::forward<U>(value));
-
-            event = ~ReadyEvent_;
-
-            ResultHandlers_.swap(handlers);
-            CancelHandlers_.clear();
-        }
-
-        if (event) {
-            event->Signal();
-        }
-
-        FOREACH (const auto& handler, handlers) {
-            handler.Run(*Value_);
-        }
+    template <class U>
+    bool TrySet(U&& value)
+    {
+        return DoSet<U, false>(std::forward<U>(value));
     }
 
     void Subscribe(TResultHandler onResult)
@@ -146,36 +190,41 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Value_)
-            return;
-
         if (Canceled_) {
             guard.Release();
             onCancel.Run();
-            return;
+        } else if (!Value_) {
+            CancelHandlers_.push_back(std::move(onCancel));
         }
-
-        CancelHandlers_.push_back(std::move(onCancel));
     }
 
-    void Cancel()
+    bool Cancel()
     {
-        TCancelHandlers handlers;
+        // Calling subscribers may release the last reference to this.
+        auto this_ = MakeStrong(this);
+        return DoCancel();
+    }
 
+private:
+    bool DoCancel()
+    {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (Value_ || Canceled_)
-                return;
-
-            ResultHandlers_.clear();
-
+            if (Value_ || Canceled_) {
+                return false;
+            }
+                
             Canceled_ = true;
-            CancelHandlers_.swap(handlers);
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : CancelHandlers_) {
             handler.Run();
         }
+
+        ResultHandlers_.clear();
+        CancelHandlers_.clear();
+
+        return true;
     }
 
 };
@@ -253,7 +302,7 @@ public:
     typedef std::vector<TResultHandler> TResultHandlers;
 
     typedef TClosure TCancelHandler;
-    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
+    typedef SmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
     bool HasValue_;
@@ -263,11 +312,54 @@ private:
     bool Canceled_;
     TCancelHandlers CancelHandlers_;
 
+    template <bool MustSet>
+    bool DoSet()
+    {
+        // Calling subscribers may release the last reference to this.
+        auto this_ = MakeStrong(this);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Canceled_) {
+                return false;
+            }
+
+            if (MustSet) {
+                YCHECK(!HasValue_);
+            } else {
+                if (HasValue_) {
+                    return false;
+                }
+            }
+
+            HasValue_ = true;
+        }
+
+        if (ReadyEvent_) {
+            ReadyEvent_->Signal();
+        }
+
+        for (auto& handler : ResultHandlers_) {
+            handler.Run();
+        }
+
+        ResultHandlers_.clear();
+        CancelHandlers_.clear();
+
+        return true;
+    }
+
 public:
     TPromiseState(bool hasValue = false)
         : HasValue_(hasValue)
         , Canceled_(false)
     { }
+
+    ~TPromiseState()
+    {
+        DoCancel();
+    }
 
     bool IsSet() const
     {
@@ -285,46 +377,28 @@ public:
 
     void Set()
     {
-        TResultHandlers handlers;
+        DoSet<true>();
+    }
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (Canceled_)
-                return;
-
-            YASSERT(!HasValue_);
-            HasValue_= true;
-
-            auto* event = ~ReadyEvent_;
-            if (event) {
-                event->Signal();
-            }
-
-            ResultHandlers_.swap(handlers);
-            CancelHandlers_.clear();
-        }
-
-        FOREACH (auto& handler, handlers) {
-            handler.Run();
-        }
+    bool TrySet()
+    {
+        return DoSet<false>();
     }
 
     void Get() const
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
 
-        if (HasValue_)
-            return;
+            if (HasValue_)
+                return;
 
-        if (!ReadyEvent_) {
-            ReadyEvent_.reset(new Event());
+            if (!ReadyEvent_) {
+                ReadyEvent_.reset(new Event());
+            }
         }
 
-        guard.Release();
         ReadyEvent_->Wait();
-
-        YASSERT(HasValue_);
     }
 
     void Subscribe(TResultHandler onResult)
@@ -348,30 +422,44 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (HasValue_ || Canceled_)
+        if (HasValue_)
             return;
+
+        if (Canceled_) {
+
+        }
 
         CancelHandlers_.push_back(std::move(onCancel));
     }
 
-    void Cancel()
+    bool Cancel()
     {
-        TCancelHandlers handlers;
+        // Calling subscribers may release the last reference to this.
+        auto this_ =  MakeStrong(this);
+        return DoCancel();
+    }
 
+private:
+    bool DoCancel()
+    {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (HasValue_)
-                return;
 
-            ResultHandlers_.clear();
-
+            if (HasValue_) {
+                return false;
+            }
+                
             Canceled_ = true;
-            CancelHandlers_.swap(handlers);
         }
 
-        FOREACH (auto& handler, handlers) {
+        for (auto& handler : CancelHandlers_) {
             handler.Run();
         }
+
+        ResultHandlers_.clear();
+        CancelHandlers_.clear();
+
+        return true;
     }
 
 };
@@ -424,6 +512,24 @@ private:
     }
 };
 
+template <class T>
+struct TPromiseSetter
+{
+    static void Do(TPromise<T> promise, T value)
+    {
+        promise.Set(std::move(value));
+    }
+};
+
+template <>
+struct TPromiseSetter<void>
+{
+    static void Do(TPromise<void> promise)
+    {
+        promise.Set();
+    }
+};
+
 inline void TPromiseState<void>::Subscribe(
     TDuration timeout,
     TResultHandler onResult,
@@ -435,6 +541,132 @@ inline void TPromiseState<void>::Subscribe(
         std::move(onResult),
         std::move(onTimeout));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void RegisterFiberCancelation(TPromise<T>& promise)
+{
+    if (NConcurrency::TryGetCurrentScheduler()) {
+        auto invoker = GetCurrentInvoker();
+        auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
+        promise.OnCanceled(BIND(
+            IgnoreResult(&IInvoker::Invoke),
+            std::move(invoker),
+            std::move(canceler)));
+    }
+}
+
+template <bool WrappedInFuture, class TSignature>
+struct TAsyncViaHelper;
+
+template <bool W, class U, class... TArgs>
+struct TAsyncViaHelper<W, U(TArgs...)>
+{
+    typedef TCallback<U(TArgs...)> TSourceCallback;
+    typedef TCallback<
+        typename NYT::NDetail::TFutureHelper<U>::TFutureType
+        (TArgs...)> TTargetCallback;
+
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
+    {
+        typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
+
+        auto inner = BIND([=] (PR promise, TArgs... args) -> void {
+            RegisterFiberCancelation(promise);
+            promise.Set(this_.Run(std::forward<TArgs>(args)...));
+        });
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
+            auto promise = NewPromise<R>();
+            auto future = promise.ToFuture();
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)...),
+                BIND(canceler, future));
+            return future;
+        });
+    }
+};
+
+template <bool W, class... TArgs>
+struct TAsyncViaHelper<W, void(TArgs...)>
+{
+    typedef TCallback<void(TArgs...)> TSourceCallback;
+    typedef TCallback<
+        typename NYT::NDetail::TFutureHelper<void>::TFutureType
+        (TArgs...)> TTargetCallback;
+
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
+    {
+        typedef typename NYT::NDetail::TFutureHelper<void>::TValueType R;
+        typedef typename NYT::NDetail::TFutureHelper<void>::TFutureType FR;
+        typedef typename NYT::NDetail::TFutureHelper<void>::TPromiseType PR;
+
+        auto inner = BIND([=] (PR promise, TArgs... args) {
+            RegisterFiberCancelation(promise);
+            this_.Run(std::forward<TArgs>(args)...);
+            promise.Set();
+        });
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
+            auto promise = NewPromise<R>();
+            auto future = promise.ToFuture();
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)... ),
+                BIND(canceler, future));
+            return future;
+        });
+    }
+};
+
+template <class U, class... TArgs>
+struct TAsyncViaHelper<true, U(TArgs...)>
+{
+    typedef TCallback<U(TArgs...)> TSourceCallback;
+    typedef TCallback<
+        typename NYT::NDetail::TFutureHelper<U>::TFutureType
+        (TArgs...)> TTargetCallback;
+
+    static TTargetCallback Do(const TSourceCallback& this_, IInvokerPtr invoker)
+    {
+        typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
+
+        auto inner = BIND([=] (PR promise, TArgs... args) {
+            RegisterFiberCancelation(promise);
+            this_
+                .Run(std::forward<TArgs>(args)...)
+                .Subscribe(BIND(&TPromiseSetter<R>::Do, promise));
+        });
+
+        auto canceler = BIND([] (FR future) {
+            future.Cancel();
+        });
+
+        return BIND([=] (TArgs... args) -> FR {
+            auto promise = NewPromise<R>();
+            auto future = promise.ToFuture();
+            GuardedInvoke(
+                invoker,
+                BIND(inner, promise, std::forward<TArgs>(args)...),
+                BIND(canceler, future));
+            return future;
+        });
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -452,80 +684,56 @@ inline TFuture<T>::TFuture(TNull)
 { }
 
 template <class T>
-inline TFuture<T>::TFuture(const TFuture<T>& other)
-    : Impl(other.Impl)
-{ }
-
-template <class T>
-inline TFuture<T>::TFuture(TFuture<T>&& other)
-    : Impl(std::move(other.Impl))
-{ }
-
-template <class T>
-inline TFuture<T>::operator TUnspecifiedBoolType() const
+inline TFuture<T>::operator bool() const
 {
-    return Impl ? &TFuture::Impl : nullptr;
+    return Impl_ != nullptr;
 }
 
 template <class T>
 inline void TFuture<T>::Reset()
 {
-    Impl.Reset();
+    Impl_.Reset();
 }
 
 template <class T>
 inline void TFuture<T>::Swap(TFuture& other)
 {
-    Impl.Swap(other.Impl);
-}
-
-template <class T>
-inline TFuture<T>& TFuture<T>::operator=(const TFuture<T>& other)
-{
-    TFuture(other).Swap(*this);
-    return *this;
-}
-
-template <class T>
-inline TFuture<T>& TFuture<T>::operator=(TFuture<T>&& other)
-{
-    TFuture(std::move(other)).Swap(*this);
-    return *this;
+    Impl_.Swap(other.Impl_);
 }
 
 template <class T>
 inline bool TFuture<T>::IsSet() const
 {
-    YASSERT(Impl);
-    return Impl->IsSet();
+    YASSERT(Impl_);
+    return Impl_->IsSet();
 }
 
 template <class T>
 inline bool TFuture<T>::IsCanceled() const
 {
-    YASSERT(Impl);
-    return Impl->IsCanceled();
+    YASSERT(Impl_);
+    return Impl_->IsCanceled();
 }
 
 template <class T>
 inline const T& TFuture<T>::Get() const
 {
-    YASSERT(Impl);
-    return Impl->Get();
+    YASSERT(Impl_);
+    return Impl_->Get();
 }
 
 template <class T>
 inline TNullable<T> TFuture<T>::TryGet() const
 {
-    YASSERT(Impl);
-    return Impl->TryGet();
+    YASSERT(Impl_);
+    return Impl_->TryGet();
 }
 
 template <class T>
 inline void TFuture<T>::Subscribe(TCallback<void(T)> onResult)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(std::move(onResult));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(std::move(onResult));
 }
 
 template <class T>
@@ -534,15 +742,22 @@ inline void TFuture<T>::Subscribe(
     TCallback<void(T)> onResult,
     TClosure onTimeout)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 template <class T>
-inline void TFuture<T>::Cancel()
+inline void TFuture<T>::OnCanceled(TClosure onCancel)
 {
-    YASSERT(Impl);
-    return Impl->Cancel();
+    YASSERT(Impl_);
+    Impl_->OnCanceled(std::move(onCancel));
+}
+
+template <class T>
+inline bool TFuture<T>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
 }
 
 template <class T>
@@ -617,85 +832,74 @@ TFuture<void> TFuture<T>::IgnoreResult()
 }
 
 template <class T>
+TFuture<void> TFuture<T>::Finally()
+{
+    auto promise = NewPromise();
+    Subscribe(BIND([=] (T) mutable { promise.Set(); }));
+    OnCanceled(BIND([=] () mutable { promise.Set(); }));
+    return promise;
+}
+
+template <class T>
 inline TFuture<T>::TFuture(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
-    : Impl(state)
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<T>>& state)
+    : Impl_(state)
 { }
 
 template <class T>
 inline TFuture<T>::TFuture(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
-    : Impl(std::move(state))
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T>>&& state)
+    : Impl_(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TFuture<void>
 
 inline TFuture<void>::TFuture()
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
 inline TFuture<void>::TFuture(TNull)
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
-inline TFuture<void>::TFuture(const TFuture<void>& other)
-    : Impl(other.Impl)
-{ }
-
-inline TFuture<void>::TFuture(TFuture<void>&& other)
-    : Impl(std::move(other.Impl))
-{ }
-
-inline TFuture<void>::operator TUnspecifiedBoolType() const
+inline TFuture<void>::operator bool() const
 {
-    return Impl ? &TFuture::Impl : nullptr;
+    return Impl_ != nullptr;
 }
 
 inline void TFuture<void>::Reset()
 {
-    Impl.Reset();
+    Impl_.Reset();
 }
 
 inline void TFuture<void>::Swap(TFuture& other)
 {
-    Impl.Swap(other.Impl);
-}
-
-inline TFuture<void>& TFuture<void>::operator=(const TFuture<void>& other)
-{
-    TFuture(other).Swap(*this);
-    return *this;
-}
-
-inline TFuture<void>& TFuture<void>::operator=(TFuture<void>&& other)
-{
-    TFuture(std::move(other)).Swap(*this);
-    return *this;
+    Impl_.Swap(other.Impl_);
 }
 
 inline bool TFuture<void>::IsSet() const
 {
-    YASSERT(Impl);
-    return Impl->IsSet();
+    YASSERT(Impl_);
+    return Impl_->IsSet();
 }
 
 inline bool TFuture<void>::IsCanceled() const
 {
-    YASSERT(Impl);
-    return Impl->IsCanceled();
+    YASSERT(Impl_);
+    return Impl_->IsCanceled();
 }
 
 inline void TFuture<void>::Get() const
 {
-    YASSERT(Impl);
-    Impl->Get();
+    YASSERT(Impl_);
+    Impl_->Get();
 }
 
 inline void TFuture<void>::Subscribe(TClosure onResult)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(std::move(onResult));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(std::move(onResult));
 }
 
 inline void TFuture<void>::Subscribe(
@@ -703,14 +907,20 @@ inline void TFuture<void>::Subscribe(
     TClosure onResult,
     TClosure onTimeout)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
-inline void TFuture<void>::Cancel()
+inline void TFuture<void>::OnCanceled(TClosure onCancel)
 {
-    YASSERT(Impl);
-    return Impl->Cancel();
+    YASSERT(Impl_);
+    Impl_->OnCanceled(std::move(onCancel));
+}
+
+inline bool TFuture<void>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
 }
 
 inline TFuture<void> TFuture<void>::Apply(TCallback<void()> mutator)
@@ -769,14 +979,22 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
     return mutated;
 }
 
+inline TFuture<void> TFuture<void>::Finally()
+{
+    auto promise = NewPromise();
+    Subscribe(BIND([=] () mutable { promise.Set(); }));
+    OnCanceled(BIND([=] () mutable { promise.Set(); }));
+    return promise;
+}
+
 inline TFuture<void>::TFuture(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state)
-    : Impl(state)
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<void>>& state)
+    : Impl_(state)
 { }
 
 inline TFuture<void>::TFuture(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
-    : Impl(std::move(state))
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void>>&& state)
+    : Impl_(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -784,27 +1002,27 @@ inline TFuture<void>::TFuture(
 template <class T>
 inline bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs)
 {
-    return lhs.Impl == rhs.Impl;
+    return lhs.Impl_ == rhs.Impl_;
 }
 
 template <class T>
 inline bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs)
 {
-    return lhs.Impl != rhs.Impl;
+    return lhs.Impl_ != rhs.Impl_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value)
+inline TFuture< typename NMpl::TDecay<T>::TType> MakeFuture(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TFuture<U>(New< NYT::NDetail::TPromiseState<U> >(std::forward<T>(value)));
+    return TFuture<U>(New< NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
 }
 
 inline TFuture<void> MakeFuture()
 {
-    return TFuture<void>(New< NYT::NDetail::TPromiseState<void> >(true));
+    return TFuture<void>(New< NYT::NDetail::TPromiseState<void>>(true));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -812,96 +1030,86 @@ inline TFuture<void> MakeFuture()
 
 template <class T>
 inline TPromise<T>::TPromise()
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
 template <class T>
 inline TPromise<T>::TPromise(TNull)
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
 template <class T>
-inline TPromise<T>::TPromise(const TPromise<T>& other)
-    : Impl(other.Impl)
-{ }
-
-template <class T>
-inline TPromise<T>::TPromise(TPromise<T>&& other)
-    : Impl(std::move(other.Impl))
-{ }
-
-template <class T>
-inline TPromise<T>::operator TUnspecifiedBoolType() const
+inline TPromise<T>::operator bool() const
 {
-    return Impl ? &TPromise::Impl : nullptr;
+    return Impl_ != nullptr;
 }
 
 template <class T>
 inline void TPromise<T>::Reset()
 {
-    Impl.Reset();
+    Impl_.Reset();
 }
 
 template <class T>
 inline void TPromise<T>::Swap(TPromise& other)
 {
-    Impl.Swap(other.Impl);
-}
-
-template <class T>
-inline TPromise<T>& TPromise<T>::operator=(const TPromise<T>& other)
-{
-    TPromise(other).Swap(*this);
-    return *this;
-}
-
-template <class T>
-inline TPromise<T>& TPromise<T>::operator=(TPromise<T>&& other)
-{
-    TPromise(std::move(other)).Swap(*this);
-    return *this;
+    Impl_.Swap(other.Impl_);
 }
 
 template <class T>
 inline bool TPromise<T>::IsSet() const
 {
-    YASSERT(Impl);
-    return Impl->IsSet();
+    YASSERT(Impl_);
+    return Impl_->IsSet();
 }
 
 template <class T>
 inline void TPromise<T>::Set(const T& value)
 {
-    YASSERT(Impl);
-    Impl->Set(value);
+    YASSERT(Impl_);
+    Impl_->Set(value);
 }
 
 template <class T>
 inline void TPromise<T>::Set(T&& value)
 {
-    YASSERT(Impl);
-    Impl->Set(std::move(value));
+    YASSERT(Impl_);
+    Impl_->Set(std::move(value));
+}
+
+template <class T>
+inline bool TPromise<T>::TrySet(const T& value)
+{
+    YASSERT(Impl_);
+    return Impl_->TrySet(value);
+}
+
+template <class T>
+inline bool TPromise<T>::TrySet(T&& value)
+{
+    YASSERT(Impl_);
+    return Impl_->TrySet(std::move(value));
 }
 
 template <class T>
 inline const T& TPromise<T>::Get() const
 {
-    YASSERT(Impl);
-    return Impl->Get();
+    YASSERT(Impl_);
+    return Impl_->Get();
 }
 
 template <class T>
 inline TNullable<T> TPromise<T>::TryGet() const
 {
-    YASSERT(Impl);
-    return Impl->TryGet();
+    YASSERT(Impl_);
+    return Impl_->TryGet();
 }
 
 template <class T>
 inline void TPromise<T>::Subscribe(TCallback<void(T)> onResult)
 {
-    YASSERT(Impl);
-    Impl->Subscribe(std::move(onResult));
+    YASSERT(Impl_);
+    Impl_->Subscribe(std::move(onResult));
 }
 
 template <class T>
@@ -910,110 +1118,103 @@ inline void TPromise<T>::Subscribe(
     TCallback<void(T)> onResult,
     TClosure onTimeout)
 {
-    YASSERT(Impl);
-    Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+    YASSERT(Impl_);
+    Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 template <class T>
 inline void TPromise<T>::OnCanceled(TClosure onCancel)
 {
-    YASSERT(Impl);
-    Impl->OnCanceled(onCancel);
+    YASSERT(Impl_);
+    Impl_->OnCanceled(std::move(onCancel));
+}
+
+template <class T>
+inline bool TPromise<T>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
 }
 
 template <class T>
 inline TFuture<T> TPromise<T>::ToFuture() const
 {
-    return TFuture<T>(Impl);
+    return TFuture<T>(Impl_);
 }
 
 // XXX(sandello): Kill this method.
 template <class T>
 inline TPromise<T>::operator TFuture<T>() const
 {
-    return TFuture<T>(Impl);
+    return TFuture<T>(Impl_);
 }
 
 template <class T>
 inline TPromise<T>::TPromise(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
-    : Impl(state)
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<T>>& state)
+    : Impl_(state)
 { }
 
 template <class T>
 inline TPromise<T>::TPromise(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
-    : Impl(std::move(state))
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T>>&& state)
+    : Impl_(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 // #TPromise<void>
 
 inline TPromise<void>::TPromise()
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
 inline TPromise<void>::TPromise(TNull)
-    : Impl(nullptr)
+    : Impl_(nullptr)
 { }
 
-inline TPromise<void>::TPromise(const TPromise<void>& other)
-    : Impl(other.Impl)
-{ }
-
-inline TPromise<void>::TPromise(TPromise<void>&& other)
-    : Impl(std::move(other.Impl))
-{ }
-
-inline TPromise<void>::operator TUnspecifiedBoolType() const
+inline TPromise<void>::operator bool() const
 {
-    return Impl ? &TPromise::Impl : nullptr;
+    return Impl_ != nullptr;
 }
 
 inline void TPromise<void>::Reset()
 {
-    Impl.Reset();
+    Impl_.Reset();
 }
 
 inline void TPromise<void>::Swap(TPromise& other)
 {
-    Impl.Swap(other.Impl);
-}
-
-inline TPromise<void>& TPromise<void>::operator=(const TPromise<void>& other)
-{
-    TPromise(other).Swap(*this);
-    return *this;
-}
-
-inline TPromise<void>& TPromise<void>::operator=(TPromise<void>&& other)
-{
-    TPromise(std::move(other)).Swap(*this);
-    return *this;
+    Impl_.Swap(other.Impl_);
 }
 
 inline bool TPromise<void>::IsSet() const
 {
-    YASSERT(Impl);
-    return Impl->IsSet();
+    YASSERT(Impl_);
+    return Impl_->IsSet();
 }
 
 inline void TPromise<void>::Set()
 {
-    YASSERT(Impl);
-    Impl->Set();
+    YASSERT(Impl_);
+    Impl_->Set();
+}
+
+inline bool TPromise<void>::TrySet()
+{
+    YASSERT(Impl_);
+    return Impl_->TrySet();
 }
 
 inline void TPromise<void>::Get() const
 {
-    YASSERT(Impl);
-    Impl->Get();
+    YASSERT(Impl_);
+    Impl_->Get();
 }
 
 inline void TPromise<void>::Subscribe(TClosure onResult)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(std::move(onResult));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(std::move(onResult));
 }
 
 inline void TPromise<void>::Subscribe(
@@ -1021,35 +1222,41 @@ inline void TPromise<void>::Subscribe(
     TClosure onResult,
     TClosure onTimeout)
 {
-    YASSERT(Impl);
-    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+    YASSERT(Impl_);
+    return Impl_->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 inline void TPromise<void>::OnCanceled(TClosure onCancel)
 {
-    YASSERT(Impl);
-    Impl->OnCanceled(onCancel);
+    YASSERT(Impl_);
+    Impl_->OnCanceled(std::move(onCancel));
+}
+
+inline bool TPromise<void>::Cancel()
+{
+    YASSERT(Impl_);
+    return Impl_->Cancel();
 }
 
 inline TFuture<void> TPromise<void>::ToFuture() const
 {
-    return TFuture<void>(Impl);
+    return TFuture<void>(Impl_);
 }
 
 // XXX(sandello): Kill this method.
 inline TPromise<void>::operator TFuture<void>() const
 {
-    return TFuture<void>(Impl);
+    return TFuture<void>(Impl_);
 }
 
 inline TPromise<void>::TPromise(
-    const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state)
-    : Impl(state)
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<void>>& state)
+    : Impl_(state)
 { }
 
 inline TPromise<void>::TPromise(
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
-    : Impl(std::move(state))
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void>>&& state)
+    : Impl_(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1057,43 +1264,102 @@ inline TPromise<void>::TPromise(
 template <class T>
 inline bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs)
 {
-    return lhs.Impl == rhs.Impl;
+    return lhs.Impl_ == rhs.Impl_;
 }
 
 template <class T>
 inline bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs)
 {
-    return lhs.Impl != rhs.Impl;
+    return lhs.Impl_ != rhs.Impl_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
+inline TPromise< typename NMpl::TDecay<T>::TType> MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(std::forward<T>(value)));
+    return TPromise<U>(New< NYT::NDetail::TPromiseState<U>>(std::forward<T>(value)));
 }
 
 template <class T>
 inline TPromise<T> NewPromise()
 {
-    return TPromise<T>(New< NYT::NDetail::TPromiseState<T> >());
+    return TPromise<T>(New< NYT::NDetail::TPromiseState<T>>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 TFutureCancelationGuard<T>::TFutureCancelationGuard(TFuture<T> future)
-    : Future(std::move(future))
+    : Future_(std::move(future))
+{ }
+
+template <class T>
+TFutureCancelationGuard<T>::TFutureCancelationGuard(TFutureCancelationGuard&& other)
+    : Future_(std::move(other.Future_))
 { }
 
 template <class T>
 TFutureCancelationGuard<T>::~TFutureCancelationGuard()
 {
-    if (Future) {
-        Future.Cancel();
+    Release();
+}
+
+template <class T>
+TFutureCancelationGuard<T>& TFutureCancelationGuard<T>::operator=(TFutureCancelationGuard<T>&& other)
+{
+    if (this != &other) {
+        Future_ = std::move(other.Future_);
     }
+    return *this;
+}
+
+template <class T>
+void swap(TFutureCancelationGuard<T>& lhs, TFutureCancelationGuard<T>& rhs)
+{
+    std::swap(lhs.Future_, rhs.Future_);
+}
+
+template <class T>
+void TFutureCancelationGuard<T>::Release()
+{
+    if (Future_) {
+        Future_.Cancel();
+    }
+}
+
+template <class T>
+TFutureCancelationGuard<T>::operator bool() const
+{
+    return static_cast<bool>(Future_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class R, class... TArgs>
+TCallback<R(TArgs...)>
+TCallback<R(TArgs...)>::Via(IInvokerPtr invoker)
+{
+    static_assert(
+        NMpl::TIsVoid<R>::Value,
+        "Via() can only be used with void return type.");
+    YASSERT(invoker);
+
+    auto this_ = *this;
+    return BIND([=] (TArgs... args) {
+        invoker->Invoke(BIND(this_, std::forward<TArgs>(args)...));
+    });
+}
+
+template <class U, class... TArgs>
+TCallback<typename NYT::NDetail::TFutureHelper<U>::TFutureType(TArgs...)>
+TCallback<U(TArgs...)>::AsyncVia(IInvokerPtr invoker)
+{
+    return NYT::NDetail::TAsyncViaHelper<
+        NYT::NDetail::TFutureHelper<U>::WrappedInFuture,
+        U(TArgs...)
+    >::Do(*this, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

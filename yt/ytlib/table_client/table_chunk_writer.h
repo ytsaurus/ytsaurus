@@ -6,18 +6,20 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/blob_output.h>
 
-#include <core/compression/public.h>
+#include <core/yson/lexer.h>
 
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <core/compression/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -35,7 +37,7 @@ public:
     void WriteRow(const TRow& row);
 
     // Used internally. All column names are guaranteed to be unique.
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -52,31 +54,28 @@ class TTableChunkWriter
     : public TChunkWriterBase
 {
 public:
-    typedef TTableChunkWriterProvider TProvider;
-    typedef TTableChunkWriterFacade TFacade;
-
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter,
-        NChunkClient::TOwningKey&& lastKey);
+        NChunkClient::IWriterPtr chunkWriter,
+        NVersionedTableClient::TOwningKey lastKey);
 
     ~TTableChunkWriter();
 
-    TFacade* GetFacade();
-    TAsyncError AsyncClose();
+    TTableChunkWriterFacade* GetFacade();
+    TAsyncError Close();
 
     i64 GetMetaSize() const;
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
     NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
     // Used by provider.
-    const NChunkClient::TOwningKey& GetLastKey() const;
-    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+    const NVersionedTableClient::TOwningKey& GetLastKey() const;
+    const NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const;
 
     // Used by facade.
     void WriteRow(const TRow& row);
-    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NVersionedTableClient::TKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -112,8 +111,10 @@ private:
     // Used for key creation.
     NYson::TStatelessLexer Lexer;
 
-    NChunkClient::TNonOwningKey CurrentKey;
-    NChunkClient::TOwningKey LastKey;
+    TChunkedMemoryPool CurrentKeyMemoryPool;
+    NVersionedTableClient::TKey CurrentKey;
+
+    NVersionedTableClient::TOwningKey LastKey;
 
     //! Approximate size of collected samples.
     i64 SamplesSize;
@@ -125,11 +126,11 @@ private:
     // Size of static part of meta, computed during initialization.
     i64 BasicMetaSize;
 
-    NProto::TSamplesExt SamplesExt;
+    NProto::TOldSamplesExt SamplesExt;
     NProto::TSample FirstSample;
 
     //! Only for sorted tables.
-    NProto::TBoundaryKeysExt BoundaryKeysExt;
+    NProto::TOldBoundaryKeysExt BoundaryKeysExt;
     NProto::TIndexExt IndexExt;
 
     void PrepareBlock();
@@ -155,19 +156,20 @@ class TTableChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TTableChunkWriter TChunkWriter;
+    typedef TTableChunkWriterFacade TFacade;
+
     TTableChunkWriterProvider(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options);
 
-    TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TTableChunkWriterPtr writer);
 
-    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+    const NProto::TOldBoundaryKeysExt& GetOldBoundaryKeys() const;
     i64 GetRowCount() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
-
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
 
 private:
     TChunkWriterConfigPtr Config;
@@ -176,7 +178,7 @@ private:
     int CreatedWriterCount;
     int FinishedWriterCount;
 
-    NProto::TBoundaryKeysExt BoundaryKeysExt;
+    NProto::TOldBoundaryKeysExt BoundaryKeysExt;
     TTableChunkWriterPtr CurrentWriter;
 
     TSpinLock SpinLock;

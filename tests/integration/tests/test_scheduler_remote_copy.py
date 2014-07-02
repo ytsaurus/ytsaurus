@@ -8,7 +8,12 @@ import time
 ##################################################################
 
 class TestSchedulerRemoteCopyCommands(YTEnvSetup):
-    DELTA_SCHEDULER_CONFIG = {'chunk_scratch_period' : 500}
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "chunk_scratch_period" : 500,
+            "cluster_directory_update_period": 500
+        }
+    }
 
     NUM_MASTERS = 3
     NUM_NODES = 9
@@ -18,12 +23,20 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     def setup_class(cls):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
         # Change cell id of remote cluster
-        cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, set_driver=False, identifier="-remote", cell_id=10)
+        cls.Env._run_all(masters_count=1, nodes_count=9, schedulers_count=0, has_proxy=False, instance_id="-remote", cell_id=10)
 
     def setup(self):
-        set("//sys/clusters/remote", {"masters": self.Env.configs["master-remote"][0]["meta_state"]["cell"], "cell_id": 10})
+        set("//sys/clusters/remote",
+            {
+                "connection": {
+                    "master": self.Env.configs["master-remote"][0]["master"],
+                    "timestamp_provider": self.Env.configs["master-remote"][0]["timestamp_provider"],
+                    "transaction_manager": self.Env.configs["master-remote"][0]["transaction_manager"]
+                },
+                "cell_id": 10
+            })
         self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
-        time.sleep(3.0)
+        time.sleep(1.0)
 
     def teardown(self):
         set("//tmp", {}, driver=self.remote_driver)
@@ -127,14 +140,14 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         set_banned_flag(True)
 
-        time.sleep(2)
+        time.sleep(1)
 
         create("table", "//tmp/t2")
         op_id = remote_copy(dont_track=True, in_='//tmp/t1', out='//tmp/t2',
                             spec={"cluster_name": "remote",
                                   "unavailable_chunk_strategy": "wait"})
 
-        time.sleep(2)
+        time.sleep(1)
         set_banned_flag(False)
 
         track_op(op_id)
@@ -151,7 +164,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                             spec={"cluster_name": "remote"})
 
         self.Env._kill_service("scheduler")
-        time.sleep(2)
+        time.sleep(1)
         self.Env.start_schedulers("scheduler")
 
         track_op(op_id)

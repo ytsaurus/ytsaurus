@@ -1,19 +1,19 @@
 #pragma once
 
 #include "public.h"
-#include "channel.h"
 
-#include <core/bus/client.h>
+#include <core/bus/public.h>
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a channel implemented via NBus.
-IChannelPtr CreateBusChannel(
-    NBus::IBusClientPtr client,
-    TNullable<TDuration> defaultTimeout = Null);
+//! Creates a channel implemented via Bus.
+IChannelPtr CreateBusChannel(NBus::IBusClientPtr client);
+
+//! Returns the factory for creating Bus channels.
+IChannelFactoryPtr GetBusChannelFactory();
 
 ////////////////////////////////////////////////////////////////////////////////
 

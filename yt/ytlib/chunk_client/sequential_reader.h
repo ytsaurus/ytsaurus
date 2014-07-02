@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "async_reader.h"
+#include "reader.h"
 
 #include <core/actions/future.h>
 
@@ -14,7 +14,7 @@
 
 #include <core/compression/public.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -32,12 +32,15 @@ class TSequentialReader
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, CompressedDataSize);
 
 public:
-    typedef TIntrusivePtr<TSequentialReader> TPtr;
-
     struct TBlockInfo
     {
         int Index;
         int Size;
+
+        TBlockInfo()
+            : Index(-1)
+            , Size(0)
+        { }
 
         TBlockInfo(int index, int size)
             : Index(index)
@@ -47,9 +50,8 @@ public:
 
     TSequentialReader(
         TSequentialReaderConfigPtr config,
-        // ToDo: use move semantics
-        std::vector<TBlockInfo>&& blocks,
-        IAsyncReaderPtr chunkReader,
+        std::vector<TBlockInfo> blocks,
+        IReaderPtr chunkReader,
         NCompression::ECodec codecId);
 
     bool HasNext() const;
@@ -72,7 +74,7 @@ public:
 private:
     void OnGotBlocks(
         int firstSequenceIndex,
-        IAsyncReader::TReadResult readResult);
+        IReader::TReadBlocksResult readResult);
 
     void FetchNextGroup();
     void RequestBlocks(
@@ -82,12 +84,12 @@ private:
 
     void DecompressBlocks(
         int blockIndex,
-        const IAsyncReader::TReadResult& readResult);
+        const IReader::TReadBlocksResult& readResult);
 
     const std::vector<TBlockInfo> BlockSequence;
 
     TSequentialReaderConfigPtr Config;
-    IAsyncReaderPtr ChunkReader;
+    IReaderPtr ChunkReader;
 
     std::vector< TPromise<TSharedRef> > BlockWindow;
 
@@ -105,7 +107,10 @@ private:
     NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TSequentialReader)
 
 ///////////////////////////////////////////////////////////////////////////////
 

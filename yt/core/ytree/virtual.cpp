@@ -44,7 +44,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     auto key = tokenizer.GetLiteralValue();
     auto service = FindItemService(key);
     if (!service) {
-        if (context->GetVerb() == "Exists") {
+        if (context->GetMethod() == "Exists") {
             return TResolveResult::Here(path);
         }
         // TODO(babenko): improve diagnostics
@@ -57,7 +57,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(context->GetPath()).ParseNext());
+    YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
 
     auto attributeFilter =
         request->has_attribute_filter()
@@ -80,7 +80,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     }
 
     writer.OnBeginMap();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
@@ -118,7 +118,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     }
 
     writer.OnBeginList();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();
@@ -155,7 +155,7 @@ TAsyncError TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonCo
     return Null;
 }
 
-ISystemAttributeProvider* TVirtualMapBase::GetSystemAttributeProvider()
+ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
 {
     return this;
 }
@@ -201,7 +201,7 @@ public:
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        Parent = ~parent;
+        Parent = parent.Get();
     }
 
     virtual TResolveResult Resolve(

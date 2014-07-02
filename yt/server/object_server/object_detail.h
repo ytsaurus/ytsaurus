@@ -7,12 +7,10 @@
 
 #include <core/misc/property.h>
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 #include <core/ytree/ypath_detail.h>
-#include <core/ytree/fluent.h>
 #include <core/ytree/system_attribute_provider.h>
-#include <core/ytree/ypath.pb.h>
 
 #include <ytlib/object_client/object_ypath.pb.h>
 #include <ytlib/object_client/object_service_proxy.h>
@@ -52,7 +50,9 @@ class TObjectProxyBase
     , public virtual IObjectProxy
 {
 public:
-    TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, TObjectBase* object);
+    TObjectProxyBase(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectBase* object);
     ~TObjectProxyBase();
 
     // IObjectProxy members
@@ -66,14 +66,17 @@ public:
         bool sortKeys) override;
 
 protected:
+    friend class TObjectManager;
     class TCustomAttributeDictionary;
 
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
+
     std::unique_ptr<NYTree::IAttributeDictionary> CustomAttributes;
 
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+
 
     //! Returns the full object id that coincides with #Id
     //! for non-versioned objects and additionally includes transaction id for
@@ -84,14 +87,11 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
-    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
+    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes();
 
@@ -103,6 +103,9 @@ protected:
 
     TObjectBase* GetSchema(EObjectType type);
     TObjectBase* GetThisSchema();
+
+    void DeclareMutating();
+    void DeclareNonMutating();
 
     void ValidateTransaction();
     void ValidateNoTransaction();
@@ -123,6 +126,9 @@ protected:
     void ForwardToLeader(NRpc::IServiceContextPtr context);
     void OnLeaderResponse(NRpc::IServiceContextPtr context, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
+    virtual bool IsLoggingEnabled() const override;
+    virtual NLog::TLogger CreateLogger() const override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -134,8 +140,6 @@ public:
     TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;

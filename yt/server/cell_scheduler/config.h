@@ -2,11 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/meta_state/public.h>
-
-#include <ytlib/transaction_client/config.h>
-
-#include <core/rpc/retrying_channel.h>
+#include <ytlib/api/config.h>
 
 #include <server/misc/config.h>
 
@@ -21,6 +17,7 @@ class TCellSchedulerConfig
     : public TServerConfig
 {
 public:
+    //! Orchid cache expiration timeout.
     TDuration OrchidCacheExpirationPeriod;
 
     //! RPC interface port number.
@@ -29,8 +26,9 @@ public:
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
-    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
+    //! Node-to-master connection.
+    NApi::TConnectionConfigPtr ClusterConnection;
+
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     TCellSchedulerConfig()
@@ -41,14 +39,13 @@ public:
             .Default(9001);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10001);
-        RegisterParameter("masters", Masters)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
+        RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TCellSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

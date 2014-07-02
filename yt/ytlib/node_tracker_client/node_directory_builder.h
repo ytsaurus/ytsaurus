@@ -11,7 +11,7 @@ namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper for building node directories in fetch handlers.
+//! A helper for building node directories in operation controllers.
 class TNodeDirectoryBuilder
 {
 public:

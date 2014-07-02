@@ -29,7 +29,7 @@ TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
 void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
 {
     protoFilter->set_mode(filter.Mode);
-    FOREACH (const auto& key, filter.Keys) {
+    for (const auto& key : filter.Keys) {
         protoFilter->add_keys(key);
     }
 }

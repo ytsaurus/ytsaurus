@@ -9,7 +9,7 @@
 
 #include <core/yson/tokenizer.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -24,10 +24,14 @@ namespace NTableClient {
 using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NVersionedTableClient;
+
+using NVersionedTableClient::TKey;
+using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableWriterLogger;
+static auto& Logger = TableClientLogger;
 
 static const int RangeColumnIndex = -1;
 
@@ -43,7 +47,7 @@ void TTableChunkWriterFacade::WriteRow(const TRow& row)
 }
 
 // Used internally. All column names are guaranteed to be unique.
-void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TKey& key)
 {
     Writer->WriteRowUnsafe(row, key);
 }
@@ -58,12 +62,12 @@ void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
-    TOwningKey&& lastKey)
+    NChunkClient::IWriterPtr chunkWriter,
+    TOwningKey lastKey)
     : TChunkWriterBase(config, options, chunkWriter)
     , Facade(this)
     , Channels(options->Channels)
-    , LastKey(lastKey)
+    , LastKey(std::move(lastKey))
     , SamplesSize(0)
     , AverageSampleSize(0)
     , IndexSize(0)
@@ -76,17 +80,17 @@ TTableChunkWriter::TTableChunkWriter(
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();
-    FOREACH (const auto& channel, Channels) {
+    for (const auto& channel : Channels) {
         trashChannel -= channel;
     }
     Channels.push_back(trashChannel);
 
     for (int i = 0; i < static_cast<int>(Channels.size()); ++i) {
         const auto& channel = Channels[i];
-        *ChannelsExt.add_items()->mutable_channel() = channel.ToProto();
+        ToProto(ChannelsExt.add_items()->mutable_channel(), channel);
         auto channelWriter = New<TChannelWriter>(i, channel.GetColumns().size());
         Buffers.push_back(channelWriter);
-        BuffersHeap.push_back(~channelWriter);
+        BuffersHeap.push_back(channelWriter.Get());
         CurrentBufferCapacity += channelWriter->GetCapacity();
     }
 
@@ -94,8 +98,12 @@ TTableChunkWriter::TTableChunkWriter(
 
     if (options->KeyColumns) {
         MiscExt.set_sorted(true);
-        CurrentKey.ClearAndResize(options->KeyColumns->size());
-        LastKey.ClearAndResize(options->KeyColumns->size());
+
+        CurrentKey = TKey::Allocate(
+            &CurrentKeyMemoryPool,
+            options->KeyColumns->size());
+
+        ResetRowValues(&CurrentKey);
 
         for (int keyIndex = 0; keyIndex < options->KeyColumns->size(); ++keyIndex) {
             const auto& column = options->KeyColumns->at(keyIndex);
@@ -138,7 +146,7 @@ TTableChunkWriterFacade* TTableChunkWriter::GetFacade()
 
 void TTableChunkWriter::FinalizeRow(const TRow& row)
 {
-    FOREACH (const auto& writer, Buffers) {
+    for (const auto& writer : Buffers) {
         auto capacity = writer->GetCapacity();
         writer->EndRow();
         CurrentBufferCapacity += writer->GetCapacity() - capacity;
@@ -170,13 +178,13 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
 
     CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
 
-    FOREACH (const auto& channel, Buffers) {
-        CurrentUncompressedSize += channel->GetCurrentSize();
+    for (const auto& channel : Buffers) {
+        CurrentUncompressedSize += channel->GetDataSize();
     }
 
     CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 
-    while (BuffersHeap.front()->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+    while (BuffersHeap.front()->GetDataSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock();
     }
 
@@ -199,7 +207,7 @@ auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo&
 
 void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo)
 {
-    FOREACH (auto& channel, columnInfo.Channels) {
+    for (auto& channel : columnInfo.Channels) {
         auto capacity = channel.Writer->GetCapacity();
         if (channel.ColumnIndex == RangeColumnIndex) {
             channel.Writer->WriteRange(value.first, value.second);
@@ -222,7 +230,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     auto dataWeight = DataWeight;
 
     DataWeight += 1;
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         if (pair.first.length() > MaxColumnNameSize) {
             State.Fail(TError(
                 "Column name %s is too long: actual size %" PRISZT ", max size %" PRISZT,
@@ -256,7 +264,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         WriteValue(pair, columnInfo);
 
         if (columnInfo.KeyColumnIndex >= 0) {
-            CurrentKey.SetKeyPart(columnInfo.KeyColumnIndex, pair.second, Lexer);
+            CurrentKey[columnInfo.KeyColumnIndex] = MakeKeyPart(pair.second, Lexer);
         }
     }
 
@@ -271,17 +279,16 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     FinalizeRow(row);
 
     if (Options->KeyColumns) {
-        if (CompareKeys(LastKey, CurrentKey) > 0) {
+        if (LastKey.Get() > CurrentKey) {
             State.Fail(TError(
                 EErrorCode::SortOrderViolation,
                 "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
-                ~ToString(LastKey),
+                ~ToString(LastKey.Get()),
                 ~ToString(CurrentKey)));
             return;
         }
 
-        LastKey = CurrentKey;
-        CurrentKey.Clear();
+        LastKey = TOwningKey(CurrentKey);
         ProcessKey();
     }
 }
@@ -290,10 +297,10 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 //  1. row doesn't contain duplicate column names.
 //  2. data is sorted
 // All checks are disabled.
-void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TKey& key)
 {
     WriteRowUnsafe(row);
-    LastKey = key;
+    LastKey = TOwningKey(key);
     ProcessKey();
 }
 
@@ -302,7 +309,7 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
     YASSERT(State.IsActive());
 
     DataWeight += 1;
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         auto& columnInfo = GetColumnInfo(pair.first);
         WriteValue(pair, columnInfo);
     }
@@ -313,7 +320,7 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
 void TTableChunkWriter::ProcessKey()
 {
     if (RowCount == 1) {
-        *BoundaryKeysExt.mutable_start() = LastKey.ToProto();
+        ToProto(BoundaryKeysExt.mutable_start(), LastKey.Get());
     }
 
     if (IndexSize < Config->IndexRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
@@ -336,7 +343,7 @@ void TTableChunkWriter::PrepareBlock()
 
     i64 size = 0;
     auto blockParts = channel->FlushBlock();
-    FOREACH (const auto& part, blockParts) {
+    for (const auto& part : blockParts) {
         size += part.Size();
     }
     blockInfo->set_block_size(size);
@@ -355,7 +362,7 @@ const TOwningKey& TTableChunkWriter::GetLastKey() const
     return LastKey;
 }
 
-TAsyncError TTableChunkWriter::AsyncClose()
+TAsyncError TTableChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 
@@ -367,13 +374,13 @@ TAsyncError TTableChunkWriter::AsyncClose()
 
     State.StartOperation();
 
-    while (BuffersHeap.front()->GetCurrentSize() > 0) {
+    while (BuffersHeap.front()->GetDataSize() > 0) {
         PrepareBlock();
     }
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
-        .Via(TDispatcher::Get()->GetWriterInvoker()));
+            .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
@@ -391,20 +398,22 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
     if (Options->KeyColumns) {
-        *BoundaryKeysExt.mutable_end() = LastKey.ToProto();
+        ToProto(BoundaryKeysExt.mutable_end(), LastKey.Get());
 
         const auto lastIndexRow = --IndexExt.items().end();
         if (RowCount > lastIndexRow->row_index() + 1) {
             auto* item = IndexExt.add_items();
-            *item->mutable_key() = LastKey.ToProto();
+            ToProto(item->mutable_key(), LastKey.Get());
             item->set_row_index(RowCount - 1);
         }
 
         SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         SetProtoExtension(Meta.mutable_extensions(), BoundaryKeysExt);
         {
+            using NYT::ToProto;
+
             NProto::TKeyColumnsExt keyColumnsExt;
-            ToProto(keyColumnsExt.mutable_values(), Options->KeyColumns.Get());
+            ToProto(keyColumnsExt.mutable_names(), *Options->KeyColumns);
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
     }
@@ -415,17 +424,17 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
 void TTableChunkWriter::EmitIndexEntry()
 {
     auto* item = IndexExt.add_items();
-    *item->mutable_key() = LastKey.ToProto();
+    ToProto(item->mutable_key(), LastKey.Get());
     // RowCount is already increased
     item->set_row_index(RowCount - 1);
-    IndexSize += LastKey.GetSize();
+    IndexSize += LastKey.GetCount();
 }
 
 i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 {
     i64 size = sizeof(NProto::TSample);
     std::map<TStringBuf, TStringBuf> sortedRow(row.begin(), row.end());
-    FOREACH (const auto& pair, sortedRow) {
+    for (const auto& pair : sortedRow) {
         auto* part = sample->add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
         // sizeof(i32) for type field.
@@ -436,11 +445,13 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
         YCHECK(!token.IsEmpty());
 
         switch (token.GetType()) {
-            case ETokenType::Integer:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
-                    token.GetIntegerValue()).ToProto();
+            case ETokenType::Integer: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Integer);
+                keyPart->set_int_value(token.GetIntegerValue());
                 size += sizeof(i64);
                 break;
+            }
 
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
@@ -450,15 +461,19 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 break;
             }
 
-            case ETokenType::Double:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
-                    token.GetDoubleValue()).ToProto();
+            case ETokenType::Double: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Double);
+                keyPart->set_double_value(token.GetDoubleValue());
                 size += sizeof(double);
                 break;
+            }
 
-            default:
-                *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateSentinel(EKeyPartType::Composite).ToProto();
+            default: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Composite);
                 break;
+            }
         }
     }
 
@@ -471,7 +486,7 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 
     static const yhash_set<int> masterMetaTags({
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value });
+        TProtoExtensionTag<NProto::TOldBoundaryKeysExt>::Value });
 
     auto meta = Meta;
     FilterProtoExtensions(
@@ -492,7 +507,7 @@ i64 TTableChunkWriter::GetMetaSize() const
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
 
-const NProto::TBoundaryKeysExt& TTableChunkWriter::GetBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriter::GetOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }
@@ -512,20 +527,19 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
     BoundaryKeysExt.mutable_end();
 }
 
-TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(FinishedWriterCount == CreatedWriterCount);
-    TOwningKey key;
-
-    if (CurrentWriter) {
-        key = CurrentWriter->GetLastKey();
-    }
+    
+    auto lastKey = CurrentWriter
+        ? CurrentWriter->GetLastKey()
+        : TOwningKey(EmptyKey());
 
     auto writer = New<TTableChunkWriter>(
         Config,
         Options,
-        asyncWriter,
-        std::move(key));
+        chunkWriter,
+        std::move(lastKey));
 
     CurrentWriter = writer;
     ++CreatedWriterCount;
@@ -543,10 +557,10 @@ void TTableChunkWriterProvider::OnChunkFinished()
 
     if (Options->KeyColumns) {
         if (FinishedWriterCount == 1) {
-            const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
+            const auto& boundaryKeys = CurrentWriter->GetOldBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
-        *BoundaryKeysExt.mutable_end() = CurrentWriter->GetLastKey().ToProto();
+        ToProto(BoundaryKeysExt.mutable_end(), CurrentWriter->GetLastKey().Get());
     }
     CurrentWriter.Reset();
 }
@@ -558,7 +572,7 @@ void TTableChunkWriterProvider::OnChunkClosed(TTableChunkWriterPtr writer)
     YCHECK(ActiveWriters.erase(writer) == 1);
 }
 
-const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() const
+const NProto::TOldBoundaryKeysExt& TTableChunkWriterProvider::GetOldBoundaryKeys() const
 {
     return BoundaryKeysExt;
 }
@@ -568,18 +582,13 @@ i64 TTableChunkWriterProvider::GetRowCount() const
     return GetDataStatistics().row_count();
 }
 
-const TNullable<TKeyColumns>& TTableChunkWriterProvider::GetKeyColumns() const
-{
-    return Options->KeyColumns;
-}
-
 NChunkClient::NProto::TDataStatistics TTableChunkWriterProvider::GetDataStatistics() const
 {
     TGuard<TSpinLock> guard(SpinLock);
 
     auto result = DataStatistics;
 
-    FOREACH(const auto& writer, ActiveWriters) {
+    for (const auto& writer : ActiveWriters) {
         result += writer->GetDataStatistics();
     }
     return result;

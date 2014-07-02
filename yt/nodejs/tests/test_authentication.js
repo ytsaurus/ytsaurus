@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtAuthentication = require("../lib/middleware/authentication").that;
 var YtAuthority = require("../lib/authority").that;
@@ -62,7 +62,7 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
-    var driver = { executeSimple: function(){} };
+    var driver = { executeSimple: function(){ return Q.resolve(); } };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
@@ -259,7 +259,7 @@ describe("YtAuthentication", function() {
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
-            .returns(Q.reject(new YtError().withCode(500)));
+            .returns(Q.reject(new YtError("Random error").withCode(500)));
         mock2
             .expects("executeSimple")
             .once()

@@ -8,6 +8,9 @@
 #include "helpers.h"
 
 #include <core/misc/string.h>
+#include <core/misc/address.h>
+
+#include <core/concurrency/thread_affinity.h>
 
 #include <core/bus/bus.h>
 
@@ -32,13 +35,16 @@ static auto& Profiler = RpcServerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
-    const Stroka& verb,
-    THandler handler)
-    : Verb(verb)
-    , Handler(std::move(handler))
+    const Stroka& method,
+    TLiteHandler liteHandler,
+    THeavyHandler heavyHandler)
+    : Method(method)
+    , LiteHandler(std::move(liteHandler))
+    , HeavyHandler(std::move(heavyHandler))
     , OneWay(false)
     , MaxQueueSize(100000)
     , EnableReorder(false)
+    , System(false)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -57,7 +63,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
 TServiceBase::TActiveRequest::TActiveRequest(
     const TRequestId& id,
     IBusPtr replyBus,
-    TRuntimeMethodInfoPtr runtimeInfo)
+    TRuntimeMethodInfoPtr runtimeInfo,
+    const NTracing::TTraceContext& traceContext)
     : Id(id)
     , ReplyBus(std::move(replyBus))
     , RuntimeInfo(std::move(runtimeInfo))
@@ -66,6 +73,7 @@ TServiceBase::TActiveRequest::TActiveRequest(
     , ArrivalTime(GetCpuInstant())
     , SyncStartTime(-1)
     , SyncStopTime(-1)
+    , TraceContext(traceContext)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,19 +85,28 @@ public:
     TServiceContext(
         TServiceBasePtr service,
         TActiveRequestPtr activeRequest,
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
         IBusPtr replyBus,
         const Stroka& loggingCategory)
-        : TServiceContextBase(header, requestMessage)
+        : TServiceContextBase(
+            std::move(header),
+            std::move(requestMessage))
         , Service(std::move(service))
         , ActiveRequest(std::move(activeRequest))
         , ReplyBus(std::move(replyBus))
         , Logger(loggingCategory)
     {
-        YCHECK(RequestMessage);
-        YCHECK(ReplyBus);
-        YCHECK(Service);
+        YASSERT(RequestMessage_);
+        YASSERT(ReplyBus);
+        YASSERT(Service);
+    }
+
+    ~TServiceContext()
+    {
+        if (!IsOneWay() && !Replied_) {
+            Reply(TError(NRpc::EErrorCode::Unavailable, "Request canceled"));
+        }
     }
 
 private:
@@ -98,47 +115,58 @@ private:
     IBusPtr ReplyBus;
     NLog::TLogger Logger;
 
-    virtual void DoReply(TSharedRefArray responseMessage) override
+
+    virtual void DoReply() override
     {
-        Service->OnResponse(ActiveRequest, std::move(responseMessage));
+        Service->OnResponse(ActiveRequest, GetResponseMessage());
     }
 
     virtual void LogRequest() override
     {
-        Stroka str;
-        str.reserve(1024); // should be enough for typical request message
+        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
+            return;
 
-        if (RequestId != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        Stroka str;
+        str.reserve(1024); // should be enough for a typical request message
+
+        if (RequestId_ != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
         }
 
-        auto user = FindAuthenticatedUser(RequestHeader_);
+        if (RealmId_ != NullRealmId) {
+            AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId_)));
+        }
+
+        auto user = FindAuthenticatedUser(*RequestHeader_);
         if (user) {
             AppendInfo(str, Sprintf("User: %s", ~*user));
         }
 
-        AppendInfo(str, RequestInfo);
+        AppendInfo(str, RequestInfo_);
 
         LOG_DEBUG("%s <- %s",
-            ~GetVerb(),
+            ~GetMethod(),
             ~str);
     }
 
     virtual void LogResponse(const TError& error) override
     {
+        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
+            return;
+
         Stroka str;
         str.reserve(1024); // should be enough for typical response message
 
-        if (RequestId != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        if (RequestId_ != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
         }
 
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
 
-        AppendInfo(str, ResponseInfo);
+        AppendInfo(str, ResponseInfo_);
 
         LOG_DEBUG("%s -> %s",
-            ~GetVerb(),
+            ~GetMethod(),
             ~str);
     }
 
@@ -148,127 +176,120 @@ private:
 
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     Init(
         defaultInvoker,
-        serviceName,
+        serviceId,
         loggingCategory);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
-        serviceName,
+        serviceId,
         loggingCategory);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     YCHECK(defaultInvoker);
 
-    DefaultInvoker = defaultInvoker;
-    ServiceName = serviceName;
-    LoggingCategory = loggingCategory;
+    DefaultInvoker_ = defaultInvoker;
+    ServiceId_ = serviceId;
+    LoggingCategory_ = loggingCategory;
 
-    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceName);
+    ServiceTagId_ = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
-        tagIds.push_back(ServiceTagId);
-        RequestCounter = TRateCounter("/request_rate", tagIds);
+        tagIds.push_back(ServiceTagId_);
+        RequestCounter_ = TRateCounter("/request_rate", tagIds);
     }
+
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
+        .SetInvoker(TDispatcher::Get()->GetPoolInvoker())
+        .SetSystem(true));
 }
 
-Stroka TServiceBase::GetServiceName() const
+TServiceId TServiceBase::GetServiceId() const
 {
-    return ServiceName;
+    return ServiceId_;
 }
 
 void TServiceBase::OnRequest(
-    const TRequestHeader& header,
+    std::unique_ptr<NProto::TRequestHeader> header,
     TSharedRefArray message,
     IBusPtr replyBus)
 {
-    Profiler.Increment(RequestCounter);
+    Profiler.Increment(RequestCounter_);
 
-    const auto& verb = header.verb();
-    bool oneWay = header.one_way();
-    auto requestId = FromProto<TRequestId>(header.request_id());
+    const auto& method = header->method();
+    bool oneWay = header->one_way();
+    auto requestId = FromProto<TRequestId>(header->request_id());
 
-    TGuard<TSpinLock> guard(SpinLock);
-
-    auto runtimeInfo = FindMethodInfo(verb);
+    auto runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
-        guard.Release();
-
         auto error = TError(
-            EErrorCode::NoSuchVerb,
-            "Unknown verb %s:%s",
-            ~ServiceName,
-            ~verb)
+            EErrorCode::NoSuchMethod,
+            "Unknown method %s:%s",
+            ~ServiceId_.ServiceName,
+            ~method)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
-
         return;
     }
 
     if (runtimeInfo->Descriptor.OneWay != oneWay) {
-        guard.Release();
-
         auto error = TError(
             EErrorCode::ProtocolError,
-            "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
-            ~ServiceName,
-            ~verb,
+            "One-way flag mismatch for method %s:%s: expected %s, actual %s",
+            ~ServiceId_.ServiceName,
+            ~method,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
             ~FormatBool(oneWay))
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
-        if (!header.one_way()) {
+        if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
-
         return;
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
     if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
-        guard.Release();
-
         auto error = TError(
             EErrorCode::Unavailable,
             "Request queue limit %d reached",
             runtimeInfo->Descriptor.MaxQueueSize)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
-        if (!header.one_way()) {
+        if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage);
+            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }
-
         return;
     }
 
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
 
-    if (header.has_request_start_time() && header.has_retry_start_time()) {
+    if (header->has_request_start_time() && header->has_retry_start_time()) {
         // Decode timing information.
-        auto requestStart = TInstant(header.request_start_time());
-        auto retryStart = TInstant(header.retry_start_time());
+        auto requestStart = TInstant(header->request_start_time());
+        auto retryStart = TInstant(header->retry_start_time());
         auto now = CpuInstantToInstant(GetCpuInstant());
 
         // Make sanity adjustments to account for possible clock skew.
@@ -279,32 +300,39 @@ void TServiceBase::OnRequest(
         Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
 
+    auto traceContext = GetTraceContext(*header);
+    TRACE_ANNOTATION(traceContext, "server_host", TAddressResolver::Get()->GetLocalHostName());
+
+    NTracing::TTraceContextGuard traceContextGuard(traceContext);
+
     auto activeRequest = New<TActiveRequest>(
         requestId,
         replyBus,
-        runtimeInfo);
+        runtimeInfo,
+        traceContext);
+
+    NTracing::TraceEvent(
+        traceContext,
+        ServiceId_.ServiceName,
+        method,
+        NTracing::ServerReceiveAnnotation);
 
     auto context = New<TServiceContext>(
         this,
         activeRequest,
-        header,
+        std::move(header),
         message,
         replyBus,
-        LoggingCategory);
+        LoggingCategory_);
 
     if (!oneWay) {
-        YCHECK(ActiveRequests.insert(activeRequest).second);
         Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
     }
 
-    guard.Release();
-
-    auto handler = runtimeInfo->Descriptor.Handler;
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
-        auto invoker = TDispatcher::Get()->GetPoolInvoker();
-        handler
-            .AsyncVia(std::move(invoker))
+        runtimeInfo->Descriptor.HeavyHandler
+            .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
             .Run(context, options)
             .Subscribe(BIND(
                 &TServiceBase::OnInvocationPrepared,
@@ -312,39 +340,39 @@ void TServiceBase::OnRequest(
                 std::move(activeRequest),
                 context));
     } else {
-        auto preparedHandler = handler.Run(context, options);
-        if (!preparedHandler)
-            return;
         OnInvocationPrepared(
             std::move(activeRequest),
             std::move(context),
-            std::move(preparedHandler));
+            runtimeInfo->Descriptor.LiteHandler);
     }
 }
 
 void TServiceBase::OnInvocationPrepared(
     TActiveRequestPtr activeRequest,
     IServiceContextPtr context,
-    TClosure handler)
+    TLiteHandler handler)
 {
     if (!handler)
         return;
 
-    auto preparedHandler = PrepareHandler(std::move(handler));
     auto wrappedHandler = BIND([=] () {
         const auto& runtimeInfo = activeRequest->RuntimeInfo;
 
         // No need for a lock here.
         activeRequest->RunningSync = true;
-        activeRequest->SyncStartTime = GetCpuInstant();
 
-        {
+        if (Profiler.GetEnabled()) {
+            activeRequest->SyncStartTime = GetCpuInstant();
             auto value = CpuDurationToValue(activeRequest->SyncStartTime - activeRequest->ArrivalTime);
             Profiler.Aggregate(runtimeInfo->LocalWaitTimeCounter, value);
         }
 
         try {
-            preparedHandler.Run();
+            NTracing::TTraceContextGuard guard(activeRequest->TraceContext);
+            if (!runtimeInfo->Descriptor.System) {
+                BeforeInvoke();
+            }
+            handler.Run(context, runtimeInfo->Descriptor.Options);
         } catch (const std::exception& ex) {
             context->Reply(ex);
         }
@@ -352,18 +380,20 @@ void TServiceBase::OnInvocationPrepared(
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
-            YCHECK(activeRequest->RunningSync);
+            YASSERT(activeRequest->RunningSync);
             activeRequest->RunningSync = false;
 
-            if (!activeRequest->Completed) {
-                activeRequest->SyncStopTime = GetCpuInstant();
-                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
-                Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
-            }
+            if (Profiler.GetEnabled()) {
+                if (!activeRequest->Completed) {
+                    activeRequest->SyncStopTime = GetCpuInstant();
+                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+                    Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
+                }
 
-            if (runtimeInfo->Descriptor.OneWay) {
-                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
-                Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+                if (runtimeInfo->Descriptor.OneWay) {
+                    auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
+                    Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+                }
             }
         }
     });
@@ -371,47 +401,40 @@ void TServiceBase::OnInvocationPrepared(
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
     auto invoker = runtimeInfo->Descriptor.Invoker;
     if (!invoker) {
-        invoker = DefaultInvoker;
+        invoker = DefaultInvoker_;
     }
 
-    bool result = runtimeInfo->Descriptor.EnableReorder
-        ? invoker->Invoke(std::move(wrappedHandler), context->GetPriority())
-        : invoker->Invoke(std::move(wrappedHandler));
-
-    if (!result) {
-        context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
+    if (runtimeInfo->Descriptor.EnableReorder) {
+        invoker->Invoke(std::move(wrappedHandler), context->GetPriority());
+    } else {
+        invoker->Invoke(std::move(wrappedHandler));
     }
-}
-
-TClosure TServiceBase::PrepareHandler(TClosure handler)
-{
-    return std::move(handler);
 }
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message)
 {
+    TGuard<TSpinLock> guard(activeRequest->SpinLock);
+
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
-    
-    bool active;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
 
-        active = ActiveRequests.erase(activeRequest) == 1;
-    }
+    NTracing::TraceEvent(
+        activeRequest->TraceContext,
+        ServiceId_.ServiceName,
+        runtimeInfo->Descriptor.Method,
+        NTracing::ServerSendAnnotation);
 
-    {
-        TGuard<TSpinLock> guard(activeRequest->SpinLock);
+    YASSERT(!activeRequest->Completed);
+    activeRequest->Completed = true;
 
-        YCHECK(!activeRequest->Completed);
-        activeRequest->Completed = true;
+    activeRequest->ReplyBus->Send(std::move(message), EDeliveryTrackingLevel::None);
 
-        if (active) {
-            Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
-            activeRequest->ReplyBus->Send(std::move(message));
-        }
+    // NB: This counter is also used to track queue size limit so
+    // it must be maintained even if the profiler is OFF.
+    Profiler.Increment(runtimeInfo->QueueSizeCounter, -1);
 
+    if (Profiler.GetEnabled()) {
         auto now = GetCpuInstant();
-
+    
         if (activeRequest->RunningSync) {
             activeRequest->SyncStopTime = now;
             auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
@@ -432,14 +455,15 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-
     NProfiling::TTagIdList tagIds;
-    tagIds.push_back(ServiceTagId);
-    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
+    tagIds.push_back(ServiceTagId_);
+    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("method", descriptor.Method));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
-    // Failure here means that such verb is already registered.
-    YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+
+    TWriterGuard guard(MethodMapLock_);
+    // Failure here means that such method is already registered.
+    YCHECK(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
+
     return runtimeInfo;
 }
 
@@ -447,13 +471,14 @@ void TServiceBase::Configure(INodePtr configNode)
 {
     try {
         auto config = ConvertTo<TServiceConfigPtr>(configNode);
-        FOREACH (const auto& pair, config->Methods) {
+        for (const auto& pair : config->Methods) {
             const auto& methodName = pair.first;
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %s to configure",
-                    ~methodName.Quote());
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %s:%s to configure",
+                    ~ServiceId_.ServiceName,
+                    ~methodName);
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -472,31 +497,17 @@ void TServiceBase::Configure(INodePtr configNode)
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
-            ~ServiceName.Quote())
+            ~ServiceId_.ServiceName)
             << ex;
-    }
-}
-
-void TServiceBase::CancelActiveRequests(const TError& error)
-{
-    yhash_set<TActiveRequestPtr> requestsToCancel;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        requestsToCancel.swap(ActiveRequests);
-    }
-
-    FOREACH (auto activeRequest, requestsToCancel) {
-        Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
-
-        auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);
-        activeRequest->ReplyBus->Send(errorMessage);
     }
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
 {
-    auto it = RuntimeMethodInfos.find(method);
-    return it == RuntimeMethodInfos.end() ? NULL : it->second;
+    TReaderGuard guard(MethodMapLock_);
+
+    auto it = MethodMap_.find(method);
+    return it == MethodMap_.end() ? nullptr : it->second;
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
@@ -508,7 +519,38 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
 
 IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 {
-    return DefaultInvoker;
+    return DefaultInvoker_;
+}
+
+void TServiceBase::BeforeInvoke()
+{ }
+
+bool TServiceBase::IsUp() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return true;
+}
+
+std::vector<Stroka> TServiceBase::SuggestAddresses() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return std::vector<Stroka>();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
+{
+    context->SetRequestInfo("");
+
+    response->set_up(IsUp());
+    ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
+
+    context->SetResponseInfo("Up: %s, SuggestedAddresses: [%s]",
+        ~FormatBool(response->up()),
+        ~JoinToString(response->suggested_addresses()));
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

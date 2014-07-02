@@ -49,6 +49,10 @@ std::vector<Stroka> GetSupportedCGroups();
 
 void RemoveAllSubcgroups(const Stroka& path);
 
+void RunKiller(const Stroka& processGroupPath);
+
+void KillProcessGroup(const Stroka& processGroupPath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNonOwningCGroup

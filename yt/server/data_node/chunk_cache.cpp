@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "chunk_cache.h"
 #include "private.h"
-#include "reader_cache.h"
+#include "blob_reader_cache.h"
 #include "location.h"
-#include "chunk.h"
+#include "blob_chunk.h"
 #include "block_store.h"
 #include "config.h"
 #include "master_connector.h"
@@ -16,7 +16,7 @@
 
 #include <core/logging/tagged_logger.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/file_writer.h>
@@ -25,6 +25,8 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
+
+#include <ytlib/api/client.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -45,58 +47,57 @@ static auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkCache::TImpl
-    : public TWeightLimitedCache<TChunkId, TCachedChunk>
+    : public TWeightLimitedCache<TChunkId, TCachedBlobChunk>
 {
 public:
-    typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
-
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-        : TBase(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max()))
-        , Config(config)
-        , Bootstrap(bootstrap)
+        : TWeightLimitedCache(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max()))
+        , Config_(config)
+        , Bootstrap_(bootstrap)
     { }
 
     void Initialize()
     {
         LOG_INFO("Chunk cache scan started");
 
-        Location = New<TLocation>(
+        Location_ = New<TLocation>(
             ELocationType::Cache,
             "cache",
-            Config->CacheLocation,
-            Bootstrap);
+            Config_->CacheLocation,
+            Bootstrap_);
 
-        Location->SubscribeDisabled(
+        Location_->SubscribeDisabled(
             BIND(&TImpl::OnLocationDisabled, Unretained(this)));
 
-        auto descriptors = Location->Initialize();
+        auto descriptors = Location_->Initialize();
         for (const auto& descriptor : descriptors) {
-            auto chunk = New<TCachedChunk>(
-                Location,
-                descriptor,
-                Bootstrap->GetChunkCache(),
-                Bootstrap->GetMemoryUsageTracker());
+            auto chunk = New<TCachedBlobChunk>(
+                Bootstrap_,
+                Location_,
+                descriptor.Id,
+                descriptor.Info);
             Put(chunk);
         }
 
-        LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
+        LOG_INFO("Chunk cache scan completed, %d chunks found",
+            GetSize());
     }
 
-    void Register(TCachedChunkPtr chunk)
+    void Register(TCachedBlobChunkPtr chunk)
     {
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(+1);
         location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
     }
 
-    void Unregister(TCachedChunkPtr chunk)
+    void Unregister(TCachedBlobChunkPtr chunk)
     {
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
     }
 
-    void Put(TCachedChunkPtr chunk)
+    void Put(TCachedBlobChunkPtr chunk)
     {
         TInsertCookie cookie(chunk->GetId());
         YCHECK(BeginInsert(&cookie));
@@ -109,61 +110,63 @@ public:
         LOG_INFO("Getting chunk from cache (ChunkId: %s)",
             ~ToString(chunkId));
 
-        std::shared_ptr<TInsertCookie> cookie = std::make_shared<TInsertCookie>(chunkId);
-        if (BeginInsert(cookie.get())) {
-            LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~ToString(chunkId));
-            auto session = New<TDownloadSession>(this, chunkId, cookie);
-            session->Start();
+        TInsertCookie cookie(chunkId);
+        bool inserted = BeginInsert(&cookie);
+        auto cookieValue = cookie.GetValue();
+        if (inserted) {
+            LOG_INFO("Loading chunk into cache (ChunkId: %s)",
+                ~ToString(chunkId));
+
+            auto invoker = CreateSerializedInvoker(Location_->GetWriteInvoker());
+            invoker->Invoke(BIND(
+                &TImpl::DoDownloadChunk,
+                MakeStrong(this),
+                chunkId,
+                Passed(std::move(cookie))));
         } else {
-            LOG_INFO("Chunk is already cached (ChunkId: %s)", ~ToString(chunkId));
+            LOG_INFO("Chunk is already cached (ChunkId: %s)",
+                ~ToString(chunkId));
         }
 
-        return cookie->GetValue();
-    }
-
-    const TGuid& GetCellGuid()
-    {
-        return Location->GetCellGuid();
-    }
-
-    void UpdateCellGuid(const TGuid& cellGuid)
-    {
-        try {
-            Location->SetCellGuid(cellGuid);
-        } catch (const std::exception& ex) {
-            Location->Disable();
-            LOG_WARNING(ex, "Failed to set cell guid for chunk cache");
-            return;
-        }
+        return cookieValue.Apply(BIND([] (TErrorOr<TCachedBlobChunkPtr> result) -> TDownloadResult {
+            return result.IsOK() ? TDownloadResult(result.Value()) : TDownloadResult(result);
+        }));
     }
 
     bool IsEnabled() const
     {
-        return Location->IsEnabled();
+        return Location_->IsEnabled();
+    }
+
+    std::vector<IChunkPtr> GetChunks()
+    {
+        auto chunks = GetAll();
+        return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
     }
 
 private:
-    TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
-    TLocationPtr Location;
+    TDataNodeConfigPtr Config_;
+    TBootstrap* Bootstrap_;
+    TLocationPtr Location_;
 
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
-    virtual i64 GetWeight(TCachedChunk* chunk) const override
+
+    virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
     {
         return chunk->GetInfo().disk_space();
     }
 
-    virtual void OnAdded(TCachedChunk* value) override
+    virtual void OnAdded(TCachedBlobChunk* value) override
     {
-        TBase::OnAdded(value);
+        TWeightLimitedCache::OnAdded(value);
         ChunkAdded_.Fire(value);
     }
 
-    virtual void OnRemoved(TCachedChunk* value) override
+    virtual void OnRemoved(TCachedBlobChunk* value) override
     {
-        TBase::OnRemoved(value);
+        TWeightLimitedCache::OnRemoved(value);
         ChunkRemoved_.Fire(value);
     }
 
@@ -174,265 +177,155 @@ private:
 
         // Register an alert and
         // schedule an out-of-order heartbeat to notify the master about the disaster.
-        auto masterConnector = Bootstrap->GetMasterConnector();
+        auto masterConnector = Bootstrap_->GetMasterConnector();
         masterConnector->RegisterAlert("Chunk cache is disabled");
         masterConnector->ForceRegister();
     }
 
 
-    class TDownloadSession
-        : public TRefCounted
+    void DoDownloadChunk(const TChunkId& chunkId, TInsertCookie cookie)
     {
-    public:
-        typedef TDownloadSession TThis;
+        NLog::TTaggedLogger Logger(DataNodeLogger);
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
 
-        TDownloadSession(
-            TImpl* owner,
-            const TChunkId& chunkId,
-            const std::shared_ptr<TInsertCookie>& cookie)
-            : Owner(owner)
-            , ChunkId(chunkId)
-            , Cookie(cookie)
-            , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
-            , NodeDirectory(New<TNodeDirectory>())
-            , Logger(DataNodeLogger)
-        {
-            Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
-        }
+        try {
+            auto nodeDirectory = New<TNodeDirectory>();
 
-        void Start()
-        {
-            RemoteReader = CreateReplicationReader(
-                Owner->Config->CacheRemoteReader,
-                Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                Owner->Bootstrap->GetMasterChannel(),
-                NodeDirectory,
-                Owner->Bootstrap->GetLocalDescriptor(),
-                ChunkId);
+            auto chunkReader = CreateReplicationReader(
+                Config_->CacheRemoteReader,
+                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                nodeDirectory,
+                Bootstrap_->GetLocalDescriptor(),
+                chunkId);
 
-            WriteInvoker->Invoke(BIND(&TThis::DoStart, MakeStrong(this)));
-        }
-
-    private:
-        TIntrusivePtr<TImpl> Owner;
-        TChunkId ChunkId;
-        std::vector<Stroka> SeedAddresses;
-        std::shared_ptr<TInsertCookie> Cookie;
-        IInvokerPtr WriteInvoker;
-        TNodeDirectoryPtr NodeDirectory;
-
-        TFileWriterPtr FileWriter;
-        IAsyncReaderPtr RemoteReader;
-        TSequentialReaderPtr SequentialReader;
-        TChunkMeta ChunkMeta;
-        TChunkInfo ChunkInfo;
-        int BlockCount;
-        int BlockIndex;
-
-        NLog::TTaggedLogger Logger;
-
-        void DoStart()
-        {
-            Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
+            auto fileName = Location_->GetChunkFileName(chunkId);
+            auto chunkWriter = New<TFileWriter>(fileName);
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                FileWriter = New<TFileWriter>(fileName);
-                FileWriter->Open();
+                chunkWriter->Open();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }
 
             LOG_INFO("Getting chunk meta");
-            RemoteReader->AsyncGetChunkMeta().Subscribe(
-                BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
-                .Via(WriteInvoker));
-        }
-
-        void OnGotChunkMeta(IAsyncReader::TGetMetaResult result)
-        {
-            if (!result.IsOK()) {
-                OnError(result);
-                return;
-            }
-
+            auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
+            THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError);
             LOG_INFO("Chunk meta received");
-            ChunkMeta = result.Value();
+            const auto& chunkMeta = chunkMetaOrError.Value();
 
             // Download all blocks.
-
-            auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-            BlockCount = static_cast<int>(blocksExt.blocks_size());
-            std::vector<TSequentialReader::TBlockInfo> blockSequence;
-            blockSequence.reserve(BlockCount);
-            for (int index = 0; index < BlockCount; ++index) {
-                blockSequence.push_back(TSequentialReader::TBlockInfo(
+            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+            int blockCount = blocksExt.blocks_size();
+            std::vector<TSequentialReader::TBlockInfo> blocks;
+            blocks.reserve(blockCount);
+            for (int index = 0; index < blockCount; ++index) {
+                blocks.push_back(TSequentialReader::TBlockInfo(
                     index,
                     blocksExt.blocks(index).size()));
             }
 
-            SequentialReader = New<TSequentialReader>(
-                Owner->Config->CacheSequentialReader,
-                std::move(blockSequence),
-                RemoteReader,
+            auto sequentialReader = New<TSequentialReader>(
+                Config_->CacheSequentialReader,
+                std::move(blocks),
+                chunkReader,
                 NCompression::ECodec::None);
 
-            BlockIndex = 0;
-            FetchNextBlock();
-        }
+            for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+                LOG_INFO("Downloading block (BlockIndex: %d)",
+                    blockIndex);
 
-        void FetchNextBlock()
-        {
-            if (BlockIndex >= BlockCount) {
-                CloseChunk();
-                return;
+                auto blockResult = WaitFor(sequentialReader->AsyncNextBlock());
+                THROW_ERROR_EXCEPTION_IF_FAILED(blockResult);
+
+                LOG_INFO("Writing block (BlockIndex: %d)",
+                    blockIndex);
+                // NB: This is always done synchronously.
+                auto block = sequentialReader->GetBlock();
+                if (!chunkWriter->WriteBlock(block)) {
+                    THROW_ERROR_EXCEPTION(chunkWriter->GetReadyEvent().Get());
+                }
+                LOG_INFO("Block written");
             }
 
-            LOG_INFO("Asking for another block (BlockIndex: %d)",
-                BlockIndex);
 
-            SequentialReader->AsyncNextBlock().Subscribe(
-                BIND(&TThis::OnNextBlock, MakeStrong(this))
-                .Via(WriteInvoker));
-        }
-
-        void OnNextBlock(TError error)
-        {
-            if (!error.IsOK()) {
-                OnError(error);
-                return;
-            }
-
-            LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
-            // NB: This is always done synchronously.
-            auto block = SequentialReader->GetBlock();
-            if (!FileWriter->WriteBlock(block)) {
-                OnError(FileWriter->GetReadyEvent().Get());
-                return;
-            }
-            LOG_INFO("Block written");
-
-            ++BlockIndex;
-            FetchNextBlock();
-        }
-
-        void CloseChunk()
-        {
             LOG_INFO("Closing chunk");
-            // NB: This is always done synchronously.
-            auto closeResult = FileWriter->AsyncClose(ChunkMeta).Get();
-
-            if (!closeResult.IsOK()) {
-                OnError(closeResult);
-                return;
-            }
-
+            auto closeResult = WaitFor(chunkWriter->Close(chunkMeta));
+            THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
             LOG_INFO("Chunk is closed");
 
-            OnSuccess();
-        }
-
-        void OnSuccess()
-        {
             LOG_INFO("Chunk is downloaded into cache");
-            auto chunk = New<TCachedChunk>(
-                Owner->Location,
-                ChunkId,
-                ChunkMeta,
-                FileWriter->GetChunkInfo(),
-                Owner->Bootstrap->GetChunkCache(),
-                Owner->Bootstrap->GetMemoryUsageTracker());
-            Cookie->EndInsert(chunk);
-            Owner->Register(chunk);
-            Cleanup();
+            auto chunk = New<TCachedBlobChunk>(
+                Bootstrap_,
+                Location_,
+                chunkId,
+                chunkWriter->GetChunkInfo(),
+                &chunkMeta);
+            cookie.EndInsert(chunk);
+            Register(chunk);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error downloading chunk %s into cache",
+                ~ToString(chunkId))
+                << ex;
+            cookie.Cancel(error);
+            LOG_WARNING(error);
         }
+    }
 
-        void OnError(const TError& error)
-        {
-            YCHECK(!error.IsOK());
-            auto wrappedError = TError("Error downloading chunk %s into cache", ~ToString(ChunkId))
-                << error;
-            Cookie->Cancel(wrappedError);
-            LOG_WARNING(wrappedError);
-            Cleanup();
-        }
 
-        void Cleanup()
-        {
-            Owner.Reset();
-            if (FileWriter) {
-                FileWriter.Reset();
-            }
-            RemoteReader.Reset();
-            SequentialReader.Reset();
-        }
-    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 void TChunkCache::Initialize()
 {
-    Impl->Initialize();
+    Impl_->Initialize();
 }
 
 TChunkCache::~TChunkCache()
 { }
 
-TCachedChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
+IChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->Find(chunkId);
+    return Impl_->Find(chunkId);
 }
 
-TChunkCache::TChunks TChunkCache::GetChunks()
+std::vector<IChunkPtr> TChunkCache::GetChunks()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->GetAll();
+    return Impl_->GetChunks();
 }
 
 int TChunkCache::GetChunkCount()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->GetSize();
+    return Impl_->GetSize();
 }
 
 TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->Download(chunkId);
-}
-
-const TGuid& TChunkCache::GetCellGuid() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl->GetCellGuid();
-}
-
-void TChunkCache::UpdateCellGuid(const TGuid& cellGuid)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl->UpdateCellGuid(cellGuid);
+    return Impl_->Download(chunkId);
 }
 
 bool TChunkCache::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->IsEnabled();
+    return Impl_->IsEnabled();
 }
 
-DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
-DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkRemoved, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkAdded, *Impl_);
+DELEGATE_SIGNAL(TChunkCache, void(IChunkPtr), ChunkRemoved, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

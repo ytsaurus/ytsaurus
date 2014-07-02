@@ -10,6 +10,7 @@ namespace NYT {
 class TRandomGenerator
 {
 public:
+    TRandomGenerator();
     explicit TRandomGenerator(ui64 seed);
 
     template <class T>

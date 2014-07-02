@@ -11,11 +11,10 @@
 #include <core/profiling/profiling_manager.h>
 
 #include <util/system/error.h>
-#include <util/folder/dirut.h>
 
 #include <errno.h>
 
-#ifndef _WIN32
+#ifndef _win_
     #include <netinet/tcp.h>
 #endif
 
@@ -24,11 +23,12 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MinBatchReadSize =  4 * 1024;
+static const size_t MinBatchReadSize = 16 * 1024;
 static const size_t MaxBatchReadSize = 64 * 1024;
 
 static const size_t MaxFragmentsPerWrite = 256;
-static const size_t MaxBatchWriteSize = 64 * 1024;
+static const size_t MaxBatchWriteSize    = 64 * 1024;
+static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
 static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
@@ -71,7 +71,9 @@ TTcpConnection::TTcpConnection(
     , Logger(BusLogger)
     , Profiler(BusProfiler)
     , Port(0)
-    , MessageEnqueuedSent(false)
+    // NB: This produces a cycle, which gets broken in SyncFinalize.
+    , MessageEnqueuedCallback(BIND(&TTcpConnection::OnMessageEnqueued, MakeStrong(this)))
+    , MessageEnqueuedCallbackPending(false)
     , ReadBuffer(MinBatchReadSize)
     , TerminatedPromise(NewPromise<TError>())
 {
@@ -100,6 +102,9 @@ TTcpConnection::TTcpConnection(
             YUNREACHABLE();
     }
 
+    WriteBuffers.push_back(std::unique_ptr<TBlob>(new TBlob()));
+    WriteBuffers[0]->Reserve(MaxBatchWriteSize);
+
     UpdateConnectionCount(+1);
 }
 
@@ -120,8 +125,7 @@ void TTcpConnection::Cleanup()
 
     while (!EncodedPackets.empty()) {
         auto* packet = EncodedPackets.front();
-        UpdatePendingOut(-1, -packet->Packet->Size);
-        delete packet->Packet;
+        UpdatePendingOut(-1, -packet->Size);
         delete packet;
         EncodedPackets.pop();
     }
@@ -235,20 +239,16 @@ void TTcpConnection::SyncResolve()
         auto netAddress = GetLocalBusAddress(Port);
         OnAddressResolved(netAddress);
     } else {
-        AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
-
-        auto this_ = MakeStrong(this);
-        AsyncAddress.Subscribe(BIND([this, this_] (TErrorOr<TNetworkAddress>) {
-            DispatcherThread->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
-        }));
+        TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
+            BIND(&TTcpConnection::OnAddressResolutionFinished, MakeStrong(this))
+                .Via(DispatcherThread->GetInvoker()));
     }
 }
 
-void TTcpConnection::OnAddressResolved()
+void TTcpConnection::OnAddressResolutionFinished(TErrorOr<TNetworkAddress> result)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    auto result = AsyncAddress.Get();
     if (!result.IsOK()) {
         SyncClose(result);
         return;
@@ -301,6 +301,9 @@ void TTcpConnection::SyncClose(const TError& error)
     // Release memory.
     Cleanup();
 
+    // Break the cycle.
+    MessageEnqueuedCallback.Reset();
+
     // Invoke user callback.
     PROFILE_TIMING ("/terminate_handler_time") {
         TerminatedPromise.Set(error);
@@ -315,7 +318,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
 void TTcpConnection::InitFd()
 {
-#ifdef _WIN32
+#ifdef _win_
     Fd = _open_osfhandle(Socket, 0);
 #else
     Fd = Socket;
@@ -385,7 +388,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 
     {
-#ifdef _WIN32
+#ifdef _win_
         unsigned long value = 1;
         int result = ioctlsocket(Socket, FIONBIO, &value);
 #else
@@ -415,22 +418,33 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 }
 
-TAsyncError TTcpConnection::Send(TSharedRefArray message)
+TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TQueuedMessage queuedMessage(message);
+    TQueuedMessage queuedMessage(std::move(message), level);
 
     // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)",
+        ~ToString(queuedMessage.PacketId));
 
     QueuedMessages.Enqueue(queuedMessage);
 
     auto state = AtomicGet(State);
-    bool sent = AtomicGet(MessageEnqueuedSent);
-    if (!sent && state != EState::Resolving && state != EState::Opening)  {
-        AtomicSet(MessageEnqueuedSent, true);
-        DispatcherThread->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
+    if (state == EState::Closed) {
+        return MakeFuture(TError(
+            NRpc::EErrorCode::TransportError,
+            "Connection closed"));
+    }
+
+    bool callbackPending = AtomicGet(MessageEnqueuedCallbackPending);
+    if (!callbackPending &&
+        state != EState::Resolving &&
+        state != EState::Opening)
+    {
+        if (AtomicCas(&MessageEnqueuedCallbackPending, true, false)) {
+            DispatcherThread->GetInvoker()->Invoke(MessageEnqueuedCallback);
+        }
     }
 
     return queuedMessage.Promise;
@@ -450,28 +464,11 @@ void TTcpConnection::Terminate(const TError& error)
         TerminationError = error;
     }
 
-    DispatcherThread->AsyncPostEvent(this, EConnectionEvent::Terminated);
-    
     LOG_DEBUG("Bus termination requested");
-}
 
-void TTcpConnection::SyncProcessEvent(EConnectionEvent event)
-{
-    VERIFY_THREAD_AFFINITY(EventLoop);
-
-    switch (event) {
-        case EConnectionEvent::AddressResolved:
-            OnAddressResolved();
-            break;
-        case EConnectionEvent::Terminated:
-            OnTerminated();
-            break;
-        case EConnectionEvent::MessageEnqueued:
-            OnMessageEnqueued();
-            break;
-        default:
-            YUNREACHABLE();
-    }
+    DispatcherThread->GetInvoker()->Invoke(BIND(
+        &TTcpConnection::OnTerminated,
+        MakeStrong(this)));
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
@@ -519,7 +516,7 @@ void TTcpConnection::OnSocketRead()
 
     while (true) {
         // Check if the decoder is expecting a chunk of large enough size.
-        auto decoderChunk = Decoder.GetChunk();
+        auto decoderChunk = Decoder.GetFragment();
         size_t decoderChunkSize = decoderChunk.Size();
         LOG_TRACE("Decoder needs %" PRISZT " bytes", decoderChunkSize);
 
@@ -549,7 +546,7 @@ void TTcpConnection::OnSocketRead()
             const char* recvBegin = ReadBuffer.Begin();
             size_t recvRemaining = bytesRead;
             while (recvRemaining != 0) {
-                decoderChunk = Decoder.GetChunk();
+                decoderChunk = Decoder.GetFragment();
                 decoderChunkSize = decoderChunk.Size();
                 size_t bytesToCopy = std::min(recvRemaining, decoderChunkSize);
                 LOG_TRACE("Decoder chunk size is %" PRISZT " bytes, copying %" PRISZT " bytes",
@@ -614,7 +611,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
                 << TError::FromSystem(error);
-            LOG_WARNING(wrappedError);
+            LOG_DEBUG(wrappedError);
             SyncClose(wrappedError);
         }
         return false;
@@ -677,7 +674,9 @@ bool TTcpConnection::OnAckPacketReceived()
     LOG_DEBUG("Ack received (PacketId: %s)", ~ToString(Decoder.GetPacketId()));
 
     PROFILE_AGGREGATED_TIMING (OutHandlerTime) {
-        unackedMessage.Promise.Set(TError());
+        if (unackedMessage.Promise) {
+            unackedMessage.Promise.Set(TError());
+        }
     }
 
     UnackedMessages.pop();
@@ -691,22 +690,27 @@ bool TTcpConnection::OnMessagePacketReceived()
         ~ToString(Decoder.GetPacketId()),
         Decoder.GetPacketSize());
 
-    EnqueuePacket(EPacketType::Ack, Decoder.GetPacketId());
+    if (Decoder.GetPacketFlags() & EPacketFlags::RequestAck) {
+        EnqueuePacket(EPacketType::Ack, EPacketFlags::None, Decoder.GetPacketId());
+    }
 
     auto message = Decoder.GetMessage();
     PROFILE_AGGREGATED_TIMING (InHandlerTime) {
-        Handler->OnMessage(message, this);
+        Handler->OnMessage(std::move(message), this);
     }
 
     return true;
 }
 
-void TTcpConnection::EnqueuePacket(EPacketType type, const TPacketId& packetId, TSharedRefArray message)
+void TTcpConnection::EnqueuePacket(
+    EPacketType type,
+    EPacketFlags flags,
+    const TPacketId& packetId,
+    TSharedRefArray message)
 {
     i64 size = TPacketEncoder::GetPacketSize(type, message);
-    QueuedPackets.push(new TQueuedPacket(type, packetId, message, size));
+    QueuedPackets.push(new TPacket(type, flags, packetId, message, size));
     UpdatePendingOut(+1, +size);
-    EncodeMoreFragments();
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -740,11 +744,17 @@ void TTcpConnection::OnSocketWrite()
 
     size_t bytesWrittenTotal = 0;
     while (HasUnsentData()) {
+        if (!MaybeEncodeFragments()) {
+            break;
+        }
+
         size_t bytesWritten;
         bool success = WriteFragments(&bytesWritten);
         bytesWrittenTotal += bytesWritten;
+        
         FlushWrittenFragments(bytesWritten);
-        EncodeMoreFragments();
+        FlushWrittenPackets(bytesWritten);
+
         if (!success) {
             break;
         }
@@ -755,7 +765,7 @@ void TTcpConnection::OnSocketWrite()
 
 bool TTcpConnection::HasUnsentData() const
 {
-    return !EncodedFragments.empty();
+    return !EncodedFragments.empty() || !QueuedPackets.empty();
 }
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
@@ -766,32 +776,31 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     auto fragmentEnd = EncodedFragments.end();
 
     SendVector.clear();
-    size_t vacantBytes = MaxBatchWriteSize;
+    size_t bytesAvailable = MaxBatchWriteSize;
 
     while (fragmentIt != fragmentEnd &&
            SendVector.size() < MaxFragmentsPerWrite &&
-           vacantBytes > 0)
+           bytesAvailable > 0)
     {
-        const auto& chunk = fragmentIt->Chunk;
-        char* buffer = chunk.Begin();
-        size_t size = std::min(chunk.Size(), vacantBytes);
-#ifdef _WIN32
+        const auto& fragment = *fragmentIt;
+        size_t size = std::min(fragment.Size(), bytesAvailable);
+#ifdef _win_
         WSABUF item;
-        item.buf = buffer;
+        item.buf = fragment.Begin();
         item.len = static_cast<ULONG>(size);
         SendVector.push_back(item);
 #else
         struct iovec item;
-        item.iov_base = buffer;
+        item.iov_base = fragment.Begin();
         item.iov_len = size;
         SendVector.push_back(item);
 #endif
         EncodedFragments.move_forward(fragmentIt);
-        vacantBytes -= size;
+        bytesAvailable -= size;
     }
 
     ssize_t result;
-#ifdef _WIN32
+#ifdef _win_
     DWORD bytesWritten_ = 0;
     PROFILE_AGGREGATED_TIMING (SendTime) {
         result = WSASend(Socket, SendVector.data(), SendVector.size(), &bytesWritten_, 0, NULL, NULL);
@@ -817,67 +826,129 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 {
     size_t bytesToFlush = bytesWritten;
-    LOG_TRACE("Flushing %" PRISZT " written bytes", bytesWritten);
+    LOG_TRACE("Flushing fragments, %" PRISZT " bytes written", bytesWritten);
 
     while (bytesToFlush != 0) {
         YASSERT(!EncodedFragments.empty());
         auto& fragment = EncodedFragments.front();
 
-        auto& data = fragment.Chunk;
-        if (data.Size() > bytesToFlush) {
-            size_t bytesRemaining = data.Size() - bytesToFlush;
+        if (fragment.Size() > bytesToFlush) {
+            size_t bytesRemaining = fragment.Size() - bytesToFlush;
             LOG_TRACE("Partial write (Size: %" PRISZT ", RemainingSize: %" PRISZT ")",
-                data.Size(),
+                fragment.Size(),
                 bytesRemaining);
-            fragment.Chunk = TRef(data.End() - bytesRemaining, bytesRemaining);
+            fragment = TRef(fragment.End() - bytesRemaining, bytesRemaining);
             break;
         }
 
-        LOG_TRACE("Full write (Size: %" PRISZT ")", data.Size());
+        LOG_TRACE("Full write (Size: %" PRISZT ")", fragment.Size());
 
-        if (fragment.IsLastInPacket) {
-            OnPacketSent();
-        }
-
-        bytesToFlush -= data.Size();
+        bytesToFlush -= fragment.Size();
         EncodedFragments.pop();
     }
 }
 
-bool TTcpConnection::EncodeMoreFragments()
+void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
 {
-    while (EncodedFragments.size() < MaxFragmentsPerWrite && !QueuedPackets.empty()) {
+    size_t bytesToFlush = bytesWritten;
+    LOG_TRACE("Flushing packets, %" PRISZT " bytes written", bytesWritten);
+
+    while (bytesToFlush != 0) {
+        YASSERT(!EncodedPacketSizes.empty());
+        auto& packetSize = EncodedPacketSizes.front();
+
+        if (packetSize > bytesToFlush) {
+            size_t bytesRemaining = packetSize - bytesToFlush;
+            LOG_TRACE("Partial write (Size: %" PRISZT ", RemainingSize: %" PRISZT ")",
+                packetSize,
+                bytesRemaining);
+            packetSize = bytesRemaining;
+            break;
+        }
+
+        LOG_TRACE("Full write (Size: %" PRISZT ")", packetSize);
+
+        bytesToFlush -= packetSize;
+        OnPacketSent();
+        EncodedPacketSizes.pop();
+    }
+}
+
+bool TTcpConnection::MaybeEncodeFragments()
+{
+    if (!EncodedFragments.empty() || QueuedPackets.empty()) {
+        return true;
+    }
+
+    // Discard all buffer except for a single one.
+    WriteBuffers.resize(1);
+    auto* buffer = WriteBuffers.back().get();
+    buffer->Clear();
+
+    size_t encodedSize = 0;
+    size_t coalescedSize = 0;
+
+    auto flushCoalesced = [&] () {
+        if (coalescedSize > 0) {
+            EncodedFragments.push(TRef(buffer->End() - coalescedSize, coalescedSize));
+            coalescedSize = 0;
+        }
+    };
+
+    auto coalesce = [&] (const TRef& fragment) {
+        if (buffer->Size() + fragment.Size() > buffer->Capacity()) {
+            // Make sure we never reallocate.
+            flushCoalesced();
+            WriteBuffers.push_back(std::unique_ptr<TBlob>(new TBlob()));
+            buffer = WriteBuffers.back().get();
+            buffer->Reserve(std::max(MaxBatchWriteSize, fragment.Size()));
+        }
+        buffer->Append(fragment);
+        coalescedSize += fragment.Size();
+    };
+
+    while (EncodedFragments.size() < MaxFragmentsPerWrite &&
+           encodedSize <= MaxBatchWriteSize &&
+           !QueuedPackets.empty())
+    {
         // Move the packet from queued to encoded.
-        auto* queuedPacket = QueuedPackets.front();
+        auto* packet = QueuedPackets.front();
         QueuedPackets.pop();
-
-        auto* encodedPacket = new TEncodedPacket();
-        EncodedPackets.push(encodedPacket);
-
-        encodedPacket->Packet = queuedPacket;
+        EncodedPackets.push(packet);
 
         // Encode the packet.
-        LOG_TRACE("Started encoding packet");
+        LOG_TRACE("Starting encoding packet (PacketId: %s)", ~ToString(packet->PacketId));
 
-        auto& encoder = encodedPacket->Encoder;
-        if (!encoder.Start(queuedPacket->Type, queuedPacket->PacketId, queuedPacket->Message)) {
+        bool encodeResult = Encoder.Start(
+            packet->Type,
+            packet->Flags,
+            packet->PacketId,
+            packet->Message);
+        if (!encodeResult) {
             SyncClose(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
             return false;
         }
 
-        TEncodedFragment fragment;
         do {
-            fragment.Chunk = encoder.GetChunk();
-            encoder.NextChunk();
-            fragment.IsLastInPacket = encoder.IsFinished();
-            EncodedFragments.push(fragment);
-            LOG_TRACE("Fragment encoded (Size: %" PRISZT ", IsLast: %d)",
-                fragment.Chunk.Size(),
-                fragment.IsLastInPacket);
-        } while (!fragment.IsLastInPacket);
+            auto fragment = Encoder.GetFragment();
+            if (!Encoder.IsFragmentOwned() || fragment.Size() <= MaxWriteCoalesceSize) {
+                coalesce(fragment);
+            } else {
+                flushCoalesced();
+                EncodedFragments.push(fragment);
+            }
+            LOG_TRACE("Fragment encoded (Size: %" PRISZT ")", fragment.Size());
+            Encoder.NextFragment();
+        } while (!Encoder.IsFinished());
 
-        LOG_TRACE("Finished encoding packet");
+        EncodedPacketSizes.push(packet->Size);
+        encodedSize += packet->Size;
+
+        LOG_TRACE("Finished encoding packet (PacketId: %s)", ~ToString(packet->PacketId));
     }
+    
+    flushCoalesced();
+
     return true;
 }
 
@@ -902,7 +973,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
 void TTcpConnection::OnPacketSent()
 {
     const auto* packet = EncodedPackets.front();
-    switch (packet->Packet->Type) {
+    switch (packet->Type) {
         case EPacketType::Ack:
             OnAckPacketSent(*packet);
             break;
@@ -916,36 +987,36 @@ void TTcpConnection::OnPacketSent()
     }
 
 
-    UpdatePendingOut(-1, -packet->Packet->Size);
+    UpdatePendingOut(-1, -packet->Size);
     Profiler.Increment(OutCounter);
 
-    delete packet->Packet;
     delete packet;
     EncodedPackets.pop();
 }
 
-void  TTcpConnection::OnAckPacketSent(const TEncodedPacket& packet)
+void  TTcpConnection::OnAckPacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Ack sent (PacketId: %s)", ~ToString(packet.Packet->PacketId));
+    LOG_DEBUG("Ack sent (PacketId: %s)",
+        ~ToString(packet.PacketId));
 }
 
-void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
+void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 {
     LOG_DEBUG("Outcoming message sent (PacketId: %s, PacketSize: %" PRId64 ")",
-        ~ToString(packet.Packet->PacketId),
-        packet.Packet->Size);
+        ~ToString(packet.PacketId),
+        packet.Size);
 }
 
 void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
-    AtomicSet(MessageEnqueuedSent, false);
-    
+    AtomicSet(MessageEnqueuedCallbackPending, false);
+
     if (State == EState::Closed) {
         DiscardOutcomingMessages(TError(
             NRpc::EErrorCode::TransportError,
-            "Connection is closed"));
+            "Connection closed"));
         return;
     }
 
@@ -955,14 +1026,27 @@ void TTcpConnection::OnMessageEnqueued()
 
 void TTcpConnection::ProcessOutcomingMessages()
 {
-    TQueuedMessage queuedMessage;
-    while (QueuedMessages.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
+    auto messages = QueuedMessages.DequeueAll();
 
-        EnqueuePacket(EPacketType::Message, queuedMessage.PacketId, queuedMessage.Message);
+    for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
+        const auto& queuedMessage = *it;
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)",
+            ~ToString(queuedMessage.PacketId));
 
-        TUnackedMessage unackedMessage(queuedMessage.PacketId, queuedMessage.Promise);
-        UnackedMessages.push(unackedMessage);
+        EPacketFlags flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
+            ? EPacketFlags::RequestAck
+            : EPacketFlags::None;
+
+        EnqueuePacket(
+            EPacketType::Message,
+            flags,
+            queuedMessage.PacketId,
+            queuedMessage.Message);
+
+        if (flags & EPacketFlags::RequestAck) {
+            TUnackedMessage unackedMessage(queuedMessage.PacketId, std::move(queuedMessage.Promise));
+            UnackedMessages.push(unackedMessage);            
+        }
     }
 }
 
@@ -970,15 +1054,21 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
-        queuedMessage.Promise.Set(error);
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)",
+            ~ToString(queuedMessage.PacketId));
+        if (queuedMessage.Promise) {
+            queuedMessage.Promise.Set(error);
+        }
     }
 }
 
 void TTcpConnection::DiscardUnackedMessages(const TError& error)
 {
     while (!UnackedMessages.empty()) {
-        UnackedMessages.front().Promise.Set(error);
+        auto& message = UnackedMessages.front();
+        if (message.Promise) {
+            message.Promise.Set(error);
+        }
         UnackedMessages.pop();
     }
 }
@@ -1017,7 +1107,7 @@ int TTcpConnection::GetSocketError() const
 
 bool TTcpConnection::IsSocketError(ssize_t result)
 {
-#ifdef _WIN32
+#ifdef _win_
     return
         result != WSAEWOULDBLOCK &&
         result != WSAEINPROGRESS;

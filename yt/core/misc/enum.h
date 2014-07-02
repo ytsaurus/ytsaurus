@@ -7,6 +7,8 @@
 
 #include "preprocessor.h"
 
+#include <util/stream/output.h>
+
 #include <stdexcept>
 
 namespace NYT {
@@ -52,6 +54,8 @@ class TEnumBase
         : public ::NYT::TEnumBase<name> \
     { \
     public: \
+        typedef name TThis; \
+        \
         enum EDomain \
         { \
             PP_FOR_EACH(ENUM__DOMAIN_ITEM, seq) \
@@ -80,14 +84,15 @@ class TEnumBase
             return Value; \
         } \
         \
-        Stroka ToString() const \
+        friend TOutputStream& operator << (TOutputStream& stream, name value) \
         { \
-            Stroka str(GetLiteralByValue(Value)); \
-            if (LIKELY(!str.empty())) { \
-                return str; \
+            auto* literal = GetLiteralByValue(value.Value); \
+            if (literal) { \
+                stream << literal; \
             } else { \
-                return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(static_cast<int>(Value)) + ")"; \
+                stream << PP_STRINGIZE(name) << "(" << static_cast<int>(value.Value) << ")"; \
             } \
+            return stream; \
         } \
         \
         static const char* GetLiteralByValue(int value) \
@@ -100,7 +105,7 @@ class TEnumBase
             } \
         } \
         \
-        static bool GetValueByLiteral(const char* literal, int* target) \
+        static bool GetValueByLiteral(const TStringBuf& literal, int* result) \
         { \
             PP_FOR_EACH(ENUM__VALUE_BY_LITERAL_ITEM, seq); \
             return false; \
@@ -111,25 +116,25 @@ class TEnumBase
             return PP_COUNT(seq); \
         } \
         \
-        static std::vector<EDomain> GetDomainValues() \
+        static const std::vector<name>& GetDomainValues() \
         { \
-            static const EDomain bits[] = { \
+            static name values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
-                static_cast<EDomain>(-1) \
             }; \
-            return std::vector<EDomain>(bits, bits + sizeof(bits) / sizeof(bits[0]) - 1); \
+            static std::vector<name> result(values, values + GetDomainSize()); \
+            return result; \
         } \
         \
-        static std::vector<Stroka> GetDomainNames() \
+        static const std::vector<Stroka>& GetDomainNames() \
         { \
-            static const char* names[] = { \
+            static Stroka values[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-                nullptr \
             }; \
-            return std::vector<Stroka>(names, names + sizeof(names) / sizeof(names[0]) - 1); \
+            static std::vector<Stroka> result(values, values + GetDomainSize()); \
+            return result; \
         } \
         \
-        static name FromString(const char* str) \
+        static name FromString(const TStringBuf& str) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
@@ -140,25 +145,15 @@ class TEnumBase
             return name(value); \
         } \
         \
-        static name FromString(const Stroka& str) \
-        { \
-            return name::FromString(str.c_str()); \
-        } \
-        \
-        static bool FromString(const char* str, name* target) \
+        static bool FromString(const TStringBuf& str, name* result) \
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
                 return false; \
             } else { \
-                *target = name(value); \
+                *result = name(value); \
                 return true; \
             } \
-        } \
-        \
-        static bool FromString(const Stroka& str, name* target) \
-        { \
-            return name::FromString(str.c_str(), target); \
         } \
         \
     private: \
@@ -210,8 +205,8 @@ class TEnumBase
     ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__VALUE_BY_LITERAL_ITEM_ATOMIC(item) \
-    if (::strcmp(literal, PP_STRINGIZE(item)) == 0) { \
-        *target = static_cast<int>(item); \
+    if (literal == PP_STRINGIZE(item)) { \
+        *result = static_cast<int>(item); \
         return true; \
     }
 //! \}
@@ -229,7 +224,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
-    (item),
+    TThis(item),
 //! \}
 
 //! #GetDomainNames() helper.
@@ -245,7 +240,7 @@ class TEnumBase
     ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
-    PP_STRINGIZE(item), \
+    Stroka(PP_STRINGIZE(item)),
 //! \}
 
 //! Declaration of relational operators; all at once.

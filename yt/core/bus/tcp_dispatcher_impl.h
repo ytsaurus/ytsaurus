@@ -7,11 +7,14 @@
 #include <core/misc/address.h>
 #include <core/misc/random.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/event_count.h>
 
 #include <util/thread/lfqueue.h>
 
 #include <contrib/libev/ev++.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NBus {
@@ -31,87 +34,36 @@ struct IEventLoopObject
     virtual Stroka GetLoggingId() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IEventLoopObject)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcherThread
-    : public TRefCounted
+    : public NConcurrency::TEVSchedulerThread
 {
 public:
     explicit TTcpDispatcherThread(const Stroka& threadName);
-    ~TTcpDispatcherThread();
-
-    void Shutdown();
 
     const ev::loop_ref& GetEventLoop() const;
 
     TAsyncError AsyncRegister(IEventLoopObjectPtr object);
     TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
 
-    void AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event);
-
     TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 
 private:
+    friend class TTcpDispatcherInvokerQueue;
+
     std::vector<TTcpDispatcherStatistics> Statistics_;
-    Stroka ThreadName;
-    TThread Thread;
-    ev::dynamic_loop EventLoop;
+    yhash_set<IEventLoopObjectPtr> Objects_;
 
-    bool Stopped;
-    ev::async StopWatcher;
 
-    struct TRegisterEntry
-    {
-        TRegisterEntry()
-        { }
-
-        explicit TRegisterEntry(IEventLoopObjectPtr object)
-            : Object(std::move(object))
-            , Promise(NewPromise<TError>())
-        { }
-
-        IEventLoopObjectPtr Object;
-        TPromise<TError> Promise;
-    };
-
-    typedef TRegisterEntry TUnregisterEntry;
-
-    TLockFreeQueue<TRegisterEntry> RegisterQueue;
-    ev::async RegisterWatcher;
-
-    TLockFreeQueue<TUnregisterEntry> UnregisterQueue;
-    ev::async UnregisterWatcher;
-
-    struct TEventEntry
-    {
-        TEventEntry()
-        { }
-
-        TEventEntry(TTcpConnectionPtr connection, EConnectionEvent event)
-            : Connection(std::move(connection))
-            , Event(event)
-        { }
-
-        TTcpConnectionPtr Connection;
-        EConnectionEvent Event;
-    };
-
-    TLockFreeQueue<TEventEntry> EventQueue;
-    ev::async EventWatcher;
-
-    yhash_set<IEventLoopObjectPtr> Objects;
-
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
-
-    void OnStop(ev::async&, int);
-    void OnRegister(ev::async&, int);
-    void OnUnregister(ev::async&, int);
-    void OnEvent(ev::async&, int);
-
-    DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
+    void DoRegister(IEventLoopObjectPtr object);
+    void DoUnregister(IEventLoopObjectPtr object);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TTcpDispatcherThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,10 +83,10 @@ private:
     
     TImpl();
 
-    std::vector<TTcpDispatcherThreadPtr> Threads;
+    std::vector<TTcpDispatcherThreadPtr> Threads_;
 
-    TRandomGenerator Generator;
-    TSpinLock SpinLock;
+    TSpinLock SpinLock_;
+    TRandomGenerator ThreadIdGenerator_;
 
 };
 

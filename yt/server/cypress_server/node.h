@@ -88,7 +88,6 @@ private:
 };
 
 NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
-bool CompareObjectsForSerialization(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

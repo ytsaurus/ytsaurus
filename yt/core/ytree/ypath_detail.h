@@ -24,24 +24,81 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
+    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef TCtx##method::TTypedRequest  TReq##method; \
+    typedef TCtx##method::TTypedResponse TRsp##method; \
+    \
+    void method##Thunk( \
+        const ::NYT::NRpc::IServiceContextPtr& context, \
+        const ::NYT::NRpc::THandlerInvocationOptions& options) \
+    { \
+        auto typedContext = ::NYT::New<TCtx##method>(context, options); \
+        if (!typedContext->DeserializeRequest()) \
+            return; \
+        this->method( \
+            &typedContext->Request(), \
+            &typedContext->Response(), \
+            typedContext); \
+    } \
+    \
+    void method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        const TCtx##method##Ptr& context)
+
+#define DEFINE_YPATH_SERVICE_METHOD(type, method) \
+    void type::method( \
+        TReq##method* request, \
+        TRsp##method* response, \
+        const TCtx##method##Ptr& context)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DISPATCH_YPATH_SERVICE_METHOD(method) \
+    if (context->GetMethod() == #method) { \
+        ::NYT::NRpc::THandlerInvocationOptions options; \
+        method##Thunk(context, options); \
+        return true; \
+    }
+
+#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
+    if (context->GetMethod() == #method) { \
+        ::NYT::NRpc::THandlerInvocationOptions options; \
+        options.HeavyResponse = true; \
+        options.ResponseCodec = NCompression::ECodec::Lz4; \
+        method##Thunk(context, options); \
+        return true; \
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
+    TYPathServiceBase();
+
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
-    virtual Stroka GetLoggingCategory() const override;
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+    virtual NLog::TLogger GetLogger() const override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override;
 
 protected:
-    NLog::TLogger Logger;
+    mutable NLog::TLogger Logger;
+    mutable bool LoggerCreated;
 
-    void GuardedInvoke(NRpc::IServiceContextPtr context);
+    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context);
+    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
+
+    void EnsureLoggerCreated() const;
+    virtual bool IsLoggingEnabled() const;
+    virtual NLog::TLogger CreateLogger() const;
 
     virtual TResolveResult ResolveSelf(const TYPath& path, NRpc::IServiceContextPtr context);
     virtual TResolveResult ResolveAttributes(const TYPath& path, NRpc::IServiceContextPtr context);
@@ -51,15 +108,15 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SUPPORTS_VERB(verb, base) \
-    class TSupports##verb \
+#define DECLARE_SUPPORTS_METHOD(method, base) \
+    class TSupports##method \
         : public base \
     { \
     protected: \
-        DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
-        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
-        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
-        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
+        DECLARE_YPATH_SERVICE_METHOD(NProto, method); \
+        virtual void method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
+        virtual void method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
+        virtual void method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context); \
     }
 
 class TSupportsExistsBase
@@ -73,12 +130,12 @@ protected:
 
 };
 
-DECLARE_SUPPORTS_VERB(GetKey, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Get, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Set, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(List, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Remove, virtual TRefCounted);
-DECLARE_SUPPORTS_VERB(Exists, TSupportsExistsBase);
+DECLARE_SUPPORTS_METHOD(GetKey, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Get, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Set, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(List, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Remove, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
 
 #undef DECLARE_SUPPORTS_VERB
 
@@ -111,7 +168,7 @@ protected:
     virtual IAttributeDictionary* GetCustomAttributes();
 
     //! Can be |nullptr|.
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider();
+    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider();
 
     virtual TResolveResult ResolveAttributes(
         const NYPath::TYPath& path,
@@ -159,7 +216,7 @@ protected:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue);
 
-    //! Called after some user attributes are changed.
+    //! Called after some custom attributes are changed.
     virtual void OnCustomAttributesUpdated();
 
 private:
@@ -392,40 +449,16 @@ typedef TCallback<void(TSharedRefArray)> TYPathResponseHandler;
 
 NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
+    TYPathResponseHandler responseHandler);
+
+NRpc::IServiceContextPtr CreateYPathContext(
+    std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
+    TSharedRefArray requestMessage,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler);
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define DISPATCH_YPATH_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        auto action = method##Thunk(context, options); \
-        if (action) { \
-            action.Run(); \
-        } \
-        return true; \
-    }
-
-
-#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
-        ::NYT::NRpc::THandlerInvocationOptions options; \
-        options.HeavyResponse = true; \
-        options.ResponseCodec = NCompression::ECodec::Lz4; \
-        auto action = method##Thunk(context, options); \
-        if (action) { \
-            action.Run(); \
-        } \
-        return true; \
-    }
-
-#define DECLARE_YPATH_SERVICE_WRITE_METHOD(method) \
-    if (context->GetVerb() == #method) { \
-        return true; \
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,17 +8,19 @@
 #include <core/misc/sync.h>
 #include <core/misc/nullable.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <core/ytree/attribute_helpers.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -30,7 +32,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableMultiChunkWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +44,7 @@ public:
     TAsyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        ITransactionPtr transaction,
+        TTransactionPtr transaction,
         TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
@@ -57,8 +59,6 @@ public:
 
     virtual void Close() override;
 
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override;
-
     virtual i64 GetRowCount() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
@@ -66,8 +66,8 @@ public:
 private:
     typedef TAsyncTableWriter TThis;
 
-    TFuture<TErrorOr<ITransactionPtr>> CreateUploadTransaction();
-    void OnTransactionCreated(ITransactionPtr transactionOrError);
+    TFuture<TErrorOr<TTransactionPtr>> CreateUploadTransaction();
+    void OnTransactionCreated(TTransactionPtr transactionOrError);
 
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> FetchTableInfo();
     TChunkListId OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
@@ -83,7 +83,7 @@ private:
     TTableWriterOptionsPtr Options;
 
     NRpc::IChannelPtr MasterChannel;
-    ITransactionPtr Transaction;
+    TTransactionPtr Transaction;
     TTransactionId TransactionId;
     TTransactionManagerPtr TransactionManager;
     NYPath::TRichYPath RichPath;
@@ -93,10 +93,10 @@ private:
     NObjectClient::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
-    ITransactionPtr UploadTransaction;
+    TTransactionPtr UploadTransaction;
 
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
-    TTableChunkWriter::TFacade* CurrentWriterFacade;
+    TTableChunkWriterFacade* CurrentWriterFacade;
 
     TAsyncError WriteFuture_;
 };
@@ -107,7 +107,7 @@ private:
 TAsyncTableWriter::TAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    ITransactionPtr transaction,
+    TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
     const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)
@@ -121,7 +121,7 @@ TAsyncTableWriter::TAsyncTableWriter(
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
-    , Logger(TableWriterLogger)
+    , Logger(TableClientLogger)
     , CurrentWriterFacade(nullptr)
 {
     YCHECK(config);
@@ -145,8 +145,12 @@ void TAsyncTableWriter::Open()
     TTransactionStartOptions options;
     options.ParentId = TransactionId;
     options.EnableUncommittedAccounting = false;
-    options.Attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
-    auto transactionOrError = WaitFor(TransactionManager->AsyncStart(options));
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
+    options.Attributes = attributes.get();
+    auto transactionOrError = WaitFor(TransactionManager->Start(
+        ETransactionType::Master,
+        options));
 
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
 
@@ -171,7 +175,7 @@ void TAsyncTableWriter::Open()
         UploadTransaction->GetId(),
         chunkListId);
 
-    auto error = WaitFor(Writer->AsyncOpen());
+    auto error = WaitFor(Writer->Open());
 
     THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening table chunk writer");
 
@@ -193,8 +197,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
 
     auto path = RichPath.GetPath();
 
-    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
-    bool clear = Options->KeyColumns.HasValue() || overwrite;
+    bool clear = Options->KeyColumns.HasValue() || !RichPath.GetAppend();
     auto uploadTransactionId = UploadTransaction->GetId();
 
     auto batchReq = ObjectProxy.ExecuteBatch();
@@ -219,7 +222,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
     {
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
         batchReq->AddRequest(req, "prepare_for_update");
     }
@@ -231,7 +234,6 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
 {
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting table info");
 
-    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table attributes");
@@ -248,7 +250,7 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
         }
 
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
-        if (Options->KeyColumns && !overwrite) {
+        if (Options->KeyColumns && RichPath.GetAppend()) {
             if (attributes.Get<i64>("row_count") > 0) {
                 THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
             }
@@ -326,12 +328,14 @@ void TAsyncTableWriter::Close()
 
     LOG_INFO("Closing chunk writer");
     {
-        auto error = WaitFor(Writer->AsyncClose());
+        auto error = WaitFor(Writer->Close());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
         LOG_INFO("Chunk writer closed");
     }
 
     if (Options->KeyColumns) {
+        using NYT::ToProto;
+
         auto path = RichPath.GetPath();
         auto keyColumns = Options->KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s",
@@ -339,7 +343,7 @@ void TAsyncTableWriter::Close()
 
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
         auto rsp = WaitFor(ObjectProxy.Execute(req));
@@ -349,16 +353,11 @@ void TAsyncTableWriter::Close()
 
     LOG_INFO("Committing upload transaction");
     {
-        auto error = WaitFor(UploadTransaction->AsyncCommit());
+        auto error = WaitFor(UploadTransaction->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing upload transaction");
         LOG_INFO("Upload transaction committed");
         LOG_INFO("Table writer closed");
     }
-}
-
-const TNullable<TKeyColumns>& TAsyncTableWriter::GetKeyColumns() const
-{
-    return Writer->GetProvider()->GetKeyColumns();
 }
 
 i64 TAsyncTableWriter::GetRowCount() const
@@ -371,13 +370,12 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
     return Writer->GetProvider()->GetDataStatistics();
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr CreateAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    ITransactionPtr transaction,
+    TTransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
     const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)

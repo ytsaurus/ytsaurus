@@ -3,6 +3,9 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/data_node )
 set( SRCS
   ${BASE}/block_store.cpp
   ${BASE}/chunk.cpp
+  ${BASE}/chunk_detail.cpp
+  ${BASE}/blob_chunk.cpp
+  ${BASE}/journal_chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
@@ -14,13 +17,21 @@ set( SRCS
   ${BASE}/peer_block_table.cpp
   ${BASE}/peer_block_updater.cpp
   ${BASE}/private.cpp
-  ${BASE}/reader_cache.cpp
+  ${BASE}/blob_reader_cache.cpp
+  ${BASE}/session_detail.cpp
+  ${BASE}/blob_session.cpp
+  ${BASE}/journal_session.cpp
+  ${BASE}/journal_dispatcher.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
+  ${BASE}/local_chunk_reader.cpp
 )
 set( HDRS
   ${BASE}/block_store.h
   ${BASE}/chunk.h
+  ${BASE}/chunk_detail.h
+  ${BASE}/blob_chunk.h
+  ${BASE}/journal_chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
@@ -34,9 +45,15 @@ set( HDRS
   ${BASE}/peer_block_updater.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/reader_cache.h
+  ${BASE}/blob_reader_cache.h
+  ${BASE}/session.h
+  ${BASE}/session_detail.h
+  ${BASE}/blob_session.h
+  ${BASE}/journal_session.h
+  ${BASE}/journal_dispatcher.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
+  ${BASE}/local_chunk_reader.h
 )
 
 list(APPEND YT_SOURCE_FILES

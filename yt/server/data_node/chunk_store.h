@@ -22,7 +22,7 @@ class TChunkStore
     : public TRefCounted
 {
 public:
-    typedef std::vector<TStoredChunkPtr> TChunks;
+    typedef std::vector<IChunkPtr> TChunks;
     typedef std::vector<TLocationPtr> TLocations;
 
     TChunkStore(
@@ -32,24 +32,36 @@ public:
     void Initialize();
 
     //! Registers a just-written chunk.
-    void RegisterNewChunk(TStoredChunkPtr chunk);
+    void RegisterNewChunk(IChunkPtr chunk);
 
-    //! Registers a chunk at startup.
-    void RegisterExistingChunk(TStoredChunkPtr chunk);
+    //! Registers a chunk found during startup.
+    void RegisterExistingChunk(IChunkPtr chunk);
 
-    //! Finds chunk by id. Returns NULL if no chunk exists.
-    TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
+    //! Triggers another round of master notification for a chunk that is already registered.
+    /*!
+     *  Used for journal chunks that initially get registered (with "active" replica type)
+     *  when a session starts and subsequently get re-registered (with "unsealed" replica type)
+     *  with the session finishes. Finally, when such a chunk is sealed it gets re-registered again
+     *  (with "sealed" replica type).
+     */
+    void UpdateExistingChunk(IChunkPtr chunk);
+
+    //! Unregisters the chunk but does not remove any of its files.
+    void UnregisterChunk(IChunkPtr chunk);
+
+    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
+    IChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Physically removes the chunk.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    TFuture<void> RemoveChunk(TStoredChunkPtr chunk);
+    TFuture<void> RemoveChunk(IChunkPtr chunk);
 
     //! Calculates a storage location for a new chunk.
     /*!
-     *  Among not full locations returns a random location having the minimum number
-     *  of active sessions. Throws exception of all locations are full
+     *  Among locations that are not full returns a random one having the minimum number
+     *  of active sessions. Throws exception if all locations are full.
      */
     TLocationPtr GetNewChunkLocation();
 
@@ -59,33 +71,38 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount() const;
 
-    const TGuid& GetCellGuid() const;
-
-    void SetCellGuid(const TGuid& cellGuid);
-
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added to the store.
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the store.
-    DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
+    DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
 private:
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
-    TChunkMap ChunkMap;
+    struct TChunkEntry
+    {
+        IChunkPtr Chunk;
+        i64 DiskSpace = 0;
+    };
 
-    TGuid CellGuid;
+    yhash_map<TChunkId, TChunkEntry> ChunkMap_;
 
-    void DoSetCellGuid();
-    void DoRegisterChunk(TStoredChunkPtr chunk);
+
+    void DoRegisterChunk(const TChunkEntry& entry);
+
     void OnLocationDisabled(TLocationPtr location);
 
+    static TChunkEntry BuildEntry(IChunkPtr chunk);
+    IChunkPtr CreateFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

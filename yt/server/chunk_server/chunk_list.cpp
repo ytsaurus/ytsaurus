@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
+#include "helpers.h"
 
 #include <core/actions/invoker.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -19,7 +20,7 @@ TChunkList::TChunkList(const TChunkListId& id)
     , Version_(0)
     , VisitMark_(0)
 {
-    Statistics_.ChunkListCount = 1;
+    ResetChunkListStatistics(this);
 }
 
 void TChunkList::IncrementVersion()
@@ -30,40 +31,51 @@ void TChunkList::IncrementVersion()
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
+    TStagedObject::Save(context);
 
     using NYT::Save;
-    SaveObjectRefs(context, Children_);
-    SaveObjectRefs(context, Parents_);
-    SaveObjectRefs(context, OwningNodes_);
+    Save(context, Children_);
+    Save(context, Parents_);
+    Save(context, OwningNodes_);
     Save(context, Statistics_);
-    Save(context, SortedBy_);
     Save(context, RowCountSums_);
     Save(context, ChunkCountSums_);
     Save(context, DataSizeSums_);
+    Save(context, RecordCountSums_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 100) {
+        TStagedObject::Load(context);
+    }
 
     using NYT::Load;
-    LoadObjectRefs(context, Children_);
-    LoadObjectRefs(context, Parents_);
-    LoadObjectRefs(context, OwningNodes_);
+    Load(context, Children_);
+    Load(context, Parents_);
+    Load(context, OwningNodes_);
     Load(context, Statistics_);
-    Load(context, SortedBy_);
+    if (context.GetVersion() < 100) {
+        Load(context, LegacySortedBy_);
+    }
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     // COMPAT(psushin)
-    if (context.GetVersion() > 10) {
+    if (context.GetVersion() >= 11) {
         Load(context, DataSizeSums_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 100) {
+        Load(context, RecordCountSums_);
     }
 }
 
-TAtomic TChunkList::GenerateVisitMark()
+ui64 TChunkList::GenerateVisitMark()
 {
-    static TAtomic result = 0;
-    return AtomicIncrement(result);
+    static std::atomic<ui64> counter(0);
+    return ++counter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

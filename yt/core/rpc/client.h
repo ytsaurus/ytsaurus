@@ -4,52 +4,30 @@
 #include "channel.h"
 
 #include <core/misc/property.h>
-#include <core/concurrency/delayed_executor.h>
-#include <core/misc/metric.h>
 #include <core/misc/protobuf_helpers.h>
+
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/compression/public.h>
 
 #include <core/bus/client.h>
 
+#include <core/rpc/helpers.h>
 #include <core/rpc/rpc.pb.h>
 
 #include <core/actions/future.h>
 
-#include <core/ytree/attributes.h>
-#include <core/ytree/attribute_owner.h>
-
 #include <core/logging/log.h>
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBase
-{
-protected:
-    //! Service error type.
-    /*!
-     * Defines a basic type of error code for all proxies.
-     * A derived proxy type may hide this definition by introducing
-     * an appropriate descendant of NRpc::EErrorCode.
-     */
-
-    TProxyBase(IChannelPtr channel, const Stroka& serviceName);
-
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
-
-    Stroka ServiceName;
-    IChannelPtr Channel;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IClientRequest
     : public virtual TRefCounted
-    , public NYTree::IAttributeOwner
 {
     virtual TSharedRefArray Serialize() const = 0;
 
@@ -62,21 +40,51 @@ struct IClientRequest
 
     virtual TRequestId GetRequestId() const = 0;
 
-    virtual const Stroka& GetPath() const = 0;
-    virtual const Stroka& GetVerb() const = 0;
+    virtual const Stroka& GetService() const = 0;
+    virtual const Stroka& GetMethod() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
     virtual void SetStartTime(TInstant value) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IClientRequest)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClientContext
+    : public TIntrinsicRefCounted
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+    DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContext, TraceContext);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Service);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Method);
+
+public:
+    TClientContext(
+        const TRequestId& requestId,
+        const NTracing::TTraceContext& traceContext,
+        const Stroka& service,
+        const Stroka& method)
+        : RequestId_(requestId)
+        , TraceContext_(traceContext)
+        , Service_(service)
+        , Method_(method)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientRequest
     : public IClientRequest
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(NProto::TRequestHeader, Header);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestHeavy);
     DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
 
@@ -87,29 +95,26 @@ public:
     
     virtual TRequestId GetRequestId() const override;
 
-    virtual const Stroka& GetPath() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetService() const override;
+    virtual const Stroka& GetMethod() const override;
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
 
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes();
-
 protected:
     IChannelPtr Channel;
 
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
-
     TClientRequest(
         IChannelPtr channel,
-        const Stroka& path,
-        const Stroka& verb,
+        const Stroka& service,
+        const Stroka& method,
         bool oneWay);
 
     virtual bool IsRequestHeavy() const;
     virtual bool IsResponseHeavy() const;
     virtual TSharedRef SerializeBody() const = 0;
+
+    TClientContextPtr CreateClientContext();
 
     void DoInvoke(IClientResponseHandlerPtr responseHandler);
 };
@@ -128,15 +133,16 @@ public:
     TTypedClientRequest(
         IChannelPtr channel,
         const Stroka& path,
-        const Stroka& verb,
+        const Stroka& method,
         bool oneWay)
-        : TClientRequest(channel, path, verb, oneWay)
+        : TClientRequest(channel, path, method, oneWay)
         , Codec(NCompression::ECodec::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
     {
-        auto response = NYT::New<TResponse>(GetRequestId());
+        auto clientContext = CreateClientContext();
+        auto response = NYT::New<TResponse>(std::move(clientContext));
         auto promise = response->GetAsyncResult();
         DoInvoke(response);
         return promise;
@@ -146,6 +152,12 @@ public:
     TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
+        return this;
+    }
+
+    TIntrusivePtr<TTypedClientRequest> SetRequestAck(bool value)
+    {
+        TClientRequest::SetRequestAck(value);
         return this;
     }
 
@@ -202,13 +214,17 @@ struct IClientResponseHandler
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IClientResponseHandler)
+
 ////////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a common base for both one-way and two-way responses.
 class TClientResponseBase
     : public IClientResponseHandler
 {
-    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
+public:
     DEFINE_BYVAL_RO_PROPERTY(TError, Error);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
@@ -226,14 +242,16 @@ protected:
     TSpinLock SpinLock; // Protects state.
     EState State;
 
-    explicit TClientResponseBase(const TRequestId& requestId);
+    TClientContextPtr ClientContext;
+
+    explicit TClientResponseBase(TClientContextPtr clientContext);
 
     virtual void FireCompleted() = 0;
 
     // IClientResponseHandler implementation.
     virtual void OnError(const TError& error) override;
 
-
+    void BeforeCompleted();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,23 +260,20 @@ protected:
 class TClientResponse
     : public TClientResponseBase
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
     TSharedRefArray GetResponseMessage() const;
 
-    NYTree::IAttributeDictionary& Attributes();
-    const NYTree::IAttributeDictionary& Attributes() const;
-
 protected:
-    explicit TClientResponse(const TRequestId& requestId);
+    explicit TClientResponse(TClientContextPtr clientContext);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 
 private:
     // Protected by #SpinLock.
     TSharedRefArray ResponseMessage;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
@@ -276,23 +291,24 @@ class TTypedClientResponse
     , public TResponseMessage
 {
 public:
-    typedef TIntrusivePtr<TTypedClientResponse> TPtr;
+    typedef TIntrusivePtr<TTypedClientResponse> TThisPtr;
 
-    explicit TTypedClientResponse(const TRequestId& requestId)
-        : TClientResponse(requestId)
-        , Promise(NewPromise<TPtr>())
+    explicit TTypedClientResponse(TClientContextPtr clientContext)
+        : TClientResponse(std::move(clientContext))
+        , Promise(NewPromise<TThisPtr>())
     { }
 
-    TFuture<TPtr> GetAsyncResult()
+    TFuture<TThisPtr> GetAsyncResult()
     {
         return Promise;
     }
 
 private:
-    TPromise<TPtr> Promise;
+    TPromise<TThisPtr> Promise;
 
     virtual void FireCompleted()
     {
+        BeforeCompleted();
         Promise.Set(this);
         Promise.Reset();
     }
@@ -310,14 +326,14 @@ class TOneWayClientResponse
     : public TClientResponseBase
 {
 public:
-    typedef TIntrusivePtr<TOneWayClientResponse> TPtr;
+    typedef TIntrusivePtr<TOneWayClientResponse> TThisPtr;
 
-    explicit TOneWayClientResponse(const TRequestId& requestId);
+    explicit TOneWayClientResponse(TClientContextPtr clientContext);
 
-    TFuture<TPtr> GetAsyncResult();
+    TFuture<TThisPtr> GetAsyncResult();
 
 private:
-    TPromise<TPtr> Promise;
+    TPromise<TThisPtr> Promise;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
@@ -326,6 +342,8 @@ private:
     virtual void FireCompleted();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,9 +358,9 @@ private:
     \
     TReq##method##Ptr method() \
     { \
-        return \
-            ::NYT::New<TReq##method>(Channel, ServiceName, #method, false) \
-            ->SetTimeout(DefaultTimeout_); \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, false) \
+            ->SetTimeout(DefaultTimeout_) \
+            ->SetRequestAck(DefaultRequestAck_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,11 +376,44 @@ private:
     \
     TReq##method##Ptr method() \
     { \
-        return \
-            ::NYT::New<TReq##method>(Channel, ServiceName, #method, true) \
-            ->SetTimeout(DefaultTimeout_); \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, true) \
+            ->SetTimeout(DefaultTimeout_) \
+            ->SetRequestAck(DefaultRequestAck_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TProxyBase
+{
+public:
+    DEFINE_RPC_PROXY_METHOD(NProto, Discover);
+
+protected:
+    TProxyBase(
+        IChannelPtr channel,
+        const Stroka& serviceName);
+
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
+
+    Stroka ServiceName_;
+    IChannelPtr Channel_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGenericProxy
+    : public TProxyBase
+{
+public:
+    TGenericProxy(
+        IChannelPtr channel,
+        const Stroka& serviceName);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

@@ -34,12 +34,6 @@ namespace NConcurrency {
  * Please refer to the unit test for an actual usage example
  * (unittests/thread_affinity_ut.cpp).
  */
-
-// Check that the cast NThread::TThreadId -> TAtomic is safe.
-// NB: TAtomic is volatile intptr_t.
-static_assert(sizeof(NConcurrency::TThreadId) == sizeof(intptr_t),
-    "Current implementation assumes that TThread::TId can be atomically swapped.");
-
 class TThreadAffinitySlot
 {
 public:
@@ -61,7 +55,7 @@ private:
 
 };
 
-#ifdef ENABLE_THREAD_AFFINITY_CHECK
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
     mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, __Slot)
@@ -69,12 +63,8 @@ private:
 #define VERIFY_THREAD_AFFINITY(slot) \
     PP_CONCAT(slot, __Slot).Check()
 
-// TODO: remove this dirty hack.
-static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
-    "Current implementation assumes that TSpinLock fits within implementation.");
-
 #define VERIFY_SPINLOCK_AFFINITY(spinLock) \
-    YCHECK(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
+    YCHECK((spinLock).IsLocked());
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
     PP_CONCAT(slot, __Slot).Check((invoker)->GetThreadId());

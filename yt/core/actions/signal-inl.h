@@ -19,7 +19,7 @@ bool TCallbackList<void(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
-        if (it->Equals(callback)) {
+        if (*it == callback) {
             Callbacks_.erase(it);
             return true;
         }

@@ -37,7 +37,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
         }
 
     #pytest.mark.xfail(run = False, reason = 'Set-uid-root before running.')
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_map(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -66,7 +66,7 @@ while True:
         # ToDo: check job error messages.
         check_memory_limit(op_id)
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @only_linux
     def test_dirty_sandbox(self):
         create('table', '//tmp/t_in')
         write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})

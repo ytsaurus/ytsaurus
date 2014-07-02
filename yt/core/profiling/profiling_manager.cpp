@@ -37,7 +37,8 @@ class TProfilingManager::TImpl
 {
 public:
     TImpl()
-        : Queue(New<TInvokerQueue>(
+        : WasShutdown(false)
+        , Queue(New<TInvokerQueue>(
             &EventCount,
             EmptyTagIds,
             true,
@@ -63,6 +64,7 @@ public:
 
     void Shutdown()
     {
+        WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
     }
@@ -70,7 +72,7 @@ public:
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (!Thread->IsRunning())
+        if (WasShutdown)
             return;
 
         if (!selfProfiling) {
@@ -154,11 +156,6 @@ private:
         typedef TSamples::iterator TSamplesIterator;
         typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
-        TBucket()
-        {
-            Logger = NProfiling::Logger;
-        }
-
         //! Adds a new sample to the bucket inserting in at an appropriate position.
         void AddSample(const TStoredSample& sample)
         {
@@ -207,6 +204,11 @@ private:
     private:
         std::deque<TStoredSample> Samples;
 
+        virtual NLog::TLogger CreateLogger() const override
+        {
+            return NProfiling::Logger;
+        }
+
         virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -220,11 +222,12 @@ private:
 
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
-            auto* profilingManager = ~TProfilingManager::Get()->Impl;
+            auto* profilingManager = TProfilingManager::Get()->Impl.get();
             TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo("");
-            auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
+            auto options = FromProto(request->options());
+            auto fromTime = ParseInstant(options->Find<i64>("from_time"));
             auto range = GetSamples(fromTime);
             response->set_value(BuildYsonStringFluently()
                 .DoListFor(range.first, range.second, [&] (TFluentList fluent, const TSamplesIterator& it) {
@@ -250,11 +253,11 @@ private:
 
 
     class TThread
-        : public TExecutorThread
+        : public TSchedulerThread
     {
     public:
         explicit TThread(TImpl* owner)
-            : TExecutorThread(
+            : TSchedulerThread(
                 &owner->EventCount,
                 "Profiling",
                 EmptyTagIds,
@@ -280,6 +283,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
     TIntrusivePtr<TThread> Thread;
     TEnqueuedAction CurrentAction;

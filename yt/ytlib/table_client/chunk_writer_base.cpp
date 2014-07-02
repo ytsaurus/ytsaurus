@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
 #include <core/misc/protobuf_helpers.h>
@@ -22,14 +22,14 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableWriterLogger;
+static auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter)
+    NChunkClient::IWriterPtr chunkWriter)
     : Config(config)
     , Options(options)
     , ChunkWriter(chunkWriter)
@@ -56,7 +56,7 @@ i64 TChunkWriterBase::GetRowCount() const
     return RowCount;
 }
 
-i64 TChunkWriterBase::GetCurrentSize() const
+i64 TChunkWriterBase::GetDataSize() const
 {
     return CurrentSize;
 }
@@ -91,7 +91,7 @@ void TChunkWriterBase::FinalizeWriter()
     }
 
     auto this_ = MakeStrong(this);
-    ChunkWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
+    ChunkWriter->Close(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
@@ -111,7 +111,7 @@ TAsyncError TChunkWriterBase::GetReadyEvent()
 
 bool TChunkWriterBase::IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs)
 {
-    return lhs->GetCurrentSize() < rhs->GetCurrentSize();
+    return lhs->GetDataSize() < rhs->GetDataSize();
 }
 
 void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
@@ -135,7 +135,7 @@ void TChunkWriterBase::PopBufferHeap()
 {
     LOG_DEBUG("Block is finished (CurrentBufferCapacity: %" PRId64 ", CurrentBlockSize: %" PRId64 ")",
         CurrentBufferCapacity,
-        BuffersHeap.front()->GetCurrentSize());
+        BuffersHeap.front()->GetDataSize());
 
     int lastIndex = BuffersHeap.size() - 1;
 

@@ -23,8 +23,6 @@
 
 #include "benchmark.h"
 
-#include "foreach.h"
-
 #include <algorithm>
 #include <cmath>
 #include <iostream>
@@ -235,8 +233,7 @@ static void PrintBenchmarkResultsAsTable(const TBenchmarkResults& data)
 
     // Compute the longest benchmark name.
     size_t longestName = 0;
-    FOREACH (const auto& benchmark, GetBenchmarks())
-    {
+    for (const auto& benchmark : GetBenchmarks()) {
         longestName = max(longestName, strlen(get<1>(benchmark)));
     }
 
@@ -256,8 +253,7 @@ static void PrintBenchmarkResultsAsTable(const TBenchmarkResults& data)
     double baselineNsPerIter = std::numeric_limits<double>::max();
     std::string lastFile = "";
 
-    FOREACH (auto& datum, data)
-    {
+    for (auto& datum : data) {
         std::string file = get<0>(datum);
         if (file != lastFile) {
             // This is a new file starting.

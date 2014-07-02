@@ -34,7 +34,7 @@ public:
     TAsyncTableReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
         const NYPath::TRichYPath& richPath);
 
@@ -57,7 +57,7 @@ public:
 private:
     TTableReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
-    NTransactionClient::ITransactionPtr Transaction;
+    NTransactionClient::TTransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;

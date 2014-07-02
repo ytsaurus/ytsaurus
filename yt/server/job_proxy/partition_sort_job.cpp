@@ -5,16 +5,17 @@
 #include "partition_sort_job.h"
 #include "small_key.h"
 
+#include <core/misc/varint.h>
 #include <core/misc/ref_counted_tracker.h>
 
 #include <core/yson/lexer.h>
-#include <core/yson/varint.h>
 
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -25,6 +26,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NYTree;
@@ -33,13 +35,17 @@ using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 
+using NVersionedTableClient::TKey;
+using NTableClient::TRow;
+using NTableClient::TTableWriterOptionsPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
-typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+typedef TOldMultiChunkParallelReader<TPartitionChunkReader> TReader;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +120,7 @@ public:
 
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
 
                 keyBuffer.reserve(estimatedRowCount * keyColumnCount);
                 rowPtrBuffer.reserve(estimatedRowCount);
@@ -173,7 +179,7 @@ public:
                     }
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
 
@@ -196,11 +202,12 @@ public:
 
             LOG_INFO("Writing");
             {
-                auto syncWriter = CreateSyncWriter<TTableChunkWriter>(Writer);
+                auto syncWriter = CreateSyncWriter<TTableChunkWriterProvider>(Writer);
 
                 TMemoryInput input;
                 TRow row;
-                TNonOwningKey key(keyColumnCount);
+                TChunkedMemoryPool keyMemoryPool;
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
                 bool isRowReady = false;
 
                 auto prepareRow = [&] () {
@@ -210,10 +217,9 @@ public:
                     rowIndexHeap.pop_back();
 
                     // Prepare key.
-                    key.Clear();
                     for (int keyIndex = 0; keyIndex < keyColumnCount; ++keyIndex) {
                         auto& keyPart = keyBuffer[rowIndex * keyColumnCount + keyIndex];
-                        SetKeyPart(&key, keyPart, keyIndex);
+                        key[keyIndex] = MakeKeyPart(keyPart);
                     }
 
                     // Prepare row.

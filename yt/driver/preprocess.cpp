@@ -30,7 +30,7 @@ std::vector<TRichYPath> PreprocessYPaths(const std::vector<TRichYPath>& paths)
 {
     std::vector<TRichYPath> result;
     result.reserve(paths.size());
-    FOREACH (const auto& path, paths) {
+    for (const auto& path : paths) {
         result.push_back(PreprocessYPath(path));
     }
     return result;

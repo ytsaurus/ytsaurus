@@ -80,7 +80,6 @@ protected:
 
 TObjectId GetObjectId(const TObjectBase* object);
 bool IsObjectAlive(const TObjectBase* object);
-bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +90,7 @@ std::vector<TObjectId> ToObjectIds(
 {
     std::vector<TObjectId> result;
     result.reserve(std::min(objects.size(), sizeLimit));
-    FOREACH (auto* object, objects) {
+    for (auto* object : objects) {
         if (result.size() == sizeLimit)
             break;
         result.push_back(object->GetId());

@@ -4,7 +4,9 @@
 
 #include <core/misc/error.h>
 
-#include <util/system/thread.h>
+#include <core/concurrency/scheduler.h>
+
+#include <core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NLog {
@@ -35,7 +37,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ENABLE_TRACE_LOGGING
+#ifdef YT_ENABLE_TRACE_LOGGING
 #define LOG_TRACE(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Trace, __VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)        if (condition) LOG_TRACE(__VA_ARGS__)
 #define LOG_TRACE_UNLESS(condition, ...)    if (!condition) LOG_TRACE(__VA_ARGS__)
@@ -127,6 +129,8 @@ void LogEventImpl(
     event.FileName = fileName;
     event.Line = line;
     event.ThreadId = NConcurrency::GetCurrentThreadId();
+    event.FiberId = NConcurrency::GetCurrentFiberId();
+    event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
     event.Function = function;
     logger.Write(std::move(event));
 }

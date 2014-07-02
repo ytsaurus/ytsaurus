@@ -32,7 +32,7 @@ std::vector<Stroka> ToNames(const std::vector<T>& objects)
 {
     std::vector<Stroka> names;
     names.reserve(objects.size());
-    FOREACH (auto* object, objects) {
+    for (auto* object : objects) {
         names.push_back(object->GetName());
     }
     return names;
@@ -56,13 +56,13 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->GetAccounts(sizeLimit));
+        return ToNames(securityManager->Accounts().GetValues(sizeLimit));
     }
 
     virtual size_t GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return securityManager->GetAccountCount();
+        return securityManager->Accounts().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
@@ -106,13 +106,13 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->GetUsers(sizeLimit));
+        return ToNames(securityManager->Users().GetValues(sizeLimit));
     }
 
     virtual size_t GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return securityManager->GetUserCount();
+        return securityManager->Users().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
@@ -156,13 +156,13 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->GetGroups(sizeLimit));
+        return ToNames(securityManager->Groups().GetValues(sizeLimit));
     }
 
     virtual size_t GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return securityManager->GetGroupCount();
+        return securityManager->Groups().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override

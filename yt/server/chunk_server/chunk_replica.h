@@ -19,7 +19,7 @@ class TPtrWithIndex
 {
 public:
     TPtrWithIndex();
-    explicit TPtrWithIndex(T* node, int index);
+    TPtrWithIndex(T* ptr, int index);
 
     T* GetPtr() const;
     int GetIndex() const;
@@ -34,23 +34,23 @@ public:
     bool operator >  (TPtrWithIndex other) const;
     bool operator >= (TPtrWithIndex other) const;
 
+    template <class C>
+    void Save(C& context) const;
+    template <class C>
+    void Load(C& context);
+
 private:
-#ifdef __x86_64__
-    static_assert(sizeof (void*) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
+
     // Use compact 8-byte representation with index occupying the highest 8 bits.
-    ui64 Value;
-#else
-    // Use simple unpacked representation.
-    T* Ptr;
-    int Index;
-#endif
+    uintptr_t Value_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TPtrWithIndex<NNodeTrackerServer::TNode> TNodePtrWithIndex;
-typedef TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
+typedef SmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
 
 typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
 
@@ -60,9 +60,6 @@ Stroka ToString(TNodePtrWithIndex value);
 Stroka ToString(TChunkPtrWithIndex value);
 
 void ToProto(ui32* protoValue, TNodePtrWithIndex value);
-
-template <class T>
-bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs);
 
 TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex);
 

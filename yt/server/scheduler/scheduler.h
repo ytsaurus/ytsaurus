@@ -8,7 +8,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -55,7 +55,7 @@ public:
     TFuture<TOperationStartResult> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
-        const NMetaState::TMutationId& mutationId,
+        const NHydra::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
         const Stroka& user);
 

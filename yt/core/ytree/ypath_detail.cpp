@@ -24,6 +24,10 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYPathServiceBase::TYPathServiceBase()
+    : LoggerCreated(false)
+{ }
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
@@ -68,20 +72,50 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::Invoke(IServiceContextPtr context)
+void TYPathServiceBase::EnsureLoggerCreated() const
 {
-    GuardedInvoke(context);
+    if (!LoggerCreated) {
+        if (IsLoggingEnabled()) {
+            Logger = CreateLogger();
+        }
+        LoggerCreated = true;
+    }
 }
 
-void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
+bool TYPathServiceBase::IsLoggingEnabled() const
 {
+    // Logging is enabled by default...
+    return true;
+}
+
+NLog::TLogger TYPathServiceBase::CreateLogger() const
+{
+    // ... but a null logger is returned :)
+    return NLog::TLogger();
+}
+
+void TYPathServiceBase::Invoke(IServiceContextPtr context)
+{
+    TError error;
     try {
+        BeforeInvoke(context);
         if (!DoInvoke(context)) {
-            ThrowVerbNotSuppored(context->GetVerb());
+            ThrowMethodNotSupported(context->GetMethod());
         }
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        error = ex;
     }
+
+    AfterInvoke(context);
+
+    if (!error.IsOK()) {
+        context->Reply(error);
+    }
+}
+
+void TYPathServiceBase::BeforeInvoke(IServiceContextPtr /*context*/)
+{
+    EnsureLoggerCreated();
 }
 
 bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
@@ -89,14 +123,13 @@ bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
     return false;
 }
 
-Stroka TYPathServiceBase::GetLoggingCategory() const
-{
-    return Logger.GetCategory();
-}
+void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
+{ }
 
-bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr /*context*/) const
+NLog::TLogger TYPathServiceBase::GetLogger() const
 {
-    return false;
+    EnsureLoggerCreated();
+    return Logger;
 }
 
 void TYPathServiceBase::SerializeAttributes(
@@ -107,20 +140,20 @@ void TYPathServiceBase::SerializeAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, onPathError) \
-    DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
+#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(method, onPathError) \
+    DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
-        NYPath::TTokenizer tokenizer(context->GetPath()); \
+        NYPath::TTokenizer tokenizer(GetRequestYPath(context)); \
         switch (tokenizer.Advance()) { \
             case NYPath::ETokenType::EndOfStream: \
-                verb##Self(request, response, context); \
+                method##Self(request, response, context); \
                 break; \
             \
             case NYPath::ETokenType::Slash: \
                 if (tokenizer.Advance() == NYPath::ETokenType::At) { \
-                    verb##Attribute(tokenizer.GetSuffix(), request, response, context); \
+                    method##Attribute(tokenizer.GetSuffix(), request, response, context); \
                 } else { \
-                    verb##Recursive(tokenizer.GetInput(), request, response, context); \
+                    method##Recursive(tokenizer.GetInput(), request, response, context); \
                 } \
                 break; \
             \
@@ -129,36 +162,36 @@ void TYPathServiceBase::SerializeAttributes(
         } \
     }
 
-#define IMPLEMENT_SUPPORTS_VERB(verb) \
+#define IMPLEMENT_SUPPORTS_VERB(method) \
     IMPLEMENT_SUPPORTS_VERB_RESOLVE( \
-        verb, \
+        method, \
         { \
             tokenizer.ThrowUnexpected(); \
             YUNREACHABLE(); \
         } \
     ) \
     \
-    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("attribute")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("attribute")); \
     } \
     \
-    void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("self")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("self")); \
     } \
     \
-    void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, TCtx##method##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("recursive")); \
+        ThrowMethodNotSupported(context->GetMethod(), Stroka("recursive")); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -227,21 +260,18 @@ void TSupportsPermissions::ValidatePermission(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TFuture<bool> TrueFuture = MakeFuture(true);
-static TFuture<bool> FalseFuture = MakeFuture(false);
-
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    const auto& verb = context->GetVerb();
-    if (verb != "Get" &&
-        verb != "Set" &&
-        verb != "List" &&
-        verb != "Remove" &&
-        verb != "Exists")
+    const auto& method = context->GetMethod();
+    if (method != "Get" &&
+        method != "Set" &&
+        method != "List" &&
+        method != "Remove" &&
+        method != "Exists")
     {
-        ThrowVerbNotSuppored(verb);
+        ThrowMethodNotSupported(method);
     }
 
     return TResolveResult::Here("/@" + path);
@@ -250,7 +280,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
 TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stroka& key)
 {
     auto customAttributes = GetCustomAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
+    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     if (customAttributes) {
         auto attribute = customAttributes->FindYson(key);
@@ -259,10 +289,10 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
         }
     }
 
-    if (systemAttributeProvider) {
+    if (builtinAttributeProvider) {
         TStringStream syncStream;
         NYson::TYsonWriter syncWriter(&syncStream);
-        if (systemAttributeProvider->GetBuiltinAttribute(key, &syncWriter)) {
+        if (builtinAttributeProvider->GetBuiltinAttribute(key, &syncWriter)) {
             TYsonString builtinYson(syncStream.Str());
             return MakeFuture(TErrorOr<TYsonString>(builtinYson));
         }
@@ -281,8 +311,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stro
         };
 
         std::unique_ptr<TStringStream> asyncStream(new TStringStream());
-        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(~asyncStream));
-        auto asyncResult = systemAttributeProvider->GetBuiltinAttributeAsync(key, ~asyncWriter);
+        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(asyncStream.get()));
+        auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key, asyncWriter.get());
         if (asyncResult) {
             return asyncResult.Apply(BIND(
                 onAsyncAttribute,
@@ -313,7 +343,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto systemAttributeProvider = GetSystemAttributeProvider();
+    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
 
@@ -323,16 +353,16 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 
         writer.OnBeginMap();
 
-        if (systemAttributeProvider) {
+        if (builtinAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            FOREACH (const auto& attribute, builtinAttributes) {
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            for (const auto& attribute : builtinAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         writer.OnEntity();
                     } else {
-                        YCHECK(systemAttributeProvider->GetBuiltinAttribute(attribute.Key, &writer));
+                        YCHECK(builtinAttributeProvider->GetBuiltinAttribute(attribute.Key, &writer));
                     }
                 }
             }
@@ -340,7 +370,7 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
 
         auto customAttributes = GetCustomAttributes();
         if (customAttributes) {
-            FOREACH (const auto& key, customAttributes->List()) {
+            for (const auto& key : customAttributes->List()) {
                 writer.OnKeyedItem(key);
                 Consume(customAttributes->GetYson(key), &writer);
             }
@@ -406,7 +436,7 @@ TErrorOr<TYsonString> TSupportsAttributes::DoListAttributeFragment(
     TStringStream stream;
     NYson::TYsonWriter writer(&stream);
     writer.OnBeginList();
-    FOREACH (const auto& listedKey, listedKeys) {
+    for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
         writer.OnStringScalar(listedKey);
     }
@@ -428,17 +458,18 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
 
         auto customAttributes = GetCustomAttributes();
         if (customAttributes) {
-            FOREACH (const auto& key, customAttributes->List()) {
+            auto userKeys = customAttributes->List();
+            for (const auto& key : userKeys) {
                 writer.OnListItem();
                 writer.OnStringScalar(key);
             }
         }
 
-        auto systemAttributeProvider = GetSystemAttributeProvider();
-        if (systemAttributeProvider) {
+        auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+        if (builtinAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            FOREACH (const auto& attribute, builtinAttributes) {
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            for (const auto& attribute : builtinAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnListItem();
                     writer.OnStringScalar(attribute.Key);
@@ -516,11 +547,11 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
             return TrueFuture;
         }
 
-        auto systemAttributeProvider = GetSystemAttributeProvider();
-        if (systemAttributeProvider) {
+        auto builtinAttributeProvider = GetBuiltinAttributeProvider();
+        if (builtinAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            FOREACH (const auto& attribute, builtinAttributes) {
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            for (const auto& attribute : builtinAttributes) {
                 if (attribute.Key == key && attribute.IsPresent) {
                     return TrueFuture;
                 }
@@ -559,18 +590,18 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto customAttributes = GetCustomAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
+    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         auto newAttributes = ConvertToAttributes(newYson);
 
-        if (systemAttributeProvider) {
+        if (builtinAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
 
-            FOREACH (const auto& attribute, builtinAttributes) {
+            for (const auto& attribute : builtinAttributes) {
                 Stroka key(attribute.Key);
                 auto newAttributeYson = newAttributes->FindYson(key);
                 if (newAttributeYson) {
@@ -596,12 +627,12 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         auto oldCustomKeys = customAttributes->List();
         std::sort(oldCustomKeys.begin(), oldCustomKeys.end());
 
-        FOREACH (const auto& key, newCustomKeys) {
+        for (const auto& key : newCustomKeys) {
             auto value = newAttributes->GetYson(key);
             customAttributes->SetYson(key, value);
         }
 
-        FOREACH (const auto& key, oldCustomKeys) {
+        for (const auto& key : oldCustomKeys) {
             if (!newAttributes->FindYson(key)) {
                 customAttributes->Remove(key);
             }
@@ -615,10 +646,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         const ISystemAttributeProvider::TAttributeInfo* attribute = nullptr;
-        if (systemAttributeProvider) {
+        if (builtinAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
-            systemAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
-            FOREACH (const auto& currentAttribute, builtinAttributes) {
+            builtinAttributeProvider->ListBuiltinAttributes(&builtinAttributes);
+            for (const auto& currentAttribute : builtinAttributes) {
                 if (currentAttribute.Key == key) {
                     attribute = &currentAttribute;
                     break;
@@ -632,7 +663,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             } else {
                 TStringStream stream;
                 NYson::TYsonWriter writer(&stream);
-                if (!systemAttributeProvider->GetBuiltinAttribute(key, &writer)) {
+                if (!builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
                     ThrowNoSuchBuiltinAttribute(key);
                 }
 
@@ -686,7 +717,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto customAttributes = GetCustomAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
+    auto builtinAttributeProvider = GetBuiltinAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -696,7 +727,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         if (customAttributes) {
             auto customKeys = customAttributes->List();
             std::sort(customKeys.begin(), customKeys.end());
-            FOREACH (const auto& key, customKeys) {
+            for (const auto& key : customKeys) {
                 YCHECK(customAttributes->Remove(key));
             }
         }
@@ -707,8 +738,8 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         auto customYson = customAttributes ? customAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             if (!customYson) {
-                if (systemAttributeProvider) {
-                    auto* attributeInfo = systemAttributeProvider->FindBuiltinAttributeInfo(key);
+                if (builtinAttributeProvider) {
+                    auto* attributeInfo = builtinAttributeProvider->FindBuiltinAttributeInfo(key);
                     if (attributeInfo) {
                         ThrowCannotRemoveAttribute(key);
                     } else {
@@ -729,7 +760,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             } else {
                 TStringStream stream;
                 NYson::TYsonWriter writer(&stream);
-                if (!systemAttributeProvider || !systemAttributeProvider->GetBuiltinAttribute(key, &writer)) {
+                if (!builtinAttributeProvider || !builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
                     ThrowNoSuchBuiltinAttribute(key);
                 }
 
@@ -773,7 +804,7 @@ IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()
     return nullptr;
 }
 
-ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
+ISystemAttributeProvider* TSupportsAttributes::GetBuiltinAttributeProvider()
 {
     return nullptr;
 }
@@ -782,7 +813,7 @@ void TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TY
 {
     bool result;
     try {
-        result = GetSystemAttributeProvider()->SetBuiltinAttribute(key, yson);
+        result = GetBuiltinAttributeProvider()->SetBuiltinAttribute(key, yson);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error setting builtin attribute %s",
             ~ToYPathLiteral(key).Quote())
@@ -835,7 +866,7 @@ private:
         Stroka localKey(key);
         AttributeWriter.reset(new NYson::TYsonWriter(&AttributeStream));
         Forward(
-            ~AttributeWriter,
+            AttributeWriter.get(),
             BIND ([=] () {
                 AttributeWriter.reset();
                 Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
@@ -897,7 +928,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter.reset(new TAttributesSetter(Node->MutableAttributes()));
-    Forward(~AttributesSetter, TClosure(), NYson::EYsonType::MapFragment);
+    Forward(AttributesSetter.get(), TClosure(), NYson::EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
@@ -917,33 +948,45 @@ class TYPathServiceContext
 {
 public:
     TYPathServiceContext(
-        const TRequestHeader& header,
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
-        const Stroka& loggingCategory)
-        : TServiceContextBase(header, requestMessage)
-        , ResponseHandler(responseHandler)
-        , Logger(loggingCategory)
+        NLog::TLogger logger)
+        : TServiceContextBase(std::move(requestMessage))
+        , ResponseHandler(std::move(responseHandler))
+        , Logger(std::move(logger))
+    { }
+
+    TYPathServiceContext(
+        std::unique_ptr<TRequestHeader> requestHeader,
+        TSharedRefArray requestMessage,
+        TYPathResponseHandler responseHandler,
+        NLog::TLogger logger)
+        : TServiceContextBase(
+            std::move(requestHeader),
+            std::move(requestMessage))
+        , ResponseHandler(std::move(responseHandler))
+        , Logger(std::move(logger))
     { }
 
 protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(TSharedRefArray responseMessage) override
+    virtual void DoReply() override
     {
         if (ResponseHandler) {
-            ResponseHandler.Run(responseMessage);
+            ResponseHandler.Run(GetResponseMessage());
         }
     }
 
     virtual void LogRequest() override
     {
         Stroka str;
-        AppendInfo(str, RequestInfo);
-        LOG_DEBUG("%s %s <- %s",
-            ~GetVerb(),
-            ~GetPath(),
+        AppendInfo(str, RequestInfo_);
+        LOG_DEBUG("%s:%s %s <- %s",
+            ~GetService(),
+            ~GetMethod(),
+            ~GetRequestYPath(this),
             ~str);
     }
 
@@ -951,10 +994,11 @@ protected:
     {
         Stroka str;
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
-        AppendInfo(str, ResponseInfo);
-        LOG_DEBUG("%s %s -> %s",
-            ~GetVerb(),
-            ~GetPath(),
+        AppendInfo(str, ResponseInfo_);
+        LOG_DEBUG("%s:%s %s -> %s",
+            ~GetService(),
+            ~GetMethod(),
+            ~GetRequestYPath(this),
             ~str);
     }
 
@@ -962,18 +1006,30 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    const Stroka& loggingCategory,
+    NLog::TLogger logger,
     TYPathResponseHandler responseHandler)
 {
     YASSERT(requestMessage);
 
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     return New<TYPathServiceContext>(
-        requestHeader,
-        requestMessage,
-        responseHandler,
-        loggingCategory);
+        std::move(requestMessage),
+        std::move(responseHandler),
+        std::move(logger));
+}
+
+IServiceContextPtr CreateYPathContext(
+    std::unique_ptr<TRequestHeader> requestHeader,
+    TSharedRefArray requestMessage,
+    NLog::TLogger logger,
+    TYPathResponseHandler responseHandler)
+{
+    YASSERT(requestMessage);
+
+    return New<TYPathServiceContext>(
+        std::move(requestHeader),
+        std::move(requestMessage),
+        std::move(responseHandler),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1003,14 +1059,9 @@ public:
         return TResolveResult::There(UnderlyingService, tokenizer.GetSuffix());
     }
 
-    virtual Stroka GetLoggingCategory() const override
+    virtual NLog::TLogger GetLogger() const override
     {
-        return UnderlyingService->GetLoggingCategory();
-    }
-
-    virtual bool IsWriteRequest(IServiceContextPtr /*context*/) const override
-    {
-        YUNREACHABLE();
+        return UnderlyingService->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

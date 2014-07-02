@@ -5,19 +5,22 @@
 #include "small_key.h"
 
 #include <core/misc/heap.h>
+#include <core/misc/varint.h>
 
 #include <core/concurrency/action_queue.h>
 
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
+
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/rpc/channel.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 
 #include <core/yson/lexer.h>
-#include <core/yson/varint.h>
 
 #include <util/system/yield.h>
 
@@ -29,6 +32,10 @@ using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NVersionedTableClient;
+
+using NTableClient::TRow;
+using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +72,7 @@ public:
         , EstimatedRowCount(estimatedRowCount)
         , TotalRowCount(0)
         , ReadRowCount(0)
-        , CurrentKey(KeyColumnCount)
+        , CurrentKey(TKey::Allocate(&KeyMemoryPool, KeyColumnCount))
         , SortComparer(this)
         , MergeComparer(this)
     {
@@ -97,7 +104,7 @@ public:
         return IsValid_ ? &CurrentRow : nullptr;
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const TKey& GetKey() const override
     {
         return CurrentKey;
     }
@@ -134,7 +141,7 @@ public:
     }
 
 private:
-    typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
+    typedef TOldMultiChunkParallelReader<TPartitionChunkReader> TReader;
     typedef TIntrusivePtr<TReader> TReaderPtr;
 
     TKeyColumns KeyColumns;
@@ -156,7 +163,9 @@ private:
 
     TMemoryInput RowInput;
     TRow CurrentRow;
-    TNonOwningKey CurrentKey;
+
+    TChunkedMemoryPool KeyMemoryPool;
+    TKey CurrentKey;
 
     std::vector<TSmallKeyPart> KeyBuffer;
     std::vector<const char*> RowPtrBuffer;
@@ -240,7 +249,7 @@ private:
     {
         LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
-            Sync(~Reader, &TReader::AsyncOpen);
+            Sync(Reader.Get(), &TReader::AsyncOpen);
 
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
             LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
@@ -305,7 +314,7 @@ private:
                 }
 
                 if (!Reader->FetchNext()) {
-                    Sync(~Reader, &TReader::GetReadyEvent);
+                    Sync(Reader.Get(), &TReader::GetReadyEvent);
                 }
             }
 
@@ -380,7 +389,7 @@ private:
                     BucketHeap.pop_back();
                 } else {
                     BucketHeap.front() = bucketIndex;
-                    AdjustHeap(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
+                    AdjustHeapFront(BucketHeap.begin(), BucketHeap.end(), MergeComparer);
                 }
 
                 ++sortedRowCount;
@@ -393,6 +402,13 @@ private:
             AtomicSet(SortedRowCount, sortedRowCount);
         }
         LOG_INFO("Finished merge");
+    }
+
+    void ClearKey()
+    {
+        for (int i = 0; i < KeyColumnCount; ++i) {
+            CurrentKey[i] = MakeUnversionedSentinelValue(EValueType::Null);
+        }
     }
 
     void DoNextRow()
@@ -418,10 +434,10 @@ private:
         auto sortedIndex = SortedIndexes[currentIndex];
 
         // Prepare key.
-        CurrentKey.Clear();
+        ClearKey();
         for (int index = 0; index < KeyColumnCount; ++index) {
             const auto& keyPart = KeyBuffer[sortedIndex * KeyColumnCount + index];
-            SetKeyPart(&CurrentKey, keyPart, index);
+            CurrentKey[index] = MakeKeyPart(keyPart);
         }
 
         // Prepare row.

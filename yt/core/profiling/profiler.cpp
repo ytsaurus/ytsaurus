@@ -70,6 +70,21 @@ TRateCounter::TRateCounter(
     , LastTime(0)
 { }
 
+TRateCounter::TRateCounter(const TRateCounter& other)
+    : TCounterBase(other)
+{
+    *this = other;
+}
+
+TRateCounter& TRateCounter::operator=(const TRateCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = other;
+    Value.store(other.Value);
+    LastValue = other.LastValue;
+    LastTime = other.LastTime;
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAggregateCounter::TAggregateCounter(
@@ -81,10 +96,10 @@ TAggregateCounter::TAggregateCounter(
     , Mode(mode)
     , Current(0)
 {
-    ResetAggregation();
+    Reset();
 }
 
-void TAggregateCounter::ResetAggregation()
+void TAggregateCounter::Reset()
 {
     Min = std::numeric_limits<TValue>::max();
     Max = std::numeric_limits<TValue>::min();
@@ -93,6 +108,10 @@ void TAggregateCounter::ResetAggregation()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TProfiler::TProfiler()
+    : Enabled_(false)
+{ }
 
 TProfiler::TProfiler(
     const TYPath& pathPrefix,
@@ -130,7 +149,7 @@ TTimer TProfiler::TimingStart(
 
 TDuration TProfiler::TimingStop(
     TTimer& timer,
-    const Stroka& key)
+    const TStringBuf& key)
 {
     return DoTimingStop(timer, key, Null);
 }
@@ -150,7 +169,7 @@ TDuration TProfiler::TimingStop(
 
 TDuration TProfiler::DoTimingStop(
     TTimer& timer,
-    const TNullable<Stroka>& key,
+    const TNullable<TStringBuf>& key,
     const TNullable<TTagIdList>& totalTagIds)
 {
     // Failure here means that the timer was not started or already stopped.
@@ -172,7 +191,7 @@ TDuration TProfiler::DoTimingStop(
 
 TDuration TProfiler::TimingCheckpoint(
     TTimer& timer,
-    const Stroka& key)
+    const TStringBuf& key)
 {
     return DoTimingCheckpoint(timer, key, Null);
 }
@@ -186,7 +205,7 @@ TDuration TProfiler::TimingCheckpoint(
 
 TDuration TProfiler::DoTimingCheckpoint(
     TTimer& timer,
-    const TNullable<Stroka>& key,
+    const TNullable<TStringBuf>& key,
     const TNullable<TTagIdList>& checkpointTagIds)
 {
     // Failure here means that the timer was not started or already stopped.
@@ -226,32 +245,43 @@ TDuration TProfiler::DoTimingCheckpoint(
 
 TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 {
-	YASSERT(delta >= 0);
+    YASSERT(delta >= 0);
 
-    if (counter.Path.empty()) {
-        return counter.Value;
+    if (!Enabled_ || counter.Path.empty()) {
+        return counter.Value += delta;
     }
-   
+
     auto now = GetCpuInstant();
 
-    TGuard<TSpinLock> guard(counter.SpinLock);
-    counter.Value += delta;
+    auto result = (counter.Value += delta);
     if (now > counter.Deadline) {
-        if (counter.LastTime != 0) {
-            auto counterDelta = counter.Value - counter.LastValue;
-            auto timeDelta = now - counter.LastTime;
-            auto sampleValue = counterDelta * counter.Interval / timeDelta;
+        TValue sampleValue = -1;
+        {
+            TGuard<TSpinLock> guard(counter.SpinLock);
+            if (now > counter.Deadline) {
+                if (counter.LastTime != 0) {
+                    auto counterDelta = counter.Value - counter.LastValue;
+                    auto timeDelta = now - counter.LastTime;
+                    sampleValue = counterDelta * counter.Interval / timeDelta;
+                }
+                counter.LastTime = now;
+                counter.LastValue = counter.Value;
+                counter.Deadline = now + counter.Interval;
+            }
+        }
+        if (sampleValue >= 0) {
             Enqueue(counter.Path, sampleValue, counter.TagIds);
         }
-        counter.LastTime = now;
-        counter.LastValue = counter.Value;
-        counter.Deadline = now + counter.Interval;
     }
-    return counter.Value;
+
+    return result;
 }
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 {
+    if (!Enabled_ || counter.Path.empty())
+        return;
+
     auto now = GetCpuInstant();
 
     TGuard<TSpinLock> guard(counter.SpinLock);
@@ -260,8 +290,8 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
 
 TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
 {
-    if (counter.Path.empty()) {
-        return counter.Current;
+    if (!Enabled_ || counter.Path.empty()) {
+        return counter.Current += delta;
     }
 
     auto now = GetCpuInstant();
@@ -286,31 +316,29 @@ void TProfiler::DoAggregate(
         auto min = counter.Min;
         auto max = counter.Max;
         auto avg = counter.Sum / counter.SampleCount;
-        counter.ResetAggregation();
+        counter.Reset();
         counter.Deadline = now + counter.Interval;
-        if (!counter.Path.empty()) {
-	        switch (counter.Mode) {
-    	        case EAggregateMode::All:
-        	        Enqueue(counter.Path + "/min", min, counter.TagIds);
-            	    Enqueue(counter.Path + "/max", max, counter.TagIds);
-                	Enqueue(counter.Path + "/avg", avg, counter.TagIds);
-                	break;
+        switch (counter.Mode) {
+            case EAggregateMode::All:
+                Enqueue(counter.Path + "/min", min, counter.TagIds);
+                Enqueue(counter.Path + "/max", max, counter.TagIds);
+                Enqueue(counter.Path + "/avg", avg, counter.TagIds);
+                break;
 
-            	case EAggregateMode::Min:
-	                Enqueue(counter.Path, min, counter.TagIds);
-    	            break;
+            case EAggregateMode::Min:
+                Enqueue(counter.Path, min, counter.TagIds);
+                break;
 
-        	    case EAggregateMode::Max:
-            	    Enqueue(counter.Path, max, counter.TagIds);
-                	break;
+            case EAggregateMode::Max:
+                Enqueue(counter.Path, max, counter.TagIds);
+                break;
 
-	            case EAggregateMode::Avg:
-    	            Enqueue(counter.Path, avg, counter.TagIds);
-        	        break;
+            case EAggregateMode::Avg:
+                Enqueue(counter.Path, avg, counter.TagIds);
+                break;
 
-            	default:
-	                YUNREACHABLE();
-	     	}
+            default:
+                YUNREACHABLE();
         }
     }
 }

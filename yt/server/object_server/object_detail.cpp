@@ -3,6 +3,7 @@
 #include "object_manager.h"
 #include "object_service.h"
 #include "attribute_set.h"
+#include "private.h"
 
 #include <core/misc/string.h>
 #include <core/misc/enum.h>
@@ -19,13 +20,18 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/election/cell_manager.h>
+
+#include <ytlib/hydra/rpc_helpers.h>
+
+#include <server/election/election_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/config.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/cypress_server/virtual.h>
 
@@ -50,9 +56,13 @@ using namespace NYson;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,14 +73,16 @@ TStagedObject::TStagedObject()
 
 void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 {
-    SaveObjectRef(context, StagingTransaction_);
-    SaveObjectRef(context, StagingAccount_);
+    using NYT::Save;
+    Save(context, StagingTransaction_);
+    Save(context, StagingAccount_);
 }
 
 void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
-    LoadObjectRef(context, StagingTransaction_);
-    LoadObjectRef(context, StagingAccount_);
+    using NYT::Load;
+    Load(context, StagingTransaction_);
+    Load(context, StagingAccount_);
 }
 
 bool TStagedObject::IsStaged() const
@@ -96,13 +108,13 @@ public:
         const auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(id));
         std::vector<Stroka> keys;
         if (attributeSet) {
-            FOREACH (const auto& pair, attributeSet->Attributes()) {
+            for (const auto& pair : attributeSet->Attributes()) {
                 // Attribute cannot be empty (i.e. deleted) in null transaction.
                 YASSERT(pair.second);
                 keys.push_back(pair.first);
             }
         }
-        return std::move(keys);
+        return keys;
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
@@ -192,30 +204,30 @@ IAttributeDictionary* TObjectProxyBase::MutableAttributes()
     return GetCustomAttributes();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
+DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
+    DeclareNonMutating();
+
     context->SetRequestInfo("");
 
-    ToProto(response->mutable_object_id(), GetId());
+    ToProto(response->mutable_id(), GetId());
+    response->set_type(Object->GetType());
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
+DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 {
+    DeclareNonMutating();
+
     auto userName = request->user();
     auto permission = EPermission(request->permission());
     context->SetRequestInfo("User: %s, Permission: %s",
         ~userName,
-        ~permission.ToString());
+        ~ToString(permission));
 
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    auto* user = securityManager->FindUserByName(userName);
-    if (!IsObjectAlive(user)) {
-        THROW_ERROR_EXCEPTION("No such user %s", ~userName.Quote());
-    }
+    auto* user = securityManager->GetUserByNameOrThrow(userName);
 
     auto result = securityManager->CheckPermission(Object, user, permission);
 
@@ -228,7 +240,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     }
 
     context->SetResponseInfo("Action: %s, Object: %s, Subject: %s",
-        ~permission.ToString(),
+        ~ToString(permission),
         result.Object ? ~ToString(result.Object->GetId()) : "<Null>",
         result.Subject ? ~ToString(result.Subject->GetId()) : "<Null>");
     context->Reply();
@@ -236,11 +248,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
-    Bootstrap->GetObjectManager()->ExecuteVerb(
-        GetVersionedId(),
-        IsWriteRequest(context),
-        context,
-        BIND(&TObjectProxyBase::GuardedInvoke, MakeStrong(this)));
+    Bootstrap
+        ->GetObjectManager()
+        ->InterceptProxyInvocation(this, std::move(context));
 }
 
 void TObjectProxyBase::SerializeAttributes(
@@ -450,14 +460,14 @@ void TObjectProxyBase::SerializeAttributes(
 
     TAttributesConsumer attributesConsumer(consumer);
 
-    const auto& userAttributes = Attributes();
+    const auto& customAttributes = Attributes();
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
             std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
             ListBuiltinAttributes(&builtinAttributes);
 
-            auto userKeys = userAttributes.List();
+            auto userKeys = customAttributes.List();
 
             // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
             if (sortKeys) {
@@ -473,12 +483,12 @@ void TObjectProxyBase::SerializeAttributes(
                     });
             }
 
-            FOREACH (const auto& key, userKeys) {
+            for (const auto& key : userKeys) {
                 attributesConsumer.OnKeyedItem(key);
-                attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+                attributesConsumer.OnRaw(customAttributes.GetYson(key).Data(), EYsonType::Node);
             }
 
-            FOREACH (const auto& attribute, builtinAttributes) {
+            for (const auto& attribute : builtinAttributes) {
                 if (attribute.IsPresent){
                     attributesConsumer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
@@ -498,10 +508,10 @@ void TObjectProxyBase::SerializeAttributes(
                 std::sort(keys.begin(), keys.end());
             }
 
-            FOREACH (const auto& key, keys) {
+            for (const auto& key : keys) {
                 TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
                 if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
-                    auto value = userAttributes.FindYson(key);
+                    auto value = customAttributes.FindYson(key);
                     if (value) {
                         attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
                     }
@@ -518,28 +528,31 @@ void TObjectProxyBase::SerializeAttributes(
 
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
+    // Cf. TYPathServiceBase::GuardedInvoke
+    TError error;
     try {
         BeforeInvoke(context);
         if (!DoInvoke(context)) {
-            ThrowVerbNotSuppored(context->GetVerb());
+            ThrowMethodNotSupported(context->GetMethod());
         }
-        AfterInvoke(context);
     } catch (const TNotALeaderException&) {
+        // TODO(babenko): currently broken
         ForwardToLeader(context);
+        return;
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        error = ex;
+    }
+    
+    AfterInvoke(context);
+
+    if (!error.IsOK()) {
+        context->Reply(error);
     }
 }
 
-void TObjectProxyBase::BeforeInvoke(IServiceContextPtr /*context*/)
-{ }
-
-void TObjectProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
-{ }
-
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
@@ -549,22 +562,15 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
-bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsWriteRequest(context);
-}
-
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
     if (!CustomAttributes) {
         CustomAttributes = DoCreateCustomAttributes();
     }
-    return ~CustomAttributes;
+    return CustomAttributes.get();
 }
 
-ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
+ISystemAttributeProvider* TObjectProxyBase::GetBuiltinAttributeProvider()
 {
     return this;
 }
@@ -604,7 +610,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 
     if (key == "type") {
         BuildYsonFluently(consumer)
-            .Value(CamelCaseToUnderscoreCase(TypeFromId(GetId()).ToString()));
+            .Value(TypeFromId(GetId()));
         return true;
     }
 
@@ -686,7 +692,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
             Deserilize(newAcl, supportedPermissions, valueNode, securityManager);
 
             acd->ClearEntries();
-            FOREACH (const auto& ace, newAcl.Entries) {
+            for (const auto& ace : newAcl.Entries) {
                 acd->AddEntry(ace);
             }
 
@@ -697,11 +703,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
             ValidateNoTransaction();
 
             auto name = ConvertTo<Stroka>(value);
-            auto* owner = securityManager->FindSubjectByName(name);
-            if (!IsObjectAlive(owner)) {
-                THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
-            }
-
+            auto* owner = securityManager->GetSubjectByNameOrThrow(name);
             auto* user = securityManager->GetAuthenticatedUser();
             if (user != securityManager->GetRootUser() && user != owner) {
                 THROW_ERROR_EXCEPTION(
@@ -726,6 +728,21 @@ TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
 TObjectBase* TObjectProxyBase::GetThisSchema()
 {
     return GetSchema(Object->GetType());
+}
+
+void TObjectProxyBase::DeclareMutating()
+{
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    YCHECK(hydraManager->IsMutating());
+}
+
+void TObjectProxyBase::DeclareNonMutating()
+{
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    if (hydraManager->IsMutating()) {
+        auto* mutationContext = hydraManager->GetMutationContext();
+        mutationContext->SuppressMutation();
+    }
 }
 
 void TObjectProxyBase::ValidateTransaction()
@@ -773,20 +790,21 @@ void TObjectProxyBase::ValidateActiveLeader() const
 
 void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
 {
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    auto epochContext = metaStateManager->GetEpochContext();
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto epochContext = hydraManager->GetAutomatonEpochContext();
 
     LOG_DEBUG("Forwarding request to leader");
 
-    auto cellManager = metaStateManager->GetCellManager();
-    auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
+    auto cellManager = Bootstrap->GetCellManager();
+    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
 
     // Update request path to include the current object id and transaction id.
     auto requestMessage = context->GetRequestMessage();
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     auto versionedId = GetVersionedId();
-    requestHeader.set_path(FromObjectId(versionedId.ObjectId) + requestHeader.path());
+    const auto& path = GetRequestYPath(requestHeader);
+    SetRequestYPath(&requestHeader, FromObjectId(versionedId.ObjectId) + path);
     SetTransactionId(&requestHeader, versionedId.TransactionId);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
@@ -794,7 +812,7 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
     // TODO(babenko): timeout?
     // TODO(babenko): prerequisite transactions?
     // TODO(babenko): authenticated user?
-    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->MetaState->RpcTimeout);
+    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->HydraManager->RpcTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->AddRequestMessage(updatedRequestMessage);
     batchReq->Invoke().Subscribe(
@@ -813,9 +831,19 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServi
     auto responseMessage = batchRsp->GetResponseMessage(0);
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-    auto error = FromProto(responseHeader.error());
+    auto error = FromProto<TError>(responseHeader.error());
     LOG_DEBUG(error, "Received response for forwarded request");
     context->Reply(responseMessage);
+}
+
+bool TObjectProxyBase::IsLoggingEnabled() const
+{
+    return !IsRecovery();
+}
+
+NLog::TLogger TObjectProxyBase::CreateLogger() const
+{
+    return ObjectServerLogger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -825,12 +853,6 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     TObjectBase* object)
     : TObjectProxyBase(bootstrap, object)
 { }
-
-bool TNontemplateNonversionedObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TObjectProxyBase::IsWriteRequest(context);
-}
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {

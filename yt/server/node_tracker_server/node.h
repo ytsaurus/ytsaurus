@@ -7,9 +7,13 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <ytlib/hydra/public.h>
+
 #include <server/chunk_server/chunk_replica.h>
 
 #include <server/transaction_server/public.h>
+
+#include <server/tablet_server/public.h>
 
 #include <server/cell_master/public.h>
 
@@ -29,6 +33,7 @@ DECLARE_ENUM(ENodeState,
 
 class TNode
 {
+public:
     // Import third-party types into the scope.
     typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
     typedef NChunkServer::TChunkId TChunkId;
@@ -54,11 +59,14 @@ class TNode
 
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
+    
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
+    
     //! Maps replicas to the leader timestamp when this replica was registered by a client.
     typedef yhash_map<TChunkPtrWithIndex, TInstant> TUnapprovedReplicaMap;
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
+
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     //! Indexed by priority.
@@ -67,6 +75,32 @@ class TNode
 
     typedef yhash_set<NChunkClient::TChunkIdWithIndex> TChunkRemovalQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
+
+    typedef yhash_set<TChunk*> TChunkSealQueue;
+    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
+
+    // Tablet Manager stuff.
+    struct TTabletSlot
+    {
+        TTabletSlot()
+            : Cell(nullptr)
+            , PeerState(NHydra::EPeerState::None)
+            , PeerId(-1)
+        { }
+
+        NTabletServer::TTabletCell* Cell;
+        NHydra::EPeerState PeerState;
+        int PeerId;
+
+        void Persist(NCellMaster::TPersistenceContext& context);
+
+    };
+
+    typedef SmallVector<TTabletSlot, NTabletClient::TypicalCellSize> TTabletSlotList;
+    DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
+
+    typedef yhash_set<NTabletServer::TTabletCell*> TTabletCellSet;
+    DEFINE_BYREF_RO_PROPERTY(TTabletCellSet, TabletCellCreateQueue);
 
 public:
     TNode(
@@ -86,21 +120,46 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // Chunk Manager stuff.
-    void AddReplica(TChunkPtrWithIndex replica, bool cached);
+    bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
 
-    void MarkReplicaUnapproved(TChunkPtrWithIndex replica, TInstant timestamp);
+    void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
 
-    void ResetSessionHints();
+    void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+    void ClearChunkRemovalQueue();
+
+    void AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority);
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica);
+    void ClearChunkReplicationQueues();
+
+    void AddToChunkSealQueue(TChunk* chunk);
+    void RemoveFromChunkSealQueue(TChunk* chunk);
+    void ClearChunkSealQueue();
+
+    void ResetHints();
+    
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
 
     int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
 
-    static TAtomic GenerateVisitMark();
+    void AddTabletSlotHint();
+    int GetTotalUsedTabletSlots() const;
+    int GetTotalTabletSlots() const;
+
+    TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
+    TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
+
+    bool IsTabletCellStartScheduled(NTabletServer::TTabletCell* cell) const;
+    void ScheduleTabletCellStart(NTabletServer::TTabletCell* cell);
+    void CancelTabletCellStart(NTabletServer::TTabletCell* cell);
+    void DetachTabletCell(NTabletServer::TTabletCell* cell);
+
+    static ui64 GenerateVisitMark();
 
 private:
     TNodeDescriptor Descriptor_;
@@ -108,15 +167,16 @@ private:
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
+    int HintedTabletSlots_;
 
     void Init();
+
+    static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
+    static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TNodeId GetObjectId(const TNode* node);
-bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs);
 
 struct TNodePtrAddressFormatter
 {

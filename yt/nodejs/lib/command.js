@@ -3,7 +3,7 @@ var url = require("url");
 var buffertools = require("buffertools");
 var qs = require("qs");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var utils = require("./utils");
 var binding = require("./ytnode");
@@ -139,6 +139,7 @@ function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause
     this.rsp = null;
 
     this.omit_trailers = undefined;
+    this.request_id = undefined;
 
     this.name = undefined;
     this.user = undefined;
@@ -174,11 +175,12 @@ YtCommand.prototype.dispatch = function(req, rsp) {
     self.req = req;
     self.rsp = rsp;
 
-    // "Accepted". This may change during the pipeline.
-    self.rsp.statusCode = 202;
+    self.request_id = self.req.uuid_ui64;
+
+    self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
 
     Q
-        .fcall(function() {
+        .try(function() {
             self._parseRequest();
             self._getName();
             self._getUser();
@@ -197,7 +199,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._addHeaders();
         })
         .then(self._execute.bind(self))
-        .fail(function(err) {
+        .catch(function(err) {
             return YtError.ensureWrapped(
                 err,
                 "Unhandled error in the command pipeline");
@@ -238,6 +240,7 @@ YtCommand.prototype._epilogue = function(result) {
         }
     } else {
         if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+            this.logger.debug("User '" + this.user + "' was banned or has hit rate limit");
             this.rate_check_cache.set(this.user, result.toJson());
         }
 
@@ -773,7 +776,8 @@ YtCommand.prototype._execute = function(cb) {
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
-        this.parameters, this.pause,
+        this.parameters, this.request_id,
+        this.pause,
         function(key, value) {
             self.logger.debug(
                 "Got a response parameter",

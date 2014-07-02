@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "schema.h"
-#include "key.h"
 
 #include <core/misc/error.h>
 
@@ -12,6 +11,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,9 +21,9 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , End_(end)
 {
     if (begin >= end) {
-        THROW_ERROR_EXCEPTION("Invalid range: [%s,%s]",
-            ~begin,
-            ~end);
+        THROW_ERROR_EXCEPTION("Invalid range [%s,%s]",
+            ~begin.Quote(),
+            ~end.Quote());
     }
 }
 
@@ -41,24 +41,6 @@ Stroka TRange::Begin() const
 Stroka TRange::End() const
 {
     return End_;
-}
-
-NProto::TRange TRange::ToProto() const
-{
-    NProto::TRange protoRange;
-    protoRange.set_begin(Begin_);
-    protoRange.set_end(End_);
-    protoRange.set_is_infinite(IsInfinite_);
-    return protoRange;
-}
-
-TRange TRange::FromProto(const NProto::TRange& protoRange)
-{
-    if (protoRange.is_infinite()) {
-        return TRange(protoRange.begin());
-    } else {
-        return TRange(protoRange.begin(), protoRange.end());
-    }
 }
 
 bool TRange::Contains(const TStringBuf& value) const
@@ -101,9 +83,16 @@ bool TRange::IsInfinite() const
 TChannel::TChannel()
 { }
 
+TChannel::TChannel(
+    const std::vector<Stroka> columns,
+    std::vector<TRange> ranges)
+    : Columns_(std::move(columns))
+    , Ranges_(std::move(ranges))
+{ }
+
 void TChannel::AddColumn(const Stroka& column)
 {
-    FOREACH (const auto& existingColumn, Columns_) {
+    for (const auto& existingColumn : Columns_) {
         if (existingColumn == column) {
             return;
         }
@@ -122,35 +111,9 @@ void TChannel::AddRange(const Stroka& begin, const Stroka& end)
     Ranges_.push_back(TRange(begin, end));
 }
 
-NProto::TChannel TChannel::ToProto() const
-{
-    NProto::TChannel protoChannel;
-    FOREACH (const auto& column, Columns_) {
-        protoChannel.add_columns(~column);
-    }
-
-    FOREACH (const auto& range, Ranges_) {
-        *protoChannel.add_ranges() = range.ToProto();
-    }
-    return protoChannel;
-}
-
-NYT::NChunkClient::TChannel TChannel::FromProto(const NProto::TChannel& protoChannel)
-{
-    TChannel result;
-    for (int i = 0; i < protoChannel.columns_size(); ++i) {
-        result.AddColumn(protoChannel.columns(i));
-    }
-
-    for (int i = 0; i < protoChannel.ranges_size(); ++i) {
-        result.AddRange(TRange::FromProto(protoChannel.ranges(i)));
-    }
-    return result;
-}
-
 bool TChannel::Contains(const TStringBuf& column) const
 {
-    FOREACH (const auto& oldColumn, Columns_) {
+    for (const auto& oldColumn : Columns_) {
         if (oldColumn == column) {
             return true;
         }
@@ -160,7 +123,7 @@ bool TChannel::Contains(const TStringBuf& column) const
 
 bool TChannel::Contains(const TRange& range) const
 {
-    FOREACH (const auto& currentRange, Ranges_) {
+    for (const auto& currentRange : Ranges_) {
         if (currentRange.Contains(range)) {
             return true;
         }
@@ -170,13 +133,13 @@ bool TChannel::Contains(const TRange& range) const
 
 bool TChannel::Contains(const TChannel& channel) const
 {
-    FOREACH (const auto& column, channel.Columns_) {
+    for (const auto& column : channel.Columns_) {
         if (!Contains(column)) {
             return false;
         }
     }
 
-    FOREACH (const auto& range, channel.Ranges_) {
+    for (const auto& range : channel.Ranges_) {
         if (!Contains(range)) {
             return false;
         }
@@ -187,7 +150,7 @@ bool TChannel::Contains(const TChannel& channel) const
 
 bool TChannel::ContainsInRanges(const TStringBuf& column) const
 {
-    FOREACH (const auto& range, Ranges_) {
+    for (const auto& range : Ranges_) {
         if (range.Contains(column)) {
             return true;
         }
@@ -197,13 +160,13 @@ bool TChannel::ContainsInRanges(const TStringBuf& column) const
 
 bool TChannel::Overlaps(const TRange& range) const
 {
-    FOREACH (const auto& column, Columns_) {
+    for (const auto& column : Columns_) {
         if (range.Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (const auto& currentRange, Ranges_) {
+    for (const auto& currentRange : Ranges_) {
         if (currentRange.Overlaps(range)) {
             return true;
         }
@@ -214,13 +177,13 @@ bool TChannel::Overlaps(const TRange& range) const
 
 bool TChannel::Overlaps(const TChannel& channel) const
 {
-    FOREACH (const auto& column, channel.Columns_) {
+    for (const auto& column : channel.Columns_) {
         if (Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (const auto& range, channel.Ranges_) {
+    for (const auto& range : channel.Ranges_) {
         if (Overlaps(range)) {
             return true;
         }
@@ -283,7 +246,7 @@ const TChannel& TChannel::Empty()
 TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 {
     std::vector<Stroka> newColumns;
-    FOREACH (const auto& column, lhs.Columns_) {
+    for (const auto& column : lhs.Columns_) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
         }
@@ -291,7 +254,7 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
     lhs.Columns_.swap(newColumns);
 
     std::vector<TRange> rhsRanges(rhs.Ranges_);
-    FOREACH (const auto& column, rhs.Columns_) {
+    for (const auto& column : rhs.Columns_) {
         // Add single columns as ranges.
         Stroka rangeEnd;
         rangeEnd.reserve(column.Size() + 1);
@@ -301,8 +264,8 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
     }
 
     std::vector<TRange> newRanges;
-    FOREACH (const auto& rhsRange, rhsRanges) {
-        FOREACH (const auto& lhsRange, lhs.Ranges_) {
+    for (const auto& rhsRange : rhsRanges) {
+        for (const auto& lhsRange : lhs.Ranges_) {
             if (!lhsRange.Overlaps(rhsRange)) {
                 newRanges.push_back(lhsRange);
                 continue;
@@ -331,6 +294,33 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TRange* protoRange, const TRange& range)
+{
+    protoRange->set_begin(range.Begin());
+    protoRange->set_end(range.End());
+    protoRange->set_infinite(range.IsInfinite());
+}
+
+void FromProto(TRange* range, const NProto::TRange& protoRange)
+{
+    *range = protoRange.infinite()
+        ? TRange(protoRange.begin())
+        : TRange(protoRange.begin(), protoRange.end());
+}
+
+void ToProto(NProto::TChannel* protoChannel, const TChannel& channel)
+{
+    NYT::ToProto(protoChannel->mutable_columns(), channel.GetColumns());
+    NYT::ToProto(protoChannel->mutable_ranges(), channel.GetRanges());
+}
+
+void FromProto(TChannel* channel, const NProto::TChannel& protoChannel)
+{
+    *channel = TChannel(
+        NYT::FromProto<Stroka>(protoChannel.columns()),
+        NYT::FromProto<TRange>(protoChannel.ranges()));
+}
+
 void Deserialize(TChannel& channel, INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
@@ -338,7 +328,7 @@ void Deserialize(TChannel& channel, INodePtr node)
     }
 
     channel = TChannel::Empty();
-    FOREACH (auto child, node->AsList()->GetChildren()) {
+    for (auto child : node->AsList()->GetChildren()) {
         switch (child->GetType()) {
             case ENodeType::String:
                 channel.AddColumn(child->GetValue<Stroka>());
@@ -351,7 +341,7 @@ void Deserialize(TChannel& channel, INodePtr node)
                         auto item = listChild->GetChild(0);
                         if (item->GetType() != ENodeType::String) {
                             THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~item->GetType().ToString().Quote());
+                                ~ToString(item->GetType()).Quote());
                         }
                         channel.AddRange(TRange(item->GetValue<Stroka>()));
                         break;
@@ -361,12 +351,12 @@ void Deserialize(TChannel& channel, INodePtr node)
                         auto itemLo = listChild->GetChild(0);
                         if (itemLo->GetType() != ENodeType::String) {
                             THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~itemLo->GetType().ToString().Quote());
+                                ~ToString(itemLo->GetType()).Quote());
                         }
                         auto itemHi = listChild->GetChild(1);
                         if (itemHi->GetType() != ENodeType::String) {
                             THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~itemHi->GetType().ToString().Quote());
+                                ~ToString(itemHi->GetType()).Quote());
                         }
                         channel.AddRange(TRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
                         break;
@@ -381,12 +371,12 @@ void Deserialize(TChannel& channel, INodePtr node)
 
             default:
                 THROW_ERROR_EXCEPTION("Channel description cannot contain %s items",
-                    ~child->GetType().ToString().Quote());
+                    ~ToString(child->GetType()).Quote());
         }
     }
 }
 
-void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
+void Serialize(const TChannel& channel, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginList()
@@ -404,115 +394,6 @@ void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
         })
         .EndList();
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
-{
-    int fieldCount = 0;
-    if (readLimit.has_row_index())   { fieldCount += 1; }
-    if (readLimit.has_key())         { fieldCount += 1; }
-    if (readLimit.has_chunk_index()) { fieldCount += 1; }
-    if (readLimit.has_offset())      { fieldCount += 1; }
-
-    if (fieldCount == 0) {
-        THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
-    }
-    if (fieldCount >= 2) {
-        THROW_ERROR_EXCEPTION("Cannot serialize read limit with more than one field");
-    }
-
-    consumer->OnBeginMap();
-    if (readLimit.has_row_index()) {
-        consumer->OnKeyedItem("row_index");
-        consumer->OnIntegerScalar(readLimit.row_index());
-    } else if (readLimit.has_chunk_index()) {
-        consumer->OnKeyedItem("chunk_index");
-        consumer->OnIntegerScalar(readLimit.chunk_index());
-    } else if (readLimit.has_offset()) {
-        consumer->OnKeyedItem("offset");
-        consumer->OnIntegerScalar(readLimit.offset());
-    } else if (readLimit.has_key()) {
-        consumer->OnKeyedItem("key");
-        consumer->OnBeginList();
-        FOREACH (const auto& part, readLimit.key().parts()) {
-            consumer->OnListItem();
-            switch (part.type()) {
-                case EKeyPartType::String:
-                    consumer->OnStringScalar(part.str_value());
-                    break;
-                case EKeyPartType::Integer:
-                    consumer->OnIntegerScalar(part.int_value());
-                    break;
-                case EKeyPartType::Double:
-                    consumer->OnDoubleScalar(part.double_value());
-                    break;
-            }
-        }
-        consumer->OnEndList();
-    }
-    consumer->OnEndMap();
-}
-
-void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
-{
-    if (node->GetType() != ENodeType::Map) {
-        THROW_ERROR_EXCEPTION("Unexpected read limit token: %s", ~node->GetType().ToString());
-    }
-
-    auto mapNode = node->AsMap();
-    if (mapNode->GetChildCount() > 1) {
-        THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1", mapNode->GetChildCount());
-    }
-
-    if (auto child = mapNode->FindChild("row_index")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected row index token: %s", ~child->GetType().ToString());
-        }
-        readLimit.set_row_index(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("chunk_index")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
-        }
-        readLimit.set_chunk_index(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("offset")) {
-        if (child->GetType() != ENodeType::Integer) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
-        }
-        readLimit.set_offset(child->GetValue<i64>());
-    } else if (auto child = mapNode->FindChild("key")) {
-        if (child->GetType() != ENodeType::List) {
-            THROW_ERROR_EXCEPTION("Unexpected key token: %s", ~child->GetType().ToString());
-        }
-        auto key = readLimit.mutable_key();
-        auto nodeList = child->AsList();
-        for (int i = 0; i < nodeList->GetChildCount(); ++i) {
-            auto child = nodeList->FindChild(i);
-            auto keyPart = key->add_parts();
-            switch (child->GetType()) {
-                case ENodeType::String:
-                    keyPart->set_type(EKeyPartType::String);
-                    keyPart->set_str_value(child->GetValue<Stroka>());
-                    break;
-                case ENodeType::Integer:
-                    keyPart->set_type(EKeyPartType::Integer);
-                    keyPart->set_int_value(child->GetValue<i64>());
-                    break;
-                case ENodeType::Double:
-                    keyPart->set_type(EKeyPartType::Double);
-                    keyPart->set_double_value(child->GetValue<double>());
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Unexpected key part type: %s", ~child->GetType().ToString());
-            }
-        }
-    }
-}
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

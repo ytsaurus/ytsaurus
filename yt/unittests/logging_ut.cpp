@@ -9,7 +9,9 @@
 
 #include <util/system/fs.h>
 
+#ifndef _win_
 #include <unistd.h>
+#endif
 
 namespace NYT {
 namespace NLog {
@@ -68,14 +70,14 @@ protected:
 TEST_F(TLoggingTest, ReloadsOnSigHup)
 {
     LOG_INFO("Prepaing logging thread");
-    sleep(1); // In sleep() we trust.
+    sleep(1.0); // In sleep() we trust.
 
     int version = TLogManager::Get()->GetVersion();
 
     kill(getpid(), SIGHUP);
 
     LOG_INFO("Awaking logging thread");
-    sleep(1); // In sleep() we trust.
+    sleep(1.0); // In sleep() we trust.
 
     int newVersion = TLogManager::Get()->GetVersion();
 
@@ -95,7 +97,7 @@ TEST_F(TLoggingTest, FileWriter)
         auto lines = ReadFile("test.log");
         EXPECT_EQ(2, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[1].substr(DateLength));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
     }
 
     writer->Reload();
@@ -105,10 +107,10 @@ TEST_F(TLoggingTest, FileWriter)
         auto lines = ReadFile("test.log");
         EXPECT_EQ(5, lines.size());
         EXPECT_TRUE(lines[0].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[1].substr(DateLength));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength));
         EXPECT_EQ("\n", lines[2]);
         EXPECT_TRUE(lines[3].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\n", lines[4].substr(DateLength));
+        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[4].substr(DateLength));
     }
 
     NFs::Remove("test.log");
@@ -119,10 +121,10 @@ TEST_F(TLoggingTest, StreamWriter)
     TStringStream stringOutput;
     auto writer = New<TStreamLogWriter>(&stringOutput);
 
-    WriteEvent(~writer);
+    WriteEvent(writer.Get());
 
     EXPECT_EQ(
-       "\tD\tcategory\tmessage\tba\n",
+       "\tD\tcategory\tmessage\tba\t\t\n",
        stringOutput.Str().substr(DateLength));
 }
 
@@ -179,7 +181,7 @@ TEST_F(TLoggingTest, LogManager)
     LOG_INFO("Info message");
     LOG_ERROR("Error message");
 
-    sleep(1);
+    sleep(1.0);
 
     auto infoLog = ReadFile("test.log");
     auto errorLog = ReadFile("test.error.log");

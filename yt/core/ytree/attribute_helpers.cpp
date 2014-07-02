@@ -10,6 +10,36 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs)
+{
+    auto lhsKeys = lhs.List();
+    std::sort(lhsKeys.begin(), lhsKeys.end());
+
+    auto rhsKeys = rhs.List();
+    std::sort(rhsKeys.begin(), rhsKeys.end());
+
+    if (lhsKeys != rhsKeys) {
+        return false;
+    }
+
+    for (const auto& key : lhsKeys) {
+        auto lhsValue = lhs.Get<INodePtr>(key);
+        auto rhsValue = rhs.Get<INodePtr>(key);
+        if (!AreNodesEqual(lhsValue, rhsValue)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
@@ -19,7 +49,7 @@ class TEphemeralAttributeDictionary
     virtual std::vector<Stroka> List() const override
     {
         std::vector<Stroka> keys;
-        FOREACH (const auto& pair, Map) {
+        for (const auto& pair : Map) {
             keys.push_back(pair.first);
         }
         return keys;
@@ -86,7 +116,7 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 {
     auto list = attributes.List();
     consumer->OnBeginMap();
-    FOREACH (const auto& key, list) {
+    for (const auto& key : list) {
         consumer->OnKeyedItem(key);
         auto yson = attributes.GetYson(key);
         consumer->OnRaw(yson.Data(), yson.GetType());
@@ -97,7 +127,7 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     protoAttributes->Clear();
-    FOREACH (const auto& key, attributes.List()) {
+    for (const auto& key : attributes.List()) {
         auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
@@ -108,7 +138,7 @@ void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& a
 std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
 {
     auto attributes = CreateEphemeralAttributes();
-    FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {
+    for (const auto& protoAttribute : protoAttributes.attributes()) {
         const auto& key = protoAttribute.key();
         const auto& value = protoAttribute.value();
         attributes->SetYson(key, TYsonString(value));
@@ -123,7 +153,7 @@ void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, cons
     using NYT::Save;
     auto keys = obj.List();
     TSizeSerializer::Save(context, keys.size());
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         Save(context, key);
         Save(context, obj.GetYson(key));
     }

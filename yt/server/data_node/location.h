@@ -3,11 +3,14 @@
 #include "public.h"
 
 #include <core/concurrency/action_queue.h>
+
 #include <core/actions/signal.h>
 
 #include <core/logging/tagged_logger.h>
 
 #include <core/profiling/profiler.h>
+
+#include <ytlib/chunk_client/chunk_info.pb.h>
 
 #include <server/cell_node/public.h>
 
@@ -23,7 +26,7 @@ DECLARE_ENUM(ELocationType,
     (Cache)
 );
 
-//! Describes a physical location of chunks at a chunk holder.
+//! Describes a physical location of chunks.
 class TLocation
     : public TRefCounted
 {
@@ -42,24 +45,12 @@ public:
     //! Returns string id.
     const Stroka& GetId() const;
 
-    //! Returns the cell guid. If no tag file was found and #UpdateCellGuid was not called
-    //! then empty guid is returned.
-    const TGuid& GetCellGuid();
-
-    //! Sets the cell guid and overwrites the tag file.
-    void SetCellGuid(const TGuid& guid);
-
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     //! If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
     std::vector<TChunkDescriptor> Initialize();
 
     //! Updates #UsedSpace and #AvailalbleSpace
     void UpdateUsedSpace(i64 size);
-
-    //! Schedules physical removal of a chunk.
-    // NB: Don't try replacing TChunk with TChunkPtr since
-    // this method is called from TCachedChunk::dtor.
-    TFuture<void> ScheduleChunkRemoval(TChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
     //! Never throws.
@@ -68,9 +59,6 @@ public:
     //! Returns the total space on the disk drive where the location resides.
     //! Never throws.
     i64 GetTotalSpace() const;
-
-    //! Returns the bootstrap.
-    NCellNode::TBootstrap* GetBootstrap() const;
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -119,7 +107,7 @@ public:
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWriteInvoker();
 
-    //! Returns True iff the location is enabled.
+    //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
     //! Marks the location as disabled.
@@ -135,37 +123,41 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
 
 private:
-    ELocationType Type;
-    Stroka Id;
-    TLocationConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    ELocationType Type_;
+    Stroka Id_;
+    TLocationConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    std::atomic<bool> Enabled;
+    std::atomic<bool> Enabled_;
 
-    TGuid CellGuid;
+    mutable i64 AvailableSpace_;
+    i64 UsedSpace_;
+    int SessionCount_;
+    int ChunkCount_;
 
-    mutable i64 AvailableSpace;
-    i64 UsedSpace;
-    int SessionCount;
-    int ChunkCount;
+    NConcurrency::TFairShareActionQueuePtr ReadQueue_;
+    IPrioritizedInvokerPtr DataReadInvoker_;
+    IPrioritizedInvokerPtr MetaReadInvoker_;
 
-    NConcurrency::TFairShareActionQueuePtr ReadQueue;
-    IPrioritizedInvokerPtr DataReadInvoker;
-    IPrioritizedInvokerPtr MetaReadInvoker;
+    NConcurrency::TThreadPoolPtr WriteQueue_;
+    IInvokerPtr WriteInvoker_;
 
-    NConcurrency::TThreadPoolPtr WriteQueue;
-    IInvokerPtr WriteInvoker;
-
-    TDiskHealthCheckerPtr HealthChecker;
+    TDiskHealthCheckerPtr HealthChecker_;
 
     mutable NLog::TTaggedLogger Logger;
 
+
     std::vector<TChunkDescriptor> DoInitialize();
+    TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
+
     void OnHealthCheckFailed();
     void ScheduleDisable();
     void DoDisable();
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TLocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

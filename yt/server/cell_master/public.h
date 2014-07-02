@@ -1,22 +1,28 @@
 #pragma once
 
 #include <core/misc/common.h>
+// TODO(babenko): replace by public.h
+#include <core/misc/serialize.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterConfig;
-typedef TIntrusivePtr<TCellMasterConfig> TCellMasterConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TMasterCellConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
 
-class TMetaStateFacade;
-typedef TIntrusivePtr<TMetaStateFacade> TMetaStateFacadePtr;
+DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
+DECLARE_REFCOUNTED_CLASS(TMasterAutomatonPart)
+DECLARE_REFCOUNTED_CLASS(TMetaStateFacade)
+DECLARE_REFCOUNTED_CLASS(TWorldInitializer)
 
 class TBootstrap;
 
 class TLoadContext;
 class TSaveContext;
+typedef TCustomPersistenceContext<TSaveContext, TLoadContext> TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/yamred_dsv_parser.h>
+#include <ytlib/formats/yamred_dsv_parser.h>
+
 #include <core/ytree/yson_consumer-mock.h>
 
 namespace NYT {

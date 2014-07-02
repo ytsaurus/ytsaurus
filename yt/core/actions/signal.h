@@ -25,13 +25,13 @@ public:
 
     //! Adds a new handler to the list.
     /*!
-     * \param callback Handler to be added.
+     * \param callback A handler to be added.
      */
     void Subscribe(const TCallback& callback);
 
     //! Removes a handler from the list.
     /*!
-     * \param callback Handler to be removed.
+     * \param callback A handler to be removed.
      * \return True if #callback was in the list of handlers.
      */
     bool Unsubscribe(const TCallback& callback);
@@ -41,11 +41,10 @@ public:
 
     //! Runs all callbacks in the list.
     void Fire(const TArgs&... args) const;
-        
+
 private:
     mutable TSpinLock SpinLock_;
     std::vector<TCallback> Callbacks_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

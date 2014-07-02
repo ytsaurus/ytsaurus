@@ -20,6 +20,7 @@ public:
     int ReplicationSlots;
     int RemovalSlots;
     int RepairSlots;
+    int SealSlots;
 
     TResourceLimitsConfig()
     {
@@ -41,6 +42,8 @@ public:
             .Default(16);
         RegisterParameter("repair_slots", RepairSlots)
             .Default(4);
+        RegisterParameter("seal_slots", SealSlots)
+            .Default(16);
     }
 };
 

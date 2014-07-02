@@ -1,19 +1,22 @@
+"""YT usage errors"""
+
 import errors_config
 from yt.common import YtError
 
 import simplejson as json
 
 class YtOperationFailedError(YtError):
-    """
-    Represents error that occurs when we synchronously wait operation that fails.
-    """
+    """Operation failed during WaitStrategy.process_operation."""
+    pass
+
+class YtTimeoutError(YtError):
+    """WaitStrategy timeout expired."""
     pass
 
 class YtResponseError(YtError):
-    """
-    Represents error that occurs when we have error in HTTP response.
-    """
+    """Error in HTTP response."""
     def __init__(self, url, headers, error):
+        super(YtResponseError, self).__init__(repr(error))
         self.url = url
         self.headers = headers
         self.error = error
@@ -26,33 +29,40 @@ class YtResponseError(YtError):
         return self.__str__()
 
     def is_resolve_error(self):
+        """Resolving error."""
         return int(self.error["code"]) == 500
 
     def is_access_denied(self):
+        """Access denied."""
         return int(self.error["code"]) == 901
 
     def is_concurrent_transaction_lock_conflict(self):
+        """Transaction lock conflict."""
         return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
     """
-    Represents an error occured while sending an HTTP request.
+    Error occurred while sending an HTTP request.
+
     Typically it wraps some underlying error.
     """
     pass
 
 class YtProxyUnavailable(YtError):
-    """
-    Represents an error occured when proxy response that it is under heavy load.
-    """
+    """Proxy is under heavy load."""
+    pass
+
+class YtIncorrectResponse(YtError):
+    """Incorrect proxy response."""
     pass
 
 class YtTokenError(YtError):
+    """Some problem occurred with authentication token."""
     pass
 
 class YtFormatError(YtError):
+    """Wrong format"""
     pass
-
 
 def format_error(error, indent=0):
     if errors_config.ERROR_FORMAT == "json":
@@ -103,5 +113,3 @@ def pretty_format(error, indent=0):
             result += "\n" + format_error(inner_error, indent + 2)
 
     return result
-
-

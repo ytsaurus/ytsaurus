@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/yamr_writer.h>
+#include <ytlib/formats/yamr_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -12,23 +12,23 @@ namespace {
 TEST(TYamrWriterTest, Simple)
 {
     TStringStream outputStream;
-    TYamrWriter writer(&outputStream);
+    TYamrConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value2");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key2");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value2");
+    consumer.OnEndMap();
 
     Stroka output =
         "key1\tvalue1\n"
@@ -41,27 +41,27 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
     TStringStream outputStream;
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value2");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key2");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey2");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value2");
+    consumer.OnEndMap();
 
     Stroka output =
         "key1\tsubkey1\tvalue1\n"
@@ -72,27 +72,27 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
 TEST(TYamrWriterTest, WritingWithoutSubkey)
 {
     TStringStream outputStream;
-    TYamrWriter writer(&outputStream);
+    TYamrConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value2");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key2");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey2");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value2");
+    consumer.OnEndMap();
 
     Stroka output =
         "key1\tvalue1\n"
@@ -103,14 +103,14 @@ TEST(TYamrWriterTest, WritingWithoutSubkey)
 TEST(TYamrWriterTest, SkippedKey)
 {
     TStringStream outputStream;
-    TYamrWriter writer(&outputStream);
+    TYamrConsumer consumer(&outputStream);
 
     auto DoWrite = [&]() {
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem("key");
-            writer.OnStringScalar("foo");
-        writer.OnEndMap();
+        consumer.OnListItem();
+        consumer.OnBeginMap();
+            consumer.OnKeyedItem("key");
+            consumer.OnStringScalar("foo");
+        consumer.OnEndMap();
     };
 
     EXPECT_THROW(DoWrite(), std::exception);
@@ -119,14 +119,14 @@ TEST(TYamrWriterTest, SkippedKey)
 TEST(TYamrWriterTest, SkippedValue)
 {
     TStringStream outputStream;
-    TYamrWriter writer(&outputStream);
+    TYamrConsumer consumer(&outputStream);
 
     auto DoWrite = [&]() {
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem("value");
-            writer.OnStringScalar("bar");
-        writer.OnEndMap();
+        consumer.OnListItem();
+        consumer.OnBeginMap();
+            consumer.OnKeyedItem("value");
+            consumer.OnStringScalar("bar");
+        consumer.OnEndMap();
     };
 
     EXPECT_THROW(DoWrite(), std::exception);
@@ -137,15 +137,15 @@ TEST(TYamrWriterTest, SubkeyCouldBeSkipped)
     TStringStream outputStream;
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("bar");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("foo");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("bar");
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("foo");
+    consumer.OnEndMap();
 
     Stroka output = "foo\t\tbar\n";
     EXPECT_EQ(output, outputStream.Str());
@@ -157,17 +157,17 @@ TEST(TYamrWriterTest, Escaping)
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
     config->EnableEscaping = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("\n");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("\t");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("\n");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("\n");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("\t");
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("\n");
+    consumer.OnEndMap();
 
     Stroka output = "\\n\t\\t\t\\n\n";
     EXPECT_EQ(output, outputStream.Str());
@@ -178,21 +178,21 @@ TEST(TYamrWriterTest, SimpleWithTableIndex)
     TStringStream outputStream;
     auto config = New<TYamrFormatConfig>();
     config->EnableTableIndex = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginAttributes();
-        writer.OnKeyedItem("table_index");
-        writer.OnIntegerScalar(1);
-    writer.OnEndAttributes();
-    writer.OnEntity();
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("table_index");
+        consumer.OnIntegerScalar(1);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
 
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
     Stroka output = Stroka("1\nkey1\tvalue1\n");
 
@@ -205,28 +205,28 @@ TEST(TYamrWriterTest, Lenval)
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
     config->Lenval = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value2");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key2");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey2");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value2");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\x04\x00\x00\x00" "key1"
@@ -248,38 +248,38 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
     config->Lenval = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
     // Note: order is unusual (value, key)
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("");
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey2");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("");
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key2");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value3");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey3");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value3");
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("subkey3");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\x04\x00\x00\x00" "key1"
@@ -306,20 +306,20 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     auto config = New<TYamrFormatConfig>();
     config->Lenval = true;
     config->EnableTableIndex = true;
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginAttributes();
-        writer.OnKeyedItem("table_index");
-        writer.OnIntegerScalar(0);
-    writer.OnEndAttributes();
-    writer.OnEntity();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("table_index");
+        consumer.OnIntegerScalar(0);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("key1");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("value1");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\xff\xff\xff\xff" "\x00\x00\x00\x00"
@@ -335,15 +335,15 @@ TEST(TYamrWriterTest, IntegerAndDoubleValues)
 {
     TStringStream outputStream;
     auto config = New<TYamrFormatConfig>();
-    TYamrWriter writer(&outputStream, config);
+    TYamrConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnIntegerScalar(1);
-        writer.OnKeyedItem("value");
-        writer.OnDoubleScalar(1.5);
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnIntegerScalar(1);
+        consumer.OnKeyedItem("value");
+        consumer.OnDoubleScalar(1.5);
+    consumer.OnEndMap();
 
     Stroka output("1\t1.5\n");
 

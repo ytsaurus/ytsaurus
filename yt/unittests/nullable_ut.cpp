@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "framework.h"
+#include "probe.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
 namespace NYT {
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using ::ToString;
 
@@ -21,11 +24,90 @@ TEST(TNullableDeathTest, Uninitialized)
 #endif
 
 template <class T>
-inline void TestNullable(const TNullable<T>& nullable, bool initialized, T value = T())
+inline void TestNullable(
+    const TNullable<T>& nullable,
+    bool hasValue,
+    T expectedValue = T())
 {
-    EXPECT_EQ(initialized, nullable.HasValue());
-    if (initialized) {
-        EXPECT_EQ(value, nullable.Get());
+    if (hasValue) {
+        EXPECT_TRUE(nullable.HasValue());
+        EXPECT_EQ(expectedValue, nullable.Get());
+    } else {
+        EXPECT_FALSE(nullable.HasValue());
+    }
+}
+
+TEST(TNullableTest, EmptyConstruct)
+{
+    TNullable<int> nullable1;
+    EXPECT_FALSE(nullable1.HasValue());
+    TNullable<int> nullable2(nullable1);
+    EXPECT_FALSE(nullable1.HasValue());
+    EXPECT_FALSE(nullable2.HasValue());
+    TNullable<int> nullable3(std::move(nullable1));
+    EXPECT_FALSE(nullable1.HasValue());
+    EXPECT_FALSE(nullable2.HasValue());
+    EXPECT_FALSE(nullable3.HasValue());
+}
+
+TEST(TNullableTest, ValueConstruct)
+{
+    {
+        TProbeState state;
+        TProbe probe(&state);
+        TProbeScoper scope(&state);
+
+        TNullable<TProbe> nullable(probe);
+        EXPECT_TRUE(nullable.HasValue());
+        EXPECT_EQ(0, state.Constructors);
+        EXPECT_EQ(1, state.CopyConstructors);
+        EXPECT_THAT(state, IsAlive());
+        EXPECT_THAT(state, HasCopyMoveCounts(1, 0));
+    }
+    {
+        TProbeState state;
+        TProbe probe(&state);
+        TProbeScoper scope(&state);
+
+        TNullable<TProbe> nullable(std::move(probe));
+        EXPECT_TRUE(nullable.HasValue());
+        EXPECT_EQ(0, state.Constructors);
+        EXPECT_EQ(1, state.MoveConstructors);
+        EXPECT_EQ(0, state.ShadowDestructors);
+        EXPECT_THAT(state, HasCopyMoveCounts(0, 1));
+    }
+}
+
+TEST(TNullableTest, NullableConstruct)
+{
+    {
+        TProbeState state;
+        TNullable<TProbe> probe; probe.Emplace(&state);
+        TProbeScoper scoper(&state);
+        EXPECT_TRUE(probe.HasValue());
+
+        TNullable<TProbe> nullable(probe);
+        EXPECT_TRUE(nullable.HasValue());
+        EXPECT_TRUE(probe.HasValue());
+        EXPECT_EQ(0, state.Constructors);
+        EXPECT_GE(1, state.CopyConstructors);
+        EXPECT_THAT(state, NoMoves());
+        EXPECT_THAT(state, NoAssignments());
+    }
+    {
+        TProbeState state;
+        TNullable<TProbe> probe; probe.Emplace(&state);
+        TProbeScoper scoper(&state);
+        EXPECT_TRUE(probe.HasValue());
+
+        TNullable<TProbe> nullable(std::move(probe));
+        EXPECT_TRUE(nullable.HasValue());
+        EXPECT_FALSE(probe.HasValue());
+        EXPECT_EQ(0, state.Constructors);
+        EXPECT_GE(1, state.MoveConstructors);
+        EXPECT_GE(1, state.ShadowDestructors);
+        EXPECT_THAT(state, NoCopies());
+        EXPECT_THAT(state, NoAssignments());
     }
 }
 
@@ -42,21 +124,37 @@ TEST(TNullableTest, Construct)
 TEST(TNullableTest, AssignReset)
 {
     TNullable<int> nullable;
+
     TestNullable(nullable, false);
     TestNullable(nullable = 1, true, 1);
     TestNullable(nullable = TNullable<double>(), false);
     TestNullable(nullable = TNullable<double>(1.1), true, 1);
+
     nullable.Reset();
+
     TestNullable(nullable, false);
 }
 
-TEST(TNullableTest, Destruct)
+TEST(TNullableTest, Emplace)
 {
-    TNullable<std::vector<int>> nullable(std::vector<int>(1));
-    const auto* ptr = nullable.GetPtr();
-    YASSERT(ptr->size() == 1);
+    TNullable<TProbe> nullable;
+    EXPECT_FALSE(nullable.HasValue());
+
+    TProbeState state;
+
+    nullable.Emplace(&state);
+    EXPECT_TRUE(nullable.HasValue());
+    EXPECT_EQ(1, state.Constructors);
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+    EXPECT_THAT(state, NoMoves());
+
     nullable.Reset();
-    EXPECT_EQ(0, ptr->size());
+    EXPECT_FALSE(nullable.HasValue());
+    EXPECT_EQ(1, state.Constructors);
+    EXPECT_EQ(1, state.Destructors);
+    EXPECT_THAT(state, NoCopies());
+    EXPECT_THAT(state, NoMoves());
 }
 
 inline void TestSwap(TNullable<int> nullable1, TNullable<int> nullable2)
@@ -80,7 +178,12 @@ TEST(TNullableTest, Swap)
     TestSwap(TNullable<int>(), TNullable<int>());
 }
 
-TEST(TNullableTest, GetValueOrDefault)
+TEST(TNullableTest, Get)
+{
+    EXPECT_EQ(2, TNullable<int>(2).Get());
+}
+
+TEST(TNullableTest, GetWithDefault)
 {
     EXPECT_EQ(2, TNullable<int>(2).Get(1));
     EXPECT_EQ(1, TNullable<int>().Get(1));
@@ -95,9 +198,14 @@ TEST(TNullableTest, MakeNullable)
 
 TEST(TNullableTest, Null)
 {
-    TNullable<int> null = Null;
-    TestNullable(null, false);
-    // TestNullable(NULL, true, 0); // Doesn't compile with gcc (ambigous conversion). Don't use this.
+    {
+        TNullable<int> nullable = Null;
+        TestNullable(nullable, false);
+    }
+    {
+        TNullable<int> nullable(Null);
+        TestNullable(nullable, false);
+    }
 }
 
 TEST(TNullableTest, Operators)
@@ -107,18 +215,22 @@ TEST(TNullableTest, Operators)
         EXPECT_EQ(1, (*nullable).size());
         EXPECT_EQ(1, nullable->size());
         EXPECT_EQ(&nullable.Get(), nullable.GetPtr());
-        EXPECT_TRUE(nullable);
+
+        EXPECT_TRUE(bool(nullable));
         nullable.Reset();
-        EXPECT_FALSE(nullable);
+        EXPECT_FALSE(bool(nullable));
     }
     {
+        EXPECT_EQ(TNullable<int>( ), TNullable<int>( ));
         EXPECT_EQ(TNullable<int>(1), TNullable<int>(1));
         EXPECT_EQ(TNullable<int>(1), 1);
-        EXPECT_EQ(TNullable<int>(), TNullable<int>());
+        EXPECT_EQ(1, TNullable<int>(1));
+
+        EXPECT_NE(TNullable<int>(1), TNullable<int>( ));
+        EXPECT_NE(TNullable<int>( ), TNullable<int>(2));
         EXPECT_NE(TNullable<int>(1), TNullable<int>(2));
         EXPECT_NE(TNullable<int>(1), 2);
-        EXPECT_NE(TNullable<int>(1), TNullable<int>());
-        EXPECT_NE(TNullable<int>(), TNullable<int>(2));
+        EXPECT_NE(1, TNullable<int>(2));
     }
 }
 
@@ -128,16 +240,41 @@ TEST(TNullableTest, ToString)
     EXPECT_EQ(ToString(TNullable<int>()), "<Null>");
 }
 
-// This functionality isn't supported
-//TEST(TNullableTest, VectorByReference)
-//{
-//    std::vector<int> v;
-//    TNullable<std::vector<int>&> nullable(v);
-//    TestNullable(nullable, true, std::vector<int>());
-//
-//    v.push_back(10);
-//    TestNullable(nullable, true, std::vector<int>(1, 10));
-//}
+TEST(TNullableTest, Destructor)
+{
+    int counter = 0;
+
+    class TestClass
+    {
+    public:
+        TestClass(int& counter)
+            : Counter_(counter)
+        {
+            Counter_++;
+        }
+
+        TestClass(const TestClass& other)
+            : Counter_(other.Counter_)
+        {
+            Counter_++;
+        }
+
+        ~TestClass()
+        {
+            Counter_--;
+        }
+
+    private:
+        int& Counter_;
+    };
+
+    EXPECT_EQ(0, counter);
+    {
+        TNullable<TestClass> obj(counter);
+        EXPECT_EQ(1, counter);
+    }
+    EXPECT_EQ(0, counter);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

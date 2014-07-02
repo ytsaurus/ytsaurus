@@ -19,7 +19,7 @@ TSharedRef Xor(const std::vector<TSharedRef>& refs)
     // TODO(ignat): optimize it using SSE
     size_t size = refs.front().Size();
     TBlob result(size); // this also fills it with zeros
-    FOREACH (const auto& ref, refs) {
+    for (const auto& ref : refs) {
         const char* data = ref.Begin();
         for (size_t pos = 0; pos < size; ++pos) {
             result[pos] ^= data[pos];
@@ -153,12 +153,12 @@ std::vector<TSharedRef> TLrc::Decode(
         recoveryIndices.back() < DataPartCount_ + 2)
     {
         std::vector<TSharedRef> result;
-        FOREACH (int index, indices) {
+        for (int index : indices) {
             for (int groupIndex = 0; groupIndex < 2; ++groupIndex) {
                 if (!Contains(Groups_[groupIndex], index)) continue;
 
                 std::vector<TSharedRef> correspondingBlocks;
-                FOREACH (int pos, Groups_[groupIndex]) {
+                for (int pos : Groups_[groupIndex]) {
                     for (int i = 0; i < blocks.size(); ++i) {
                         if (!(recoveryIndices[i] == pos)) continue;
                         correspondingBlocks.push_back(blocks[i]);
@@ -199,7 +199,7 @@ bool TLrc::CanRepair(const TPartIndexList& erasedIndices) const
     auto totalPartCount = DataPartCount_ + ParityPartCount_;
     if (totalPartCount <= BitmaskOptimizationThreshold) {
         int mask = (1 << (totalPartCount)) - 1;
-        FOREACH (int index, erasedIndices) {
+        for (int index : erasedIndices) {
             mask -= (1 << index);
         }
         return CanRepair_[mask];
@@ -289,7 +289,7 @@ TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedInd
 
     // Calculate coverage of each group.
     int groupCoverage[2] = {0};
-    FOREACH (int index, indices) {
+    for (int index : indices) {
         for (int i = 0; i < 2; ++i) {
             if (Contains(Groups_[i], index)) {
                 groupCoverage[i] += 1;

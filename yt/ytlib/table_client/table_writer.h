@@ -36,7 +36,7 @@ namespace NTableClient {
 IAsyncWriterPtr CreateAsyncTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransactionPtr transaction,
+    NTransactionClient::TTransactionPtr transaction,
     NTransactionClient::TTransactionManagerPtr transactionManager,
     const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns);

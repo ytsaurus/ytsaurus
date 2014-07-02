@@ -5,20 +5,19 @@
 
 #include <ytlib/object_client/public.h>
 
-///////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-namespace NYT {
-
-class TBlobOutput;
-class TFakeStringBufStore;
-
-} // namespace NYT
-
-///////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NChunkClient {
+
+///////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TChunkSpec;
+class TChunkMeta;
+
+class TReqFetch;
+
+} // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +30,7 @@ extern TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
-//! Used as an expected upper bound in TSmallVector.
+//! Used as an expected upper bound in SmallVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).
  *  Additional +8 enables some flexibility during balancing.
@@ -39,7 +38,7 @@ extern TChunkTreeId NullChunkTreeId;
 const int TypicalReplicaCount = 24;
 
 class TChunkReplica;
-typedef TSmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
+typedef SmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;
@@ -51,6 +50,7 @@ DECLARE_ENUM(EChunkType,
     ((Unknown) (0))
     ((File)    (1))
     ((Table)   (2))
+    ((Journal) (3))
 );
 
 DECLARE_ENUM(EErrorCode,
@@ -66,9 +66,7 @@ DECLARE_ENUM(EErrorCode,
     ((ChunkPrecachingFailed)    (709))
     ((OutOfSpace)               (710))
     ((IOError)                  (711))
-
     ((MasterCommunicationFailed)(712))
-    ((AddressNotFound)          (713))
 );
 
 //! Values must be contiguous.
@@ -80,84 +78,55 @@ DECLARE_ENUM(EWriteSessionType,
 
 DECLARE_ENUM(EReadSessionType,
     ((User)                     (0))
-    ((Repair)                   (1))
+    ((Replication)              (1))
+    ((Repair)                   (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReaderConfig;
-typedef TIntrusivePtr<TReplicationReaderConfig> TReplicationReaderConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TClientBlockCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TSequentialReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicationWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TEncodingWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
 
-class TClientBlockCacheConfig;
-typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TEncodingWriter)
+DECLARE_REFCOUNTED_CLASS(TEncodingChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TSequentialReader)
 
-class TEncodingWriterConfig;
-typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IReader)
+DECLARE_REFCOUNTED_STRUCT(IWriter)
 
-struct TEncodingWriterOptions;
-typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
+DECLARE_REFCOUNTED_STRUCT(IChunkWriterBase)
+DECLARE_REFCOUNTED_STRUCT(IMultiChunkWriter)
 
-class TDispatcherConfig;
-typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
+DECLARE_REFCOUNTED_STRUCT(IBlockCache)
 
-class TMultiChunkWriterConfig;
-typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TFileReader)
+DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
-struct TMultiChunkWriterOptions;
-typedef TIntrusivePtr<TMultiChunkWriterOptions> TMultiChunkWriterOptionsPtr;
+DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
-struct TMultiChunkReaderConfig;
-typedef TIntrusivePtr<TMultiChunkReaderConfig> TMultiChunkReaderConfigPtr;
-
-class TEncodingWriter;
-typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
-
-struct IAsyncWriter;
-typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
-
-struct IAsyncReader;
-typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
-
-class TSequentialReader;
-typedef TIntrusivePtr<TSequentialReader> TSequentialReaderPtr;
-
-struct IBlockCache;
-typedef TIntrusivePtr<IBlockCache> IBlockCachePtr;
-
-class TSequentialReaderConfig;
-typedef TIntrusivePtr<TSequentialReaderConfig> TSequentialReaderConfigPtr;
-
-class TReplicationWriterConfig;
-typedef TIntrusivePtr<TReplicationWriterConfig> TReplicationWriterConfigPtr;
-
-class TErasureWriterConfig;
-typedef TIntrusivePtr<TErasureWriterConfig> TErasureWriterConfigPtr;
-
-class TFileReader;
-typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
-
-class TFileWriter;
-typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
+template <class TChunkReader>
+class TOldMultiChunkSequentialReader;
 
 template <class TChunkWriter>
-class TMultiChunkSequentialWriter;
+class TOldMultiChunkSequentialWriter;
 
-///////////////////////////////////////////////////////////////////////////////
+template <class TChunkReader>
+class TOldMultiChunkSequentialReader;
 
-template <class TBuffer>
-class TKey;
+DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
+DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
-template <class TStrType>
-class TKeyPart;
-
-typedef TKey<TBlobOutput> TOwningKey;
-typedef TKey<TFakeStringBufStore> TNonOwningKey;
-
-struct TRefCountedChunkSpec;
-typedef TIntrusivePtr<TRefCountedChunkSpec> TRefCountedChunkSpecPtr;
-
-struct TChunkSlice;
-typedef TIntrusivePtr<TChunkSlice> TChunkSlicePtr;
+class TReadLimit;
 
 class TChannel;
 typedef std::vector<TChannel> TChannels;

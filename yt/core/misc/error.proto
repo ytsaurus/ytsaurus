@@ -1,5 +1,7 @@
 package NYT.NProto;
 
+option java_package = "ru.yandex.yt";
+
 import "yt/core/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

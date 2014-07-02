@@ -5,14 +5,13 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <core/ytree/attribute_helpers.h>
-
 #include <core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,8 +20,6 @@ TSharedRefArray CreateRequestMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    YCHECK(body);
-
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;
@@ -43,8 +40,6 @@ TSharedRefArray CreateResponseMessage(
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
 {
-    YCHECK(body);
-
     std::vector<TSharedRef> parts;
 
     TSharedRef headerData;
@@ -60,20 +55,20 @@ TSharedRefArray CreateResponseMessage(
     return TSharedRefArray(std::move(parts));
 }
 
-TSharedRefArray CreateResponseMessage(IServiceContextPtr context)
+TSharedRefArray CreateResponseMessage(
+    const ::google::protobuf::MessageLite& body,
+    const std::vector<TSharedRef>& attachments)
 {
     NProto::TResponseHeader header;
-    ToProto(header.mutable_request_id(), context->GetRequestId());
-    ToProto(header.mutable_error(), context->GetError());
-    ToProto(header.mutable_attributes(), context->ResponseAttributes());
+    ToProto(header.mutable_error(), TError());
 
-    return
-        context->GetError().IsOK()
-        ? CreateResponseMessage(
-            header,
-            context->GetResponseBody(),
-            context->ResponseAttachments())
-        : CreateErrorResponseMessage(header);
+    TSharedRef serializedBody;
+    YCHECK(SerializeToProtoWithEnvelope(body, &serializedBody));
+
+    return CreateResponseMessage(
+        header,
+        serializedBody,
+        attachments);
 }
 
 TSharedRefArray CreateErrorResponseMessage(
@@ -144,6 +139,21 @@ TSharedRefArray SetResponseHeader(TSharedRefArray message, const NProto::TRespon
     parts[0] = headerData;
 
     return TSharedRefArray(parts);
+}
+
+void MergeRequestHeaderExtensions(
+    NProto::TRequestHeader* to,
+    const NProto::TRequestHeader& from)
+{
+#define X(name) \
+    if (from.HasExtension(name)) { \
+        to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
+    }
+
+    X(TAuthenticatedExt::authenticated_ext)
+    X(TTracingExt::tracing_ext)
+
+#undef X
 }
 
 ////////////////////////////////////////////////////////////////////////////////

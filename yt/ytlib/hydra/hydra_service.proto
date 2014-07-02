@@ -1,0 +1,84 @@
+package NYT.NHydra.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadChangeLog
+{
+    required int32 changelog_id = 1;
+    required int32 start_record_id = 2;
+    required int32 record_count = 3;
+}
+
+message TRspReadChangeLog
+{
+    // Changelog records are passed in the attachment and are packed with PackRefs.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupChangelog
+{
+    required int32 changelog_id = 1;
+}
+
+message TRspLookupChangelog
+{
+    optional int32 record_count = 2;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingFollower
+{
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 committed_revision = 2;
+    required int64 logged_revision = 3;
+}
+
+message TRspPingFollower
+{
+    required int32 state = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLogMutations
+{
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 start_revision = 2;
+    required int64 committed_revision = 3;
+    // Records data is passed via attachments.
+}
+
+message TRspLogMutations
+{
+    optional bool logged = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBuildSnapshot
+{
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 revision = 2;
+}
+
+message TRspBuildSnapshot
+{
+    required uint64 checksum = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRotateChangelog
+{
+    required NYT.NProto.TGuid epoch_id = 1;
+    required int64 revision = 2;
+}
+
+message TRspRotateChangelog
+{ }
+                                                                              
+////////////////////////////////////////////////////////////////////////////////

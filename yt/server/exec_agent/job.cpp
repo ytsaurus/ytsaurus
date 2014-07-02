@@ -11,11 +11,11 @@
 #include <core/misc/proc.h>
 #include <core/misc/assert.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/serialize.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
@@ -26,10 +26,9 @@
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/config.h>
-#include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -78,6 +77,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NConcurrency;
+using namespace NApi;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NScheduler::NProto::TUserJobSpec;
@@ -206,7 +206,7 @@ public:
         }
 
         JobResult = jobResult;
-        auto resultError = FromProto(jobResult.error());
+        auto resultError = FromProto<TError>(jobResult.error());
 
         if (resultError.IsOK()) {
             return;
@@ -296,7 +296,7 @@ private:
 
     TNullable<TInstant> StartTime;
 
-    std::vector<NDataNode::TCachedChunkPtr> CachedChunks;
+    std::vector<NDataNode::IChunkPtr> CachedChunks;
 
     // Special node directory used to read cached chunks.
     TNodeDirectoryPtr NodeDirectory;
@@ -424,11 +424,11 @@ private:
         if (!userJobSpec)
             return;
 
-        FOREACH (const auto& descriptor, userJobSpec->regular_files()) {
+        for (const auto& descriptor : userJobSpec->regular_files()) {
             PrepareRegularFile(descriptor);
         }
 
-        FOREACH (const auto& descriptor, userJobSpec->table_files()) {
+        for (const auto& descriptor : userJobSpec->table_files()) {
             PrepareTableFile(descriptor);
         }
     }
@@ -526,7 +526,7 @@ private:
         auto chunkCache = Bootstrap->GetChunkCache();
         auto this_ = MakeStrong(this);
 
-        FOREACH (const auto chunk, fetchRsp.chunks()) {
+        for (const auto chunk : fetchRsp.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
 
             if (IsErasureChunkId(chunkId)) {
@@ -536,7 +536,7 @@ private:
 
             awaiter->Await(
                 chunkCache->DownloadChunk(chunkId),
-                BIND([=](NDataNode::TChunkCache::TDownloadResult result) {
+                BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
                             "Failed to download chunk %s",
@@ -557,7 +557,7 @@ private:
     {
         std::vector<NChunkClient::NProto::TChunkSpec> chunks;
         chunks.insert(chunks.end(), fetchRsp.chunks().begin(), fetchRsp.chunks().end());
-        FOREACH (auto& chunk, chunks) {
+        for (auto& chunk : chunks) {
             chunk.clear_replicas();
             chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
         }
@@ -580,7 +580,7 @@ private:
         }
 
         const auto& chunk = descriptor.file().chunks(0);
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.chunk_meta().extensions());
         auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
         return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
@@ -637,11 +637,11 @@ private:
 
         auto provider = New<TFileChunkReaderProvider>(config);
 
-        typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
+        typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
 
         auto reader = New<TReader>(
             config,
-            Bootstrap->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
             std::move(chunks),
@@ -700,7 +700,7 @@ private:
 
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,
-            Bootstrap->GetMasterChannel(),
+            Bootstrap->GetMasterClient()->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
             NodeDirectory,
             std::move(chunks),
@@ -717,7 +717,7 @@ private:
                     format,
                     NFormats::EDataType::Tabular,
                     output);
-                ProduceYson(syncReader, ~consumer);
+                ProduceYson(syncReader, consumer.get());
             };
 
             Slot->MakeFile(fileName, producer);
@@ -734,7 +734,7 @@ private:
 
     static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
-        auto resultError = FromProto(jobResult.error());
+        auto resultError = FromProto<TError>(jobResult.error());
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
@@ -764,14 +764,13 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
-            error.FindMatching(NNodeTrackerClient::EErrorCode::InvalidNetwork) ||
-            error.FindMatching(NChunkClient::EErrorCode::AddressNotFound);
+            error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork);
     }
 
     void ThrowIfFinished()
     {
         if (JobPhase == EJobPhase::Finished) {
-            throw TFiberTerminatedException();
+            throw TFiberCanceledException();
         }
     }
 

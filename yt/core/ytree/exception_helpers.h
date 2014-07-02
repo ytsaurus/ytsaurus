@@ -17,7 +17,7 @@ void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
 void ThrowNoSuchAttribute(const Stroka& key);
 void ThrowNoSuchBuiltinAttribute(const Stroka& key);
 void ThrowNoSuchCustomAttribute(const Stroka& key);
-void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveType = Null);
+void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& resolveType = Null);
 void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowAlreadyExists(IConstNodePtr node);
 void ThrowCannotRemoveRoot();

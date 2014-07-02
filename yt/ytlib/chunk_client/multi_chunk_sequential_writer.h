@@ -3,11 +3,13 @@
 #include "public.h"
 #include "config.h"
 #include "chunk_replica.h"
+#include "writer_base.h"
 
 #include <core/misc/async_stream_state.h>
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -22,17 +24,16 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkWriter>
-class TMultiChunkSequentialWriter
-    : virtual public TRefCounted
+template <class TProvider>
+class TOldMultiChunkSequentialWriter
+    : public virtual IWriterBase
 {
 public:
-    typedef typename TChunkWriter::TProvider TProvider;
     typedef TIntrusivePtr<TProvider> TProviderPtr;
+    typedef typename TProvider::TChunkWriter TChunkWriter;
+    typedef typename TProvider::TFacade TFacade;
 
-    typedef typename TChunkWriter::TFacade TFacade;
-
-    TMultiChunkSequentialWriter(
+    TOldMultiChunkSequentialWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         TProviderPtr provider,
@@ -40,15 +41,13 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId);
 
-    ~TMultiChunkSequentialWriter();
-
-    TAsyncError AsyncOpen();
-    TAsyncError AsyncClose();
+    virtual TAsyncError Open() override;
+    virtual TAsyncError Close() override;
 
     // Returns pointer to writer facade, which allows single write operation.
     // In nullptr is returned, caller should subscribe to ReadyEvent.
     TFacade* GetCurrentWriter();
-    TAsyncError GetReadyEvent();
+    virtual TAsyncError GetReadyEvent() override;
 
     void SetProgress(double progress);
 
@@ -61,20 +60,17 @@ public:
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
     TProviderPtr GetProvider();
 
-    //! Current row count.
-    i64 GetRowCount() const;
-
 protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        IAsyncWriterPtr AsyncWriter;
+        IWriterPtr AsyncWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
         TSession()
-            : ChunkWriter(NULL)
-            , AsyncWriter(NULL)
+            : ChunkWriter(nullptr)
+            , AsyncWriter(nullptr)
         { }
 
         bool IsNull() const
@@ -91,7 +87,7 @@ protected:
     };
 
     void CreateNextSession();
-    virtual void InitCurrentSession(TSession nextSession);
+    void InitCurrentSession(TSession nextSession);
 
     void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
 

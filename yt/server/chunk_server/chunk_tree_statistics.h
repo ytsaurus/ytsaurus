@@ -14,33 +14,34 @@ namespace NChunkServer {
 struct TChunkTreeStatistics
 {
     //! Total number of rows in the tree.
-    i64 RowCount;
+    i64 RowCount = 0;
+
+    //! Total number of records in the tree.
+    i64 RecordCount = 0;
 
     //! Sum of uncompressed data sizes of chunks in the tree.
-    i64 UncompressedDataSize;
+    i64 UncompressedDataSize = 0;
 
     //! Sum of compressed data sizes of chunks in the tree.
-    i64 CompressedDataSize;
+    i64 CompressedDataSize = 0;
 
     //! Sum of data weights of chunks in the tree.
-    i64 DataWeight;
+    i64 DataWeight = 0;
 
     //! Disk space occupied on data nodes by regular chunks (without replication).
-    i64 RegularDiskSpace;
+    i64 RegularDiskSpace = 0;
 
     //! Disk space occupied on data nodes by erasure chunks (including parity parts).
-    i64 ErasureDiskSpace;
+    i64 ErasureDiskSpace = 0;
 
     //! Total number of chunks in the tree.
-    i32 ChunkCount;
+    int ChunkCount = 0;
 
     //! Total number of chunk lists in the tree.
-    i32 ChunkListCount;
+    int ChunkListCount = 0;
 
     //! Distance to leaves (chunks) in edges. Leaves have rank zero.
-    i32 Rank;
-
-    TChunkTreeStatistics();
+    int Rank = 0;
 
     void Accumulate(const TChunkTreeStatistics& other);
 

@@ -9,7 +9,7 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A facade for locating chunks that are fully uploaded to the chunk holder.
+//! A facade for locating chunks.
 /*!
  *  Uploaded chunks can be registered either at TChunkStore or at TChunkCache.
  *  This class provides a single entry point for locating these chunks.
@@ -18,16 +18,20 @@ class TChunkRegistry
     : public TRefCounted
 {
 public:
-    //! Initializes a new instance.
     explicit TChunkRegistry(NCellNode::TBootstrap* bootstrap);
 
-    //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunkPtr FindChunk(const TChunkId& chunkId) const;
+    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
+    IChunkPtr FindChunk(const TChunkId& chunkId);
+
+    //! Finds chunk by id. Throws if no chunk exists.
+    IChunkPtr GetChunk(const TChunkId& chunkId);
 
 private:
-    NCellNode::TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 

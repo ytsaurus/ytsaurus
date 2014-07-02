@@ -7,9 +7,9 @@
 
 #include <core/actions/signal.h>
 
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/mutation.h>
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/composite_automaton.h>
+#include <server/hydra/mutation.h>
+#include <server/hydra/entity_map.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -36,13 +36,13 @@ public:
 
     void Initialize();
 
-    NMetaState::TMutationPtr CreateUpdateChunkPropertiesMutation(
-        const NProto::TMetaReqUpdateChunkProperties& request);
+    NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
+        const NProto::TReqUpdateChunkProperties& request);
 
-    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     TChunk* GetChunkOrThrow(const TChunkId& id);
 
-    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
@@ -50,7 +50,9 @@ public:
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
-        const TNullable<Stroka>& preferredHostName);
+        const TNodeSet* forbiddenNodes,
+        const TNullable<Stroka>& preferredHostName,
+        NObjectClient::EObjectType chunkType);
 
     TChunk* CreateChunk(NObjectServer::EObjectType type);
     TChunkList* CreateChunkList();
@@ -58,16 +60,24 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree** childrenBegin,
-        TChunkTree** childrenEnd,
-        bool resetSorted = true);
+        TChunkTree** childrenEnd);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children,
-        bool resetSorted = true);
+        const std::vector<TChunkTree*>& children);
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* child,
-        bool resetSorted = true);
+        TChunkTree* child);
+
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd);
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        const std::vector<TChunkTree*>& children);
+    void DetachFromChunkList(
+        TChunkList* chunkList,
+        TChunkTree* child);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 
@@ -76,6 +86,9 @@ public:
         const std::vector<NChunkClient::TChunkReplica>& replicas,
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
+    
+    void UnstageChunk(TChunk* chunk);
+    void UnstageChunkList(TChunkList* chunkList, bool recursive);
 
     TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex);
 
@@ -93,7 +106,9 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void SchedulePropertiesUpdate(TChunkTree* chunkTree);
+    void ScheduleChunkRefresh(TChunk* chunk);
+    void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
+    void ScheduleChunkSeal(TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;
@@ -101,22 +116,29 @@ public:
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
+    const yhash_set<TChunk*>& QuorumMissingChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
+    void SealChunk(TChunk* chunk, int recordCount);
+    TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk);
+
 private:
     class TImpl;
     class TChunkTypeHandlerBase;
     class TChunkTypeHandler;
     class TErasureChunkTypeHandler;
+    class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;
 
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

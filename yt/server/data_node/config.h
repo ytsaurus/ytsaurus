@@ -6,6 +6,8 @@
 
 #include <ytlib/chunk_client/config.h>
 
+#include <server/hydra/config.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -27,6 +29,8 @@ public:
             .Default(TDuration::Minutes(10));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TPeerBlockTableConfig)
 
 class TLocationConfig
     : public NYTree::TYsonSerializable
@@ -73,6 +77,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TLocationConfig)
+
 class TDiskHealthCheckerConfig
     : public NYTree::TYsonSerializable
 {
@@ -98,6 +104,54 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
+
+class TMultiplexedChangelogConfig
+    : public NHydra::TFileChangelogConfig
+{
+public:
+    //! A path where multiplexed changelogs are stored.
+    Stroka Path;
+
+    //! Multiplexed changelog record count limit.
+    /*!
+     *  When this limit is reached, the current multiplexed changelog is rotated.
+     */
+    int MaxRecordCount;
+
+    //! Multiplexed changelog data size limit, in bytes.
+    /*!
+     *  See #MaxRecordCount.
+     */
+    i64 MaxDataSize;
+
+    //! Maximum bytes of multiplexed changelog to read during
+    //! a single iteration of replay.
+    i64 ReplayBufferSize;
+
+    //! Maximum number of clean multiplexed changelogs to keep.
+    int MaxCleanChangelogsToKeep;
+
+    TMultiplexedChangelogConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("max_record_count", MaxRecordCount)
+            .Default(1000000)
+            .GreaterThan(0);
+        RegisterParameter("max_data_size", MaxDataSize)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        RegisterParameter("replay_buffer_size", ReplayBufferSize)
+            .GreaterThan(0)
+            .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("max_clean_changelogs_to_keep", MaxCleanChangelogsToKeep)
+            .GreaterThanOrEqual(0)
+            .Default(3);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
+
 //! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
@@ -121,8 +175,20 @@ public:
     //! Block cache size (in bytes).
     i64 BlockCacheSize;
 
-    //! Maximum number opened files in cache.
-    int MaxCachedReaders;
+    //! Maximum number of cached blob chunks readers.
+    int BlobReaderCacheSize;
+
+    //! Multiplexed changelog configuration.
+    TMultiplexedChangelogConfigPtr MultiplexedChangelog;
+
+    //! Split (per chunk) changelog configuration.
+    NHydra::TFileChangelogConfigPtr SplitChangelog;
+
+    //! Maximum number of cached split changelogs.
+    int MaxCachedChangelogs;
+
+    //! Maximum number of cached opened changelogs.
+    int ChangelogReaderCacheSize;
 
     //! Upload session timeout.
     /*!
@@ -168,6 +234,9 @@ public:
     //! Writer configuration used to repair chunks.
     NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
+    //! Reader configuration used to seal chunks.
+    NChunkClient::TReplicationReaderConfigPtr SealReader;
+
     //! Controls incoming bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
@@ -192,6 +261,12 @@ public:
     //! Maximum number of concurrent balancing write sessions.
     int MaxWriteSessions;
 
+    //! Maximum number of blocks to fetch via a single range request.
+    int MaxBlocksPerRead;
+
+    //! Maximum number of bytes to fetch via a single range request.
+    i64 MaxBytesPerRead;
+
 
     TDataNodeConfig()
     {
@@ -201,12 +276,26 @@ public:
             .Default(Null);
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
+        
         RegisterParameter("block_cache_size", BlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
-        RegisterParameter("max_cached_readers", MaxCachedReaders)
+
+        RegisterParameter("blob_reader_cache_size", BlobReaderCacheSize)
             .GreaterThan(0)
-            .Default(10);
+            .Default(256);
+
+        RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
+            .Default(nullptr);
+        RegisterParameter("split_changelog", SplitChangelog)
+            .DefaultNew();
+        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
+            .GreaterThan(0)
+            .Default(256);
+        RegisterParameter("changelog_reader_cache_size", ChangelogReaderCacheSize)
+            .GreaterThan(0)
+            .Default(256);
+
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
@@ -215,6 +304,7 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
+
         RegisterParameter("bus_out_throttling_limit", BusOutThrottlingLimit)
             .GreaterThan(0)
             .Default((i64) 512 * 1024 * 1024);
@@ -222,10 +312,12 @@ public:
             .GreaterThan(0)
             // TODO(babenko): provide some meaningful default
             .Default((i64) 100 * 1024 * 1024 * 1024);
+
         RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();
         RegisterParameter("cache_location", CacheLocation)
             .DefaultNew();
+
         RegisterParameter("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
         RegisterParameter("cache_sequential_reader", CacheSequentialReader)
@@ -236,6 +328,10 @@ public:
             .DefaultNew();
         RegisterParameter("repair_writer", RepairWriter)
             .DefaultNew();
+
+        RegisterParameter("seal_reader", SealReader)
+            .DefaultNew();
+
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
@@ -244,18 +340,37 @@ public:
             .DefaultNew();
         RegisterParameter("repair_out_throttler", RepairOutThrottler)
             .DefaultNew();
+
         RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();
+
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
+
         RegisterParameter("write_thread_count", WriteThreadCount)
             .Default(1)
             .GreaterThanOrEqual(1);
+            
         RegisterParameter("max_write_sessions", MaxWriteSessions)
             .Default(1000)
             .GreaterThanOrEqual(1);
+
+        RegisterParameter("max_block_per_read", MaxBlocksPerRead)
+            .GreaterThan(0)
+            .Default(100000);
+        RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
+            .GreaterThan(0)
+            .Default((i64) 64 * 1024 * 1024);
+
+        RegisterInitializer([&] () {
+            // Expect many splits -- adjust configuration.
+            SplitChangelog->FlushBufferSize = (i64) 16 * 1024 * 1024;
+            SplitChangelog->FlushPeriod = TDuration::Seconds(15);
+        });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

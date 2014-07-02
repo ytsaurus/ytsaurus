@@ -1,12 +1,13 @@
 #pragma once
 
 #include "public.h"
+#include "execution_stack.h"
+#include "execution_context.h"
 
-#include <core/misc/error.h>
-
-#include <core/actions/callback.h>
 #include <core/actions/future.h>
-#include <core/actions/invoker_util.h>
+#include <core/actions/invoker.h>
+
+#include <core/misc/small_vector.h>
 
 #include <exception>
 
@@ -15,117 +16,79 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Someone above has defined this by including one of Windows headers.
-#undef Yield
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Thrown when a fiber is being terminated by external request.
-class TFiberTerminatedException
-{ };
-
-//! Returns a pointer to a new TFiberTerminatedException instance.
-std::exception_ptr CreateFiberTerminatedException();
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_ENUM(EFiberState,
-    (Initialized) // Initialized, but not run.
-    (Terminated)  // Terminated.
-    (Exception)   // Terminated because of an exception.
-    (Suspended)   // Currently suspended.
+    (Sleeping)    // Unscheduled and waiting for an external event to happen.
+    (Suspended)   // Scheduled but not yet running.
     (Running)     // Currently executing.
-);
-
-DECLARE_ENUM(EFiberStack,
-    (Small)       // 256 Kb (default)
-    (Large)       //   8 Mb
+    (Terminated)  // Terminated.
+    (Canceled)    // Canceled. :)
+    (Crashed)     // Crashed. :)
 );
 
 class TFiber
     : public TRefCounted
 {
-private:
-    TFiber();
-    TFiber(const TFiber&);
-    TFiber(TFiber&&);
-    TFiber& operator=(const TFiber&);
-    TFiber& operator=(TFiber&&);
-
-    friend TIntrusivePtr<TFiber> NYT::New<TFiber>();
-
 public:
-    explicit TFiber(TClosure callee, EFiberStack stack = EFiberStack::Small);
+    explicit TFiber(
+        TClosure callee,
+        EExecutionStack stack = EExecutionStack::Small);
+
+    TFiber(const TFiber&) = delete;
+    TFiber(TFiber&&) = delete;
+
     ~TFiber();
 
-    static TFiber* GetCurrent();
+    TFiberId GetId() const;
 
     EFiberState GetState() const;
-    bool Yielded() const;
-    bool IsTerminating() const;
-    bool IsCanceled() const;
+    void SetState(EFiberState state);
 
-    void Run();
-    void Yield();
+    TExecutionContext* GetContext();
+    std::exception_ptr GetException();
 
-    void Reset();
-    void Reset(TClosure closure);
-
-    void Inject(std::exception_ptr&& exception);
     void Cancel();
 
-    void SwitchTo(IInvokerPtr invoker);
-    void WaitFor(TFuture<void> future, IInvokerPtr invoker);
+    bool IsCanceled() const;
+    bool CanReturn() const;
 
-    IInvokerPtr GetCurrentInvoker();
-    void SetCurrentInvoker(IInvokerPtr invoker);
-
-    typedef intptr_t TFlsSlotValue;
-    typedef TFlsSlotValue (*TFlsSlotCtor)();
-    typedef void (*TFlsSlotDtor)(TFlsSlotValue);
-
-    static int FlsRegister(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
-    TFlsSlotValue FlsGet(int index);
-    void FlsSet(int index, TFlsSlotValue value);
+    // Fiber-specific data.
+    uintptr_t& FsdAt(int index);
 
 private:
-    class TImpl;
+    TFiberId Id_;
+    EFiberState State_;
 
-    std::unique_ptr<TImpl> Impl_;
+    std::shared_ptr<TExecutionStack> Stack_;
+    TExecutionContext Context_;
+    std::exception_ptr Exception_;
 
+    std::atomic<bool> Canceled_;
+
+    TClosure Callee_;
+
+    SmallVector<uintptr_t, 8> Fsd_;
+    void FsdResize();
+
+    static void Trampoline(void*);
 };
+
+DEFINE_REFCOUNTED_TYPE(TFiber)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Yields control until it is manually transferred back to the current fiber.
-void Yield();
+namespace NDetail {
 
-//! Yields control until a given future is set and ensures that
-//! execution continues within a given invoker.
-void WaitFor(
-    TFuture<void> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+TClosure GetCurrentFiberCanceler();
 
-//! Yields control until a given future is set, ensures that
-//! execution continues within a given invoker, and returns
-//! the final value of the future.
-template <class T>
-T WaitFor(
-    TFuture<T> future,
-    IInvokerPtr invoker = GetCurrentInvoker());
+void ResumeFiber(TFiberPtr fiber);
+void UnwindFiber(TFiberPtr fiber);
 
-//! Transfers control to another invoker.
-/*!
-  *  The behavior is achieved by yielding control and enqueuing
-  *  a special continuation callback into |invoker|.
-  */
-void SwitchTo(IInvokerPtr invoker);
+void ShutdownUnwindThread();
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConcurrency
 } // namespace NYT
 
-#define FIBER_INL_H_
-#   include "fiber-inl.h"
-#undef FIBER_INL_H_

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 
 namespace NYT {
 
@@ -17,9 +18,9 @@ class TRawFormatter
 {
 public:
     TRawFormatter()
-        : Begin(Buffer)
-        , Cursor(Buffer)
-        , End(Buffer + N)
+        : Begin(Buffer.data())
+        , Cursor(Buffer.data())
+        , End(Buffer.data() + N)
     { }
 
     TRawFormatter(char* buffer, int length)
@@ -128,7 +129,7 @@ public:
     }
 
 private:
-    char Buffer[N];
+    std::array<char, N> Buffer;
     char* const Begin;
     char* Cursor;
     char* const End;

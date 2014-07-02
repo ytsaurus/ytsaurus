@@ -1,4 +1,4 @@
-from yson_types import *
+from yt.yson.yson_types import *
 
 from common import YsonError
 

@@ -4,16 +4,16 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/merging_reader.h>
 
 #include <core/ytree/yson_string.h>
@@ -34,7 +34,7 @@ using namespace NJobTrackerClient::NProto;
 static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
-typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,7 @@ public:
             auto options = New<TChunkReaderOptions>();
             options->ReadKey = true;
 
-            FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
+            for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
                 std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
@@ -93,7 +93,7 @@ public:
                 config->JobIO->TableWriter,
                 options);
 
-            Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+            Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
                 config->JobIO->TableWriter,
                 options,
                 writerProvider,

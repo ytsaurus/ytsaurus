@@ -5,22 +5,29 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager;
-typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_CLASS(TTimestampManager)
 
-class TTransactionManagerConfig;
-typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TTimestampManagerConfig)
 
 class TTransaction;
-typedef TSmallVector<TTransaction*, 4> TTransactionPath;
+typedef SmallVector<TTransaction*, 4> TTransactionPath;
+
+////////////////////////////////////////////////////////////////////////////////
 
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
+
+using NTransactionClient::TTimestamp;
+using NTransactionClient::NullTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
 

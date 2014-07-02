@@ -3,12 +3,19 @@
 #include "public.h"
 
 #include <core/concurrency/action_queue.h>
+
 #include <core/bus/public.h>
+
 #include <core/rpc/public.h>
-#include <ytlib/cell_directory/public.h>
+
+#include <ytlib/api/public.h>
+
+#include <ytlib/hive/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <server/scheduler/public.h>
+
 
 namespace NYT {
 namespace NCellScheduler {
@@ -29,12 +36,11 @@ public:
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
-    NRpc::IChannelPtr GetMasterChannel() const;
+    NApi::IClientPtr GetMasterClient() const;
     const Stroka& GetLocalAddress() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
-    NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
-    NCellDirectory::TCellDirectoryPtr GetCellDirectory() const;
+    NHive::TClusterDirectoryPtr GetClusterDirectory() const;
 
     void Run();
 
@@ -44,11 +50,10 @@ private:
 
     NConcurrency::TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
-    NRpc::IChannelPtr MasterChannel;
+    NApi::IClientPtr MasterClient;
     Stroka LocalAddress;
-    NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
-    NCellDirectory::TCellDirectoryPtr CellDirectory;
+    NHive::TClusterDirectoryPtr ClusterDirectory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

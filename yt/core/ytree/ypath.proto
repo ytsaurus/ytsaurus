@@ -1,5 +1,34 @@
 package NYT.NYTree.NProto;
 
+import "yt/core/rpc/rpc.proto";
+import "yt/core/ytree/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TYPathHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TYPathHeaderExt ypath_header_ext = 104;
+    }
+
+    optional bool mutating = 1 [default = false];
+    required string path = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCachingHeaderExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TCachingHeaderExt caching_header_ext = 105;
+    }
+
+    required int32 success_expiration_time = 1;
+    required int32 failure_expiration_time = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TAttributeFilter
@@ -13,6 +42,7 @@ message TReqGet
     optional TAttributeFilter attribute_filter = 1;
     optional int64 max_size = 2;
     optional bool ignore_opaque = 3;
+	optional NYT.NYTree.NProto.TAttributes options = 4;
 }
 
 message TRspGet

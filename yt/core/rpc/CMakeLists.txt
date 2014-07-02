@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/rpc )
 set( SRCS
   ${BASE}/bus_channel.cpp
-  ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/helpers.cpp
@@ -12,18 +11,23 @@ set( SRCS
   ${BASE}/redirector_service.cpp
   ${BASE}/retrying_channel.cpp
   ${BASE}/roaming_channel.cpp
+  ${BASE}/balancing_channel.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/serialized_channel.cpp
-  ${BASE}/server.cpp
+  ${BASE}/bus_server.cpp
+  ${BASE}/local_server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
   ${BASE}/service_detail.cpp
   ${BASE}/throttling_channel.cpp
+  ${BASE}/static_channel_factory.cpp
+  ${BASE}/caching_channel_factory.cpp
+  ${BASE}/local_channel.cpp
+  ${BASE}/response_keeper.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
   ${BASE}/channel.h
-  ${BASE}/channel_cache.h
   ${BASE}/client.h
   ${BASE}/config.h
   ${BASE}/dispatcher.h
@@ -34,13 +38,20 @@ set( HDRS
   ${BASE}/redirector_service.h
   ${BASE}/retrying_channel.h
   ${BASE}/roaming_channel.h
+  ${BASE}/balancing_channel.h
   ${BASE}/scoped_channel.h
   ${BASE}/serialized_channel.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
+  ${BASE}/bus_server.h
+  ${BASE}/local_server.h
   ${BASE}/service.h
   ${BASE}/service_detail.h
   ${BASE}/throttling_channel.h
+  ${BASE}/static_channel_factory.h
+  ${BASE}/caching_channel_factory.h
+  ${BASE}/local_channel.h
+  ${BASE}/response_keeper.h
 )
 
 list(APPEND YT_SOURCE_FILES

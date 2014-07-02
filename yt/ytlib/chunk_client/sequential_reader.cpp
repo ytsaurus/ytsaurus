@@ -15,12 +15,12 @@ using namespace NChunkClient::NProto;
 
 TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
-    std::vector<TBlockInfo>&& blocks,
-    IAsyncReaderPtr chunkReader,
+    std::vector<TBlockInfo> blocks,
+    IReaderPtr chunkReader,
     NCompression::ECodec codecId)
     : UncompressedDataSize_(0)
     , CompressedDataSize_(0)
-    , BlockSequence(blocks)
+    , BlockSequence(std::move(blocks))
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
@@ -28,7 +28,7 @@ TSequentialReader::TSequentialReader(
     , NextUnfetchedIndex(0)
     , FetchingCompleteEvent(NewPromise())
     , Codec(NCompression::GetCodec(codecId))
-    , Logger(ChunkReaderLogger)
+    , Logger(ChunkClientLogger)
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
 
@@ -95,7 +95,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
 
 void TSequentialReader::OnGotBlocks(
     int firstSequenceIndex,
-    IAsyncReader::TReadResult readResult)
+    IReader::TReadBlocksResult readResult)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -124,10 +124,12 @@ void TSequentialReader::OnGotBlocks(
 
 void TSequentialReader::DecompressBlocks(
     int blockIndex,
-    const IAsyncReader::TReadResult& readResult)
+    const IReader::TReadBlocksResult& readResult)
 {
     const auto& blocks = readResult.Value();
     for (int i = 0; i < blocks.size(); ++i, ++blockIndex) {
+        LOG_DEBUG("Started decompressing block (BlockIndex: %d)", blockIndex + i);
+
         const auto& block = blocks[i];
         auto data = Codec->Decompress(block);
         BlockWindow[blockIndex].Set(data);
@@ -137,12 +139,13 @@ void TSequentialReader::DecompressBlocks(
 
         i64 delta = data.Size() - BlockSequence[blockIndex].Size;
 
-        if (delta > 0)
+        if (delta > 0) {
             AsyncSemaphore.Acquire(delta);
-        else
+        } else {
             AsyncSemaphore.Release(-delta);
+        }
 
-        LOG_DEBUG("Decompressed block %d (CompressedSize: %" PRId64 ", UncompressedSize: %" PRId64 ")", 
+        LOG_DEBUG("Finished decompressing block %d (CompressedSize: %" PRId64 ", UncompressedSize: %" PRId64 ")", 
             blockIndex,
             static_cast<i64>(block.Size()),
             static_cast<i64>(data.Size()));
@@ -153,7 +156,7 @@ void TSequentialReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    // ToDo(psushin): maybe use TSmallVector here?
+    // ToDo(psushin): maybe use SmallVector here?
     auto firstUnfetched = NextUnfetchedIndex;
     std::vector<int> blockIndexes;
     int groupSize = 0;
@@ -196,7 +199,7 @@ void TSequentialReader::RequestBlocks(
     int groupSize)
 {
     AsyncSemaphore.Acquire(groupSize);
-    ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(
+    ChunkReader->ReadBlocks(blockIndexes).Subscribe(
         BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),
             firstIndex)

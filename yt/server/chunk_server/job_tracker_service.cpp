@@ -2,14 +2,13 @@
 #include "job_tracker_service.h"
 #include "chunk_manager.h"
 #include "job.h"
-#include "node_directory_builder.h"
 #include "chunk.h"
 #include "private.h"
 
 #include <core/misc/string.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -17,10 +16,11 @@
 
 #include <ytlib/chunk_client/job.pb.h>
 
-#include <server/cell_master/meta_state_service.h>
+#include <server/cell_master/hydra_service.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -41,11 +41,11 @@ static auto& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobTrackerService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
-        : TMetaStateServiceBase(
+        : THydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
             ChunkServerLogger.GetCategory())
@@ -54,8 +54,6 @@ public:
     }
 
 private:
-    typedef TJobTrackerService TThis;
-
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
         ValidateActiveLeader();
@@ -85,7 +83,7 @@ private:
         node->ResourceUsage() = resourceUsage;
 
         std::vector<TJobPtr> currentJobs;
-        FOREACH (const auto& jobStatus, request->jobs()) {
+        for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = EJobState(jobStatus.state());
             auto jobType = EJobType(jobStatus.job_type());
@@ -101,33 +99,38 @@ private:
                 if (job) {
                     job->SetState(state);
                     if (state == EJobState::Completed || state == EJobState::Failed) {
-                        job->Error() = FromProto(jobStatus.result().error());
+                        job->Error() = FromProto<TError>(jobStatus.result().error());
                     }
                     currentJobs.push_back(job);
                 } else {
                     switch (state) {
                         case EJobState::Completed:
-                            LOG_WARNING("Unknown job has completed, removal scheduled");
+                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Failed:
-                            LOG_INFO("Unknown job has failed, removal scheduled");
+                            LOG_INFO("Unknown job has failed, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Aborted:
-                            LOG_INFO("Job aborted, removal scheduled");
+                            LOG_INFO("Job aborted, removal scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Running:
-                            LOG_WARNING("Unknown job is running, abort scheduled");
+                            LOG_WARNING("Unknown job is running, abort scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 
                         case EJobState::Waiting:
-                            LOG_WARNING("Unknown job is waiting, abort scheduled");
+                            LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %s)",
+                                ~ToString(jobId));
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 
@@ -148,7 +151,7 @@ private:
             &jobsToAbort,
             &jobsToRemove);
 
-        FOREACH (auto job, jobsToStart) {
+        for (auto job : jobsToStart) {
             const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
 
             auto* jobInfo = response->add_jobs_to_start();
@@ -163,8 +166,8 @@ private:
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
-                    auto* replicationJobSpecExt = jobSpec->MutableExtension(TReplicationJobSpecExt::replication_job_spec_ext);
-                    SerializeDescriptors(replicationJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
+                    auto* replciateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+                    SerializeDescriptors(replciateChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
                     break;
                 }
 
@@ -172,18 +175,32 @@ private:
                     break;
 
                 case EJobType::RepairChunk: {
-                    auto chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
 
-                    auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
-                    repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
-                    ToProto(repairJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
+                    auto* repairChunkJobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
+                    repairChunkJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
+                    ToProto(repairChunkJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
 
-                    TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(repairChunkJobSpecExt->mutable_node_directory());
                     const auto& replicas = chunk->StoredReplicas();
                     builder.Add(replicas);
-                    ToProto(repairJobSpecExt->mutable_replicas(), replicas);
+                    ToProto(repairChunkJobSpecExt->mutable_replicas(), replicas);
 
-                    SerializeDescriptors(repairJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
+                    SerializeDescriptors(repairChunkJobSpecExt->mutable_targets(), job->TargetAddresses());
+                    break;
+                }
+
+                case EJobType::SealChunk: {
+                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
+
+                    auto* sealChunkJobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
+
+                    sealChunkJobSpecExt->set_record_count(chunk->GetSealedRecordCount());
+
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(sealChunkJobSpecExt->mutable_node_directory());
+                    const auto& replicas = chunk->StoredReplicas();
+                    builder.Add(replicas);
+                    ToProto(sealChunkJobSpecExt->mutable_replicas(), replicas);
                     break;
                 }
 
@@ -192,11 +209,11 @@ private:
             }
         }
 
-        FOREACH (auto job, jobsToAbort) {
+        for (auto job : jobsToAbort) {
             ToProto(response->add_jobs_to_abort(), job->GetJobId());
         }
 
-        FOREACH (auto job, jobsToRemove) {
+        for (auto job : jobsToRemove) {
             ToProto(response->add_jobs_to_remove(), job->GetJobId());
         }
 
@@ -208,7 +225,7 @@ private:
         const std::vector<Stroka>& addresses)
     {
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        FOREACH (const auto& address, addresses) {
+        for (const auto& address : addresses) {
             auto* target = nodeTracker->GetNodeByAddress(address);
             NNodeTrackerClient::ToProto(protoDescriptors->Add(), target->GetDescriptor());
         }

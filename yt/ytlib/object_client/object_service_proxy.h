@@ -23,7 +23,9 @@ public:
 
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
+    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshot);
 
     //! Executes a single typed request.
     template <class TTypedRequest>
@@ -87,7 +89,7 @@ public:
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
             const Stroka& path,
-            const Stroka& verb);
+            const Stroka& method);
 
         //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
@@ -155,7 +157,7 @@ public:
         typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
 
         TRspExecuteBatch(
-            const NRpc::TRequestId& requestId,
+            NRpc::TClientContextPtr clientContext,
             const TKeyToIndexMultimap& keyToIndexes);
 
         TFuture<TRspExecuteBatchPtr> GetAsyncResult();
@@ -220,10 +222,6 @@ public:
 
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();
-
-private:
-    // The back-end.
-    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
 
 };
 

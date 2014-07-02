@@ -1,0 +1,26 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/query_client/operator.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPlanFragment
+{
+    required TOperator head = 1;
+    required NYT.NProto.TGuid id = 2;
+    required uint64 timestamp = 3;
+    required int64 row_limit = 4;
+}
+
+message TQueryStatistics
+{
+    required int64 rows_read = 1;
+    required int64 rows_written = 2;
+    required uint64 sync_time = 3;
+    required uint64 async_time = 4;
+    required bool incomplete = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

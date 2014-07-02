@@ -22,6 +22,7 @@ DECLARE_ENUM(EResourceType,
     (ReplicationSlots)
     (RemovalSlots)
     (RepairSlots)
+    (SealSlots)
 );
 
 Stroka FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);

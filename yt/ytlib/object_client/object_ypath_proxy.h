@@ -12,7 +12,12 @@ namespace NObjectClient {
 struct TObjectYPathProxy
     : public NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, GetId);
+    static Stroka GetServiceName()
+    {
+        return "Object";
+    }
+
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetBasicAttributes);
     DEFINE_YPATH_PROXY_METHOD(NProto, CheckPermission);
 };
 

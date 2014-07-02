@@ -12,8 +12,6 @@
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/ypath.pb.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
-
 #include <server/object_server/object_detail.h>
 #include <server/object_server/attribute_set.h>
 
@@ -21,8 +19,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialization_context.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -38,6 +35,7 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
+    bool IsLeader() const;
     bool IsRecovery() const;
 
     void DestroyCore(TCypressNodeBase* node);
@@ -100,9 +98,14 @@ public:
             request,
             response);
 
-        node->SetTrunkNode(~node);
+        node->SetTrunkNode(node.get());
 
         return std::move(node);
+    }
+
+    virtual void ValidateCreated(TCypressNodeBase* node) override
+    {
+        DoValidateCreated(dynamic_cast<TImpl*>(node));
     }
 
     virtual void SetDefaultAttributes(
@@ -124,6 +127,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
+        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
@@ -132,14 +137,14 @@ public:
         // Run core stuff.
         BranchCore(
             originatingNode,
-            ~branchedNode,
+            branchedNode.get(),
             transaction,
             mode);
 
         // Run custom stuff.
         DoBranch(
-            dynamic_cast<const TImpl*>(originatingNode),
-            ~branchedNode);
+            typedOriginatingNode,
+            branchedNode.get());
 
         return std::move(branchedNode);
     }
@@ -169,11 +174,11 @@ public:
         // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
-            dynamic_cast<TImpl*>(~clonedNode),
+            dynamic_cast<TImpl*>(clonedNode.get()),
             factory);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, ~clonedNode, factory);
+        CloneCoreEpilogue(sourceNode, clonedNode.get(), factory);
 
         return clonedNode;
     }
@@ -186,37 +191,28 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NTransactionServer::TTransaction* transaction,
-        TReqCreate* request,
-        TRspCreate* response)
+        NTransactionServer::TTransaction* /*transaction*/,
+        TReqCreate* /*request*/,
+        TRspCreate* /*response*/)
     {
-        UNUSED(transaction);
-        UNUSED(request);
-        UNUSED(response);
-
         return std::unique_ptr<TImpl>(new TImpl(id));
     }
 
-    virtual void DoDestroy(TImpl* node)
-    {
-        UNUSED(node);
-    }
+    virtual void DoValidateCreated(TImpl* /*node*/)
+    { }
+
+    virtual void DoDestroy(TImpl* /*node*/)
+    { }
 
     virtual void DoBranch(
-        const TImpl* originatingNode,
-        TImpl* branchedNode)
-    {
-        UNUSED(originatingNode);
-        UNUSED(branchedNode);
-    }
+        const TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
 
     virtual void DoMerge(
-        TImpl* originatingNode,
-        TImpl* branchedNode)
-    {
-        UNUSED(originatingNode);
-        UNUSED(branchedNode);
-    }
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
 
     virtual void DoClone(
         TImpl* /*sourceNode*/,

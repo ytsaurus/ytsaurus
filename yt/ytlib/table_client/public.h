@@ -3,27 +3,14 @@
 #include <core/misc/common.h>
 #include <core/misc/small_vector.h>
 
+#include <ytlib/table_client/public.h>
+
+#include <ytlib/chunk_client/public.h>
+
 namespace NYT {
-
-// Forward declarations.
-namespace NChunkClient
-{
-
-template <class TChunkReader>
-class TMultiChunkSequentialReader;
-
-template <class TChunkReader>
-class TMultiChunkSequentialWriter;
-
-
-template <class TChunkReader>
-class TMultiChunkParallelReader;
-
-}
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace NTableClient {
 
 DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
@@ -40,7 +27,7 @@ const int DefaultPartitionTag = -1;
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 const size_t MaxColumnNameSize = 256;
 const int MaxColumnCount = 1024;
-
+const size_t MaxKeySize = (i64) 4 * 1024;
 const int FormatVersion = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +48,7 @@ struct ISyncReader;
 typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 
 struct IAsyncReader;
-typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
+typedef TIntrusivePtr<IAsyncReader> IReaderPtr;
 
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
@@ -103,7 +90,7 @@ typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
-struct TChunkWriterOptions;
+class TChunkWriterOptions;
 typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
 class TTableWriterConfig;
@@ -112,19 +99,19 @@ typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 class TBufferedTableWriterConfig;
 typedef TIntrusivePtr<TBufferedTableWriterConfig> TBufferedTableWriterConfigPtr;
 
-struct TTableWriterOptions;
+class TTableWriterOptions;
 typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
-struct TChunkReaderOptions;
+class TChunkReaderOptions;
 typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 
-struct TTableReaderConfig;
+class TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
-struct TAsyncTableReader;
+class TAsyncTableReader;
 typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
 
-struct TAsyncWriter;
+class TAsyncWriter;
 typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 class TTableProducer;
@@ -133,15 +120,15 @@ class TTableConsumer;
 class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 
-typedef TSmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
+typedef SmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;
 
-typedef NChunkClient::TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
+typedef NChunkClient::TOldMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
 typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
 
-typedef NChunkClient::TMultiChunkSequentialWriter<TTableChunkWriter> TTableChunkSequenceWriter;
+typedef NChunkClient::TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TTableChunkSequenceWriter;
 typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

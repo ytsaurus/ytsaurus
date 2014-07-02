@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/rpc/public.h>
+#include "public.h"
 
 namespace NYT {
 namespace NRpc {

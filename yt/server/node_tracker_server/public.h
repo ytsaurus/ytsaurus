@@ -14,13 +14,15 @@ namespace NNodeTrackerServer {
 ///////////////////////////////////////////////////////////////////////////////
 
 using NNodeTrackerClient::TNodeId;
+using NNodeTrackerClient::InvalidNodeId;
+
 using NNodeTrackerClient::TNodeDescriptor;
 
 class TNodeTracker;
 typedef TIntrusivePtr<TNodeTracker> TNodeTrackerPtr;
 
 class TNode;
-typedef TSmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
+typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
 typedef TSmallSet<TNode*, NChunkClient::TypicalReplicaCount> TNodeSet;
 
 class TNodeTrackerService;

@@ -28,8 +28,9 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FinishChunk);
     DEFINE_RPC_PROXY_METHOD(NProto, PutBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, SendBlocks);
-    DEFINE_RPC_PROXY_METHOD(NProto, FlushBlock);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, FlushBlocks);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetBlockSet);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetBlockRange);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
     DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <core/misc/nullable.h>
+#include <core/misc/serialize.h>
 #include <core/misc/property.h>
 
 #include <core/yson/public.h>

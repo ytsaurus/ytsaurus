@@ -6,17 +6,18 @@
 
 #include <core/misc/sync.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -35,7 +36,7 @@ using namespace NConcurrency;
 TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransactionPtr transaction,
+    NTransactionClient::TTransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
     const NYPath::TRichYPath& richPath)
     : Config(config)
@@ -44,11 +45,11 @@ TAsyncTableReader::TAsyncTableReader(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , NodeDirectory(New<TNodeDirectory>())
-    , RichPath(richPath.Simplify())
+    , RichPath(richPath.Normalize())
     , IsOpen(false)
     , IsReadStarted_(false)
     , ObjectProxy(masterChannel)
-    , Logger(TableReaderLogger)
+    , Logger(TableClientLogger)
 {
     YCHECK(masterChannel);
 
@@ -67,15 +68,15 @@ void TAsyncTableReader::Open()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(path + "/@type");
+        auto req = TTableYPathProxy::GetBasicAttributes(path);
         SetTransactionId(req, TransactionId);
         SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
-        batchReq->AddRequest(req, "get_type");
+        batchReq->AddRequest(req, "get_basic_attrs");
     }
 
     {
         auto req = TTableYPathProxy::Fetch(path);
-        ToProto(req->mutable_attributes(), RichPath.Attributes());
+        InitializeFetchRequest(req.Get(), RichPath);
         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         SetTransactionId(req, TransactionId);
         SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
@@ -87,10 +88,10 @@ void TAsyncTableReader::Open()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error fetching table info");
 
     {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object type");
+        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting object attributes");
 
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+        auto type = EObjectType(rsp->type());
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
                 ~RichPath.GetPath(),
@@ -149,7 +150,7 @@ bool TAsyncTableReader::FetchNextItem()
 TAsyncError TAsyncTableReader::GetReadyEvent()
 {
     if (IsAborted()) {
-        return MakePromise<TError>(TError("Transaction aborted"));
+        return MakeFuture(TError("Transaction aborted"));
     }
     return Reader->GetReadyEvent();
 }

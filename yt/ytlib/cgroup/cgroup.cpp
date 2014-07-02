@@ -4,11 +4,15 @@
 
 #include <core/misc/fs.h>
 #include <core/misc/error.h>
+#include <core/misc/process.h>
+#include <core/misc/string.h>
 
 #include <util/system/fs.h>
 #include <util/string/split.h>
 #include <util/string/strip.h>
 #include <util/folder/path.h>
+#include <util/system/execpath.h>
+#include <util/system/yield.h>
 
 #ifdef _linux_
   #include <unistd.h>
@@ -157,6 +161,69 @@ void RemoveAllSubcgroups(const Stroka& path)
     RemoveAllSubscgroupsImpl(TFsPath(path));
 }
 
+// The caller must be sure that it has root privileges.
+void RunKiller(const Stroka& processGroupPath)
+{
+#ifdef _linux_
+    LOG_INFO("Kill %s processes", ~processGroupPath.Quote());
+
+    auto throwError = [=] (const TError& error) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to kill processes from %s",
+            ~processGroupPath.Quote()) << error;
+    };
+
+    while (true) {
+        TProcess process(GetExecPath());
+        process.AddArgument("--killer");
+        process.AddArgument("--process-group-path");
+        process.AddArgument(processGroupPath);
+
+        TNonOwningCGroup group(processGroupPath);
+        auto pids = group.GetTasks();
+        if (pids.empty())
+            return;
+
+        // We are forking here in order not to give the root privileges to the parent process ever,
+        // because we cannot know what other threads are doing.
+        auto error = process.Spawn();
+        if (!error.IsOK()) {
+            throwError(error);
+        }
+
+        error = process.Wait();
+        if (!error.IsOK()) {
+            throwError(error);
+        }
+
+        ThreadYield();
+    }
+#endif
+}
+
+void KillProcessGroup(const Stroka& processGroupPath)
+{
+#ifdef _linux_
+    TNonOwningCGroup group(processGroupPath);
+    auto pids = group.GetTasks();
+    if (pids.empty())
+        return;
+
+    LOG_DEBUG("Killing processes (PIDs: [%s])",
+        ~JoinToString(pids));
+
+    YCHECK(setuid(0) == 0);
+
+    for (int pid : pids) {
+        auto result = kill(pid, 9);
+        if (result == -1) {
+            YCHECK(errno == ESRCH);
+        }
+    }
+#endif
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
@@ -244,9 +311,7 @@ void TCGroup::Destroy()
 #ifdef _linux_
     YCHECK(Created_);
 
-    if (!NFS::Remove(FullPath_)) {
-        THROW_ERROR(TError::FromSystem());
-    }
+    NFS::Remove(FullPath_);
     Created_ = false;
 #endif
 }

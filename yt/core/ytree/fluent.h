@@ -156,7 +156,7 @@ public:
         template <class TFunc, class TCollection>
         TDeepThis& DoFor(const TCollection& collection, const TFunc& func)
         {
-            FOREACH (const auto& item, collection) {
+            for (const auto& item : collection) {
                 func(TShallowThis(this->Consumer), item);
             }
             return *static_cast<TDeepThis*>(this);
@@ -256,7 +256,7 @@ public:
         TUnwrappedParent DoListFor(const TCollection& collection, const TFunc& func)
         {
             this->Consumer->OnBeginList();
-            FOREACH (const auto& item, collection) {
+            for (const auto& item : collection) {
                 func(TList<TFluentYsonVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndList();
@@ -293,7 +293,7 @@ public:
         TUnwrappedParent DoMapFor(const TCollection& collection, const TFunc& func)
             {
             this->Consumer->OnBeginMap();
-            FOREACH (const auto& item, collection) {
+            for (const auto& item : collection) {
                 func(TMap<TFluentYsonVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndMap();
@@ -347,16 +347,16 @@ public:
 
         TThis& Items(IMapNodePtr map)
         {
-            FOREACH (const auto& pair, map->GetChildren()) {
+            for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(~pair.second, this->Consumer);
+                VisitTree(pair.second, this->Consumer);
             }
             return *this;
         }
 
         TThis& Items(const IAttributeDictionary& attributes)
         {
-            FOREACH (const auto& key, attributes.List()) {
+            for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
                 this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
@@ -391,9 +391,9 @@ public:
 
         TThis& Items(IListNodePtr list)
         {
-            FOREACH (const auto& item, list->GetChildren()) {
+            for (auto item : list->GetChildren()) {
                 this->Consumer->OnListItem();
-                VisitTree(~item, this->Consumer);
+                VisitTree(std::move(item), this->Consumer);
             }
             return *this;
         }
@@ -425,16 +425,16 @@ public:
 
         TThis& Items(IMapNodePtr map)
         {
-            FOREACH (const auto& pair, map->GetChildren()) {
+            for (const auto& pair : map->GetChildren()) {
                 this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(~pair.second, this->Consumer);
+                VisitTree(pair.second, this->Consumer);
             }
             return *this;
         }
 
         TThis& Items(const IAttributeDictionary& attributes)
         {
-            FOREACH (const auto& key, attributes.List()) {
+            for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
                 this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
@@ -518,7 +518,7 @@ public:
 
     NYson::IYsonConsumer* GetConsumer()
     {
-        return ~Builder;
+        return Builder.get();
     }
 
 private:

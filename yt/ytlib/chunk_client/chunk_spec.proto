@@ -2,45 +2,10 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/protobuf_helpers.proto";
+import "yt/ytlib/chunk_client/schema.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TRange
-{
-    required bytes begin = 1;
-    required bytes end = 2;
-    required bool is_infinite = 3;
-}
-
-message TChannel
-{
-    repeated bytes columns = 1;
-    repeated TRange ranges = 2;
-}
-
-message TKeyPart
-{
-    // EKeyPartType
-    required int32 type = 1;
-    optional bytes str_value = 2;
-    optional int64 int_value = 3;
-    optional double double_value = 4;
-}
-
-message TKey
-{
-    repeated TKeyPart parts = 1;
-}
-
-// A read boundary given either by a row index, or a key, or both.
-// The boundary is inclusive or exclusive depending of the context.
-message TReadLimit
-{
-    optional int64 row_index = 1;
-    optional TKey key = 2;
-    optional int64 chunk_index = 3;
-    optional int64 offset = 4;
-}
 
 // Describes a portion of table chunk.
 message TChunkSpec
@@ -48,10 +13,10 @@ message TChunkSpec
     required NYT.NProto.TGuid chunk_id = 1;
 
     // Lower boundary, inclusive.
-    optional TReadLimit start_limit = 2;
+    optional TReadLimit lower_limit = 2;
 
     // Upper boundary, exclusive.
-    optional TReadLimit end_limit = 3;
+    optional TReadLimit upper_limit = 3;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated fixed32 replicas = 4;
@@ -59,7 +24,7 @@ message TChunkSpec
     // Column filter.
     optional TChannel channel = 5;
 
-    required NYT.NProto.TExtensionSet extensions = 6;
+    // Deprecated = 6;
 
     optional int32 table_index = 7 [default = -1];
 
@@ -68,6 +33,11 @@ message TChunkSpec
     optional int32 erasure_codec = 9 [default = 0];
 
     optional int64 table_row_index = 10 [default = 0];
+
+    required TChunkMeta chunk_meta = 11;
+
+    // Only makes sense as a part of data split.
+    optional uint64 timestamp = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

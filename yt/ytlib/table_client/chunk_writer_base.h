@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
@@ -29,7 +29,7 @@ public:
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
@@ -37,11 +37,11 @@ protected:
     TChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter);
+        NChunkClient::IWriterPtr chunkWriter);
 
     const TChunkWriterConfigPtr Config;
     const TChunkWriterOptionsPtr Options;
-    const NChunkClient::IAsyncWriterPtr ChunkWriter;
+    const NChunkClient::IWriterPtr ChunkWriter;
 
     NChunkClient::TEncodingWriterPtr EncodingWriter;
 

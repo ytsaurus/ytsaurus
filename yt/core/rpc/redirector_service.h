@@ -7,8 +7,12 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RedirectServiceRequest(
+    IServiceContextPtr context,
+    IChannelPtr channel);
+
 IServicePtr CreateRedirectorService(
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     IChannelPtr sinkChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

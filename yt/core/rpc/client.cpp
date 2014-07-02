@@ -4,9 +4,9 @@
 #include "message.h"
 #include "dispatcher.h"
 
-#include <core/ytree/attribute_helpers.h>
-
 #include <iterator>
+
+#include <core/misc/address.h>
 
 namespace NYT {
 namespace NRpc {
@@ -20,30 +20,20 @@ static auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
-    : DefaultTimeout_(channel->GetDefaultTimeout())
-    , ServiceName(serviceName)
-    , Channel(channel)
-{
-    YASSERT(channel);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TClientRequest::TClientRequest(
     IChannelPtr channel,
-    const Stroka& path,
-    const Stroka& verb,
+    const Stroka& service,
+    const Stroka& method,
     bool oneWay)
-    : RequestHeavy_(false)
+    : RequestAck_(true)
+    , RequestHeavy_(false)
     , ResponseHeavy_(false)
     , Channel(channel)
-    , Attributes_(CreateEphemeralAttributes())
 {
     YCHECK(channel);
 
-    Header_.set_path(path);
-    Header_.set_verb(verb);
+    Header_.set_service(service);
+    Header_.set_method(method);
     Header_.set_one_way(oneWay);
     Header_.set_request_start_time(TInstant::Now().MicroSeconds());
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
@@ -53,7 +43,6 @@ TSharedRefArray TClientRequest::Serialize() const
 {
     auto header = Header_;
     header.set_retry_start_time(TInstant::Now().MicroSeconds());
-    ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();
 
@@ -65,17 +54,21 @@ TSharedRefArray TClientRequest::Serialize() const
 
 void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 {
-    Channel->Send(this, responseHandler, Timeout_);
+    Channel->Send(
+        this,
+        responseHandler,
+        Timeout_,
+        RequestAck_);
 }
 
-const Stroka& TClientRequest::GetPath() const
+const Stroka& TClientRequest::GetService() const
 {
-    return Header_.path();
+    return Header_.service();
 }
 
-const Stroka& TClientRequest::GetVerb() const
+const Stroka& TClientRequest::GetMethod() const
 {
-    return Header_.verb();
+    return Header_.method();
 }
 
 bool TClientRequest::IsOneWay() const
@@ -108,22 +101,42 @@ void TClientRequest::SetStartTime(TInstant value)
     Header_.set_request_start_time(value.MicroSeconds());
 }
 
-const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
+TClientContextPtr TClientRequest::CreateClientContext()
 {
-    return *Attributes_;
-}
+    auto traceContext = NTracing::CreateChildTraceContext();
+    if (traceContext.IsEnabled()) {
+        SetTraceContext(&Header(), traceContext);
 
-NYTree::IAttributeDictionary* TClientRequest::MutableAttributes()
-{
-    return ~Attributes_;
+        TRACE_ANNOTATION(
+            traceContext,
+            GetService(),
+            GetMethod(),
+            NTracing::ClientSendAnnotation);
+
+        TRACE_ANNOTATION(
+            traceContext,
+            "request_id",
+            GetRequestId());
+
+        TRACE_ANNOTATION(
+            traceContext,
+            "client_host",
+            TAddressResolver::Get()->GetLocalHostName());
+    }
+
+    return New<TClientContext>(
+        GetRequestId(),
+        traceContext,
+        GetService(),
+        GetMethod());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponseBase::TClientResponseBase(const TRequestId& requestId)
-    : RequestId_(requestId)
-    , StartTime_(TInstant::Now())
+TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
+    : StartTime_(TInstant::Now())
     , State(EState::Sent)
+    , ClientContext(std::move(clientContext))
 { }
 
 bool TClientResponseBase::IsOK() const
@@ -149,14 +162,23 @@ void TClientResponseBase::OnError(const TError& error)
         Error_  = error;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     FireCompleted();
+}
+
+void TClientResponseBase::BeforeCompleted()
+{
+    NTracing::TraceEvent(
+        ClientContext->GetTraceContext(),
+        ClientContext->GetService(),
+        ClientContext->GetMethod(),
+        NTracing::ClientReceiveAnnotation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientResponse::TClientResponse(const TRequestId& requestId)
-    : TClientResponseBase(requestId)
-    , Attributes_(CreateEphemeralAttributes())
+TClientResponse::TClientResponse(TClientContextPtr clientContext)
+    : TClientResponseBase(std::move(clientContext))
 { }
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
@@ -181,13 +203,6 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         Attachments_.begin(),
         ResponseMessage.Begin() + 2,
         ResponseMessage.End());
-
-    NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(ResponseMessage, &responseHeader));
-
-    if (responseHeader.has_attributes()) {
-        Attributes_ = FromProto(responseHeader.attributes());
-    }
 }
 
 void TClientResponse::OnAcknowledgement()
@@ -206,25 +221,16 @@ void TClientResponse::OnResponse(TSharedRefArray message)
         State = EState::Done;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     Deserialize(message);
     FireCompleted();
 }
 
-IAttributeDictionary& TClientResponse::Attributes()
-{
-    return *Attributes_;
-}
-
-const IAttributeDictionary& TClientResponse::Attributes() const
-{
-    return *Attributes_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
-    : TClientResponseBase(requestId)
-    , Promise(NewPromise<TPtr>())
+TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
+    : TClientResponseBase(std::move(clientContext))
+    , Promise(NewPromise<TThisPtr>())
 { }
 
 void TOneWayClientResponse::OnAcknowledgement()
@@ -238,6 +244,7 @@ void TOneWayClientResponse::OnAcknowledgement()
         State = EState::Done;
     }
 
+    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
     FireCompleted();
 }
 
@@ -253,9 +260,31 @@ TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
 
 void TOneWayClientResponse::FireCompleted()
 {
+    BeforeCompleted();
     Promise.Set(this);
     Promise.Reset();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProxyBase::TProxyBase(
+    IChannelPtr channel,
+    const Stroka& serviceName)
+    : DefaultTimeout_(channel->GetDefaultTimeout())
+    , DefaultRequestAck_(true)
+    , ServiceName_(serviceName)
+    , Channel_(channel)
+{
+    YASSERT(Channel_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGenericProxy::TGenericProxy(
+    IChannelPtr channel,
+    const Stroka& serviceName)
+    : TProxyBase(channel, serviceName)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

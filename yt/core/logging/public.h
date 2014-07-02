@@ -16,6 +16,9 @@ struct ILogWriter;
 typedef TIntrusivePtr<ILogWriter> ILogWriterPtr;
 typedef std::vector<ILogWriterPtr> ILogWriters;
 
+class TLogger;
+class TLogManager;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NLog

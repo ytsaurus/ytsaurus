@@ -15,9 +15,19 @@
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 
+#include <ytlib/new_table_client/schema.h>
+
+#include <ytlib/chunk_client/read_limit.h>
+
+#include <server/node_tracker_server/node_directory_builder.h>
+
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_owner_node_proxy.h>
+
+#include <server/tablet_server/tablet_manager.h>
+#include <server/tablet_server/tablet.h>
+#include <server/tablet_server/tablet_cell.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -32,9 +42,13 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NTransactionServer;
+using namespace NTabletServer;
+using namespace NNodeTrackerServer;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,156 +60,377 @@ public:
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         TTransaction* transaction,
-        TTableNode* trunkNode);
-
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override;
-
-private:
-    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override;
-    virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue) override;
-
-    virtual void ValidatePathAttributes(
-        const TNullable<TChannel>& channel,
-        const TReadLimit& upperLimit,
-        const TReadLimit& lowerLimit) override;
-
-    virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
-    virtual bool DoInvoke(IServiceContextPtr context) override;
-
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableNodeProxy::TTableNodeProxy(
-    INodeTypeHandlerPtr typeHandler,
-    NCellMaster::TBootstrap* bootstrap,
-    TTransaction* transaction,
-    TTableNode* trunkNode)
+        TTableNode* trunkNode)
     : TBase(
         typeHandler,
         bootstrap,
         transaction,
         trunkNode)
-{ }
+    { }
 
-bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
-{
-    DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
-    return TBase::DoInvoke(context);
-}
+private:
+    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
-bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
-    return TBase::IsWriteRequest(context);
-}
-
-void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
-{
-    const auto* node = GetThisTypedImpl();
-    const auto* chunkList = node->GetChunkList();
-
-    attributes->push_back("row_count");
-    attributes->push_back("sorted");
-    attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
-    // Custom system attributes
-    attributes->push_back(TAttributeInfo("channels", true, false, true));
-    TBase::ListSystemAttributes(attributes);
-}
-
-void TTableNodeProxy::ValidatePathAttributes(
-    const TNullable<TChannel>& channel,
-    const TReadLimit& upperLimit,
-    const TReadLimit& lowerLimit)
-{
-    UNUSED(channel);
-
-    if (upperLimit.has_offset() || lowerLimit.has_offset()) {
-        THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
-    }
-}
-
-bool TTableNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
-{
-    const auto* node = GetThisTypedImpl();
-    const auto* chunkList = node->GetChunkList();
-    const auto& statistics = chunkList->Statistics();
-
-    if (key == "row_count") {
-        BuildYsonFluently(consumer)
-            .Value(statistics.RowCount);
-        return true;
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return TableServerLogger;
     }
 
-    if (key == "sorted") {
-        BuildYsonFluently(consumer)
-            .Value(!chunkList->SortedBy().empty());
-        return true;
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    {
+        const auto* node = GetThisTypedImpl();
+
+        attributes->push_back("row_count");
+        attributes->push_back("sorted");
+        attributes->push_back("key_columns");
+        attributes->push_back(TAttributeInfo("sorted_by", node->GetSorted()));
+        attributes->push_back(TAttributeInfo("tablets", true, true));
+        attributes->push_back(TAttributeInfo("channels", true, false, true));
+        attributes->push_back(TAttributeInfo("schema", true, false, true));
+        TBase::ListSystemAttributes(attributes);
     }
 
-    if (!chunkList->SortedBy().empty()) {
-        if (key == "sorted_by") {
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        const auto* node = GetThisTypedImpl();
+        const auto* chunkList = node->GetChunkList();
+        const auto& statistics = chunkList->Statistics();
+
+        if (key == "row_count") {
             BuildYsonFluently(consumer)
-                .Value(chunkList->SortedBy());
+                .Value(statistics.RowCount);
             return true;
         }
-    }
 
-    return TBase::GetBuiltinAttribute(key, consumer);
-}
-
-void TTableNodeProxy::ValidateCustomAttributeUpdate(
-    const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
-    const TNullable<TYsonString>& newValue)
-{
-    UNUSED(oldValue);
-
-    if (key == "channels") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
+        if (key == "sorted") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetSorted());
+            return true;
         }
-        ConvertTo<TChannels>(newValue.Get());
-        return;
+
+        if (key == "key_columns") {
+            BuildYsonFluently(consumer)
+                .Value(node->KeyColumns());
+            return true;
+        }
+
+        if (node->GetSorted()) {
+            if (key == "sorted_by") {
+                BuildYsonFluently(consumer)
+                    .Value(node->KeyColumns());
+                return true;
+            }
+        }
+
+        if (key == "tablets") {
+            BuildYsonFluently(consumer)
+                .DoListFor(node->Tablets(), [] (TFluentList fluent, TTablet* tablet) {
+                auto* cell = tablet->GetCell();
+                fluent
+                    .Item().BeginMap()
+                    .Item("tablet_id").Value(tablet->GetId())
+                    .Item("state").Value(tablet->GetState())
+                    .Item("pivot_key").Value(tablet->GetPivotKey())
+                    .DoIf(cell, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("cell_id").Value(cell->GetId());
+                })
+                    .EndMap();
+            });
+            return true;
+        }
+
+        return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
-}
+    bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    {
+        if (key == "key_columns") {
+            ValidateNoTransaction();
 
-ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
-{
-    return updateMode == EUpdateMode::Append
-        ? ELockMode::Shared
-        : ELockMode::Exclusive;
-}
+            auto* node = LockThisTypedImpl();
+            auto* chunkList = node->GetChunkList();
+            if (!chunkList->Children().empty() ||
+                !chunkList->Parents().empty() ||
+                !node->Tablets().empty())
+            {
+                THROW_ERROR_EXCEPTION("Operation is not supported");
+            }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
-{
-    auto keyColumns = FromProto<Stroka>(request->key_columns());
-    context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+            auto keyColumns = ConvertTo<TKeyColumns>(value);
+            ValidateKeyColumns(keyColumns);
+            node->KeyColumns() = keyColumns;
+            node->SetSorted(!node->KeyColumns().empty());
+            return true;
+        }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        return TBase::SetBuiltinAttribute(key, value);
+    }
+    
+    virtual void ValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override
+    {
+        if (key == "channels") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ConvertTo<TChannels>(newValue.Get());
+            return;
+        }
 
-    auto* node = LockThisTypedImpl();
+        if (key == "schema") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ConvertTo<TTableSchema>(newValue.Get());
+            return;
+        }
 
-    if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
-        THROW_ERROR_EXCEPTION("Table node must be in \"overwrite\" mode");
+        TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    node->GetChunkList()->SortedBy() = keyColumns;
+    virtual void ValidateFetchParameters(
+        const TChannel& channel,
+        const TReadLimit& upperLimit,
+        const TReadLimit& lowerLimit) override
+    {
+        TChunkOwnerNodeProxy::ValidateFetchParameters(
+            channel,
+            upperLimit,
+            lowerLimit);
 
-    SetModified();
+        const auto* node = GetThisTypedImpl();
+        if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !node->GetSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot fetch a range of an unsorted table");
+        }
 
-    context->Reply();
-}
+        if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
+            THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+        }
+    }
+
+
+    virtual void Clear() override
+    {
+        TChunkOwnerNodeProxy::Clear();
+
+        auto* node = GetThisTypedImpl();
+        node->KeyColumns().clear();
+        node->SetSorted(false);
+    }
+
+    virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override
+    {
+        return updateMode == EUpdateMode::Append
+            ? ELockMode::Shared
+            : ELockMode::Exclusive;
+    }
+
+
+    virtual bool DoInvoke(IServiceContextPtr context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
+        DISPATCH_YPATH_SERVICE_METHOD(Mount);
+        DISPATCH_YPATH_SERVICE_METHOD(Unmount);
+        DISPATCH_YPATH_SERVICE_METHOD(Remount);
+        DISPATCH_YPATH_SERVICE_METHOD(Reshard);
+        DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        return TBase::DoInvoke(context);
+    }
+
+
+    virtual void ValidateFetch() override
+    {
+        TBase::ValidateFetch();
+
+        const auto* node = GetThisTypedImpl();
+        if (!node->Tablets().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot fetch a table with tablets");
+        }
+    }
+
+    virtual void ValidatePrepareForUpdate() override
+    {
+        TBase::ValidatePrepareForUpdate();
+
+        const auto* trunkNode = GetThisTypedImpl()->GetTrunkNode();
+        if (!trunkNode->Tablets().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot write into a table with tablets");
+        }
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted)
+    {
+        DeclareMutating();
+
+        auto keyColumns = FromProto<Stroka>(request->key_columns());
+        context->SetRequestInfo("KeyColumns: %s",
+            ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+        auto* node = LockThisTypedImpl();
+
+        if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
+            THROW_ERROR_EXCEPTION("Table must be in \"overwrite\" mode");
+        }
+
+        ValidateKeyColumns(keyColumns);
+        node->KeyColumns() = keyColumns;
+        node->SetSorted(true);
+
+        SetModified();
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->first_tablet_index();
+        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+            firstTabletIndex,
+            lastTabletIndex);
+
+        ValidateNoTransaction();
+
+        auto* impl = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->MountTable(
+            impl,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->first_tablet_index();
+        bool force = request->force();
+        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, Force: %s",
+            firstTabletIndex,
+            lastTabletIndex,
+            ~FormatBool(force));
+
+        ValidateNoTransaction();
+
+        auto* impl = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->UnmountTable(
+            impl,
+            force,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Remount)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->first_tablet_index();
+        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+            firstTabletIndex,
+            lastTabletIndex);
+
+        ValidateNoTransaction();
+
+        auto* impl = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->RemountTable(
+            impl,
+            firstTabletIndex,
+            lastTabletIndex);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard)
+    {
+        DeclareMutating();
+
+        int firstTabletIndex = request->first_tablet_index();
+        int lastTabletIndex = request->last_tablet_index();
+        auto pivotKeys = FromProto<NVersionedTableClient::TOwningKey>(request->pivot_keys());
+        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, PivotKeyCount: %d",
+            firstTabletIndex,
+            lastTabletIndex,
+            static_cast<int>(pivotKeys.size()));
+
+        ValidateNoTransaction();
+
+        auto* impl = LockThisTypedImpl();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        tabletManager->ReshardTable(
+            impl,
+            firstTabletIndex,
+            lastTabletIndex,
+            pivotKeys);
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo)
+    {
+        DeclareNonMutating();
+
+        context->SetRequestInfo("");
+
+        ValidateNoTransaction();
+
+        auto* node = GetThisTypedImpl();
+
+        ToProto(response->mutable_table_id(), node->GetId());
+        ToProto(response->mutable_key_columns()->mutable_names(), node->KeyColumns());
+        response->set_sorted(node->GetSorted());
+
+        auto tabletManager = Bootstrap->GetTabletManager();
+        auto schema = tabletManager->GetTableSchema(node);
+        ToProto(response->mutable_schema(), schema);
+
+        TNodeDirectoryBuilder builder(response->mutable_node_directory());
+
+        for (auto* tablet : node->Tablets()) {
+            auto* cell = tablet->GetCell();
+            auto* protoTablet = response->add_tablets();
+            ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
+            protoTablet->set_state(tablet->GetState());
+            ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
+            if (cell) {
+                ToProto(protoTablet->mutable_cell_id(), cell->GetId());
+                protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
+
+                for (const auto& peer : cell->Peers()) {
+                    if (peer.Node) {
+                        const auto& slot = peer.Node->TabletSlots()[peer.SlotIndex];
+                        if (slot.PeerState == EPeerState::Leading) {
+                            builder.Add(peer.Node);
+                            protoTablet->add_replica_node_ids(peer.Node->GetId());
+                        }
+                    }
+                }
+            }
+        }
+
+        context->Reply();
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

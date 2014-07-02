@@ -1,5 +1,11 @@
 package NYT.NTableClient.NProto;
 
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/table_client/table_chunk_meta.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Raises "sorted" flag for the root chunk list of the table.
@@ -11,5 +17,80 @@ message TReqSetSorted
 
 message TRspSetSorted
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspMount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnmount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3 [default = false];
+}
+
+message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    repeated bytes pivot_keys = 3;
+}
+
+message TRspReshard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetMountInfo
+{ }
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 state = 2;
+    required bytes pivot_key = 3;
+    optional NYT.NProto.TGuid cell_id = 4;
+    optional NYT.NHydra.NProto.TCellConfig cell_config = 5;
+    repeated int32 replica_node_ids = 6;
+}
+
+message TRspGetMountInfo
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    repeated TTabletInfo tablets = 4;
+    required bool sorted = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

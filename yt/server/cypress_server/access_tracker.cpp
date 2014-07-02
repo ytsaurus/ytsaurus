@@ -15,9 +15,10 @@
 namespace NYT {
 namespace NCypressServer {
 
+using namespace NConcurrency;
+using namespace NHydra;
 using namespace NTransactionServer;
 using namespace NObjectServer;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +35,7 @@ TAccessTracker::TAccessTracker(
 
 void TAccessTracker::StartFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(!FlushExecutor);
     FlushExecutor = New<TPeriodicExecutor>(
@@ -47,7 +48,7 @@ void TAccessTracker::StartFlush()
 
 void TAccessTracker::StopFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (FlushExecutor) {
         FlushExecutor->Stop();
@@ -61,7 +62,7 @@ void TAccessTracker::OnModify(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
@@ -82,7 +83,7 @@ void TAccessTracker::OnModify(
 
 void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
@@ -106,7 +107,7 @@ void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 void TAccessTracker::Reset()
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, NodesWithAccessStatisticsUpdate) {
+    for (auto* node : NodesWithAccessStatisticsUpdate) {
         node->SetAccessStatisticsUpdate(nullptr);
         objectManager->WeakUnrefObject(node);
     }    
@@ -117,7 +118,7 @@ void TAccessTracker::Reset()
 
 void TAccessTracker::OnFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (NodesWithAccessStatisticsUpdate.empty()) {
         FlushExecutor->ScheduleNext();
@@ -127,31 +128,20 @@ void TAccessTracker::OnFlush()
     LOG_DEBUG("Starting access statistics commit for %d nodes",
         UpdateAccessStatisticsRequest.updates_size());
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto invoker = metaStateFacade->GetEpochInvoker();
+    auto this_ = MakeStrong(this);
+    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
     Bootstrap
         ->GetCypressManager()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest)
-        ->OnSuccess(BIND(&TAccessTracker::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TAccessTracker::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                FlushExecutor->ScheduleOutOfBand();
+            }
+            FlushExecutor->ScheduleNext();
+        }).Via(invoker));
 
     Reset();
-}
-
-void TAccessTracker::OnCommitSucceeded()
-{
-    LOG_DEBUG("Access statistics commit succeeded");
-
-    FlushExecutor->ScheduleOutOfBand();
-    FlushExecutor->ScheduleNext();
-}
-
-void TAccessTracker::OnCommitFailed(const TError& error)
-{
-    LOG_ERROR(error, "Access statistics commit failed");
-
-    FlushExecutor->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

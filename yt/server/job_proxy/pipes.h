@@ -1,8 +1,12 @@
 ﻿#pragma once
 
 #include "private.h"
-#include <ytlib/table_client/public.h>
 #include <core/misc/blob_output.h>
+#include <ytlib/table_client/public.h>
+
+#include <ytlib/pipes/public.h>
+#include <ytlib/pipes/async_reader.h>
+#include <ytlib/pipes/async_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -53,16 +57,10 @@ struct IDataPipe
      */
     virtual void PrepareProxyDescriptors() = 0;
 
-    virtual int GetEpollDescriptor() const = 0;
-    virtual int GetEpollFlags() const = 0;
+    virtual TError DoAll() = 0;
 
-    /*!
-     *  \returns false if pipe is closed, otherwise true.
-     */
-    virtual bool ProcessData(ui32 epollEvent) = 0;
+    virtual TError Close() = 0;
 
-    //! Should be called once.
-    virtual void CloseHandles() = 0;
     virtual void Finish() = 0;
 };
 
@@ -82,11 +80,11 @@ public:
     virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
-    virtual int GetEpollDescriptor() const override;
-    virtual int GetEpollFlags() const override;
+    virtual TError DoAll() override;
 
-    virtual bool ProcessData(ui32 epollEvent) override;
-    virtual void CloseHandles() override;
+    TError ReadAll();
+
+    virtual TError Close() override;
     virtual void Finish() override;
 
 private:
@@ -98,6 +96,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
+    NPipes::TAsyncReader Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -117,16 +116,15 @@ public:
         std::unique_ptr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
-    void PrepareJobDescriptors() override;
-    void PrepareProxyDescriptors() override;
+    virtual void PrepareJobDescriptors() override;
+    virtual void PrepareProxyDescriptors() override;
 
-    int GetEpollDescriptor() const override;
-    int GetEpollFlags() const override;
+    virtual TError DoAll() override;
 
-    bool ProcessData(ui32 epollEvents) override;
+    TError WriteAll();
 
-    void CloseHandles() override;
-    void Finish() override;
+    virtual TError Close() override;
+    virtual void Finish() override;
 
 private:
     TPipe Pipe;
@@ -139,6 +137,8 @@ private:
 
     bool HasData;
     bool IsFinished;
+
+    NPipes::TAsyncWriter Writer;
 };
 
 ////////////////////////////////////////////////////////////////////

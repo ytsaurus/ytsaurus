@@ -6,13 +6,20 @@
 #include "scheduler_executors.h"
 #include "etc_executors.h"
 
-#include <ytlib/driver/driver.h>
-#include <ytlib/driver/config.h>
-#include <ytlib/driver/private.h>
+#include <core/build.h>
 
 #include <core/yson/parser.h>
 
 #include <core/misc/crash_handler.h>
+#include <core/misc/collection_helpers.h>
+
+#include <ytlib/shutdown.h>
+
+#include <ytlib/driver/driver.h>
+#include <ytlib/driver/config.h>
+#include <ytlib/driver/private.h>
+
+#include <ytlib/shutdown.h>
 
 #include <ytlib/shutdown.h>
 
@@ -21,13 +28,12 @@
 #include <util/stream/pipe.h>
 #include <util/system/sigset.h>
 
-#include <yt/build.h>
-
 namespace NYT {
 
 using namespace NDriver;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +45,7 @@ class TDriverProgram
 {
 public:
     TDriverProgram()
-        : ExitCode(0)
+        : ExitCode(EExitCode::OK)
     {
         RegisterExecutor(New<TStartTxExecutor>());
         RegisterExecutor(New<TPingTxExecutor>());
@@ -62,6 +68,14 @@ public:
 
         RegisterExecutor(New<TReadExecutor>());
         RegisterExecutor(New<TWriteExecutor>());
+        RegisterExecutor(New<TMountTableExecutor>());
+        RegisterExecutor(New<TUnmountTableExecutor>());
+        RegisterExecutor(New<TRemountTableExecutor>());
+        RegisterExecutor(New<TReshardTableExecutor>());
+        RegisterExecutor(New<TInsertExecutor>());
+        RegisterExecutor(New<TSelectExecutor>());
+        RegisterExecutor(New<TLookupExecutor>());
+        RegisterExecutor(New<TDeleteExecutor>());
 
         RegisterExecutor(New<TMapExecutor>());
         RegisterExecutor(New<TMergeExecutor>());
@@ -113,14 +127,14 @@ public:
                 return 0;
             }
 
-            auto Executor = GetExecutor(commandName);
+            auto executor = GetExecutor(commandName);
 
             std::vector<std::string> args;
             for (int i = 1; i < argc; ++i) {
                 args.push_back(std::string(argv[i]));
             }
 
-            ExitCode = Executor->Execute(args);
+            executor->Execute(args);
         } catch (const std::exception& ex) {
             Cerr << "ERROR: " << ex.what() << Endl;
             ExitCode = EExitCode::Error;
@@ -166,14 +180,14 @@ private:
     void PrintAllCommands()
     {
         printf("Available commands:\n");
-        FOREACH (const auto& pair, GetSortedIterators(Executors)) {
+        for (const auto& pair : GetSortedIterators(Executors)) {
             printf("  %s\n", ~pair->first);
         }
     }
 
     void PrintVersion()
     {
-        printf("%s\n", YT_VERSION);
+        printf("%s\n", GetVersion());
     }
 
     void RegisterExecutor(TExecutorPtr executor)

@@ -4,14 +4,12 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
-#include "samples_fetcher.h"
-#include "chunk_info_collector.h"
 #include "job_resources.h"
 #include "helpers.h"
 
 #include <core/misc/string.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 
@@ -20,12 +18,15 @@
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
+#include <ytlib/new_table_client/samples_fetcher.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/job_proxy/config.h>
 
@@ -39,6 +40,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -49,7 +51,8 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 
-using NChunkClient::NProto::TKey;
+using NVersionedTableClient::TOwningKey;
+using NTableClient::TTableWriterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -328,12 +331,12 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -407,7 +410,7 @@ protected:
             // Compute sort data size delta.
             i64 oldSortDataSize = Controller->SortDataSizeCounter.GetTotal();
             i64 newSortDataSize = 0;
-            FOREACH (auto partition, Controller->Partitions) {
+            for (auto partition : Controller->Partitions) {
                 if (partition->Maniac) {
                     Controller->AddTaskPendingHint(partition->UnorderedMergeTask);
                 } else {
@@ -462,7 +465,7 @@ protected:
             // Dump totals.
             // Mark empty partitions are completed.
             LOG_DEBUG("Partition sizes collected");
-            FOREACH (auto partition, Controller->Partitions) {
+            for (auto partition : Controller->Partitions) {
                 i64 dataSize = partition->ChunkPoolOutput->GetTotalDataSize();
                 if (dataSize == 0) {
                     LOG_DEBUG("Partition %d is empty", partition->Index);
@@ -551,7 +554,7 @@ protected:
         {
             return
                 Controller->SimpleSort
-                ? ~Controller->SimpleSortPool
+                ? Controller->SimpleSortPool.get()
                 : Controller->ShufflePool->GetInput();
         }
 
@@ -559,7 +562,7 @@ protected:
         {
             return
                 Controller->SimpleSort
-                ? ~Controller->SimpleSortPool
+                ? Controller->SimpleSortPool.get()
                 : Partition->ChunkPoolOutput;
         }
 
@@ -921,7 +924,7 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -951,7 +954,7 @@ protected:
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -1106,7 +1109,7 @@ protected:
             if (!Controller->SimpleSort) {
                 auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
                 auto* inputSpec = schedulerJobSpecExt->mutable_input_specs(0);
-                FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
+                for (auto& chunk : *inputSpec->mutable_chunks()) {
                     chunk.set_partition_tag(Partition->Index);
                 }
             }
@@ -1197,10 +1200,10 @@ protected:
         std::vector<TAssignedNodePtr> nodeHeap;
         auto nodes = Host->GetExecNodes();
         auto maxResourceLimits = ZeroNodeResources();
-        FOREACH (auto node, nodes) {
+        for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
         }
-        FOREACH (auto node, nodes) {
+        for (auto node : nodes) {
             double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
@@ -1209,7 +1212,7 @@ protected:
         }
 
         std::vector<TPartitionPtr> partitionsToAssign;
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             // Only take partitions for which no jobs are launched yet.
             if (partition->AddressToLocality.empty()) {
                 partitionsToAssign.push_back(partition);
@@ -1222,7 +1225,7 @@ protected:
 
         LOG_DEBUG("Assigning partitions");
 
-        FOREACH (auto partition, partitionsToAssign) {
+        for (auto partition : partitionsToAssign) {
             auto node = nodeHeap.front();
             const auto& address = node->Node->GetAddress();
 
@@ -1239,7 +1242,7 @@ protected:
                 ~address);
         }
 
-        FOREACH (auto node, nodeHeap) {
+        for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
                     ~node->Node->GetAddress(),
@@ -1259,7 +1262,7 @@ protected:
             static_cast<int>(Partitions.size()),
             Spec->DataSizePerSortJob);
 
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
         }
     }
@@ -1381,7 +1384,7 @@ protected:
 
     void AddSortTasksPendingHints()
     {
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             if (!partition->Maniac) {
                 AddTaskPendingHint(partition->SortTask);
             }
@@ -1390,7 +1393,7 @@ protected:
 
     void AddMergeTasksPendingHints()
     {
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             auto taskToKick = partition->Maniac
                 ? TTaskPtr(partition->UnorderedMergeTask)
                 : TTaskPtr(partition->SortedMergeTask);
@@ -1567,7 +1570,7 @@ protected:
 
         result.Min = std::numeric_limits<i64>::max();
         result.Max = std::numeric_limits<i64>::min();
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
             if (size == 0)
                 continue;
@@ -1594,7 +1597,7 @@ protected:
             return bucket;
         };
 
-        FOREACH (auto partition, Partitions) {
+        for (auto partition : Partitions) {
             i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
             if (size == 0)
                 continue;
@@ -1663,7 +1666,7 @@ private:
     TSortOperationSpecPtr Spec;
 
     //! |PartitionCount - 1| separating keys.
-    std::vector<TKey> PartitionKeys;
+    std::vector<TOwningKey> PartitionKeys;
 
     // Custom bits of preparation pipeline.
 
@@ -1697,61 +1700,61 @@ private:
         if (TotalInputDataSize == 0)
             return;
 
-        auto samplesFetcher = New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Operation->GetId());
-
-        auto samplesCollector = New<TSamplesCollector>(
-            NodeDirectory,
-            samplesFetcher,
-            Host->GetBackgroundInvoker());
+        TSamplesFetcherPtr samplesFetcher;
 
         TAsyncError asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             auto chunks = CollectInputChunks();
-            FOREACH (const auto& chunk, chunks) {
-                samplesCollector->AddChunk(chunk);
+            int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
+
+            samplesFetcher = New<TSamplesFetcher>(
+                Config->Fetcher,
+                sampleCount,
+                Spec->SortBy,
+                NodeDirectory,
+                Host->GetBackgroundInvoker(),
+                Logger);
+
+            for (const auto& chunk : chunks) {
+                samplesFetcher->AddChunk(chunk);
             }
 
-            samplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
-            asyncSamplesResult = samplesCollector->Run();
+            asyncSamplesResult = samplesFetcher->Fetch();
         }
 
         auto samplesResult = WaitFor(asyncSamplesResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(samplesResult);
 
         PROFILE_TIMING ("/samples_processing_time") {
-            auto sortedSamples = SortSamples(samplesFetcher);
+            auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
         }
 
         InitJobSpecTemplates();
     }
 
-    std::vector<const TKey*> SortSamples(TSamplesFetcherPtr samplesFetcher)
+    std::vector<const TOwningKey*> SortSamples(const std::vector<TOwningKey>& samples)
     {
-        const auto& samples = samplesFetcher->GetSamples();
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 
-        std::vector<const TKey*> sortedSamples;
+        std::vector<const TOwningKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
-        FOREACH (const auto& sample, samples) {
+        for (const auto& sample : samples) {
             sortedSamples.push_back(&sample);
         }
 
         std::sort(
             sortedSamples.begin(),
             sortedSamples.end(),
-            [] (const TKey* lhs, const TKey* rhs) {
-                return CompareKeys(*lhs, *rhs) < 0;
+            [] (const TOwningKey* lhs, const TOwningKey* rhs) {
+                return CompareRows(*lhs, *rhs) < 0;
             });
 
         return sortedSamples;
     }
 
-    void BuildPartitions(const std::vector<const TKey*>& sortedSamples)
+    void BuildPartitions(const std::vector<const TOwningKey*>& sortedSamples)
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
@@ -1790,7 +1793,7 @@ private:
         InitSimpleSortPool(sortJobCount);
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
-        partition->ChunkPoolOutput = ~SimpleSortPool;
+        partition->ChunkPoolOutput = SimpleSortPool.get();
         partition->SortTask->AddInput(stripes);
         partition->SortTask->FinishInput();
 
@@ -1806,7 +1809,7 @@ private:
         SortStartThresholdReached = true;
     }
 
-    void AddPartition(const TKey& key)
+    void AddPartition(const TOwningKey& key)
     {
         using NChunkClient::ToString;
 
@@ -1815,13 +1818,13 @@ private:
             index,
             ~ToString(key));
 
-        YCHECK(PartitionKeys.empty() || CompareKeys(PartitionKeys.back(), key) < 0);
+        YCHECK(PartitionKeys.empty() || CompareRows(PartitionKeys.back(), key) < 0);
 
         PartitionKeys.push_back(key);
         Partitions.push_back(New<TPartition>(this, index));
     }
 
-    void BuildMulitplePartitions(const std::vector<const TKey*>& sortedSamples, int partitionCount)
+    void BuildMulitplePartitions(const std::vector<const TOwningKey*>& sortedSamples, int partitionCount)
     {
         LOG_INFO("Building partition keys");
 
@@ -1844,14 +1847,14 @@ private:
         while (sampleIndex < partitionCount - 1) {
             auto* sampleKey = getSampleKey(sampleIndex);
             // Check for same keys.
-            if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
+            if (PartitionKeys.empty() || CompareRows(*sampleKey, PartitionKeys.back()) != 0) {
                 AddPartition(*sampleKey);
                 ++sampleIndex;
             } else {
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareKeys(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
+                    CompareRows(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
@@ -1865,7 +1868,7 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetKeySuccessor(*sampleKey);
+                auto successorKey = GetKeySuccessor(sampleKey->Get());
                 AddPartition(successorKey);
             }
         }
@@ -1929,8 +1932,8 @@ private:
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_partition_count(Partitions.size());
-            FOREACH (const auto& key, PartitionKeys) {
-                *partitionJobSpecExt->add_partition_keys() = key;
+            for (const auto& key : PartitionKeys) {
+                ToProto(partitionJobSpecExt->add_partition_keys(), key);
             }
             ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->SortBy);
         }
@@ -2245,18 +2248,18 @@ private:
         // Combine mapper and reducer files into a single collection.
         std::vector<TPathWithStage> result;
         if (Spec->Mapper) {
-            FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+            for (const auto& path : Spec->Mapper->FilePaths) {
                 result.push_back(std::make_pair(path, EOperationStage::Map));
             }
         }
 
         if (Spec->ReduceCombiner) {
-            FOREACH (const auto& path, Spec->ReduceCombiner->FilePaths) {
+            for (const auto& path : Spec->ReduceCombiner->FilePaths) {
                 result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
             }
         }
 
-        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+        for (const auto& path : Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
         return result;
@@ -2269,7 +2272,7 @@ private:
         if (TotalInputDataSize == 0)
             return;
 
-        FOREACH (const auto& file, RegularFiles) {
+        for (const auto& file : RegularFiles) {
             switch (file.Stage) {
             case EOperationStage::Map:
                 MapperFiles.push_back(file);
@@ -2288,7 +2291,7 @@ private:
             }
         }
 
-        FOREACH (const auto& file, TableFiles) {
+        for (const auto& file : TableFiles) {
             switch (file.Stage) {
             case EOperationStage::Map:
                 MapperTableFiles.push_back(file);

@@ -10,10 +10,12 @@ def main():
     data_files = []
     files = ["yt/tools/binaries/import_from_mr.py",
              "yt/tools/binaries/export_to_mr.py",
+             "yt/tools/binaries/export_to_yt.py",
              "yt/tools/binaries/yt_add_user.py",
              "yt/tools/binaries/yt_set_account.py",
              "yt/tools/binaries/yt_convert_to_erasure.py",
-             "yt/tools/binaries/yt_lock.py"]
+             "yt/tools/binaries/yt_lock.py",
+             "yt/tools/binaries/yt_doctor.py"]
     for file in files:
         # in egg and debian cases strategy of binary distribution is different
         if "EGG" in os.environ:
@@ -24,7 +26,7 @@ def main():
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
 
     setup(
-        name = "YtTools",
+        name = "YandexYtTools",
         version = version,
         packages = ["yt.tools"],
 

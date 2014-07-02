@@ -6,6 +6,8 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/api/client.h>
+
 #include <server/job_agent/job_controller.h>
 
 #include <server/data_node/master_connector.h>
@@ -41,7 +43,7 @@ void TSchedulerConnector::Start()
 {
     HeartbeatExecutor = New<TPeriodicExecutor>(
         ControlInvoker,
-        BIND(&TThis::SendHeartbeat, MakeWeak(this)),
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
         EPeriodicExecutorMode::Manual,
         Config->HeartbeatSplay);
@@ -64,11 +66,11 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    TJobTrackerServiceProxy proxy(Bootstrap->GetSchedulerChannel());
+    TJobTrackerServiceProxy proxy(Bootstrap->GetMasterClient()->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap->GetJobController();
-    jobController->PrepareHeartbeat(~req);
+    jobController->PrepareHeartbeat(req.Get());
 
     req->Invoke().Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
@@ -90,7 +92,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeart
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
     auto jobController = Bootstrap->GetJobController();
-    jobController->ProcessHeartbeat(~rsp);
+    jobController->ProcessHeartbeat(rsp.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

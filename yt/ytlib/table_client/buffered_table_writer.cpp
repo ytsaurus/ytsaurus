@@ -18,7 +18,6 @@
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction.h>
 
 #include <queue>
 
@@ -109,7 +108,7 @@ public:
         , DroppedRowCount_(0)
         , CurrentBuffer_(nullptr)
         , FlushedBufferCount_(0)
-        , Logger(TableWriterLogger)
+        , Logger(TableClientLogger)
     {
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
@@ -171,12 +170,6 @@ public:
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         YUNREACHABLE();
-    }
-
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
-    {
-        static TNullable<TKeyColumns> Result = Null;
-        return Result;
     }
 
 private:

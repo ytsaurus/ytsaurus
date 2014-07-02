@@ -69,6 +69,15 @@ public:
     //! Maximum number of chunks to process during a properties update scan.
     int MaxChunksPerPropertiesUpdate;
 
+    //! Interval between consequent seal attempts.
+    TDuration ChunkSealBackoffTime;
+
+    //! Timeout for RPC requests to nodes during journal operations.
+    TDuration JournalRpcTimeout;
+
+    //! Maximum number of chunks that can be sealed concurrently.
+    int MaxChunkConcurrentSeals;
+
     TChunkManagerConfig()
     {
         RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
@@ -115,8 +124,18 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
+
+        RegisterParameter("chunk_seal_backoff_time", ChunkSealBackoffTime)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("max_concurrent_chunk_seals", MaxChunkConcurrentSeals)
+            .GreaterThan(0)
+            .Default(10);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

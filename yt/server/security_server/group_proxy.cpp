@@ -24,15 +24,13 @@ public:
         : TBase(bootstrap, group)
     { }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(AddMember);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(RemoveMember);
-        return TBase::IsWriteRequest(context);
-    }
-
 private:
     typedef TSubjectProxy<TGroup> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return SecurityServerLogger;
+    }
 
     virtual void ValidateRemoval() override
     {
@@ -84,9 +82,11 @@ private:
         return subject;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NSecurityClient::NProto, AddMember)
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, AddMember)
     {
         UNUSED(response);
+
+        DeclareMutating();
 
         context->SetResponseInfo("Name: %s",
             ~request->name());
@@ -100,9 +100,11 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, RemoveMember)
     {
         UNUSED(response);
+
+        DeclareMutating();
 
         context->SetResponseInfo("Name: %s",
             ~request->name());

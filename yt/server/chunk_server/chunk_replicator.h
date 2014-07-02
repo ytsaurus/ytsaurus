@@ -47,6 +47,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
 
     void OnChunkDestroyed(TChunk* chunk);
 
@@ -86,7 +87,7 @@ private:
     {
         TJobRequest(int index, int count);
 
-        //! Part index the request applies to.
+        //! Replica index the request applies to.
         int Index;
 
         //! Number of replicas to create/remove.
@@ -99,50 +100,49 @@ private:
 
         EChunkStatus Status;
 
-        //! Number of active replicas, indexed by part index.
-        int ReplicaCount[NErasure::MaxTotalPartCount];
+        //! Number of active replicas, per each replica index.
+        int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
         
-        //! Number of decommissioned replicas, indexed by part index.
-        int DecommissionedReplicaCount[NErasure::MaxTotalPartCount];
+        //! Number of decommissioned replicas, per each replica index.
+        int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
 
         //! Recommended replications.
-        TSmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
+        SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
         
         //! Recommended removals of decommissioned replicas. 
-        TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalRequests;
+        TNodePtrWithIndexList DecommissionedRemovalRequests;
 
         //! Recommended removals to active replicas.
         //! Removal targets must be selected among most loaded nodes.
         //! This can only be nonempty if |DecommissionedRemovalRequests| is empty.
-        TSmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
+        SmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
         
     };
 
     struct TRefreshEntry
     {
-        TRefreshEntry();
-
-        TChunk* Chunk;
+        TChunk* Chunk = nullptr;
         NProfiling::TCpuInstant When;
     };
 
-    TChunkManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
-    TChunkPlacementPtr ChunkPlacement;
+    TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
+    TChunkPlacementPtr ChunkPlacement_;
 
-    NProfiling::TCpuDuration ChunkRefreshDelay;
-    TNullable<bool> LastEnabled;
+    NProfiling::TCpuDuration ChunkRefreshDelay_;
+    TNullable<bool> LastEnabled_;
 
-    NConcurrency::TPeriodicExecutorPtr RefreshExecutor;
-    std::deque<TRefreshEntry> RefreshList;
+    NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    std::deque<TRefreshEntry> RefreshList_;
 
-    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor;
-    std::deque<TChunk*> PropertiesUpdateList;
+    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor_;
+    std::deque<TChunk*> PropertiesUpdateList_;
 
-    yhash_map<TJobId, TJobPtr> JobMap;
-    yhash_map<TChunk*, TJobListPtr> JobListMap;
+    yhash_map<TJobId, TJobPtr> JobMap_;
+    yhash_map<TChunk*, TJobListPtr> JobListMap_;
 
-    TChunkRepairQueue RepairQueue;
+    TChunkRepairQueue ChunkRepairQueue_;
+
 
     void ProcessExistingJobs(
         TNode* node,
@@ -150,26 +150,24 @@ private:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
-    DECLARE_FLAGGED_ENUM(EJobScheduleFlags,
-        ((None)     (0x0000))
-        ((Scheduled)(0x0001))
-        ((Purged)   (0x0002))
-    );
-
-    EJobScheduleFlags ScheduleReplicationJob(
+    bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         TJobPtr* job);
-    EJobScheduleFlags ScheduleBalancingJob(
+    bool CreateBalancingJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
         TJobPtr* jobsToStart);
-    EJobScheduleFlags ScheduleRemovalJob(
+    bool CreateRemovalJob(
         TNode* node,
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
-    EJobScheduleFlags ScheduleRepairJob(
+    bool CreateRepairJob(
+        TNode* node,
+        TChunk* chunk,
+        TJobPtr* job);
+    bool CreateSealJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);
@@ -187,6 +185,7 @@ private:
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeErasureChunkStatistics(TChunk* chunk);
+    TChunkStatistics ComputeJournalChunkStatistics(TChunk* chunk);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
@@ -194,8 +193,6 @@ private:
     bool HasRunningJobs(TChunkPtrWithIndex replica);
 
     void OnPropertiesUpdate();
-    void OnPropertiesUpdateCommitSucceeded();
-    void OnPropertiesUpdateCommitFailed(const TError& error);
 
     //! Computes the actual properties the chunk must have.
     TChunkProperties ComputeChunkProperties(TChunk* chunk);
@@ -215,7 +212,12 @@ private:
     );
     void UnregisterJob(TJobPtr job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
+    void AddToChunkRepairQueue(TChunk* chunk);
+    void RemoveFromChunkRepairQueue(TChunk* chunk);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TChunkReplicator)
 
 ////////////////////////////////////////////////////////////////////////////////
 

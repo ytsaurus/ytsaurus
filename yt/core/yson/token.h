@@ -65,8 +65,6 @@ public:
     i64 GetIntegerValue() const;
     double GetDoubleValue() const;
 
-    Stroka ToString() const;
-
     void CheckType(ETokenType expectedType) const;
     void CheckType(const std::vector<ETokenType>& expectedTypes) const;
     void Reset();
@@ -77,7 +75,10 @@ private:
     TStringBuf StringValue;
     i64 IntegerValue;
     double DoubleValue;
+
 };
+
+Stroka ToString(const TToken& token);
 
 ////////////////////////////////////////////////////////////////////////////////
 

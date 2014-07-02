@@ -20,8 +20,6 @@ public:
     static const int MaxUpperReserveLimit;
     static const int MinUpperReserveLimit;
 
-    typedef TIntrusivePtr<TChannelWriter> TPtr;
-
     TChannelWriter(
         int bufferIndex,
         int fixedColumnCount,
@@ -34,7 +32,7 @@ public:
 
     void EndRow();
 
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
     i64 GetCapacity() const;
 
     //! Number of rows in the current unflushed buffer.

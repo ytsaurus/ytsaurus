@@ -79,7 +79,7 @@ std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
 {
     TGuard<TSpinLock> guard(SpinLock);
     std::vector<TSlot> result;
-    FOREACH (const auto& pair, Statistics) {
+    for (const auto& pair : Statistics) {
         result.push_back(pair.second);
     }
     return result;
@@ -156,7 +156,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
         "Name");
     stream << "-------------------------------------------------------------------------------------------------------------\n";
 
-    FOREACH (const auto& slot, slots) {
+    for (const auto& slot : slots) {
         totalObjectsAlive += slot.GetObjectsAlive();
         totalObjectsAllocated += slot.GetObjectsAllocated();
         totalBytesAlive += slot.GetBytesAlive();
@@ -181,42 +181,44 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     return stream;
 }
 
-void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer) const
+TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
 {
-    auto slots = GetSnapshot();
-    SortSnapshot(slots, -1);
+    return BIND([=] (IYsonConsumer* consumer) {
+        auto slots = GetSnapshot();
+        SortSnapshot(slots, -1);
 
-    size_t totalObjectsAlive = 0;
-    size_t totalObjectsAllocated = 0;
-    size_t totalBytesAlive = 0;
-    size_t totalBytesAllocated = 0;
+        size_t totalObjectsAlive = 0;
+        size_t totalObjectsAllocated = 0;
+        size_t totalBytesAlive = 0;
+        size_t totalBytesAllocated = 0;
 
-    FOREACH (const auto& slot, slots) {
-        totalObjectsAlive += slot.GetObjectsAlive();
-        totalObjectsAllocated += slot.GetObjectsAllocated();
-        totalBytesAlive += slot.GetBytesAlive();
-        totalBytesAllocated += slot.GetBytesAllocated();
-    }
+        for (const auto& slot : slots) {
+            totalObjectsAlive += slot.GetObjectsAlive();
+            totalObjectsAllocated += slot.GetObjectsAllocated();
+            totalBytesAlive += slot.GetBytesAlive();
+            totalBytesAllocated += slot.GetBytesAllocated();
+        }
 
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TSlot& slot) {
-                fluent
-                    .Item().BeginMap()
-                        .Item("name").Value(slot.GetName())
-                        .Item("objects_alive").Value(slot.GetObjectsAlive())
-                        .Item("objects_allocated").Value(slot.GetObjectsAllocated())
-                        .Item("bytes_alive").Value(slot.GetBytesAlive())
-                        .Item("bytes_allocated").Value(slot.GetBytesAllocated())
-                    .EndMap();
-            })
-            .Item("total").BeginMap()
-                .Item("objects_alive").Value(totalObjectsAlive)
-                .Item("objects_allocated").Value(totalObjectsAllocated)
-                .Item("bytes_alive").Value(totalBytesAlive)
-                .Item("bytes_allocated").Value(totalBytesAllocated)
-            .EndMap()
-        .EndMap();
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TSlot& slot) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("name").Value(slot.GetName())
+                            .Item("objects_alive").Value(slot.GetObjectsAlive())
+                            .Item("objects_allocated").Value(slot.GetObjectsAllocated())
+                            .Item("bytes_alive").Value(slot.GetBytesAlive())
+                            .Item("bytes_allocated").Value(slot.GetBytesAllocated())
+                        .EndMap();
+                })
+                .Item("total").BeginMap()
+                    .Item("objects_alive").Value(totalObjectsAlive)
+                    .Item("objects_allocated").Value(totalObjectsAllocated)
+                    .Item("bytes_alive").Value(totalBytesAlive)
+                    .Item("bytes_allocated").Value(totalBytesAllocated)
+                .EndMap()
+            .EndMap();
+    });
 }
 
 i64 TRefCountedTracker::GetObjectsAllocated(TKey key)

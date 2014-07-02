@@ -16,7 +16,9 @@ template <class EMemoryConsumer>
 class TMemoryUsageTracker
 {
 public:
-    explicit TMemoryUsageTracker(i64 totalMemory, Stroka profilingPath="");
+    explicit TMemoryUsageTracker(
+        i64 totalMemory,
+        const Stroka& profilingPath = "");
 
     i64 GetFree() const;
     i64 GetUsed() const;

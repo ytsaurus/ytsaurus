@@ -79,7 +79,6 @@ class TestErasure(YTEnvSetup):
                 if self._is_chunk_ok(chunk_id):
                     ok = True
                     break
-                time.sleep(1.0)
 
             assert ok
             assert read('//tmp/table') == [{"b":"hello"}]

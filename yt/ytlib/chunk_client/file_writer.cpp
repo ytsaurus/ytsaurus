@@ -9,8 +9,6 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <util/stream/null.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -18,7 +16,7 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ChunkWriterLogger;
+static auto& Logger = ChunkClientLogger;
 
 static TNullOutput NullOutput;
 
@@ -27,98 +25,106 @@ static TNullOutput NullOutput;
 TFileWriter::TFileWriter(
     const Stroka& fileName,
     bool syncOnClose)
-    : FileName(fileName)
-    , SyncOnClose(syncOnClose)
-    , IsOpen(false)
-    , IsClosed(false)
-    , DataSize(0)
-    , ChecksumOutput(&NullOutput)
-    , Result(MakeFuture(TError()))
+    : FileName_(fileName)
+    , SyncOnClose_(syncOnClose)
+    , IsOpen_(false)
+    , IsClosed_(false)
+    , DataSize_(0)
+    , Result_(OKFuture)
 { }
 
 void TFileWriter::Open()
 {
-    YCHECK(!IsOpen);
-    YCHECK(!IsClosed);
+    YCHECK(!IsOpen_);
+    YCHECK(!IsClosed_);
 
     ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec |
         AR | AWUser | AWGroup;
 
     // NB! Races are possible between file creation and call to flock.
     // Unfortunately in Linux we cannot make it atomically.
-    DataFile.reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
-    DataFile->Flock(LOCK_EX);
+    DataFile_.reset(new TFile(FileName_ + NFS::TempFileSuffix, oMode));
+    DataFile_->Flock(LOCK_EX);
 
-    IsOpen = true;
+    IsOpen_ = true;
 }
 
 bool TFileWriter::WriteBlock(const TSharedRef& block)
 {
-    YCHECK(IsOpen);
-    YCHECK(!IsClosed);
+    YCHECK(IsOpen_);
+    YCHECK(!IsClosed_);
 
     try {
-        auto* blockInfo = BlocksExt.add_blocks();
-        blockInfo->set_offset(DataFile->GetPosition());
+        auto* blockInfo = BlocksExt_.add_blocks();
+        blockInfo->set_offset(DataFile_->GetPosition());
         blockInfo->set_size(static_cast<int>(block.Size()));
 
         auto checksum = GetChecksum(block);
         blockInfo->set_checksum(checksum);
-        ChecksumOutput.Write(&checksum, sizeof(checksum));
-        DataFile->Write(block.Begin(), block.Size());
+        DataFile_->Write(block.Begin(), block.Size());
 
-        DataSize += block.Size();
+        DataSize_ += block.Size();
         return true;
     } catch (const std::exception& ex) {
-        Result = MakeFuture(
+        Result_ = MakeFuture(
             TError("Failed to write block to file")
             << ex);
         return false;
     }
 }
 
-TAsyncError TFileWriter::GetReadyEvent()
+bool TFileWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
 {
-    return Result;
+    bool result = true;
+    for (const auto& block : blocks) {
+        result = WriteBlock(block);
+    }
+    return result;
 }
 
-TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TAsyncError TFileWriter::GetReadyEvent()
 {
-    if (!IsOpen || !Result.Get().IsOK()) {
-        return Result;
+    return Result_;
+}
+
+TAsyncError TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    if (!IsOpen_ || !Result_.Get().IsOK()) {
+        return Result_;
     }
 
-    IsOpen = false;
-    IsClosed = true;
+    IsOpen_ = false;
+    IsClosed_ = true;
 
     try {
-        if (SyncOnClose) {
+        if (SyncOnClose_) {
 #ifdef _linux_
-            if (fsync(DataFile->GetHandle()) != 0) {
-                THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
+            if (fsync(DataFile_->GetHandle()) != 0) {
+                THROW_ERROR_EXCEPTION("fsync failed for chunk data file")
+                    << TError::FromSystem();
             }
 #endif
         }
-        DataFile->Close();
-        DataFile.reset();
+        DataFile_->Close();
+        DataFile_.reset();
     } catch (const std::exception& ex) {
         return MakeFuture(
-            TError("Failed to close chunk data file %s", ~FileName)
+            TError("Failed to close chunk data file %s", ~FileName_)
             << ex);
     }
 
     // Write meta.
-    ChunkMeta.CopyFrom(chunkMeta);
-    SetProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
+    ChunkMeta_.CopyFrom(chunkMeta);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), BlocksExt_);
 
     TSharedRef metaData;
-    YCHECK(SerializeToProtoWithEnvelope(ChunkMeta, &metaData));
+    YCHECK(SerializeToProtoWithEnvelope(ChunkMeta_, &metaData));
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
     header.Checksum = GetChecksum(metaData);
 
-    Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
+    Stroka chunkMetaFileName = FileName_ + ChunkMetaSuffix;
 
     try {
         TFile chunkMetaFile(
@@ -128,7 +134,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
-        if (SyncOnClose) {
+        if (SyncOnClose_) {
 #ifdef _linux_
             if (fsync(chunkMetaFile.GetHandle()) != 0) {
                 THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed")
@@ -138,63 +144,54 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         }
 
         chunkMetaFile.Close();
+
+        NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName);
+        NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
     } catch (const std::exception& ex) {
-        return MakeFuture(
-            TError("Failed to write chunk meta to %s", ~chunkMetaFileName.Quote())
+        return MakeFuture(TError(
+            "Failed to write chunk meta to %s",
+            ~chunkMetaFileName.Quote())
             << ex);
     }
 
-    if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        return MakeFuture(TError(
-            "Error renaming temp chunk meta file %s",
-            ~chunkMetaFileName.Quote()));
-    }
+    ChunkInfo_.set_disk_space(DataSize_ + metaData.Size() + sizeof (TChunkMetaHeader));
 
-    if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        return MakeFuture(TError(
-            "Error renaming temp chunk file %s",
-            ~FileName.Quote()));
-    }
-
-    ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());
-    ChunkInfo.set_disk_space(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
-
-    return MakeFuture(TError());
+    return OKFuture;
 }
-
 
 void TFileWriter::Abort()
 {
-    if (!IsOpen) {
+    if (!IsOpen_)
         return;
-    }
-    IsClosed = true;
-    IsOpen = false;
 
-    DataFile.reset();
-    NFS::Remove(FileName + NFS::TempFileSuffix);
+    IsClosed_ = true;
+    IsOpen_ = false;
+
+    DataFile_.reset();
+
+    NFS::Remove(FileName_ + NFS::TempFileSuffix);
 }
 
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
-    YCHECK(IsClosed);
-    return ChunkInfo;
+    YCHECK(IsClosed_);
+    return ChunkInfo_;
 }
 
 const TChunkMeta& TFileWriter::GetChunkMeta() const
 {
-    YCHECK(IsClosed);
-    return ChunkMeta;
+    YCHECK(IsClosed_);
+    return ChunkMeta_;
 }
 
-const std::vector<int> TFileWriter::GetWrittenIndexes() const
+IWriter::TReplicaIndexes TFileWriter::GetWrittenReplicaIndexes() const
 {
     YUNIMPLEMENTED();
 }
 
 i64 TFileWriter::GetDataSize() const
 {
-    return DataSize;
+    return DataSize_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

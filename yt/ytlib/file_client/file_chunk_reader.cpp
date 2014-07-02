@@ -15,40 +15,40 @@ namespace NFileClient {
 
 using namespace NChunkClient;
 
-static auto& Logger = FileReaderLogger;
+static auto& Logger = FileClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChunkReader::TFileChunkReader(
     const NChunkClient::TSequentialReaderConfigPtr& sequentialConfig,
-    const NChunkClient::IAsyncReaderPtr& asyncReader,
+    const NChunkClient::IReaderPtr& chunkReader,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset)
     : SequentialConfig(sequentialConfig)
-    , AsyncReader(asyncReader)
+    , ChunkReader(chunkReader)
     , CodecId(codecId)
     , StartOffset(startOffset)
     , EndOffset(endOffset)
     , Facade(this)
-    , Logger(FileReaderLogger)
+    , Logger(FileClientLogger)
 { }
 
 TAsyncError TFileChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
 
     LOG_INFO("Requesting chunk meta");
-    AsyncReader->AsyncGetChunkMeta().Subscribe(
+    ChunkReader->GetMeta().Subscribe(
         BIND(&TFileChunkReader::OnGotMeta, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();
 }
 
-void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
+void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         auto error = TError("Failed to get file chunk meta") << result;
@@ -134,7 +134,7 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult resu
     SequentialReader = New<TSequentialReader>(
         SequentialConfig,
         std::move(blockSequence),
-        AsyncReader,
+        ChunkReader,
         NCompression::ECodec(CodecId));
 
     LOG_INFO("File reader opened");
@@ -225,18 +225,18 @@ TFileChunkReaderProvider::TFileChunkReaderProvider(
 
 TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IAsyncReaderPtr& chunkReader)
+    const NChunkClient::IReaderPtr& chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
     i64 startOffset = 0;
-    if (chunkSpec.has_start_limit() && chunkSpec.start_limit().has_offset()) {
-        startOffset = chunkSpec.start_limit().offset();
+    if (chunkSpec.has_lower_limit() && chunkSpec.lower_limit().has_offset()) {
+        startOffset = chunkSpec.lower_limit().offset();
     }
 
     i64 endOffset = std::numeric_limits<i64>::max();
-    if (chunkSpec.has_end_limit() && chunkSpec.end_limit().has_offset()) {
-        endOffset = chunkSpec.end_limit().offset();
+    if (chunkSpec.has_upper_limit() && chunkSpec.upper_limit().has_offset()) {
+        endOffset = chunkSpec.upper_limit().offset();
     }
 
     LOG_INFO(

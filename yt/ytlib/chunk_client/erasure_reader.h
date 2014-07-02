@@ -14,19 +14,19 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateNonReparingErasureReader(
-    const std::vector<IAsyncReaderPtr>& dataBlocksReaders);
+IReaderPtr CreateNonReparingErasureReader(
+    const std::vector<IReaderPtr>& dataBlocksReaders);
 
 typedef TCallback<void(double)> TRepairProgressHandler;
 
 TAsyncError RepairErasedParts(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IAsyncReaderPtr>& readers,
-    const std::vector<IAsyncWriterPtr>& writers,
+    const std::vector<IReaderPtr>& readers,
+    const std::vector<IWriterPtr>& writers,
     TRepairProgressHandler onProgress = TRepairProgressHandler());
 
-std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
+std::vector<IReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
@@ -36,7 +36,7 @@ std::vector<IAsyncReaderPtr> CreateErasureDataPartsReaders(
     const NErasure::ICodec* codec,
     const Stroka& networkName = NNodeTrackerClient::DefaultNetworkName);
 
-std::vector<IAsyncReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,

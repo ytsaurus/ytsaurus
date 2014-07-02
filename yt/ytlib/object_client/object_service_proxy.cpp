@@ -15,14 +15,15 @@ using namespace NBus;
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
     const Stroka& path,
-    const Stroka& verb)
-    : TClientRequest(channel, path, verb, false)
+    const Stroka& method)
+    : TClientRequest(channel, path, method, false)
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto clientContxt = CreateClientContext();
+    auto batchRsp = New<TRspExecuteBatch>(clientContxt, KeyToIndexes);
     auto promise = batchRsp->GetAsyncResult();
     DoInvoke(batchRsp);
     return promise;
@@ -79,12 +80,12 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 
     ToProto(req.mutable_part_counts(), PartCounts);
 
-    FOREACH (const auto& prerequisite, PrerequisiteTransactions_) {
+    for (const auto& prerequisite : PrerequisiteTransactions_) {
         auto* protoPrerequisite = req.add_prerequisite_transactions();
         ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
     }
 
-    FOREACH (const auto& prerequisite, PrerequisiteRevisions_) {
+    for (const auto& prerequisite : PrerequisiteRevisions_) {
         auto* protoPrerequisite = req.add_prerequisite_revisions();
         protoPrerequisite->set_path(prerequisite.Path);
         ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
@@ -99,9 +100,9 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
-    const TRequestId& requestId,
+    TClientContextPtr clientContext,
     const std::multimap<Stroka, int>& keyToIndexes)
-    : TClientResponse(requestId)
+    : TClientResponse(std::move(clientContext))
     , KeyToIndexes(keyToIndexes)
     , Promise(NewPromise<TRspExecuteBatchPtr>())
 { }
@@ -114,6 +115,7 @@ TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
 
 void TObjectServiceProxy::TRspExecuteBatch::FireCompleted()
 {
+    BeforeCompleted();
     Promise.Set(this);
     Promise.Reset();
 }
@@ -125,7 +127,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
     int currentIndex = 0;
     BeginPartIndexes.clear();
     BeginPartIndexes.reserve(Body.part_counts_size());
-    FOREACH (int partCount, Body.part_counts()) {
+    for (int partCount : Body.part_counts()) {
         BeginPartIndexes.push_back(currentIndex);
         currentIndex += partCount;
     }
@@ -143,7 +145,7 @@ TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
     }
 
     TError cumulativeError("Error communicating with master");
-    FOREACH (auto rsp, GetResponses()) {
+    for (auto rsp : GetResponses()) {
         auto error = rsp->GetError();
         if (!error.IsOK()) {
             cumulativeError.InnerErrors().push_back(error);
@@ -204,7 +206,7 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
-        New<TReqExecuteBatch>(Channel, ServiceName, "Execute")
+        New<TReqExecuteBatch>(Channel_, ServiceName_, "Execute")
         ->SetTimeout(DefaultTimeout_);
 }
 

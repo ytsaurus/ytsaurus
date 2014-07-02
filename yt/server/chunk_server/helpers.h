@@ -22,22 +22,32 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction,
-    bool resetSorted = true);
+    F childAction);
 
-void AttachToChunkList(
+template <class F>
+void DetachFromChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    bool resetSorted = true);
-
-void AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child,
-    bool resetSorted = true);
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
+    F childAction);
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child);
+void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child);
 
 TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree);
+void AccumulateChildStatistics(
+    TChunkList* chunkList,
+    TChunkTree* child,
+    TChunkTreeStatistics* statistics);
+void ResetChunkListStatistics(TChunkList* chunkList);
+void RecomputeChunkListStatistics(TChunkList* chunkList);
+
+std::vector<TChunkOwnerBase*> GetOwningNodes(
+    TChunkTree* chunkTree);
+void SerializeOwningNodesPaths(
+    NCypressServer::TCypressManagerPtr cypressManager,
+    TChunkTree* chunkTree,
+    NYson::IYsonConsumer* consumer);
 
 void SerializeOwningNodesPaths(
     NCypressServer::TCypressManagerPtr cypressManager,

@@ -11,7 +11,10 @@
 
 #include <core/ypath/token.h>
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -27,16 +30,17 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -46,65 +50,42 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = NodeTrackerServerLogger;
+static auto& Profiler = NodeTrackerServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TImpl
-    : public TMetaStatePart
+    : public TMasterAutomatonPart
 {
 public:
     TImpl(
         TNodeTrackerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMetaStatePart(
-            bootstrap->GetMetaStateFacade()->GetManager(),
-            bootstrap->GetMetaStateFacade()->GetState())
+        : TMasterAutomatonPart(bootstrap)
         , Config(config)
-        , Bootstrap(bootstrap)
         , OnlineNodeCount(0)
         , RegisteredNodeCount(0)
-        , Profiler(NodeTrackerServerProfiler)
     {
-        YCHECK(config);
-        YCHECK(bootstrap);
+        RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
+        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
 
-        RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
+        RegisterLoader(
+            "NodeTracker.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "NodeTracker.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
-        {
-            NCellMaster::TLoadContext context;
-            context.SetBootstrap(Bootstrap);
-
-            RegisterLoader(
-                "NodeTracker.Keys",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadKeys, MakeStrong(this)),
-                context);
-            RegisterLoader(
-                "NodeTracker.Values",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadValues, MakeStrong(this)),
-                context);
-        }
-
-        {
-            NCellMaster::TSaveContext context;
-
-            RegisterSaver(
-                ESerializationPriority::Keys,
-                "NodeTracker.Keys",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveKeys, MakeStrong(this)),
-                context);
-            RegisterSaver(
-                ESerializationPriority::Values,
-                "NodeTracker.Values",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveValues, MakeStrong(this)),
-                context);
-        }
+        RegisterSaver(
+            ESerializationPriority::Keys,
+            "NodeTracker.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "NodeTracker.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
         SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
@@ -118,38 +99,44 @@ public:
 
 
     TMutationPtr CreateRegisterNodeMutation(
-        const TMetaReqRegisterNode& request)
+        const TReqRegisterNode& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::RegisterNode);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request);
     }
 
     TMutationPtr CreateUnregisterNodeMutation(
-        const TMetaReqUnregisterNode& request)
+        const TReqUnregisterNode& request)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UnregisterNode);
+        return CreateMutation(
+            Bootstrap->GetMetaStateFacade()->GetManager(),
+            request);
     }
 
     TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(EStateThreadQueue::Heartbeat)
-            ->SetRequestData(context->GetRequestBody())
-            ->SetType(context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
-    }
+        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND(
+                &TImpl::HydraFullHeartbeat,
+                MakeStrong(this),
+                context,
+                ConstRef(context->Request())));
+   }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
-        const TMetaReqIncrementalHeartbeat& request)
+        TCtxIncrementalHeartbeatPtr context)
     {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::IncrementalHeartbeat, EStateThreadQueue::Heartbeat);
+        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND(
+                &TImpl::HydraIncrementalHeartbeat,
+                MakeStrong(this),
+                context,
+                &context->Response(),
+                ConstRef(context->Request())));
     }
 
 
@@ -168,13 +155,13 @@ public:
     }
 
 
-    DECLARE_METAMAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
-    DEFINE_SIGNAL(void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
 
 
     TNode* FindNodeByAddress(const Stroka& address)
@@ -234,7 +221,7 @@ public:
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             const auto* node = pair.second;
             const auto& statistics = node->Statistics();
             result.AvailableSpace += statistics.total_available_space();
@@ -256,19 +243,14 @@ public:
     }
 
 private:
-    typedef TImpl TThis;
-
     TNodeTrackerConfigPtr Config;
-    TBootstrap* Bootstrap;
 
     int OnlineNodeCount;
     int RegisteredNodeCount;
 
-    NProfiling::TProfiler& Profiler;
-
     TIdGenerator NodeIdGenerator;
 
-    TMetaStateMap<TNodeId, TNode> NodeMap;
+    NHydra::TEntityMap<TNodeId, TNode> NodeMap;
     yhash_map<Stroka, TNode*> AddressToNodeMap;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap;
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap;
@@ -295,21 +277,16 @@ private:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
-
-        auto nodesNode = resolver->ResolvePath("//sys/nodes");
-        YCHECK(nodesNode);
-
-        auto nodesMap = nodesNode->AsMap();
+        auto nodesMap = resolver->ResolvePath("//sys/nodes")->AsMap();
         auto nodeNode = nodesMap->FindChild(address);
         if (!nodeNode) {
             return nullptr;
         }
-
         return nodeNode->Attributes().ToMap();
     }
 
 
-    TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
+    TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
@@ -328,12 +305,13 @@ private:
 
         auto* node = DoRegisterNode(descriptor, statistics);
 
-        TMetaRspRegisterNode response;
+        TRspRegisterNode response;
         response.set_node_id(node->GetId());
+        ToProto(response.mutable_cell_guid(), Bootstrap->GetCellGuid());
         return response;
     }
 
-    void UnregisterNode(const TMetaReqUnregisterNode& request)
+    void HydraUnregisterNode(const TReqUnregisterNode& request)
     {
         auto nodeId = request.node_id();
 
@@ -345,24 +323,22 @@ private:
         DoUnregisterNode(node);
     }
 
-
-    void FullHeartbeatWithContext(TCtxFullHeartbeatPtr context)
-    {
-        return FullHeartbeat(context->Request());
-    }
-
-    void FullHeartbeat(const TMetaReqFullHeartbeat& request)
+    void HydraFullHeartbeat(
+        TCtxFullHeartbeatPtr context,
+        const TReqFullHeartbeat& request)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
             auto nodeId = request.node_id();
             const auto& statistics = request.statistics();
 
-            auto* node = GetNode(nodeId);
+            auto* node = FindNode(nodeId);
+            if (!node)
+                return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Full heartbeat received (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~node->GetState().ToString(),
+                ~ToString(node->GetState()),
                 ~ToString(statistics));
 
             YCHECK(node->GetState() == ENodeState::Registered);
@@ -382,19 +358,23 @@ private:
         }
     }
 
-
-    void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
+    void HydraIncrementalHeartbeat(
+        TCtxIncrementalHeartbeatPtr context,
+        TRspIncrementalHeartbeat* response,
+        const TReqIncrementalHeartbeat& request)
     {
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto nodeId = request.node_id();
             const auto& statistics = request.statistics();
 
-            auto* node = GetNode(nodeId);
+            auto* node = FindNode(nodeId);
+            if (!node)
+                return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Incremental heartbeat received (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~node->GetState().ToString(),
+                ~ToString(node->GetState()),
                 ~ToString(statistics));
 
             YCHECK(node->GetState() == ENodeState::Online);
@@ -404,7 +384,7 @@ private:
 
             RenewNodeLease(node);
             
-            IncrementalHeartbeat_.Fire(node, request);
+            IncrementalHeartbeat_.Fire(node, request, response);
         }
     }
 
@@ -448,7 +428,7 @@ private:
         RegisteredNodeCount = 0;
     }
 
-    virtual void OnAfterLoaded() override
+    virtual void OnAfterSnapshotLoaded() override
     {
         AddressToNodeMap.clear();
         HostNameToNodeMap.clear();
@@ -457,7 +437,7 @@ private:
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
 
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
 
@@ -477,16 +457,12 @@ private:
         Profiler.SetEnabled(false);
 
         // Reset runtime info.
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
-
-            node->ResetSessionHints();
-            
-            FOREACH (auto& queue, node->ChunkReplicationQueues()) {
-                queue.clear();
-            }
-
-            node->ChunkRemovalQueue().clear();
+            node->ResetHints();
+            node->ClearChunkRemovalQueue();
+            node->ClearChunkReplicationQueues();
+            node->ClearChunkSealQueue();
         }
     }
 
@@ -494,15 +470,15 @@ private:
     {
         Profiler.SetEnabled(true);
 
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             RefreshNodeConfig(node);
         }
     }
 
-    virtual void OnActiveQuorumEstablished() override
+    virtual void OnLeaderActive() override
     {
-        FOREACH (const auto& pair, NodeMap) {
+        for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             if (!node->GetTransaction()) {
                 LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %d, Address: %s)",
@@ -612,6 +588,7 @@ private:
         auto* transaction = node->GetTransaction();
         if (!transaction)
             return;
+        auto transactionId = transaction->GetId();
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto rootService = objectManager->GetRootService();
@@ -621,54 +598,47 @@ private:
         auto nodePath = "//sys/nodes/" + ToYPathLiteral(address);
         auto orchidPath = nodePath + "/orchid";
 
-        bool nodeExists = SyncYPathExists(rootService, nodePath);
-        bool orchidExists = SyncYPathExists(rootService, orchidPath);
+        try {
+            {
+                auto req = TCypressYPathProxy::Create(nodePath);
+                req->set_type(EObjectType::CellNode);
+                req->set_ignore_existing(true);
 
-        if (!nodeExists) {
-            LOG_INFO("Registering node in Cypress (Address: %s)", ~address);
+                auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
+                ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
-            auto req = TCypressYPathProxy::Create(nodePath);
-            req->set_type(EObjectType::CellNode);
-            req->set_ignore_existing(true);
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
+            }
 
-            auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
-            ToProto(req->mutable_node_attributes(), *defaultAttributes);
+            {
+                auto req = TCypressYPathProxy::Create(orchidPath);
+                req->set_type(EObjectType::Orchid);
+                req->set_ignore_existing(true);
 
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
-        }
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_address", address);
+                ToProto(req->mutable_node_attributes(), *attributes);
 
-        if (!orchidExists) {
-            auto req = TCypressYPathProxy::Create(orchidPath);
-            req->set_type(EObjectType::Orchid);
-            req->set_ignore_existing(true);
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
+            }
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("remote_address", address);
-            ToProto(req->mutable_node_attributes(), *attributes);
+            {
+                auto req = TCypressYPathProxy::Lock(nodePath);
+                req->set_mode(ELockMode::Shared);
+                SetTransactionId(req, transactionId);
 
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
-        }
-
-        {
-            auto req = TCypressYPathProxy::Lock(nodePath);
-            req->set_mode(ELockMode::Shared);
-            SetTransactionId(req, transaction->GetId());
-
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspLock>, MakeStrong(this)));
-        }
-    }
-
-    template <class TResponse>
-    void CheckCypressResponse(TIntrusivePtr<TResponse> rsp)
-    {
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error registering node in Cypress");
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error registering node in Cypress");
         }
     }
-
 
     TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
     {
@@ -762,26 +732,12 @@ private:
 
         auto nodeId = node->GetId();
 
-        TMetaReqUnregisterNode message;
+        TReqUnregisterNode message;
         message.set_node_id(nodeId);
 
+        auto mutation = CreateUnregisterNodeMutation(message);
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
-        CreateUnregisterNodeMutation(message)
-            ->OnSuccess(BIND(&TThis::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
-            ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker))
-            ->PostCommit();
-    }
-
-    void OnUnregisterCommitSucceeded(TNodeId nodeId)
-    {
-        LOG_INFO("Node unregister commit succeeded (NodeId: %d)",
-            nodeId);
-    }
-
-    void OnUnregisterCommitFailed(TNodeId nodeId, const TError& error)
-    {
-        LOG_ERROR(error, "Node unregister commit failed (NodeId: %d)",
-            nodeId);
+        invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
     }
 
 
@@ -798,7 +754,7 @@ private:
 
 };
 
-DEFINE_METAMAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -847,13 +803,13 @@ TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
-    const TMetaReqRegisterNode& request)
+    const TReqRegisterNode& request)
 {
     return Impl->CreateRegisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
-    const TMetaReqUnregisterNode& request)
+    const TReqUnregisterNode& request)
 {
     return Impl->CreateUnregisterNodeMutation(request);
 }
@@ -865,9 +821,9 @@ TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
 }
 
 TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
-    const TMetaReqIncrementalHeartbeat& request)
+    TCtxIncrementalHeartbeatPtr context)
 {
-    return Impl->CreateIncrementalHeartbeatMutation(request);
+    return Impl->CreateIncrementalHeartbeatMutation(context);
 }
 
 void TNodeTracker::RefreshNodeConfig(TNode* node)
@@ -890,13 +846,13 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl->GetOnlineNodeCount();
 }
 
-DELEGATE_METAMAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
 
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeRegistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeUnregistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeConfigUpdated, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

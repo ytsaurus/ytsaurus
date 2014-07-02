@@ -22,7 +22,6 @@ struct IWriterBase
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
 
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

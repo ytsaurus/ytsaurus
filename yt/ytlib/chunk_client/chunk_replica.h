@@ -15,6 +15,7 @@ void FromProto(TChunkReplica* replica, ui32 value);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A compact representation of |(nodeId, index)| pair.
+// TODO(babenko): rename since it now represents a replica of tablet as well
 class TChunkReplica
 {
 public:
@@ -53,16 +54,27 @@ struct TChunkIdWithIndex
 
 };
 
-//! Indicates that an instance of TChunkIdWithIndex (or other similar descriptor)
-//! refers to the whole chunk, not to any of its replicas.
-static const int GenericChunkPartIndex = 255;
+///////////////////////////////////////////////////////////////////////////////
+
+const int GenericChunkReplicaIndex = 0;
+const int AllChunkReplicasIndex = 255;
+
+//! Valid indexes are in range |[0, MaxChunkReplicaIndex)|.
+const int ChunkReplicaIndexBound = 16;
+
+DECLARE_ENUM(EJournalReplicaType,
+   ((Generic)   (GenericChunkReplicaIndex))
+    (Active)    // the replica is currently being written
+    (Unsealed)  // the replica is finished but not sealed
+    (Sealed)    // the replica is finished and is sealed
+);
+
+///////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 Stroka ToString(const TChunkIdWithIndex& id);
-
-///////////////////////////////////////////////////////////////////////////////
 
 //! Returns |true| iff this is a erasure chunk.
 bool IsErasureChunkId(const TChunkId& id);
@@ -83,8 +95,8 @@ int IndexFromErasurePartId(const TChunkId& id);
 //! For erasure chunks, constructs the part id using the given replica index.
 TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex);
 
-//! For usual chunks, preserves the id and returns zero index.
-//! For erasure chunks, constructs the whole chunk id and extracts index.
+//! For regular chunks, preserves the id and returns #GenericChunkReplicaIndex.
+//! For erasure chunk parts, constructs the whole chunk id and extracts part index.
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
 
 ////////////////////////////////////////////////////////////////////////////////

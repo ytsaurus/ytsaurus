@@ -2,6 +2,8 @@
 
 #include <util/generic/typetraits.h>
 
+#include <type_traits>
+
 // See the following references for an inspiration:
 //   * http://llvm.org/viewvc/llvm-project/libcxx/trunk/include/type_traits?revision=HEAD&view=markup
 //   * http://www.boost.org/doc/libs/1_48_0/libs/type_traits/doc/html/index.html
@@ -308,8 +310,8 @@ struct TCallTraits
         typedef char ArrayOfOne[1];                                                      \
         typedef char ArrayOfTwo[2];                                                      \
                                                                                          \
-        template<typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
-        template<typename U> static ArrayOfTwo & func(...);                              \
+        template <typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
+        template <typename U> static ArrayOfTwo & func(...);                              \
                                                                                          \
     public:                                                                              \
         enum                                                                             \
@@ -317,6 +319,47 @@ struct TCallTraits
             Value = sizeof(func<Derived>(0)) == 2                                        \
         };                                                                               \
     }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class... TTypes>
+struct TTypesPack
+{
+    const static size_t Size = sizeof...(TTypes);
+};
+
+template <unsigned N, class THead, class TTail>
+struct TSplitVariadicHelper;
+
+template <unsigned N, class THead, class TTail>
+struct TSplitVariadic : TSplitVariadicHelper<N, THead, TTail>
+{ };
+
+template<class THeadParam, class TTailParam>
+struct TSplitVariadic<0, THeadParam, TTailParam>
+{
+    typedef THeadParam THead;
+    typedef TTailParam TTail;
+};
+
+template <unsigned N, class... THead, class TPivot, class... TTail>
+struct TSplitVariadicHelper<N, TTypesPack<THead...>, TTypesPack<TPivot, TTail...> >
+    : TSplitVariadic<N - 1, TTypesPack<THead..., TPivot>, TTypesPack<TTail...> >
+{ };
+
+template <unsigned...>
+struct TSequence { };
+
+template <unsigned N, unsigned... Indexes>
+struct TGenerateSequence 
+    : TGenerateSequence<N - 1, N - 1, Indexes...>
+{ };
+
+template <unsigned... Indexes>
+struct TGenerateSequence<0, Indexes...>
+{
+    typedef TSequence<Indexes...> TType;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

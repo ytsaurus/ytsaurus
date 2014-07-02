@@ -1,19 +1,38 @@
 #include "stdafx.h"
 #include "node.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk.h>
 
 #include <server/transaction_server/transaction.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/tablet_server/tablet_cell.h>
+
+#include <server/node_tracker_server/config.h>
+
+#include <server/cell_master/serialize.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
-using namespace NNodeTrackerClient;
+using namespace NTabletServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Cell);
+    Persist(context, PeerState);
+    Persist(context, PeerId);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +62,7 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    ResetSessionHints();
+    ResetHints();
 }
 
 TNode::~TNode()
@@ -71,10 +90,12 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, Statistics_);
     Save(context, Alerts_);
-    SaveObjectRef(context, Transaction_);
-    SaveObjectRefs(context, StoredReplicas_);
-    SaveObjectRefs(context, CachedReplicas_);
-    SaveObjectRefs(context, UnapprovedReplicas_);
+    Save(context, Transaction_);
+    Save(context, StoredReplicas_);
+    Save(context, CachedReplicas_);
+    Save(context, UnapprovedReplicas_);
+    Save(context, TabletSlots_);
+    Save(context, TabletCellCreateQueue_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -85,7 +106,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 41) {
         Load(context, addresses);
     } else {
-        Load(context, addresses[DefaultNetworkName]);
+        Load(context, addresses[NNodeTrackerClient::DefaultNetworkName]);
     }
     Descriptor_ = TNodeDescriptor(addresses);
 
@@ -95,66 +116,157 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 27) {
         Load(context, Alerts_);
     }
-    LoadObjectRef(context, Transaction_);
-    LoadObjectRefs(context, StoredReplicas_);
-    LoadObjectRefs(context, CachedReplicas_);
-    LoadObjectRefs(context, UnapprovedReplicas_);
+    Load(context, Transaction_);
+    Load(context, StoredReplicas_);
+    Load(context, CachedReplicas_);
+    Load(context, UnapprovedReplicas_);
+    Load(context, TabletSlots_);
+    Load(context, TabletCellCreateQueue_);
 }
 
-void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
+bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
-        YCHECK(CachedReplicas_.insert(replica).second);
-    } else {
-        YCHECK(StoredReplicas_.insert(replica).second);
+        YASSERT(!chunk->IsJournal());
+        return CachedReplicas_.insert(replica).second;
+    } else  {
+        if (chunk->IsJournal()) {
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
+        } 
+        // NB: For journal chunks result is always true.
+        return StoredReplicas_.insert(replica).second;
     }
 }
 
 void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
-        YCHECK(CachedReplicas_.erase(replica) == 1);
+        YASSERT(!chunk->IsJournal());
+        CachedReplicas_.erase(replica);
     } else {
-        YCHECK(StoredReplicas_.erase(replica) == 1);
-        UnapprovedReplicas_.erase(replica);
-        ChunkRemovalQueue_.erase(TChunkIdWithIndex(replica.GetPtr()->GetId(), replica.GetIndex()));
-        FOREACH (auto& queue, ChunkReplicationQueues_) {
-            queue.erase(replica);
+        if (chunk->IsJournal()) {
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+            StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
+        } else {
+            StoredReplicas_.erase(replica);
+        }
+
+        auto genericReplica = ToGeneric(replica);
+        UnapprovedReplicas_.erase(genericReplica);
+
+        ChunkRemovalQueue_.erase(TChunkIdWithIndex(chunk->GetId(), genericReplica.GetIndex()));
+
+        for (auto& queue : ChunkReplicationQueues_) {
+            queue.erase(genericReplica);
         }
     }
 }
 
 bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
+    auto* chunk = replica.GetPtr();
     if (cached) {
+        YASSERT(!chunk->IsJournal());
         return CachedReplicas_.find(replica) != CachedReplicas_.end();
     } else {
-        return StoredReplicas_.find(replica) != StoredReplicas_.end();
+        if (chunk->IsJournal()) {
+            return
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active)) != StoredReplicas_.end() ||
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed)) != StoredReplicas_.end() ||
+                StoredReplicas_.find(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed)) != StoredReplicas_.end();
+        } else {
+            return StoredReplicas_.find(replica) != StoredReplicas_.end();
+        }
     }
 }
 
-void TNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica, TInstant timestamp)
+void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
 {
-    YASSERT(HasReplica(replica, false));
-    YCHECK(UnapprovedReplicas_.insert(std::make_pair(replica, timestamp)).second);
+    YCHECK(UnapprovedReplicas_.insert(std::make_pair(
+        ToGeneric(replica),
+        timestamp)).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
-    return UnapprovedReplicas_.find(replica) != UnapprovedReplicas_.end();
+    return
+        UnapprovedReplicas_.find(ToGeneric(replica)) !=
+        UnapprovedReplicas_.end();
 }
 
 void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
-    YASSERT(HasReplica(replica, false));
-    YCHECK(UnapprovedReplicas_.erase(replica) == 1);
+    YCHECK(UnapprovedReplicas_.erase(ToGeneric(replica)) == 1);
+    auto* chunk = replica.GetPtr();
+    if (chunk->IsJournal()) {
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Active));
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Unsealed));
+        StoredReplicas_.erase(TChunkPtrWithIndex(chunk, EJournalReplicaType::Sealed));
+        YCHECK(StoredReplicas_.insert(replica).second);
+    }
 }
 
-void TNode::ResetSessionHints()
+void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
+{
+    ChunkRemovalQueue_.insert(ToGeneric(replica));
+}
+
+void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
+{
+    ChunkRemovalQueue_.erase(ToGeneric(replica));
+}
+
+void TNode::ClearChunkRemovalQueue()
+{
+    ChunkRemovalQueue_.clear();
+}
+
+void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
+{
+    ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
+}
+
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
+{
+    auto genericReplica = ToGeneric(replica);
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.erase(genericReplica);
+    }
+}
+
+void TNode::ClearChunkReplicationQueues()
+{
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.clear();
+    }
+}
+
+void TNode::AddToChunkSealQueue(TChunk* chunk)
+{
+    ChunkSealQueue_.insert(chunk);
+}
+
+void TNode::RemoveFromChunkSealQueue(TChunk* chunk)
+{
+    ChunkSealQueue_.erase(chunk);
+}
+
+void TNode::ClearChunkSealQueue()
+{
+    ChunkSealQueue_.clear();
+}
+
+void TNode::ResetHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
     HintedRepairSessionCount_ = 0;
+    HintedTabletSlots_ = 0;
 }
 
 void TNode::AddSessionHint(EWriteSessionType sessionType)
@@ -196,22 +308,88 @@ int TNode::GetTotalSessionCount() const
         GetSessionCount(EWriteSessionType::Repair);
 }
 
-TAtomic TNode::GenerateVisitMark()
+TNode::TTabletSlot* TNode::FindTabletSlot(TTabletCell* cell)
 {
-    static TAtomic result = 0;
-    return AtomicIncrement(result);
+    for (auto& slot : TabletSlots_) {
+        if (slot.Cell == cell) {
+            return &slot;
+        }
+    }
+    return nullptr;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeId GetObjectId(const TNode* node)
+TNode::TTabletSlot* TNode::GetTabletSlot(TTabletCell* cell)
 {
-    return node->GetId();
+    auto* slot = FindTabletSlot(cell);
+    YCHECK(slot);
+    return slot;
 }
 
-bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs)
+bool TNode::IsTabletCellStartScheduled(TTabletCell* cell) const
 {
-    return GetObjectId(lhs) < GetObjectId(rhs);
+    return TabletCellCreateQueue_.find(cell) != TabletCellCreateQueue_.end();
+}
+
+void TNode::ScheduleTabletCellStart(TTabletCell* cell)
+{
+    YCHECK(TabletCellCreateQueue_.insert(cell).second);
+}
+
+void TNode::CancelTabletCellStart(TTabletCell* cell)
+{
+    // NB: Need not be there.
+    TabletCellCreateQueue_.erase(cell);
+}
+
+void TNode::DetachTabletCell(TTabletCell* cell)
+{
+    TabletCellCreateQueue_.erase(cell);
+
+    auto* slot = FindTabletSlot(cell);
+    if (slot) {
+        *slot = TTabletSlot();
+    }
+}
+
+ui64 TNode::GenerateVisitMark()
+{
+    static std::atomic<ui64> result(0);
+    return ++result;
+}
+
+void TNode::AddTabletSlotHint()
+{
+    ++HintedTabletSlots_;
+}
+
+int TNode::GetTotalUsedTabletSlots() const
+{
+    return
+        Statistics_.used_tablet_slots() +
+        TabletCellCreateQueue_.size() +
+        HintedTabletSlots_;
+}
+
+int TNode::GetTotalTabletSlots() const
+{
+    return
+        Statistics_.used_tablet_slots() +
+        Statistics_.available_tablet_slots();
+}
+
+TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndex replica)
+{
+    auto* chunk = replica.GetPtr();
+    return chunk->IsJournal()
+        ? TChunkPtrWithIndex(chunk, EJournalReplicaType::Generic)
+        : replica;
+}
+
+TChunkIdWithIndex TNode::ToGeneric(const TChunkIdWithIndex& replica)
+{
+    return TypeFromId(replica.Id) == EObjectType::JournalChunk
+        ? TChunkIdWithIndex(replica.Id, EJournalReplicaType::Generic)
+        : replica;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

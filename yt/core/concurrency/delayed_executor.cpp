@@ -1,204 +1,211 @@
 #include "stdafx.h"
 #include "delayed_executor.h"
+#include "action_queue_detail.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/thread.h>
+#include <core/misc/singleton.h>
 
 #include <util/datetime/base.h>
+
+#include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
+static auto DeadlinePrecision = TDuration::MilliSeconds(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDelayedExecutorEntry
+    : public TIntrinsicRefCounted
+{
+    typedef TDelayedExecutor::TCookie TCookie;
+
+    struct TComparer
+    {
+        bool operator()(const TCookie& lhs, const TCookie& rhs) const
+        {
+            if (lhs->Deadline != rhs->Deadline) {
+                return lhs->Deadline < rhs->Deadline;
+            }
+            // Break ties.
+            return lhs < rhs;
+        }
+    };
+
+
+    TDelayedExecutorEntry(TClosure callback, TInstant deadline)
+        : Deadline(deadline)
+        , Callback(std::move(callback))
+    { }
+
+    TInstant Deadline;
+    TClosure Callback; // if null then the entry is invalidated
+    std::set<TCookie, TComparer>::iterator Iterator;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDelayedExecutor::TImpl
-    : private TNonCopyable
+    : public TEVSchedulerThread
 {
 public:
     TImpl()
-        : Thread(&ThreadFunc, (void*)this)
-        , Finished(false)
+        : TEVSchedulerThread(
+            "DelayedExecutor",
+            false)
+        , TimerWatcher(EventLoop)
     {
-        Thread.Start();
+        TimerWatcher.set<TImpl, &TImpl::OnTimer>(this);
+
+        Start();
     }
 
-    ~TImpl()
+    TCookie Submit(TClosure callback, TDuration delay)
     {
-        Shutdown();
+        return Submit(std::move(callback), delay.ToDeadLine());
     }
 
-    TCookie Submit(TClosure action, TDuration delay)
+    TCookie Submit(TClosure callback, TInstant deadline)
     {
-        return Submit(action, delay.ToDeadLine());
-    }
-
-    TCookie Submit(TClosure action, TInstant deadline)
-    {
-        auto cookie = New<TEntry>(action, deadline);
+        auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            auto pair = Entries.insert(cookie);
-            YCHECK(pair.second);
-            cookie->Iterator = pair.first;
+            auto pair = Entries.insert(entry);
+            YCHECK(pair.second);    
+            entry->Iterator = pair.first;
+            if (*Entries.begin() == entry) {
+                StartWatcher(entry);
+            }
         }
 
-        if (AtomicGet(Finished)) {
+        if (!IsRunning()) {
             PurgeEntries();
         }
 
-        return cookie;
+        return entry;
     }
 
-    bool Cancel(TCookie cookie)
+    bool Cancel(TCookie entry)
     {
-        auto entry = CookieToEntry(cookie);
-
+        TClosure callback;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            if (!entry || !entry->Action) {
+            if (!entry || !entry->Callback) {
                 return false;
             }
             Entries.erase(entry->Iterator);
-            entry->Action.Reset();
+            callback = std::move(entry->Callback); // prevent destruction under spin lock
         }
-
+        // |callback| dies here
         return true;
     }
 
-    bool CancelAndClear(TCookie& cookie)
+    bool CancelAndClear(TCookie& entry)
     {
-        if (!cookie)
+        if (!entry) {
             return false;
-        auto cookie_ = cookie;
-        cookie.Reset();
-        return Cancel(cookie_);
-    }
-
-    void Shutdown()
-    {
-        AtomicSet(Finished, true);
-        Thread.Join();
-        PurgeEntries();
+        }
+        bool result = Cancel(entry);
+        entry.Reset();
+        return result;
     }
 
 private:
-    struct TEntry;
-    typedef TIntrusivePtr<TEntry> TEntryPtr;
+    ev::timer TimerWatcher;
 
-    struct TEntry
-        : public TEntryBase
-    {
-        struct TComparer
-        {
-            bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const
-            {
-                if (lhs->Deadline != rhs->Deadline) {
-                    return lhs->Deadline < rhs->Deadline;
-                }
-                // Break ties.
-                return lhs < rhs;
-            }
-        };
-
-        TInstant Deadline;
-        TClosure Action; // if null then the entry is invalidated
-        std::set<TEntryPtr, TComparer>::iterator Iterator;
-
-        TEntry(TClosure action, TInstant deadline)
-            : Deadline(deadline)
-            , Action(std::move(action))
-        { }
-    };
-
-    std::set<TEntryPtr, TEntry::TComparer> Entries;
-    TThread Thread;
     TSpinLock SpinLock;
-    TAtomic Finished;
+    std::set<TCookie, TDelayedExecutorEntry::TComparer> Entries;
 
 
-    static void* ThreadFunc(void* param)
+    virtual void OnShutdown() override
     {
-        auto* impl = reinterpret_cast<TImpl*>(param);
-        impl->ThreadMain();
-        return nullptr;
+        TEVSchedulerThread::OnShutdown();
+        PurgeEntries();
     }
 
-    void ThreadMain()
+    void StartWatcher(TCookie entry)
     {
-        SetCurrentThreadName("DelayedExecutor");
-        while (!AtomicGet(Finished)) {
-            auto now = TInstant::Now();
-            while (true) {
-                TClosure action;
-                {
-                    TGuard<TSpinLock> guard(SpinLock);
-                    if (Entries.empty()) {
-                        break;
-                    }
-                    auto entry = *Entries.begin();
-                    if (entry->Deadline > now) {
-                        break;
-                    }
-                    Entries.erase(entry->Iterator);
-                    
-                    action = std::move(entry->Action);
-                    entry->Action.Reset(); // typically redundant
+        GetInvoker()->Invoke(BIND(
+            &TImpl::DoStartWatcher,
+            MakeStrong(this),
+            entry->Deadline));
+    }
+
+    void DoStartWatcher(TInstant deadline)
+    {
+        double delay = std::max(deadline.SecondsFloat() - TInstant::Now().SecondsFloat(), 0.0);
+        TimerWatcher.start(delay + ev_now(EventLoop) - ev_time(), 0.0);        
+    }
+
+    void OnTimer(ev::timer&, int)
+    {
+        while (true) {
+            TClosure callback;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (Entries.empty()) {
+                    break;
                 }
-                action.Run();
+                auto entry = *Entries.begin();
+                if (entry->Deadline > TInstant::Now() + DeadlinePrecision) {
+                    StartWatcher(entry);
+                    break;
+                }
+                Entries.erase(entry->Iterator);
+                
+                callback = std::move(entry->Callback); // prevent destruction under spin lock
             }
-            Sleep(SleepQuantum);
+            if (callback) {
+                callback.Run();
+            }
         }
-    }
-
-    static TEntryPtr CookieToEntry(TCookie cookie)
-    {
-        return static_cast<TEntry*>(~cookie);
     }
 
     void PurgeEntries()
     {
-        std::vector<TClosure> actions;
+        std::vector<TClosure> callbacks;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            for (const auto& entry : Entries) {
-                actions.push_back(std::move(entry->Action)); // prevent destruction under spin lock
-                entry->Action.Reset(); // typically redundant
+            for (auto& entry : Entries) {
+                callbacks.push_back(std::move(entry->Callback)); // prevent destruction under spin lock
             }            
         }
-        // |actions| die here
+        // |callbacks| die here
     }
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure action, TDuration delay)
+TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    return Singleton<TImpl>()->Submit(action, delay);
+    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), delay);
 }
 
-TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure action, TInstant deadline)
+TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    return Singleton<TImpl>()->Submit(action, deadline);
+    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), deadline);
 }
 
-bool TDelayedExecutor::Cancel(TCookie cookie)
+bool TDelayedExecutor::Cancel(TCookie entry)
 {
-    return Singleton<TImpl>()->Cancel(cookie);
+    return RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
 }
 
-bool TDelayedExecutor::CancelAndClear(TCookie& cookie)
+bool TDelayedExecutor::CancelAndClear(TCookie& entry)
 {
-    return Singleton<TImpl>()->CancelAndClear(cookie);
+    return RefCountedSingleton<TImpl>()->CancelAndClear(entry);
 }
 
 void TDelayedExecutor::Shutdown()
 {
-    Singleton<TImpl>()->Shutdown();
+    RefCountedSingleton<TImpl>()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

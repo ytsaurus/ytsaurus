@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/yson/zigzag.h>
+#include <core/misc/zigzag.h>
 
 namespace NYT {
 namespace {
-
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

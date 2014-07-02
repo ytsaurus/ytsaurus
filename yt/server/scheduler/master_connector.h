@@ -5,7 +5,6 @@
 #include <core/actions/signal.h>
 #include <core/ytree/public.h>
 
-#include <ytlib/object_client/public.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/cell_scheduler/public.h>
@@ -44,7 +43,7 @@ public:
     TAsyncError ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
+    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stderrChunkId);
     
     void AttachToLivePreview(
         TOperationPtr operation,

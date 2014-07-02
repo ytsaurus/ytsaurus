@@ -2,40 +2,118 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/meta_state/public.h>
+#include <core/rpc/public.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/hydra/public.h>
 
-#include <ytlib/transaction_client//transaction_ypath_proxy.h>
+#include <ytlib/hive/public.h>
+
+#include <ytlib/api/client.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a transaction within a client.
+class TTransaction
+    : public TRefCounted
+{
+public:
+    ~TTransaction();
+
+    //! Commits the transaction asynchronously.
+    /*!
+     *  Should not be called more than once.
+     *
+     *  \note Thread affinity: ClientThread
+     */
+    TAsyncError Commit(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+
+    //! Aborts the transaction asynchronously.
+    TAsyncError Abort(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+
+    //! Detaches the transaction, i.e. stops pings.
+    /*!
+     *  This call does not block and does not throw.
+     *  Safe to call multiple times.
+     *
+     *  \note Thread affinity: ClientThread
+     */
+    void Detach();
+
+    //! Sends an asynchronous ping.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TAsyncError Ping();
+
+
+    //! Returns the transaction type.
+    ETransactionType GetType() const;
+
+    //! Returns the transaction id.
+    /*!
+     *  \note Thread affinity: any
+     */
+    const TTransactionId& GetId() const;
+
+    //! Returns the transaction start timestamp.
+    /*!
+     *  \note Thread affinity: any
+     */
+    TTimestamp GetStartTimestamp() const;
+
+
+    //! Called to mark a given cell as a transaction participant.
+    //! Starts the corresponding transaction and returns the async result.
+    /*!
+     *  \note Thread affinity: ClientThread
+     */
+    TAsyncError AddTabletParticipant(const NElection::TCellGuid& cellGuid);
+
+
+    //! Raised when the transaction is aborted.
+    /*!
+     *  \note Thread affinity: any
+     */
+    DECLARE_SIGNAL(void(), Aborted);
+
+private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
+
+    friend class TTransactionManager;
+
+    template <class T, class... As>
+    friend TIntrusivePtr<T> NYT::New(As&&... args);
+
+    static TTransactionPtr Create(TIntrusivePtr<TImpl> impl);
+    explicit TTransaction(TIntrusivePtr<TImpl> impl);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Describes settings for a newly created transaction.
 struct TTransactionStartOptions
-    : private TNonCopyable
+    : public NApi::TTransactionStartOptions
 {
     TTransactionStartOptions();
+    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
+    TTransactionStartOptions(const NApi::TTransactionStartOptions& other);
 
-    TNullable<TDuration> Timeout;
-    NMetaState::TMutationId MutationId;
-    TTransactionId ParentId;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
+    NHydra::TMutationId MutationId;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
-    bool RegisterInManager;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes;
 };
 
 //! Describes settings used for attaching to existing transactions.
 struct TTransactionAttachOptions
-    : private TNonCopyable
 {
     explicit TTransactionAttachOptions(const TTransactionId& id);
 
@@ -43,16 +121,17 @@ struct TTransactionAttachOptions
     bool AutoAbort;
     bool Ping;
     bool PingAncestors;
-    bool RegisterInManager;
 };
 
 //! Controls transactions at client-side.
 /*!
  *  Provides a factory for all client-side transactions.
  *  Keeps track of all active transactions and sends pings to master servers periodically.
+ *
+ * /note Thread affinity: any
  */
 class TTransactionManager
-    : public virtual TRefCounted
+    : public TRefCounted
 {
 public:
     //! Initializes an instance.
@@ -62,26 +141,24 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        NRpc::IChannelPtr channel);
+        const NHive::TCellGuid& masterCellGuid,
+        NRpc::IChannelPtr masterChannel,
+        ITimestampProviderPtr timestampProvider,
+        NHive::TCellDirectoryPtr cellDirectory);
 
-    //! Starts a new transaction.
+    ~TTransactionManager();
+
+    //! Asynchronously starts a new transaction.
     /*!
+     *  If |options.Ping| is |true| then transaction's lease will be renewed periodically.
      *
-     *  If |options.Ping| is True then Transaction Manager will be renewing
-     *  the lease of this transaction.
-     *
-     *  If |options.PingAncestors| is True then Transaction Manager will be renewing
-     *  the leases of all ancestors of this transaction.
-     *
-     *  \note
-     *  This call does not block.
-     *  Thread affinity: any.
+     *  If |options.PingAncestors| is |true| then the above renewal will also apply to all
+     *  ancestor transactions.
      */
-    TFuture<TErrorOr<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<TTransactionPtr>> Start(
+        ETransactionType type,
+        const TTransactionStartOptions& options);
     
-    //! Synchronous version of start transaction
-    ITransactionPtr Start(const TTransactionStartOptions& options);
-
     //! Attaches to an existing transaction.
     /*!
      *  If |options.AutoAbort| is True then the transaction will be aborted
@@ -94,27 +171,20 @@ public:
      *  the leases of all ancestors of this transaction.
      *
      *  \note
-     *  This call may block.
-     *  Thread affinity: any.
+     *  This call does not block.
      */
-    ITransactionPtr Attach(const TTransactionAttachOptions& options);
+    TTransactionPtr Attach(const TTransactionAttachOptions& options);
 
-    //! Aborts all active transactions.
-    void AsyncAbortAll();
+    //! Asynchronously aborts all active transactions.
+    void AbortAll();
 
 private:
-    class TTransaction;
-    typedef TIntrusivePtr<TTransaction> TTransactionPtr;
-
-    typedef TTransactionManager TThis;
-
-    TTransactionManagerConfigPtr Config;
-    NRpc::IChannelPtr Channel;
-    NObjectClient::TObjectServiceProxy ObjectProxy;
-
-    TSpinLock SpinLock;
-    yhash_set<TTransaction*> AliveTransactions;
+    friend class TTransaction;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TTransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

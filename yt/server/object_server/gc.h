@@ -63,15 +63,14 @@ private:
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void OnSweep();
-    void OnCommitSucceeded();
-    void OnCommitFailed(const TError& error);
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TGarbageCollector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

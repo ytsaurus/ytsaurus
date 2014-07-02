@@ -3,7 +3,7 @@
 #include "user.h"
 #include "group.h"
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -23,9 +23,9 @@ void TSubject::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Name_);
-    SaveObjectRefs(context, MemberOf_);
-    SaveObjectRefs(context, RecursiveMemberOf_);
-    SaveObjectRefs(context, LinkedObjects_);
+    Save(context, MemberOf_);
+    Save(context, RecursiveMemberOf_);
+    Save(context, LinkedObjects_);
 }
 
 void TSubject::Load(NCellMaster::TLoadContext& context)
@@ -34,9 +34,9 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Name_);
-    LoadObjectRefs(context, MemberOf_);
-    LoadObjectRefs(context, RecursiveMemberOf_);
-    LoadObjectRefs(context, LinkedObjects_);
+    Load(context, MemberOf_);
+    Load(context, RecursiveMemberOf_);
+    Load(context, LinkedObjects_);
 }
 
 TUser* TSubject::AsUser()

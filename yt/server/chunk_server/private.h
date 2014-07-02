@@ -13,11 +13,8 @@ namespace NChunkServer {
 extern NLog::TLogger ChunkServerLogger;
 extern NProfiling::TProfiler ChunkServerProfiler;
 
-struct IChunkVisitor;
-typedef TIntrusivePtr<IChunkVisitor> IChunkVisitorPtr;
-
-struct IChunkTraverserCallbacks;
-typedef TIntrusivePtr<IChunkTraverserCallbacks> IChunkTraverserCallbacksPtr;
+DECLARE_REFCOUNTED_STRUCT(IChunkVisitor)
+DECLARE_REFCOUNTED_STRUCT(IChunkTraverserCallbacks)
 
 ////////////////////////////////////////////////////////////////////////////////
 

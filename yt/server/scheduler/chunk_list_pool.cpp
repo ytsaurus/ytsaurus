@@ -5,6 +5,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -74,8 +75,8 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 {
     TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
-    FOREACH (const auto& id, ids) {
-        auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(TransactionId));
+    for (const auto& id : ids) {
+        auto req = TMasterYPathProxy::UnstageObject();
         ToProto(req->mutable_object_id(), id);
         req->set_recursive(true);
         batchReq->AddRequest(req);
@@ -128,7 +129,7 @@ void TChunkListPool::OnChunkListsCreated(TMasterYPathProxy::TRspCreateObjectsPtr
 
     LOG_INFO("Chunk lists allocated");
 
-    FOREACH (const auto& id, rsp->object_ids()) {
+    for (const auto& id : rsp->object_ids()) {
         Ids.push_back(FromProto<TChunkListId>(id));
     }
 

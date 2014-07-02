@@ -24,6 +24,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TServiceConfig
     : public NYTree::TYsonSerializable
 {
@@ -36,6 +40,10 @@ public:
             .Default();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMethodConfig
     : public NYTree::TYsonSerializable
@@ -59,8 +67,12 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMethodConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRetryingChannelConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Time to wait between consequent attempts.
@@ -86,6 +98,53 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TRetryingChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBalancingChannelConfigBase
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Timeout for Discovery requests.
+    TDuration DiscoverTimeout;
+
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a hard failure (i.e. non-OK response) to Discover request.
+    TDuration HardBackoffTime;
+
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a soft failure (i.e. "down" response) to Discover request.
+    TDuration SoftBackoffTime;
+
+    TBalancingChannelConfigBase()
+    {
+        RegisterParameter("discover_timeout", DiscoverTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("hard_backoff_time", HardBackoffTime)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("soft_backoff_time", SoftBackoffTime)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+class TBalancingChannelConfig
+    : public TBalancingChannelConfigBase
+{
+public:
+    //! List of seed addresses.
+    std::vector<Stroka> Addresses;
+
+    TBalancingChannelConfig()
+    {
+        RegisterParameter("addresses", Addresses);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TThrottlingChannelConfig
     : public NYTree::TYsonSerializable
 {
@@ -100,6 +159,26 @@ public:
             .Default(10);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TThrottlingChannelConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResponseKeeperConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! For how long responses are kept in memory.
+    TDuration ExpirationTime;
+
+    TResponseKeeperConfig()
+    {
+        RegisterParameter("expiration_time", ExpirationTime)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,7 +11,7 @@ set( DIRS
   yson
   ypath
   profiling
-  formats
+  tracing
 )
 
 foreach( _d_ ${DIRS} )
@@ -20,12 +20,22 @@ foreach( _d_ ${DIRS} )
 endforeach()
 
 add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
+  stdafx.h
+  stdafx.cpp
   YT_SOURCE_FILES
 )
 
-add_library( ytcore STATIC
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/build.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
+)
+
+list(APPEND YT_SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/build.h
+  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
+)
+
+add_library(ytcore STATIC
   ${YT_SOURCE_FILES}
 )
 
@@ -35,8 +45,8 @@ target_link_libraries ( ytcore
   ytext-jerasure
   ytext-json
   ytext-httpserver
+  ytext-yajl
   protobuf
-  yajl_s
 )
 
 include_directories(

@@ -1,21 +1,30 @@
 #include "stdafx.h"
 
 #include <core/misc/crash_handler.h>
-#include <core/misc/tclap_helpers.h>
 #include <core/misc/address.h>
 #include <core/misc/proc.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <core/build.h>
 
 #include <core/logging/log_manager.h>
 
 #include <core/profiling/profiling_manager.h>
+
+#include <core/tracing/trace_manager.h>
+
+#include <core/ytree/yson_serializable.h>
 
 #include <ytlib/cgroup/cgroup.h>
 
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/shutdown.h>
+
+#include <ytlib/misc/tclap_helpers.h>
+
+#include <ytlib/scheduler/config.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
 
 #include <server/data_node/config.h>
 
@@ -31,13 +40,13 @@
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
 
-#include <yt/build.h>
-
 #include <tclap/CmdLine.h>
 
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>
+
+#include <contrib/tclap/tclap/CmdLine.h>
 
 namespace NYT {
 
@@ -65,12 +74,16 @@ struct TArgsParser
 {
 public:
     TArgsParser()
-        : CmdLine("Command line", ' ', YT_VERSION)
+        : CmdLine("Command line", ' ', GetVersion())
         , CellNode("", "node", "start cell node")
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
+        , Cleaner("", "cleaner", "start cleaner")
+        , Killer("", "killer", "start killer")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
+        , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
+        , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , CGroups("", "cgroup", "run in cgroup", false, "")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
@@ -81,7 +94,11 @@ public:
         CmdLine.add(CellMaster);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
+        CmdLine.add(Cleaner);
+        CmdLine.add(Killer);
         CmdLine.add(CloseAllFds);
+        CmdLine.add(DirToRemove);
+        CmdLine.add(ProcessGroupPath);
         CmdLine.add(JobId);
         CmdLine.add(CGroups);
         CmdLine.add(WorkingDirectory);
@@ -95,8 +112,12 @@ public:
     TCLAP::SwitchArg CellMaster;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
+    TCLAP::SwitchArg Cleaner;
+    TCLAP::SwitchArg Killer;
     TCLAP::SwitchArg CloseAllFds;
 
+    TCLAP::ValueArg<Stroka> DirToRemove;
+    TCLAP::ValueArg<Stroka> ProcessGroupPath;
     TCLAP::ValueArg<Stroka> JobId;
     TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
@@ -119,6 +140,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellNode = parser.CellNode.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
+    bool isCleaner = parser.Cleaner.getValue();
+    bool isKiller = parser.Killer.getValue();
 
     bool doCloseAllFds = parser.CloseAllFds.getValue();
 
@@ -142,6 +165,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
+    if (isCleaner) {
+        ++modeCount;
+    }
+
+    if (isKiller) {
+        ++modeCount;
+    }
+
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
@@ -153,6 +184,34 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (!workingDirectory.empty()) {
         ChDir(workingDirectory);
+    }
+
+    if (isCleaner) {
+        Stroka path = parser.DirToRemove.getValue();
+        if (path.empty() || path[0] != '/') {
+            THROW_ERROR_EXCEPTION("A path should be absolute. Path: %s", ~path);
+        }
+        int counter = 0;
+        size_t nextSlash = 0;
+        while (nextSlash != Stroka::npos) {
+            nextSlash = path.find('/', nextSlash + 1);
+            ++counter;
+        }
+
+        if (counter <= 3) {
+            THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %s", ~path);
+        }
+
+        RemoveDirAsRoot(path);
+
+        return EExitCode::OK;
+    }
+
+    if (isKiller) {
+        auto path = parser.ProcessGroupPath.getValue();
+        NCGroup::KillProcessGroup(path);
+
+        return EExitCode::OK;
     }
 
     INodePtr configNode;
@@ -178,6 +237,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         // Configure singletons.
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
         TAddressResolver::Get()->Configure(config->AddressResolver);
+        NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
+        NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
         NProfiling::TProfilingManager::Get()->Start();
     }
 

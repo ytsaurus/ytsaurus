@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 #include "chunk_manager.h"
-#include "node_directory_builder.h"
 #include "chunk.h"
 #include "private.h"
 
@@ -9,37 +8,37 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <server/cell_master/meta_state_service.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/cell_master/hydra_service.h>
+#include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TChunkService(TBootstrap* bootstrap)
-        : TMetaStateServiceBase(
+        : THydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
             ChunkServerLogger.GetCategory())
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(LocateChunks)
-                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
+                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EAutomatonThreadQueue::ChunkMaintenance)));
     }
 
 private:
-    typedef TChunkService TThis;
-
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
         context->SetRequestInfo("ChunkCount: %d",
@@ -48,7 +47,7 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
-        FOREACH (const auto& protoChunkId, request->chunk_ids()) {
+        for (const auto& protoChunkId : request->chunk_ids()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
@@ -63,7 +62,7 @@ private:
             ToProto(info->mutable_chunk_id(), chunkId);
             ToProto(info->mutable_replicas(), replicas);
 
-            FOREACH (auto replica, replicas) {
+            for (auto replica : replicas) {
                 nodeDirectoryBuilder.Add(replica);
             }
         }

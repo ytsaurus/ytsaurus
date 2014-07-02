@@ -28,7 +28,7 @@ template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor)
 {
     // BFS queue. Try to avoid allocations.
-    TSmallVector<TChunkList*, 64> queue;
+    SmallVector<TChunkList*, 64> queue;
     size_t frontIndex = 0;
 
     // Put seed into the queue.
@@ -49,7 +49,7 @@ void VisitAncestors(TChunkList* chunkList, F functor)
 
         if (chunkList != nullptr) {
             // Proceed to parents.
-            FOREACH (auto* parent, chunkList->Parents()) {
+            for (auto* parent : chunkList->Parents()) {
                 queue.push_back(parent);
             }
         }
@@ -61,8 +61,7 @@ void AttachToChunkList(
     TChunkList* chunkList,
     TChunkTree** childrenBegin,
     TChunkTree** childrenEnd,
-    F chunkAction,
-    bool resetSorted)
+    F childAction)
 {
     // A shortcut.
     if (childrenBegin == childrenEnd)
@@ -72,7 +71,8 @@ void AttachToChunkList(
         auto* child = *it;
         auto type = child->GetType();
         if (type == NObjectClient::EObjectType::Chunk ||
-            type == NObjectClient::EObjectType::ErasureChunk)
+            type == NObjectClient::EObjectType::ErasureChunk ||
+            type == NObjectClient::EObjectType::JournalChunk)
         {
             child->AsChunk()->ValidateConfirmed();
         }
@@ -80,37 +80,64 @@ void AttachToChunkList(
 
     chunkList->IncrementVersion();
 
-    TChunkTreeStatistics delta;
+    TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        auto child = *it;
-        if (!chunkList->Children().empty()) {
-            chunkList->RowCountSums().push_back(
-                chunkList->Statistics().RowCount +
-                delta.RowCount);
-            chunkList->ChunkCountSums().push_back(
-                chunkList->Statistics().ChunkCount +
-                delta.ChunkCount);
-            chunkList->DataSizeSums().push_back(
-                chunkList->Statistics().UncompressedDataSize +
-                delta.UncompressedDataSize);
-
-        }
+        auto* child = *it;
+        AccumulateChildStatistics(chunkList, child, &statisticsDelta);
         chunkList->Children().push_back(child);
-        chunkAction(child);
         SetChunkTreeParent(chunkList, child);
-        delta.Accumulate(GetChunkTreeStatistics(child));
+        childAction(child);
     }
 
     // Go upwards and apply delta.
-    // Reset Sorted flags.
     VisitUniqueAncestors(
         chunkList,
         [&] (TChunkList* current) {
-            ++delta.Rank;
-            current->Statistics().Accumulate(delta);
-            if (resetSorted) {
-                current->SortedBy().clear();
-            }
+            ++statisticsDelta.Rank;
+            current->Statistics().Accumulate(statisticsDelta);
+        });
+}
+
+template <class F>
+void DetachFromChunkList(
+    TChunkList* chunkList,
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
+    F childAction)
+{
+    // A shortcut.
+    if (childrenBegin == childrenEnd)
+        return;
+
+    chunkList->IncrementVersion();
+
+    yhash_set<TChunkTree*> detachSet;
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        // Children may possibly be duplicate.
+        detachSet.insert(*it);
+    }
+
+    ResetChunkListStatistics(chunkList);
+
+    std::vector<TChunkTree*> existingChildren;
+    chunkList->Children().swap(existingChildren);
+
+    TChunkTreeStatistics statisticsDelta;
+    for (auto child : existingChildren) {
+        if (detachSet.find(child) == detachSet.end()) {
+            AccumulateChildStatistics(chunkList, child, &statisticsDelta);
+            chunkList->Children().push_back(child);
+        } else {
+            ResetChunkTreeParent(chunkList, child);
+            childAction(child);
+        }
+    }
+
+    // Go upwards and recompute statistics.
+    VisitUniqueAncestors(
+        chunkList,
+        [&] (TChunkList* current) {
+            RecomputeChunkListStatistics(current);
         });
 }
 

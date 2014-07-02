@@ -28,7 +28,7 @@ IMapNodePtr TYsonSerializableLite::GetOptions() const
 std::vector<Stroka> TYsonSerializableLite::GetRegisteredKeys() const
 {
     std::vector<Stroka> result;
-    FOREACH (const auto& pair, Parameters) {
+    for (const auto& pair : Parameters) {
         result.push_back(pair.first);
     }
     return result;
@@ -47,7 +47,7 @@ void TYsonSerializableLite::Load(
     }
 
     auto mapNode = node->AsMap();
-    FOREACH (const auto& pair, Parameters) {
+    for (const auto& pair : Parameters) {
         auto name = pair.first;
         auto childPath = path + "/" + name;
         auto child = mapNode->FindChild(name); // can be NULL
@@ -56,7 +56,7 @@ void TYsonSerializableLite::Load(
 
     if (KeepOptions_) {
         Options = GetEphemeralNodeFactory()->CreateMap();
-        FOREACH (const auto& pair, mapNode->GetChildren()) {
+        for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;
             if (Parameters.find(key) == Parameters.end()) {
@@ -74,12 +74,12 @@ void TYsonSerializableLite::Load(
 
 void TYsonSerializableLite::Validate(const TYPath& path) const
 {
-    FOREACH (auto pair, Parameters) {
+    for (auto pair : Parameters) {
         pair.second->Validate(path + "/" + pair.first);
     }
 
     try {
-        FOREACH (const auto& validator, Validators) {
+        for (const auto& validator : Validators) {
             validator.Run();
         }
     } catch (const std::exception& ex) {
@@ -91,10 +91,10 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
 
 void TYsonSerializableLite::SetDefaults()
 {
-    FOREACH (auto pair, Parameters) {
+    for (auto pair : Parameters) {
         pair.second->SetDefaults();
     }
-    FOREACH (const auto& initializer, Initializers) {
+    for (const auto& initializer : Initializers) {
         initializer.Run();
     }
 }
@@ -107,7 +107,7 @@ void TYsonSerializableLite::Save(
     bool sortKeys) const
 {
     std::vector<std::pair<Stroka, IParameterPtr>> parameters;
-    FOREACH (const auto& pair, Parameters) {
+    for (const auto& pair : Parameters) {
         parameters.push_back(pair);
     }
 
@@ -122,7 +122,7 @@ void TYsonSerializableLite::Save(
     }
 
     consumer->OnBeginMap();
-    FOREACH (const auto& pair, parameters) {
+    for (const auto& pair : parameters) {
         const auto& key = pair.first;
         const auto& parameter = pair.second;
         if (parameter->HasValue()) {

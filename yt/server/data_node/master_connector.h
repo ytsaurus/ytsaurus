@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/signal.h>
+
 #include <core/rpc/channel.h>
 
 #include <core/concurrency/thread_affinity.h>
@@ -56,13 +58,11 @@ public:
     void RegisterAlert(const Stroka& alert);
 
 private:
-    typedef yhash_set<TChunkPtr> TChunkSet;
+    TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* Bootstrap_;
 
-    TDataNodeConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
-
-    bool Started;
-    IInvokerPtr ControlInvoker;
+    bool Started_;
+    IInvokerPtr ControlInvoker_;
 
     DECLARE_ENUM(EState,
         // Not registered.
@@ -76,39 +76,39 @@ private:
     );
 
     //! Guards the current heartbeat session.
-    TCancelableContextPtr HeartbeatContext;
+    TCancelableContextPtr HeartbeatContext_;
 
     //! Corresponds to #HeartbeatContext and #ControlInvoker.
-    IInvokerPtr HeartbeatInvoker;
+    IInvokerPtr HeartbeatInvoker_;
 
     //! The current connection state.
-    EState State;
+    EState State_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
-    TNodeId NodeId;
+    TNodeId NodeId_;
 
     //! Chunks that were added since the last successful heartbeat.
-    TChunkSet AddedSinceLastSuccess;
+    yhash_set<IChunkPtr> AddedSinceLastSuccess_;
 
-    //! Store chunks that were removed since the last successful heartbeat.
-    TChunkSet RemovedSinceLastSuccess;
+    //! Chunks that were removed since the last successful heartbeat.
+    yhash_set<IChunkPtr> RemovedSinceLastSuccess_;
 
-    //! Store chunks that were reported added at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedAdded;
+    //! Maps chunks that were reported added at the last heartbeat (for which no reply is received yet) to their versions.
+    yhash_map<IChunkPtr, int> ReportedAdded_;
 
-    //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-    TChunkSet ReportedRemoved;
+    //! Chunks that were reported removed at the last heartbeat (for which no reply is received yet).
+    yhash_set<IChunkPtr> ReportedRemoved_;
 
     //! Protects #Alerts.
-    TSpinLock AlertsLock;
+    TSpinLock AlertsSpinLock_;
     //! A list of registered alerts.
-    std::vector<Stroka> Alerts;
+    std::vector<Stroka> Alerts_;
 
     
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 
-    //! Schedules a new node heartbeat via TDelayedExecutor.
+    //! Schedules a new job heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat();
 
     //! Calls #Reset and schedules a new registration request via TDelayedExecutor.
@@ -142,10 +142,10 @@ private:
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
-    static NNodeTrackerClient::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
+    NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NNodeTrackerClient::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
     void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);
@@ -164,17 +164,20 @@ private:
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(TChunkPtr chunk);
+    void OnChunkAdded(IChunkPtr chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(TChunkPtr chunk);
+    void OnChunkRemoved(IChunkPtr chunk);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

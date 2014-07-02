@@ -12,8 +12,8 @@
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
 
-#include <core/formats/format.h>
-#include <core/formats/utf8_decoder.h>
+#include <ytlib/formats/format.h>
+#include <ytlib/formats/utf8_decoder.h>
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
@@ -161,7 +161,7 @@ Handle<Value> ProduceV8(const INodePtr& node)
         case ENodeType::Map: {
             auto children = node->AsMap()->GetChildren();
             auto result = Object::New();
-            FOREACH (const auto& pair, children) {
+            for (const auto& pair : children) {
                 const auto& key = pair.first;
                 const auto& value = pair.second;
                 result->Set(
@@ -197,7 +197,7 @@ INodePtr ConvertV8ValueToNode(Handle<Value> value)
 
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    ConsumeV8Value(value, ~builder);
+    ConsumeV8Value(value, builder.get());
     return builder->EndTree();
 }
 

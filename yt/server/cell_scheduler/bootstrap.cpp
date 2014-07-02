@@ -12,11 +12,15 @@
 #include <core/bus/config.h>
 
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/retrying_channel.h>
+#include <core/rpc/bus_channel.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/client.h>
 
-#include <ytlib/meta_state/config.h>
+#include <ytlib/hydra/peer_channel.h>
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -33,8 +37,12 @@
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
+#include <ytlib/transaction_client/remote_timestamp_provider.h>
 
-#include <ytlib/cell_directory/cell_directory.h>
+#include <ytlib/hive/cell_directory.h>
+
+#include <ytlib/hive/cluster_directory.h>
 
 #include <server/misc/build_attributes.h>
 
@@ -51,6 +59,7 @@ namespace NCellScheduler {
 
 using namespace NBus;
 using namespace NElection;
+using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
 using namespace NOrchid;
@@ -60,10 +69,12 @@ using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NHive;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("SchedulerBootstrap");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,28 +96,25 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting scheduler (LocalAddress: %s, MasterAddresses: [%s])",
         ~LocalAddress,
-        ~JoinToString(Config->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Master->Addresses));
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
+    auto connection = CreateConnection(Config->ClusterConnection);
+    MasterClient = CreateClient(connection);
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    auto rpcServer = CreateRpcServer(BusServer);
+    auto rpcServer = CreateBusServer(BusServer);
 
-    TransactionManager = New<TTransactionManager>(
-        Config->TransactionManager,
-        MasterChannel);
-
-    CellDirectory = New<NCellDirectory::TCellDirectory>(MasterChannel);
+    ClusterDirectory = New<NHive::TClusterDirectory>(MasterClient->GetConnection());
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
@@ -162,9 +170,9 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannelPtr TBootstrap::GetMasterChannel() const
+IClientPtr TBootstrap::GetMasterClient() const
 {
-    return MasterChannel;
+    return MasterClient;
 }
 
 const Stroka& TBootstrap::GetLocalAddress() const
@@ -177,20 +185,14 @@ IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const
     return ControlQueue->GetInvoker(queue);
 }
 
-TTransactionManagerPtr TBootstrap::GetTransactionManager() const
-{
-    return TransactionManager;
-}
-
 TSchedulerPtr TBootstrap::GetScheduler() const
 {
     return Scheduler;
 }
 
-
-NCellDirectory::TCellDirectoryPtr TBootstrap::GetCellDirectory() const
+NHive::TClusterDirectoryPtr TBootstrap::GetClusterDirectory() const
 {
-    return CellDirectory;
+    return ClusterDirectory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

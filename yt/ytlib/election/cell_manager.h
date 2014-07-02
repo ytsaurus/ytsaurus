@@ -4,7 +4,11 @@
 
 #include <core/misc/property.h>
 
+#include <core/actions/signal.h>
+
 #include <core/rpc/public.h>
+
+#include <core/logging/tagged_logger.h>
 
 #include <core/profiling/public.h>
 
@@ -17,32 +21,50 @@ class TCellManager
     : public TRefCounted
 {
 public:
-    explicit TCellManager(TCellConfigPtr config);
+    TCellManager(
+        TCellConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory,
+        TPeerId selfId);
 
-    DEFINE_BYVAL_RO_PROPERTY(TPeerId, SelfId);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, SelfAddress);
+    const TCellGuid& GetCellGuid() const;
+    TPeerId GetSelfId() const;
+    const Stroka& GetSelfAddress() const;
 
-    void Initialize();
-
-    int GetQuorum() const;
+    int GetQuorumCount() const;
     int GetPeerCount() const;
 
     const Stroka& GetPeerAddress(TPeerId id) const;
-    NRpc::IChannelPtr GetMasterChannel(TPeerId id) const;
+    NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
     const NProfiling::TTagIdList& GetPeerTags(TPeerId id) const;
     const NProfiling::TTagIdList& GetAllPeersTags() const;
     const NProfiling::TTagIdList& GetPeerQuorumTags() const;
 
+    void Reconfigure(TCellConfigPtr newConfig);
+
+    DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
+
 private:
     TCellConfigPtr Config;
-    std::vector<Stroka> OrderedAddresses;
+    NRpc::IChannelFactoryPtr ChannelFactory;
+    TPeerId SelfId;
+
+    std::vector<NRpc::IChannelPtr> PeerChannels;
 
     std::vector<NProfiling::TTagIdList> PeerTags;
     NProfiling::TTagIdList AllPeersTags;
     NProfiling::TTagIdList PeerQuorumTags;
 
+    NLog::TTaggedLogger Logger;
+         
+
+    void BuildTags();
+
+    NRpc::IChannelPtr CreatePeerChannel(TPeerId id);
+
 };
+
+DEFINE_REFCOUNTED_TYPE(TCellManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

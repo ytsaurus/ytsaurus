@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/json_parser.h>
+#include <ytlib/formats/json_parser.h>
+
 #include <core/ytree/yson_consumer-mock.h>
 
 #include <util/string/base64.h>
@@ -507,7 +508,6 @@ TEST(TJsonParserTest, MemoryLimit4)
     // but memory occuied by individual row is much lower than MemoryLimit.
     ParseJson(&stream, &Mock, config, NYson::EYsonType::ListFragment);
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 

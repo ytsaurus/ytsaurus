@@ -23,44 +23,44 @@ void Coroutine0(TCoroutine<int()>& self)
 TEST(TCoroutineTest, Nullary)
 {
     TCoroutine<int()> coro(BIND(&Coroutine0));
-    EXPECT_EQ(coro.GetState(), EFiberState::Initialized);
+    EXPECT_FALSE(coro.IsCompleted());
 
     int i;
     TNullable<int> actual;
     for (i = 1; /**/; ++i) {
         actual = coro.Run();
-        if (coro.GetState() == EFiberState::Terminated) {
+        if (coro.IsCompleted()) {
             break;
         }
         EXPECT_TRUE(actual.HasValue());
-        EXPECT_EQ(actual.Get(), i);
+        EXPECT_EQ(i, actual.Get());
     }
 
     EXPECT_FALSE(actual.HasValue());
-    EXPECT_EQ(i, 6);
+    EXPECT_EQ(6, i);
 
-    EXPECT_EQ(coro.GetState(), EFiberState::Terminated);
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 void Coroutine1(TCoroutine<int(int)>& self, int arg)
 {
-    EXPECT_EQ(arg, 0);
+    EXPECT_EQ(0, arg);
     std::tie(arg) = self.Yield(arg + 1);
-    EXPECT_EQ(arg, 2);
+    EXPECT_EQ(2, arg);
     std::tie(arg) = self.Yield(arg + 1);
-    EXPECT_EQ(arg, 4);
+    EXPECT_EQ(4, arg);
     std::tie(arg) = self.Yield(arg + 1);
-    EXPECT_EQ(arg, 6);
+    EXPECT_EQ(6, arg);
     std::tie(arg) = self.Yield(arg + 1);
-    EXPECT_EQ(arg, 8);
+    EXPECT_EQ(8, arg);
     std::tie(arg) = self.Yield(arg + 1);
-    EXPECT_EQ(arg, 10);
+    EXPECT_EQ(10, arg);
 }
 
 TEST(TCoroutineTest, Unary)
 {
     TCoroutine<int(int)> coro(BIND(&Coroutine1));
-    EXPECT_EQ(coro.GetState(), EFiberState::Initialized);
+    EXPECT_FALSE(coro.IsCompleted());
 
     // Alternative syntax.
     int i = 0, j = 0;
@@ -73,12 +73,20 @@ TEST(TCoroutineTest, Unary)
     }
 
     EXPECT_FALSE(actual.HasValue());
-    EXPECT_EQ(i, 5);
-    EXPECT_EQ(j, 10);
+    EXPECT_EQ(5, i);
+    EXPECT_EQ(10, j);
+
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 // In this case I've got lazy and set up these test cases.
-struct { int lhs; int rhs; int sum; } Coroutine2TestCases[] = {
+struct TTestCase { 
+    int lhs;
+    int rhs;
+    int sum;
+};
+
+std::vector<TTestCase> Coroutine2TestCases = {
     { 10, 20, 30 },
     { 11, 21, 32 },
     { 12, 22, 34 },
@@ -89,9 +97,9 @@ struct { int lhs; int rhs; int sum; } Coroutine2TestCases[] = {
 
 void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
 {
-    for (int i = 0; i < ARRAY_SIZE(Coroutine2TestCases); ++i) {
-        EXPECT_EQ(lhs, Coroutine2TestCases[i].lhs) << "Iteration #" << i;
-        EXPECT_EQ(rhs, Coroutine2TestCases[i].rhs) << "Iteration #" << i;
+    for (int i = 0; i < Coroutine2TestCases.size(); ++i) {
+        EXPECT_EQ(Coroutine2TestCases[i].lhs, lhs) << "Iteration #" << i;
+        EXPECT_EQ(Coroutine2TestCases[i].rhs, rhs) << "Iteration #" << i;
         std::tie(lhs, rhs) = self.Yield(lhs + rhs);
     }
 }
@@ -99,7 +107,7 @@ void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
 TEST(TCoroutineTest, Binary)
 {
     TCoroutine<int(int, int)> coro(BIND(&Coroutine2));
-    EXPECT_EQ(coro.GetState(), EFiberState::Initialized);
+    EXPECT_FALSE(coro.IsCompleted());
 
     int i = 0;
     TNullable<int> actual;
@@ -114,7 +122,9 @@ TEST(TCoroutineTest, Binary)
     }
 
     EXPECT_FALSE(actual.HasValue());
-    EXPECT_EQ(i, ARRAY_SIZE(Coroutine2TestCases));
+    EXPECT_EQ(i, Coroutine2TestCases.size());
+
+    EXPECT_TRUE(coro.IsCompleted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

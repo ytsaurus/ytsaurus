@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/yamred_dsv_writer.h>
+#include <ytlib/formats/yamred_dsv_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -16,27 +16,27 @@ TEST(TYamredDsvWriterTest, Simple)
     config->HasSubkey = true;
     config->KeyColumnNames.push_back("key_a");
     config->KeyColumnNames.push_back("key_b");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("a");
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("b");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("a");
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("b");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("1");
-        writer.OnKeyedItem("column");
-        writer.OnStringScalar("2");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("3");
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("xxx");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("1");
+        consumer.OnKeyedItem("column");
+        consumer.OnStringScalar("2");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("3");
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("xxx");
+    consumer.OnEndMap();
 
     Stroka output =
         "a b\t\t\n"
@@ -53,20 +53,20 @@ TEST(TYamredDsvWriterTest, TestLiveConditions)
     auto config = New<TYamredDsvFormatConfig>();
     config->KeyColumnNames.push_back("key_a");
     config->KeyColumnNames.push_back("key_b");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
     {
         Stroka keyA = "key_a";
         Stroka a = "a";
         Stroka keyB = "key_b";
         Stroka b = "b";
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem(keyA);
-            writer.OnStringScalar(a);
-            writer.OnKeyedItem(keyB);
-            writer.OnStringScalar(b);
-        writer.OnEndMap();
+        consumer.OnListItem();
+        consumer.OnBeginMap();
+            consumer.OnKeyedItem(keyA);
+            consumer.OnStringScalar(a);
+            consumer.OnKeyedItem(keyB);
+            consumer.OnStringScalar(b);
+        consumer.OnEndMap();
     }
 
     // Make some allocations!
@@ -82,13 +82,13 @@ TEST(TYamredDsvWriterTest, TestLiveConditions)
         Stroka a = "_a_";
         Stroka keyB = "key_b";
         Stroka b = "xbx";
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem(keyA);
-            writer.OnStringScalar(a);
-            writer.OnKeyedItem(keyB);
-            writer.OnStringScalar(b);
-        writer.OnEndMap();
+        consumer.OnListItem();
+        consumer.OnBeginMap();
+            consumer.OnKeyedItem(keyA);
+            consumer.OnStringScalar(a);
+            consumer.OnKeyedItem(keyB);
+            consumer.OnStringScalar(b);
+        consumer.OnEndMap();
     }
 
     Stroka output =
@@ -108,29 +108,29 @@ TEST(TYamredDsvWriterTest, WithoutSubkey)
     config->KeyColumnNames.push_back("key_a");
     config->KeyColumnNames.push_back("key_b");
     config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("a");
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("b");
-        writer.OnKeyedItem("column");
-        writer.OnStringScalar("value");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("a");
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("b");
+        consumer.OnKeyedItem("column");
+        consumer.OnStringScalar("value");
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("1");
-        writer.OnKeyedItem("column");
-        writer.OnStringScalar("2");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("3");
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("xxx");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("1");
+        consumer.OnKeyedItem("column");
+        consumer.OnStringScalar("2");
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("3");
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("xxx");
+    consumer.OnEndMap();
 
     Stroka output =
         "a b\tcolumn=value\n"
@@ -149,17 +149,17 @@ TEST(TYamredDsvWriterTest, Escaping)
     config->KeyColumnNames.push_back("key_a");
     config->KeyColumnNames.push_back("key_b");
     config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("a\n");
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("\nb\t");
-        writer.OnKeyedItem("column");
-        writer.OnStringScalar("\nva\\lue\t");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("a\n");
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("\nb\t");
+        consumer.OnKeyedItem("column");
+        consumer.OnStringScalar("\nva\\lue\t");
+    consumer.OnEndMap();
 
     Stroka output = "a\\n \\nb\\t\tcolumn=\\nva\\\\lue\\t\n";
 
@@ -177,19 +177,19 @@ TEST(TYamredDsvWriterTest, Lenval)
     config->KeyColumnNames.push_back("key_a");
     config->KeyColumnNames.push_back("key_b");
     config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("xxx");
-        writer.OnKeyedItem("key_a");
-        writer.OnStringScalar("a");
-        writer.OnKeyedItem("column");
-        writer.OnStringScalar("value");
-        writer.OnKeyedItem("key_b");
-        writer.OnStringScalar("b");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("subkey");
+        consumer.OnStringScalar("xxx");
+        consumer.OnKeyedItem("key_a");
+        consumer.OnStringScalar("a");
+        consumer.OnKeyedItem("column");
+        consumer.OnStringScalar("value");
+        consumer.OnKeyedItem("key_b");
+        consumer.OnStringScalar("b");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\x03\x00\x00\x00" "a b"
@@ -208,21 +208,21 @@ TEST(TYamredDsvWriterTest, TableIndex)
     config->Lenval = true;
     config->EnableTableIndex = true;
     config->KeyColumnNames.push_back("key");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginAttributes();
-        writer.OnKeyedItem("table_index");
-        writer.OnIntegerScalar(0);
-    writer.OnEndAttributes();
-    writer.OnEntity();
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("table_index");
+        consumer.OnIntegerScalar(0);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
 
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("x");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("y");
-    writer.OnEndMap();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("x");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("y");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\xff\xff\xff\xff" "\x00\x00\x00\x00"
@@ -240,15 +240,15 @@ TEST(TYamredDsvWriterTest, EscapingInLenval)
     auto config = New<TYamredDsvFormatConfig>();
     config->Lenval = true;
     config->KeyColumnNames.push_back("key");
-    TYamredDsvWriter writer(&outputStream, config);
+    TYamredDsvConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("\tx");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("\ty");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("key");
+        consumer.OnStringScalar("\tx");
+        consumer.OnKeyedItem("value");
+        consumer.OnStringScalar("\ty");
+    consumer.OnEndMap();
 
     Stroka output = Stroka(
         "\x03\x00\x00\x00" "\\tx"

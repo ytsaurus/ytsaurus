@@ -4,6 +4,8 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/rpc/config.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -13,9 +15,6 @@ class TObjectManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! A number identifying the cell in the whole world.
-    ui16 CellId;
-
     //! Maximum number to objects to destroy per a single GC mutation.
     int MaxObjectsPerGCSweep;
 
@@ -27,8 +26,6 @@ public:
 
     TObjectManagerConfig()
     {
-        RegisterParameter("cell_id", CellId)
-            .Default(0);
         RegisterParameter("max_objects_per_gc_sweep", MaxObjectsPerGCSweep)
             .Default(1000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
@@ -37,6 +34,27 @@ public:
             .Default(TDuration::MilliSeconds(10));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheServiceConfig
+    : public NRpc::TThrottlingChannelConfig
+{
+public:
+    //! Maximum amount of space to use for storing cached responses.
+    i64 MaxSpace;
+
+    TMasterCacheServiceConfig()
+    {
+        RegisterParameter("max_space", MaxSpace)
+            .GreaterThan(0)
+            .Default((i64) 16 * 1024 * 1024);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

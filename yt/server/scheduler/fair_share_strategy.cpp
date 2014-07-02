@@ -1050,8 +1050,8 @@ public:
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
             "Starving: %s, Weight: %lf, "
             "PreemptableRunningJobs: %" PRISZT "}",
-            ~element->GetStatus().ToString(),
-            ~attributes.DominantResource.ToString(),
+            ~ToString(element->GetStatus()),
+            ~ToString(attributes.DominantResource),
             attributes.DemandRatio,
             element->GetUsageRatio(),
             attributes.FairShareRatio,
@@ -1179,7 +1179,7 @@ private:
             operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
 
-        operationElement->SetPool(~pool);
+        operationElement->SetPool(pool.Get());
         pool->AddChild(operationElement);
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
@@ -1312,7 +1312,7 @@ private:
         }
         GetPoolParentElement(pool)->RemoveChild(pool);
 
-        pool->SetParent(~parent);
+        pool->SetParent(parent.Get());
 
         GetPoolParentElement(pool)->AddChild(pool);
         if (parent) {
@@ -1322,7 +1322,7 @@ private:
 
     void IncreasePoolUsage(TPoolPtr pool, const TNodeResources& delta)
     {
-        auto* currentPool = ~pool;
+        auto* currentPool = pool.Get();
         while (currentPool) {
             currentPool->ResourceUsage() += delta;
             currentPool = currentPool->GetParent();
@@ -1410,7 +1410,7 @@ private:
                         SetPoolParent(pool, parent);
 
                         // Parse children.
-                        parseConfig(childNode, ~pool);
+                        parseConfig(childNode, pool.Get());
                     }
                 };
 
@@ -1478,7 +1478,7 @@ private:
             element->SetStarving(true);
             LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
                 ~ToString(element->GetOperation()->GetId()),
-                ~status.ToString());
+                ~ToString(status));
         }
     }
 

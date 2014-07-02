@@ -9,7 +9,7 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/cell_directory/cell_directory.h>
+#include <ytlib/api/connection.h>
 
 #include <core/concurrency/fiber.h>
 
@@ -61,11 +61,11 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
         .Item("state").Value(FormatEnum(state))
         .Item("address").Value(job->GetNode()->GetAddress())
         .Item("start_time").Value(job->GetStartTime())
-        .DoIf(job->GetFinishTime(), [=] (TFluentMap fluent) {
+        .DoIf(job->GetFinishTime().HasValue(), [=] (TFluentMap fluent) {
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto(job->Result().error());
+            auto error = FromProto<TError>(job->Result().error());
             fluent.Item("error").Value(error);
         });
 }
@@ -93,144 +93,6 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
         command.length() <= MaxBriefSpecCommandLength
         ? command
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
-}
-
-////////////////////////////////////////////////////////////////////
-
-TMultiCellBatchResponse::TMultiCellBatchResponse(
-    const std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>& batchResponses,
-    const std::vector<std::pair<int, int>>& index,
-    const std::multimap<Stroka, int>& keyToIndexes)
-    : BatchResponses_(batchResponses)
-    , ResponseIndex_(index)
-    , KeyToIndexes_(keyToIndexes)
-{ }
-
-int TMultiCellBatchResponse::GetSize() const
-{
-    return ResponseIndex_.size();
-}
-
-TError TMultiCellBatchResponse::GetCumulativeError() const
-{
-    TError cumulativeError("Error communicating with master");
-    for (const auto& batchRsp : BatchResponses_) {
-        for (const auto& rsp : batchRsp->GetResponses()) {
-            auto error = rsp->GetError();
-            if (!error.IsOK()) {
-                cumulativeError.InnerErrors().push_back(error);
-            }
-        }
-    }
-    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
-}
-
-TYPathResponsePtr TMultiCellBatchResponse::GetResponse(int index) const
-{
-    return GetResponse<TYPathResponse>(index);
-}
-
-TYPathResponsePtr TMultiCellBatchResponse::FindResponse(const Stroka& key) const
-{
-    return FindResponse<TYPathResponse>(key);
-}
-
-TYPathResponsePtr TMultiCellBatchResponse::GetResponse(const Stroka& key) const
-{
-    return GetResponse<TYPathResponse>(key);
-}
-
-std::vector<TYPathResponsePtr> TMultiCellBatchResponse::GetResponses(const Stroka& key) const
-{
-    return GetResponses<TYPathResponse>(key);
-}
-
-TNullable<std::vector<TYPathResponsePtr>> TMultiCellBatchResponse::FindResponses(const Stroka& key) const
-{
-    return FindResponses<TYPathResponse>(key);
-}
-
-bool TMultiCellBatchResponse::IsOK() const
-{
-    return this->operator TError().IsOK();
-}
-
-TMultiCellBatchResponse::operator TError() const
-{
-    TError resultError("Error communicating with master");
-    for (const auto& batchRsp : BatchResponses_) {
-        auto error = TError(*batchRsp);
-        if (!error.IsOK()) {
-            resultError.InnerErrors().push_back(error);
-        }
-    }
-    return resultError.InnerErrors().empty() ? TError() : resultError;
-}
-
-////////////////////////////////////////////////////////////////////
-
-TMultiCellBatchRequest::TMultiCellBatchRequest(
-    NCellDirectory::TCellDirectoryPtr cellDirectory,
-    bool throwIfCellIsMissing)
-    : CellDirectory_(cellDirectory)
-    , ThrowIfCellIsMissing_(throwIfCellIsMissing)
-{ }
-
-bool TMultiCellBatchRequest::AddRequest(TYPathRequestPtr req, const Stroka& key, TCellId cellId)
-{
-    if (!Init(cellId)) {
-        if (ThrowIfCellIsMissing_) {
-            THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %s", ~ToString(cellId));
-        }
-        return false;
-    }
-    int index = BatchRequests_[cellId]->GetSize();
-    RequestIndex_.push_back(std::make_pair(cellId, BatchRequests_[cellId]->GetSize()));
-    KeyToIndexes_.insert(std::make_pair(key, index));
-    BatchRequests_[cellId]->AddRequest(req, key);
-    return true;
-}
-
-bool TMultiCellBatchRequest::AddRequestForTransaction(TYPathRequestPtr req, const Stroka& key, const TTransactionId& id)
-{
-    return AddRequest(req, key, GetCellId(id, EObjectType::Transaction));
-}
-
-TMultiCellBatchResponse TMultiCellBatchRequest::Execute(IInvokerPtr invoker)
-{
-    std::map<TCellId, int> cellIdToResponseNumber;
-
-    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> futures;
-    int counter = 0;
-    for (auto& pair : BatchRequests_) {
-        futures.push_back(pair.second->Invoke());
-        cellIdToResponseNumber[pair.first] = counter++;
-    }
-
-    std::vector< std::pair<int, int> > responseIndex;
-    for (const auto& elem : RequestIndex_) {
-        responseIndex.push_back(std::make_pair(cellIdToResponseNumber[elem.first], elem.second));
-    }
-
-    std::vector<TObjectServiceProxy::TRspExecuteBatchPtr> responses;
-    for (const auto& future : futures) {
-        responses.push_back(WaitFor(future, invoker));
-    }
-
-    return TMultiCellBatchResponse(responses, responseIndex, KeyToIndexes_);
-}
-
-bool TMultiCellBatchRequest::Init(TCellId cellId)
-{
-    if (BatchRequests_.find(cellId) == BatchRequests_.end()) {
-        auto channel = CellDirectory_->GetChannel(cellId);
-        if (!channel) {
-            return false;
-        }
-        auto objectServiceProxy = TObjectServiceProxy(channel);
-        BatchRequests_[cellId] = objectServiceProxy.ExecuteBatch();
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////

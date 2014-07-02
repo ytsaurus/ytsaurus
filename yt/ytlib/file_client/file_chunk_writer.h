@@ -10,7 +10,6 @@
 
 #include <core/logging/tagged_logger.h>
 
-
 namespace NYT {
 namespace NFileClient {
 
@@ -20,7 +19,7 @@ class TFileChunkWriterFacade
     : public TNonCopyable
 {
 public:
-    TFileChunkWriterFacade(TFileChunkWriter* writer);
+    explicit TFileChunkWriterFacade(TFileChunkWriter* writer);
 
     void Write(const TRef& data);
 
@@ -36,23 +35,20 @@ class TFileChunkWriter
     : public TRefCounted
 {
 public:
-    typedef TFileChunkWriterProvider TProvider;
-    typedef TFileChunkWriterFacade TFacade;
-
     TFileChunkWriter(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter);
+        NChunkClient::IWriterPtr chunkWriter);
 
     ~TFileChunkWriter();
 
     // Is retuns nullptr, take GetReadyEvent and wait.
-    TFacade* GetFacade();
+    TFileChunkWriterFacade* GetFacade();
     TAsyncError GetReadyEvent();
 
-    TAsyncError AsyncClose();
+    TAsyncError Close();
 
-    i64 GetCurrentSize() const;
+    i64 GetDataSize() const;
     i64 GetMetaSize() const;
 
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
@@ -64,7 +60,7 @@ private:
     TFileChunkWriterConfigPtr Config;
     NChunkClient::TEncodingWriterOptionsPtr Options;
     NChunkClient::TEncodingWriterPtr EncodingWriter;
-    NChunkClient::IAsyncWriterPtr AsyncWriter;
+    NChunkClient::IWriterPtr ChunkWriter;
 
     TFileChunkWriterFacade Facade;
     TBlob Buffer;
@@ -86,17 +82,22 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChunkWriter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChunkWriterProvider
     : public virtual TRefCounted
 {
 public:
+    typedef TFileChunkWriter TChunkWriter;
+    typedef TFileChunkWriterFacade TFacade;
+
     TFileChunkWriterProvider(
         TFileChunkWriterConfigPtr config,
         NChunkClient::TEncodingWriterOptionsPtr options);
 
-    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter);
     void OnChunkFinished();
     void OnChunkClosed(TFileChunkWriterPtr writer);
 
@@ -108,6 +109,7 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TFileChunkWriterProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

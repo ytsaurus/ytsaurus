@@ -2,11 +2,11 @@ from pickling import dump
 import config
 import format_config
 
-from common import get_value
+from yt.zip import ZipFile
+import yt.logger as logger
 from errors import YtError
 
-from yt.zip import ZipFile
-
+import imp
 import os
 import sys
 import shutil
@@ -16,16 +16,20 @@ import types
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def module_relpath(module_name, module_file):
-    extensions = get_value(config.PYTHON_FUNCTION_SEARCH_EXTENSIONS, ["py", "pyc", "so"])
+    if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is None:
+        suffixes = [suf for suf, _, _ in imp.get_suffixes()]
+    else:
+        suffixes = ["." + ext for ext in config.PYTHON_FUNCTION_SEARCH_EXTENSIONS]
+
     if module_name == "__main__":
         return module_file
     for init in ["", "/__init__"]:
-        for ext in extensions:
-            rel_path = "%s%s.%s" % (module_name.replace(".", "/"), init, ext)
+        for suf in suffixes:
+            rel_path = ''.join([module_name.replace(".", "/"), init, suf])
             if module_file.endswith(rel_path):
                 return rel_path
     return None
-    #!!! It is wrong solution, beacause modules can affect sys.path while importing
+    #!!! It is wrong solution, because modules can affect sys.path while importing
     #!!! Do not delete it to prevent wrong refactoring in the future.
     # module_path = module.__file__
     #for path in sys.path:
@@ -42,14 +46,14 @@ def find_file(path):
         path = os.path.dirname(path)
 
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
-    assert operation_type in ["mapper", "reducer"]
-    function_filename = tempfile.mkstemp(dir="/tmp", prefix=".operation.dump")[1]
+    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
     compressed_files = set()
-    zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
+    zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
             if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
@@ -57,22 +61,27 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 continue
             if hasattr(module, "__file__"):
                 file = find_file(module.__file__)
+                if file is None or not os.path.isfile(file):
+                    logger.warning("Cannot find file of module %s", module.__file__)
+                    continue
+
                 if config.PYTHON_DO_NOT_USE_PYC and file.endswith(".pyc"):
                     file = file[:-1]
+
                 relpath = module_relpath(module.__name__, file)
-                if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
+                if relpath is None:
                     raise YtError("Cannot determine relative path of module " + str(module))
-                
+
                 if relpath in compressed_files:
                     continue
                 compressed_files.add(relpath)
 
                 zip.write(file, relpath)
 
-    main_filename = tempfile.mkstemp(dir="/tmp", prefix="_main_module")[1] + ".py"
+    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module")[1] + ".py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
-    config_filename = tempfile.mkstemp(dir="/tmp", prefix="config_dump")[1]
+    config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
     config_dict = {}
     for key in dir(format_config):
         value = format_config.__dict__[key]
@@ -98,11 +107,13 @@ def _init_attributes(func):
         func.attributes = {}
 
 def aggregator(func):
+    """Decorate mapper function to consume *iterator of rows* instead of single row."""
     _init_attributes(func)
     func.attributes["is_aggregator"] = True
     return func
 
 def raw(func):
+    """Decorate mapper function to consume *raw data stream* instead of single row."""
     _init_attributes(func)
     func.attributes["is_raw"] = True
     return func

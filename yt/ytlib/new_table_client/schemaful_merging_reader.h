@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemafulReaderPtr CreateSchemafulMergingReader(const std::vector<ISchemafulReaderPtr>& readers);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
+} // namespace NYT

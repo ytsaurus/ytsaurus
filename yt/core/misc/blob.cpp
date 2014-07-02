@@ -110,6 +110,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 TBlob& TBlob::operator = (TBlob&& rhs)
 {
     if (this != &rhs) {
+        delete[] Begin_;
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
@@ -120,13 +121,28 @@ TBlob& TBlob::operator = (TBlob&& rhs)
 
 void TBlob::Append(const void* data, size_t size)
 {
-    Resize(Size_ + size, false);
-    memcpy(Begin_ + Size_ - size, data, size);
+    if (Size_ + size > Capacity_) {
+        Resize(Size_ + size, false);
+        memcpy(Begin_ + Size_ - size, data, size);
+    } else {
+        memcpy(Begin_ + Size_, data, size);
+        Size_ += size;
+    }
 }
 
 void TBlob::Append(const TRef& ref)
 {
     Append(ref.Begin(), ref.Size());
+}
+
+void TBlob::Append(char ch)
+{
+    if (Size_ + 1 > Capacity_) {
+        Resize(Size_ + 1, false);
+        Begin_[Size_ - 1] = ch;
+    } else {
+        Begin_[Size_++] = ch;
+    }
 }
 
 void TBlob::Reset()

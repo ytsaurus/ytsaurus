@@ -1,0 +1,22 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/query_client/plan_fragment.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    required TPlanFragment plan_fragment = 2;
+}
+
+message TRspExecute
+{
+    // Wire-encoded response is passed via attachments.
+    required TQueryStatistics query_statistics = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

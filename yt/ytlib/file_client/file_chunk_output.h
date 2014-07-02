@@ -3,17 +3,20 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-
-#include <core/compression/codec.h>
-#include <core/logging/tagged_logger.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
-
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
 #include <server/chunk_server/public.h>
+
 #include <server/object_server/public.h>
+
+#include <core/compression/codec.h>
+
+#include <core/logging/tagged_logger.h>
+
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -31,7 +34,7 @@ class TFileChunkOutput
 public:
     //! Initializes an instance.
     TFileChunkOutput(
-        TFileWriterConfigPtr config,
+        NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
         const NObjectClient::TTransactionId& transactionId);
@@ -54,7 +57,7 @@ private:
     void DoFinish();
     void FlushBlock();
 
-    const TFileWriterConfigPtr Config;
+    const NApi::TFileWriterConfigPtr Config;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options;
 
     bool IsOpen;
@@ -66,7 +69,7 @@ private:
 
     std::vector<NChunkClient::TChunkReplica> Replicas;
 
-    NChunkClient::IAsyncWriterPtr AsyncWriter;
+    NChunkClient::IWriterPtr ChunkWriter;
     TFileChunkWriterPtr Writer;
     NLog::TTaggedLogger Logger;
 };

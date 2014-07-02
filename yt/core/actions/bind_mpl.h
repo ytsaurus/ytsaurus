@@ -13,7 +13,7 @@
 //==============================================================================
 */
 
-#include "public.h"
+//#include "public.h"
 
 #include <core/misc/mpl.h>
 
@@ -125,17 +125,17 @@ struct TMaybeLockHelper
 template <bool IsMethod, class T>
 struct TMaybeLockHelper< IsMethod, T&& >
 {
-    T T_;
+    T&& T_;
     inline TMaybeLockHelper(T&& x)
         : T_(std::move(x))
     { }
-    inline TMaybeLockHelper& Lock() const
+    inline const TMaybeLockHelper& Lock() const
     {
         return *this;
     }
     inline T&& Get() const
     {
-        return static_cast<T&&>(T_);
+        return std::move(T_);
     }
 };
 
@@ -145,7 +145,9 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U> >
     typedef TIntrusivePtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
-        static_assert(U::False, "Current implementation should pass smart pointers by reference.");
+        static_assert(
+            U::False,
+            "Current implementation should pass smart pointers by reference.");
     }
 };
 
@@ -183,7 +185,9 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     typedef TWeakPtr<U> T;
     inline TMaybeLockHelper(const T& x)
     {
-        static_assert(U::False, "Current implementation should pass smart pointers by reference.");
+        static_assert(
+            U::False,
+            "Current implementation should pass smart pointers by reference.");
     }
 };
 
@@ -223,13 +227,12 @@ struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 // semantics require so.
 //
 
-template <class TExpected>
+template <class T>
 struct TMaybeCopyHelper
 {
-    typedef TExpected T;
     static inline T&& Do(T&& x)
     {
-        return static_cast<T&&>(x);
+        return std::move(x);
     }
     static inline T Do(const T& x)
     {
@@ -237,10 +240,9 @@ struct TMaybeCopyHelper
     }
 };
 
-template <class TExpected>
-struct TMaybeCopyHelper<const TExpected&>
+template <class T>
+struct TMaybeCopyHelper<const T&>
 {
-    typedef TExpected T;
     static inline const T& Do(const T& x)
     {
         return x;
@@ -252,16 +254,18 @@ struct TMaybeCopyHelper<T&>
 {
     static inline void Do()
     {
-        static_assert(T::False, "Current implementation should not make copies of non-const lvalue-references.");
+        static_assert(
+            T::False,
+            "Current implementation should not make copies of non-const lvalue-references.");
     }
 };
 
 template <class T>
 struct TMaybeCopyHelper<T&&>
 {
-    static inline void Do()
+    static inline T&& Do(T&& x)
     {
-        static_assert(T::False, "Current implementation should not make copies of rvalue-references.");
+        return std::move(x);
     }
 };
 
@@ -350,8 +354,21 @@ struct TIsNonConstReference<const T&>
 
 /*! \} */
 
+template <class TRunnable, class... TParams>
+struct TCheckFirstArgument
+{ };
+
+template <class TRunnable, class TFirstParam, class... TOtherParams>
+struct TCheckFirstArgument<TRunnable, TFirstParam, TOtherParams...>
+{
+     static_assert(!(
+         NYT::NDetail::TIsMethodHelper<TRunnable>::Value &&
+         NMpl::TIsArray<TFirstParam>::Value),
+         "First bound argument to a method cannot be an array");
+};
+
 template <class T>
-struct TRawPtrToRefCountedTypeHelper
+struct TIsRawPtrToRefCountedType
 {
 #if defined(_win_)
     enum {
@@ -366,6 +383,30 @@ struct TRawPtrToRefCountedTypeHelper
     };
 #endif
 };
+
+template <class T>
+struct TCheckIsRawPtrToRefCountedTypeHelper
+{
+    static_assert(
+        !NYT::NDetail::TIsRawPtrToRefCountedType<T>::Value,
+        "T has reference-counted type and should not be bound by the raw pointer");
+};
+
+template <class T>
+struct TCheckArgIsNonConstReference
+{
+    static_assert(
+        !NYT::NDetail::TIsNonConstReference<T>::Value,
+        "T is a non-const reference and should not be bound.");
+};
+
+template <class TSignature>
+struct TCheckReferencesInSignature;
+
+template <class R, class... TArgs>
+struct TCheckReferencesInSignature<R(TArgs...)>
+    : NYT::NMpl::TTypesPack<TCheckArgIsNonConstReference<TArgs>...>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */

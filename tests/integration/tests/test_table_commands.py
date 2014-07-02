@@ -10,6 +10,7 @@ from time import sleep
 class TestTableCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    NUM_SCHEDULERS = 1
 
     def test_invalid_type(self):
         with pytest.raises(YtError): read('//tmp')
@@ -302,7 +303,10 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get_chunks() == []
+        for chunk in get_chunks():
+            nodes = get("#%s/@owning_nodes" % chunk)
+            for t in ["//tmp/t", "//tmp/t2"]:
+                assert t not in nodes
 
     def test_copy_to_the_same_table(self):
         create('table', '//tmp/t')
@@ -329,7 +333,29 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get_chunks() == []
+        for chunk in get_chunks():
+            nodes = get("#%s/@owning_nodes" % chunk)
+            for t in ["//tmp/t", "//tmp/t2"]:
+                assert t not in nodes
+
+    def test_copy_not_sorted(self):
+        create('table', '//tmp/t1')
+        assert get('//tmp/t1/@sorted') == 'false'
+        assert get('//tmp/t1/@key_columns') == []
+
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@sorted') == 'false'
+        assert get('//tmp/t2/@key_columns') == []
+
+    def test_copy_sorted(self):
+        create('table', '//tmp/t1')
+        sort(in_='//tmp/t1', out='//tmp/t1', sort_by='key')
+        assert get('//tmp/t1/@sorted') == 'true'
+        assert get('//tmp/t1/@key_columns') == ['key']
+
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@sorted') == 'true'
+        assert get('//tmp/t2/@key_columns') == ['key']
 
     def test_remove_create_under_transaction(self):
         create("table", "//tmp/table_xxx")
@@ -457,7 +483,7 @@ class TestTableCommands(YTEnvSetup):
 
         set('//tmp/t/@vital', 'false')
         assert get('//tmp/t/@vital') == 'false'
-        sleep(3)
+        sleep(2)
 
         check_vital_chunks('false')
 
@@ -466,7 +492,7 @@ class TestTableCommands(YTEnvSetup):
         for i in xrange(0, 5):
             write('<append=true>//tmp/t', {'a' : 'b'})
         set('//tmp/t/@replication_factor', 4)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update2(self):
@@ -476,7 +502,7 @@ class TestTableCommands(YTEnvSetup):
             write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
         set('//tmp/t/@replication_factor', 4)
         commit_transaction(tx)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update3(self):
@@ -486,8 +512,55 @@ class TestTableCommands(YTEnvSetup):
             write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
         set('//tmp/t/@replication_factor', 2)
         commit_transaction(tx)
-        sleep(3)
+        sleep(2)
         self._check_replication_factor('//tmp/t', 2)
+
+    def test_key_columns1(self):
+        create('table', '//tmp/t', opt=['/attributes/key_columns=[a;b]'])
+        assert get('//tmp/t/@sorted') == 'true'
+        assert get('//tmp/t/@key_columns') == ['a', 'b']
+
+    def test_key_columns2(self):
+        create('table', '//tmp/t')
+        write('//tmp/t', {'a' : 'b'})
+        with pytest.raises(YtError): set('//tmp/t/@key_columns', ['a', 'b'])
+
+    def test_key_columns3(self):
+        create('table', '//tmp/t')
+        with pytest.raises(YtError): set('//tmp/t/@key_columns', 123)
+
+    def test_statistics1(self):
+        table = '//tmp/t'
+        create('table', table)
+        set('//tmp/t/@compression_codec', 'snappy')
+        write(table, {"foo": "bar"})
+
+        for i in xrange(8):
+            merge(in_=[table, table], out="<append=true>" + table)
+
+        chunk_count = 3**8
+        assert len(get('//tmp/t/@chunk_ids')) == chunk_count
+
+        codec_info = get('//tmp/t/@compression_statistics')
+        assert codec_info['snappy']['chunk_count'] == chunk_count
+
+        erasure_info = get('//tmp/t/@erasure_statistics')
+        assert erasure_info['none']['chunk_count'] == chunk_count
+
+    @only_linux
+    def test_statistics2(self):
+        tableA = '//tmp/a'
+        create('table', tableA)
+        write(tableA, {"foo": "bar"})
+
+        tableB = '//tmp/b'
+        create('table', tableB)
+        set(tableB + '/@compression_codec', 'snappy')
+
+        map(in_=[tableA], out=[tableB], command="cat")
+
+        codec_info = get(tableB + '/@compression_statistics')
+        assert codec_info.keys() == ['snappy']
 
     def test_json_format(self):
         create('table', '//tmp/t')

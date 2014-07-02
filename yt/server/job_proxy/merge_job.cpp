@@ -4,14 +4,16 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/table_client/private.h>
+
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -29,11 +31,15 @@ namespace NJobProxy {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NVersionedTableClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
+
+using NVersionedTableClient::TKey;
+using NTableClient::TTableWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +54,7 @@ class TMergeJob
 {
 public:
     typedef TMultiChunkReader<TTableChunkReader> TReader;
-    typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
+    typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
@@ -60,8 +66,8 @@ public:
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
 
         std::vector<TChunkSpec> chunkSpecs;
-        FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
-            FOREACH (const auto& chunkSpec, inputSpec.chunks()) {
+        for (const auto& inputSpec : SchedulerJobSpecExt.input_specs()) {
+            for (const auto& chunkSpec : inputSpec.chunks()) {
                 chunkSpecs.push_back(chunkSpec);
             }
         }
@@ -95,7 +101,7 @@ public:
             config->JobIO->TableWriter,
             options);
 
-        Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
+        Writer = CreateSyncWriter<TTableChunkWriterProvider>(New<TWriter>(
             config->JobIO->TableWriter,
             options,
             writerProvider,
@@ -127,19 +133,18 @@ public:
             {
                 NYson::TStatelessLexer lexer;
                 // Unsorted write - use dummy key.
-                TNonOwningKey key;
-                if (KeyColumns) {
-                    key.ClearAndResize(KeyColumns->size());
-                }
+                TChunkedMemoryPool keyMemoryPool;
+                int keyColumnCount = KeyColumns ? KeyColumns->size() : 0;
+                auto key = TKey::Allocate(&keyMemoryPool, keyColumnCount);
 
-                while (const TRow* row = Reader->GetRow()) {
+                while (const auto* row = Reader->GetRow()) {
                     if (KeyColumns) {
-                        key.Clear();
+                        ResetRowValues(&key);
 
-                        FOREACH (const auto& pair, *row) {
+                        for (const auto& pair : *row) {
                             auto it = keyColumnToIndex.find(pair.first);
                             if (it != keyColumnToIndex.end()) {
-                                key.SetKeyPart(it->second, pair.second, lexer);
+                                key[it->second] = MakeKeyPart(pair.second, lexer);
                             }
                         }
 
@@ -206,12 +211,12 @@ private:
 
 TJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TMultiChunkSequentialReader> >(host);
+    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }
 
 TJobPtr CreateUnorderedMergeJob(IJobHost* host)
 {
-    return New< TMergeJob<TMultiChunkParallelReader> >(host);
+    return New< TMergeJob<TOldMultiChunkSequentialReader> >(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

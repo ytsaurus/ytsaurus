@@ -3,8 +3,8 @@
 #include "public.h"
 #include "cluster_resources.h"
 
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/mutation.h>
+#include <server/hydra/mutation.h>
+#include <server/hydra/entity_map.h>
 
 #include <core/rpc/service.h>
 
@@ -72,17 +72,19 @@ public:
 
     void Initialize();
 
-    DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
-
-    NMetaState::TMutationPtr CreateUpdateRequestStatisticsMutation(
-        const NProto::TMetaReqUpdateRequestStatistics& request);
+    NHydra::TMutationPtr CreateUpdateRequestStatisticsMutation(
+        const NProto::TReqUpdateRequestStatistics& request);
 
 
     //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const Stroka& name);
+
+    //! Returns user with a given name (throws if none).
+    TAccount* GetAccountByNameOrThrow(const Stroka& name);
 
     //! Returns "root" built-in account.
     TAccount* GetSysAccount();
@@ -113,6 +115,12 @@ public:
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const Stroka& name);
 
+    //! Returns user with a given name (throws if none).
+    TUser* GetUserByNameOrThrow(const Stroka& name);
+
+    //! Finds user by id, throws if nothing is found.
+    TUser* GetUserOrThrow(const TUserId& id);
+
     //! Returns "root" built-in user.
     TUser* GetRootUser();
 
@@ -132,6 +140,9 @@ public:
 
     //! Returns subject (a user or a group) with a given name (|nullptr| if none).
     TSubject* FindSubjectByName(const Stroka& name);
+
+    //! Returns subject (a user or a group) with a given name (throws if none).
+    TSubject* GetSubjectByNameOrThrow(const Stroka& name);
 
     //! Adds a new member into the group. Throws on failure.
     void AddMember(TGroup* group, TSubject* member);

@@ -6,7 +6,7 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -17,7 +17,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ChunkWriterLogger;
+static auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +37,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
 
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);
-    NMetaState::GenerateMutationId(req);
+    NHydra::GenerateMutationId(req);
     req->set_type(chunkType);
     req->set_account(options->Account);
 
@@ -62,12 +62,11 @@ void OnChunkCreated(
     std::vector<TChunkReplica>* replicas,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory)
 {
-    auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
     if (!rsp->IsOK()) {
-        auto wrappedError = TError(
+        THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk") << *rsp;
-        THROW_ERROR_EXCEPTION(wrappedError);
+            "Error creating chunk")
+            << *rsp;
     }
 
     *chunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
@@ -75,10 +74,8 @@ void OnChunkCreated(
     const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
     nodeDirectory->MergeFrom(rspExt.node_directory());
     *replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-    if (replicas->size() < uploadReplicationFactor) {
-        THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
-            static_cast<int>(replicas->size()),
-            uploadReplicationFactor);
+    if (replicas->empty()) {
+        THROW_ERROR_EXCEPTION("Not enough data nodes available");
     }
 }
 

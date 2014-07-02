@@ -44,10 +44,10 @@ struct TTransactionLockState
     ELockMode Mode;
     yhash_set<Stroka> ChildKeys;
     yhash_set<Stroka> AttributeKeys;
-};
 
-void Save(NCellMaster::TSaveContext& context, const TTransactionLockState& lockState);
-void Load(NCellMaster::TLoadContext& context, TTransactionLockState& lockState);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +56,7 @@ class TLock
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TLock>
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(ELockState, State);
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
     DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);

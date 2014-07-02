@@ -4,11 +4,7 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
-#include <core/ytree/virtual.h>
-#include <core/ytree/fluent.h>
-
 #include <server/cypress_server/virtual.h>
-#include <server/cypress_server/node_proxy_detail.h>
 
 #include <server/chunk_server/chunk_manager.h>
 
@@ -57,6 +53,8 @@ private:
                 return chunkManager->DataMissingChunks();
             case EObjectType::ParityMissingChunkMap:
                 return chunkManager->ParityMissingChunks();
+            case EObjectType::QuorumMissingChunkMap:
+                return chunkManager->QuorumMissingChunks();
             default:
                 YUNREACHABLE();
         }
@@ -77,7 +75,7 @@ private:
         std::vector<TObjectId> ids;
         if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
-            ids = ToObjectIds(chunkManager->GetChunks(sizeLimit));
+            ids = ToObjectIds(chunkManager->Chunks().GetValues(sizeLimit));
         } else {
             const auto& chunks = GetFilteredChunks();
             // NB: |chunks| contains all the matching chunks, enforce size limit.
@@ -91,7 +89,7 @@ private:
     {
         if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
-            return chunkManager->GetChunkCount();
+            return chunkManager->Chunks().GetSize();
         } else {
             return GetFilteredChunks().size();
         }
@@ -130,49 +128,13 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap, EObjectType
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualChunkListMap
-    : public TVirtualMapBase
-{
-public:
-    explicit TVirtualChunkListMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-private:
-    TBootstrap* Bootstrap;
-
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
-    {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto ids = ToObjectIds(chunkManager->GetChunkLists(sizeLimit));
-        // NB: No size limit is needed here.
-        return ConvertToStrings(ids);
-    }
-
-    virtual size_t GetSize() const override
-    {
-        return Bootstrap->GetChunkManager()->GetChunkListCount();
-    }
-
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
-    {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto id = TChunkListId::FromString(key);
-        auto* chunkList = chunkManager->FindChunkList(id);
-        if (!IsObjectAlive(chunkList)) {
-            return nullptr;
-        }
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        return objectManager->GetProxy(chunkList);
-    }
-};
-
 INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkListMap>(bootstrap);
+    auto service = CreateVirtualObjectMap(
+        bootstrap,
+        bootstrap->GetChunkManager()->ChunkLists());
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,

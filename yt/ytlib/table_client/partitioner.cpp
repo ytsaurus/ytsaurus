@@ -4,20 +4,9 @@
 #include <core/misc/blob_output.h>
 
 namespace NYT {
-
-namespace NChunkClient {
-////////////////////////////////////////////////////////////////////////////////
-
-bool operator < (const TOwningKey& partitionKey, const TNonOwningKey& key)
-{
-    return CompareKeys(partitionKey, key) < 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-}
-
-
 namespace NTableClient {
+
+using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +14,7 @@ class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
+    explicit TOrderedPartitioner(const std::vector<TOwningKey>* keys)
         : Keys(keys)
     { }
 
@@ -34,18 +23,24 @@ public:
         return Keys->size() + 1;
     }
 
-    virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) override
+    virtual int GetPartitionTag(const TKey& key) override
     {
-        auto it = std::upper_bound(Keys->begin(), Keys->end(), key);
+        auto it = std::upper_bound(
+            Keys->begin(),
+            Keys->end(),
+            key,
+            [] (const TKey& value, const TOwningKey& element) {
+                return value < element.Get();
+            });
         return std::distance(Keys->begin(), it);
     }
 
 private:
-    const std::vector<NChunkClient::TOwningKey>* Keys;
+    const std::vector<TOwningKey>* Keys;
 
 };
 
-std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
+std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
 {
     return std::unique_ptr<IPartitioner>(new TOrderedPartitioner(keys));
 }
@@ -65,9 +60,9 @@ public:
         return PartitionCount;
     }
 
-    virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) override
+    virtual int GetPartitionTag(const TKey& key) override
     {
-        return key.GetHash() % PartitionCount;
+        return GetHash(key) % PartitionCount;
     }
 
 private:

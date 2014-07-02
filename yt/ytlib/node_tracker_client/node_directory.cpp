@@ -39,8 +39,10 @@ const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
     auto it = Addresses_.find(name);
     if (it == Addresses_.end()) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::InvalidNetwork,
-            "Cannot find network ", ~name.Quote());
+            NNodeTrackerClient::EErrorCode::NoSuchNetwork,
+            "Cannot find %s address for %s",
+            ~name.Quote(),
+            ~GetDefaultAddress());
     }
     return it->second;
 }
@@ -111,7 +113,7 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs)
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    FOREACH (const auto& item, source.items()) {
+    for (const auto& item : source.items()) {
         DoAddDescriptor(item.node_id(), FromProto<TNodeDescriptor>(item.node_descriptor()));
     }
 }
@@ -119,7 +121,7 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    FOREACH (const auto& pair, IdToDescriptor) {
+    for (const auto& pair : IdToDescriptor) {
         auto* item = destination->add_items();
         item->set_node_id(pair.first);
         ToProto(item->mutable_node_descriptor(), pair.second);
@@ -165,7 +167,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(TChunkReplica replica) cons
 std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const std::vector<TChunkReplica>& replicas) const
 {
     std::vector<TNodeDescriptor> result;
-    FOREACH (auto replica, replicas) {
+    for (auto replica : replicas) {
         result.push_back(GetDescriptor(replica));
     }
     return result;

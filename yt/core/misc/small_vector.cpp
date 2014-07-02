@@ -4,14 +4,15 @@ namespace NYT {
 
 /// grow_pod - This is an implementation of the grow() method which only works
 /// on POD-like datatypes and is out of line to reduce code duplication.
-void SmallVectorBase::grow_pod(size_t MinSizeInBytes, size_t TSize) {
+void SmallVectorBase::grow_pod(void *FirstEl, size_t MinSizeInBytes,
+                               size_t TSize) {
   size_t CurSizeBytes = size_in_bytes();
   size_t NewCapacityInBytes = 2 * capacity_in_bytes() + TSize; // Always grow.
   if (NewCapacityInBytes < MinSizeInBytes)
     NewCapacityInBytes = MinSizeInBytes;
 
   void *NewElts;
-  if (this->isSmall()) {
+  if (BeginX == FirstEl) {
     NewElts = malloc(NewCapacityInBytes);
 
     // Copy the elements over.  No need to run dtors on PODs.

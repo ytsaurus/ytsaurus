@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/node_tracker_service.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/node_directory_builder.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -16,6 +17,7 @@ set( HDRS
   ${BASE}/node_tracker_service.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/node_directory_builder.h
 )
 
 list(APPEND YT_SOURCE_FILES

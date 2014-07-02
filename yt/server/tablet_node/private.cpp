@@ -1,0 +1,15 @@
+#include "stdafx.h"
+#include "private.h"
+
+namespace NYT {
+namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger TabletNodeLogger("TabletNode");
+NProfiling::TProfiler TabletNodeProfiler("/tablet_node");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTabletNode
+} // namespace NYT

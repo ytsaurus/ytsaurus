@@ -1,22 +1,30 @@
 set( DIRS
+  misc
+  pipes
   ypath
-  cell_directory
   election
-  meta_state
   orchid
   driver
+  query_client
   scheduler
   chunk_client
   cypress_client
   file_client
   table_client
+  new_table_client
   object_client
   security_client
   node_tracker_client
   job_tracker_client
   transaction_client
+  tablet_client
   monitoring
   cgroup
+  hydra
+  hive
+  formats
+  api
+  journal_client
 )
 
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
@@ -38,18 +46,24 @@ foreach( _d_ ${DIRS} )
 endforeach()
 
 add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
+  stdafx.h
+  stdafx.cpp
   YT_SOURCE_FILES
 )
 
 add_library( ytlib STATIC
   ${YT_SOURCE_FILES}
+  shutdown.cpp
 )
 
 target_link_libraries ( ytlib
   ytcore
 )
+
+if (YT_BUILD_ENABLE_LLVM)
+  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86)
+  target_link_libraries( ytlib ${REQUIRED_LLVM_LIBRARIES} )
+endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}

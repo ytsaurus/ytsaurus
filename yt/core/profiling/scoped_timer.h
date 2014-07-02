@@ -30,6 +30,25 @@ private:
 
 };
 
+class TAggregatingTimingGuard
+{
+public:
+    explicit TAggregatingTimingGuard(TDuration* value)
+        : Value_(value)
+        , StartInstant_(GetCpuInstant())
+    { }
+
+    ~TAggregatingTimingGuard()
+    {
+        *Value_ += CpuDurationToDuration(GetCpuInstant() - StartInstant_);
+    }
+
+private:
+    TDuration* Value_;
+    TCpuInstant StartInstant_;
+    
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling

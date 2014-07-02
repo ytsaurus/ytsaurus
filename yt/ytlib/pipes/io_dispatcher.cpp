@@ -1,0 +1,44 @@
+#include "stdafx.h"
+#include "io_dispatcher.h"
+#include "io_dispatcher_impl.h"
+
+namespace NYT {
+namespace NPipes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIODispatcher::TIODispatcher()
+    : Impl_(New<TImpl>())
+{
+    Impl_->Start();
+}
+
+TIODispatcher::~TIODispatcher()
+{
+    Shutdown();
+}
+
+TIODispatcher* TIODispatcher::Get()
+{
+    return Singleton<TIODispatcher>();
+}
+
+TAsyncError TIODispatcher::AsyncRegister(IFDWatcherPtr watcher)
+{
+    return Impl_->AsyncRegister(watcher);
+}
+
+TAsyncError TIODispatcher::AsyncUnregister(IFDWatcherPtr watcher)
+{
+    return Impl_->AsyncUnregister(watcher);
+}
+
+void TIODispatcher::Shutdown()
+{
+    return Impl_->Shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPipes
+} // namespace NYT

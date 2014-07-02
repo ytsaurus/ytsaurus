@@ -11,7 +11,7 @@ message TAccessStatisticsUpdate
 	required int64 access_counter_delta = 3;	
 }
 
-message TMetaReqUpdateAccessStatistics
+message TReqUpdateAccessStatistics
 {
 	repeated TAccessStatisticsUpdate updates = 1;
 }

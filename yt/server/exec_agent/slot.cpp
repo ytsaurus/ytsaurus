@@ -8,8 +8,6 @@
 
 #include <core/ytree/yson_producer.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NExecAgent {
 
@@ -48,7 +46,7 @@ void TSlot::Initialize()
 
 #ifdef _linux_
     try {
-        KillAll(BIND(&NCGroup::TNonOwningCGroup::GetTasks, &ProcessGroup));
+        NCGroup::RunKiller(ProcessGroup.GetFullPath());
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
         LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
@@ -109,11 +107,11 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 void TSlot::DoCleanSandbox()
 {
     try {
-        if (isexist(~SandboxPath)) {
+        if (NFS::Exists(SandboxPath)) {
             if (UserId == EmptyUserId) {
-                RemoveDirWithContents(SandboxPath);
+                NFS::RemoveRecursive(SandboxPath);
             } else {
-                RemoveDirAsRoot(SandboxPath);
+                RunCleaner(SandboxPath);
             }
         }
         IsClean = true;

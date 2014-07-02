@@ -1,13 +1,12 @@
 #include "public.h"
-
 #include "config.h"
 #include "dispatcher.h"
-#include "async_writer.h"
+#include "writer.h"
 #include "chunk_replica.h"
 #include "chunk_meta_extensions.h"
 #include "replication_writer.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/parallel_collector.h>
 
@@ -33,13 +32,13 @@ std::vector<std::vector<TSharedRef>> SplitBlocks(
     int groupCount)
 {
     i64 totalSize = 0;
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         totalSize += block.Size();
     }
 
     std::vector<std::vector<TSharedRef>> groups(1);
     i64 currentSize = 0;
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         groups.back().push_back(block);
         currentSize += block.Size();
         // Current group is fulfilled if currentSize / currentGroupCount >= totalSize / groupCount
@@ -92,7 +91,7 @@ public:
 
         i64 currentStart = 0;
 
-        FOREACH (auto block, Blocks_) {
+        for (auto block : Blocks_) {
             i64 innerStart = std::max((i64)0, start - currentStart);
             i64 innerEnd = std::min((i64)block.Size(), end - currentStart);
 
@@ -130,16 +129,16 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TErasureWriter
-    : public IAsyncWriter
+    : public IWriter
 {
 public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
         NErasure::ICodec* codec,
-        const std::vector<IAsyncWriterPtr>& writers)
-            : Config_(config)
-            , Codec_(codec)
-            , Writers_(writers)
+        const std::vector<IWriterPtr>& writers)
+        : Config_(config)
+        , Codec_(codec)
+        , Writers_(writers)
     {
         YCHECK(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
@@ -148,7 +147,7 @@ public:
 
     virtual void Open() override
     {
-        FOREACH (auto writer, Writers_) {
+        for (auto writer : Writers_) {
             writer->Open();
         }
     }
@@ -157,6 +156,15 @@ public:
     {
         Blocks_.push_back(block);
         return true;
+    }
+
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    {
+        bool result = true;
+        for (const auto& block : blocks) {
+            result = WriteBlock(block);
+        }
+        return result;
     }
 
     virtual TAsyncError GetReadyEvent() override
@@ -171,17 +179,16 @@ public:
         return ChunkInfo_;
     }
 
-    virtual const std::vector<int> GetWrittenIndexes() const override
+    virtual TReplicaIndexes GetWrittenReplicaIndexes() const override
     {
-        std::vector<int> result;
-        result.reserve(Codec_->GetTotalPartCount());
+        TReplicaIndexes result;
         for (int i = 0; i < Codec_->GetTotalPartCount(); ++i) {
             result.push_back(i);
         }
         return result;
     }
 
-    virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TAsyncError Close(const NProto::TChunkMeta& chunkMeta) override;
 
 private:
     void PrepareBlocks();
@@ -192,7 +199,7 @@ private:
 
     TError EncodeAndWriteParityBlocks();
 
-    TError WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks);
+    TError WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks);
 
     TAsyncError WriteParityBlocks(const std::vector<TSharedRef>& blocks);
 
@@ -203,7 +210,7 @@ private:
     TErasureWriterConfigPtr Config_;
     NErasure::ICodec* Codec_;
 
-    std::vector<IAsyncWriterPtr> Writers_;
+    std::vector<IWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
 
     // Information about blocks, necessary to write blocks
@@ -231,10 +238,10 @@ void TErasureWriter::PrepareBlocks()
 
     // Calculate size of parity blocks and form slicers
     ParityDataSize_ = 0;
-    FOREACH (const auto& group, Groups_) {
+    for (const auto& group : Groups_) {
         i64 size = 0;
         i64 maxBlockSize = 0;
-        FOREACH (const auto& block, group) {
+        for (const auto& block : group) {
             size += block.Size();
             maxBlockSize = std::max(maxBlockSize, (i64)block.Size());
         }
@@ -256,10 +263,10 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 {
     int start = 0;
     NProto::TErasurePlacementExt placementExt;
-    FOREACH (const auto& group, Groups_) {
+    for (const auto& group : Groups_) {
         auto* info = placementExt.add_part_infos();
-        info->set_start(start);
-        FOREACH (const auto& block, group) {
+        info->set_first_block_index(start);
+        for (const auto& block : group) {
             info->add_block_sizes(block.Size());
         }
         start += group.size();
@@ -292,11 +299,11 @@ TAsyncError TErasureWriter::WriteDataBlocks()
     return parallelCollector->Complete();
 }
 
-TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks)
+TError TErasureWriter::WriteDataPart(IWriterPtr writer, const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    FOREACH (const auto& block, blocks) {
+    for (const auto& block : blocks) {
         if (!writer->WriteBlock(block)) {
             auto error = WaitFor(writer->GetReadyEvent());
             if (!error.IsOK())
@@ -304,7 +311,7 @@ TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<T
         }
     }
 
-    return WaitFor(writer->AsyncClose(ChunkMeta_));
+    return WaitFor(writer->Close(ChunkMeta_));
 }
 
 TError TErasureWriter::EncodeAndWriteParityBlocks()
@@ -320,7 +327,7 @@ TError TErasureWriter::EncodeAndWriteParityBlocks()
         TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, begin, end, &parityBlocksPromise] () {
             // Generate bytes from [begin, end) for parity blocks.
             std::vector<TSharedRef> slices;
-            FOREACH (const auto& slicer, Slicers_) {
+            for (const auto& slicer : Slicers_) {
                 slices.push_back(slicer.GetSlice(begin, end));
             }
 
@@ -357,12 +364,12 @@ TAsyncError TErasureWriter::CloseParityWriters()
     auto collector = New<TParallelCollector<void>>();
     for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
         auto& writer = Writers_[Codec_->GetDataPartCount() + i];
-        collector->Collect(writer->AsyncClose(ChunkMeta_));
+        collector->Collect(writer->Close(ChunkMeta_));
     }
     return collector->Complete();
 }
 
-TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
+TAsyncError TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
 {
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
@@ -389,7 +396,7 @@ TAsyncError TErasureWriter::OnClosed(TError error)
     }
 
     i64 diskSpace = 0;
-    FOREACH (auto writer, Writers_) {
+    for (auto writer : Writers_) {
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);
@@ -398,22 +405,22 @@ TAsyncError TErasureWriter::OnClosed(TError error)
     Groups_.clear();
     Blocks_.clear();
 
-    return MakeFuture(TError());
+    return OKFuture;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr CreateErasureWriter(
+IWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     NErasure::ICodec* codec,
-    const std::vector<IAsyncWriterPtr>& writers)
+    const std::vector<IWriterPtr>& writers)
 {
     return New<TErasureWriter>(config, codec, writers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
+std::vector<IWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
@@ -422,7 +429,7 @@ std::vector<IAsyncWriterPtr> CreateErasurePartWriters(
 {
     YCHECK(targets.size() == codec->GetTotalPartCount());
 
-    std::vector<IAsyncWriterPtr> writers;
+    std::vector<IWriterPtr> writers;
     for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
         auto partId = ErasurePartIdFromChunkId(chunkId, index);
         std::vector<NNodeTrackerClient::TNodeDescriptor> partTargets(1, targets[index]);

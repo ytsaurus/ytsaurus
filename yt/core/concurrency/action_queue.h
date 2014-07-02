@@ -14,20 +14,28 @@ class TActionQueue
     : public TRefCounted
 {
 public:
-    explicit TActionQueue(const Stroka& threadName = "<ActionQueue>");
+    explicit TActionQueue(
+        const Stroka& threadName = "<ActionQueue>",
+        bool enableLogging = true,
+        bool enableProfiling = true);
     virtual ~TActionQueue();
 
     void Shutdown();
 
     IInvokerPtr GetInvoker();
 
-    static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
+    static TCallback<TActionQueuePtr()> CreateFactory(
+        const Stroka& threadName,
+        bool enableLogging = true,
+        bool enableProfiling = true);
 
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TActionQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +46,6 @@ public:
     explicit TFairShareActionQueue(
         const Stroka& threadName,
         const std::vector<Stroka>& bucketNames);
-
     virtual ~TFairShareActionQueue();
 
     void Shutdown();
@@ -47,9 +54,11 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,9 +85,11 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TThreadPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns an invoker that executes all queues actions in the
+//! Creates an invoker that executes all callbacks in the
 //! context of #underlyingInvoker (possibly in different threads)
 //! but in a serialized fashion (i.e. all queued actions are executed
 //! in the proper order and no two actions are executed in parallel).
@@ -94,6 +105,15 @@ IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker);
 //! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke
 //! are ignored.
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates an invoker that executes all callbacks in the
+//! context of #underlyingInvoker allowing up to #maxConcurrentInvocations
+//! outstanding requests to the latter.
+IInvokerPtr CreateBoundedConcurrencyInvoker(
+    IInvokerPtr underlyingInvoker,
+    int maxConcurrentInvocations);
 
 ////////////////////////////////////////////////////////////////////////////////
 

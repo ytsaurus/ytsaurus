@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/yamr_parser.h>
-
 #include <core/ytree/yson_consumer-mock.h>
 #include <core/ytree/null_yson_consumer.h>
+
+#include <ytlib/formats/yamr_parser.h>
 
 namespace NYT {
 namespace NFormats {

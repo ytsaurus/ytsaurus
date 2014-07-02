@@ -4,9 +4,10 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/chunk_spec.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
@@ -14,8 +15,6 @@
 
 #include <core/misc/blob_output.h>
 #include <core/misc/async_stream_state.h>
-
-#include <core/concurrency/thread_affinity.h>
 
 #include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>
@@ -32,7 +31,7 @@ class TTableChunkReaderFacade
 {
 public:
     const TRow& GetRow() const;
-    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NVersionedTableClient::TKey& GetKey() const;
     int GetTableIndex() const;
     i64 GetTableRowIndex() const;
 
@@ -58,13 +57,14 @@ public:
         TTableChunkReaderProviderPtr provider,
         NChunkClient::TSequentialReaderConfigPtr config,
         const NChunkClient::TChannel& channel,
-        NChunkClient::IAsyncReaderPtr chunkReader,
-        const NChunkClient::NProto::TReadLimit& startLimit,
-        const NChunkClient::NProto::TReadLimit& endLimit,
+        NChunkClient::IReaderPtr chunkReader,
+        const NChunkClient::TReadLimit& startLimit,
+        const NChunkClient::TReadLimit& endLimit,
         int tableIndex,
         i64 tableRowIndex,
         int partitionTag,
         TChunkReaderOptionsPtr options);
+    ~TTableChunkReader();
 
     TAsyncError AsyncOpen();
 
@@ -81,7 +81,7 @@ public:
 
     // Called by facade.
     const TRow& GetRow() const;
-    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NVersionedTableClient::TKey& GetKey() const;
     int GetTableIndex() const;
 
 private:
@@ -115,6 +115,8 @@ private:
     bool ValidateRow();
     void OnRowFetched(TError error);
 
+    void ClearKey();
+
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
     TTableChunkReaderFacade Facade;
@@ -132,7 +134,9 @@ private:
     TChunkReaderOptionsPtr Options;
 
     TRow CurrentRow;
-    NChunkClient::TNonOwningKey CurrentKey;
+    TChunkedMemoryPool KeyMemoryPool;
+    NVersionedTableClient::TKey CurrentKey;
+
     int TableIndex;
 
     NYson::TStatelessLexer Lexer;
@@ -167,8 +171,6 @@ private:
      */
     std::vector<TSharedRef> FetchedBlocks;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,7 +189,7 @@ public:
 
     TTableChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IAsyncReaderPtr& chunkReader);
+        const NChunkClient::IReaderPtr& chunkReader);
 
     void OnReaderOpened(
         TTableChunkReaderPtr reader,

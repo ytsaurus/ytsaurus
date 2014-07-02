@@ -3,47 +3,51 @@
 #include "config.h"
 #include "driver.h"
 
-#include <core/concurrency/fiber.h>
+#include <ytlib/api/file_reader.h>
+#include <ytlib/api/file_writer.h>
 
-#include <ytlib/file_client/file_reader.h>
-#include <ytlib/file_client/file_writer.h>
+#include <ytlib/chunk_client/chunk_spec.h>
+
+#include <core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NDriver {
 
-using namespace NFileClient;
+using namespace NApi;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDownloadCommand::DoExecute()
 {
-    // COMPAT(babenko): remove Request->FileReader
+    // COMPAT(babenko): remove Request_->FileReader
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->FileReader,
-        Request->FileReader);
+        Context_->GetConfig()->FileReader,
+        Request_->FileReader);
     config = UpdateYsonSerializable(
         config,
-        Request->GetOptions());
+        Request_->GetOptions());
 
-    auto reader = New<TAsyncReader>(
-        config,
-        Context->GetMasterChannel(),
-        Context->GetBlockCache(),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Request->Path,
-        Request->Offset,
-        Request->Length);
+    TFileReaderOptions options;
+    options.Offset = Request_->Offset;
+    options.Length = Request_->Length;
+    SetTransactionalOptions(&options);
+    SetSuppressableAccessTrackingOptions(&options);
+
+    auto reader = Context_->GetClient()->CreateFileReader(
+        Request_->Path.GetPath(),
+        options,
+        config);
 
     {
-        auto result = WaitFor(reader->AsyncOpen());
+        auto result = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    auto output = Context->Request().OutputStream;
+    auto output = Context_->Request().OutputStream;
 
     while (true) {
-        auto blockOrError = WaitFor(reader->AsyncRead());
+        auto blockOrError = WaitFor(reader->Read());
 
         THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
         auto block = blockOrError.Value();
@@ -63,25 +67,27 @@ void TDownloadCommand::DoExecute()
 void TUploadCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
-        Context->GetConfig()->FileWriter,
-        Request->FileWriter);
+        Context_->GetConfig()->FileWriter,
+        Request_->FileWriter);
 
-    auto writer = New<TAsyncWriter>(
-        config,
-        Context->GetMasterChannel(),
-        GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context->GetTransactionManager(),
-        Request->Path);
+    TFileWriterOptions options;
+    options.Append = Request_->Path.GetAppend();
+    SetTransactionalOptions(&options);
+
+    auto writer = Context_->GetClient()->CreateFileWriter(
+        Request_->Path.GetPath(),
+        options,
+        config);
 
     {
-        auto result = WaitFor(writer->AsyncOpen());
+        auto result = WaitFor(writer->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
     struct TUploadBufferTag { };
     auto buffer = TSharedRef::Allocate<TUploadBufferTag>(config->BlockSize);
 
-    auto input = Context->Request().InputStream;
+    auto input = Context_->Request().InputStream;
 
     while (true) {
         if (!input->Read(buffer.Begin(), buffer.Size())) {
@@ -89,18 +95,20 @@ void TUploadCommand::DoExecute()
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        size_t length = input->GetReadLength();
-        if (length == 0)
+        size_t bytesRead = input->GetReadLength();
+        if (bytesRead == 0)
             break;
 
         {
-            auto result = WaitFor(writer->AsyncWrite(TRef(buffer.Begin(), length)));
+            auto result = WaitFor(writer->Write(TRef(buffer.Begin(), bytesRead)));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
 
-    writer->Close();
-
+    {
+        auto result = WaitFor(writer->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

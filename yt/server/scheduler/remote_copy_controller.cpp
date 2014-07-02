@@ -10,15 +10,12 @@
 #include <core/rpc/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/transaction_client/transaction.h>
-
-#include <ytlib/meta_state/master_channel.h>
-
-#include <ytlib/cell_directory/cell_directory.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/job_proxy/config.h>
 
@@ -168,7 +165,7 @@ private:
 
             // Max block size
             i64 maxBlockSize = 0;
-            FOREACH (const auto& stat, statistics) {
+            for (const auto& stat : statistics) {
                  maxBlockSize = std::max(maxBlockSize, stat.MaxBlockSize);
             }
             result += maxBlockSize;
@@ -201,11 +198,11 @@ private:
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
             auto list = joblet->InputStripeList;
-            FOREACH (const auto& stripe, list->Stripes) {
-                FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+            for (const auto& stripe : list->Stripes) {
+                for (const auto& chunkSlice : stripe->ChunkSlices) {
                     auto* chunkSpec = inputSpec->add_chunks();
                     ToProto(chunkSpec, *chunkSlice);
-                    FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+                    for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                         auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                         directoryBuilder.Add(replica);
                     }
@@ -262,8 +259,8 @@ private:
 
     virtual void Essentiate() override
     {
-        AuthenticatedInputMasterChannel = CreateAuthenticatedChannel(
-            Host->GetCellDirectory()->GetChannelOrThrow(Spec_->ClusterName),
+        AuthenticatedInputMasterClient = CreateClient(
+            Host->GetClusterDirectory()->GetConnectionOrThrow(Spec_->ClusterName),
             Operation->GetAuthenticatedUser());
 
         TOperationControllerBase::Essentiate();
@@ -296,8 +293,8 @@ private:
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& chunkSpec : CollectInputChunks()) {
-            if (chunkSpec->has_start_limit() && IsNontrivial(chunkSpec->start_limit()) ||
-                chunkSpec->has_end_limit() && IsNontrivial(chunkSpec->end_limit()))
+            if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
+                chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
             {
                 OnOperationFailed(TError("Remote copy operation does not support non-trivial table limits"));
                 return;
@@ -392,8 +389,8 @@ private:
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(
             TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        remoteCopyJobSpecExt->set_master_discovery_config(
-            ConvertToYsonString(Host->GetCellDirectory()->GetMasterConfig(Spec_->ClusterName)).Data());
+        remoteCopyJobSpecExt->set_connection_config(
+            ConvertToYsonString(Host->GetClusterDirectory()->GetConnectionConfig(Spec_->ClusterName)).Data());
         remoteCopyJobSpecExt->set_network_name(Spec_->NetworkName);
     }
 

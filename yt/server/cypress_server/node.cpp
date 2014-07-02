@@ -5,15 +5,15 @@
 
 #include <server/transaction_server/transaction.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NCypressServer {
 
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,46 +71,41 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id, TransactionId);
 }
 
-void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
+void TCypressNodeBase::Save(TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
     using NYT::Save;
-    SaveObjectRefs(context, LockStateMap_);
-    SaveObjectRefs(context, AcquiredLocks_);
-    SaveObjectRefs(context, PendingLocks_);
-    // TODO(babenko): refactor when new serialization API is ready
-    auto parentId = Parent_ ? Parent_->GetId() : NullObjectId;
-    Save(context, parentId);
+    Save(context, LockStateMap_);
+    Save(context, AcquiredLocks_);
+    Save(context, PendingLocks_);
+    TNonversionedObjectRefSerializer::Save(context, Parent_);
     Save(context, LockMode_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
     Save(context, Revision_);
-    SaveObjectRef(context, Account_);
+    Save(context, Account_);
     Save(context, CachedResourceUsage_);
     Save(context, Acd_);
     Save(context, AccessTime_);
     Save(context, AccessCounter_);
 }
 
-void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
+void TCypressNodeBase::Load(TLoadContext& context)
 {
     TObjectBase::Load(context);
 
     using NYT::Load;
-    LoadObjectRefs(context, LockStateMap_);
+    Load(context, LockStateMap_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 24) {
-        LoadObjectRefs(context, AcquiredLocks_);
+        Load(context, AcquiredLocks_);
     }
     // COMPAT(babenko)
     if (context.GetVersion() >= 25) {
-        LoadObjectRefs(context, PendingLocks_);
+        Load(context, PendingLocks_);
     }
-    // TODO(babenko): refactor when new serialization API is ready
-    TNodeId parentId;
-    Load(context, parentId);
-    Parent_ = parentId == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(parentId);
+    TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
@@ -118,7 +113,7 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 22) {
         Load(context, Revision_);
     }
-    LoadObjectRef(context, Account_);
+    Load(context, Account_);
     Load(context, CachedResourceUsage_);
     Load(context, Acd_);
     // COMPAT(babenko)
@@ -157,11 +152,6 @@ TClusterResources TCypressNodeBase::GetResourceUsage() const
 TVersionedObjectId GetObjectId(const TCypressNodeBase* object)
 {
     return object ? object->GetVersionedId() : TVersionedObjectId(NullObjectId, NullTransactionId);
-}
-
-bool CompareObjectsForSerialization(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs)
-{
-    return GetObjectId(lhs) < GetObjectId(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

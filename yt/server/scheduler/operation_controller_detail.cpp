@@ -6,23 +6,36 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/transaction.h>
+#include <core/concurrency/scheduler.h>
+
+#include <core/rpc/helpers.h>
+
+#include <core/erasure/codec.h>
+
+#include <core/ytree/fluent.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/attribute_helpers.h>
+
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/chunk_slice.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/private.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -30,21 +43,9 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
-
-#include <ytlib/cell_directory/cell_directory.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/cgroup/statistics.h>
-
-#include <core/concurrency/fiber.h>
-#include <core/rpc/helpers.h>
-
-#include <core/erasure/codec.h>
-#include <core/formats/format.h>
-
-#include <core/ytree/fluent.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
 
 #include <cmath>
 
@@ -124,7 +125,14 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, OutputChunkListId);
-    Persist(context, OutputChunkTreeIds);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, OutputChunkTreeIds);
     Persist(context, Endpoints);
 }
 
@@ -200,10 +208,37 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinNeededResources);
-    Persist(context, NonLocalTasks);
-    Persist(context, CandidateTasks);
-    Persist(context, DelayedTasks);
-    Persist(context, LocalTasks);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TSetSerializer<
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, NonLocalTasks);
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, CandidateTasks);
+    CustomPersist<
+        TMultiMapSerializer<
+            TDefaultSerializer,
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, DelayedTasks);
+    CustomPersist<
+        TMapSerializer<
+            TDefaultSerializer,
+            TSetSerializer<
+                TDefaultSerializer,
+                TUnsortedTag
+            >,
+            TUnsortedTag
+        >
+    >(context, LocalTasks);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -296,7 +331,7 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
     int availableCount = 0;
     int unavailableCount = 0;
-    FOREACH(const auto& chunkInfo, rsp->chunks()) {
+    for (const auto& chunkInfo : rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
         auto it = Controller->InputChunkMap.find(chunkId);
         YCHECK(it != Controller->InputChunkMap.end());
@@ -410,7 +445,7 @@ void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
-    FOREACH (auto stripe, stripes) {
+    for (auto stripe : stripes) {
         if (stripe) {
             AddInput(stripe);
         }
@@ -508,7 +543,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         "Approximate: %s, DataSize: %" PRId64 " (%" PRId64 " local), RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetId()),
-        ~jobType.ToString(),
+        ~ToString(jobType),
         ~context->GetNode()->GetAddress(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
@@ -630,7 +665,7 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
     }
 
     if (HasInputLocality()) {
-        FOREACH (const auto& stripe, list->Stripes) {
+        for (const auto& stripe : list->Stripes) {
             Controller->AddTaskLocalityHint(this, stripe);
         }
     }
@@ -730,7 +765,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     auto list = joblet->InputStripeList;
-    FOREACH (const auto& stripe, list->Stripes) {
+    for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -743,7 +778,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto list = joblet->InputStripeList;
-    FOREACH (const auto& stripe, list->Stripes) {
+    for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
@@ -756,10 +791,10 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe,
     TNullable<int> partitionTag)
 {
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, *chunkSlice);
-        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -883,7 +918,7 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    FOREACH (auto& chunkSpec, *chunkSpecs) {
+    for (auto& chunkSpec : *chunkSpecs) {
         auto chunkSlice = CreateChunkSlice(New<TRefCountedChunkSpec>(std::move(chunkSpec)));
         stripe->ChunkSlices.push_back(chunkSlice);
     }
@@ -905,11 +940,11 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , AuthenticatedMasterChannel(CreateAuthenticatedChannel(
-        host->GetMasterChannel(),
+    , AuthenticatedMasterClient(CreateClient(
+        host->GetMasterClient()->GetConnection(),
         operation->GetAuthenticatedUser()))
-    , AuthenticatedInputMasterChannel(AuthenticatedMasterChannel)
-    , AuthenticatedOutputMasterChannel(AuthenticatedMasterChannel)
+    , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
+    , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
@@ -947,22 +982,22 @@ void TOperationControllerBase::Initialize()
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
-    FOREACH (const auto& path, GetInputTablePaths()) {
+    for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
         table.Path = path;
         InputTables.push_back(table);
     }
 
-    FOREACH (const auto& path, GetOutputTablePaths()) {
+    for (const auto& path : GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
-        if (NChunkClient::ExtractOverwriteFlag(path.Attributes())) {
+        if (!path.GetAppend()) {
             table.Clear = true;
             table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;
         }
 
-        table.Options->KeyColumns = path.Attributes().Find< std::vector<Stroka> >("sorted_by");
+        table.Options->KeyColumns = path.Attributes().Find<TKeyColumns>("sorted_by");
         if (table.Options->KeyColumns) {
             if (!IsSortedOutputSupported()) {
                 THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
@@ -996,11 +1031,11 @@ void TOperationControllerBase::Initialize()
 
 void TOperationControllerBase::Essentiate()
 {
-    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+    Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
 
     InitializeTransactions();
 
-    InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterChannel);
+    InputChunkScratcher = New<TInputChunkScratcher>(this, AuthenticatedInputMasterClient->GetMasterChannel());
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1034,8 +1069,6 @@ TError TOperationControllerBase::DoPrepare()
         GetInputObjectIds();
         GetOutputObjectIds();
 
-        ValidateInputTypes();
-        ValidateOutputTypes();
         ValidateFileTypes();
 
         RequestInputObjects();
@@ -1133,14 +1166,14 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     LOG_INFO("Starting async scheduler transaction (OperationId: %s)",
         ~ToString(operationId));
 
-    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
         reqExt->set_enable_uncommitted_accounting(false);
         reqExt->set_enable_staged_accounting(false);
@@ -1150,7 +1183,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
             ~ToString(operationId)));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req, "start_async_tx");
     }
 
@@ -1158,13 +1191,13 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting async scheduler transaction");
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
-        throw TFiberTerminatedException();
+        throw TFiberCanceledException();
 
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx");
         auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
-        auto transactionManager = Host->GetTransactionManagerForTransaction(transactionId);
+        auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
         TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
         options.Ping = true;
@@ -1184,7 +1217,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     LOG_INFO("Starting sync scheduler transaction (OperationId: %s)",
         ~ToString(operationId));
 
-    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1195,14 +1228,14 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         }
         req->set_type(EObjectType::Transaction);
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Sprintf("Scheduler sync for operation %s", ~ToString(operationId)));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req, "start_sync_tx");
     }
 
@@ -1210,7 +1243,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting sync scheduler transaction");
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
-        throw TFiberTerminatedException();
+        throw TFiberCanceledException();
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx");
@@ -1219,7 +1252,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         options.AutoAbort = false;
         options.Ping = true;
         options.PingAncestors = false;
-        Operation->SetSyncSchedulerTransaction(Host->GetTransactionManager()->Attach(options));
+        Operation->SetSyncSchedulerTransaction(Host->GetMasterClient()->GetTransactionManager()->Attach(options));
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %s, OperationId: %s)",
@@ -1233,7 +1266,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
 
     LOG_INFO("Starting input transaction (OperationId: %s)", ~ToString(operationId));
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1241,14 +1274,14 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(EObjectType::Transaction);
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Sprintf("Scheduler input for operation %s", ~ToString(operationId)));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
 
@@ -1256,13 +1289,13 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting input transaction");
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
-        throw TFiberTerminatedException();
+        throw TFiberCanceledException();
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
-        auto transactionManager = Host->GetTransactionManagerForTransaction(id);
+        auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
         TTransactionAttachOptions options(id);
         options.AutoAbort = false;
         options.Ping = true;
@@ -1276,7 +1309,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 
     LOG_INFO("Starting output transaction (OperationId: %s)", ~ToString(operationId));
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -1284,7 +1317,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(EObjectType::Transaction);
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_enable_uncommitted_accounting(false);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
@@ -1293,7 +1326,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
             ~ToString(operationId)));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
     }
 
@@ -1301,13 +1334,13 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting output transactions");
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
-        throw TFiberTerminatedException();
+        throw TFiberCanceledException();
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
         auto id = FromProto<TTransactionId>(rsp->object_ids(0));
-        auto transactionManager = Host->GetTransactionManagerForTransaction(id);
+        auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
         TTransactionAttachOptions options(id);
         options.AutoAbort = false;
         options.Ping = true;
@@ -1319,7 +1352,7 @@ void TOperationControllerBase::InitChunkListPool()
 {
     ChunkListPool = New<TChunkListPool>(
         Config,
-        Host->GetMasterChannel(),
+        Host->GetMasterClient()->GetMasterChannel(),
         CancelableControlInvoker,
         Operation->GetId(),
         Operation->GetOutputTransaction()->GetId());
@@ -1337,11 +1370,11 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
     YCHECK(UnavailableInputChunkCount == 0);
 
-    FOREACH (auto& pair, InputChunkMap) {
+    for (auto& pair : InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
+            for (const auto& inputStripe : chunkDescriptor.InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -1357,10 +1390,10 @@ void TOperationControllerBase::ReinstallLivePreview()
     auto masterConnector = Host->GetMasterConnector();
 
     if (IsOutputLivePreviewSupported()) {
-        FOREACH (const auto& table, OutputTables) {
+        for (const auto& table : OutputTables) {
             std::vector<TChunkTreeId> childrenIds;
             childrenIds.reserve(table.OutputChunkTreeIds.size());
-            FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+            for (const auto& pair : table.OutputChunkTreeIds) {
                 childrenIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
@@ -1373,7 +1406,7 @@ void TOperationControllerBase::ReinstallLivePreview()
     if (IsIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childrenIds;
         childrenIds.reserve(ChunkOriginMap.size());
-        FOREACH (const auto& pair, ChunkOriginMap) {
+        for (const auto& pair : ChunkOriginMap) {
             if (!pair.second->IsLost) {
                 childrenIds.push_back(pair.first);
             }
@@ -1387,7 +1420,7 @@ void TOperationControllerBase::ReinstallLivePreview()
 
 void TOperationControllerBase::AbortAllJoblets()
 {
-    FOREACH (const auto& pair, JobletMap) {
+    for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
         JobCounter.Aborted(1);
         joblet->Task->OnJobAborted(joblet);
@@ -1399,7 +1432,7 @@ void TOperationControllerBase::DoLoadSnapshot()
 {
     LOG_INFO("Started loading snapshot");
 
-    const auto& snapshot = *Operation->Snapshot();
+    auto snapshot = Operation->Snapshot();
     TMemoryInput input(snapshot.Begin(), snapshot.Size());
 
     TLoadContext context;
@@ -1436,10 +1469,10 @@ void TOperationControllerBase::CommitResults()
 {
     LOG_INFO("Committing results");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (auto& table, OutputTables) {
+    for (auto& table : OutputTables) {
         auto path = FromObjectId(table.ObjectId);
         // Split large outputs into separate requests.
         {
@@ -1456,7 +1489,7 @@ void TOperationControllerBase::CommitResults()
             auto addChunkTree = [&] (const TChunkTreeId chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-                    NMetaState::GenerateMutationId(req);
+                    NHydra::GenerateMutationId(req);
                 }
                 ToProto(req->add_children_ids(), chunkTreeId);
                 ++reqSize;
@@ -1476,7 +1509,7 @@ void TOperationControllerBase::CommitResults()
                     [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
                         // First sort by keys.
                         // Then sort by ChunkTreeKeys.
-                        auto keysResult = NChunkClient::NProto::CompareKeys(lhs.Key, rhs.Key);
+                        auto keysResult = CompareRows(lhs.Key, rhs.Key);
                         if (keysResult != 0) {
                             return keysResult < 0;
                         }
@@ -1503,7 +1536,7 @@ void TOperationControllerBase::CommitResults()
                     YCHECK(++it == pair.second);
                 }
             } else {
-                FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+                for (const auto& pair : table.OutputChunkTreeIds) {
                     addChunkTree(pair.second);
                 }
             }
@@ -1518,7 +1551,7 @@ void TOperationControllerBase::CommitResults()
             auto req = TTableYPathProxy::SetSorted(path);
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -1581,7 +1614,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     const auto& result = job->Result();
 
-    auto error = FromProto(result.error());
+    auto error = FromProto<TError>(result.error());
 
     LogFinishedJobFluently(ELogEventType::JobFailed, job)
         .Item("error").Value(error);
@@ -1630,7 +1663,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
         const auto& result = job->Result();
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
+        for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
@@ -1659,14 +1692,14 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     YCHECK(UnavailableInputChunkCount >= 0);
 
     // Update replicas in place for all input chunks with current chunkId.
-    FOREACH(auto& chunkSpec, descriptor.ChunkSpecs) {
+    for (auto& chunkSpec : descriptor.ChunkSpecs) {
         chunkSpec->mutable_replicas()->Clear();
         ToProto(chunkSpec->mutable_replicas(), replicas);
     }
 
     descriptor.State = EInputChunkState::Active;
 
-    FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+    for (const auto& inputStripe : descriptor.InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
         if (inputStripe.Stripe->WaitingChunkCount > 0)
             continue;
@@ -1697,11 +1730,11 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
         case EUnavailableChunkAction::Skip: {
             descriptor.State = EInputChunkState::Skipped;
-            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            for (const auto& inputStripe : descriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
 
                 // Remove given chunk from the stripe list.
-                TSmallVector<TChunkSlicePtr, 1> slices;
+                SmallVector<TChunkSlicePtr, 1> slices;
                 std::swap(inputStripe.Stripe->ChunkSlices, slices);
 
                 std::copy_if(
@@ -1722,7 +1755,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
         case EUnavailableChunkAction::Wait: {
             descriptor.State = EInputChunkState::Waiting;
-            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            for (const auto& inputStripe : descriptor.InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 }
@@ -1894,7 +1927,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::AddAllTaskPendingHints()
 {
-    FOREACH (auto task, Tasks) {
+    for (auto task : Tasks) {
         AddTaskPendingHint(task);
     }
 }
@@ -1917,8 +1950,8 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -1933,8 +1966,8 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     LOG_DEBUG("Task locality delays are reset");
-    FOREACH (auto group, TaskGroups) {
-        FOREACH (const auto& pair, group->DelayedTasks) {
+    for (auto group : TaskGroups) {
+        for (const auto& pair : group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
                 MoveTaskToCandidates(task, group->CandidateTasks);
@@ -1978,7 +2011,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     auto node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto group, TaskGroups) {
+    for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -2058,7 +2091,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto group, TaskGroups) {
+    for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -2259,7 +2292,7 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
@@ -2324,7 +2357,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 {
     // NB: use root credentials.
-    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    TObjectServiceProxy proxy(Host->GetMasterClient()->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
@@ -2337,7 +2370,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
     if (IsOutputLivePreviewSupported()) {
         LOG_INFO("Preparing live preview output tables for update");
 
-        FOREACH (const auto& table, OutputTables) {
+        for (const auto& table : OutputTables) {
             addRequest(table, "prepare_output");
         }
     }
@@ -2377,11 +2410,11 @@ void TOperationControllerBase::GetInputObjectIds()
 {
     LOG_INFO("Getting input object ids");
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, InputTables) {
-        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+    for (const auto& table : InputTables) {
+        auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
@@ -2390,14 +2423,22 @@ void TOperationControllerBase::GetInputObjectIds()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting ids for input objects");
 
     {
-        auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_in_id");
+        auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_in_id");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
             {
                 auto rsp = getInIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->id());
+                auto type = EObjectType(rsp->type());
+
+                if (type != EObjectType::Table) {
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                        ~table.Path.GetPath(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
+                }
             }
         }
     }
@@ -2409,11 +2450,11 @@ void TOperationControllerBase::GetOutputObjectIds()
 {
     LOG_INFO("Getting output object ids");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, OutputTables) {
-        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+    for (const auto& table : OutputTables) {
+        auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
         SetTransactionId(req, Operation->GetOutputTransaction());
         batchReq->AddRequest(req, "get_out_id");
     }
@@ -2422,14 +2463,22 @@ void TOperationControllerBase::GetOutputObjectIds()
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting ids for output objects");
 
     {
-        auto getOutIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_out_id");
+        auto getOutIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_out_id");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
             {
                 auto rsp = getOutIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->id());
+                auto type = EObjectType(rsp->type());
+
+                if (type != EObjectType::Table) {
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                        ~table.Path.GetPath(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
+                }
             }
         }
     }
@@ -2437,84 +2486,14 @@ void TOperationControllerBase::GetOutputObjectIds()
     LOG_INFO("Output object ids received");
 }
 
-void TOperationControllerBase::ValidateInputTypes()
-{
-    LOG_INFO("Getting input object types");
-
-    TObjectServiceProxy proxy(AuthenticatedInputMasterChannel);
-    auto batchReq = proxy.ExecuteBatch();
-
-    FOREACH (const auto& table, InputTables) {
-        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "get_input_types");
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting input object types");
-
-    auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
-    for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
-        auto& table = InputTables[index];
-        auto path = table.Path.GetPath();
-        auto rsp = getInputTypes[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
-            ~path);
-
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                ~path,
-                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                ~FormatEnum(type).Quote());
-        }
-    }
-
-    LOG_INFO("Input types received");
-}
-
-void TOperationControllerBase::ValidateOutputTypes()
-{
-    LOG_INFO("Getting output object types");
-
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterChannel);
-    auto batchReq = proxy.ExecuteBatch();
-
-    FOREACH (const auto& table, OutputTables) {
-        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, Operation->GetOutputTransaction());
-        batchReq->AddRequest(req, "get_output_types");
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting output object types");
-
-    auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
-    for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-        auto& table = OutputTables[index];
-        auto path = table.Path.GetPath();
-        auto rsp = getOutputTypes[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
-            ~path);
-
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                ~path,
-                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                ~FormatEnum(type).Quote());
-        }
-    }
-}
-
 void TOperationControllerBase::ValidateFileTypes()
 {
     LOG_INFO("Getting file object types");
 
-    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& pair, GetFilePaths()) {
+    for (const auto& pair : GetFilePaths()) {
         const auto& path = pair.first;
         auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
         SetTransactionId(req, Operation->GetInputTransaction());
@@ -2563,28 +2542,24 @@ void TOperationControllerBase::RequestInputObjects()
 {
     LOG_INFO("Requesting input objects");
 
-    TObjectServiceProxy proxy(AuthenticatedInputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
             SetTransactionId(req, Operation->GetInputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            auto attributes = table.Path.Attributes().Clone();
-            if (table.ComplementFetch) {
-                attributes->Set("complement", !attributes->Get("complement", false));
-            }
-            attributes->Set("fetch_parity_replicas", IsParityReplicasFetchEnabled());
-
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            ToProto(req->mutable_attributes(), *attributes);
+            req->set_complement(table.ComplementFetch);
+            req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
+            InitializeFetchRequest(req.Get(), table.Path);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "fetch_in");
         }
@@ -2624,7 +2599,7 @@ void TOperationControllerBase::RequestInputObjects()
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
-                table.FetchResponse.Swap(~rsp);
+                table.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Input table fetched (Path: %s, ChunkCount: %d)",
                     ~path,
                     table.FetchResponse.chunks_size());
@@ -2638,8 +2613,8 @@ void TOperationControllerBase::RequestInputObjects()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("sorted")) {
-                    table.KeyColumns = attributes.Get< std::vector<Stroka> >("sorted_by");
-                    LOG_INFO("Input table is sorted (Path: %s, SortedBy: %s)",
+                    table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
+                    LOG_INFO("Input table is sorted (Path: %s, KeyColumns: %s)",
                         ~path,
                         ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
                 } else {
@@ -2658,15 +2633,15 @@ void TOperationControllerBase::RequestOutputObjects()
 {
     LOG_INFO("Requesting output objects");
 
-    TObjectServiceProxy proxy(AuthenticatedOutputMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& table, OutputTables) {
+    for (const auto& table : OutputTables) {
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(table.LockMode);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "lock_out");
         }
@@ -2687,7 +2662,7 @@ void TOperationControllerBase::RequestOutputObjects()
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             req->set_mode(table.Clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
@@ -2758,15 +2733,15 @@ void TOperationControllerBase::RequestFileObjects()
 {
     LOG_INFO("Requesting file objects");
 
-    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    FOREACH (const auto& file, RegularFiles) {
+    for (const auto& file : RegularFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_regular_file");
         }
@@ -2792,19 +2767,19 @@ void TOperationControllerBase::RequestFileObjects()
         }
     }
 
-    FOREACH (const auto& file, TableFiles) {
+    for (const auto& file : TableFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_table_file");
         }
         {
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            ToProto(req->mutable_attributes(), file.Path.Attributes());
+            InitializeFetchRequest(req.Get(), file.Path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_table_file_chunks");
         }
@@ -2887,7 +2862,7 @@ void TOperationControllerBase::RequestFileObjects()
                     "Error fetching regular file %s",
                     ~path);
 
-                file.FetchResponse.Swap(~rsp);
+                file.FetchResponse.Swap(rsp.Get());
 
                 LOG_INFO("Regular file fetched (Path: %s)",
                     ~path);
@@ -2935,11 +2910,11 @@ void TOperationControllerBase::RequestFileObjects()
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
-                FOREACH (const auto& chunk, rsp->chunks()) {
+                for (const auto& chunk : rsp->chunks()) {
                     chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
                 }
 
-                file.FetchResponse.Swap(~rsp);
+                file.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Table file fetched (Path: %s)",
                     ~path);
             }
@@ -2967,8 +2942,8 @@ void TOperationControllerBase::RequestFileObjects()
 
 void TOperationControllerBase::CollectTotals()
 {
-    FOREACH (const auto& table, InputTables) {
-        FOREACH (const auto& chunk, table.FetchResponse.chunks()) {
+    for (const auto& table : InputTables) {
+        for (const auto& chunk : table.FetchResponse.chunks()) {
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
@@ -2997,7 +2972,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     std::vector<TRefCountedChunkSpecPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
-        FOREACH (const auto& chunkSpec, table.FetchResponse.chunks()) {
+        for (const auto& chunkSpec : table.FetchResponse.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {
@@ -3030,26 +3005,27 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
 {
     std::vector<TChunkStripePtr> result;
     auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
-        FOREACH(const auto& slice, slices) {
+        for (const auto& slice : slices) {
             result.push_back(New<TChunkStripe>(slice));
         }
     };
 
+    // TODO(ignat): we slice on two parts even id TotalInputDataSize very small.
     i64 sliceDataSize = std::min(maxSliceDataSize, (i64)std::max(Config->SliceDataSizeMultiplier * TotalInputDataSize / jobCount, 1.0));
 
-    FOREACH (const auto& chunkSpec, CollectInputChunks()) {
+    for (const auto& chunkSpec : CollectInputChunks()) {
         int oldSize = result.size();
 
         bool hasNontrivialLimits =
-            (chunkSpec->has_start_limit() && IsNontrivial(chunkSpec->start_limit())) ||
-            (chunkSpec->has_end_limit() && IsNontrivial(chunkSpec->end_limit()));
+            (chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit())) ||
+            (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()));
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
             auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
             appendStripes(slices);
         } else {
-            FOREACH(const auto& slice, CreateErasureChunkSlices(chunkSpec, codecId)) {
+            for (const auto& slice : CreateErasureChunkSlices(chunkSpec, codecId)) {
                 auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
@@ -3066,7 +3042,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 {
     YCHECK(!InputTables.empty());
 
-    FOREACH (const auto& table, InputTables) {
+    for (const auto& table : InputTables) {
         if (!table.KeyColumns) {
             THROW_ERROR_EXCEPTION("Input table %s is not sorted",
                 ~table.Path.GetPath());
@@ -3074,7 +3050,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     }
 
     if (keyColumns) {
-        FOREACH (const auto& table, InputTables) {
+        for (const auto& table : InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns.Get(), keyColumns.Get())) {
                 THROW_ERROR_EXCEPTION("Input table %s is sorted by columns %s that are not compatible with the requested columns %s",
                     ~table.Path.GetPath(),
@@ -3085,7 +3061,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         return keyColumns.Get();
     } else {
         const auto& referenceTable = InputTables[0];
-        FOREACH (const auto& table, InputTables) {
+        for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by columns %s while input table %s is sorted by columns %s",
                     ~table.Path.GetPath(),
@@ -3117,7 +3093,7 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
-    auto error = FromProto(job->Result().error());
+    auto error = FromProto<TError>(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 
@@ -3180,21 +3156,21 @@ void TOperationControllerBase::RegisterOutput(
 }
 
 void TOperationControllerBase::RegisterEndpoints(
-    const TBoundaryKeysExt& boundaryKeys,
+    const TOldBoundaryKeysExt& boundaryKeys,
     int key,
     TOutputTable* outputTable)
 {
-    YCHECK(boundaryKeys.start() <= boundaryKeys.end());
+    YCHECK(CompareKeys(boundaryKeys.start(), boundaryKeys.end()) <= 0);
     {
         TEndpoint endpoint;
-        endpoint.Key = boundaryKeys.start();
+        FromProto(&endpoint.Key, boundaryKeys.start());
         endpoint.Left = true;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);
     }
     {
         TEndpoint endpoint;
-        endpoint.Key = boundaryKeys.end();
+        FromProto(&endpoint.Key, boundaryKeys.end());
         endpoint.Left = false;
         endpoint.ChunkTreeKey = key;
         outputTable->Endpoints.push_back(endpoint);
@@ -3209,7 +3185,7 @@ void TOperationControllerBase::RegisterOutput(
     auto& table = OutputTables[tableIndex];
 
     if (table.Options->KeyColumns && IsSortedOutputSupported()) {
-        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->extensions());
+        auto boundaryKeys = GetProtoExtension<TOldBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
         RegisterEndpoints(boundaryKeys, key, &table);
     }
 
@@ -3250,7 +3226,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Task = task;
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
-    FOREACH(const auto& slice, stripe->ChunkSlices) {
+    for (const auto& slice : stripe->ChunkSlices) {
         auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
@@ -3283,7 +3259,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TotalIntermediateRowCount += outputStatistics.row_count();
     TotalIntermediateDataSize += outputStatistics.uncompressed_data_size();
 
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
@@ -3370,7 +3346,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto error = FromProto(Operation->Result().error());
+    auto error = FromProto<TError>(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("error").Value(error)
@@ -3380,7 +3356,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
 {
     BuildYsonMapFluently(consumer)
-        .DoIf(Spec->Title, [&] (TFluentMap fluent) {
+        .DoIf(Spec->Title.HasValue(), [&] (TFluentMap fluent) {
             fluent
                 .Item("title").Value(*Spec->Title);
         })
@@ -3450,7 +3426,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
-        FOREACH (const auto& pair, env) {
+        for (const auto& pair : env) {
             jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };
@@ -3464,14 +3440,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~ToString(Operation->GetId())));
 
-    FOREACH (const auto& file, regularFiles) {
+    for (const auto& file : regularFiles) {
         auto *descriptor = jobSpec->add_regular_files();
         *descriptor->mutable_file() = file.FetchResponse;
         descriptor->set_executable(file.Executable);
         descriptor->set_file_name(file.FileName);
     }
 
-    FOREACH (const auto& file, tableFiles) {
+    for (const auto& file : tableFiles) {
         auto* descriptor = jobSpec->add_table_files();
         *descriptor->mutable_table() = file.FetchResponse;
         descriptor->set_file_name(file.FileName);
@@ -3484,8 +3460,8 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-    ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
+    auto stderrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+    ToProto(jobSpec->mutable_stderr_transaction_id(), stderrTransactionId);
 
     jobSpec->set_memory_reserve(memoryReserve);
 
@@ -3499,7 +3475,7 @@ void TOperationControllerBase::InitUserJobSpec(
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
 {
     i64 result = 0;
-    FOREACH (const auto& outputTable, OutputTables) {
+    for (const auto& outputTable : OutputTables) {
         if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
@@ -3524,7 +3500,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     const TChunkStripeStatisticsVector& stripeStatistics) const
 {
     i64 result = 0;
-    FOREACH (const auto& stat, stripeStatistics) {
+    for (const auto& stat : stripeStatistics) {
         result += GetInputIOMemorySize(ioConfig, stat);
     }
     result += GetFinalOutputIOMemorySize(ioConfig);
@@ -3650,10 +3626,16 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobIndexGenerator);
 
-    Persist(context, InputChunkSpecs);
+    // NB: Scheduler snapshots need not be stable.
+    CustomPersist<
+        TSetSerializer<
+            TDefaultSerializer,
+            TUnsortedTag
+        >
+    >(context, InputChunkSpecs);
 
     if (context.GetDirection() == EPersistenceDirection::Load) {
-        FOREACH (auto task, Tasks) {
+        for (auto task : Tasks) {
             task->Initialize();
         }
     }

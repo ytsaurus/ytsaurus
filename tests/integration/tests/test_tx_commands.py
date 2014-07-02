@@ -3,45 +3,37 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import time
-
+from time import sleep
 
 ##################################################################
 
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 0
+    NUM_NODES = 3
 
-    def test_simple(self):
-
+    def test_simple1(self):
         tx = start_transaction()
         
-        #check that transaction is on the master (also within a tx)
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('//sys/transactions/' + tx)
 
         commit_transaction(tx)
-        #check that transaction no longer exists
-        self.assertItemsEqual(get_transactions(), [])
 
-        #couldn't commit committed transaction
+        assert not exists('//sys/transactions/' + tx)
+
+        #cannot commit committed transaction
         with pytest.raises(YtError): commit_transaction(tx)
-        #couldn't abort commited transaction
-        with pytest.raises(YtError): abort_transaction(tx)
 
-        ##############################################################
-        #check the same for abort
+    def test_simple2(self):
         tx = start_transaction()
 
-        self.assertItemsEqual(get_transactions(), [tx])
+        assert exists('//sys/transactions/' + tx)
         
         abort_transaction(tx)
-        #check that transaction no longer exists
-        self.assertItemsEqual(get_transactions(), [])
+        
+        assert not exists('//sys/transactions/' + tx)
 
-        #couldn't commit aborted transaction
+        #cannot commit aborted transaction
         with pytest.raises(YtError): commit_transaction(tx)
-        #couldn't abort aborted transaction
-        with pytest.raises(YtError): abort_transaction(tx)
 
     def test_changes_inside_tx(self):
         set('//tmp/value', '42')
@@ -66,7 +58,7 @@ class TestTxCommands(YTEnvSetup):
 
         remove('//tmp/value')
 
-    def test_nested_tx(self):
+    def test_nested_tx1(self):
         set('//tmp/t1', 0)
 
         tx_outer = start_transaction()
@@ -76,66 +68,90 @@ class TestTxCommands(YTEnvSetup):
 
         tx2 = start_transaction(tx = tx_outer)
 
+        assert get('//tmp/t1', tx=tx_outer) == 0
+
+        commit_transaction(tx1)
+        assert get('//tmp/t1', tx=tx_outer) == 1
+        assert get('//tmp/t1') == 0
+
+    def test_nested_tx2(self):
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx = tx_outer)
+
         # can't be committed as long there are uncommitted transactions
         with pytest.raises(YtError): commit_transaction(tx_outer)
 
-        assert get('//tmp/t1', tx=tx_outer) == 0
-        commit_transaction(tx1)
-        assert get('//tmp/t1', tx=tx_outer) == 1
+        sleep(1)
+
+        # an attempt to commit tx_outer aborts everything
+        assert not exists('//sys/transactions/' + tx_outer)
+        assert not exists('//sys/transactions/' + tx1)
+        assert not exists('//sys/transactions/' + tx2)
+
+    def test_nested_tx3(self):
+        tx_outer = start_transaction()
+
+        tx1 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx = tx_outer)
 
         # can be aborted..
         abort_transaction(tx_outer)
         
         # and this aborts all nested transactions
-        assert get('//tmp/t1') == 0
-        assert get_transactions() == []
+        assert not exists('//sys/transactions/' + tx_outer)
+        assert not exists('//sys/transactions/' + tx1)
+        assert not exists('//sys/transactions/' + tx2)
 
     def test_timeout(self):
-        tx = start_transaction(opt = '/timeout=4000')
+        tx = start_transaction(opt = '/timeout=2000')
 
         # check that transaction is still alive after 2 seconds
-        time.sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx])
+        sleep(1.0)
+        assert exists('//sys/transactions/' + tx)
 
         # check that transaction is expired after 4 seconds
-        time.sleep(2)
-        self.assertItemsEqual(get_transactions(), [])
+        sleep(1.5)
+        assert not exists('//sys/transactions/' + tx)
 
     def test_ping(self):
-        tx = start_transaction(opt = '/timeout=4000')
+        tx = start_transaction(opt = '/timeout=2000')
 
-        time.sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx])
+        sleep(1)
+        assert exists('//sys/transactions/' + tx)
         ping_transaction(tx)
 
-        time.sleep(3)
-        self.assertItemsEqual(get_transactions(), [tx])
+        sleep(1.5)
+        assert exists('//sys/transactions/' + tx)
         
-        abort_transaction(tx)
-
     def test_expire_outer(self):
-        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_outer = start_transaction(opt = '/timeout=2000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        time.sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        sleep(1)
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner)
 
-        time.sleep(3)
+        sleep(1.5)
         # check that outer tx expired (and therefore inner was aborted)
-        self.assertItemsEqual(get_transactions(), [])
+        assert not exists('//sys/transactions/' + tx_inner)
+        assert not exists('//sys/transactions/' + tx_outer)
 
     def test_ping_ancestors(self):
-        tx_outer = start_transaction(opt = '/timeout=4000')
+        tx_outer = start_transaction(opt = '/timeout=2000')
         tx_inner = start_transaction(tx = tx_outer)
 
-        time.sleep(2)
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        sleep(1)
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
-        time.sleep(3)
+        sleep(1.5)
         # check that all tx are still alive
-        self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
+        assert exists('//sys/transactions/' + tx_inner)
+        assert exists('//sys/transactions/' + tx_outer)
 
     def test_tx_not_staged(self):
         tx_outer = start_transaction()
@@ -148,16 +164,34 @@ class TestTxCommands(YTEnvSetup):
         tx2 = start_transaction(tx = tx1)
         tx3 = start_transaction(tx = tx1)
 
-        self.assertItemsEqual(get_transactions(), [tx1, tx2, tx3])
-        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+        txs = get_transactions()
+        assert tx1 in txs
+        assert tx2 in txs
+        assert tx3 in txs
+        topmost_txs = get_topmost_transactions()
+        assert tx1 in topmost_txs
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
         abort_transaction(tx2)
-        self.assertItemsEqual(get_transactions(), [tx1, tx3])
-        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+        txs = get_transactions()
+        assert tx1 in txs
+        assert not (tx2 in txs)
+        assert tx3 in txs
+        topmost_txs = get_topmost_transactions()
+        assert tx1 in topmost_txs
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
         abort_transaction(tx1)
-        self.assertItemsEqual(get_transactions(), [])
-        self.assertItemsEqual(get_topmost_transactions(), [])
+        txs = get_transactions()
+        assert not(tx1 in txs)
+        assert not (tx2 in txs)
+        assert not (tx3 in txs)
+        topmost_txs = get_topmost_transactions()
+        assert not (tx1 in topmost_txs)
+        assert not (tx2 in topmost_txs)
+        assert not (tx3 in topmost_txs)
 
     def test_revision1(self):
         set('//tmp/a', 'b')
@@ -190,3 +224,23 @@ class TestTxCommands(YTEnvSetup):
         r4 = get('//tmp/a/@revision')
         assert r4 > r1
         assert r4 > r3
+
+    def test_abort_snapshot_lock(self):
+        create('file', '//tmp/file')
+        upload('//tmp/file', 'some_data')
+
+        tx = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx)
+        remove('//tmp/file')
+        abort_transaction(tx)
+
+    def test_commit_snapshot_lock(self):
+        create('file', '//tmp/file')
+        upload('//tmp/file', 'some_data')
+
+        tx = start_transaction()
+
+        lock('//tmp/file', mode='snapshot', tx=tx)
+        remove('//tmp/file')
+        commit_transaction(tx)

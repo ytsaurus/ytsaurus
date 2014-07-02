@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "proc.h"
 #include "string.h"
+#include "process.h"
 
 #include <core/logging/log.h>
 #include <core/misc/string.h>
@@ -13,14 +14,13 @@
 
 #include <util/system/yield.h>
 #include <util/system/info.h>
+#include <util/system/execpath.h>
 
 #ifdef _unix_
-    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
     #include <sys/stat.h>
-    #include <sys/wait.h>
     #include <unistd.h>
 #endif
 
@@ -48,112 +48,40 @@ i64 GetProcessRss(int pid)
 
 #ifdef _unix_
 
-// The caller must be sure that it has root privileges.
-void KillAll(TCallback<std::vector<int>()> pidsGetter)
+void RunCleaner(const Stroka& path)
 {
-    auto pidsToKill = pidsGetter.Run();
-    if (pidsToKill.empty()) {
-        return;
+    LOG_INFO("Clean %s", ~path);
+
+    TProcess process(GetExecPath());
+    process.AddArgument("--cleaner");
+    process.AddArgument("--dir-to-remove");
+    process.AddArgument(path);
+
+    auto throwError = [=] (const TError& error) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to remove directory %s: %s",
+            ~path) << error;
+    };
+
+    auto error = process.Spawn();
+    if (!error.IsOK()) {
+        throwError(error);
     }
 
-    while (true) {
-        auto pids = pidsGetter.Run();
-        if (pids.empty())
-            break;
-
-        LOG_DEBUG("Killing processes (PIDs: [%s])",
-            ~JoinToString(pids));
-
-        // We are forking here in order not to give the root privileges to the parent process ever,
-        // because we cannot know what other threads are doing.
-        int forkedPid = fork();
-        if (forkedPid < 0) {
-            THROW_ERROR_EXCEPTION("Failed to kill processes: fork failed")
-                << TError::FromSystem();
-        }
-
-        if (forkedPid == 0) {
-            // In child process.
-            YCHECK(setuid(0) == 0);
-
-            FOREACH (int pid, pids) {
-                auto result = kill(pid, 9);
-                if (result == -1) {
-                    YCHECK(errno == ESRCH);
-                }
-            }
-
-            _exit(0);
-        }
-
-        // In parent process.
-
-        int status = 0;
-        {
-            int result = waitpid(forkedPid, &status, WUNTRACED);
-            if (result < 0) {
-                THROW_ERROR_EXCEPTION("Failed to kill processes: waitpid failed")
-                    << TError::FromSystem();
-            }
-            YCHECK(result == forkedPid);
-        }
-
-        auto statusError = StatusToError(status);
-        if (!statusError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to kill processes: killer failed")
-                << statusError;
-        }
-
-        ThreadYield();
+    error = process.Wait();
+    if (!error.IsOK()) {
+        throwError(error);
     }
 }
 
 void RemoveDirAsRoot(const Stroka& path)
 {
-    // Allocation after fork can lead to a deadlock inside LFAlloc.
-    // To avoid allocation we list contents of the directory before fork.
+    // Child process
+    YCHECK(setuid(0) == 0);
+    execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
-    auto pid = fork();
-    // We are forking here in order not to give the root privileges to the parent process ever,
-    // because we cannot know what other threads are doing.
-    if (pid == 0) {
-        // Child process
-        YCHECK(setuid(0) == 0);
-        execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
-
-        fprintf(
-            stderr,
-            "Failed to remove directory (/bin/rm -rf %s): %s",
-            ~path,
-            ~ToString(TError::FromSystem()));
-        _exit(1);
-    }
-
-    auto throwError = [=] (const Stroka& msg, const TError& error) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to remove directory %s: %s",
-            ~path,
-            ~msg) << error;
-    };
-
-    // Parent process
-    if (pid < 0) {
-        throwError("fork failed", TError::FromSystem());
-    }
-
-    int status = 0;
-    {
-        int result = waitpid(pid, &status, WUNTRACED);
-        if (result < 0) {
-            throwError("waitpid failed", TError());
-        }
-        YCHECK(result == pid);
-    }
-
-    auto statusError = StatusToError(status);
-    if (!statusError.IsOK()) {
-        throwError("invalid exit status", statusError);
-    }
+    THROW_ERROR_EXCEPTION("Failed to remove directory %s: execl failed",
+        ~path) << TError::FromSystem();
 }
 
 TError StatusToError(int status)
@@ -221,71 +149,15 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
-static const int BASE_EXIT_CODE = 127;
-static const int EXEC_ERR_CODE[] = {
-    E2BIG,
-    EACCES,
-    EFAULT,
-    EINVAL,
-    EIO,
-    EISDIR,
-#ifdef _linux_
-    ELIBBAD,
-#endif
-    ELOOP,
-    EMFILE,
-    ENAMETOOLONG,
-    ENFILE,
-    ENOENT,
-    ENOEXEC,
-    ENOMEM,
-    ENOTDIR,
-    EPERM,
-    ETXTBSY,
-    0
-};
-
-int getErrNoFromExitCode(int exitCode) {
-    int index = BASE_EXIT_CODE - exitCode;
-    if (index >= 0) {
-        return EXEC_ERR_CODE[index];
-    }
-    return 0;
-}
-
-int Spawn(const char* path, std::vector<Stroka>& arguments)
-{
-    std::vector<char *> args;
-    FOREACH (auto& x, arguments) {
-        args.push_back(x.begin());
-    }
-    args.push_back(NULL);
-
-    int pid = vfork();
-    if (pid < 0) {
-        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
-            << TErrorAttribute("path", path)
-            << TErrorAttribute("arguments", arguments)
-            << TError::FromSystem(pid);
-    }
-
-    if (pid == 0) {
-        execvp(path, &args[0]);
-        const int errorCode = errno;
-        int i = 0;
-        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
-            ++i;
-        }
-
-        _exit(BASE_EXIT_CODE - i);
-    }
-
-    return pid;
-}
-
 #else
 
-void KillAll(TCallback<std::vector<int>()>)
+void RunKiller(const Stroka&)
+{
+    YUNIMPLEMENTED();
+}
+
+
+void KillProcessGroup(const Stroka&)
 {
     YUNIMPLEMENTED();
 }
@@ -302,6 +174,12 @@ void RemoveDirAsRoot(const Stroka& path)
     YUNIMPLEMENTED();
 }
 
+void RunCleaner(const Stroka& path)
+{
+    UNUSED(path);
+    YUNIMPLEMENTED();
+}
+
 void CloseAllDescriptors()
 {
     YUNIMPLEMENTED();
@@ -309,13 +187,6 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
-    YUNIMPLEMENTED();
-}
-
-int Spawn(const char* path, std::vector<Stroka>& arguments)
-{
-    UNUSED(path);
-    UNUSED(arguments);
     YUNIMPLEMENTED();
 }
 

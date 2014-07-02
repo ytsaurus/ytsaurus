@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
@@ -48,7 +48,7 @@ public:
         const auto& jobSpec = Host->GetJobSpec();
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        FOREACH (const auto& inputSpec, schedulerJobSpecExt.input_specs()) {
+        for (const auto& inputSpec : schedulerJobSpecExt.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 

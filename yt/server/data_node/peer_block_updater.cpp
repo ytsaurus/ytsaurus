@@ -5,7 +5,7 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <core/rpc/channel_cache.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -53,10 +53,12 @@ void TPeerBlockUpdater::Update()
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
     auto localDescriptor = Bootstrap->GetLocalDescriptor();
 
+    typedef TDataNodeServiceProxy TProxy;
+
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
-    FOREACH (auto block, blocks) {
+    for (auto block : blocks) {
         if (block->Source()) {
             const auto& sourceAddress = block->Source()->GetDefaultAddress();
             TProxy::TReqUpdatePeerPtr request;
@@ -64,7 +66,7 @@ void TPeerBlockUpdater::Update()
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(ChannelCache.GetChannel(sourceAddress));
+                TProxy proxy(ChannelFactory->CreateChannel(sourceAddress));
                 request = proxy.UpdatePeer();
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
@@ -77,10 +79,10 @@ void TPeerBlockUpdater::Update()
         }
     }
 
-    FOREACH (const auto& pair, requests) {
+    for (const auto& pair : requests) {
         LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
             ~pair.first,
-            ~expirationTime.ToString());
+            ~ToString(expirationTime));
         pair.second->Invoke();
     }
 }

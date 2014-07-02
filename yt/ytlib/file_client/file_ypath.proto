@@ -2,7 +2,7 @@ package NYT.NFileClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/cypress_client/cypress_ypath.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,3 +18,4 @@ message TReqCreateFileExt
     required NYT.NProto.TGuid chunk_id = 1;
 }
 
+////////////////////////////////////////////////////////////////////////////////

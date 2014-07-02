@@ -3,7 +3,7 @@
 
 #include <core/ytree/node.h>
 
-#include <core/formats/json_writer.h>
+#include <ytlib/formats/json_writer.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -59,7 +59,7 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
     fakeError.SetMessage(Stroka(*message, message.length()));
 
     auto children = attributes->GetChildren();
-    FOREACH (const auto& child, children) {
+    for (const auto& child : children) {
         fakeError.Attributes().Set(child.first, child.second);
     }
 
@@ -78,7 +78,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
     Local<Object> attributes = Object::New();
     {
         const auto& errorAttributes = error.Attributes();
-        FOREACH (const auto& key, errorAttributes.List()) {
+        for (const auto& key : errorAttributes.List()) {
             auto value = errorAttributes.GetYson(key);
 
             Stroka encodedValue;
@@ -86,7 +86,7 @@ Handle<Value> ConvertErrorToV8(const TError& error)
             TStringOutput valueStream(encodedValue);
             auto valueWriter = CreateJsonConsumer(&valueStream);
 
-            Consume(value, ~valueWriter);
+            Consume(value, valueWriter.get());
 
             attributes->Set(
                 String::New(key.data(), key.length()),

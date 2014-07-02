@@ -15,7 +15,7 @@ namespace NRpc {
 
 //! Represents an RPC request at server-side.
 struct IServiceContext
-    : public virtual TRefCounted
+    : public virtual TIntrinsicRefCounted
 {
     //! Returns the message that contains the request being handled.
     virtual TSharedRefArray GetRequestMessage() const = 0;
@@ -38,11 +38,14 @@ struct IServiceContext
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
-    //! Returns the requested path.
-    virtual const Stroka& GetPath() const = 0;
+    //! Returns request service name.
+    virtual const Stroka& GetService() const = 0;
 
-    //! Returns the requested verb.
-    virtual const Stroka& GetVerb() const = 0;
+    //! Returns request method name.
+    virtual const Stroka& GetMethod() const = 0;
+
+    //! Returns request realm id.
+    virtual const TRealmId& GetRealmId() const = 0;
 
     //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
@@ -55,6 +58,10 @@ struct IServiceContext
 
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
+
+    //! Returns the serialized response message.
+    //! Can only be called after #Reply.
+    virtual TSharedRefArray GetResponseMessage() const = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!
@@ -74,14 +81,8 @@ struct IServiceContext
     //! Returns a vector of request attachments.
     virtual std::vector<TSharedRef>& RequestAttachments() = 0;
 
-    //! Returns request attributes.
-    virtual NYTree::IAttributeDictionary& RequestAttributes() = 0;
-
     //! Returns a vector of response attachments.
     virtual std::vector<TSharedRef>& ResponseAttachments() = 0;
-
-    //! Returns response attributes.
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
 
     //! Returns immutable request header.
     virtual const NProto::TRequestHeader& RequestHeader() const = 0;
@@ -108,6 +109,26 @@ struct IServiceContext
 
 };
 
+DEFINE_REFCOUNTED_TYPE(IServiceContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TServiceId
+{
+    TServiceId();
+    TServiceId(const Stroka& serviceName, const TRealmId& realmId = NullRealmId);
+    TServiceId(const char* serviceName, const TRealmId& realmId = NullRealmId);
+
+    Stroka ServiceName;
+    TRealmId RealmId;
+
+};
+
+bool operator == (const TServiceId& lhs, const TServiceId& rhs);
+bool operator != (const TServiceId& lhs, const TServiceId& rhs);
+
+Stroka ToString(const TServiceId& serviceId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract service registered within TServer.
@@ -120,17 +141,33 @@ struct IService
     //! Applies a new configuration.
     virtual void Configure(NYTree::INodePtr config) = 0;
 
-    //! Returns the name of the service.
-    virtual Stroka GetServiceName() const = 0;
+    //! Returns the service id.
+    virtual TServiceId GetServiceId() const = 0;
 
     //! Handles incoming request.
     virtual void OnRequest(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NBus::IBusPtr replyBus) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
 } // namespace NYT
+
+//! A hasher for TSericeId.
+template <>
+struct hash<NYT::NRpc::TServiceId>
+{
+    inline size_t operator()(const NYT::NRpc::TServiceId& id) const
+    {
+        return
+            THash<Stroka>()(id.ServiceName) * 497 +
+            THash<NYT::NRpc::TRealmId>()(id.RealmId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////

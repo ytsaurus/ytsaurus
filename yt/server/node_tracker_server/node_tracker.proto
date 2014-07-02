@@ -1,41 +1,10 @@
 package NYT.NNodeTrackerServer.NProto;
 
-import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqRegisterNode
-{
-    required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
-    required NYT.NNodeTrackerClient.NProto.TNodeStatistics statistics = 2;
-}
-
-message TMetaRspRegisterNode
+message TReqUnregisterNode
 {
     required int32 node_id = 1;
-}
-
-message TMetaReqUnregisterNode
-{
-    required int32 node_id = 1;
-}
-
-// Full heartbeat mutations are typcially large and as passed as-is in
-// form of RPC requests. Hence we don't have any special
-// TMsgFullHeartbeat type here.
-
-message TMetaReqIncrementalHeartbeat
-{
-    required int32 node_id = 1;
-
-    // Node Tracker stuff.
-    required NYT.NNodeTrackerClient.NProto.TNodeStatistics statistics = 2;
-    repeated string alerts = 5;
-
-    // Chunk Manager stuff.
-    repeated NNodeTrackerClient.NProto.TChunkAddInfo added_chunks = 3;
-    repeated NNodeTrackerClient.NProto.TChunkRemoveInfo removed_chunks = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

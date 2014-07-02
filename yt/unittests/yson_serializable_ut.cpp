@@ -148,17 +148,17 @@ TEST(TYsonSerializableTest, Complete)
     config->Load(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
-    TestCompleteSubconfig(~config->Subconfig);
+    TestCompleteSubconfig(config->Subconfig.Get());
     EXPECT_EQ(2, config->SubconfigList.size());
-    TestCompleteSubconfig(~config->SubconfigList[0]);
-    TestCompleteSubconfig(~config->SubconfigList[1]);
+    TestCompleteSubconfig(config->SubconfigList[0].Get());
+    TestCompleteSubconfig(config->SubconfigList[1].Get());
     EXPECT_EQ(2, config->SubconfigMap.size());
     auto it1 = config->SubconfigMap.find("sub1");
     EXPECT_FALSE(it1 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it1->second);
+    TestCompleteSubconfig(it1->second.Get());
     auto it2 = config->SubconfigMap.find("sub2");
     EXPECT_FALSE(it2 == config->SubconfigMap.end());
-    TestCompleteSubconfig(~it2->second);
+    TestCompleteSubconfig(it2->second.Get());
 }
 
 TEST(TYsonSerializableTest, MissingParameter)
@@ -216,7 +216,7 @@ TEST(TYsonSerializableTest, Options)
 
     auto optionsNode = config->GetOptions();
     EXPECT_EQ(1, optionsNode->GetChildCount());
-    FOREACH (const auto& pair, optionsNode->GetChildren()) {
+    for (const auto& pair : optionsNode->GetChildren()) {
         const auto& name = pair.first;
         auto child = pair.second;
         EXPECT_EQ("option", name);
@@ -242,7 +242,7 @@ TEST(TYsonSerializableTest, IncorrectNodeType)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value(1) // incorrect type
         .EndMap();
@@ -256,7 +256,7 @@ TEST(TYsonSerializableTest, ArithmeticOverflow)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
@@ -280,7 +280,7 @@ TEST(TYsonSerializableTest, Validate)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("") // empty!
         .EndMap();
@@ -295,7 +295,7 @@ TEST(TYsonSerializableTest, ValidateSubconfig)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
@@ -313,7 +313,7 @@ TEST(TYsonSerializableTest, ValidateSubconfigList)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub_list").BeginList()
@@ -333,7 +333,7 @@ TEST(TYsonSerializableTest, ValidateSubconfigMap)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    BuildYsonFluently(~builder)
+    BuildYsonFluently(builder.get())
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub_map").BeginMap()

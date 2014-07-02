@@ -15,23 +15,26 @@ class TRoamingChannel
     : public IChannel
 {
 public:
-    TRoamingChannel(
-        TNullable<TDuration> defaultTimeout,
-        TChannelProducer producer)
-        : DefaultTimeout(defaultTimeout)
-        , Producer(producer)
-        , Terminated(false)
+    explicit TRoamingChannel(TChannelProducer producer)
+        : Producer_(std::move(producer))
+        , Terminated_(false)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
-        return DefaultTimeout;
+        return DefaultTimeout_;
+    }
+
+    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        DefaultTimeout_ = timeout;
     }
 
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -40,7 +43,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            if (Terminated) {
+            if (Terminated_) {
                 guard.Release();
                 responseHandler->OnError(TError(EErrorCode::TransportError, "Channel terminated"));
                 return;
@@ -51,7 +54,7 @@ public:
                 channelPromise = ChannelPromise = NewPromise< TErrorOr<IChannelPtr> >();
                 guard.Release();
 
-                Producer.Run().Subscribe(BIND(
+                Producer_.Run(request).Subscribe(BIND(
                     &TRoamingChannel::OnEndpointDiscovered,
                     MakeStrong(this),
                     channelPromise));
@@ -63,7 +66,8 @@ public:
             MakeStrong(this),
             request,
             responseHandler,
-            timeout));
+            timeout,
+            requestAck));
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -74,20 +78,21 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            if (Terminated) {
-                return MakeFuture();
+            if (Terminated_) {
+                return VoidFuture;
             }
 
             channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
             ChannelPromise.Reset();
             TerminationError = error;
-            Terminated = true;
+            Terminated_ = true;
         }
 
         if (channel && channel->IsOK()) {
             return channel->Value()->Terminate(error);
         }
-        return MakeFuture();
+
+        return VoidFuture;
     }
 
 private:
@@ -133,10 +138,10 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (Terminated) {
+        if (Terminated_) {
             guard.Release();
             if (result.IsOK()) {
-	            auto channel = result.Value();
+                auto channel = result.Value();
                 channel->Terminate(TerminationError);
             }
             return;
@@ -154,6 +159,7 @@ private:
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
+        bool requestAck,
         TErrorOr<IChannelPtr> result)
     {
         if (!result.IsOK()) {
@@ -163,7 +169,11 @@ private:
             auto responseHandlerWrapper = New<TResponseHandler>(
                 responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
-            channel->Send(request, responseHandlerWrapper, timeout);
+            channel->Send(
+                request,
+                responseHandlerWrapper,
+                timeout,
+                requestAck);
         }
     }
 
@@ -180,23 +190,19 @@ private:
     }
 
 
-    TNullable<TDuration> DefaultTimeout;
-    TChannelProducer Producer;
+    TNullable<TDuration> DefaultTimeout_;
+    TChannelProducer Producer_;
 
     TSpinLock SpinLock;
-    volatile bool Terminated;
+    volatile bool Terminated_;
     TError TerminationError;
     TPromise< TErrorOr<IChannelPtr> > ChannelPromise;
 
 };
 
-IChannelPtr CreateRoamingChannel(
-    TNullable<TDuration> defaultTimeout,
-    TChannelProducer producer)
+IChannelPtr CreateRoamingChannel(TChannelProducer producer)
 {
-    return New<TRoamingChannel>(
-        defaultTimeout,
-        producer);
+    return New<TRoamingChannel>(producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

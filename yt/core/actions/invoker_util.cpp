@@ -5,7 +5,11 @@
 
 #include <core/misc/singleton.h>
 
-#include <core/concurrency/fiber.h>
+#include <core/actions/bind.h>
+#include <core/actions/callback.h>
+#include <core/actions/invoker.h>
+
+#include <core/concurrency/fls.h>
 
 namespace NYT {
 
@@ -17,10 +21,9 @@ class TSyncInvoker
     : public IInvoker
 {
 public:
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        action.Run();
-        return true;
+        callback.Run();
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
@@ -34,27 +37,92 @@ IInvokerPtr GetSyncInvoker()
     return RefCountedSingleton<TSyncInvoker>();
 }
 
-IInvokerPtr GetCurrentInvoker()
-{
-    return TFiber::GetCurrent()->GetCurrentInvoker();
-}
+////////////////////////////////////////////////////////////////////////////////
 
-void SetCurrentInvoker(IInvokerPtr invoker)
+void GuardedInvoke(
+    IInvokerPtr invoker,
+    TClosure onSuccess,
+    TClosure onCancel)
 {
-    TFiber::GetCurrent()->SetCurrentInvoker(std::move(invoker));
+    YASSERT(invoker);
+    YASSERT(onSuccess);
+    YASSERT(onCancel);
+
+    class TGuard
+    {
+    public:
+        explicit TGuard(TClosure onCancel)
+            : OnCancel_(std::move(onCancel))
+        { }
+
+        TGuard(TGuard&& other)
+            : OnCancel_(std::move(other.OnCancel_))
+        { }
+
+        ~TGuard()
+        {
+            if (OnCancel_) {
+                OnCancel_.Run();
+            }
+        }
+
+        void Release()
+        {
+            OnCancel_.Reset();
+        }
+
+    private:
+        TClosure OnCancel_;
+
+    };
+
+    auto doInvoke = [] (TClosure onSuccess, TGuard guard) {
+        guard.Release();
+        onSuccess.Run();
+    };
+
+    invoker->Invoke(BIND(
+        std::move(doInvoke),
+        Passed(std::move(onSuccess)),
+        Passed(TGuard(std::move(onCancel)))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr newInvoker)
+static TFls<IInvokerPtr>& CurrentInvoker()
 {
-    OldInvoker = GetCurrentInvoker();
-    SetCurrentInvoker(std::move(newInvoker));
+    static TFls<IInvokerPtr> invoker;
+    return invoker;
+}
+
+IInvokerPtr GetCurrentInvoker()
+{
+    auto invoker = *CurrentInvoker();
+    if (!invoker) {
+        invoker = GetSyncInvoker();
+    }
+    return invoker;
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker)
+{
+    *CurrentInvoker().Get() = std::move(invoker);
+}
+
+void SetCurrentInvoker(IInvokerPtr invoker, TFiber* fiber)
+{
+    *CurrentInvoker().Get(fiber) = std::move(invoker);
+}
+
+TCurrentInvokerGuard::TCurrentInvokerGuard(IInvokerPtr invoker)
+    : SavedInvoker_(std::move(invoker))
+{
+    CurrentInvoker()->Swap(SavedInvoker_);
 }
 
 TCurrentInvokerGuard::~TCurrentInvokerGuard()
 {
-    SetCurrentInvoker(std::move(OldInvoker));
+    CurrentInvoker()->Swap(SavedInvoker_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

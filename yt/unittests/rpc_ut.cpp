@@ -15,6 +15,7 @@
 
 #include <core/rpc/client.h>
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/service_detail.h>
 #include <core/rpc/bus_channel.h>
 
@@ -31,20 +32,19 @@ class TMyProxy
     : public TProxyBase
 {
 public:
-    static const Stroka ServiceName;
+    static const Stroka ServiceName_;
 
     explicit TMyProxy(IChannelPtr channel)
-        : TProxyBase(channel, ServiceName)
+        : TProxyBase(channel, ServiceName_)
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttributes);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegisteredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, LongReply);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, CheckAll);
@@ -52,7 +52,7 @@ public:
 
 };
 
-const Stroka TMyProxy::ServiceName = "MyService";
+const Stroka TMyProxy::ServiceName_ = "MyService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,19 +60,13 @@ class TNonExistingServiceProxy
     : public TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TNonExistingServiceProxy> TPtr;
-
-    static const Stroka ServiceName;
-
-    TNonExistingServiceProxy(IChannelPtr channel)
-        : TProxyBase(channel, ServiceName)
+    explicit TNonExistingServiceProxy(IChannelPtr channel)
+        : TProxyBase(channel, "NonExistingService")
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
 };
-
-const Stroka TNonExistingServiceProxy::ServiceName = "NonExistingService";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,19 +92,16 @@ class TMyService
     : public TServiceBase
 {
 public:
-    typedef TMyService TThis;
-
     TMyService(IInvokerPtr invoker, Event* event)
-        : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
+        : TServiceBase(invoker, TMyProxy::ServiceName_, "Main")
         , Event_(event)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttributes));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LongReply));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
             .SetOneWay(true));
@@ -122,17 +113,14 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttributes);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, DoNothing);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, LongReply);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply);
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
 
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegisteredCall);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
 private:
     // To signal for one-way rpc requests when processed the request
     Event* Event_;
@@ -145,53 +133,27 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, SomeCall)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, ReplyingCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, DoNothing)
 {
-    UNUSED(request);
-    UNUSED(response);
     context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
 {
-    UNUSED(request);
-    UNUSED(response);
-    Sleep(TDuration::Seconds(5));
+    Sleep(TDuration::Seconds(1.0));
     context->Reply();
 }
 
-
-DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegisteredCall)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-}
+DEFINE_RPC_SERVICE_METHOD(TMyService, NoReply)
+{ }
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 {
-
-    UNUSED(request);
-    UNUSED(response);
     context->Reply(TError(42, "Some Error"));
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
-{
-    UNUSED(request);
-}
-
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, NotRegistredOneWay)
-{
-    UNUSED(request);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,7 +171,7 @@ public:
         busConfig->Port = 2000;
         auto busServer = NBus::CreateTcpBusServer(busConfig);
 
-        RpcServer = CreateRpcServer(busServer);
+        RpcServer = CreateBusServer(busServer);
 
         Queue = New<TActionQueue>();
 
@@ -292,7 +254,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
-    FOREACH (const auto& attachment, request->Attachments()) {
+    for (const auto& attachment : request->Attachments()) {
         TBlob data;
         data.Append(attachment);
         data.Append("_", 1);
@@ -321,46 +283,11 @@ TEST_F(TRpcTest, Attachments)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
-{
-    const auto& attributes = request->Attributes();
-    EXPECT_EQ(NYTree::TYsonString("stroka1"), attributes.GetYson("value1"));
-    EXPECT_EQ(NYTree::TYsonString("stroka2"), attributes.GetYson("value2"));
-    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-
-    auto& new_attributes = response->Attributes();
-    new_attributes.MergeFrom(attributes);
-    new_attributes.Remove("value1");
-    new_attributes.SetYson("value2", NYTree::TYsonString("another_stroka"));
-
-    context->Reply();
-}
-
-TEST_F(TRpcTest, Attributes)
-{
-    TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.ModifyAttributes();
-
-    request->MutableAttributes()->SetYson("value1", NYTree::TYsonString("stroka1"));
-    request->MutableAttributes()->SetYson("value2", NYTree::TYsonString("stroka2"));
-    request->MutableAttributes()->SetYson("value3", NYTree::TYsonString("stroka3"));
-
-    auto response = request->Invoke().Get();
-    const auto& attributes = response->Attributes();
-
-    EXPECT_FALSE(attributes.Contains("value1"));
-    EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
-    EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.ReplyingCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(TError::OK, response->GetError().GetCode());
@@ -369,7 +296,7 @@ TEST_F(TRpcTest, OK)
 TEST_F(TRpcTest, TransportError)
 {
     TMyProxy proxy(CreateChannel("localhost:9999"));
-    auto request = proxy.EmptyCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
@@ -378,7 +305,7 @@ TEST_F(TRpcTest, TransportError)
 TEST_F(TRpcTest, NoService)
 {
     TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.EmptyCall();
+    auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetError().GetCode());
@@ -387,21 +314,31 @@ TEST_F(TRpcTest, NoService)
 TEST_F(TRpcTest, NoMethod)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.NotRegisteredCall();
+    auto request = proxy.NotRegistered();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());
+    EXPECT_EQ(EErrorCode::NoSuchMethod, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, Timeout)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    proxy.SetDefaultTimeout(TDuration::Seconds(1));
+    proxy.SetDefaultTimeout(TDuration::Seconds(0.5));
 
-    auto request = proxy.EmptyCall();
+    auto request = proxy.LongReply();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetError().GetCode());
+}
+
+TEST_F(TRpcTest, NoReply)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+
+    auto request = proxy.NoReply();
+    auto response = request->Invoke().Get();
+
+    EXPECT_EQ(EErrorCode::Unavailable, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
@@ -428,15 +365,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
 
-    auto& attributes = request->Attributes();
-    EXPECT_EQ(NYTree::TYsonString("world"), attributes.GetYson("hello"));
-    EXPECT_EQ(NYTree::TYsonString("42"), attributes.GetYson("value"));
-
-    EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
-    EXPECT_EQ(42, attributes.Get<i64>("value"));
-
-    EXPECT_FALSE(attributes.FindYson("another_value").HasValue());
-
     Event_->Signal();
 }
 
@@ -452,9 +380,6 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attachments().push_back(SharedRefFromString("are"));
     request->Attachments().push_back(SharedRefFromString("ok"));
 
-    request->MutableAttributes()->SetYson("hello", NYTree::TYsonString("world"));
-    request->MutableAttributes()->SetYson("value", NYTree::TYsonString("42"));
-
     auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetError().GetCode());
 
@@ -463,8 +388,6 @@ TEST_F(TRpcTest, OneWaySend)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Different types of errors in one-way rpc
-// TODO: think about refactoring
 TEST_F(TRpcTest, OneWayOK)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
@@ -499,7 +422,7 @@ TEST_F(TRpcTest, OneWayNoMethod)
     auto request = proxy.NotRegistredOneWay();
     auto response = request->Invoke().Get();
 
-    // In this case we receive OK instead of NoSuchVerb
+    // In this case we receive OK instead of NoSuchMethod
     EXPECT_TRUE(response->IsOK());
 }
 
@@ -511,12 +434,12 @@ TEST_F(TRpcTest, LostConnection)
     auto request = proxy.LongReply();
     auto future = request->Invoke();
 
-    Sleep(TDuration::Seconds(1));
+    Sleep(TDuration::Seconds(0.2));
 
     EXPECT_FALSE(future.IsSet());
     RpcServer->Stop();
 
-    Sleep(TDuration::Seconds(1));
+    Sleep(TDuration::Seconds(0.2));
 
     // check that lost of connection is detected fast
     EXPECT_TRUE(future.IsSet());

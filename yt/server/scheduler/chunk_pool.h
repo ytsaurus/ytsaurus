@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "progress_counter.h"
-#include "serialization_context.h"
+#include "serialize.h"
 
 #include <core/misc/small_vector.h>
 
@@ -37,7 +37,7 @@ TChunkStripeStatistics& operator += (
     TChunkStripeStatistics& lhs,
     const TChunkStripeStatistics& rhs);
 
-typedef TSmallVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
+typedef SmallVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
 
 //! Adds up input statistics and returns a single-item vector with the sum.
 TChunkStripeStatisticsVector AggregateStatistics(
@@ -56,7 +56,7 @@ struct TChunkStripe
 
     void Persist(TPersistenceContext& context);
 
-    TSmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
+    SmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
     int WaitingChunkCount;
 
 };

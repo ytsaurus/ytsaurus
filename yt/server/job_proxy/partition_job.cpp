@@ -7,7 +7,7 @@
 #include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
@@ -17,6 +17,8 @@
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <core/yson/lexer.h>
 
@@ -31,6 +33,8 @@ using namespace NYTree;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 
+using NVersionedTableClient::TOwningKey;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
@@ -38,8 +42,8 @@ static auto& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
-typedef TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
+typedef TOldMultiChunkParallelReader<TTableChunkReader> TReader;
+typedef TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 class TPartitionJob
     : public TJob
@@ -75,8 +79,10 @@ public:
 
         if (PartitionJobSpecExt.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt.partition_keys_size() + 1 == PartitionJobSpecExt.partition_count());
-            FOREACH (const auto& key, PartitionJobSpecExt.partition_keys()) {
-                PartitionKeys.push_back(TOwningKey::FromProto(key));
+            for (const auto& protoKey : PartitionJobSpecExt.partition_keys()) {
+                TOwningKey key;
+                FromProto(&key, protoKey);
+                PartitionKeys.push_back(key);
             }
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
         } else {
@@ -84,7 +90,7 @@ public:
         }
 
         i64 inputDataSize = 0;
-        FOREACH(const auto& chunkSpec, chunks) {
+        for (const auto& chunkSpec : chunks) {
             i64 dataSize = 0;
             NChunkClient::GetStatistics(chunkSpec, &dataSize);
             inputDataSize += dataSize;
@@ -105,9 +111,9 @@ public:
         auto writerProvider = New<TPartitionChunkWriterProvider>(
             config->JobIO->TableWriter,
             options,
-            ~Partitioner);
+            Partitioner.get());
 
-        Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
+        Writer = CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
             config->JobIO->TableWriter,
             options,
             writerProvider,
@@ -121,7 +127,7 @@ public:
         PROFILE_TIMING ("/partition_time") {
             LOG_INFO("Initializing");
             {
-                Sync(~Reader, &TReader::AsyncOpen);
+                Sync(Reader.Get(), &TReader::AsyncOpen);
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -132,7 +138,7 @@ public:
                     Writer->WriteRowUnsafe(facade->GetRow());
 
                     if (!Reader->FetchNext()) {
-                        Sync(~Reader, &TReader::GetReadyEvent);
+                        Sync(Reader.Get(), &TReader::GetReadyEvent);
                     }
                 }
 

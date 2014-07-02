@@ -21,17 +21,20 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLockProxy
-    : public NObjectServer::TNonversionedObjectProxyBase<TLock>
+    : public TNonversionedObjectProxyBase<TLock>
 {
 public:
     TLockProxy(NCellMaster::TBootstrap* bootstrap, TLock* lock)
         : TBase(bootstrap, lock)
-    {
-        Logger = CypressServerLogger;
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TLock> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return CypressServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
@@ -39,8 +42,8 @@ private:
         attributes->push_back("state");
         attributes->push_back("transaction_id");
         attributes->push_back("mode");
-        attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey));
-        attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey));
+        attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey.HasValue()));
+        attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey.HasValue()));
         TBase::ListSystemAttributes(attributes);
     }
 

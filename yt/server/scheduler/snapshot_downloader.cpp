@@ -3,27 +3,19 @@
 #include "scheduler.h"
 #include "config.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/file_client/file_reader.h>
-
-#include <ytlib/chunk_client/client_block_cache.h>
-
-#include <core/ytree/ypath_proxy.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/file_reader.h>
 
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
 namespace NScheduler {
 
-using namespace NObjectClient;
-using namespace NFileClient;
-using namespace NChunkClient;
-using namespace NYTree;
+using namespace NApi;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,37 +40,34 @@ void TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
+    auto client = Bootstrap->GetMasterClient();
+
     auto snapshotPath = GetSnapshotPath(Operation->GetId());
-    auto reader = New<TAsyncReader>(
-        Config->SnapshotReader,
-        Bootstrap->GetMasterChannel(),
-        CreateClientBlockCache(New<TClientBlockCacheConfig>()),
-        nullptr,
-        snapshotPath);
+    
+    auto reader = client->CreateFileReader(
+        snapshotPath,
+        TFileReaderOptions(),
+        Config->SnapshotReader);
 
     {
-        auto result = WaitFor(reader->AsyncOpen());
+        auto result = WaitFor(reader->Open());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
         
-    i64 size = reader->GetSize();
-
-    LOG_INFO("Snapshot reader opened (Size: %" PRId64 ")", size);
+    LOG_INFO("Snapshot reader opened");
     
-    Operation->Snapshot() = TBlob();
-
     try {
-        auto& blob = *Operation->Snapshot();
-        blob.Reserve(size);
-
+        std::vector<TSharedRef> blocks;
         while (true) {
-            auto blockOrError = WaitFor(reader->AsyncRead());
+            auto blockOrError = WaitFor(reader->Read());
             THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
             auto block = blockOrError.Value();
             if (!block)
                 break;
-            blob.Append(block);
+            blocks.push_back(block);
         }
+
+        Operation->Snapshot() = MergeRefs(blocks);
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (...) {

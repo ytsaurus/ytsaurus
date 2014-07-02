@@ -145,13 +145,13 @@ int GetSymbol(void* pc, char* buffer, int length)
     }
 #else
     formatter.AppendString("0x");
-    formatter.AppendNumber(pc, 16);
+    formatter.AppendNumber((uintptr_t)pc, 16);
 #endif
     return formatter.GetBytesWritten();
 }
 
 //! Writes the given buffer with the length to the standard error.
-void WriteToStdErr(const char* buffer, int length)
+void WriteToStderr(const char* buffer, int length)
 {
     if (write(2, buffer, length) < 0) {
         // Ignore errors.
@@ -175,7 +175,7 @@ void DumpTimeInfo()
     formatter.AppendNumber(timeSinceEpoch, 10);
     formatter.AppendString("\" if you are using GNU date ***\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Dumps information about the signal.
@@ -222,7 +222,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
 #endif
     formatter.AppendString("***\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Dumps information about the stack frame.
@@ -243,7 +243,7 @@ void DumpStackFrameInfo(void* pc)
         formatter.GetBytesRemaining()));
     formatter.AppendString("\n");
 
-    WriteToStdErr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Invoke the default signal handler.
@@ -311,22 +311,22 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     {
         prefix.Reset();
         prefix.AppendString("PC: ");
-        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
         DumpStackFrameInfo(pc);
     }
 
     DumpSignalInfo(signal, si);
 
     // Get the stack trace (without current frame hence +1).
-    void* stack[99]; // 99 is to keep formatting. :)
-    const int depth = GetStackTrace(stack, ARRAY_SIZE(stack), 1);
+    std::array<void*, 99> stack; // 99 is to keep formatting. :)
+    const int depth = GetStackTrace(stack.data(), stack.size(), 1);
 
     // Dump the stack trace.
     for (int i = 0; i < depth; ++i) {
         prefix.Reset();
         prefix.AppendNumber(i + 1, 10, 2);
         prefix.AppendString(". ");
-        WriteToStdErr(prefix.GetData(), prefix.GetBytesWritten());
+        WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
         DumpStackFrameInfo(stack[i]);
     }
 

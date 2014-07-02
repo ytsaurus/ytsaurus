@@ -6,7 +6,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 #include <server/object_server/object_manager.pb.h>
 
@@ -15,6 +15,7 @@ namespace NObjectServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,24 +55,21 @@ void TGarbageCollector::StopSweep()
 
 void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 {
-    std::vector<TObjectBase*> allZombies;
-    allZombies.reserve(Zombies.size() + LockedZombies.size());
-    FOREACH (auto* object, Zombies) {
-        allZombies.push_back(object);
+    yhash_set<TObjectBase*> allZombies;
+    for (auto* object : Zombies) {
+        YCHECK(allZombies.insert(object).second);
     }
-    FOREACH (auto* object, LockedZombies) {
-        allZombies.push_back(object);
+    for (auto* object : LockedZombies) {
+        YCHECK(allZombies.insert(object).second);
     }
-    // NB: allZombies is vector, not hashset; manual sort needed.
-    std::sort(allZombies.begin(), allZombies.end(), CompareObjectsForSerialization);
-    SaveObjectRefs(context, allZombies);
+    NYT::Save(context, allZombies);
 }
 
 void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LoadObjectRefs(context, Zombies);
+    NYT::Load(context, Zombies);
     LockedZombies.clear();
 
     CollectPromise = NewPromise();
@@ -82,7 +80,7 @@ void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 
 void TGarbageCollector::Clear()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Zombies.clear();
     LockedZombies.clear();
@@ -106,7 +104,7 @@ bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
 
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
 
     if (Zombies.empty() && LockedZombies.empty() && CollectPromise.IsSet()) {
@@ -126,7 +124,7 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
 
 void TGarbageCollector::Unlock(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
     YASSERT(!object->IsLocked());
 
@@ -139,9 +137,9 @@ void TGarbageCollector::Unlock(TObjectBase* object)
 
 void TGarbageCollector::UnlockAll()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    FOREACH (auto* object, LockedZombies) {
+    for (auto* object : LockedZombies) {
         YASSERT(object->IsLocked());
         YCHECK(Zombies.insert(object).second);
     }
@@ -150,25 +148,25 @@ void TGarbageCollector::UnlockAll()
 
 void TGarbageCollector::Dequeue(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(Zombies.erase(object) == 1);
 }
 
 void TGarbageCollector::CheckEmpty()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies.empty() && LockedZombies.empty()) {
-        auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-        LOG_DEBUG_UNLESS(metaStateManager->IsRecovery(), "GC queue is empty");
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "GC queue is empty");
         CollectPromise.Set();
     }
 }
 
 void TGarbageCollector::OnSweep()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Shrink zombies hashtable, if needed.
     if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
@@ -181,14 +179,14 @@ void TGarbageCollector::OnSweep()
     }
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto metaStateManager = metaStateFacade->GetManager();
-    if (Zombies.empty() || !metaStateManager->HasActiveQuorum()) {
+    auto hydraManager = metaStateFacade->GetManager();
+    if (Zombies.empty() || !hydraManager->IsActiveLeader()) {
         SweepExecutor->ScheduleNext();
         return;
     }
 
     // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
-    NProto::TMetaReqDestroyObjects request;
+    NProto::TReqDestroyObjects request;
     for (auto it = Zombies.begin();
          it != Zombies.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep;
          ++it)
@@ -200,28 +198,18 @@ void TGarbageCollector::OnSweep()
     LOG_DEBUG("Starting GC sweep for %d objects",
         request.object_ids_size());
 
+    auto this_ = MakeStrong(this);
     auto invoker = metaStateFacade->GetEpochInvoker();
     Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
-        ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)).Via(invoker))
-        ->PostCommit();
-}
-
-void TGarbageCollector::OnCommitSucceeded()
-{
-    LOG_DEBUG("GC sweep commit succeeded");
-
-    SweepExecutor->ScheduleOutOfBand();
-    SweepExecutor->ScheduleNext();
-}
-
-void TGarbageCollector::OnCommitFailed(const TError& error)
-{
-    LOG_ERROR(error, "GC sweep commit failed");
-
-    SweepExecutor->ScheduleNext();
+        ->Commit()
+        .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
+            if (error.IsOK()) {
+                SweepExecutor->ScheduleOutOfBand();
+            }
+            SweepExecutor->ScheduleNext();
+        }).Via(invoker));
 }
 
 int TGarbageCollector::GetGCQueueSize() const

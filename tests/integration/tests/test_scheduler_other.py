@@ -13,7 +13,11 @@ class TestSchedulerOther(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {'chunk_scratch_period' : 500}
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "chunk_scratch_period" : 500
+        }
+    }
 
     def _set_banned_flag(self, value):
         if value:

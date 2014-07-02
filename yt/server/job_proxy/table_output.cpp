@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_output.h"
 
-#include <core/formats/parser.h>
+#include <ytlib/formats/parser.h>
 #include <core/yson/consumer.h>
 #include <ytlib/table_client/sync_writer.h>
 

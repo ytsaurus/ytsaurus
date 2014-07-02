@@ -155,10 +155,10 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
         : Null;
 
     BuildYsonMapFluently(consumer)
-        .DoIf(path, [&] (TFluentMap fluent) {
+        .DoIf(path.HasValue(), [&] (TFluentMap fluent) {
             fluent.Item("path").Value(path.Get());
         })
-        .Item("type").Value(TypeArg.getValue().ToString())
+        .Item("type").Value(ToString(TypeArg.getValue()))
         .Item("recursive").Value(RecursiveArg.getValue())
         .Item("ignore_existing").Value(IgnoreExistingArg.getValue());
 
@@ -189,7 +189,7 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
-        .Item("mode").Value(ModeArg.getValue().ToString())
+        .Item("mode").Value(ToString(ModeArg.getValue()))
         .Item("waitable").Value(WaitableArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);

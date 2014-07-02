@@ -15,99 +15,120 @@ using namespace NChunkClient::NProto;
 ///////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader(const Stroka& fileName)
-    : FileName(fileName)
-    , Opened(false)
-    , InfoSize(-1)
-    , DataSize(-1)
+    : FileName_(fileName)
+    , Opened_(false)
+    , MetaSize_(-1)
+    , DataSize_(-1)
 { }
 
 void TFileReader::Open()
 {
-    YCHECK(!Opened);
+    YCHECK(!Opened_);
 
-    Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
-    TFile chunkMetaFile(
-        chunkMetaFileName,
+    Stroka metaFileName = FileName_ + ChunkMetaSuffix;
+    TFile metaFile(
+        metaFileName,
         OpenExisting | RdOnly | Seq | CloseOnExec);
 
-    InfoSize = chunkMetaFile.GetLength();
-    TBufferedFileInput chunkMetaInput(chunkMetaFile);
+    MetaSize_ = metaFile.GetLength();
+    TBufferedFileInput metaInput(metaFile);
 
     TChunkMetaHeader metaHeader;
-    ReadPod(chunkMetaInput, metaHeader);
+    ReadPod(metaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        THROW_ERROR_EXCEPTION("Incorrect signature in chunk meta header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
-            ~FileName,
+        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %s: expected %" PRIx64 ", actual %" PRIx64,
+            ~FileName_.Quote(),
             TChunkMetaHeader::ExpectedSignature,
             metaHeader.Signature);
     }
 
-    Stroka chunkMetaBlob = chunkMetaInput.ReadAll();
-    TRef chunkMetaRef(chunkMetaBlob.begin(), chunkMetaBlob.size());
+    auto metaBlob = metaInput.ReadAll();
+    auto metaBlobRef = TRef::FromString(metaBlob);
 
-    auto checksum = GetChecksum(chunkMetaRef);
+    auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
-                ~FileName,
-                metaHeader.Checksum,
-                checksum);
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %s: expected %" PRIx64 ", actual %" PRIx64,
+            ~FileName_.Quote(),
+            metaHeader.Checksum,
+            checksum);
     }
 
-    if (!DeserializeFromProtoWithEnvelope(&ChunkMeta, chunkMetaRef)) {
-        THROW_ERROR_EXCEPTION("Failed to parse chunk meta (FileName: %s)",
-            ~FileName);
+    if (!DeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
+        THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %s",
+            ~FileName_.Quote());
     }
 
-    DataFile.reset(new TFile(FileName, OpenExisting | RdOnly | CloseOnExec));
-    Opened = true;
+    BlocksExt_ = GetProtoExtension<TBlocksExt>(Meta_.extensions());
+    BlockCount_ = BlocksExt_.blocks_size();
+
+    DataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+    Opened_ = true;
 }
 
-TFuture<IAsyncReader::TReadResult>
-TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
+IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
 {
-    YCHECK(Opened);
+    YCHECK(Opened_);
 
-    std::vector<TSharedRef> blocks;
-    blocks.reserve(blockIndexes.size());
+    try {
+        std::vector<TSharedRef> blocks;
+        blocks.reserve(blockIndexes.size());
 
-    for (int index = 0; index < blockIndexes.size(); ++index) {
-        i32 blockIndex = blockIndexes[index];
-        blocks.push_back(ReadBlock(blockIndex));
+        for (int index = 0; index < blockIndexes.size(); ++index) {
+            int blockIndex = blockIndexes[index];
+            YCHECK(blockIndex >= 0);
+            if (blockIndex < BlockCount_) {
+                blocks.push_back(ReadBlock(blockIndex));
+            } else {
+                blocks.push_back(TSharedRef());
+            }
+        }
+
+        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+    } catch (const std::exception& ex) {
+        return MakeFuture<TReadBlocksResult>(ex);
     }
+}
 
-    return MakeFuture(TReadResult(std::move(blocks)));
+IReader::TAsyncReadBlocksResult TFileReader::ReadBlocks(
+    int firstBlockIndex,
+    int blockCount)
+{
+    YCHECK(Opened_);
+    YCHECK(firstBlockIndex >= 0);
+
+    try {
+        std::vector<TSharedRef> blocks;
+        blocks.reserve(blockCount);
+
+        for (int blockIndex = firstBlockIndex;
+             blockIndex < BlockCount_ && blockIndex < firstBlockIndex + blockCount;
+             ++blockIndex)
+        {
+            blocks.push_back(ReadBlock(blockIndex));
+        }
+
+        return MakeFuture(TReadBlocksResult(std::move(blocks)));
+    } catch (const std::exception& ex) {
+        return MakeFuture<TReadBlocksResult>(ex);
+    }
 }
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
-    YCHECK(Opened);
+    YCHECK(Opened_);
+    YCHECK(blockIndex >= 0 && blockIndex < BlockCount_);
 
-    auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-    i32 blockCount = blocksExt.blocks_size();
-
-    if (blockIndex > blockCount || blockIndex < -blockCount) {
-        return TSharedRef();
-    }
-
-    while (blockIndex < 0) {
-        blockIndex += blockCount;
-    }
-
-    if (blockIndex >= blockCount) {
-        return TSharedRef();
-    }
-
-    const auto& blockInfo = blocksExt.blocks(blockIndex);
+    const auto& blockInfo = BlocksExt_.blocks(blockIndex);
     struct TFileChunkBlockTag { };
     auto data = TSharedRef::Allocate<TFileChunkBlockTag>(blockInfo.size(), false);
     i64 offset = blockInfo.offset();
-    DataFile->Pread(data.Begin(), data.Size(), offset);
+    DataFile_->Pread(data.Begin(), data.Size(), offset);
 
     auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk block (FileName: %s, BlockIndex: %d, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
-            ~FileName,
+        THROW_ERROR_EXCEPTION("Incorrect checksum of block %d in chunk data file %s: expected %" PRIx64 ", actual %" PRIx64,
             blockIndex,
+            ~FileName_,
             blockInfo.checksum(),
             checksum);
     }
@@ -115,40 +136,41 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     return data;
 }
 
+TChunkMeta TFileReader::GetMeta(const std::vector<int>* extensionTags /*= nullptr*/)
+{
+    return extensionTags
+        ? FilterChunkMetaByExtensionTags(Meta_, *extensionTags)
+        : Meta_;
+}
+
 i64 TFileReader::GetMetaSize() const
 {
-    YCHECK(Opened);
-    return InfoSize;
+    YCHECK(Opened_);
+    return MetaSize_;
 }
 
 i64 TFileReader::GetDataSize() const
 {
-    YCHECK(Opened);
-    return DataSize;
+    YCHECK(Opened_);
+    return DataSize_;
 }
 
 i64 TFileReader::GetFullSize() const
 {
-    YCHECK(Opened);
-    return InfoSize + DataSize;
+    YCHECK(Opened_);
+    return MetaSize_ + DataSize_;
 }
 
-TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
-{
-    YCHECK(Opened);
-    return tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta;
-}
-
-IAsyncReader::TAsyncGetMetaResult
-TFileReader::AsyncGetChunkMeta(
+IReader::TAsyncGetMetaResult TFileReader::GetMeta(
     const TNullable<int>& partitionTag,
-    const std::vector<int>* tags)
+    const std::vector<int>* extensionTags)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YCHECK(!partitionTag.HasValue());
-    return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
+    YCHECK(!partitionTag);
+    YCHECK(Opened_);
+    return MakeFuture(TGetMetaResult(GetMeta(extensionTags)));
 }
 
 TChunkId TFileReader::GetChunkId() const 

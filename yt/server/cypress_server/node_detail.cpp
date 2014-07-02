@@ -6,6 +6,8 @@
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
 
+#include <server/cell_master/meta_state_facade.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -40,6 +42,11 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap(bootstrap)
 { }
 
+bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
+{
+    return Bootstrap->GetMetaStateFacade()->GetManager()->IsLeader();
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 {
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
@@ -54,7 +61,7 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
     objectManager->TryRemoveAttributes(node->GetVersionedId());
 
     // Reset parent links from immediate descendants.
-    FOREACH (auto* descendant, node->ImmediateDescendants()) {
+    for (auto* descendant : node->ImmediateDescendants()) {
         descendant->ResetParent();
     }
     node->ImmediateDescendants().clear();
@@ -128,7 +135,7 @@ std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneC
     auto clonedId = objectManager->GenerateId(type);
 
     auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
-    clonedNode->SetTrunkNode(~clonedNode);
+    clonedNode->SetTrunkNode(clonedNode.get());
 
     return clonedNode;
 }
@@ -138,14 +145,12 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     TCypressNodeBase* clonedNode,
     ICypressNodeFactoryPtr factory)
 {
-    UNUSED(sourceNode);
-
     // Copy attributes directly to suppress validation.
     auto objectManager = Bootstrap->GetObjectManager();
     auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), factory->GetTransaction());
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
-        FOREACH (const auto& pair, keyToAttribute) {
+        for (const auto& pair : keyToAttribute) {
             YCHECK(clonedAttributes->Attributes().insert(pair).second);
         }
     }
@@ -164,16 +169,10 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ChildCountDelta_);
-    // TODO(babenko): refactor when new serialization API is ready
-    auto keyIts = GetSortedIterators(KeyToChild_);
-    TSizeSerializer::Save(context, keyIts.size());
-    FOREACH (auto it, keyIts) {
-        const auto& key = it->first;
-        Save(context, key);
-        const auto* node = it->second;
-        auto id = node ? node->GetId() : NullObjectId;
-        Save(context, id);
-    }
+    TMapSerializer<
+        TDefaultSerializer,
+        TNonversionedObjectRefSerializer
+    >::Save(context, KeyToChild_);
 }
 
 void TMapNode::Load(NCellMaster::TLoadContext& context)
@@ -182,15 +181,17 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ChildCountDelta_);
-    // TODO(babenko): refactor when new serialization API is ready
-    size_t count = TSizeSerializer::Load(context);
-    for (size_t index = 0; index != count; ++index) {
-        auto key = Load<Stroka>(context);
-        auto id = Load<TNodeId>(context);
-        auto* node = id == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(id);
-        YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
-        if (node) {
-            YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
+    TMapSerializer<
+        TDefaultSerializer,
+        TNonversionedObjectRefSerializer
+    >::Load(context, KeyToChild_);
+
+    // Reconstruct ChildToKey map.
+    for (const auto& pair : KeyToChild_) {
+        const auto& key = pair.first;
+        auto* child = pair.second;
+        if (child) {
+            YCHECK(ChildToKey_.insert(std::make_pair(child, key)).second);
         }
     }
 }
@@ -217,7 +218,7 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& pair, node->KeyToChild()) {
+    for (const auto& pair : node->KeyToChild()) {
         auto* node = pair.second;
         if (node) {
             objectManager->UnrefObject(node);
@@ -247,7 +248,7 @@ void TMapNodeTypeHandler::DoMerge(
     auto& keyToChild = originatingNode->KeyToChild();
     auto& childToKey = originatingNode->ChildToKey();
 
-    FOREACH (const auto& pair, branchedNode->KeyToChild()) {
+    for (const auto& pair : branchedNode->KeyToChild()) {
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
 
@@ -334,7 +335,7 @@ void TMapNodeTypeHandler::DoClone(
 
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();
 
-    FOREACH (const auto& pair, keyToChildList) {
+    for (const auto& pair : keyToChildList) {
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
 
@@ -363,11 +364,9 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    // TODO(babenko): refactor when new serialization API is ready
-    TSizeSerializer::Save(context, IndexToChild_.size());
-    FOREACH (auto* child, IndexToChild_) {
-        Save(context, child->GetId());
-    }
+    TVectorSerializer<
+        TNonversionedObjectRefSerializer
+    >::Save(context, IndexToChild_);
 }
 
 void TListNode::Load(NCellMaster::TLoadContext& context)
@@ -375,14 +374,13 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    // TODO(babenko): refactor when new serialization API is ready
-    size_t count = TSizeSerializer::Load(context);
-    IndexToChild_.resize(count);
-    for (size_t index = 0; index != count; ++index) {
-        auto id = Load<TNodeId>(context);
-        auto* node = context.Get<TCypressNodeBase>(id);
-        IndexToChild_[index] = node;
-        YCHECK(ChildToIndex_.insert(std::make_pair(node, index)).second);
+    TVectorSerializer<
+        TNonversionedObjectRefSerializer
+    >::Load(context, IndexToChild_);
+
+    // Reconstruct ChildToIndex.
+    for (int index = 0; index < IndexToChild_.size(); ++index) {
+        YCHECK(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
     }
 }
 
@@ -419,7 +417,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* child, node->IndexToChild()) {
+    for (auto* child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
 }
@@ -435,7 +433,7 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* child, originatingNode->IndexToChild()) {
+    for (auto* child : originatingNode->IndexToChild()) {
         objectManager->RefObject(child);
     }
 }
@@ -448,7 +446,7 @@ void TListNodeTypeHandler::DoMerge(
 
     // Drop all references held by the originator.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* child, originatingNode->IndexToChild()) {
+    for (auto* child : originatingNode->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
 

@@ -3,21 +3,23 @@
 #include "private.h"
 #include "chunk_manager.h"
 #include "chunk.h"
-#include "node_directory_builder.h"
 #include "helpers.h"
 
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/schema.h>
-
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
+#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/object_server/object_detail.h>
 
@@ -37,9 +39,11 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NVersionedTableClient;
 using namespace NNodeTrackerServer;
 
 using NChunkClient::NProto::TMiscExt;
+using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,24 +53,23 @@ class TChunkProxy
 public:
     TChunkProxy(NCellMaster::TBootstrap* bootstrap, TChunk* chunk)
         : TBase(bootstrap, chunk)
-    {
-        Logger = ChunkServerLogger;
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
-        return TBase::IsWriteRequest(context);
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
+
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ChunkServerLogger;
+    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
         YCHECK(!chunk->IsConfirmed() || miscExt);
+
+        bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
 
         attributes->push_back("cached_replicas");
         attributes->push_back("stored_replicas");
@@ -89,12 +92,21 @@ private:
         attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
         attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
         attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec()));
+        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec(), false, true));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
+        attributes->push_back(TAttributeInfo("min_timestamp", chunk->IsConfirmed() && miscExt->has_min_timestamp()));
+        attributes->push_back(TAttributeInfo("max_timestamp", chunk->IsConfirmed() && miscExt->has_max_timestamp()));
         attributes->push_back(TAttributeInfo("staging_transaction_id", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
+        attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
+        attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
+        attributes->push_back(TAttributeInfo("record_count", chunk->IsJournal() && chunk->IsSealed()));
+        attributes->push_back(TAttributeInfo("quorum_record_count", chunk->IsJournal(), true));
+        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
+        attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
+        attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -121,9 +133,22 @@ private:
                 .Value(replica.GetPtr()->GetAddress());
         };
 
-        auto serializeReplica = chunk->IsErasure()
-            ? TReplicaSerializer(serializeErasureReplica)
-            : TReplicaSerializer(serializeRegularReplica);
+        auto serializeJournalReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
+            fluent.Item()
+                .BeginAttributes()
+                    .Item("type").Value(EJournalReplicaType(replica.GetIndex()))
+                .EndAttributes()
+                .Value(replica.GetPtr()->GetAddress());
+        };
+
+        TReplicaSerializer serializeReplica;
+        if (chunk->IsErasure()) {
+            serializeReplica = TReplicaSerializer(serializeErasureReplica);
+        } else if (chunk->IsJournal()) {
+            serializeReplica = TReplicaSerializer(serializeJournalReplica);
+        } else {
+            serializeReplica = TReplicaSerializer(serializeRegularReplica);
+        }
 
         auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexList& replicas) {
             std::sort(
@@ -138,7 +163,7 @@ private:
 
         if (key == "cached_replicas") {
             TNodePtrWithIndexList replicas;
-            if (~chunk->CachedReplicas()) {
+            if (chunk->CachedReplicas()) {
                 replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
             }
             serializeReplicas(consumer, replicas);
@@ -209,7 +234,7 @@ private:
 
         if (key == "confirmed") {
             BuildYsonFluently(consumer)
-                .Value(FormatBool(chunk->IsConfirmed()));
+                .Value(chunk->IsConfirmed());
             return true;
         }
 
@@ -245,55 +270,91 @@ private:
             if (key == "chunk_type") {
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(type.ToString()));
+                    .Value(type);
                 return true;
             }
 
-            if (key == "meta_size") {
+            if (key == "meta_size" && miscExt.has_meta_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.meta_size());
                 return true;
             }
 
-            if (key == "compressed_data_size") {
+            if (key == "compressed_data_size" && miscExt.has_compressed_data_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.compressed_data_size());
                 return true;
             }
 
-            if (key == "uncompressed_data_size") {
+            if (key == "uncompressed_data_size" && miscExt.has_uncompressed_data_size()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.uncompressed_data_size());
                 return true;
             }
 
-            if (key == "data_weight") {
+            if (key == "data_weight" && miscExt.has_data_weight()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.data_weight());
                 return true;
             }
 
-            if (key == "compression_codec") {
+            if (key == "compression_codec" && miscExt.has_compression_codec()) {
                 BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(NCompression::ECodec(miscExt.compression_codec()).ToString()));
+                    .Value(NCompression::ECodec(miscExt.compression_codec()));
                 return true;
             }
 
-            if (key == "row_count") {
+            if (key == "row_count" && miscExt.has_row_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
                 return true;
             }
 
-            if (key == "value_count") {
+            if (key == "value_count" && miscExt.has_value_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.value_count());
                 return true;
             }
 
-            if (key == "sorted") {
+            if (key == "sorted" && miscExt.has_sorted()) {
                 BuildYsonFluently(consumer)
-                    .Value(FormatBool(miscExt.sorted()));
+                    .Value(miscExt.sorted());
+                return true;
+            }
+
+            if (key == "min_timestamp" && miscExt.has_min_timestamp()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.min_timestamp());
+                return true;
+            }
+
+            if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.max_timestamp());
+                return true;
+            }
+
+            if (key == "record_count" && chunk->IsSealed()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetSealedRecordCount());
+                return true;
+            }
+
+            if (key == "sealed" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->IsSealed());
+                return true;
+            }
+
+            if (key == "read_quorum" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetReadQuorum());
+                return true;
+            }
+
+            if (key == "write_quorum" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetWriteQuorum());
                 return true;
             }
         }
@@ -312,19 +373,56 @@ private:
             }
         }
 
+        auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+        if (boundaryKeysExt) {
+            if (key == "min_key") {
+                BuildYsonFluently(consumer)
+                    .Value(FromProto<TOwningKey>(boundaryKeysExt->min()));
+                return true;
+            }
+
+            if (key == "max_key") {
+                BuildYsonFluently(consumer)
+                    .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
+                return true;
+            }
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        auto* chunk = GetThisTypedImpl();
+        if (chunk->IsJournal() && key == "quorum_record_count") {
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto recordCountResult = chunkManager->GetChunkQuorumRecordCount(chunk);
+            return recordCountResult.Apply(BIND([=] (TErrorOr<int> recordCountOrError) -> TError {
+                if (recordCountOrError.IsOK()) {
+                    BuildYsonFluently(consumer)
+                        .Value(recordCountOrError.Value());
+                }
+                return TError(recordCountOrError);
+            }));
+        }
+        return TBase::GetBuiltinAttributeAsync(key, consumer);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Fetch)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch)
     {
         UNUSED(request);
+
+        DeclareNonMutating();
+
+        context->SetRequestInfo("");
 
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
@@ -338,41 +436,34 @@ private:
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(chunk->GetErasureCodec());
-        chunkSpec->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
+        chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
+        chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+        chunkSpec->mutable_chunk_meta()->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Confirm)
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Confirm)
     {
         UNUSED(response);
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        DeclareMutating();
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
         YCHECK(!replicas.empty());
 
-        context->SetRequestInfo("DiskSpace: %" PRId64 ", Targets: [%s]",
-            request->chunk_info().disk_space(),
+        context->SetRequestInfo("Targets: [%s]",
             ~JoinToString(replicas));
 
         auto* chunk = GetThisTypedImpl();
 
         // Skip chunks that are already confirmed.
         if (chunk->IsConfirmed()) {
-            context->SetResponseInfo("Chunk is already confirmed");
             context->Reply();
             return;
         }
 
-        // Use the size reported by the client, but check it for consistency first.
-        if (!chunk->ValidateChunkInfo(request->chunk_info())) {
-            THROW_ERROR_EXCEPTION("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~ToString(chunk->GetId()),
-                ~chunk->ChunkInfo().DebugString(),
-                ~request->chunk_info().DebugString());
-        }
-
+        auto chunkManager = Bootstrap->GetChunkManager();
         chunkManager->ConfirmChunk(
             chunk,
             replicas,
@@ -381,6 +472,24 @@ private:
 
         context->Reply();
     }
+
+
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Seal)
+    {
+        UNUSED(response);
+
+        DeclareMutating();
+
+        context->SetRequestInfo("RecordCount: %d",
+            request->record_count());
+
+        auto* chunk = GetThisTypedImpl();
+        auto chunkManager = Bootstrap->GetChunkManager();
+        chunkManager->SealChunk(chunk, request->record_count());
+
+        context->Reply();
+    }
+
 };
 
 IObjectProxyPtr CreateChunkProxy(

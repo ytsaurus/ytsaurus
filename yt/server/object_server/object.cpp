@@ -5,7 +5,7 @@
 
 #include <server/cypress_server/node.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -111,11 +111,6 @@ TObjectId GetObjectId(const TObjectBase* object)
 bool IsObjectAlive(const TObjectBase* object)
 {
     return object && object->IsAlive();
-}
-
-bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs)
-{
-    return GetObjectId(lhs) < GetObjectId(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,6 +29,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
+  ${BASE}/virtual-inl.h
   ${BASE}/access_tracker.h
   ${BASE}/lock_proxy.h
   ${BASE}/cypress_integration.h

@@ -2,15 +2,13 @@
 
 #include "public.h"
 #include "ypath_service.h"
-#include "ephemeral_attribute_owner.h"
-#include "attribute_provider.h"
 
 #include <core/misc/ref.h>
 #include <core/misc/property.h>
 
 #include <core/rpc/client.h>
 
-#include <ytlib/ypath/rich.h>
+#include <core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
@@ -18,26 +16,27 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TEphemeralAttributeOwner
-    , public NRpc::IClientRequest
+   : public NRpc::IClientRequest
 {
 public:
-    TYPathRequest(const Stroka& verb, const NYPath::TYPath& path);
+    explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
+
+    TYPathRequest(
+        const Stroka& service,
+        const Stroka& method,
+        const NYPath::TYPath& path,
+        bool mutating);
 
     virtual bool IsOneWay() const override;
     virtual NRpc::TRequestId GetRequestId() const override;
 
-    virtual const Stroka& GetVerb() const override;
-
-    virtual const Stroka& GetPath() const override;
-    void SetPath(const Stroka& path);
+    virtual const Stroka& GetMethod() const override;
+    virtual const Stroka& GetService() const override;
+    const Stroka& GetPath() const;
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
     
-    virtual const NYTree::IAttributeDictionary& Attributes() const override;
-    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
-
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
@@ -64,8 +63,20 @@ class TTypedYPathRequest
 public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
-    TTypedYPathRequest(const Stroka& verb, const NYPath::TYPath& path)
-        : TYPathRequest(verb, path)
+    explicit TTypedYPathRequest(const NRpc::NProto::TRequestHeader& header)
+        : TYPathRequest(header)
+    { }
+
+    TTypedYPathRequest(
+        const Stroka& service,
+        const Stroka& method,
+        const NYPath::TYPath& path,
+        bool mutating)
+        : TYPathRequest(
+            service,
+            method,
+            path,
+            mutating)
     { }
 
 protected:
@@ -75,13 +86,13 @@ protected:
         YCHECK(SerializeToProtoWithEnvelope(*this, &data));
         return data;
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathResponse
     : public TRefCounted
-    , public TEphemeralAttributeOwner
 {
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
@@ -114,7 +125,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
+#define DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, isMutating) \
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
@@ -122,28 +133,42 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
-        return New<TReq##method>(#method, path); \
+        return New<TReq##method>(GetServiceName(), #method, path, isMutating); \
     }
 
+#define DEFINE_YPATH_PROXY_METHOD(ns, method) \
+    DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, false)
+
+#define DEFINE_MUTATING_YPATH_PROXY_METHOD(ns, method) \
+    DEFINE_YPATH_PROXY_METHOD_IMPL(ns, method, true)
+
 ////////////////////////////////////////////////////////////////////////////////
+
+const TYPath& GetRequestYPath(NRpc::IServiceContextPtr context);
+
+const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
+
+void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
 
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
 
+//! Runs a sequence of IYPathService::Resolve calls aimed to discover the
+//! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(
     IYPathServicePtr rootService,
     NRpc::IServiceContextPtr context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
-//! Asynchronously executes an untyped YPath verb against the given service.
+//! Asynchronously executes an untyped request against a given service.
 TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
     TSharedRefArray requestMessage);
 
-//! Asynchronously executes a request against the given service.
+//! Asynchronously executes a request against a given service.
 void ExecuteVerb(
     IYPathServicePtr service,
     NRpc::IServiceContextPtr context);
@@ -181,6 +206,11 @@ TYsonString SyncYPathGet(
     const TYPath& path,
     const TAttributeFilter& attributeFilter = TAttributeFilter::None,
     bool ignoreOpaque = false);
+
+//! Asynchronously executes |Exists| verb.
+TFuture< TErrorOr<bool> > AsyncYPathExists(
+    IYPathServicePtr service,
+    const TYPath& path);
 
 //! Synchronously executes |Exists| verb. Throws if an error has occurred.
 bool SyncYPathExists(
@@ -240,7 +270,6 @@ INodePtr CloneNode(INodePtr node);
 INodePtr UpdateNode(INodePtr base, INodePtr patch);
 
 //! Checks given nodes for deep equality.
-// TODO(babenko): currently it ignores attributes
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs);
 
 ////////////////////////////////////////////////////////////////////////////////

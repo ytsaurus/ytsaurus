@@ -25,15 +25,19 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETransactionState,
-    (Active)
-    (Committed)
-    (Aborted)
+    ((Active)                 (0))
+    ((TransientlyPrepared)    (1))
+    ((PersistentlyPrepared)   (2))
+    ((Committed)              (3))
+    ((Aborting)               (4))
+    ((Aborted)                (5))
 );
 
 class TTransaction
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTransaction>
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, UncommittedAccountingEnabled);
@@ -64,7 +68,10 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    bool IsActive() const;
+    ETransactionState GetPersistentState() const;
+
+    void ValidateActive() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

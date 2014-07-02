@@ -41,7 +41,7 @@ TYsonProducer ConvertToProducer(T&& value)
             Consume(value, consumer);
         },
         std::forward<T>(value));
-    return TYsonProducer(callback, type);
+    return TYsonProducer(std::move(callback), type);
 }
 
 template <class T>
@@ -93,7 +93,7 @@ INodePtr ConvertToNode(
             break;
     }
 
-    Consume(value, ~builder);
+    Consume(value, builder.get());
 
     switch (type) {
         case NYson::EYsonType::ListFragment:
@@ -115,7 +115,7 @@ template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value)
 {
     auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(~attributes);
+    TAttributeConsumer consumer(attributes.get());
     Consume(value, &consumer);
     return attributes;
 }
@@ -148,7 +148,7 @@ inline i64 ConvertTo(const TYsonString& str)
             return token.GetIntegerValue();
         default:
             THROW_ERROR_EXCEPTION("Cannot parse integer from %s",
-                    ~str.Data().Quote());
+                ~str.Data().Quote());
     }
 }
 

@@ -18,6 +18,7 @@ struct TGetRequest
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
     TNullable<i64> MaxSize;
+    bool IgnoreOpaque;
 
     TGetRequest()
     {
@@ -26,6 +27,8 @@ struct TGetRequest
             .Default();
         RegisterParameter("max_size", MaxSize)
             .Default();
+        RegisterParameter("ignore_opaque", IgnoreOpaque)
+            .Default(false);
     }
 };
 

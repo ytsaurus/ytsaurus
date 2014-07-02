@@ -5,6 +5,8 @@
 
 #include <core/misc/error.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -31,14 +33,15 @@ public:
 private:
     typedef TParallelCollector<T> TThis;
 
-    TParallelAwaiterPtr Awaiter;
-    TPromise<TResultsOrError> Promise;
-    TAtomic Completed;
-    TAtomic CurrentIndex;
-    TParallelCollectorStorage<T> Results;
+    TParallelAwaiterPtr Awaiter_;
+    TPromise<TResultsOrError> Promise_;
+    std::atomic<bool> Completed_;
+    std::atomic<int> CurrentIndex_;
+    TParallelCollectorStorage<T> Results_;
 
     void OnResult(int index, TResultOrError result);
     void OnCompleted();
+    void OnCanceled();
 
     bool TryLockCompleted();
 

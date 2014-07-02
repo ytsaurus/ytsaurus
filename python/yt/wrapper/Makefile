@@ -9,3 +9,6 @@ test: all
 
 test_mapreduce:
 	./test_mapreduce.sh
+
+killytservers:
+	ps aux | grep ytserver | awk '{print $$2}' | xargs kill

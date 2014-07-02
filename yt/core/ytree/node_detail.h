@@ -51,8 +51,6 @@ public:
 
     virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
-
 protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYsonString& value)
@@ -62,7 +60,7 @@ protected:
 
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(factory);
-        SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
+        SetNodeFromProducer(node, ConvertToProducer(value), builder.get());
         factory->Commit();
     }
 

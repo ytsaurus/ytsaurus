@@ -29,10 +29,11 @@ TStartOpExecutor::TStartOpExecutor()
     CmdLine.add(DontTrackArg);
 }
 
-EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
+void TStartOpExecutor::DoExecute(const TDriverRequest& request)
 {
     if (DontTrackArg.getValue()) {
-        return TRequestExecutor::DoExecute(request);
+        TRequestExecutor::DoExecute(request);
+        return;
     }
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
@@ -424,13 +425,13 @@ TTrackOpExecutor::TTrackOpExecutor()
     CmdLine.add(OpArg);
 }
 
-EExitCode TTrackOpExecutor::DoExecute()
+void TTrackOpExecutor::DoExecute()
 {
     auto operationId = TOperationId::FromString(OpArg.getValue());
     printf("Started tracking operation %s\n", ~ToString(operationId));
 
     TOperationTracker tracker(Config, Driver, operationId);
-    return tracker.Run();
+    tracker.Run();
 }
 
 Stroka TTrackOpExecutor::GetCommandName() const

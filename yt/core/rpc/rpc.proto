@@ -1,6 +1,7 @@
 package NYT.NRpc.NProto;
 
-import "yt/core/ytree/attributes.proto";
+option java_package = "ru.yandex.yt.rpc";
+
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 
@@ -9,10 +10,11 @@ import "yt/core/misc/error.proto";
 message TRequestHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
-    required string path = 2;
-    required string verb = 3;
+    required string service = 2;
+    required string method = 3;
+    optional NYT.NProto.TGuid realm_id = 8;
+
     optional bool one_way = 4;
-    optional NYT.NYTree.NProto.TAttributes attributes = 5;
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
 
@@ -26,15 +28,40 @@ message TAuthenticatedExt
 {
     extend NRpc.NProto.TRequestHeader
     {
-        optional string authenticated_user = 102;
+        optional TAuthenticatedExt authenticated_ext = 102;
     }
+
+    required string user = 1;
+}
+
+message TTracingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TTracingExt tracing_ext = 106;
+    }
+
+    optional uint64 trace_id = 1;
+    optional uint64 span_id = 2;
+    optional uint64 parent_span_id = 3;
 }
 
 message TResponseHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
     required NYT.NProto.TError error = 2;
-    optional NYT.NYTree.NProto.TAttributes attributes = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqDiscover
+{ }
+
+message TRspDiscover
+{
+    required bool up = 1;
+    repeated string suggested_addresses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

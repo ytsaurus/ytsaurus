@@ -13,7 +13,7 @@ namespace NYT {
 // White-box testpoint.
 struct TFakeInvoker
 {
-    typedef void(Signature)(NDetail::TBindStateBase*);
+    typedef void(TSignature)(NDetail::TBindStateBase*);
     static void Run(NDetail::TBindStateBase*)
     { }
 };
@@ -22,8 +22,8 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <class Runnable, class Signature, class BoundArgs>
-class TBindState;
+template <class TRunnable, class TSignature, class TBoundArgs>
+struct TBindState;
 
 // White-box injection into a #TCallback<> object for checking
 // comparators and emptiness APIs. Use a #TBindState<> that is specialized
@@ -31,12 +31,12 @@ class TBindState;
 // chance of colliding with another instantiation and breaking the
 // one-definition-rule.
 template <>
-class TBindState<void(), void(), void(TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker)>
     : public TBindStateBase
 {
 public:
     typedef TFakeInvoker TInvokerType;
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
@@ -44,12 +44,11 @@ public:
 };
 
 template <>
-class TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public TBindStateBase
 {
-public:
     typedef TFakeInvoker TInvokerType;
-#ifdef ENABLE_BIND_LOCATION_TRACKING
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     TBindState()
         : TBindStateBase(FROM_HERE)
     { }
@@ -137,32 +136,32 @@ TEST_F(TCallbackTest, Move)
 
 TEST_F(TCallbackTest, Equals)
 {
-    EXPECT_TRUE(FirstCallback.Equals(FirstCallback));
-    EXPECT_FALSE(FirstCallback.Equals(SecondCallback));
-    EXPECT_FALSE(SecondCallback.Equals(FirstCallback));
+    EXPECT_EQ(FirstCallback, FirstCallback);
+    EXPECT_NE(FirstCallback, SecondCallback);
+    EXPECT_NE(SecondCallback, FirstCallback);
 
     // We should compare based on instance, not type.
     TCallback<void()> localCallback(New<TFakeBindState1>());
     TCallback<void()> anotherCallback = FirstCallback;
 
-    EXPECT_TRUE(FirstCallback.Equals(anotherCallback));
-    EXPECT_FALSE(FirstCallback.Equals(localCallback));
+    EXPECT_EQ(FirstCallback, anotherCallback);
+    EXPECT_NE(FirstCallback, localCallback);
 
     // Empty, however, is always equal to empty.
     TCallback<void()> localNullCallback;
-    EXPECT_TRUE(NullCallback.Equals(localNullCallback));
+    EXPECT_EQ(NullCallback, localNullCallback);
 }
 
 TEST_F(TCallbackTest, Reset)
 {
     // Resetting should bring us back to empty.
     ASSERT_TRUE(FirstCallback);
-    ASSERT_FALSE(FirstCallback.Equals(NullCallback));
+    ASSERT_NE(FirstCallback, NullCallback);
 
     FirstCallback.Reset();
 
     EXPECT_FALSE(FirstCallback);
-    EXPECT_TRUE(FirstCallback.Equals(NullCallback));
+    EXPECT_EQ(FirstCallback, NullCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

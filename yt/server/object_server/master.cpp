@@ -3,6 +3,8 @@
 #include "type_handler_detail.h"
 #include "private.h"
 
+#include <core/ytree/attribute_helpers.h>
+
 #include <ytlib/object_client/master_ypath.pb.h>
 
 #include <server/security_server/security_manager.h>
@@ -35,50 +37,27 @@ class TMasterProxy
 public:
     explicit TMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
         : TBase(bootstrap, object)
-    {
-        Logger = ObjectServerLogger;
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObjects);
-        return TObjectProxyBase::IsWriteRequest(context);
-    }
+    { }
 
 private:
     typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
 
+    virtual NLog::TLogger CreateLogger() const override
+    {
+        return ObjectServerLogger;
+    }
+
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
+        DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
         return TObjectProxyBase::DoInvoke(context);
     }
 
-    TAccount* GetAccount(const Stroka& name)
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(name);
-        if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
-        }
-        return account;
-    }
+        DeclareMutating();
 
-    TTransaction* GetTransaction(const TTransactionId& id)
-    {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto* transaction = transactionManager->FindTransaction(id);
-        if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(id));
-        }
-        if (!transaction->IsActive()) {
-            THROW_ERROR_EXCEPTION("Transaction %s is not active", ~ToString(id));
-        }
-        return transaction;
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
-    {
         auto transactionId =
             request->has_transaction_id()
             ? FromProto<TTransactionId>(request->transaction_id())
@@ -87,18 +66,18 @@ private:
 
         context->SetRequestInfo("TransactionId: %s, Type: %s, Account: %s, ObjectCount: %d",
             ~ToString(transactionId),
-            ~type.ToString(),
+            ~ToString(type),
             request->has_account() ? ~request->account() : "<Null>",
             request->object_count());
 
-        auto* transaction =
-            transactionId != NullTransactionId
-            ? GetTransaction(transactionId)
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto* transaction =  transactionId != NullTransactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 
-        auto* account =
-            request->has_account()
-            ? GetAccount(request->account())
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* account = request->has_account()
+            ? securityManager->GetAccountByNameOrThrow(request->account())
             : nullptr;
 
         auto attributes =
@@ -113,7 +92,7 @@ private:
                 transaction,
                 account,
                 type,
-                ~attributes,
+                attributes.get(),
                 request,
                 response);
             const auto& objectId = object->GetId();
@@ -125,6 +104,27 @@ private:
             }
         }
         
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObject)
+    {
+        UNUSED(response);
+
+        DeclareMutating();
+
+        auto objectId = FromProto<TObjectId>(request->object_id());
+        bool recursive = request->recursive();
+        context->SetRequestInfo("ObjectId: %s, Recursive: %s",
+            ~ToString(objectId),
+            ~FormatBool(recursive));
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->GetObjectOrThrow(objectId);
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->UnstageObject(object, recursive);
+
         context->Reply();
     }
 

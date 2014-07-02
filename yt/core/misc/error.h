@@ -6,7 +6,7 @@
 #include <core/misc/preprocessor.h>
 #include <core/misc/error.pb.h>
 
-#include <core/actions/future.h>
+#include <core/actions/callback.h>
 
 #include <core/ytree/public.h>
 #include <core/ytree/yson_string.h>
@@ -30,7 +30,7 @@ class TErrorOr<void>
 public:
     TErrorOr();
     TErrorOr(const TError& other);
-    TErrorOr(TError&& other);
+    TErrorOr(TError&& other) noexcept;
 
     TErrorOr(const std::exception& ex);
 
@@ -44,7 +44,7 @@ public:
     static TError FromSystem(int error);
 
     TError& operator = (const TError& other);
-    TError& operator = (TError&& other);
+    TError& operator = (TError&& other) noexcept;
 
     int GetCode() const;
     TError& SetCode(int code);
@@ -81,7 +81,7 @@ private:
 Stroka ToString(const TError& error);
 
 void ToProto(NProto::TError* protoError, const TError& error);
-TError FromProto(const NProto::TError& protoError);
+void FromProto(TError* error, const NProto::TError& protoError);
 
 void Serialize(const TError& error, NYson::IYsonConsumer* consumer);
 void Deserialize(TError& error, NYTree::INodePtr node);
@@ -118,6 +118,7 @@ struct TErrorAttribute
 
 TError operator << (TError error, const TErrorAttribute& attribute);
 TError operator << (TError error, const TError& innerError);
+TError operator << (TError error, const std::vector<TError>& innerErrors);
 
 TError operator >>= (const TErrorAttribute& attribute, TError error);
 
@@ -130,8 +131,8 @@ class TErrorException
 
 public:
     TErrorException();
-    TErrorException(TErrorException&& other);
-    TErrorException(const TErrorException& other);
+    TErrorException(TErrorException&& other) noexcept = default;
+    TErrorException(const TErrorException& other) = default;
 
     ~TErrorException() throw();
 
@@ -180,6 +181,9 @@ TException&& operator <<= (TException&& ex, const TError& error)
 typedef TFuture<TError>  TAsyncError;
 typedef TPromise<TError> TAsyncErrorPromise;
 
+//! A pre-set |TError| future with OK value.
+extern TFuture<TError> OKFuture;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -195,7 +199,7 @@ public:
         : Value_(value)
     { }
 
-    TErrorOr(T&& value)
+    TErrorOr(T&& value) noexcept
         : Value_(std::move(value))
     { }
 
@@ -225,7 +229,21 @@ public:
         return Value_;
     }
 
+    T& Value()
+    {
+        YCHECK(IsOK());
+        return Value_;
+    }
+
     const T& ValueOrThrow() const
+    {
+        if (!IsOK()) {
+            THROW_ERROR *this;
+        }
+        return Value_;
+    }
+
+    T& ValueOrThrow()
     {
         if (!IsOK()) {
             THROW_ERROR *this;
@@ -247,3 +265,8 @@ Stroka ToString(const TErrorOr<T>& valueOrError)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+
+#define ERROR_INL_H_
+#include "error-inl.h"
+#undef ERROR_INL_H_

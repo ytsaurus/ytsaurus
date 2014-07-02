@@ -2,6 +2,8 @@
 
 #include "command.h"
 
+#include <ytlib/ypath/rich.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -9,6 +11,7 @@ namespace NDriver {
 
 struct TDownloadRequest
     : public TTransactionalRequest
+    , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
     TNullable<i64> Offset;

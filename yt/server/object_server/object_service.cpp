@@ -10,42 +10,87 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/helpers.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-
 #include <core/actions/invoker_util.h>
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_service.h>
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NObjectServer {
 
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NBus;
 using namespace NYTree;
+using namespace NYTree::NProto;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+using namespace NObjectServer;
 using namespace NCellMaster;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectService
+    : public NCellMaster::THydraServiceBase
+{
+public:
+    TObjectService(
+        TObjectManagerConfigPtr config,
+        TBootstrap* bootstrap)
+        : THydraServiceBase(
+            bootstrap,
+            NObjectClient::TObjectServiceProxy::GetServiceName(),
+            ObjectServerLogger.GetCategory())
+        , Config(config)
+    {
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+    }
+
+private:
+    class TExecuteSession;
+
+    TObjectManagerConfigPtr Config;
+
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, BuildSnapshot);
+
+};
+
+IServicePtr CreateObjectService(
+    TObjectManagerConfigPtr config,
+    TBootstrap* bootstrap)
+{
+    return New<TObjectService>(
+        config,
+        bootstrap);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,8 +105,9 @@ public:
         : Bootstrap(boostrap)
         , Config(std::move(config))
         , Context(std::move(context))
-        , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
-        , ReplyLock(0)
+        , LastMutationCommitted(VoidFuture)
+        , Replied(false)
+        , ResponseCount(0)
         , CurrentRequestIndex(0)
         , CurrentRequestPartIndex(0)
     { }
@@ -79,7 +125,13 @@ public:
         securityManager->ValidateUserAccess(user, requestCount);
 
         ResponseMessages.resize(requestCount);
-        Continue();
+        RequestHeaders.resize(requestCount);
+
+        if (requestCount == 0) {
+            Reply();
+        } else {
+            Continue();
+        }
     }
 
 private:
@@ -87,290 +139,289 @@ private:
     TObjectManagerConfigPtr Config;
     TCtxExecutePtr Context;
 
-    TParallelAwaiterPtr Awaiter;
+    TFuture<void> LastMutationCommitted;
+    std::atomic<bool> Replied;
+    std::atomic<int> ResponseCount;
     std::vector<TSharedRefArray> ResponseMessages;
-    TAtomic ReplyLock;
+    std::vector<TRequestHeader> RequestHeaders;
     int CurrentRequestIndex;
     int CurrentRequestPartIndex;
     TNullable<Stroka> UserName;
 
+
     void Continue()
     {
         try {
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto rootService = objectManager->GetRootService();
+
+            auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+
             auto startTime = TInstant::Now();
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
             
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto rootService = objectManager->GetRootService();
+            ValidatePrerequisites();
 
-            auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-
-            auto awaiter = Awaiter;
-            if (!awaiter)
-                return;
-
-            if (!CheckPrerequisites())
-                return;
-
+            auto securityManager = Bootstrap->GetSecurityManager();           
             auto* user = GetAuthenticatedUser();
-            TAuthenticatedUserGuard userGuard(Bootstrap->GetSecurityManager(), user);
+            TAuthenticatedUserGuard userGuard(securityManager, user);
 
-            // Execute another portion of requests.
             while (CurrentRequestIndex < request.part_counts_size()) {
+                // Don't allow the thread to be blocked for too long by a single batch.
+                if (TInstant::Now() > startTime + Config->YieldTimeout) {
+                    metaStateFacade->GetEpochInvoker()->Invoke(
+                        BIND(&TExecuteSession::Continue, MakeStrong(this)));
+                    return;
+                }
+
                 int partCount = request.part_counts(CurrentRequestIndex);
                 if (partCount == 0) {
                     // Skip empty requests.
-                    ++CurrentRequestIndex;
+                    OnResponse(
+                        CurrentRequestIndex,
+                        false,
+                        NTracing::TTraceContext(),
+                        nullptr,
+                        TSharedRefArray());
+                    NextRequest();
                     continue;
                 }
 
                 std::vector<TSharedRef> requestParts(
                     attachments.begin() + CurrentRequestPartIndex,
                     attachments.begin() + CurrentRequestPartIndex + partCount);
+
                 auto requestMessage = TSharedRefArray(std::move(requestParts));
 
-                NRpc::NProto::TRequestHeader requestHeader;
+                auto& requestHeader = RequestHeaders[CurrentRequestIndex];
                 if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-                    Reply(TError(
+                    THROW_ERROR_EXCEPTION(
                         NRpc::EErrorCode::ProtocolError,
-                        "Error parsing request header"));
+                        "Error parsing request header");
+                }
+
+                const auto& requestHeaderExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
+                const auto& path = requestHeaderExt.path();
+
+                auto mutationId = GetMutationId(requestHeader);
+                bool mutating = requestHeaderExt.mutating();
+
+                // Forbid to reorder read requests before write ones.
+                if (!mutating && !LastMutationCommitted.IsSet()) {
+                    LastMutationCommitted.Subscribe(
+                        BIND(&TExecuteSession::Continue, MakeStrong(this))
+                            .Via(metaStateFacade->GetEpochInvoker()));
                     return;
                 }
 
-                const auto& path = requestHeader.path();
-                const auto& verb = requestHeader.verb();
-                auto mutationId = GetMutationId(requestHeader);
-
-                LOG_DEBUG("Execute[%d] <- %s %s (RequestId: %s, MutationId: %s)",
+                LOG_DEBUG("Execute[%d] <- %s:%s %s (RequestId: %s, Mutating: %s, MutationId: %s)",
                     CurrentRequestIndex,
-                    ~verb,
+                    ~requestHeader.service(),
+                    ~requestHeader.method(),
                     ~path,
                     ~ToString(Context->GetRequestId()),
+                    ~FormatBool(mutating),
                     ~ToString(mutationId));
 
-                if (AtomicGet(ReplyLock) != 0)
-                    return;
+                NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
+                NTracing::TraceEvent(
+                    ~requestHeader.service(),
+                    ~requestHeader.method(),
+                    NTracing::ServerReceiveAnnotation);
 
-                bool foundKeptResponse = false;
-                if (mutationId != NullMutationId) {
-                    auto keptResponse = metaStateManager->FindKeptResponse(mutationId);
-                    if (keptResponse) {
-                        auto responseMessage = TSharedRefArray::Unpack(keptResponse->Data);
-                        OnResponse(CurrentRequestIndex, std::move(responseMessage));
-                        foundKeptResponse = true;
-                    }
+                auto asyncResponseMessage = ExecuteVerb(
+                    rootService,
+                    std::move(requestMessage));
+
+                // Optimize for the (typical) case of synchronous response.
+                if (asyncResponseMessage.IsSet() &&
+                    TInstant::Now() < startTime + Config->YieldTimeout)
+                {
+                    OnResponse(
+                        CurrentRequestIndex,
+                        mutating,
+                        traceContextGuard.GetContext(),
+                        &requestHeader,
+                        asyncResponseMessage.Get());
+                } else {
+                    LastMutationCommitted = asyncResponseMessage.Apply(BIND(
+                        &TExecuteSession::OnResponse,
+                        MakeStrong(this),
+                        CurrentRequestIndex,
+                        mutating,
+                        traceContextGuard.GetContext(),
+                        &requestHeader));
                 }
 
-                if (!foundKeptResponse) {
-                    awaiter->Await(
-                        ExecuteVerb(rootService, requestMessage),
-                        BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
-                }
-
-                ++CurrentRequestIndex;
-                CurrentRequestPartIndex += partCount;
-
-                if (TInstant::Now() > startTime + Config->YieldTimeout) {
-                    YieldAndContinue();
-                    return;
-                }
+                NextRequest();
             }
-
-            awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
         } catch (const std::exception& ex) {
             Reply(ex);
         }
     }
 
-    void YieldAndContinue()
+    void OnResponse(
+        int requestIndex,
+        bool mutating,
+        const NTracing::TTraceContext& traceContext,
+        const TRequestHeader* requestHeader,
+        TSharedRefArray responseMessage)
     {
-        LOG_DEBUG("Yielding state thread (RequestId: %s)",
-            ~ToString(Context->GetRequestId()));
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
-        if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
-            Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Yield error, only %d of out %d requests were served",
-                CurrentRequestIndex,
-                Context->Request().part_counts_size()));
-        }
-    }
+        if (responseMessage) {
+            NTracing::TraceEvent(
+                traceContext,
+                requestHeader->service(),
+                requestHeader->method(),
+                NTracing::ServerSendAnnotation);
 
-    void OnResponse(int requestIndex, TSharedRefArray responseMessage)
-    {
-        NRpc::NProto::TResponseHeader responseHeader;
-        YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+            TResponseHeader responseHeader;
+            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-        auto error = FromProto(responseHeader.error());
+            auto error = FromProto<TError>(responseHeader.error());
 
-        LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
-            requestIndex,
-            ~ToString(error),
-            ~ToString(Context->GetRequestId()));
+            LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
+                requestIndex,
+                ~ToString(error),
+                ~ToString(Context->GetRequestId()));
 
-        if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
-            // Commit failed -- stop further handling.
-            Reply(error);
-        } else {
-            // No sync is needed, requestIndexes are distinct.
-            ResponseMessages[requestIndex] = responseMessage;
-        }
-    }
-
-    void OnComplete()
-    {
-        // No sync is needed: OnComplete is called after all OnResponses.
-        auto& response = Context->Response();
-
-        FOREACH (const auto& responseMessage, ResponseMessages) {
-            if (!responseMessage) {
-                // Skip empty responses.
-                response.add_part_counts(0);
-                continue;
+            if (mutating && error.GetCode() == NRpc::EErrorCode::Unavailable) {
+                // Commit failed -- stop further handling.
+                Context->Reply(error);
+                return;
             }
-
-            response.add_part_counts(responseMessage.Size());
-            response.Attachments().insert(
-                response.Attachments().end(),
-                responseMessage.Begin(),
-                responseMessage.End());
         }
 
-        Reply(TError());
+        ResponseMessages[requestIndex] = std::move(responseMessage);
+
+        if (++ResponseCount == ResponseMessages.size()) {
+            Reply();
+        }
     }
 
-    void Reply(const TError& error)
+    void NextRequest()
     {
-        // Make sure that we only reply once.
-        if (!AtomicTryLock(&ReplyLock))
+        const auto& request = Context->Request();
+        CurrentRequestPartIndex += request.part_counts(CurrentRequestIndex);
+        CurrentRequestIndex += 1;
+    }
+
+    void Reply(const TError& error = TError())
+    {
+        bool expected = false;
+        if (!Replied.compare_exchange_strong(expected, true))
             return;
 
-        Awaiter->Cancel();
-        Awaiter.Reset();
-
+        if (error.IsOK()) {
+            auto& response = Context->Response();
+            for (const auto& responseMessage : ResponseMessages) {
+                if (responseMessage) {
+                    response.add_part_counts(responseMessage.Size());
+                    response.Attachments().insert(
+                        response.Attachments().end(),
+                        responseMessage.Begin(),
+                        responseMessage.End());
+                } else {
+                    response.add_part_counts(0);
+                }
+            }
+        }
+     
         Context->Reply(error);
     }
 
-    bool CheckPrerequisites()
+    void ValidatePrerequisites()
     {       
         auto& request = Context->Request();
 
-        FOREACH (const auto& prerequisite, request.prerequisite_transactions()) {
+        for (const auto& prerequisite : request.prerequisite_transactions()) {
             auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-            if (!GetPrerequisiteTransaction(transactionId)) {
-                return false;
-            }
+            GetPrerequisiteTransaction(transactionId);
         }
 
         auto cypressManager = Bootstrap->GetCypressManager();
-        FOREACH (const auto& prerequisite, request.prerequisite_revisions()) {
+        for (const auto& prerequisite : request.prerequisite_revisions()) {
             auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
-            auto path = TYPath(prerequisite.path());
+            const auto& path = prerequisite.path();
             i64 revision = prerequisite.revision();
 
-            TTransaction* transaction = nullptr;
-            if (transactionId != NullTransactionId) {
-                if (!GetPrerequisiteTransaction(transactionId, &transaction)) {
-                    return false;
-                }
-            }
+            auto* transaction =
+                transactionId == NullTransactionId
+                ? nullptr
+                : GetPrerequisiteTransaction(transactionId);
 
             auto resolver = cypressManager->CreateResolver(transaction);
             INodePtr nodeProxy;
             try {
                 nodeProxy = resolver->ResolvePath(path);
             } catch (const std::exception& ex) {
-                Reply(TError(
+                THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: failed to resolve path %s",
                     ~path)
-                    << ex);
-                return false;
+                    << ex;
             }
 
-            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(~nodeProxy);
+            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
             YCHECK(cypressNodeProxy);
 
             auto* node = cypressNodeProxy->GetTrunkNode();
             if (node->GetRevision() != revision) {
-                Reply(TError(
+                THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: node %s revision mismatch: expected %" PRId64 ", found %" PRId64,
                     ~path,
                     revision,
-                    node->GetRevision()));
-                return false;
+                    node->GetRevision());
             }
         }
-
-        return true;
     }
 
-    bool GetPrerequisiteTransaction(const TTransactionId& transactionId, TTransaction** transaction = nullptr)
+    TTransaction* GetPrerequisiteTransaction(const TTransactionId& transactionId)
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto* myTransaction = transactionManager->FindTransaction(transactionId);
-        if (!IsObjectAlive(myTransaction)) {
-            Reply(TError(
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %s is missing",
-                ~ToString(transactionId)));
-            return false;
+                ~ToString(transactionId));
         }
-        if (myTransaction->GetState() != ETransactionState::Active) {
-            Reply(TError(
+        if (transaction->GetState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %s is not active",
-                ~ToString(transactionId)));
-            return false;
+                ~ToString(transactionId));
         }
-        if (transaction) {
-            *transaction = myTransaction;
-        }
-        return true;
+        return transaction;
     }
 
     TUser* GetAuthenticatedUser()
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        if (!UserName) {
-            return securityManager->GetRootUser();
-        }
-
-        auto* user = securityManager->FindUserByName(*UserName);
-        if (!IsObjectAlive(user)) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %s", ~UserName->Quote());
-        }
-
-        return user;
+        return UserName
+            ? securityManager->GetUserByNameOrThrow(*UserName)
+            : securityManager->GetRootUser();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TObjectService::TObjectService(
-    TObjectManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
-        bootstrap,
-        NObjectClient::TObjectServiceProxy::GetServiceName(),
-        ObjectServerLogger.GetCategory())
-    , Config(config)
-{
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
-}
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
 
-    New<TExecuteSession>(Bootstrap, Config, std::move(context))->Run();
+    ValidateActiveLeader();
+
+    auto session = New<TExecuteSession>(
+        Bootstrap,
+        Config,
+        std::move(context));
+    session->Run();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
@@ -378,7 +429,34 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
-    Bootstrap->GetObjectManager()->GCCollect().Subscribe(BIND([=] () {
+    context->SetRequestInfo("");
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->GCCollect().Subscribe(BIND([=] () {
+        context->Reply();
+    }));
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
+{
+    bool setReadOnly = request->set_read_only();
+
+    context->SetRequestInfo("SetReadOnly: %s",
+        ~FormatBool(setReadOnly));
+
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+
+    if (setReadOnly) {
+        hydraManager->SetReadOnly(true);
+    }
+
+    hydraManager->BuildSnapshotDistributed().Subscribe(BIND([=] (TErrorOr<int> errorOrSnapshotId) {
+        if (!errorOrSnapshotId.IsOK()) {
+            context->Reply(TError(errorOrSnapshotId));
+            return;
+        }
+
+        response->set_snapshot_id(errorOrSnapshotId.Value());
         context->Reply();
     }));
 }

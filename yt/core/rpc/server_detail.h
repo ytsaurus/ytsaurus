@@ -1,6 +1,9 @@
 #pragma once
 
 #include "service.h"
+#include "server.h"
+
+#include <core/concurrency/rw_spinlock.h>
 
 #include <core/rpc/rpc.pb.h>
 
@@ -22,14 +25,17 @@ public:
     
     virtual i64 GetPriority() const override;
     
-    virtual const Stroka& GetPath() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetService() const override;
+    virtual const Stroka& GetMethod() const override;
+    virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsReplied() const override;
     virtual bool IsOneWay() const override;
 
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+
+    virtual TSharedRefArray GetResponseMessage() const override;
 
     virtual const TError& GetError() const override;
 
@@ -41,9 +47,6 @@ public:
     virtual std::vector<TSharedRef>& RequestAttachments() override;
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
 
-    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
-
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
@@ -54,37 +57,44 @@ public:
     virtual Stroka GetResponseInfo() override;
 
 protected:
+    std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
+    TSharedRefArray RequestMessage_;
+
+    TRequestId RequestId_;
+    TRealmId RealmId_;
+
+    TSharedRef RequestBody_;
+    std::vector<TSharedRef> RequestAttachments_;
+
+    bool Replied_;
+    TError Error_;
+
+    TSharedRef ResponseBody_;
+    std::vector<TSharedRef> ResponseAttachments_;
+
+    Stroka RequestInfo_;
+    Stroka ResponseInfo_;
+
+
     TServiceContextBase(
-        const NProto::TRequestHeader& header,
+        std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage);
 
     explicit TServiceContextBase(
         TSharedRefArray requestMessage);
 
-    NProto::TRequestHeader RequestHeader_;
-    TSharedRefArray RequestMessage;
-
-    TRequestId RequestId;
-
-    TSharedRef RequestBody;
-    std::vector<TSharedRef> RequestAttachments_;
-    std::unique_ptr<NYTree::IAttributeDictionary> RequestAttributes_;
-    bool Replied;
-    TError Error;
-
-    TSharedRef ResponseBody;
-    std::vector<TSharedRef> ResponseAttachments_;
-    std::unique_ptr<NYTree::IAttributeDictionary> ResponseAttributes_;
-
-    Stroka RequestInfo;
-    Stroka ResponseInfo;
-
-    virtual void DoReply(TSharedRefArray responseMessage) = 0;
+    virtual void DoReply() = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
 
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
+
+private:
+    mutable TSharedRefArray ResponseMessage_; // cached
+
+
+    void Initialize();
 
 };
 
@@ -105,14 +115,16 @@ public:
     
     virtual i64 GetPriority() const override;
 
-    virtual const Stroka& GetPath() const override;
-    virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetService() const override;
+    virtual const Stroka& GetMethod() const override;
+    virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsOneWay() const;
 
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+    virtual TSharedRefArray GetResponseMessage() const override;
 
     virtual const TError& GetError() const override;
 
@@ -123,9 +135,6 @@ public:
 
     virtual std::vector<TSharedRef>& RequestAttachments() override;
     virtual std::vector<TSharedRef>& ResponseAttachments() override;
-
-    virtual NYTree::IAttributeDictionary& RequestAttributes() override;
-    virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
@@ -160,6 +169,37 @@ public:
 
 private:
     TClosure OnReply;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServerBase
+    : public IServer
+{
+public:
+    TServerBase();
+
+    virtual void RegisterService(IServicePtr service) override;
+    virtual void UnregisterService(IServicePtr service) override;
+    
+    virtual IServicePtr FindService(const TServiceId& serviceId) override;
+
+    virtual void Configure(TServerConfigPtr config) override;
+
+    virtual void Start() override;
+    virtual void Stop() override;
+
+protected:
+    volatile bool Started_;
+
+    NConcurrency::TReaderWriterSpinLock ServicesLock_;
+    yhash_map<TServiceId, IServicePtr> ServiceMap_;
+
+    virtual void DoStart();
+    virtual void DoStop();
+
+    std::vector<IServicePtr> FindServices(const Stroka& serviceName);
 
 };
 

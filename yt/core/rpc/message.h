@@ -20,7 +20,8 @@ TSharedRefArray CreateResponseMessage(
     const std::vector<TSharedRef>& attachments);
 
 TSharedRefArray CreateResponseMessage(
-    IServiceContextPtr context);
+    const ::google::protobuf::MessageLite& body,
+    const std::vector<TSharedRef>& attachments = std::vector<TSharedRef>());
 
 TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
@@ -47,6 +48,10 @@ bool ParseResponseHeader(
 TSharedRefArray SetResponseHeader(
     TSharedRefArray message,
     const NProto::TResponseHeader& header);
+
+void MergeRequestHeaderExtensions(
+    NProto::TRequestHeader* to,
+    const NProto::TRequestHeader& from);
 
 ////////////////////////////////////////////////////////////////////////////////
 

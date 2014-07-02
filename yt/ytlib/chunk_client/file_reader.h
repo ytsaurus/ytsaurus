@@ -1,8 +1,9 @@
 #pragma once
 
-#include "async_reader.h"
+#include "reader.h"
 #include "format.h"
-#include <ytlib/chunk_client/chunk.pb.h>
+
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
 
@@ -13,7 +14,7 @@ namespace NChunkClient {
 
 //! Provides a local and synchronous implementation of IAsyncReader.
 class TFileReader
-    : public IAsyncReader
+    : public IReader
 {
 public:
     //! Creates a new reader.
@@ -31,33 +32,40 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    NChunkClient::NProto::TChunkMeta GetChunkMeta(const std::vector<int>* tags = NULL) const;
+    //! Synchronously returns the requested meta.
+    NChunkClient::NProto::TChunkMeta GetMeta(
+        const std::vector<int>* extensionTags = nullptr);
 
-    //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
+    // IReader implementation.
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override;
 
-    //! Implements IChunkReader and calls #GetChunkMeta.
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override;
+    
+    virtual TAsyncGetMetaResult GetMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<int>* tags = NULL);
-
-    //! Synchronously reads a given block from the file.
-    /*!
-     *  Returns NULL reference if the block does not exist.
-     */
-    TSharedRef ReadBlock(int blockIndex);
+        const std::vector<int>* extensionTags = nullptr) override;
 
     virtual TChunkId GetChunkId() const override;
 
 private:
-    Stroka FileName;
-    bool Opened;
-    std::unique_ptr<TFile> DataFile;
-    i64 InfoSize;
-    i64 DataSize;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
+    Stroka FileName_;
+
+    bool Opened_;
+    std::unique_ptr<TFile> DataFile_;
+    
+    i64 MetaSize_;
+    i64 DataSize_;
+
+    NChunkClient::NProto::TChunkMeta Meta_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+    int BlockCount_;
+
+
+    TSharedRef ReadBlock(int blockIndex);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TFileReader)
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -12,8 +12,13 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileYPathProxy
-    : NChunkClient::TChunkOwnerYPathProxy
-{ };
+    : public NChunkClient::TChunkOwnerYPathProxy
+{
+    static Stroka GetServiceName()
+    {
+        return "File";
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

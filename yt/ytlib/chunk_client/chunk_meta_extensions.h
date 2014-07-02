@@ -2,7 +2,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 
@@ -17,7 +17,7 @@ DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TSizeOverrideExt, 16)
 
 namespace NChunkClient {
 
-NChunkClient::NProto::TChunkMeta FilterChunkMetaExtensions(
+NChunkClient::NProto::TChunkMeta FilterChunkMetaByExtensionTags(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const std::vector<int>& tags);
 

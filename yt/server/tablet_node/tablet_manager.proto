@@ -1,0 +1,93 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
+import "yt/ytlib/table_client/table_chunk_meta.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/server/tablet_server/tablet_manager.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor chunk_stores = 4;
+    required bytes pivot_key = 5;
+    required bytes next_pivot_key = 6;
+    required string mount_config = 7;
+    required string writer_options = 8;
+}
+
+message TReqUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bool force = 2;
+}
+
+message TReqRemountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required string mount_config = 7;
+    required string writer_options = 8;
+}
+
+message TReqSetTabletState
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 state = 2;
+}
+
+message TReqExecuteWrite
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid tablet_id = 2;
+    required int32 commands_succeded = 3;
+    required int32 codec = 4;
+    required bytes compressed_data = 5;
+}
+
+message TReqRotateStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqCommitTabletStoresUpdate
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
+	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+}
+
+message TRspUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+	optional NYT.NProto.TError error = 2;
+	repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
+	repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
+}
+
+message TReqSplitPartition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated bytes pivot_keys = 3;
+}
+
+message TReqMergePartitions
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bytes pivot_key = 2;
+    required int32 partition_count = 3;
+}
+
+message TReqUpdatePartitionSampleKeys
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bytes pivot_key = 2;
+    repeated bytes sample_keys = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

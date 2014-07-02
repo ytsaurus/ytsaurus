@@ -7,7 +7,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <ytlib/chunk_client/chunk_slice.h>
+
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -54,9 +55,9 @@ void AddStripeToList(
 
     list->TotalChunkCount += stripe->ChunkSlices.size();
     if (address) {
-        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+        for (const auto& chunkSlice : stripe->ChunkSlices) {
             bool isLocal = false;
-            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
@@ -87,7 +88,7 @@ TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice)
 
 TChunkStripe::TChunkStripe(const TChunkStripe& other)
 {
-    FOREACH (const auto& chunkSlice, other.ChunkSlices) {
+    for (const auto& chunkSlice : other.ChunkSlices) {
         ChunkSlices.push_back(New<TChunkSlice>(*chunkSlice));
     }
 }
@@ -96,7 +97,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
 
-    FOREACH (const auto& chunkSlice, ChunkSlices) {
+    for (const auto& chunkSlice : ChunkSlices) {
         result.DataSize += chunkSlice->GetDataSize();
         result.RowCount += chunkSlice->GetRowCount();
         ++result.ChunkCount;
@@ -140,7 +141,7 @@ TChunkStripeStatisticsVector AggregateStatistics(
     const TChunkStripeStatisticsVector& statistics)
 {
     TChunkStripeStatistics sum;
-    FOREACH (const auto& stat, statistics) {
+    for (const auto& stat : statistics) {
         sum += stat;
     }
     return TChunkStripeStatisticsVector(1, sum);
@@ -161,7 +162,7 @@ TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
     TChunkStripeStatisticsVector result;
     result.reserve(Stripes.size());
-    FOREACH (const auto& stripe, Stripes) {
+    for (const auto& stripe : Stripes) {
         result.push_back(stripe->GetStatistics());
     }
     return result;
@@ -419,7 +420,7 @@ public:
     {
         TChunkStripeStatisticsVector result;
         result.reserve(Stripes.size());
-        FOREACH (const auto& suspendableStripe, Stripes) {
+        for (const auto& suspendableStripe : Stripes) {
             auto stripe = suspendableStripe.GetStripe();
             result.push_back(stripe->GetStatistics());
         }
@@ -469,7 +470,7 @@ public:
         }
 
         ExtractedList = New<TChunkStripeList>();
-        FOREACH (const auto& suspendableStripe, Stripes) {
+        for (const auto& suspendableStripe : Stripes) {
             auto stripe = suspendableStripe.GetStripe();
             auto stat = stripe->GetStatistics();
             AddStripeToList(stripe, NodeDirectory, stat.DataSize, stat.RowCount, ExtractedList, address);
@@ -565,8 +566,8 @@ private:
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
-        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+        for (const auto& chunkSlice : stripe->ChunkSlices) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
@@ -731,7 +732,7 @@ public:
     {
         if (!ExtractedLists.empty()) {
             TChunkStripeStatisticsVector result;
-            FOREACH(const auto& index, ExtractedLists.begin()->second.StripeIndexes) {
+            for (const auto& index : ExtractedLists.begin()->second.StripeIndexes) {
                 result.push_back(Stripes[index].GetStripe()->GetStatistics());
             }
             return result;
@@ -1000,8 +1001,8 @@ private:
         YCHECK(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
 
         auto stripe = suspendableStripe.GetStripe();
-        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+        for (const auto& chunkSlice : stripe->ChunkSlices) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
@@ -1025,8 +1026,8 @@ private:
         auto& suspendableStripe = Stripes[stripeIndex];
 
         auto stripe = suspendableStripe.GetStripe();
-        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
+        for (const auto& chunkSlice : stripe->ChunkSlices) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
@@ -1082,7 +1083,7 @@ private:
     {
         auto replayIt = ReplayCookies.find(cookie);
         if (replayIt == ReplayCookies.end()) {
-            FOREACH (int stripeIndex, extractedStripeList.StripeIndexes) {
+            for (int stripeIndex : extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
                 if (suspendableStripe.IsSuspended()) {
@@ -1149,7 +1150,7 @@ public:
 
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) override
     {
-        return ~Outputs[partitionIndex];
+        return Outputs[partitionIndex].get();
     }
 
     // IChunkPoolInput implementation.
@@ -1163,13 +1164,13 @@ public:
         TInputStripe inputStripe;
         inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes.size());
 
-        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+        for (const auto& chunkSlice : stripe->ChunkSlices) {
             int elementaryIndex = static_cast<int>(ElementaryStripes.size());
             auto elementaryStripe = New<TChunkStripe>(chunkSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->extensions());
+                chunkSlice->GetChunkSpec()->chunk_meta().extensions());
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
@@ -1181,7 +1182,7 @@ public:
             }
 
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1194,7 +1195,7 @@ public:
     {
         const auto& inputStripe = InputStripes[cookie];
         for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
-            FOREACH (const auto& output, Outputs) {
+            for (const auto& output : Outputs) {
                 output->SuspendStripe(index);
             }
         }
@@ -1203,9 +1204,9 @@ public:
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
         // Remove all partition extensions.
-        FOREACH (auto chunkSlice, stripe->ChunkSlices) {
+        for (auto chunkSlice : stripe->ChunkSlices) {
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetChunkSpec()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and
@@ -1242,7 +1243,7 @@ public:
             elementaryIndex < inputStripe.ElementaryIndexEnd;
             ++elementaryIndex)
         {
-            FOREACH (const auto& output, Outputs) {
+            for (const auto& output : Outputs) {
                 output->ResumeStripe(elementaryIndex);
             }
         }
@@ -1255,7 +1256,7 @@ public:
 
         TChunkPoolInputBase::Finish();
 
-        FOREACH (const auto& output, Outputs) {
+        for (const auto& output : Outputs) {
             output->FinishInput();
         }
     }

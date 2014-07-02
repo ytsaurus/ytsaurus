@@ -1,5 +1,4 @@
 var util = require("util");
-var uuid = require("node-uuid");
 
 exports.TraceEvent = function(object, sname, ename)
 {
@@ -68,10 +67,10 @@ exports.that = function(key, name)
         };
         result.Tagged = function(tag)
         {
-            var id = uuid.v4();
+            var marker = require("crypto").pseudoRandomBytes(16).toString("base64");
             return function() {
                 var args = Array.prototype.slice.call(arguments);
-                args[0] = "(" + id + ") -> " + (tag ? tag + ": " : "") + args[0];
+                args[0] = "(" + marker + ") -> " + (tag ? tag + ": " : "") + args[0];
                 return result.apply(result, args);
             };
         };

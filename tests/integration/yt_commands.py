@@ -2,6 +2,8 @@ import yt.yson as yson
 from yt.bindings.driver import Driver, Request, make_request
 from yt.common import YtError, flatten, update
 
+import pytest
+
 import os
 import sys
 
@@ -10,12 +12,16 @@ from datetime import datetime
 
 from cStringIO import StringIO
 
+only_linux = pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+
+driver = None
+
 def get_driver():
-    config_path = os.environ['YT_CONFIG']
-    if not hasattr(get_driver, "driver") or (hasattr(get_driver, "config_path") and config_path != get_driver.config_path):
-        get_driver.driver = Driver(config=yson.loads(open(config_path).read()))
-        get_driver.config_path = config_path
-    return get_driver.driver
+    return driver
+
+def init_driver(config):
+    global driver
+    driver = Driver(config=config)
 
 def set_branch(dict, path, value):
     root = dict
@@ -151,9 +157,17 @@ def read(path, **kwargs):
     output = StringIO()
     command('read', kwargs, output_stream=output)
     if not has_output_format:
-        return yson.loads(output.getvalue(), yson_type="list_fragment")
+        return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
     else:
         return output.getvalue()
+
+def select(query, **kwargs):
+    kwargs["query"] = query
+    if "output_format" not in kwargs:
+        kwargs["output_format"] = yson.loads("<format=text>yson")
+    output = StringIO()
+    command('select', kwargs, output_stream=output)
+    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)
@@ -170,6 +184,23 @@ def ping_transaction(tx, **kwargs):
 def abort_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
     return command('abort_tx', kwargs)
+
+def mount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('mount_table', kwargs)
+
+def unmount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('unmount_table', kwargs)
+
+def remount_table(path, **kwargs):
+    kwargs["path"] = path
+    return command('remount_table', kwargs)
+
+def reshard_table(path, pivot_keys, **kwargs):
+    kwargs["path"] = path
+    kwargs["pivot_keys"] = pivot_keys
+    return command('reshard_table', kwargs)
 
 def upload(path, data, **kwargs):
     kwargs["path"] = path
@@ -321,6 +352,13 @@ def add_member(member, group):
 
 def remove_member(member, group):
     command('remove_member', {"member": member, "group": group})
+
+def create_tablet_cell(size):
+    return yson.loads(command('create', {'type': 'tablet_cell', 'attributes': {'size': size}}))
+
+def remove_tablet_cell(id):
+    remove('//sys/tablet_cells/' + id)
+    gc_collect()
 
 #########################################
 

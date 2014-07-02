@@ -10,7 +10,8 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+#include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <server/chunk_server/chunk_tree_traversing.h>
 #include <server/chunk_server/chunk_list.h>
@@ -24,33 +25,14 @@ namespace {
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
 
+using NChunkClient::TReadLimit;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
 {
-    return lhs.DebugString() == rhs.DebugString();
+    return lhs.AsProto().DebugString() == rhs.AsProto().DebugString();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNoneTraverserCallbacks
-    : public IChunkTraverserCallbacks
-{
-public:
-    virtual IInvokerPtr GetInvoker() const override
-    {
-        return GetSyncInvoker();
-    }
-
-    virtual void OnPop(TChunkTree* /* chunkTree */) override
-    { }
-    
-    virtual void OnPush(TChunkTree* /* chunkTree */) override
-    { }
-
-    virtual void OnShutdown(const std::vector<TChunkTree*>& /* chunkTrees */) override
-    { }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,8 +73,8 @@ std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
 {
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
        << ", RowIndex=" << chunkInfo.RowIndex 
-       << ", StartLimit=(" << chunkInfo.StartLimit.DebugString() << ")"
-       << ", EndLimit=(" << chunkInfo.EndLimit.DebugString() << ")"
+       << ", StartLimit=(" << chunkInfo.StartLimit.AsProto().DebugString() << ")"
+       << ", EndLimit=(" << chunkInfo.EndLimit.AsProto().DebugString() << ")"
        << ")";
     return os;
 }
@@ -129,19 +111,35 @@ public:
 
 private:
     std::set<TChunkInfo> ChunkInfos;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuid GetNewId(EObjectType type)
+void AttachToChunkList(
+    TChunkList* chunkList,
+    const std::vector<TChunkTree*>& children)
+{
+    NChunkServer::AttachToChunkList(
+        chunkList,
+        const_cast<TChunkTree**>(children.data()),
+        const_cast<TChunkTree**>(children.data() + children.size()),
+        [] (TChunkTree* /*chunk*/) { });
+}
+
+TGuid GenerateId(EObjectType type)
 {
     static i64 counter = 0;
     return MakeId(type, 0, counter++, 0);
 }
 
-std::unique_ptr<TChunk> CreateChunk(i64 rowCount, i64 compressedDataSize, i64 uncompressedDataSize, i64 dataWeight)
+std::unique_ptr<TChunk> CreateChunk(
+    i64 rowCount,
+    i64 compressedDataSize,
+    i64 uncompressedDataSize,
+    i64 dataWeight)
 {
-    auto chunk = std::unique_ptr<TChunk>(new TChunk(GetNewId(EObjectType::Chunk)));
+    std::unique_ptr<TChunk> chunk(new TChunk(GenerateId(EObjectType::Chunk)));
     
     TChunkMeta chunkMeta;
     chunkMeta.set_type(EChunkType::Table); // this makes chunk confirmed
@@ -153,12 +151,7 @@ std::unique_ptr<TChunk> CreateChunk(i64 rowCount, i64 compressedDataSize, i64 un
     miscExt.set_data_weight(dataWeight);
     SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
     
-    NChunkClient::NProto::TChunkInfo chunkInfo;
-    chunkInfo.set_disk_space(0);
-    chunkInfo.set_meta_checksum(0);
-
     chunk->ChunkMeta() = chunkMeta;
-    chunk->ChunkInfo() = chunkInfo;
 
     return chunk;
 }
@@ -175,8 +168,8 @@ TEST(TraverseChunkTree, Simple)
     auto chunk2 = CreateChunk(2, 2, 2, 2);
     auto chunk3 = CreateChunk(3, 3, 3, 3);
 
-    TChunkList listA(GetNewId(EObjectType::ChunkList));
-    TChunkList listB(GetNewId(EObjectType::ChunkList));
+    TChunkList listA(GenerateId(EObjectType::ChunkList));
+    TChunkList listB(GenerateId(EObjectType::ChunkList));
     
     {
         std::vector<TChunkTree*> chunks;
@@ -192,11 +185,11 @@ TEST(TraverseChunkTree, Simple)
         AttachToChunkList(&listA, chunks);
     }
 
-    auto bootstrap = New<TNoneTraverserCallbacks>();
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(bootstrap, visitor, &listA);
+        TraverseChunkTree(callbacks, visitor, &listA);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -222,18 +215,18 @@ TEST(TraverseChunkTree, Simple)
         auto visitor = New<TTestChunkVisitor>();
         
         TReadLimit startLimit;
-        startLimit.set_row_index(2);
+        startLimit.SetRowIndex(2);
         
         TReadLimit endLimit;
-        endLimit.set_row_index(5);
+        endLimit.SetRowIndex(5);
 
-        TraverseChunkTree(bootstrap, visitor, &listA, startLimit, endLimit);
+        TraverseChunkTree(callbacks, visitor, &listA, startLimit, endLimit);
 
         TReadLimit correctStartLimit;
-        correctStartLimit.set_row_index(1);
+        correctStartLimit.SetRowIndex(1);
         
         TReadLimit correctEndLimit;
-        correctEndLimit.set_row_index(2);
+        correctEndLimit.SetRowIndex(2);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(

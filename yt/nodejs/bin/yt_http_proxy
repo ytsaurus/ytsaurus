@@ -10,7 +10,7 @@ var optimist = require("optimist");
 var uid_number = require("uid-number");
 var winston = require("winston");
 
-var Q = require("q");
+var Q = require("bluebird");
 
 var profiler = require("profiler");
 var heapdump = require("heapdump");
@@ -134,7 +134,10 @@ config = {
     user_interface    : opts.argv.user_interface,
     read_only         : opts.argv.read_only,
     agent             : opts.argv.agent,
-    proxy             : { logging : { rules : [], writers : {} } },
+    proxy             : {
+        logging : { rules : [], writers : {} },
+        tracing : { },
+    },
     services : {
         oauth : {
             host: "oauth.yandex-team.ru",
@@ -228,7 +231,7 @@ config = merge(config, {
     memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
     thread_limit      : opts.argv.t && parseInt(opts.argv.t),
     spare_threads     : opts.argv.s && parseInt(opts.argv.s),
-    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : true, raw : true },
+    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : false, raw : true },
     user              : opts.argv.u,
     group             : opts.argv.g
 });
@@ -243,29 +246,29 @@ if (config.agent) {
 
 function ensureFileExistsAndOwned(path, user, group) {
     return Q
-        .nfcall(fs.exists, fs, path)
-        .fail(function(exists) {
+        .promisify(fs.exists)(path)
+        .catch(function(exists) {
             return exists || Q
-                .nfcall(fs.writeFile, fs, path, "")
+                .promisify(fs.writeFile)(path, "")
                 .then(Q
-                    .nfcall(uid_number, undefined, user || process.getuid(), group || process.getgid)
-                    .spread(Q.nfbind(fs.chown, path))
+                    .promisify(uid_number)(user || process.getuid(), group || process.getgid)
+                    .spread(Q.promisify(fs.chown).bind(undefined, path))
                 );
         });
 };
 
 function provideWinstonTransport() {
     if (config.logging) {
-        return Q.when(
-            ensureFileExistsAndOwned(config.logging.filename, config.user, config.group),
-            function() {
-                console.error("Setting up logging to file '%s'", config.logging.filename);
-                return new winston.transports.File(config.logging);
-            });
+        // XXX(sandello): We are forcing logging to use provided timestamps.
+        config.logging.timestamp = false;
+        return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
+            console.error("Setting up logging to file '%s'", config.logging.filename);
+            return new winston.transports.File(config.logging);
+        });
     } else {
-        return Q.fcall(function() {
+        return Q.try(function() {
             console.error("Setting up logging to console");
-            return new winston.transports.Console({ timestamp : true, raw : false, colorize : true });
+            return new winston.transports.Console({ timestamp : false, raw : false, colorize : true });
         });
     }
 }
@@ -275,7 +278,7 @@ function provideWinstonLogger(transport) {
 }
 
 function createLogger() {
-    return Q.fcall(provideWinstonTransport).then(provideWinstonLogger);
+    return Q.try(provideWinstonTransport).then(provideWinstonLogger);
 }
 
 function runProxy(logger) {
@@ -289,7 +292,10 @@ function runProxy(logger) {
             args : []
     });
 
-    logger.info("Starting HTTP proxy master", { pid : process.pid });
+    logger.info("Starting HTTP proxy master", {
+        pid: process.pid,
+        timestamp: new Date().toISOString()
+    });
 
     var fake_server = net.createServer();
     fake_server.listen(config.port, config.address, function() {

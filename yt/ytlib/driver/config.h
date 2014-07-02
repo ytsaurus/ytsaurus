@@ -4,17 +4,21 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/meta_state/config.h>
+#include <core/rpc/retrying_channel.h>
+
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/config.h>
 
-#include <ytlib/file_client/config.h>
-
 #include <ytlib/table_client/config.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <ytlib/new_table_client/config.h>
 
 #include <ytlib/scheduler/config.h>
+
+#include <ytlib/hive/config.h>
+
+#include <ytlib/api/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -22,28 +26,20 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverConfig
-    : public NYTree::TYsonSerializable
+    : public NApi::TConnectionConfig
 {
 public:
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
-    NScheduler::TSchedulerConnectionConfigPtr Scheduler;
-    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    NFileClient::TFileReaderConfigPtr FileReader;
-    NFileClient::TFileWriterConfigPtr FileWriter;
+    NApi::TFileReaderConfigPtr FileReader;
+    NApi::TFileWriterConfigPtr FileWriter;
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
-    NChunkClient::TClientBlockCacheConfigPtr BlockCache;
+    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
     bool ReadFromFollowers;
     i64 ReadBufferSize;
     int HeavyPoolSize;
 
     TDriverConfig()
     {
-        RegisterParameter("masters", Masters);
-        RegisterParameter("scheduler", Scheduler)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
         RegisterParameter("file_reader", FileReader)
             .DefaultNew();
         RegisterParameter("file_writer", FileWriter)
@@ -52,7 +48,7 @@ public:
             .DefaultNew();
         RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
-        RegisterParameter("block_cache", BlockCache)
+        RegisterParameter("new_table_writer", NewTableWriter)
             .DefaultNew();
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
@@ -64,6 +60,8 @@ public:
             .Default(4);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

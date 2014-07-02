@@ -8,10 +8,10 @@
 #include "output_stack.h"
 
 #include <core/misc/error.h>
+#include <core/misc/lazy_ptr.h>
 
 #include <core/concurrency/async_stream.h>
 
-#include <core/misc/lazy_ptr.h>
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
 
@@ -21,7 +21,7 @@
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/dispatcher.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 #include <util/memory/tempbuf.h>
 
@@ -34,6 +34,7 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+using namespace NRpc;
 using namespace NYTree;
 using namespace NDriver;
 using namespace NFormats;
@@ -83,31 +84,29 @@ void Invoke(
     node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
 }
 
-class TUVInvoker
+class TUvInvoker
     : public IInvoker
 {
 public:
-    explicit TUVInvoker(uv_loop_t* loop)
+    explicit TUvInvoker(uv_loop_t* loop)
         : QueueSize(0)
     {
         memset(&AsyncHandle, 0, sizeof(AsyncHandle));
-        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
+        YCHECK(uv_async_init(loop, &AsyncHandle, &TUvInvoker::Callback) == 0);
         AsyncHandle.data = this;
     }
 
-    ~TUVInvoker()
+    ~TUvInvoker()
     {
         uv_close((uv_handle_t*)&AsyncHandle, nullptr);
     }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual void Invoke(const TClosure& callback) override
     {
-        Queue.Enqueue(action);
+        Queue.Enqueue(callback);
         AtomicIncrement(QueueSize);
 
         YCHECK(uv_async_send(&AsyncHandle) == 0);
-
-        return true;
     }
 
     virtual NConcurrency::TThreadId GetThreadId() const override
@@ -132,7 +131,7 @@ private:
         YCHECK(status == 0);
         YCHECK(handle->data);
 
-        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
+        reinterpret_cast<TUvInvoker*>(handle->data)->CallbackImpl();
     }
 
     void CallbackImpl()
@@ -158,8 +157,8 @@ private:
 
 // uv_default_loop() is a static singleton object, so it is safe to call
 // function at the binding time.
-TLazyIntrusivePtr<TUVInvoker> DefaultUvInvoker(BIND(
-    &New<TUVInvoker, uv_loop_t* const&>,
+TLazyIntrusivePtr<TUvInvoker> DefaultUvInvoker(BIND(
+    &New<TUvInvoker, uv_loop_t* const&>,
     uv_default_loop()));
 
 class TResponseParametersConsumer
@@ -228,7 +227,7 @@ private:
             FlushFuture_.Reset();
         }
 
-        FOREACH(const auto& bit, bitsToFlush) {
+        for (const auto& bit : bitsToFlush) {
             auto keyHandle = String::New(std::get<0>(bit).c_str());
             auto valueHandle = ConvertNodeToV8Value(std::get<1>(bit));
 
@@ -265,6 +264,8 @@ struct TExecuteRequest
 
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
+
+    NTracing::TTraceContext TraceContext;
 
     TExecuteRequest(
         TDriverWrap* wrap,
@@ -311,11 +312,23 @@ struct TExecuteRequest
     void SetCommand(
         Stroka commandName,
         Stroka authenticatedUser,
-        INodePtr arguments)
+        INodePtr arguments,
+        ui64 requestId)
     {
         DriverRequest.CommandName = std::move(commandName);
         DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
         DriverRequest.Arguments = arguments->AsMap();
+
+        auto trace = DriverRequest.Arguments->FindChild("trace");
+        if (trace && ConvertTo<bool>(trace)) {
+            TraceContext = NTracing::CreateRootTraceContext();
+            if (requestId) {
+                TraceContext = NTracing::TTraceContext(
+                    requestId,
+                    TraceContext.GetSpanId(),
+                    TraceContext.GetParentSpanId());
+            }
+        }
     }
 
     void SetInputCompression(ECompression compression)
@@ -358,7 +371,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         v8::ReadOnly);
     result->Set(
         DescriptorInputType,
-        String::New(to_lower(descriptor.InputType.ToString()).c_str()),
+        String::New(to_lower(ToString(descriptor.InputType)).c_str()),
         v8::ReadOnly);
     result->Set(
         DescriptorInputTypeAsInteger,
@@ -366,7 +379,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         DescriptorOutputType,
-        String::New(to_lower(descriptor.OutputType.ToString()).c_str()),
+        String::New(to_lower(ToString(descriptor.OutputType)).c_str()),
         v8::ReadOnly);
     result->Set(
         DescriptorOutputTypeAsInteger,
@@ -392,8 +405,8 @@ void ExportEnumeration(
     auto values = E::GetDomainValues();
     Local<Array> mapping = Array::New();
 
-    FOREACH (const auto& value, values) {
-        Stroka key = Stroka::Join(name, "_", E::GetLiteralByValue(value));
+    for (auto value : values) {
+        auto key = Stroka::Join(name, "_", E::GetLiteralByValue(value));
         auto keyHandle = String::NewSymbol(key.c_str());
         auto valueHandle = Integer::New(value);
         target->Set(
@@ -578,7 +591,7 @@ Handle<Value> TDriverWrap::DoGetCommandDescriptors()
     Local<Array> result = Array::New();
 
     auto descriptors = Driver->GetCommandDescriptors();
-    FOREACH (const auto& descriptor, descriptors) {
+    for (const auto& descriptor : descriptors) {
         Local<Object> resultItem = ConvertCommandDescriptorToV8Object(descriptor);
         result->Set(result->Length(), resultItem);
     }
@@ -594,7 +607,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 9);
+    YASSERT(args.Length() == 10);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
@@ -606,8 +619,9 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
 
     EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // Parameters
-    EXPECT_THAT_IS(args[7], Function); // ExecuteCallback
-    EXPECT_THAT_IS(args[8], Function); // ParameterCallback
+
+    EXPECT_THAT_IS(args[8], Function); // ExecuteCallback
+    EXPECT_THAT_IS(args[9], Function); // ParameterCallback
 
     // Unwrap arguments.
     TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
@@ -626,8 +640,19 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         (ECompression)args[5]->Uint32Value();
 
     INodePtr parameters = TNodeWrap::UnwrapNode(args[6]);
-    Local<Function> executeCallback = args[7].As<Function>();
-    Local<Function> parameterCallback = args[8].As<Function>();
+
+    ui64 requestId = 0;
+
+    if (node::Buffer::HasInstance(args[7])) {
+        const char* buffer = node::Buffer::Data(args[7].As<Object>());
+        size_t length = node::Buffer::Length(args[7].As<Object>());
+        if (length == 8) {
+            requestId = __builtin_bswap64(*(ui64*)buffer);
+        }
+    }
+
+    Local<Function> executeCallback = args[8].As<Function>();
+    Local<Function> parameterCallback = args[9].As<Function>();
 
     // Build an atom of work.
     YCHECK(parameters);
@@ -644,7 +669,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         request->SetCommand(
             Stroka(*commandName, commandName.length()),
             Stroka(*authenticatedUser, authenticatedUser.length()),
-            std::move(parameters));
+            std::move(parameters),
+            requestId);
 
         request->SetInputCompression(inputCompression);
         request->SetOutputCompression(outputCompression);
@@ -670,6 +696,8 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     if (LIKELY(!request->Wrap->Echo)) {
+        NTracing::TTraceContextGuard guard(request->TraceContext);
+
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
         request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();

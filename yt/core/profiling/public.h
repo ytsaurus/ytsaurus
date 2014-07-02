@@ -25,7 +25,7 @@ typedef i64  TCpuDuration;
 typedef int TTagId;
 
 const int TypicalTagCount = 8;
-typedef TSmallVector<TTagId, TypicalTagCount> TTagIdList;
+typedef SmallVector<TTagId, TypicalTagCount> TTagIdList;
 
 extern const TTagIdList EmptyTagIds;
 

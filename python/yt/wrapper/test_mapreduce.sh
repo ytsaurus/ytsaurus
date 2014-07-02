@@ -174,6 +174,7 @@ test_transactions()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
     TX=`./mapreduce -starttx`
+    ./mapreduce -renewtx "$TX"
     ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
     ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
 

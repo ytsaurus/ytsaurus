@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/formats/dsv_writer.h>
-#include <core/formats/dsv_parser.h>
+#include <ytlib/formats/dsv_writer.h>
+#include <ytlib/formats/dsv_parser.h>
 
 namespace NYT {
 namespace NFormats {
@@ -16,24 +16,24 @@ using namespace NYson;
 TEST(TDsvWriterTest, SimpleTabular)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("integer");
-        writer.OnIntegerScalar(42);
-        writer.OnKeyedItem("string");
-        writer.OnStringScalar("some");
-        writer.OnKeyedItem("double");
-        writer.OnDoubleScalar(10.);     // let's hope that 10. will be serialized as 10.
-    writer.OnEndMap();
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("foo");
-        writer.OnStringScalar("bar");
-        writer.OnKeyedItem("one");
-        writer.OnIntegerScalar(1);
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("integer");
+        consumer.OnIntegerScalar(42);
+        consumer.OnKeyedItem("string");
+        consumer.OnStringScalar("some");
+        consumer.OnKeyedItem("double");
+        consumer.OnDoubleScalar(10.);     // let's hope that 10. will be serialized as 10.
+    consumer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("foo");
+        consumer.OnStringScalar("bar");
+        consumer.OnKeyedItem("one");
+        consumer.OnIntegerScalar(1);
+    consumer.OnEndMap();
 
     Stroka output =
         "integer=42\tstring=some\tdouble=10.\n"
@@ -44,41 +44,41 @@ TEST(TDsvWriterTest, SimpleTabular)
 TEST(TDsvWriterTest, TabularWithAttributes)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginAttributes();
-    EXPECT_ANY_THROW(writer.OnKeyedItem("index"));
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+    EXPECT_ANY_THROW(consumer.OnKeyedItem("index"));
 }
 
 TEST(TDsvWriterTest, StringScalar)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnStringScalar("0-2-xb-1234");
+    consumer.OnStringScalar("0-2-xb-1234");
     EXPECT_EQ("0-2-xb-1234", outputStream.Str());
 }
 
 TEST(TDsvWriterTest, ListContainingDifferentTypes)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnBeginList();
-    writer.OnListItem();
-    writer.OnIntegerScalar(100);
-    writer.OnListItem();
-    writer.OnStringScalar("foo");
-    writer.OnListItem();
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("a");
-        writer.OnStringScalar("10");
-        writer.OnKeyedItem("b");
-        writer.OnStringScalar("c");
-    writer.OnEndMap();
-    writer.OnEndList();
+    consumer.OnBeginList();
+    consumer.OnListItem();
+    consumer.OnIntegerScalar(100);
+    consumer.OnListItem();
+    consumer.OnStringScalar("foo");
+    consumer.OnListItem();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("a");
+        consumer.OnStringScalar("10");
+        consumer.OnKeyedItem("b");
+        consumer.OnStringScalar("c");
+    consumer.OnEndMap();
+    consumer.OnEndList();
 
     Stroka output =
         "100\n"
@@ -92,31 +92,31 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
 TEST(TDsvWriterTest, ListInsideList)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnBeginList();
-    writer.OnListItem();
-    EXPECT_ANY_THROW(writer.OnBeginList());
+    consumer.OnBeginList();
+    consumer.OnListItem();
+    EXPECT_ANY_THROW(consumer.OnBeginList());
 }
 
 TEST(TDsvWriterTest, ListInsideMap)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnBeginMap();
-    writer.OnKeyedItem("foo");
-    EXPECT_ANY_THROW(writer.OnBeginList());
+    consumer.OnBeginMap();
+    consumer.OnKeyedItem("foo");
+    EXPECT_ANY_THROW(consumer.OnBeginList());
 }
 
 TEST(TDsvWriterTest, MapInsideMap)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnBeginMap();
-    writer.OnKeyedItem("foo");
-    EXPECT_ANY_THROW(writer.OnBeginMap());
+    consumer.OnBeginMap();
+    consumer.OnKeyedItem("foo");
+    EXPECT_ANY_THROW(consumer.OnBeginMap());
 }
 
 TEST(TDsvWriterTest, WithoutEsacping)
@@ -125,13 +125,13 @@ TEST(TDsvWriterTest, WithoutEsacping)
     config->EnableEscaping = false;
 
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream, config);
+    TDsvNodeConsumer consumer(&outputStream, config);
 
-    writer.OnStringScalar("string_with_\t_\\_=_and_\n");
+    consumer.OnStringScalar("string_with_\t_\\_=_and_\n");
 
     Stroka output = "string_with_\t_\\_=_and_\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,30 +142,30 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
-    TDsvTabularWriter writer(&outputStream, config);
+    TDsvTabularConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("integer");
-        writer.OnRaw("42", EYsonType::Node);
-        writer.OnKeyedItem("string");
-        writer.OnRaw("some", EYsonType::Node);
-        writer.OnKeyedItem("double");
-        writer.OnRaw("10.", EYsonType::Node);
-    writer.OnEndMap();
-    writer.OnListItem();
-    writer.OnBeginAttributes();
-    writer.OnKeyedItem("table_index");
-    writer.OnIntegerScalar(2);
-    writer.OnEndAttributes();
-    writer.OnEntity();
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("foo");
-        writer.OnRaw("bar", EYsonType::Node);
-        writer.OnKeyedItem("one");
-        writer.OnRaw("1", EYsonType::Node);
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("integer");
+        consumer.OnRaw("42", EYsonType::Node);
+        consumer.OnKeyedItem("string");
+        consumer.OnRaw("some", EYsonType::Node);
+        consumer.OnKeyedItem("double");
+        consumer.OnRaw("10.", EYsonType::Node);
+    consumer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+    consumer.OnKeyedItem("table_index");
+    consumer.OnIntegerScalar(2);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("foo");
+        consumer.OnRaw("bar", EYsonType::Node);
+        consumer.OnKeyedItem("one");
+        consumer.OnRaw("1", EYsonType::Node);
+    consumer.OnEndMap();
 
     Stroka output =
         "integer=42\tstring=some\tdouble=10.\t@table_index=0\n"
@@ -177,9 +177,9 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
 TEST(TDsvWriterTest, ListUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnRaw("[10; 20; 30]", EYsonType::Node);
+    consumer.OnRaw("[10; 20; 30]", EYsonType::Node);
     Stroka output =
         "10\n"
         "20\n"
@@ -191,9 +191,9 @@ TEST(TDsvWriterTest, ListUsingOnRaw)
 TEST(TDsvWriterTest, MapUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvNodeWriter writer(&outputStream);
+    TDsvNodeConsumer consumer(&outputStream);
 
-    writer.OnRaw("{a=b; c=d}", EYsonType::Node);
+    consumer.OnRaw("{a=b; c=d}", EYsonType::Node);
     Stroka output = "a=b\tc=d";
 
     EXPECT_EQ(output, outputStream.Str());
@@ -203,49 +203,49 @@ TEST(TDsvWriterTest, MapUsingOnRaw)
 TEST(TDsvWriterTest, ListInTable)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
 
-    EXPECT_ANY_THROW(writer.OnRaw("[10; 20; 30]", EYsonType::Node));
+    EXPECT_ANY_THROW(consumer.OnRaw("[10; 20; 30]", EYsonType::Node));
 }
 
 TEST(TDsvWriterTest, MapInTable)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
 
-    EXPECT_ANY_THROW(writer.OnRaw("{a=10}", EYsonType::Node));
+    EXPECT_ANY_THROW(consumer.OnRaw("{a=10}", EYsonType::Node));
 }
 
 TEST(TDsvWriterTest, AttributesInTable)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
 
-    EXPECT_ANY_THROW(writer.OnRaw("<a=10>string", EYsonType::Node));
+    EXPECT_ANY_THROW(consumer.OnRaw("<a=10>string", EYsonType::Node));
 }
 
 TEST(TDsvWriterTest, EntityInTable)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    TDsvTabularConsumer consumer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("value");
 
-    EXPECT_ANY_THROW(writer.OnRaw("#", EYsonType::Node));
+    EXPECT_ANY_THROW(consumer.OnRaw("#", EYsonType::Node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,34 +256,34 @@ TEST(TTskvWriterTest, SimpleTabular)
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream, config);
+    TDsvTabularConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("id");
-        writer.OnStringScalar("1");
-        writer.OnKeyedItem("guid");
-        writer.OnIntegerScalar(100500);
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("id");
+        consumer.OnStringScalar("1");
+        consumer.OnKeyedItem("guid");
+        consumer.OnIntegerScalar(100500);
+    consumer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("id");
-        writer.OnStringScalar("2");
-        writer.OnKeyedItem("guid");
-        writer.OnIntegerScalar(20025);
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem("id");
+        consumer.OnStringScalar("2");
+        consumer.OnKeyedItem("guid");
+        consumer.OnIntegerScalar(20025);
+    consumer.OnEndMap();
 
     Stroka output =
         "tskv\n"
         "tskv\tid=1\tguid=100500\n"
         "tskv\tid=2\tguid=20025\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TTskvWriterTest, Escaping)
@@ -292,15 +292,15 @@ TEST(TTskvWriterTest, Escaping)
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream, config);
+    TDsvTabularConsumer consumer(&outputStream, config);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem(Stroka("\0 is escaped", 12));
-        writer.OnStringScalar(Stroka("\0 is escaped", 12));
-        writer.OnKeyedItem("Escaping in in key: \r \t \n \\ =");
-        writer.OnStringScalar("Escaping in value: \r \t \n \\ =");
-    writer.OnEndMap();
+    consumer.OnListItem();
+    consumer.OnBeginMap();
+        consumer.OnKeyedItem(Stroka("\0 is escaped", 12));
+        consumer.OnStringScalar(Stroka("\0 is escaped", 12));
+        consumer.OnKeyedItem("Escaping in in key: \r \t \n \\ =");
+        consumer.OnStringScalar("Escaping in value: \r \t \n \\ =");
+    consumer.OnEndMap();
 
     Stroka output =
         "tskv"
@@ -318,7 +318,7 @@ TEST(TTskvWriterTest, Escaping)
 
         "\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TTskvWriterTest, EscapingOfCustomSeparator)
@@ -327,7 +327,7 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
     config->KeyValueSeparator = ':';
 
     TStringStream outputStreamA;
-    TDsvTabularWriter writerA(&outputStreamA, config);
+    TDsvTabularConsumer writerA(&outputStreamA, config);
 
     writerA.OnListItem();
     writerA.OnBeginMap();
@@ -336,7 +336,7 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
     writerA.OnEndMap();
 
     TStringStream outputStreamB;
-    TDsvTabularWriter writerB(&outputStreamB, config);
+    TDsvTabularConsumer writerB(&outputStreamB, config);
     ParseDsv(outputStreamA.Str(), &writerB, config);
 
     EXPECT_EQ(outputStreamA.Str(), outputStreamB.Str());

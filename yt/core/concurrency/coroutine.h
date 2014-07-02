@@ -1,59 +1,58 @@
 #pragma once
 
 #include "public.h"
-#include "fiber.h"
+#include "scheduler.h"
+
+#include "execution_context.h"
+#include "execution_stack.h"
 
 #include <core/misc/nullable.h>
 
 namespace NYT {
 namespace NConcurrency {
+namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class Signature>
-class TCoroutine;
 
 class TCoroutineBase
 {
 protected:
     TCoroutineBase();
+    TCoroutineBase(const TCoroutineBase&) = delete;
+    TCoroutineBase(TCoroutineBase&& other);
+
     virtual ~TCoroutineBase();
 
-    virtual void Trampoline() = 0;
+    virtual void Invoke() = 0;
+
+    static void Trampoline(void*);
+
+    void JumpToCaller();
+    void JumpToCoroutine();
+
+    bool Completed_;
+
+    TExecutionContext CallerContext_;
+
+    std::shared_ptr<TExecutionStack> CoroutineStack_;
+    TExecutionContext CoroutineContext_;
+    std::exception_ptr CoroutineException_;
 
 public:
-    EFiberState GetState() const;
-
-protected:
-    TFiberPtr Fiber;
-
-private:
-    TCoroutineBase(const TCoroutineBase&);
-    TCoroutineBase& operator=(const TCoroutineBase&);
+    bool IsCompleted() const;
 
 };
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template<unsigned...>
-struct TSequence { };
-
-template<unsigned N, unsigned... Indexes>
-struct TGenerateSequence : TGenerateSequence<N - 1, N - 1, Indexes...> { };
-
-template<unsigned... Indexes>
-struct TGenerateSequence<0, Indexes...> {
-	typedef TSequence<Indexes...> TType;
-};
-
-
-template<class TCallee, class TCaller, class TArguments, unsigned... Indexes>
-void CallRun(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
-    TSequence<Indexes...>)
+template <class TCallee, class TCaller, class TArguments, unsigned... Indexes>
+void Invoke(
+    TCallee& callee,
+    TCaller& caller,
+    TArguments&& arguments,
+    NMpl::TSequence<Indexes...>)
 {
-	Callee.Run(Caller, std::get<Indexes>(std::forward<TArguments>(Arguments))...);
+    callee.Run(
+        caller,
+        std::get<Indexes>(std::forward<TArguments>(arguments))...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +61,7 @@ void CallRun(TCallee& Callee, TCaller& Caller, TArguments&& Arguments,
 
 template <class R, class... TArgs>
 class TCoroutine<R(TArgs...)>
-    : public TCoroutineBase
+    : public NDetail::TCoroutineBase
 {
 public:
     typedef R (FunctionalSignature)(TArgs...);
@@ -71,61 +70,63 @@ public:
     typedef TCallback<CoroutineSignature> TCallee;
     typedef std::tuple<TArgs...> TArguments;
 
-    TCoroutine()
-        : TCoroutineBase()
+    TCoroutine() = default;
+    TCoroutine(TCoroutine&& other)
+        : NDetail::TCoroutineBase(std::move(other))
+        , Callee_(std::move(other.Callee_))
+        , Arguments_(std::move(other.Arguments_))
+        , Result_(std::move(other.Result_))
     { }
 
     TCoroutine(TCallee&& callee)
-        : TCoroutineBase()
-        , Callee(std::move(callee))
+        : NDetail::TCoroutineBase()
+        , Callee_(std::move(callee))
     { }
-
-    void Reset(TCallee callee)
-    {
-        Fiber->Reset();
-        Callee = std::move(callee);
-    }
 
     template <class... TParams>
     const TNullable<R>& Run(TParams&&... params)
     {
         static_assert(sizeof...(TParams) == sizeof...(TArgs),
-            "Params and args counts does not match.");
-        Arguments = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber->Run();
-        return Result;
+            "TParams<> and TArgs<> have different length");
+        Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
+        JumpToCoroutine();
+        return Result_;
     }
 
     template <class Q>
     TArguments&& Yield(Q&& result)
     {
-        Result = std::forward<Q>(result);
-        Fiber->Yield();
-        return std::move(Arguments);
+        Result_ = std::forward<Q>(result);
+        JumpToCaller();
+        return std::move(Arguments_);
     }
 
 private:
-    virtual void Trampoline() override
+    virtual void Invoke() override
     {
         try {
-            NDetail::CallRun(Callee, *this, std::move(Arguments),
-                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
-            Result.Reset();
-        } catch(...) {
-            Result.Reset();
+            NDetail::Invoke(
+                Callee_,
+                *this,
+                std::move(Arguments_),
+                typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
+            Result_.Reset();
+        } catch (...) {
+            Result_.Reset();
             throw;
         }
     }
 
 private:
-    TCallee Callee;
-    TArguments Arguments;
-    TNullable<R> Result;
+    TCallee Callee_;
+    TArguments Arguments_;
+    TNullable<R> Result_;
+
 };
 
 template <class... TArgs>
 class TCoroutine<void(TArgs...)>
-    : public TCoroutineBase
+    : public NDetail::TCoroutineBase
 {
 public:
     typedef void (FunctionalSignature)(TArgs...);
@@ -134,55 +135,57 @@ public:
     typedef TCallback<CoroutineSignature> TCallee;
     typedef std::tuple<TArgs...> TArguments;
 
-    TCoroutine()
-        : TCoroutineBase()
+    TCoroutine() = default;
+    TCoroutine(TCoroutine&& other)
+        : NDetail::TCoroutineBase(std::move(other))
+        , Callee_(std::move(other.Callee_))
+        , Arguments_(std::move(other.Arguments_))
+        , Result_(other.Result_)
     { }
 
     TCoroutine(TCallee&& callee)
-        : TCoroutineBase()
-        , Callee(std::move(callee))
+        : NDetail::TCoroutineBase()
+        , Callee_(std::move(callee))
     { }
-
-    void Reset(TCallee callee)
-    {
-        Fiber->Reset();
-        Callee = std::move(callee);
-    }
 
     template <class... TParams>
     bool Run(TParams&&... params)
     {
-  static_assert(sizeof...(TParams) == sizeof...(TArgs),
-      "Params and args counts does not match.");
-        Arguments = std::make_tuple(std::forward<TParams>(params)...);
-        Fiber->Run();
-        return Result;
+        static_assert(sizeof...(TParams) == sizeof...(TArgs),
+            "TParams<> and TArgs<> have different length");
+        Arguments_ = std::make_tuple(std::forward<TParams>(params)...);
+        JumpToCoroutine();
+        return Result_;
     }
 
     TArguments&& Yield()
     {
-        Result = true;
-        Fiber->Yield();
-        return std::move(Arguments);
+        Result_ = true;
+        JumpToCaller();
+        return std::move(Arguments_);
     }
 
 private:
-    virtual void Trampoline() override
+    virtual void Invoke() override
     {
         try {
-            NDetail::CallRun(Callee, *this, std::move(Arguments),
-                typename NDetail::TGenerateSequence<sizeof...(TArgs)>::TType());
-            Result = false;
-        } catch(const std::exception& ex) {
-            Result = false;
+            NDetail::Invoke(
+                Callee_,
+                *this,
+                std::move(Arguments_),
+                typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType());
+            Result_ = false;
+        } catch (...) {
+            Result_ = false;
             throw;
         }
     }
 
 private:
-    TCallee Callee;
-    TArguments Arguments;
-    bool Result;
+    TCallee Callee_;
+    TArguments Arguments_;
+    bool Result_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

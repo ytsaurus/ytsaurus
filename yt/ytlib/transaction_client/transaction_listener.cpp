@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "transaction_listener.h"
-#include "transaction.h"
+#include "transaction_manager.h"
 
 #include <core/misc/error.h>
 
@@ -13,9 +13,10 @@ TTransactionListener::TTransactionListener()
     : IsAborted_(false)
 { }
 
-void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
+void TTransactionListener::ListenTransaction(TTransactionPtr transaction)
 {
-    YASSERT(transaction);
+    YCHECK(transaction);
+
     transaction->SubscribeAborted(BIND(
         &TTransactionListener::OnAborted,
         MakeWeak(this)));

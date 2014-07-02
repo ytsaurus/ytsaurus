@@ -2,12 +2,15 @@
 
 #include "public.h"
 
+#include <core/compression/public.h>
+
+#include <core/erasure/public.h>
+
 #include <core/misc/error.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <core/rpc/config.h>
 
-#include <core/compression/public.h>
-#include <core/erasure/public.h>
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -82,6 +85,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TClientBlockCacheConfig
@@ -99,6 +104,8 @@ public:
             .GreaterThanOrEqual(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TClientBlockCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +136,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSequentialReaderConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriterConfig
@@ -143,20 +152,17 @@ public:
 
     //! RPC requests timeout.
     /*!
-     *  This timeout is especially useful for PutBlocks calls to ensure that
+     *  This timeout is especially useful for |PutBlocks| calls to ensure that
      *  uploading is not stalled.
      */
     TDuration NodeRpcTimeout;
 
     int MinUploadReplicationFactor;
 
-    //! Maximum allowed period of time without RPC requests to nodes.
-    /*!
-     *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
-     */
-    TDuration NodePingInterval;
+    //! Interval between consecutive pings to Data Nodes.
+    TDuration NodePingPeriod;
 
-    //! If True then written blocks are cached by the node.
+    //! If |true| then written blocks are cached by the node.
     bool EnableNodeCaching;
 
     bool SyncOnClose;
@@ -174,7 +180,7 @@ public:
         RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
             .Default(2)
             .GreaterThan(0);
-        RegisterParameter("node_ping_interval", NodePingInterval)
+        RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_node_caching", EnableNodeCaching)
             .Default(false);
@@ -188,6 +194,8 @@ public:
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +212,8 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -227,11 +237,14 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TEncodingWriterOptions
+class TEncodingWriterOptions
     : public virtual NYTree::TYsonSerializable
 {
+public:
     NCompression::ECodec CompressionCodec;
 
     TEncodingWriterOptions()
@@ -240,6 +253,8 @@ struct TEncodingWriterOptions
             .Default(NCompression::ECodec::None);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -260,6 +275,8 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -302,11 +319,14 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TMultiChunkWriterOptions
+class TMultiChunkWriterOptions
     : public virtual TEncodingWriterOptions
 {
+public:
     int ReplicationFactor;
     Stroka Account;
     bool ChunksVital;
@@ -327,12 +347,15 @@ struct TMultiChunkWriterOptions
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
+
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TMultiChunkReaderConfig
+class TMultiChunkReaderConfig
     : public virtual TReplicationReaderConfig
     , public virtual TSequentialReaderConfig
 {
+public:
     i64 MaxBufferSize;
 
     TMultiChunkReaderConfig()
@@ -349,6 +372,29 @@ struct TMultiChunkReaderConfig
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TFetcherConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
+    TDuration NodeRpcTimeout;
+
+    TFetcherConfig()
+    {
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+            .Default(TDuration::Seconds(30));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

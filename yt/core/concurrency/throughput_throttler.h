@@ -33,6 +33,10 @@ public:
     TNullable<i64> Limit;
 };
 
+DEFINE_REFCOUNTED_TYPE(TThroughputThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Enables async operation to throttle based on throughput limit.
 /*!
  *  This interface and its implementations are vastly inspired by |DataTransferThrottler| class from Hadoop
@@ -49,6 +53,8 @@ struct IThroughputThrottler
      */
     virtual TFuture<void> Throttle(i64 count) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
 
 //! Returns a throttler from #config.
 IThroughputThrottlerPtr CreateLimitedThrottler(TThroughputThrottlerConfigPtr config);

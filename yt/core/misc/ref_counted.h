@@ -207,7 +207,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 //! A helper called by #New to register the just-created instance.
 void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
@@ -222,14 +222,14 @@ protected:
     TRefCountedBase();
     virtual ~TRefCountedBase();
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     void FinalizeTracking();
 #endif
 
 private:
     friend void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     void* TypeCookie;
     size_t InstanceSize;
 
@@ -238,7 +238,7 @@ private:
 
 };
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 FORCED_INLINE void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize)
 {
@@ -260,7 +260,7 @@ public:
     //! Increments the reference counter.
     inline void Ref() const // noexcept
     {
-#ifdef ENABLE_REF_COUNTED_DEBUGGING
+#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         auto rc = RefCounter->GetRefCount();
         ::std::fprintf(stderr, "=== %p === Ref(): %" PRId32 " -> %" PRId32, this, rc, rc + 1);
 #endif
@@ -270,7 +270,7 @@ public:
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
-#ifdef ENABLE_REF_COUNTED_DEBUGGING
+#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         auto rc = RefCounter->GetRefCount();
         ::std::fprintf(stderr, "=== %p === Unref(): %" PRId32 " -> %" PRId32, this, rc, rc - 1);
 #endif
@@ -323,7 +323,7 @@ public:
     //! Increments the reference counter.
     inline void Ref() const // noexcept
     {
-#ifdef ENABLE_REF_COUNTED_DEBUGGING
+#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         auto rc = NDetail::AtomicallyFetch(&RefCounter);
         ::std::fprintf(stderr, "=== %p === Ref(): %" PRId64 " -> %" PRId64, this, rc, rc + 1);
 #endif
@@ -334,7 +334,7 @@ public:
     //! Decrements the reference counter.
     inline void Unref() const // noexcept
     {
-#ifdef ENABLE_REF_COUNTED_DEBUGGING
+#ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         auto rc = NDetail::AtomicallyFetch(&RefCounter);
         ::std::fprintf(stderr, "=== %p === Unref(): %" PRId64 " -> %" PRId64, this, rc, rc - 1);
 #endif

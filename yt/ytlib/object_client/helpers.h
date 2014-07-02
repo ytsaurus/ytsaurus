@@ -11,6 +11,12 @@ namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! |#|-prefix.
+extern TStringBuf ObjectIdPathPrefix;
+
+//! Creates the YPath pointing to an object with a given id.
+NYPath::TYPath FromObjectId(const TObjectId& id);
+
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
 bool IsVersionedType(EObjectType type);
 
@@ -19,6 +25,12 @@ bool IsUserType(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);
+
+//! Extracts the cell id component from an id.
+TCellId CellIdFromId(const TObjectId& id);
+
+//! Extracts the counter component from an id.
+ui64 CounterFromId(const TObjectId& id);
 
 //! Returns |true| iff a given regular type has an associated schema type.
 bool HasSchema(EObjectType type);
@@ -49,12 +61,6 @@ TObjectId MakeSchemaObjectId(
 
 //! Constructs a new object id by replacing type component in a given one.
 TObjectId ReplaceTypeInId(
-    const TObjectId& id,
-    EObjectType type);
-
-
-//! Extract cell id from object id.
-TCellId GetCellId(
     const TObjectId& id,
     EObjectType type);
 

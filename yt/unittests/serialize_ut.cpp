@@ -10,11 +10,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TSharedRef ref)
-{
-    return Stroka(ref.Begin(), ref.Size());
-}
-
 Stroka RemoveSpaces(const Stroka& str)
 {
     Stroka res = str;

@@ -20,16 +20,16 @@ class TRefTracked
 public:
     TRefTracked()
     {
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        void* cookie = GetRefCountedTrackerCookie<T>();
         TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
 #endif
     }
 
     ~TRefTracked()
     {
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
+        void* cookie = GetRefCountedTrackerCookie<T>();
         TRefCountedTracker::Get()->Free(cookie, sizeof(T));
 #endif
     }

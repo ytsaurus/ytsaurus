@@ -8,7 +8,7 @@
 
 #include <ytlib/driver/config.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NDriver {
@@ -28,12 +28,12 @@ public:
         auto structuredAttributes = NYTree::CreateEphemeralAttributes();
         structuredAttributes->Set("format", Stroka("pretty"));
         RegisterParameter("structured", Structured)
-            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~structuredAttributes));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, structuredAttributes.get()));
 
         auto tabularAttributes = NYTree::CreateEphemeralAttributes();
         tabularAttributes->Set("format", Stroka("text"));
         RegisterParameter("tabular", Tabular)
-            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~tabularAttributes));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, tabularAttributes.get()));
     }
 };
 
@@ -42,16 +42,19 @@ typedef TIntrusivePtr<TFormatDefaultsConfig> TFormatDefaultsConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutorConfig
-    : public NDriver::TDriverConfig
+    : public NYTree::TYsonSerializable
 {
 public:
+    NDriver::TDriverConfigPtr Driver;
     NYTree::INodePtr Logging;
     TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationPollPeriod;
+    bool Trace;
 
     TExecutorConfig()
     {
+        RegisterParameter("driver", Driver);
         RegisterParameter("logging", Logging);
         RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
@@ -59,6 +62,8 @@ public:
             .DefaultNew();
         RegisterParameter("operation_poll_period", OperationPollPeriod)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("trace", Trace)
+            .Default(false);
     }
 };
 

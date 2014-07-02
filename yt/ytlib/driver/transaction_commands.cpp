@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
 
-#include <core/concurrency/fiber.h>
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/attribute_helpers.h>
@@ -26,19 +26,23 @@ using namespace NConcurrency;
 void TStartTransactionCommand::DoExecute()
 {
     TTransactionStartOptions options;
-    options.Timeout = Request->Timeout;
-    options.ParentId = Request->TransactionId;
-    options.MutationId = Request->MutationId;
+    options.Timeout = Request_->Timeout;
+    options.ParentId = Request_->TransactionId;
+    options.MutationId = Request_->MutationId;
     options.Ping = true;
     options.AutoAbort = false;
-    options.PingAncestors = Request->PingAncestors;
+    options.PingAncestors = Request_->PingAncestors;
 
-    if (Request->Attributes) {
-        options.Attributes = ConvertToAttributes(Request->Attributes);
+    std::unique_ptr<IAttributeDictionary> attributes;
+    if (Request_->Attributes) {
+        attributes = ConvertToAttributes(Request_->Attributes);
+        options.Attributes = attributes.get();
     }
 
-    auto transactionManager = Context->GetTransactionManager();
-    auto transactionOrError = WaitFor(transactionManager->AsyncStart(options));
+    auto transactionManager = Context_->GetClient()->GetTransactionManager();
+    auto transactionOrError = WaitFor(transactionManager->Start(
+        ETransactionType::Master,
+        options));
     auto transaction = transactionOrError.ValueOrThrow();
     transaction->Detach();
 
@@ -51,11 +55,11 @@ void TStartTransactionCommand::DoExecute()
 void TPingTransactionCommand::DoExecute()
 {
     // Specially for evvers@ :)
-    if (Request->TransactionId == NullTransactionId)
+    if (Request_->TransactionId == NullTransactionId)
         return;
 
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->AsyncPing());
+    auto result = WaitFor(transaction->Ping());
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
@@ -64,7 +68,7 @@ void TPingTransactionCommand::DoExecute()
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->AsyncCommit(GenerateMutationId()));
+    auto result = WaitFor(transaction->Commit(GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
@@ -73,7 +77,7 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result =WaitFor(transaction->AsyncAbort(true, GenerateMutationId()));
+    auto result = WaitFor(transaction->Abort(GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 

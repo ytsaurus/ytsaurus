@@ -8,7 +8,7 @@
 
 #include <core/yson/lexer.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/encoding_writer.h>
@@ -17,12 +17,15 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NVersionedTableClient;
 using namespace NChunkClient;
 using namespace NYTree;
 
+using NVersionedTableClient::TKey;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableWriterLogger;
+static auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +49,7 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 
 void TPartitionChunkWriterFacade::WriteRowUnsafe(
     const TRow& row,
-    const TNonOwningKey& key)
+    const TKey& key)
 {
     UNUSED(key);
     WriteRowUnsafe(row);
@@ -57,17 +60,20 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
+    NChunkClient::IWriterPtr chunkWriter,
     IPartitioner* partitioner)
     : TChunkWriterBase(config, options, chunkWriter)
     , Partitioner(partitioner)
     , Facade(this)
     , BasicMetaSize(0)
 {
-    for (int i = 0; i < options->KeyColumns.Get().size(); ++i) {
+    int keyColumnCount = Options->KeyColumns.Get().size();
+    PartitionKey = TKey::Allocate(&Pool, keyColumnCount);
+
+    for (int i = 0; i < keyColumnCount; ++i) {
         KeyColumnIndexes[options->KeyColumns.Get()[i]] = i;
     }
-    *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
+    ToProto(ChannelsExt.add_items()->mutable_channel(), TChannel::Universal());
 
     int upperReserveLimit = TChannelWriter::MaxUpperReserveLimit;
     {
@@ -82,7 +88,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.
         Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true, upperReserveLimit));
-        BuffersHeap.push_back(~Buffers.back());
+        BuffersHeap.push_back(Buffers.back().Get());
         CurrentBufferCapacity += Buffers.back()->GetCapacity();
 
         auto* partitionAttributes = PartitionsExt.add_partitions();
@@ -123,24 +129,23 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 {
     YASSERT(State.IsActive());
 
-    int keyColumnCount = Options->KeyColumns.Get().size();
-    TNonOwningKey key(keyColumnCount);
+    ResetRowValues(&PartitionKey);
 
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         auto it = KeyColumnIndexes.find(pair.first);
         if (it != KeyColumnIndexes.end()) {
-            key.SetKeyPart(it->second, pair.second, Lexer);
+            PartitionKey[it->second] = MakeKeyPart(pair.second, Lexer);
         }
     }
 
-    int partitionTag = Partitioner->GetPartitionTag(key);
+    int partitionTag = Partitioner->GetPartitionTag(PartitionKey);
     auto& channelWriter = Buffers[partitionTag];
 
     i64 rowDataWeight = 1;
     auto capacity = channelWriter->GetCapacity();
-    auto channelSize = channelWriter->GetCurrentSize();
+    auto channelSize = channelWriter->GetDataSize();
 
-    FOREACH (const auto& pair, row) {
+    for (const auto& pair : row) {
         channelWriter->WriteRange(pair.first, pair.second);
 
         rowDataWeight += pair.first.size();
@@ -159,12 +164,12 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
     DataWeight += rowDataWeight;
     RowCount += 1;
 
-    CurrentUncompressedSize += channelWriter->GetCurrentSize() - channelSize;
+    CurrentUncompressedSize += channelWriter->GetDataSize() - channelSize;
     CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 
     AdjustBufferHeap(partitionTag);
 
-    if (channelWriter->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+    if (channelWriter->GetDataSize() > static_cast<size_t>(Config->BlockSize)) {
         YCHECK(channelWriter->GetHeapIndex() == 0);
         PrepareBlock();
     }
@@ -195,7 +200,7 @@ void TPartitionChunkWriter::PrepareBlock()
 
     i64 size = 0;
     auto blockParts = channelWriter->FlushBlock();
-    FOREACH (const auto& part, blockParts) {
+    for (const auto& part : blockParts) {
         size += part.Size();
     }
 
@@ -234,8 +239,8 @@ NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
     static const int schedulerMetaTagsArray[] = {
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-        TProtoExtensionTag<NProto::TPartitionsExt>::Value };
-
+        TProtoExtensionTag<NProto::TPartitionsExt>::Value
+    };
     static const yhash_set<int> schedulerMetaTags(schedulerMetaTagsArray, schedulerMetaTagsArray + 2);
 
     auto meta = Meta;
@@ -247,7 +252,7 @@ NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
     return meta;
 }
 
-TAsyncError TPartitionChunkWriter::AsyncClose()
+TAsyncError TPartitionChunkWriter::Close()
 {
     YASSERT(!State.IsClosed());
 
@@ -257,7 +262,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
         PrepareBlock();
     }
 
-    EncodingWriter->AsyncFlush().Subscribe(
+    EncodingWriter->Flush().Subscribe(
         BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
         .Via(TDispatcher::Get()->GetWriterInvoker()));
 
@@ -291,7 +296,7 @@ TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
-TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(ActiveWriterCount == 0);
     if (CurrentWriter) {
@@ -302,7 +307,7 @@ TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunk
     CurrentWriter = New<TPartitionChunkWriter>(
         Config,
         Options,
-        asyncWriter,
+        chunkWriter,
         Partitioner);
 
     TGuard<TSpinLock> guard(SpinLock);
@@ -341,7 +346,7 @@ NChunkClient::NProto::TDataStatistics TPartitionChunkWriterProvider::GetDataStat
 
     auto result = DataStatistics;
 
-    FOREACH(const auto& writer, ActiveWriters) {
+    for (const auto& writer : ActiveWriters) {
         result += writer->GetDataStatistics();
     }
     return result;

@@ -1,4 +1,4 @@
-var Q = require("q");
+var Q = require("bluebird");
 
 var YtApplicationAuth = require("../application_auth").that;
 var YtRegistry = require("../registry").that;
@@ -15,6 +15,6 @@ exports.that = function Middleware__YtApplicationAuth()
     var app = new YtApplicationAuth(logger, authority);
 
     return function(req, rsp, next) {
-        return Q(app.dispatch(req, rsp, next)).done();
+        return Q.cast(app.dispatch(req, rsp, next)).done();
     };
 };

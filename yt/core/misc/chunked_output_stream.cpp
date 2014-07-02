@@ -6,66 +6,87 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkedOutputStreamTag { };
-
-TChunkedOutputStream::TChunkedOutputStream(size_t maxReserveSize, size_t initialReserveSize)
-    : MaxReserveSize(RoundUpToPage(maxReserveSize))
-    , CurrentReserveSize(RoundUpToPage(initialReserveSize))
-    , CompleteSize(0)
+TChunkedOutputStream::TChunkedOutputStream(
+    size_t initialReserveSize,
+    size_t maxReserveSize,
+    void* tagCookie)
+    : MaxReserveSize_(RoundUpToPage(maxReserveSize))
+    , CurrentReserveSize_(RoundUpToPage(initialReserveSize))
+    , TagCookie_(tagCookie)
+    , FinishedSize_(0)
 {
-    if (CurrentReserveSize > MaxReserveSize) {
-        CurrentReserveSize = MaxReserveSize;
+    YCHECK(MaxReserveSize_ > 0);
+
+    if (CurrentReserveSize_ > MaxReserveSize_) {
+        CurrentReserveSize_ = MaxReserveSize_;
     }
-
-    YCHECK(MaxReserveSize > 0);
-
-    IncompleteChunk.Reserve(CurrentReserveSize);
+    CurrentChunk_.Reserve(CurrentReserveSize_);
 }
 
 TChunkedOutputStream::~TChunkedOutputStream() throw()
 { }
 
-std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
+std::vector<TSharedRef> TChunkedOutputStream::Flush()
 {
-    CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(IncompleteChunk)));
+    FinishedChunks_.push_back(TSharedRef::FromBlob(std::move(CurrentChunk_), TagCookie_));
 
-    YASSERT(IncompleteChunk.IsEmpty());
-    CompleteSize = 0;
-    IncompleteChunk.Reserve(CurrentReserveSize);
+    YASSERT(CurrentChunk_.IsEmpty());
+    FinishedSize_ = 0;
+    CurrentChunk_.Reserve(CurrentReserveSize_);
 
-    return std::move(CompleteChunks);
+    return std::move(FinishedChunks_);
 }
 
 size_t TChunkedOutputStream::GetSize() const
 {
-    return CompleteSize + IncompleteChunk.Size();
+    return FinishedSize_ + CurrentChunk_.Size();
 }
 
 size_t TChunkedOutputStream::GetCapacity() const
 {
-    return CompleteSize + IncompleteChunk.Capacity();
+    return FinishedSize_ + CurrentChunk_.Capacity();
 }
 
 void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
 {
-    const auto spaceAvailable = std::min(length, IncompleteChunk.Capacity() - IncompleteChunk.Size());
+    const auto spaceAvailable = std::min(length, CurrentChunk_.Capacity() - CurrentChunk_.Size());
     const auto spaceRequired = length - spaceAvailable;
 
-    IncompleteChunk.Append(buffer, spaceAvailable);
+    CurrentChunk_.Append(buffer, spaceAvailable);
 
     if (spaceRequired) {
-        YASSERT(IncompleteChunk.Size() == IncompleteChunk.Capacity());
+        YASSERT(CurrentChunk_.Size() == CurrentChunk_.Capacity());
 
-        CompleteSize += IncompleteChunk.Size();
-        CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(IncompleteChunk)));
+        FinishedSize_ += CurrentChunk_.Size();
+        FinishedChunks_.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(CurrentChunk_)));
 
-        YASSERT(IncompleteChunk.IsEmpty());
+        YASSERT(CurrentChunk_.IsEmpty());
 
-        CurrentReserveSize = std::min(2 * CurrentReserveSize, MaxReserveSize);
+        CurrentReserveSize_ = std::min(2 * CurrentReserveSize_, MaxReserveSize_);
 
-        IncompleteChunk.Reserve(std::max(RoundUpToPage(spaceRequired), CurrentReserveSize));
-        IncompleteChunk.Append(static_cast<const char*>(buffer) + spaceAvailable, spaceRequired);
+        CurrentChunk_.Reserve(std::max(RoundUpToPage(spaceRequired), CurrentReserveSize_));
+        CurrentChunk_.Append(static_cast<const char*>(buffer) + spaceAvailable, spaceRequired);
     }
+}
+
+char* TChunkedOutputStream::Preallocate(size_t size)
+{
+    size_t available = CurrentChunk_.Capacity() - CurrentChunk_.Size();
+    if (available < size) {
+        FinishedSize_ += CurrentChunk_.Size();
+        FinishedChunks_.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(CurrentChunk_)));
+
+        CurrentReserveSize_ = std::min(2 * CurrentReserveSize_, MaxReserveSize_);
+
+        CurrentChunk_.Reserve(std::max(RoundUpToPage(size), CurrentReserveSize_));
+    }
+    return CurrentChunk_.End();
+}
+
+void TChunkedOutputStream::Advance(size_t size)
+{
+    YASSERT(CurrentChunk_.Size() + size <= CurrentChunk_.Capacity());
+    CurrentChunk_.Resize(CurrentChunk_.Size() + size, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

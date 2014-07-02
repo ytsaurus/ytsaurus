@@ -1,0 +1,16 @@
+#pragma once
+
+#include <core/misc/common.h>
+
+namespace NYT {
+namespace NQueryAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TQueryChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryAgentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryAgent
+} // namespace NYT

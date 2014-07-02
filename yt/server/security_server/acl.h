@@ -19,7 +19,7 @@ namespace NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalSubjectCount = 4;
-typedef TSmallVector<TSubject*, TypicalSubjectCount> TSubjectList;
+typedef SmallVector<TSubject*, TypicalSubjectCount> TSubjectList;
 
 struct TAccessControlEntry
 {
@@ -43,7 +43,7 @@ void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalAceCount = 16;
-typedef TSmallVector<TAccessControlEntry, TypicalAceCount> TAccessControlEntryList;
+typedef SmallVector<TAccessControlEntry, TypicalAceCount> TAccessControlEntryList;
 
 struct TAccessControlList
 {

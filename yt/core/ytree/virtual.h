@@ -25,7 +25,7 @@ private:
     virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
+    virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;

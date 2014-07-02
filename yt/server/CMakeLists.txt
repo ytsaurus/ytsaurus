@@ -1,5 +1,8 @@
 set( DIRS
   misc
+  election
+  hydra
+  hive
   cell_master
   cell_node
   cell_scheduler
@@ -17,6 +20,10 @@ set( DIRS
   object_server
   security_server
   node_tracker_server
+  tablet_node
+  tablet_server
+  query_agent
+  journal_server
 )
 
 foreach( _d_ ${DIRS} )
@@ -33,6 +40,10 @@ add_msvc_precompiled_header(
 add_executable( ytserver
   "main.cpp"
 )
+
+if (MSVC)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
+endif()
 
 add_library( ytserver_lib
   ${YT_SOURCE_FILES}

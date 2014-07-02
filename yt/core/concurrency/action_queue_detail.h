@@ -2,9 +2,14 @@
 
 #include "public.h"
 #include "event_count.h"
+#include "scheduler.h"
+#include "execution_context.h"
+#include "thread_affinity.h"
 
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
+#include <core/actions/future.h>
+#include <core/actions/signal.h>
 
 #include <core/profiling/profiler.h>
 
@@ -15,6 +20,10 @@
 
 #include <util/thread/lfqueue.h>
 
+#include <contrib/libev/ev++.h>
+
+#include <atomic>
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -23,11 +32,11 @@ namespace NConcurrency {
 class TInvokerQueue;
 typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
 
-class TExecutorThread;
-typedef TIntrusivePtr<TExecutorThread> TExecutorThreadPtr;
+class TSchedulerThread;
+typedef TIntrusivePtr<TSchedulerThread> TSchedulerThreadPtr;
 
-class TSingleQueueExecutorThread;
-typedef TIntrusivePtr<TSingleQueueExecutorThread> TSingleQueueExecutorThreadPtr;
+class TSingleQueueSchedulerThread;
+typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,8 +53,8 @@ struct TEnqueuedAction
     { }
 
     bool Finished;
-    NProfiling::TCpuInstant EnqueueInstant;
-    NProfiling::TCpuInstant StartInstant;
+    NProfiling::TCpuInstant EnqueuedAt;
+    NProfiling::TCpuInstant StartedAt;
     TClosure Callback;
 };
 
@@ -61,7 +70,7 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    virtual bool Invoke(const TClosure& callback) override;
+    virtual void Invoke(const TClosure& callback) override;
     virtual TThreadId GetThreadId() const override;
 
     void Shutdown();
@@ -77,7 +86,7 @@ private:
     TThreadId ThreadId;
     bool EnableLogging;
 
-    bool Running;
+    std::atomic<bool> Running;
 
     NProfiling::TProfiler Profiler;
 
@@ -95,20 +104,30 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TExecutorThread
+class TSchedulerThread
     : public TRefCounted
+    , public IScheduler
 {
 public:
-    virtual ~TExecutorThread();
-    
+    virtual ~TSchedulerThread();
+
     void Start();
     void Shutdown();
 
     TThreadId GetId() const;
     bool IsRunning() const;
 
+    virtual TFiber* GetCurrentFiber() override;
+    virtual void Return() override;
+    virtual void Yield() override;
+    virtual void YieldTo(TFiberPtr&& other) override;
+    virtual void SwitchTo(IInvokerPtr invoker) override;
+    virtual void SubscribeContextSwitched(TClosure callback) override;
+    virtual void UnsubscribeContextSwitched(TClosure callback) override;
+    virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) override;
+
 protected:
-    TExecutorThread(
+    TSchedulerThread(
         TEventCount* eventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
@@ -117,18 +136,24 @@ protected:
 
     virtual EBeginExecuteResult BeginExecute() = 0;
     virtual void EndExecute() = 0;
-    
+
+    virtual void OnStart();
+    virtual void OnShutdown();
+
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();
 
-private:
-    friend class TInvokerQueue;
-
     static void* ThreadMain(void* opaque);
     void ThreadMain();
-    void FiberMain();
+    void ThreadMainStep();
 
-    EBeginExecuteResult Execute();
+    void FiberMain(unsigned int spawnedEpoch);
+    bool FiberMainStep(unsigned int spawnedEpoch);
+
+    void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
+    void Crash(std::exception_ptr exception);
+
+    void OnContextSwitch();
 
     TEventCount* EventCount;
     Stroka ThreadName;
@@ -136,23 +161,38 @@ private:
 
     NProfiling::TProfiler Profiler;
 
-    volatile bool Running;
+    // If (Epoch & 0x1) == 0x1 then the thread is running.
+    std::atomic<ui32> Epoch;
+
     TPromise<void> Started;
-    int FibersCreated;
-    int FibersAlive;
 
     TThreadId ThreadId;
     TThread Thread;
-    
+
+    TExecutionContext SchedulerContext;
+
+    std::list<TFiberPtr> RunQueue;
+    int FibersCreated;
+    int FibersAlive;
+
+    TFiberPtr IdleFiber;
+    TFiberPtr CurrentFiber;
+
+    TFuture<void> WaitForFuture;
+    IInvokerPtr SwitchToInvoker;
+
+    TCallbackList<void()> ContextSwitchCallbacks;
+
+    DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleQueueExecutorThread
-    : public TExecutorThread
+class TSingleQueueSchedulerThread
+    : public TSchedulerThread
 {
 public:
-    TSingleQueueExecutorThread(
+    TSingleQueueSchedulerThread(
         TInvokerQueuePtr queue,
         TEventCount* eventCount,
         const Stroka& threadName,
@@ -160,7 +200,7 @@ public:
         bool enableLogging,
         bool enableProfiling);
 
-    ~TSingleQueueExecutorThread();
+    ~TSingleQueueSchedulerThread();
 
     IInvokerPtr GetInvoker();
 
@@ -171,6 +211,51 @@ protected:
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEVSchedulerThread
+    : public TSchedulerThread
+{
+public:
+    TEVSchedulerThread(
+        const Stroka& threadName,
+        bool enableLogging);
+
+    IInvokerPtr GetInvoker();
+
+protected:
+    class TInvoker
+        : public IInvoker
+    {
+    public:
+        explicit TInvoker(TEVSchedulerThread* owner);
+
+        virtual void Invoke(const TClosure& callback) override;
+        virtual TThreadId GetThreadId() const override;
+
+    private:
+        TEVSchedulerThread* Owner;
+
+    };
+
+    TEventCount EventCount; // fake
+
+    ev::dynamic_loop EventLoop;
+    ev::async CallbackWatcher;
+
+    TIntrusivePtr<TInvoker> Invoker;
+    TLockFreeQueue<TClosure> Queue;
+
+    virtual void OnShutdown() override;
+
+    virtual EBeginExecuteResult BeginExecute() override;
+    virtual void EndExecute() override;
+
+    EBeginExecuteResult BeginExecuteCallbacks();
+    void OnCallback(ev::async&, int);
 
 };
 

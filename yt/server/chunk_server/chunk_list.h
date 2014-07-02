@@ -18,8 +18,10 @@ namespace NChunkServer {
 
 class TChunkList
     : public TChunkTree
+    , public NObjectServer::TStagedObject
     , public TRefTracked<TChunkList>
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
     // Accumulated sums of children row counts.
@@ -30,14 +32,17 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     // Same as above but for chunk count sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, ChunkCountSums);
+    // Same as above but for data size sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, DataSizeSums);
+    // Same as above but for record count sums.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RecordCountSums);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkOwnerBase*>, OwningNodes);
 
-    // A tuple of key columns. If empty then the chunk list is not sorted.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);
+    // COMPAT(babenko)
+    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, LegacySortedBy);
 
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.
@@ -46,7 +51,7 @@ class TChunkList
     // Used to mark visited chunk lists with "unique" marks.
     DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
 
-    static TAtomic GenerateVisitMark();
+    static ui64 GenerateVisitMark();
 
 public:
     explicit TChunkList(const TChunkListId& id);

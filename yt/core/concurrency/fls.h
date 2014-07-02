@@ -1,33 +1,48 @@
 #pragma once
 
 #include "public.h"
-#include "fiber.h"
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail
+{
+    typedef uintptr_t (*TFlsSlotCtor)();
+    typedef void (*TFlsSlotDtor)(uintptr_t);
+
+    int FlsAllocateSlot(TFlsSlotCtor ctor, TFlsSlotDtor dtor);
+
+    int FlsCountSlots();
+
+    uintptr_t FlsConstruct(int index);
+    void FlsDestruct(int index, uintptr_t value);
+
+    uintptr_t& FlsAt(int index, TFiber* fiber = nullptr);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-class TFlsValue
+class TFls
 {
 public:
-    TFlsValue();
+    TFls();
 
-    const T& operator * () const;
-    T& operator * ();
+    const T& operator*() const;
+    T& operator*();
 
-    const T* operator -> () const;
-    T* operator -> ();
+    const T* operator->() const;
+    T* operator->();
+
+    T* Get(TFiber* fiber = nullptr) const;
 
 private:
-    int Index_;
+    const int Index_;
 
-
-    T* Get() const;
-
-    static TFiber::TFlsSlotValue ValueCtor();
-    static void ValueDtor(TFiber::TFlsSlotValue value);
+    static uintptr_t ValueCtor();
+    static void ValueDtor(uintptr_t value);
 
 };
 

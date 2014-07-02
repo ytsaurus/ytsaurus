@@ -29,24 +29,24 @@ include_directories(
   ${PYTHON_INCLUDE_DIR}
 )
 
-add_library( driver_python SHARED
+add_library( yt-driver-python SHARED
   ${BASE}/driver.cpp
   ${SRCS}
 )
 
-add_library( yson_python SHARED
+add_library( yt-yson-python SHARED
   ${BASE}/yson.cpp
   ${SRCS}
 )
 
-target_link_libraries( driver_python
+target_link_libraries( yt-driver-python
   ytlib
   ytext-pycxx
   ytext-lfalloc-fake
   ${PYTHON_LIBRARY}
 )
 
-target_link_libraries( yson_python
+target_link_libraries( yt-yson-python
   ytlib
   ytext-pycxx
   ytext-lfalloc-fake
@@ -55,12 +55,12 @@ target_link_libraries( yson_python
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libdriver_python.so
-  ${BASE}/driver_lib.so
+  ${CMAKE_BINARY_DIR}/lib/libyt-driver-python.so
+  ${BASE}/driver/driver_lib.so
 )
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libyson_python.so
-  ${BASE}/yson_lib.so
+  ${CMAKE_BINARY_DIR}/lib/libyt-yson-python.so
+  ${BASE}/yson/yson_lib.so
 )

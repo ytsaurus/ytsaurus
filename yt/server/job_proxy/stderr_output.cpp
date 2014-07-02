@@ -15,6 +15,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NFileClient;
+using namespace NApi;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NChunkClient;

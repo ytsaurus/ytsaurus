@@ -3,19 +3,18 @@
 #include "config.h"
 #include "io_helpers.h"
 
-#include <core/misc/tclap_helpers.h>
-
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/fluent.h>
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/ypath_client.h>
 
-#include <ytlib/scheduler/config.h>
+#include <ytlib/misc/tclap_helpers.h>
+
+#include <ytlib/scheduler/public.h>
 
 #include <ytlib/driver/public.h>
-#include <ytlib/driver/config.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -35,7 +34,7 @@ class TExecutor
 public:
     TExecutor();
 
-    virtual EExitCode Execute(const std::vector<std::string>& args);
+    virtual void Execute(const std::vector<std::string>& args);
     virtual Stroka GetCommandName() const = 0;
 
 protected:
@@ -50,7 +49,7 @@ protected:
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
-    virtual EExitCode DoExecute() = 0;
+    virtual void DoExecute() = 0;
 };
 
 typedef TIntrusivePtr<TExecutor> TExecutorPtr;
@@ -71,9 +70,10 @@ protected:
     TCLAP::ValueArg<Stroka> InputFormatArg;
     TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> OptArg;
+    TCLAP::SwitchArg ResponseParametersArg;
 
-    virtual EExitCode DoExecute() override;
-    virtual EExitCode DoExecute(const TDriverRequest& request);
+    virtual void DoExecute() override;
+    virtual void DoExecute(const TDriverRequest& request);
 
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 

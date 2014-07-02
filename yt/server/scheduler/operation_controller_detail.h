@@ -5,7 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "serialization_context.h"
+#include "serialize.h"
 #include "event_log.h"
 
 #include <core/misc/nullable.h>
@@ -21,7 +21,8 @@
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/config.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
@@ -111,10 +112,10 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
-    NRpc::IChannelPtr AuthenticatedMasterChannel;
-    NRpc::IChannelPtr AuthenticatedInputMasterChannel;
-    NRpc::IChannelPtr AuthenticatedOutputMasterChannel;
-    
+    NApi::IClientPtr AuthenticatedMasterClient;
+    NApi::IClientPtr AuthenticatedInputMasterClient;
+    NApi::IClientPtr AuthenticatedOutputMasterClient;
+
     mutable NLog::TTaggedLogger Logger;
     mutable TFluentEventLogger EventLogger;
 
@@ -204,7 +205,7 @@ protected:
 
     struct TEndpoint
     {
-        NChunkClient::NProto::TKey Key;
+        NVersionedTableClient::TOwningKey Key;
         bool Left;
         int ChunkTreeKey;
 
@@ -600,8 +601,6 @@ protected:
     TError DoPrepare();
     void GetInputObjectIds();
     void GetOutputObjectIds();
-    void ValidateInputTypes();
-    void ValidateOutputTypes();
     void ValidateFileTypes();
     void RequestInputObjects();
     void RequestOutputObjects();
@@ -615,7 +614,7 @@ protected:
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
 
-    // Initialize transactions
+    // Initialize transactions.
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
     void StartIOTransactions();
@@ -683,8 +682,8 @@ protected:
 
     struct TInputChunkDescriptor
     {
-        TSmallVector<TStripeDescriptor, 1> InputStripes;
-        TSmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        SmallVector<TStripeDescriptor, 1> InputStripes;
+        SmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
         EInputChunkState State;
 
         TInputChunkDescriptor()
@@ -748,7 +747,7 @@ protected:
 
 
     void RegisterEndpoints(
-        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        const NTableClient::NProto::TOldBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 

@@ -12,7 +12,12 @@ namespace NChunkClient {
 struct TChunkListYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Attach);
+    static Stroka GetServiceName()
+    {
+        return "ChunkList";
+    }
+
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Attach);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

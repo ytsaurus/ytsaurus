@@ -11,75 +11,53 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocationConfig;
-typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
-
-class TDiskHealthCheckerConfig;
-typedef TIntrusivePtr<TDiskHealthCheckerConfig> TDiskHealthCheckerConfigPtr;
-
-class TDataNodeConfig;
-typedef TIntrusivePtr<TDataNodeConfig> TDataNodeConfigPtr;
-
-class TMasterConnector;
-typedef TIntrusivePtr<TMasterConnector> TMasterConnectorPtr;
-
-class TPeerBlockTableConfig;
-typedef TIntrusivePtr<TPeerBlockTableConfig> TPeerBlockTableConfigPtr;
-
-class TChunkStore;
-typedef TIntrusivePtr<TChunkStore> TChunkStorePtr;
-
-class TChunkCache;
-typedef TIntrusivePtr<TChunkCache> TChunkCachePtr;
-
-class TLocation;
-typedef TIntrusivePtr<TLocation> TLocationPtr;
-
-class TReaderCache;
-typedef TIntrusivePtr<TReaderCache> TReaderCachePtr;
-
-struct TChunkDescriptor;
-
-class TChunk;
-typedef TIntrusivePtr<TChunk> TChunkPtr;
-
-class TStoredChunk;
-typedef TIntrusivePtr<TStoredChunk> TStoredChunkPtr;
-
-class TCachedChunk;
-typedef TIntrusivePtr<TCachedChunk> TCachedChunkPtr;
-
-class TSessionManager;
-typedef TIntrusivePtr<TSessionManager> TSessionManagerPtr;
-
-class TSession;
-typedef TIntrusivePtr<TSession> TSessionPtr;
-
-class TBlockStore;
-typedef TIntrusivePtr<TBlockStore> TBlockStorePtr;
-
-class TCachedBlock;
-typedef TIntrusivePtr<TCachedBlock> TCachedBlockPtr;
-
-class TPeerBlockTable;
-typedef TIntrusivePtr<TPeerBlockTable> TPeerBlockTablePtr;
-
-class TPeerBlockUpdater;
-typedef TIntrusivePtr<TPeerBlockUpdater> TPeerBlockUpdaterPtr;
-
-class TChunkRegistry;
-typedef TIntrusivePtr<TChunkRegistry> TChunkRegistryPtr;
-
-class TDataNodeService;
-typedef TIntrusivePtr<TDataNodeService> TChunkHolderServicePtr;
-
-class TDiskHealthChecker;
-typedef TIntrusivePtr<TDiskHealthChecker> TDiskHealthCheckerPtr;
-
 using NChunkClient::TChunkId;
 using NChunkClient::EWriteSessionType;
+
 using NChunkServer::TBlockId;
+
 using NNodeTrackerClient::TNodeId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkDescriptor;
+struct TSessionOptions;
+
+DECLARE_REFCOUNTED_CLASS(TMasterConnector)
+
+DECLARE_REFCOUNTED_CLASS(TChunkStore)
+DECLARE_REFCOUNTED_CLASS(TChunkCache)
+DECLARE_REFCOUNTED_CLASS(TChunkRegistry)
+
+DECLARE_REFCOUNTED_CLASS(TBlockStore)
+DECLARE_REFCOUNTED_CLASS(TBlobReaderCache)
+DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
+
+DECLARE_REFCOUNTED_CLASS(TLocation)
+
+DECLARE_REFCOUNTED_STRUCT(IChunk)
+DECLARE_REFCOUNTED_CLASS(TCachedBlock)
+DECLARE_REFCOUNTED_CLASS(TStoredBlobChunk)
+DECLARE_REFCOUNTED_CLASS(TCachedBlobChunk)
+DECLARE_REFCOUNTED_CLASS(TJournalChunk)
+
+DECLARE_REFCOUNTED_CLASS(TRefCountedChunkMeta)
+
+DECLARE_REFCOUNTED_STRUCT(ISession)
+DECLARE_REFCOUNTED_CLASS(TBlobSession)
+DECLARE_REFCOUNTED_CLASS(TSessionManager)
+
+DECLARE_REFCOUNTED_CLASS(TPeerBlockTable)
+DECLARE_REFCOUNTED_CLASS(TPeerBlockUpdater)
+
+DECLARE_REFCOUNTED_CLASS(TDiskHealthChecker)
+
+DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
+DECLARE_REFCOUNTED_CLASS(TLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TMultiplexedChangelogConfig)
+DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
+DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

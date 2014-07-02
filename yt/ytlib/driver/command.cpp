@@ -11,42 +11,42 @@ using namespace NScheduler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommandBase::TCommandBase()
-    : Context(nullptr)
-    , Replied(false)
+    : Context_(nullptr)
+    , Replied_(false)
 { }
 
 void TCommandBase::Prepare()
 {
-    ObjectProxy.reset(new TObjectServiceProxy(Context->GetMasterChannel()));
-    SchedulerProxy.reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
+    //ObjectProxy.reset(new TObjectServiceProxy(Context->GetClient()->GetMasterChannel()));
+    SchedulerProxy.reset(new TSchedulerServiceProxy(Context_->GetClient()->GetSchedulerChannel()));
 }
 
 void TCommandBase::Reply(const TError& error)
 {
-    YCHECK(!Replied);
+    YCHECK(!Replied_);
     YCHECK(!error.IsOK());
 
-    Context->Response() = TDriverResponse(error);
-    Replied = true;
+    Context_->Response() = TDriverResponse(error);
+    Replied_ = true;
 }
 
 void TCommandBase::Reply()
 {
-    YCHECK(!Replied);
+    YCHECK(!Replied_);
 
-    Context->Response() = TDriverResponse(TError());
-    Replied = true;
+    Context_->Response() = TDriverResponse(TError());
+    Replied_ = true;
 }
 
 void TCommandBase::Reply(const TYsonString& yson)
 {
-    YCHECK(!Replied);
+    YCHECK(!Replied_);
 
-    auto consumer = Context->CreateOutputConsumer();
-    Consume(yson, ~consumer);
+    auto consumer = Context_->CreateOutputConsumer();
+    Consume(yson, consumer.get());
 
-    Context->Response() = TDriverResponse(TError());
-    Replied = true;
+    Context_->Response() = TDriverResponse(TError());
+    Replied_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

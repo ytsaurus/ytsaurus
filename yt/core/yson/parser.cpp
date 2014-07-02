@@ -16,33 +16,33 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParser::TImpl
-{   
+{
 private:
     typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
 
-    TParserCoroutine ParserCoroutine;
+    TParserCoroutine ParserCoroutine_;
 
 public:
     TImpl(
-        IYsonConsumer* consumer, 
-        EYsonType parsingMode = EYsonType::Node, 
-        bool enableLinePositionInfo = false,
+        IYsonConsumer* consumer,
+        EYsonType parsingMode,
+        bool enableLinePositionInfo,
         TNullable<i64> memoryLimit = Null) 
-    {
-        ParserCoroutine.Reset(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-            ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine> >(
-                TBlockReader<TParserCoroutine>(self, begin, end, finish),
-                consumer,
-                parsingMode,
-                enableLinePositionInfo,
-                memoryLimit);
-        }));
-    }
+        : ParserCoroutine_(BIND(
+            [=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+                ParseYsonStreamImpl<IYsonConsumer, TBlockReader<TParserCoroutine>>(
+                    TBlockReader<TParserCoroutine>(self, begin, end, finish),
+                    consumer,
+                    parsingMode,
+                    enableLinePositionInfo,
+                    memoryLimit);
+            }))
+    { }
 
     void Read(const char* begin, const char* end, bool finish = false)
     {
-        if (ParserCoroutine.GetState() != EFiberState::Terminated) {
-            ParserCoroutine.Run(begin, end, finish);
+        if (!ParserCoroutine_.IsCompleted()) {
+            ParserCoroutine_.Run(begin, end, finish);
         } else {
             THROW_ERROR_EXCEPTION("Input is already parsed");
         }
@@ -92,11 +92,12 @@ private:
 public:
     TImpl(
         IYsonConsumer *consumer,
-        bool enableLinePositionInfo)
+        bool enableLinePositionInfo,
+        TNullable<i64> memoryLimit)
         : Impl(
             enableLinePositionInfo
-            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer)) 
-            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer)))
+            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer, memoryLimit)) 
+            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer, memoryLimit)))
     { }
 
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) 
@@ -109,8 +110,9 @@ public:
 
 TStatelessYsonParser::TStatelessYsonParser(
     IYsonConsumer *consumer,
-    bool enableLinePositionInfo)
-    : Impl(new TImpl(consumer, enableLinePositionInfo))
+    bool enableLinePositionInfo,
+    TNullable<i64> memoryLimit)
+    : Impl(new TImpl(consumer, enableLinePositionInfo, memoryLimit))
 { }
 
 TStatelessYsonParser::~TStatelessYsonParser()
@@ -127,13 +129,15 @@ void ParseYsonStringBuffer(
     const TStringBuf& buffer,
     IYsonConsumer* consumer,
     EYsonType type,
-    bool enableLinePositionInfo)
+    bool enableLinePositionInfo,
+    TNullable<i64> memoryLimit)
 {
     ParseYsonStreamImpl<IYsonConsumer, TStringReader>(
         TStringReader(buffer.begin(), buffer.end()),
         consumer,
         type,
-        enableLinePositionInfo);
+        enableLinePositionInfo,
+        memoryLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,7 +36,7 @@ using namespace NJobTrackerClient::NProto;
 
 static auto& Logger = JobProxyLogger;
 
-typedef NChunkClient::TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
+typedef NChunkClient::TOldMultiChunkSequentialWriter<TPartitionChunkWriterProvider> TWriter;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -79,9 +79,9 @@ public:
         auto writerProvider = New<TPartitionChunkWriterProvider>(
             IOConfig->TableWriter,
             options,
-            ~Partitioner);
+            Partitioner.get());
 
-        Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
+        Writer = CreateSyncWriter<TPartitionChunkWriterProvider>(New<TWriter>(
             IOConfig->TableWriter,
             options,
             writerProvider,

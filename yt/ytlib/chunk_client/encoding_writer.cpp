@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "dispatcher.h"
-#include "async_writer.h"
+#include "writer.h"
 
 #include <core/compression/codec.h>
 
@@ -14,19 +14,19 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ChunkWriterLogger;
+static auto& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
-    IAsyncWriterPtr asyncWriter)
+    IWriterPtr asyncWriter)
     : UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)
     , Config(config)
-    , AsyncWriter(asyncWriter)
+    , ChunkWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(NCompression::GetCodec(options->CompressionCodec))
@@ -52,7 +52,7 @@ void TEncodingWriter::WriteBlock(const TSharedRef& block)
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 {
-    FOREACH (const auto& part, vectorizedBlock) {
+    for (const auto& part : vectorizedBlock) {
         Semaphore.Acquire(part.Size());
         AtomicAdd(UncompressedSize_, part.Size());
     }
@@ -100,7 +100,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
 
     if (!Config->VerifyCompression) {
         // We immediately release original data.
-        FOREACH (const auto& part, vectorizedBlock) {
+        for (const auto& part : vectorizedBlock) {
             sizeToRelease += part.Size();
         }
     }
@@ -124,7 +124,7 @@ void TEncodingWriter::VerifyVector(
     auto decompressedBlock = Codec->Decompress(compressedBlock);
 
     char* begin = decompressedBlock.Begin();
-    FOREACH (const auto& block, origin) {
+    for (const auto& block : origin) {
         LOG_FATAL_IF(
             !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
             "Compression verification failed");
@@ -199,13 +199,13 @@ void TEncodingWriter::WritePendingBlocks()
     while (!PendingBlocks.empty()) {
         LOG_DEBUG("Writing pending block");
         auto& front = PendingBlocks.front();
-        auto result = AsyncWriter->WriteBlock(front);
+        auto result = ChunkWriter->WriteBlock(front);
         Semaphore.Release(front.Size());
         PendingBlocks.pop_front();
 
         if (!result) {
             IsWaiting = true;
-            AsyncWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
+            ChunkWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
             return;
         }
     }
@@ -230,7 +230,7 @@ TAsyncError TEncodingWriter::GetReadyEvent()
     return State.GetOperationError();
 }
 
-TAsyncError TEncodingWriter::AsyncFlush()
+TAsyncError TEncodingWriter::Flush()
 {
     State.StartOperation();
 

@@ -12,13 +12,12 @@
 #include <core/bus/config.h>
 
 #include <core/rpc/channel.h>
+#include <core/rpc/bus_channel.h>
+#include <core/rpc/caching_channel_factory.h>
 #include <core/rpc/server.h>
+#include <core/rpc/bus_server.h>
 #include <core/rpc/redirector_service.h>
 #include <core/rpc/throttling_channel.h>
-
-#include <ytlib/meta_state/master_channel.h>
-
-#include <ytlib/meta_state/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -33,11 +32,12 @@
 
 #include <core/profiling/profiling_manager.h>
 
-#include <ytlib/scheduler/scheduler_channel.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
+
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <server/misc/build_attributes.h>
 
@@ -50,7 +50,8 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/chunk_registry.h>
 #include <server/data_node/block_store.h>
-#include <server/data_node/reader_cache.h>
+#include <server/data_node/blob_reader_cache.h>
+#include <server/data_node/journal_dispatcher.h>
 #include <server/data_node/location.h>
 #include <server/data_node/data_node_service.h>
 #include <server/data_node/master_connector.h>
@@ -70,6 +71,18 @@
 #include <server/exec_agent/scheduler_connector.h>
 #include <server/exec_agent/job.h>
 
+#include <server/tablet_node/tablet_slot_manager.h>
+#include <server/tablet_node/store_flusher.h>
+#include <server/tablet_node/store_compactor.h>
+#include <server/tablet_node/partition_balancer.h>
+
+#include <server/query_agent/query_executor.h>
+#include <server/query_agent/query_service.h>
+
+#include <server/transaction_server/timestamp_proxy_service.h>
+
+#include <server/object_server/master_cache_service.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -77,17 +90,22 @@ using namespace NBus;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
+using namespace NHydra;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NYTree;
+using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NJobAgent;
 using namespace NExecAgent;
 using namespace NJobProxy;
 using namespace NDataNode;
-using namespace NYTree;
-using namespace NConcurrency;
+using namespace NTabletNode;
+using namespace NQueryAgent;
+using namespace NApi;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +142,7 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
         ~ToString(LocalDescriptor),
-        ~JoinToString(Config->Masters->Addresses));
+        ~JoinToString(Config->ClusterConnection->Master->Addresses));
 
     {
         auto result = MemoryUsageTracker.TryAcquire(
@@ -136,37 +154,44 @@ void TBootstrap::Run()
         }
     }
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
-
-    SchedulerChannel = CreateSchedulerChannel(Config->ExecAgent->SchedulerConnector, MasterChannel);
+    auto clusterConnection = CreateConnection(Config->ClusterConnection);
+    MasterClient = CreateClient(clusterConnection);
 
     ControlQueue = New<TActionQueue>("Control");
+    ControlInvoker = ControlQueue->GetInvoker();
+
+    QueryWorkerPool = New<TThreadPool>(
+        Config->QueryAgent->ThreadPoolSize,
+        "Query");
+    QueryWorkerInvoker = CreateBoundedConcurrencyInvoker(
+        QueryWorkerPool->GetInvoker(),
+        Config->QueryAgent->MaxConcurrentRequests);
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    RpcServer = CreateRpcServer(BusServer);
+    RpcServer = CreateBusServer(BusServer);
+
+    TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    auto jobToMasterChannel = CreateThrottlingChannel(
-        Config->JobsToMasterChannel,
-        MasterChannel);
-    RpcServer->RegisterService(CreateRedirectorService(
-        NObjectClient::TObjectServiceProxy::GetServiceName(),
-        jobToMasterChannel));
+    auto throttlingMasterChannel = CreateThrottlingChannel(
+        Config->MasterCache,
+        MasterClient->GetMasterChannel());
     RpcServer->RegisterService(CreateRedirectorService(
         NChunkClient::TChunkServiceProxy::GetServiceName(),
-        jobToMasterChannel));
+        throttlingMasterChannel));
 
-    ReaderCache = New<TReaderCache>(Config->DataNode);
+    BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
+
+    JournalDispatcher = New<TJournalDispatcher>(this, Config->DataNode);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
-    BlockStore->Initialize();
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -174,32 +199,11 @@ void TBootstrap::Run()
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
-    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
+    MasterConnector = New<NDataNode::TMasterConnector>(Config->DataNode, this);
 
-    ChunkStore = New<TChunkStore>(Config->DataNode, this);
-    ChunkStore->Initialize();
+    ChunkStore = New<NDataNode::TChunkStore>(Config->DataNode, this);
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
-    ChunkCache->Initialize();
-
-    if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
-        if (ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Inconsistent cell GUID (ChunkStore: %s, ChunkCache: %s)",
-                ~ToString(ChunkStore->GetCellGuid()),
-                ~ToString(ChunkCache->GetCellGuid()));
-        }
-        CellGuid = ChunkCache->GetCellGuid();
-    }
-
-    if (!ChunkStore->GetCellGuid().IsEmpty() && ChunkCache->GetCellGuid().IsEmpty()) {
-        CellGuid = ChunkStore->GetCellGuid();
-        ChunkCache->UpdateCellGuid(CellGuid);
-    }
-
-    if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
-        CellGuid = ChunkCache->GetCellGuid();
-        ChunkStore->SetCellGuid(CellGuid);
-    }
 
     ReplicationInThrottler = CreateProfilingThrottlerWrapper(
         CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
@@ -214,7 +218,7 @@ void TBootstrap::Run()
         CreateLimitedThrottler(Config->DataNode->RepairOutThrottler),
         DataNodeProfiler.GetPathPrefix() + "/repair_out");
 
-    RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
+    RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
 
@@ -233,7 +237,6 @@ void TBootstrap::Run()
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
     SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
-    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
 
     JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
@@ -278,6 +281,7 @@ void TBootstrap::Run()
     JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SealChunk,       createChunkJob);
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
 
@@ -285,6 +289,23 @@ void TBootstrap::Run()
     EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
+
+    TabletSlotManager = New<TTabletSlotManager>(Config->TabletNode, this);
+
+    auto queryExecutor = CreateQueryExecutor(Config->QueryAgent, this);
+
+    RpcServer->RegisterService(CreateQueryService(
+        Config->QueryAgent,
+        GetControlInvoker(),
+        queryExecutor));
+
+    RpcServer->RegisterService(CreateTimestampProxyService(
+        clusterConnection->GetTimestampProvider()));
+
+    RpcServer->RegisterService(
+        CreateMasterCacheService(
+            Config->MasterCache,
+            clusterConnection->GetMasterChannel()));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -307,7 +328,13 @@ void TBootstrap::Run()
         OrchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)));
-
+    SetNodeByYPath(
+        OrchidRoot,
+        "/tablet_slots",
+        CreateVirtualNode(
+            TabletSlotManager->GetOrchidService()
+            ->Via(GetControlInvoker())
+            ->Cached(Config->OrchidCacheExpirationPeriod)));
     SetBuildAttributes(OrchidRoot, "node");
 
     NHttp::TServer httpServer(Config->MonitoringPort);
@@ -325,12 +352,22 @@ void TBootstrap::Run()
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.
+    TabletSlotManager->Initialize();
+    BlockStore->Initialize();
+    ChunkStore->Initialize();
+    ChunkCache->Initialize();
+    JournalDispatcher->Initialize();
+    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
     monitoringManager->Start();
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    httpServer.Start();
+    StartStoreFlusher(Config->TabletNode->StoreFlusher, this);
+    StartStoreCompactor(Config->TabletNode->StoreCompactor, this);
+    StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
+
     RpcServer->Start();
+    httpServer.Start();
 
     Sleep(TDuration::Max());
 }
@@ -342,22 +379,27 @@ TCellNodeConfigPtr TBootstrap::GetConfig() const
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue->GetInvoker();
+    return ControlInvoker;
 }
 
-IChannelPtr TBootstrap::GetMasterChannel() const
+IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const
 {
-    return MasterChannel;
+    return QueryWorkerInvoker;
 }
 
-IChannelPtr TBootstrap::GetSchedulerChannel() const
+IClientPtr TBootstrap::GetMasterClient() const
 {
-    return SchedulerChannel;
+    return MasterClient;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
+}
+
+IChannelFactoryPtr TBootstrap::GetTabletChannelFactory() const
+{
+    return TabletChannelFactory;
 }
 
 IMapNodePtr TBootstrap::GetOrchidRoot() const
@@ -368,6 +410,11 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
 TJobTrackerPtr TBootstrap::GetJobController() const
 {
     return JobController;
+}
+
+TTabletSlotManagerPtr TBootstrap::GetTabletSlotManager() const
+{
+    return TabletSlotManager;
 }
 
 TSlotManagerPtr TBootstrap::GetSlotManager() const
@@ -385,7 +432,7 @@ TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
     return JobProxyConfig;
 }
 
-TChunkStorePtr TBootstrap::GetChunkStore() const
+NDataNode::TChunkStorePtr TBootstrap::GetChunkStore() const
 {
     return ChunkStore;
 }
@@ -395,9 +442,9 @@ TChunkCachePtr TBootstrap::GetChunkCache() const
     return ChunkCache;
 }
 
-TNodeMemoryTracker& TBootstrap::GetMemoryUsageTracker()
+TNodeMemoryTracker* TBootstrap::GetMemoryUsageTracker()
 {
-    return MemoryUsageTracker;
+    return &MemoryUsageTracker;
 }
 
 TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
@@ -420,12 +467,17 @@ TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
     return PeerBlockTable;
 }
 
-TReaderCachePtr TBootstrap::GetReaderCache() const
+TBlobReaderCachePtr TBootstrap::GetBlobReaderCache() const
 {
-    return ReaderCache;
+    return BlobReaderCache;
 }
 
-TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+TJournalDispatcherPtr TBootstrap::GetJournalDispatcher() const
+{
+    return JournalDispatcher;
+}
+
+NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 {
     return MasterConnector;
 }
@@ -437,14 +489,7 @@ const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() cons
 
 const TGuid& TBootstrap::GetCellGuid() const
 {
-    return CellGuid;
-}
-
-void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
-{
-    CellGuid = cellGuid;
-    ChunkStore->SetCellGuid(CellGuid);
-    ChunkCache->UpdateCellGuid(CellGuid);
+    return Config->ClusterConnection->Master->CellGuid;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const
@@ -490,11 +535,11 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionTyp
         case EWriteSessionType::User:
             return GetUnlimitedThrottler();
 
-        case EWriteSessionType::Repair:
-            return RepairOutThrottler;
-
         case EWriteSessionType::Replication:
             return ReplicationOutThrottler;
+
+        case EWriteSessionType::Repair:
+            return RepairOutThrottler;
 
         default:
             YUNREACHABLE();
@@ -506,6 +551,9 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType
     switch (sessionType) {
         case EReadSessionType::User:
             return GetUnlimitedThrottler();
+
+        case EReadSessionType::Replication:
+            return ReplicationOutThrottler;
 
         case EReadSessionType::Repair:
             return RepairOutThrottler;

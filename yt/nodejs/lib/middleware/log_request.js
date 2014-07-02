@@ -1,4 +1,4 @@
-var uuid = require("node-uuid");
+var crypto = require("crypto");
 
 var YtRegistry = require("../registry").that;
 
@@ -15,7 +15,9 @@ exports.that = function Middleware__YtLogRequest()
     var buffer = new Buffer(16);
 
     return function(req, rsp, next) {
-        req.uuid = uuid.v4(undefined, buffer).toString("base64");
+        req.uuid_ui64 = crypto.pseudoRandomBytes(8);
+        req.uuid = req.uuid_ui64.toString("hex");
+
         req.connection.last_request_id = req.uuid;
 
         // Store useful information.

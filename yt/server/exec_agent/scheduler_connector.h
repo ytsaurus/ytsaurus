@@ -24,8 +24,6 @@ public:
     void Start();
 
 private:
-    typedef TSchedulerConnector TThis;
-
     TSchedulerConnectorConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;

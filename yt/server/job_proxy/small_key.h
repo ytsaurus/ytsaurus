@@ -2,7 +2,9 @@
 
 #include "public.h"
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
+#include <core/yson/lexer.h>
 #include <core/ytree/public.h>
 
 namespace NYT {
@@ -12,7 +14,7 @@ namespace NJobProxy {
 
 struct TSmallKeyPart
 {
-    NChunkClient::EKeyPartType Type;
+    NVersionedTableClient::EValueType Type;
     ui32 Length;
 
     union {
@@ -27,13 +29,13 @@ struct TSmallKeyPart
     }
 
     TSmallKeyPart()
-        : Type(NChunkClient::EKeyPartType::Null)
+        : Type(NVersionedTableClient::EValueType::Null)
     { }
 };
 
 void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TStatelessLexer& lexer);
 int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs);
-void SetKeyPart(NChunkClient::TNonOwningKey* key, const TSmallKeyPart& keyPart, int keyIndex);
+NVersionedTableClient::TUnversionedValue MakeKeyPart(const TSmallKeyPart& keyPart);
 
 ////////////////////////////////////////////////////////////////////////////////
 

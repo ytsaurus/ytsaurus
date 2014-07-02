@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <ytlib/chunk_client/data_statistics.h>
 
 #include <core/misc/sync.h>
@@ -27,7 +28,7 @@ struct ISyncReader
 
     //! Returns the key of the current row.
     //! Not all implementations support this call.
-    virtual const NChunkClient::TNonOwningKey& GetKey() const = 0;
+    virtual const NVersionedTableClient::TKey& GetKey() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
     virtual int GetTableIndex() const = 0;
@@ -52,14 +53,14 @@ public:
 
     virtual void Open() override
     {
-        Sync(~AsyncReader, &TAsyncReader::AsyncOpen);
+        Sync(AsyncReader.Get(), &TAsyncReader::AsyncOpen);
     }
 
     virtual const TRow* GetRow() override
     {
         if (IsReadingStarted && AsyncReader->GetFacade() != nullptr) {
             if (!AsyncReader->FetchNext()) {
-                Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
+                Sync(AsyncReader.Get(), &TAsyncReader::GetReadyEvent);
             }
         }
         IsReadingStarted = true;
@@ -67,7 +68,7 @@ public:
         return facade ? &facade->GetRow() : nullptr;
     }
 
-    virtual const NChunkClient::TNonOwningKey& GetKey() const override
+    virtual const NVersionedTableClient::TKey& GetKey() const override
     {
         return AsyncReader->GetFacade()->GetKey();
     }

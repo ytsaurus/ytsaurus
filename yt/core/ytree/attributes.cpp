@@ -23,7 +23,7 @@ TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
 
 void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
 {
-    FOREACH (const auto& pair, other->GetChildren()) {
+    for (const auto& pair : other->GetChildren()) {
         const auto& key = pair.first;
         auto value = ConvertToYsonString(pair.second);
         SetYson(key, value);
@@ -32,7 +32,7 @@ void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
 
 void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
 {
-    FOREACH (const auto& key, other.List()) {
+    for (const auto& key : other.List()) {
         auto value = other.GetYson(key);
         SetYson(key, value);
     }
@@ -48,14 +48,14 @@ std::unique_ptr<IAttributeDictionary> IAttributeDictionary::Clone() const
 void IAttributeDictionary::Clear()
 {
     auto keys = List();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         Remove(key);
     }
 }
 
 bool IAttributeDictionary::Contains(const Stroka& key) const
 {
-    return FindYson(key);
+    return FindYson(key).HasValue();
 }
 
 std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
@@ -72,7 +72,7 @@ IMapNodePtr IAttributeDictionary::ToMap() const
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         map->AddChild(ConvertToNode(GetYson(key)), key);
     }
     return map;

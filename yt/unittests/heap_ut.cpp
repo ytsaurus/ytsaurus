@@ -14,9 +14,10 @@ class THeapTest
     : public ::testing::Test
 { };
 
-static const int testSize = 10000;
+static const int TestSize = 10000;
 
-Stroka GetRandomString(int len) {
+Stroka GetRandomString(int len)
+{
     Stroka str;
     for (int i = 0; i < len; ++i) {
         str.push_back('a' + rand() % 26);
@@ -24,7 +25,7 @@ Stroka GetRandomString(int len) {
     return str;
 }
 
-TEST(THeapTest, All)
+TEST(THeapTest, MakeThenExtract)
 {
     srand(0);
 
@@ -43,15 +44,30 @@ TEST(THeapTest, All)
         --end;
     }
 
-    //for (int i = 0; i < testSize; ++i) {
-    //    if (sorted[i] != words[i]) {
-    //        std::cout << "FAIL " << sorted[i] << " " << words[i] << std::endl;
-    //        break;
-    //    }
-    //    else {
-    //        std::cout << "OK " << words[i] << std::endl;
-    //    }
-    //}
+    EXPECT_EQ(sorted, words);
+}
+
+TEST(THeapTest, InsertThenExtract)
+{
+    srand(0);
+
+    std::vector<Stroka> words;
+    for (int i = 0; i < 10000; ++i) {
+        words.push_back(GetRandomString(10));
+    }
+
+    auto sorted = words;
+    sort(sorted.begin(), sorted.end());
+
+    for (auto it = words.begin(); it != words.end(); ++it) {
+        NYT::AdjustHeapBack(words.begin(), it, std::greater<Stroka>());
+    }
+
+    auto end = words.end();
+    while (end != words.begin()) {
+        NYT::ExtractHeap(words.begin(), end, std::greater<Stroka>());
+        --end;
+    }
 
     EXPECT_EQ(sorted, words);
 }

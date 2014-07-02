@@ -13,7 +13,7 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data)
+bool SerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
@@ -21,7 +21,7 @@ bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data
     return message.SerializePartialToArray(data->Begin(), size);
 }
 
-bool DeserializeFromProto(google::protobuf::Message* message, const TRef& data)
+bool DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
 {
     return message->ParsePartialFromArray(data.Begin(), data.Size());
 }
@@ -39,7 +39,7 @@ struct TSerializedMessageFixedHeader
 #pragma pack(pop)
 
 bool SerializeToProtoWithEnvelope(
-    const google::protobuf::Message& message,
+    const google::protobuf::MessageLite& message,
     TSharedRef* data,
     NCompression::ECodec codecId)
 {
@@ -81,7 +81,7 @@ bool SerializeToProtoWithEnvelope(
 }
 
 bool DeserializeFromProtoWithEnvelope(
-    google::protobuf::Message* message,
+    google::protobuf::MessageLite* message,
     const TRef& data)
 {
     if (data.Size() < sizeof (TSerializedMessageFixedHeader)) {
@@ -112,11 +112,15 @@ bool DeserializeFromProtoWithEnvelope(
 
     // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
     // to find out more about protobuf message size limits.
-    ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
-    CodedInputStream codedInputStream(&arrayInputStream);
+    CodedInputStream codedInputStream(
+        reinterpret_cast<const ui8*>(serializedMessage.Begin()),
+        static_cast<int>(serializedMessage.Size()));
     codedInputStream.SetTotalBytesLimit(
         serializedMessage.Size() + 1,
         serializedMessage.Size() + 1);
+
+    // Raise recursion limit.
+    codedInputStream.SetRecursionLimit(1024);
 
     if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
         return false;
@@ -127,7 +131,7 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::MessageLite& message)
 {
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
@@ -135,7 +139,7 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
     TRangeSerializer::Save(context, data);
 }
 
-void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::MessageLite& message)
 {
     size_t size = TSizeSerializer::Load(context);
     auto data = TSharedRef::Allocate(size, false);
@@ -151,7 +155,7 @@ void FilterProtoExtensions(
     const yhash_set<int>& tags)
 {
     target->Clear();
-    FOREACH (const auto& extension, source.extensions()) {
+    for (const auto& extension : source.extensions()) {
         if (tags.find(extension.tag()) != tags.end()) {
             *target->add_extensions() = extension;
         }

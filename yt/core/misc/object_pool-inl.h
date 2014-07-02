@@ -66,7 +66,7 @@ void TObjectPool<T>::Reclaim(T* obj)
 template <class T>
 T* TObjectPool<T>::AllocateInstance()
 {
-    static auto* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+    static auto* cookie = GetRefCountedTrackerCookie<T>();
     TRefCountedTracker::Get()->Allocate(cookie, sizeof (T));
     char* buffer = new char[sizeof (THeader) + sizeof (T)];
     auto* header = reinterpret_cast<THeader*>(buffer);
@@ -82,7 +82,7 @@ T* TObjectPool<T>::AllocateInstance()
 template <class T>
 void TObjectPool<T>::FreeInstance(T* obj)
 {
-    static auto* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<T>();
+    static auto* cookie = GetRefCountedTrackerCookie<T>();
     TRefCountedTracker::Get()->Free(cookie, sizeof (T));
     obj->~T();
     auto* buffer = reinterpret_cast<char*>(obj) - sizeof (THeader);
@@ -98,25 +98,7 @@ typename TObjectPool<T>::THeader* TObjectPool<T>::GetHeader(T* obj)
 template <class T>
 TObjectPool<T>& ObjectPool()
 {
-#ifdef _MSC_VER
-    // XXX(babenko): MSVC (upto version 2013) does not support thread-safe static locals init :(
-    static TAtomic lock = 0;
-    static TAtomic pool = 0;
-    while (!pool) {
-        if (AtomicCas(&lock, 1, 0)) {
-            if (!pool) {
-                AtomicSet(pool, reinterpret_cast<intptr_t>(new TObjectPool<T>()));
-            }
-            AtomicSet(lock, 0);
-        } else {
-            SpinLockPause();
-        }
-    }
-    return *reinterpret_cast<TObjectPool<T>*>(pool);
-#else
-    static TObjectPool<T> pool;
-    return pool;
-#endif
+    return *Singleton<TObjectPool<T>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,14 +107,14 @@ template <class T>
 struct TPooledObjectTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&> 
+        NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&>
     >::TType
 >
     : public TPooledObjectTraitsBase
 {
-    static void Clean(::google::protobuf::MessageLite* obj)
+    static void Clean(T* message)
     {
-        obj->Clear();
+        message->Clear();
     }
 };
 

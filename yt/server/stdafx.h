@@ -1,3 +1,3 @@
 #pragma once
 
-#include <yt/ytlib/stdafx.h>
+#include <ytlib/stdafx.h>

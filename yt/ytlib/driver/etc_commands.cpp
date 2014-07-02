@@ -1,21 +1,11 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
-#include <core/concurrency/fiber.h>
-
-#include <core/ypath/token.h>
-
-#include <core/ytree/convert.h>
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/ypath/rich.h>
 
-#include <ytlib/security_client/group_ypath_proxy.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/api/client.h>
 
 #include <core/ytree/fluent.h>
 
@@ -26,47 +16,42 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NSecurityClient;
 using namespace NObjectClient;
-using namespace NCypressClient;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-Stroka GetGroupPath(const Stroka& name)
-{
-    return "//sys/groups/" + ToYPathLiteral(name);
-}
-
-} // namespace
-
 void TAddMemberCommand::DoExecute()
 {
-    auto req = TGroupYPathProxy::AddMember(GetGroupPath(Request->Group));
-    req->set_name(Request->Member);
-    GenerateMutationId(req);
+    TAddMemberOptions options;
+    SetMutatingOptions(&options);
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto result = WaitFor(Context_->GetClient()->AddMember(
+        Request_->Group,
+        Request_->Member,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRemoveMemberCommand::DoExecute()
 {
-    auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(Request->Group));
-    req->set_name(Request->Member);
-    GenerateMutationId(req);
+    TRemoveMemberOptions options;
+    SetMutatingOptions(&options);
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto result = WaitFor(Context_->GetClient()->RemoveMember(
+        Request_->Group,
+        Request_->Member,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TParseYPathCommand::DoExecute()
 {
-    auto richPath = TRichYPath::Parse(Request->Path);
+    auto richPath = TRichYPath::Parse(Request_->Path);
     Reply(ConvertToYsonString(richPath));
 }
 
@@ -74,22 +59,25 @@ void TParseYPathCommand::DoExecute()
 
 void TCheckPersmissionCommand::DoExecute()
 {
-    auto req = TObjectYPathProxy::CheckPermission(Request->Path.GetPath());
-    req->set_user(Request->User);
-    req->set_permission(Request->Permission);
-    SetTransactionId(req, EAllowNullTransaction::Yes);
+    TCheckPermissionOptions options;
+    SetTransactionalOptions(&options);
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto resultOrError = WaitFor(Context_->GetClient()->CheckPermission(
+        Request_->User,
+        Request_->Path.GetPath(),
+        Request_->Permission,
+        options));
+    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
 
+    const auto& result = resultOrError.Value();
     Reply(BuildYsonStringFluently()
         .BeginMap()
-            .Item("action").Value(ESecurityAction(rsp->action()))
-            .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
-                fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
+            .Item("action").Value(result.Action)
+            .DoIf(result.ObjectId != NullObjectId, [&] (TFluentMap fluent) {
+                fluent.Item("object_id").Value(result.ObjectId);
             })
-            .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
-                fluent.Item("subject").Value(rsp->subject());
+            .DoIf(result.Subject.HasValue(), [&] (TFluentMap fluent) {
+                fluent.Item("subject").Value(*result.Subject);
             })
         .EndMap());
 }

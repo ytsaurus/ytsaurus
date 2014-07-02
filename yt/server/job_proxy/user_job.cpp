@@ -8,9 +8,6 @@
 #include "table_output.h"
 #include "pipes.h"
 
-#include <core/formats/format.h>
-#include <core/formats/parser.h>
-
 #include <core/yson/writer.h>
 
 #include <core/ytree/convert.h>
@@ -24,11 +21,15 @@
 #include <core/misc/pattern_formatter.h>
 
 #include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/action_queue.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/formats/format.h>
+#include <ytlib/formats/parser.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -39,6 +40,8 @@
 #include <util/stream/null.h>
 
 #include <errno.h>
+
+#include <util/folder/dirut.h>
 
 #ifdef _linux_
     #include <core/misc/ioprio.h>
@@ -92,8 +95,6 @@ public:
         , UserJobSpec(userJobSpec)
         , JobId(jobId)
         , InitCompleted(false)
-        , InputThread(InputThreadFunc, (void*) this)
-        , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
         , CpuAccounting(CGroupPrefix + ToString(jobId))
@@ -245,17 +246,16 @@ private:
         createPipe(pipe);
 
         // Configure stderr pipe.
-        TOutputStream* stdErrOutput;
+        TOutputStream* stderrOutput = &NullErrorOutput;
         if (UserJobSpec.has_stderr_transaction_id()) {
             auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
             ErrorOutput = JobIO->CreateErrorOutput(
                 stderrTransactionId,
                 UserJobSpec.max_stderr_size());
-            stdErrOutput = ~ErrorOutput;
-        } else {
-            stdErrOutput = &NullErrorOutput;
+            stderrOutput = ErrorOutput.get();
         }
-        OutputPipes.push_back(New<TOutputPipe>(pipe, stdErrOutput, STDERR_FILENO));
+        
+        OutputPipes.push_back(New<TOutputPipe>(pipe, stderrOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
         {
@@ -267,12 +267,12 @@ private:
                 auto consumer = CreateConsumerForFormat(
                     format,
                     EDataType::Tabular,
-                    ~buffer);
+                    buffer.get());
 
                 createPipe(pipe);
                 InputPipes.push_back(New<TInputPipe>(
                     pipe,
-                    JobIO->CreateTableInput(i, ~consumer),
+                    JobIO->CreateTableInput(i, consumer.get()),
                     std::move(buffer),
                     std::move(consumer),
                     3 * i));
@@ -292,7 +292,7 @@ private:
 
             for (int i = 0; i < outputCount; ++i) {
                 std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
-                auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
+                auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.get());
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
                     std::move(consumer)));
@@ -302,32 +302,16 @@ private:
                     ? 3 + i
                     : 3 * i + 1;
 
-                OutputPipes.push_back(New<TOutputPipe>(pipe, ~TableOutput[i], jobDescriptor));
+                OutputPipes.push_back(New<TOutputPipe>(pipe, TableOutput[i].get(), jobDescriptor));
             }
         }
 
         // Close reserved descriptors.
-        FOREACH (int fd, reservedDescriptors) {
+        for (int fd : reservedDescriptors) {
             SafeClose(fd);
         }
 
         LOG_DEBUG("Pipes initialized");
-    }
-
-    static void* InputThreadFunc(void* param)
-    {
-        NConcurrency::SetCurrentThreadName("JobProxyInput");
-        TIntrusivePtr<TUserJob> job = (TUserJob*)param;
-        job->ProcessPipes(job->InputPipes);
-        return NULL;
-    }
-
-    static void* OutputThreadFunc(void* param)
-    {
-        NConcurrency::SetCurrentThreadName("JobProxyOutput");
-        TIntrusivePtr<TUserJob> job = (TUserJob*)param;
-        job->ProcessPipes(job->OutputPipes);
-        return NULL;
     }
 
     void SetError(const TError& error)
@@ -344,88 +328,48 @@ private:
         JobExitError.InnerErrors().push_back(error);
     }
 
-    void ProcessPipes(std::vector<IDataPipePtr>& pipes)
-    {
-        // TODO(babenko): rewrite using libuv
-        try {
-            int activePipeCount = pipes.size();
-
-            FOREACH (auto& pipe, pipes) {
-                pipe->PrepareProxyDescriptors();
-            }
-
-            const int fdCountHint = 10;
-            int epollFd = epoll_create(fdCountHint);
-            if (epollFd < 0) {
-                THROW_ERROR_EXCEPTION("Error during job IO: epoll_create failed")
-                    << TError::FromSystem();
-            }
-
-            FOREACH (auto& pipe, pipes) {
-                epoll_event evAdd;
-                evAdd.data.u64 = 0ULL;
-                evAdd.events = pipe->GetEpollFlags();
-                evAdd.data.ptr = ~pipe;
-
-                if (epoll_ctl(epollFd, EPOLL_CTL_ADD, pipe->GetEpollDescriptor(), &evAdd) != 0) {
-                    THROW_ERROR_EXCEPTION("Error during job IO: epoll_ctl failed")
-                        << TError::FromSystem();
-                }
-            }
-
-            const int maxEvents = 10;
-            epoll_event events[maxEvents];
-            memset(events, 0, maxEvents * sizeof(epoll_event));
-
-            while (activePipeCount > 0) {
-                {
-                    TGuard<TSpinLock> guard(SpinLock);
-                    if (!JobExitError.IsOK()) {
-                        break;
-                    }
-                }
-
-                LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
-
-                int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
-
-                if (epollResult < 0) {
-                    if (errno == EINTR) {
-                        errno = 0;
-                        continue;
-                    }
-                    THROW_ERROR_EXCEPTION("Error during job IO: epoll_wait failed")
-                        << TError::FromSystem();
-                }
-
-                for (int pipeIndex = 0; pipeIndex < epollResult; ++pipeIndex) {
-                    auto pipe = reinterpret_cast<IDataPipe*>(events[pipeIndex].data.ptr);
-                    if (!pipe->ProcessData(events[pipeIndex].events)) {
-                        --activePipeCount;
-                    }
-                }
-            }
-
-            SafeClose(epollFd);
-        } catch (const std::exception& ex) {
-            SetError(TError(ex));
-        } catch (...) {
-            SetError(TError("Unknown error during job IO"));
-        }
-
-        FOREACH (auto& pipe, pipes) {
-            // Close can throw exception which will cause JobProxy death.
-            // For now let's assume it is unrecoverable.
-            // Anyway, system seems to be in a very bad state if this happens.
-            pipe->CloseHandles();
-        }
-    }
-
     void DoJobIO()
     {
-        InputThread.Start();
-        OutputThread.Start();
-        OutputThread.Join();
+        for (auto& pipe : InputPipes) {
+            pipe->PrepareProxyDescriptors();
+        }
+        for (auto& pipe : OutputPipes) {
+            pipe->PrepareProxyDescriptors();
+        }
+
+        auto queue = New<NConcurrency::TActionQueue>("PipesIO");
+
+        std::vector<TAsyncError> inputFinishEvents;
+        std::vector<TAsyncError> outputFinishEvents;
+
+        auto doAll = [this] (IDataPipePtr pipe) {
+            auto error = pipe->DoAll();
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Pipe has failed");
+                auto closeError = pipe->Close();
+                if (!closeError.IsOK()) {
+                    SetError(closeError);
+                }
+            }
+            return error;
+        };
+
+        for (auto& pipe : InputPipes) {
+            inputFinishEvents.push_back(BIND(doAll, pipe).AsyncVia(queue->GetInvoker()).Run());
+        }
+
+        for (auto& pipe : OutputPipes) {
+            outputFinishEvents.push_back(BIND(doAll, pipe).AsyncVia(queue->GetInvoker()).Run());
+        }
+
+        for (auto& asyncError : outputFinishEvents) {
+            auto error = asyncError.Get();
+            if (!error.IsOK()) {
+                SetError(error);
+            }
+        }
+
+        LOG_DEBUG("Done processing job outputs");
 
         int status = 0;
         int waitpidResult = waitpid(ProcessId, &status, 0);
@@ -434,6 +378,8 @@ private:
         } else {
             SetError(StatusToError(status));
         }
+
+        LOG_DEBUG("Child process has finished");
 
         auto finishPipe = [&] (IDataPipePtr pipe) {
             try {
@@ -444,15 +390,17 @@ private:
         };
 
         // Stderr output pipe finishes first.
-        FOREACH (auto& pipe, OutputPipes) {
+        for (auto& pipe : OutputPipes) {
             finishPipe(pipe);
         }
 
-        FOREACH (auto& pipe, InputPipes) {
+        for (auto& pipe : InputPipes) {
             finishPipe(pipe);
         }
 
-        FOREACH(auto& writer, Writers) {
+        LOG_DEBUG("Finished pipes");
+
+        for (auto& writer : Writers) {
             try {
                 writer->Close();
             } catch (const std::exception& ex) {
@@ -460,11 +408,16 @@ private:
             }
         }
 
-        // If user process fais, InputThread may be blocked on epoll
-        // because reading end of input pipes is left open to
-        // check that all data was consumed. That is why we should join the
-        // thread after pipe finish.
-        InputThread.Join();
+        LOG_DEBUG("Closed writers");
+
+        for (auto& asyncError : inputFinishEvents) {
+            auto error = asyncError.Get();
+            if (!error.IsOK()) {
+                SetError(error);
+            }
+        }
+
+        LOG_DEBUG("Done processing job inputs");
     }
 
     // Called from the forked process.
@@ -474,11 +427,11 @@ private:
         YCHECK(host);
 
         try {
-            FOREACH (auto& pipe, InputPipes) {
+            for (auto& pipe : InputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
-            FOREACH (auto& pipe, OutputPipes) {
+            for (auto& pipe : OutputPipes) {
                 pipe->PrepareJobDescriptors();
             }
 
@@ -596,7 +549,7 @@ private:
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
                     << TErrorAttribute("limit", memoryLimit));
-                KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
+                NCGroup::RunKiller(Memory.GetFullPath());
                 return;
             }
 
@@ -612,7 +565,7 @@ private:
             }
         } catch (const std::exception& ex) {
             SetError(ex);
-            KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
+            NCGroup::RunKiller(Memory.GetFullPath());
         }
     }
 
@@ -657,7 +610,7 @@ private:
     {
         if (cgroup.IsCreated()) {
             try {
-                KillAll(BIND(&NCGroup::TCGroup::GetTasks, &cgroup));
+                NCGroup::RunKiller(cgroup.GetFullPath());
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
@@ -676,9 +629,6 @@ private:
     std::vector<IDataPipePtr> OutputPipes;
 
     std::vector<ISyncWriterPtr> Writers;
-
-    TThread InputThread;
-    TThread OutputThread;
 
     TSpinLock SpinLock;
     TError JobExitError;

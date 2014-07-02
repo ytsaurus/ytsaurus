@@ -68,10 +68,10 @@ ui32 TSaveContext::GenerateId(void* basePtr, const std::type_info* typeInfo)
 
 TLoadContext::~TLoadContext()
 {
-    FOREACH (auto* rawPtr, IntrinsicInstantiated) {
+    for (auto* rawPtr : IntrinsicInstantiated) {
         rawPtr->Unref();
     }
-    FOREACH (auto* rawPtr, ExtrinsicInstantiated) {
+    for (auto* rawPtr : ExtrinsicInstantiated) {
         rawPtr->Unref();
     }
 }

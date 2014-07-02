@@ -20,6 +20,7 @@
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
+#include <util/generic/map.h>
 
 #include <atomic>
 
@@ -216,7 +217,8 @@ class TLogManager::TImpl
 {
 public:
     TImpl()
-        : EventQueue(New<TInvokerQueue>(
+        : WasShutdown(false)
+        , EventQueue(New<TInvokerQueue>(
             &EventCount,
             NProfiling::EmptyTagIds,
             false,
@@ -262,6 +264,7 @@ public:
 
     void Shutdown()
     {
+        WasShutdown = true;
         EventQueue->Shutdown();
         LoggingThread->Shutdown();
         FlushWriters();
@@ -336,11 +339,11 @@ public:
 
 private:
     class TThread
-        : public TExecutorThread
+        : public TSchedulerThread
     {
     public:
         explicit TThread(TImpl* owner)
-            : TExecutorThread(
+            : TSchedulerThread(
                 &owner->EventCount,
                 "Logging",
                 NProfiling::EmptyTagIds,
@@ -495,7 +498,7 @@ private:
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
-                    ~NotificationHandle,
+                    NotificationHandle.get(),
                     fileName.c_str(),
                     BIND(&ILogWriter::Reload, writer)));
         }
@@ -549,7 +552,7 @@ private:
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
                     YCHECK(NotificationWatchesIndex.insert(
-                        std::make_pair(watch->GetWd(), ~watch)).second);
+                        std::make_pair(watch->GetWd(), watch.get())).second);
                 }
                 NotificationWatches.emplace_back(std::move(watch));
             }
@@ -652,6 +655,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasShutdown;
     TInvokerQueuePtr EventQueue;
 
     TIntrusivePtr<TThread> LoggingThread;

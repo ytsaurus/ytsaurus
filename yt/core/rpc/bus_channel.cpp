@@ -5,6 +5,8 @@
 #include "message.h"
 #include "dispatcher.h"
 
+#include <core/misc/singleton.h>
+
 #include <core/actions/future.h>
 
 #include <core/concurrency/delayed_executor.h>
@@ -70,9 +72,8 @@ class TChannel
     : public IChannel
 {
 public:
-    TChannel(IBusClientPtr client, TNullable<TDuration> defaultTimeout)
+    explicit TChannel(IBusClientPtr client)
         : Client(std::move(client))
-        , DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {
         YCHECK(Client);
@@ -83,10 +84,16 @@ public:
         return DefaultTimeout;
     }
 
+    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    {
+        DefaultTimeout = timeout;
+    }
+
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout) override
+        TNullable<TDuration> timeout,
+        bool requestAck) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -96,7 +103,11 @@ public:
             return;
         }
 
-        sessionOrError.Value()->Send(request, responseHandler, timeout);
+        sessionOrError.Value()->Send(
+            request,
+            responseHandler,
+            timeout,
+            requestAck);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
@@ -109,7 +120,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             if (Terminated) {
-                return MakeFuture();
+                return VoidFuture;
             }
 
             session = Session;
@@ -122,7 +133,8 @@ public:
         if (session) {
             session->Terminate(error);
         }
-        return MakeFuture();
+
+        return VoidFuture;
     }
 
 private:
@@ -182,7 +194,7 @@ private:
                 activeRequests.swap(ActiveRequests);
             }
 
-            FOREACH (auto& pair, activeRequests) {
+            for (auto& pair : activeRequests) {
                 const auto& requestId = pair.first;
                 auto& request = pair.second;
                 LOG_DEBUG("Request failed due to channel termination (RequestId: %s)",
@@ -195,7 +207,8 @@ private:
         void Send(
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
-            TNullable<TDuration> timeout)
+            TNullable<TDuration> timeout,
+            bool requestAck)
         {
             YCHECK(request);
             YCHECK(responseHandler);
@@ -203,10 +216,11 @@ private:
 
             auto requestId = request->GetRequestId();
 
-            const auto& descriptor = GetMethodDescriptor(request->GetPath(), request->GetVerb());
+            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetMethod());
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
+            activeRequest.Timeout = timeout;
             activeRequest.ResponseHandler = responseHandler;
             activeRequest.Timer = Profiler.TimingStart(
                 "/request_time",
@@ -221,10 +235,10 @@ private:
                     auto error = TerminationError;
                     guard.Release();
 
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Path: %s, Verb: %s)",
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Service: %s, Method: %s)",
                         ~ToString(requestId),
-                        ~request->GetPath(),
-                        ~request->GetVerb());
+                        ~request->GetService(),
+                        ~request->GetMethod());
 
                     responseHandler->OnError(error);
                     return;
@@ -249,10 +263,16 @@ private:
                         MakeStrong(this),
                         bus,
                         request,
-                        timeout));
+                        timeout,
+                        requestAck));
             } else {
                 auto requestMessage = request->Serialize();
-                OnRequestSerialized(bus, request, timeout, requestMessage);
+                OnRequestSerialized(
+                    bus,
+                    request,
+                    timeout,
+                    requestAck,
+                    requestMessage);
             }
         }
 
@@ -288,12 +308,12 @@ private:
                 }
 
                 activeRequest = it->second;
-                Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
+                Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("reply"));
 
                 UnregisterRequest(it);
             }
 
-            auto error = FromProto(header.error());
+            auto error = FromProto<TError>(header.error());
             if (error.IsOK()) {
                 NotifyResponse(activeRequest, std::move(message));
             } else {
@@ -306,11 +326,13 @@ private:
 
     private:
         IBusPtr Bus;
+
         TNullable<TDuration> DefaultTimeout;
 
         struct TActiveRequest
         {
             IClientRequestPtr ClientRequest;
+            TNullable<TDuration> Timeout;
             IClientResponseHandlerPtr ResponseHandler;
             TDelayedExecutor::TCookie TimeoutCookie;
             NProfiling::TTimer Timer;
@@ -327,19 +349,24 @@ private:
             IBusPtr bus,
             IClientRequestPtr request,
             TNullable<TDuration> timeout,
+            bool requestAck,
             TSharedRefArray requestMessage)
         {
             const auto& requestId = request->GetRequestId();
 
-            bus->Send(requestMessage).Subscribe(BIND(
+            EDeliveryTrackingLevel level = requestAck
+                ? EDeliveryTrackingLevel::Full
+                : EDeliveryTrackingLevel::ErrorOnly;
+
+            bus->Send(requestMessage, level).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
+            LOG_DEBUG("Request sent (RequestId: %s, Service: %s, Method: %s, Timeout: %s)",
                 ~ToString(requestId),
-                ~request->GetPath(),
-                ~request->GetVerb(),
+                ~request->GetService(),
+                ~request->GetMethod(),
                 ~ToString(timeout));
         }
 
@@ -360,7 +387,7 @@ private:
             // NB: Make copies, the instance will die soon.
             auto activeRequest = it->second;
 
-            Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
+            Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("ack"));
 
             if (error.IsOK()) {
                 if (activeRequest.ClientRequest->IsOneWay()) {
@@ -377,7 +404,11 @@ private:
                 // Don't need the guard anymore.
                 guard.Release();
 
-                NotifyError(activeRequest, error);
+                auto wrappedError = AddErrorAttributes(
+                    activeRequest,
+                    TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
+                        << error);
+                NotifyError(activeRequest, wrappedError);
             }
         }
 
@@ -397,18 +428,21 @@ private:
                 }
 
                 activeRequest = it->second;
-                Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
+                Profiler.TimingCheckpoint(activeRequest.Timer, STRINGBUF("timeout"));
 
                 UnregisterRequest(it);
             }
 
-            NotifyError(activeRequest, TError(EErrorCode::Timeout, "Request timed out"));
+            auto error = AddErrorAttributes(
+                activeRequest,
+                TError(EErrorCode::Timeout, "Request timed out"));
+            NotifyError(activeRequest, error);
         }
 
         void FinalizeRequest(TActiveRequest& request)
         {
             TDelayedExecutor::CancelAndClear(request.TimeoutCookie);
-            Profiler.TimingStop(request.Timer, "total");
+            Profiler.TimingStop(request.Timer, STRINGBUF("total"));
         }
 
         void UnregisterRequest(TRequestMap::iterator it)
@@ -453,9 +487,24 @@ private:
             }
         }
 
+
+        static TError AddErrorAttributes(const TActiveRequest& activeRequest, TError error)
+        {
+            error = error
+                << TErrorAttribute("request_id", activeRequest.ClientRequest->GetRequestId())
+                << TErrorAttribute("service", activeRequest.ClientRequest->GetService())
+                << TErrorAttribute("method", activeRequest.ClientRequest->GetMethod());
+            if (activeRequest.Timeout) {
+                error = error
+                    << TErrorAttribute("timeout", activeRequest.Timeout->MilliSeconds());
+            }
+            return error;
+        }
+
     };
 
     IBusClientPtr Client;
+
     TNullable<TDuration> DefaultTimeout;
 
     TSpinLock SpinLock;
@@ -515,15 +564,34 @@ private:
 
         session_->Terminate(error);
     }
+
 };
 
-IChannelPtr CreateBusChannel(
-    IBusClientPtr client,
-    TNullable<TDuration> defaultTimeout)
+IChannelPtr CreateBusChannel(IBusClientPtr client)
 {
     YCHECK(client);
 
-    return New<TChannel>(client, defaultTimeout);
+    return New<TChannel>(std::move(client));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBusChannelFactory
+    : public IChannelFactory
+{
+public:
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto config = New<TTcpBusClientConfig>(address);
+        auto client = CreateTcpBusClient(config);
+        return CreateBusChannel(client);
+    }
+
+};
+
+IChannelFactoryPtr GetBusChannelFactory()
+{
+    return RefCountedSingleton<TBusChannelFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,7 +72,7 @@ TEST_F(TSmallStringTest, AssignStringRef) {
 
 TEST_F(TSmallStringTest, AssignSmallVector) {
   TStringBuf abc = "abc";
-  TSmallVector<char, 10> abcVec(abc.begin(), abc.end());
+  SmallVector<char, 10> abcVec(abc.begin(), abc.end());
   theString.assign(abcVec);
   EXPECT_EQ(3u, theString.size());
   EXPECT_STREQ("abc", theString.c_str());
@@ -96,7 +96,7 @@ TEST_F(TSmallStringTest, AppendStringRef) {
 
 TEST_F(TSmallStringTest, AppendSmallVector) {
   TStringBuf abc = "abc";
-  TSmallVector<char, 10> abcVec(abc.begin(), abc.end());
+  SmallVector<char, 10> abcVec(abc.begin(), abc.end());
   theString.append(abcVec);
   theString.append(abcVec);
   EXPECT_EQ(6u, theString.size());

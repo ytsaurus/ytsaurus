@@ -7,6 +7,8 @@
 
 #include <core/ypath/public.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NProfiling {
 
@@ -39,7 +41,7 @@ DECLARE_ENUM(ETimerMode,
 /*!
  *  Keeps the timing start time and the last checkpoint time.
  *
- *  Thread affinity: single-threaded
+ *  \note Not thread-safe.
  */
 struct TTimer
 {
@@ -92,7 +94,7 @@ struct TCounterBase
  *  certain fixed intervals of time. E.g. if the interval is 1 second then
  *  this counter will actually be sampling RPS.
  *
- *  \note Thread safety: single
+ *  \note Thread-safe.
  */
 struct TRateCounter
     : public TCounterBase
@@ -102,8 +104,13 @@ struct TRateCounter
         const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
 
+    // NB: Need to write these by hand because of std::atomic.
+    TRateCounter(const TRateCounter& other);
+    TRateCounter& operator = (const TRateCounter& other);
+
+
     //! The current counter's value.
-    TValue Value;
+    std::atomic<TValue> Value;
 
     //! The counter's value at the moment of the last sampling.
     TValue LastValue;
@@ -134,7 +141,7 @@ DECLARE_ENUM(EAggregateMode,
  *  Used to measure aggregates (min, max, avg) of a rapidly changing value.
  *  The values are aggregated over the time periods specified in the constructor.
  *
- *  \note Thread safety: single
+ *  \note Thread-safe.
  */
 struct TAggregateCounter
     : public TCounterBase
@@ -145,7 +152,7 @@ struct TAggregateCounter
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
 
-    void ResetAggregation();
+    void Reset();
 
     EAggregateMode Mode;
     TValue Current;
@@ -165,6 +172,9 @@ struct TAggregateCounter
 class TProfiler
 {
 public:
+    //! Constructs a disabled profiler.
+    TProfiler();
+
     //! Constructs a new profiler for a given prefix.
     /*!
      *  By default the profiler is enabled.
@@ -205,7 +215,7 @@ public:
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */
-    TDuration TimingCheckpoint(TTimer& timer, const Stroka& key);
+    TDuration TimingCheckpoint(TTimer& timer, const TStringBuf& key);
 
     //! Same as above but uses tags instead of keys.
     TDuration TimingCheckpoint(TTimer& timer, const TTagIdList& checkpointTagIds);
@@ -213,7 +223,7 @@ public:
 
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
-    TDuration TimingStop(TTimer& timer, const Stroka& key);
+    TDuration TimingStop(TTimer& timer, const TStringBuf& key);
 
     //! Same as above but uses tags instead of keys.
     TDuration TimingStop(TTimer& timer, const TTagIdList& totalTagIds);
@@ -248,12 +258,12 @@ private:
 
     TDuration DoTimingCheckpoint(
         TTimer& timer,
-        const TNullable<Stroka>& key,
+        const TNullable<TStringBuf>& key,
         const TNullable<TTagIdList>& checkpointTagIds);
 
     TDuration DoTimingStop(
         TTimer& timer,
-        const TNullable<Stroka>& key,
+        const TNullable<TStringBuf>& key,
         const TNullable<TTagIdList>& totalTagIds);
 
 };
@@ -266,6 +276,7 @@ private:
  *  Keep implementation in header to ensure inlining.
  */
 class TTimingGuard
+    : private TNonCopyable
 {
 public:
     TTimingGuard(
@@ -273,24 +284,31 @@ public:
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = EmptyTagIds)
         : Profiler(profiler)
-        , Timer(profiler->TimingStart(path, tagIds))
+        , Timer(Profiler->TimingStart(path, tagIds))
+    { }
+
+    TTimingGuard(TTimingGuard&& other)
+        : Profiler(other.Profiler)
+        , Timer(other.Timer)
     {
-        YASSERT(profiler);
+        other.Profiler = nullptr;
     }
+
 
     ~TTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exception() && Profiler) {
             Profiler->TimingStop(Timer);
         }
     }
 
-    void Checkpoint(const Stroka& key)
+    void Checkpoint(const TStringBuf& key)
     {
         Profiler->TimingCheckpoint(Timer, key);
     }
 
+    //! Needed for PROFILE_TIMING.
     operator bool() const
     {
         return false;
@@ -325,6 +343,7 @@ TValue CpuDurationToValue(TCpuDuration duration);
  *  Keep implementation in header to ensure inlining.
  */
 class TAggregatedTimingGuard
+    : private TNonCopyable
 {
 public:
     TAggregatedTimingGuard(TProfiler* profiler, TAggregateCounter* counter)
@@ -336,10 +355,18 @@ public:
         YASSERT(counter);
     }
 
+    TAggregatedTimingGuard(TAggregatedTimingGuard&& other)
+        : Profiler(other.Profiler)
+        , Counter(other.Counter)
+        , Start(other.Start)
+    {
+        other.Profiler = nullptr;
+    }
+
     ~TAggregatedTimingGuard()
     {
         // Don't measure anything during exception unwinding.
-        if (!std::uncaught_exception()) {
+        if (!std::uncaught_exception() && Profiler) {
             auto stop = GetCpuInstant();
             auto value = CpuDurationToValue(stop - Start);
             Profiler->Aggregate(*Counter, value);

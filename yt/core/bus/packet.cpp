@@ -34,12 +34,12 @@ void TPacketDecoder::Restart()
 
 bool TPacketDecoder::Advance(size_t size)
 {
-    YASSERT(PendingSize != 0);
-    YASSERT(size <= PendingSize);
+    YASSERT(FragmentRemaining != 0);
+    YASSERT(size <= FragmentRemaining);
 
-    PendingSize -= size;
-    Chunk += size;
-    if (PendingSize == 0) {
+    FragmentRemaining -= size;
+    Fragment += size;
+    if (FragmentRemaining == 0) {
         return EndPhase();
     } else {
         return true;
@@ -48,7 +48,12 @@ bool TPacketDecoder::Advance(size_t size)
 
 EPacketType TPacketDecoder::GetPacketType() const
 {
-    return Header.Type;
+    return EPacketType(Header.Type);
+}
+
+EPacketFlags TPacketDecoder::GetPacketFlags() const
+{
+    return EPacketFlags(Header.Flags);
 }
 
 const TPacketId& TPacketDecoder::GetPacketId() const
@@ -85,7 +90,7 @@ bool TPacketDecoder::EndHeaderPhase()
             return true;
 
         default:
-            LOG_ERROR("Invalid packet type %s", ~Header.Type.ToString());
+            LOG_ERROR("Invalid packet type %s", ~ToString(EPacketType(Header.Type)));
             return false;
     }
 }
@@ -98,7 +103,7 @@ bool TPacketDecoder::EndPartCountPhase()
     }
 
     PartSizes.resize(PartCount);
-    BeginPhase(EPacketPhase::PartSizes, &*PartSizes.begin(), PartCount * sizeof (i32));
+    BeginPhase(EPacketPhase::PartSizes, PartSizes.data(), PartCount * sizeof (i32));
     return true;
 }
 
@@ -165,7 +170,7 @@ TSharedRef TPacketDecoder::AllocatePart(size_t partSize)
         }
         auto part = SmallChunk.Slice(TRef(SmallChunk.Begin() + SmallChunkUsed, partSize));
         SmallChunkUsed += partSize;
-        return std::move(part);
+        return part;
     } else {
         struct TLargeReceivedMessagePartTag { };
         return TSharedRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
@@ -182,7 +187,7 @@ TPacketEncoder::TPacketEncoder()
 
 i64 TPacketEncoder::GetPacketSize(
     EPacketType type,
-    TSharedRefArray message)
+    const TSharedRefArray& message)
 {
     i64 size = sizeof (TPacketHeader);
     switch (type) {
@@ -206,10 +211,12 @@ i64 TPacketEncoder::GetPacketSize(
 
 bool TPacketEncoder::Start(
     EPacketType type,
+    EPacketFlags flags,
     const TPacketId& packetId,
     TSharedRefArray message)
 {
     Header.Type = type;
+    Header.Flags = flags;
     Header.PacketId = packetId;
 
     PartSizes.clear();
@@ -243,7 +250,12 @@ bool TPacketEncoder::Start(
     return true;
 }
 
-void TPacketEncoder::NextChunk()
+bool TPacketEncoder::IsFragmentOwned() const
+{
+    return Phase == EPacketPhase::MessagePart;
+}
+
+void TPacketEncoder::NextFragment()
 {
     EndPhase();
 }
@@ -266,7 +278,7 @@ bool TPacketEncoder::EndHeaderPhase()
 
 bool TPacketEncoder::EndPartCountPhase()
 {
-    BeginPhase(EPacketPhase::PartSizes, &*PartSizes.begin(), PartCount * sizeof (i32));
+    BeginPhase(EPacketPhase::PartSizes, PartSizes.data(), PartCount * sizeof (i32));
     return true;
 }
 

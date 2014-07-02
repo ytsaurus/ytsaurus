@@ -16,7 +16,7 @@ namespace NYT {
 
 #define RETURN_FUTURE_IF_ERROR(valueOrError, type) \
     if (!(valueOrError).IsOK()) { \
-        return MakeFuture< type >(TError(valueOrError)); \
+        return MakeFuture<type>(TError(valueOrError)); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,20 +40,31 @@ TPromise<void> NewPromise();
 
 //! Constructs a pre-set future.
 template <class T>
-TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value);
+TFuture<typename NMpl::TDecay<T>::TType> MakeFuture(T&& value);
 
 //! Constructs a pre-set void future.
 TFuture<void> MakeFuture();
 
 //! Constructs a pre-set promise.
 template <class T>
-TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value);
+TPromise<typename NMpl::TDecay<T>::TType> MakePromise(T&& value);
 
 //! Constructs a pre-set void promise.
 TPromise<void> MakePromise();
 
 //! Constructs a future that gets set when a given #delay elapses.
 TFuture<void> MakeDelayed(TDuration delay);
+
+// A bunch of widely-used preset futures.
+ 
+//! A pre-set |void| future.
+extern TFuture<void> VoidFuture;
+
+//! A pre-set |bool| future with |true| value.
+extern TFuture<bool> TrueFuture;
+
+//! A pre-set |bool| future with |false| value.
+extern TFuture<bool> FalseFuture;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,27 +94,14 @@ public:
     //! Empty constructor.
     TFuture(TNull);
 
-    //! Copy constructor.
-    TFuture(const TFuture& other);
-
-    //! Move constructor.
-    TFuture(TFuture&& other);
-
-    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
 
     //! Swaps underlying associated state.
     void Swap(TFuture& other);
-
-    //! Copy assignment.
-    TFuture<T>& operator=(const TFuture<T>& other);
-
-    //! Move assignment.
-    TFuture<T>& operator=(TFuture<T>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -151,9 +149,13 @@ public:
         TCallback<void(T)> onResult,
         TClosure onTimeout);
 
-    //! Notifies the producer that the promised value is no
-    //! longer needed.
-    void Cancel();
+    //! Does exactly same thing as its TPromise counterpart.
+    //! Gives the consumder a chance to handle cancelation.
+    void OnCanceled(TClosure onCancel);
+
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
     TFuture<void> Apply(TCallback<void(T)> mutator);
@@ -172,17 +174,21 @@ public:
     //! Converts into a void future by effectively discarding the value.
     TFuture<void> IgnoreResult();
 
-private:
-    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
-    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
+    //! Returns a void future that is set when the original future
+    //! is either set or canceled.
+    TFuture<void> Finally();
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
+private:
+    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
+    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
+
+    TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
 private:
     friend class TPromise<T>;
 
     template <class U>
-    friend TFuture< typename NMpl::TDecay<U>::TType > MakeFuture(U&& value);
+    friend TFuture<typename NMpl::TDecay<U>::TType> MakeFuture(U&& value);
 
     template <class U>
     friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
@@ -206,27 +212,14 @@ public:
     //! Empty constructor.
     TFuture(TNull);
 
-    //! Copy constructor.
-    TFuture(const TFuture& other);
-
-    //! Move constructor.
-    TFuture(TFuture&& other);
-
-    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TFuture::* TUnspecifiedBoolType;
     //! Checks if the future is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
 
     //! Swaps underlying associated state.
     void Swap(TFuture& other);
-
-    //! Copy assignment.
-    TFuture<void>& operator=(const TFuture<void>& other);
-
-    //! Move assignment.
-    TFuture<void>& operator=(TFuture<void>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -265,9 +258,13 @@ public:
         TClosure onResult,
         TClosure onTimeout);
 
-    //! Notifies the producer that the promised value is no
-    //! longer needed.
-    void Cancel();
+    //! Does exactly same thing as its TPromise counterpart.
+    //! Gives the consumer a chance to handle cancelation.
+    void OnCanceled(TClosure onCancel);
+
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
     TFuture<void> Apply(TCallback<void()> mutator);
@@ -283,11 +280,15 @@ public:
     template <class R>
     TFuture<R> Apply(TCallback<TFuture<R>()> mutator);
 
-private:
-    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
-    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
+    //! Returns a void future that is set when the original future
+    //! is either set or canceled.
+    TFuture<void> Finally();
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
+private:
+    explicit TFuture(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
+    explicit TFuture(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
+
+    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
 
 private:
     friend class TPromise<void>;
@@ -326,27 +327,14 @@ public:
     //! Empty constructor.
     TPromise(TNull);
 
-    //! Copy constructor.
-    TPromise(const TPromise& other);
-
-    //! Move constructor.
-    TPromise(TPromise&& other);
-
-    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TPromise::*TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
 
     //! Swaps underlying associated state.
     void Swap(TPromise& other);
-
-    //! Copy assignment.
-    TPromise<T>& operator=(const TPromise<T>& other);
-
-    //! Move assignment.
-    TPromise<T>& operator=(TPromise<T>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -357,6 +345,11 @@ public:
      */
     void Set(const T& value);
     void Set(T&& value);
+
+    //! Atomically invokes |Set|, if not already set or canceled.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool TrySet(const T& value);
+    bool TrySet(T&& value);
 
     //! Gets the value.
     /*!
@@ -409,14 +402,18 @@ public:
      */
     void OnCanceled(TClosure onCancel);
 
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
+
     TFuture<T> ToFuture() const;
     operator TFuture<T>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
-    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
+    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<T>>& state);
+    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<T>>&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
+    TIntrusivePtr<NYT::NDetail::TPromiseState<T>> Impl_;
 
 private:
     friend class TFuture<T>;
@@ -425,7 +422,7 @@ private:
     friend TPromise<U> NewPromise();
     friend TPromise<void> NewPromise();
     template <class U>
-    friend TPromise< typename NMpl::TDecay<U>::TType > MakePromise(U&& value);
+    friend TPromise<typename NMpl::TDecay<U>::TType> MakePromise(U&& value);
 
     template <class U>
     friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
@@ -451,27 +448,14 @@ public:
     //! Empty constructor.
     TPromise(TNull);
 
-    //! Copy constructor.
-    TPromise(const TPromise& other);
-
-    //! Move constructor.
-    TPromise(TPromise&& other);
-
-    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TPromise::* TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
-    operator TUnspecifiedBoolType() const;
+    explicit operator bool() const;
 
     //! Drops underlying associated state.
     void Reset();
 
     //! Swaps underlying associated state.
     void Swap(TPromise& other);
-
-    //! Copy assignment.
-    TPromise<void>& operator=(const TPromise<void>& other);
-
-    //! Move assignment.
-    TPromise<void>& operator=(TPromise<void>&& other);
 
     //! Checks if the value is set.
     bool IsSet() const;
@@ -481,6 +465,13 @@ public:
      *  Calling this method also invokes all the subscribers.
      */
     void Set();
+
+    //! Atomically sets the promise, if not already set or canceled.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    /*!
+     *  Calling this method also invokes all the subscribers.
+     */
+    bool TrySet();
 
     //! Gets the value.
     /*!
@@ -527,14 +518,18 @@ public:
      */
     void OnCanceled(TClosure onCancel);
 
+    //! Notifies the producer that the promised value is no longer needed.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    bool Cancel();
+
     TFuture<void> ToFuture() const;
     operator TFuture<void>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
-    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
+    explicit TPromise(const TIntrusivePtr<NYT::NDetail::TPromiseState<void>>& state);
+    explicit TPromise(TIntrusivePtr<NYT::NDetail::TPromiseState<void>>&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
+    TIntrusivePtr<NYT::NDetail::TPromiseState<void>> Impl_;
 
 private:
     friend class TFuture<void>;
@@ -561,27 +556,6 @@ bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs);
 template <class T>
 bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs);
 
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct TPromiseSetter
-{
-    static void Do(TPromise<T> promise, T value)
-    {
-        promise.Set(std::move(value));
-    }
-};
-
-template <>
-struct TPromiseSetter<void>
-{
-    static void Do(TPromise<void> promise)
-    {
-        promise.Set();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Cancels a given future at the end of the scope.
@@ -594,10 +568,20 @@ class TFutureCancelationGuard
 {
 public:
     explicit TFutureCancelationGuard(TFuture<T> future);
+    TFutureCancelationGuard(TFutureCancelationGuard<T>&& other);
     ~TFutureCancelationGuard();
 
+    TFutureCancelationGuard<T>& operator=(TFutureCancelationGuard<T>&& other);
+
+    template <class U>
+    friend void swap(TFutureCancelationGuard<U>& lhs, TFutureCancelationGuard<U>& rhs);
+
+    void Release();
+
+    explicit operator bool() const;
+
 private:
-    TFuture<T> Future;
+    TFuture<T> Future_;
 
 };
 

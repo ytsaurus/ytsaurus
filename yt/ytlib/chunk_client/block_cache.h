@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "block_id.h"
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -37,6 +37,8 @@ struct IBlockCache
      */
     virtual TSharedRef Find(const TBlockId& id) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IBlockCache)
 
 ///////////////////////////////////////////////////////////////////////////////
 

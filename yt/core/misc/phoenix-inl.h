@@ -84,13 +84,13 @@ struct TSerializer
     template <class T, class C>
     static void Save(C& context, const TIntrusivePtr<T>& ptr)
     {
-        SaveImpl(context, ~ptr);
+        SaveImpl(context, ptr.Get());
     }
 
     template <class T, class C>
     static void Save(C& context, const std::unique_ptr<T>& ptr)
     {
-        SaveImpl(context, ~ptr);
+        SaveImpl(context, ptr.get());
     }
 
     template <class T, class C>
@@ -142,7 +142,7 @@ struct TSerializer
     template <class T, class C>
     static void InplaceLoad(C& context, const TIntrusivePtr<T>& ptr)
     {
-        T* rawPtr = ~ptr;
+        T* rawPtr = ptr.Get();
         LoadImpl(context, rawPtr, true);
     }
 
@@ -157,7 +157,7 @@ struct TSerializer
     template <class T, class C>
     static void InplaceLoad(C& context, const std::unique_ptr<T>& ptr)
     {
-        T* rawPtr = ~ptr;
+        T* rawPtr = ptr.get();
         LoadImpl(context, rawPtr, true);
     }
 

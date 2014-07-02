@@ -65,7 +65,7 @@ struct TRefCountedFactory
     {
         auto obj = New<T>();
         obj->Ref();
-        return ~obj;
+        return obj.Get();
     }
 };
 
@@ -149,7 +149,6 @@ private:
     yhash_map<ui32, TEntryPtr> TagToEntry;
 
     TRegistry();
-    DECLARE_SINGLETON_FRIEND(TRegistry);
 
     const TEntry& GetEntry(ui32 tag);
     const TEntry& GetEntry(const std::type_info& typeInfo);
@@ -157,6 +156,7 @@ private:
     template <class T>
     static void* DoInstantiate();;
 
+    DECLARE_SINGLETON_FRIEND(TRegistry)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

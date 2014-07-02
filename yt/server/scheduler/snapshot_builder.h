@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/api/public.h>
+
 #include <server/misc/snapshot_builder_detail.h>
 
 #include <server/cell_scheduler/public.h>
@@ -17,13 +19,15 @@ class TSnapshotBuilder
 public:
     TSnapshotBuilder(
         TSchedulerConfigPtr config,
-        NCellScheduler::TBootstrap* bootstrap);
+        TSchedulerPtr scheduler,
+        NApi::IClientPtr masterClient);
 
     TAsyncError Run();
 
 private:
     TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* Bootstrap;
+    TSchedulerPtr Scheduler;
+    NApi::IClientPtr MasterClient;
 
     struct TJob
     {

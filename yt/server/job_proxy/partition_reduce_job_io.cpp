@@ -7,6 +7,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 

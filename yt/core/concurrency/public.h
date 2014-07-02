@@ -7,48 +7,31 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef size_t TThreadId;
-const TThreadId InvalidThreadId = 0;
+DECLARE_REFCOUNTED_CLASS(TActionQueue)
+DECLARE_REFCOUNTED_CLASS(TFairShareActionQueue)
+DECLARE_REFCOUNTED_CLASS(TThreadPool)
+DECLARE_REFCOUNTED_CLASS(TParallelAwaiter)
+DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
+DECLARE_REFCOUNTED_CLASS(TFiber)
 
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_REFCOUNTED_STRUCT(TDelayedExecutorEntry)
 
-class TActionQueue;
-typedef TIntrusivePtr<TActionQueue> TActionQueuePtr;
+DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
+DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)
 
-class TFairShareActionQueue;
-typedef TIntrusivePtr<TFairShareActionQueue> TFairShareActionQueuePtr;
-
-class TPrioritizedActionQueue;
-typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
-
-class TThreadPool;
-typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
-
-class TParallelAwaiter;
-typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
-
-class TPeriodicExecutor;
-typedef TIntrusivePtr<TPeriodicExecutor> TPeriodicExecutorPtr;
-
-class TThroughputThrottlerConfig;
-typedef TIntrusivePtr<TThroughputThrottlerConfig> TThroughputThrottlerConfigPtr;
-
-class IThroughputThrottler;
-typedef TIntrusivePtr<IThroughputThrottler> IThroughputThrottlerPtr;
+DECLARE_REFCOUNTED_STRUCT(IAsyncInputStream)
+DECLARE_REFCOUNTED_STRUCT(IAsyncOutputStream)
 
 class TAsyncSemaphore;
 
-struct IAsyncInputStream;
-typedef TIntrusivePtr<IAsyncInputStream> IAsyncInputStreamPtr;
-
-struct IAsyncOutputStream;
-typedef TIntrusivePtr<IAsyncOutputStream> IAsyncOutputStreamPtr;
-
-class TFiber;
-typedef TIntrusivePtr<TFiber> TFiberPtr;
-
-template <class Signature>
+template <class TSignature>
 class TCoroutine;
+
+typedef size_t TThreadId;
+const size_t InvalidThreadId = 0;
+
+typedef size_t TFiberId;
+const size_t InvalidFiberId = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

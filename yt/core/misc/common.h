@@ -1,66 +1,54 @@
 #pragma once
 
-#include <algorithm>
-#include <string>
 #include <map>
 #include <set>
 #include <vector>
 #include <list>
-#include <utility>
-#include <tuple>
 
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
-#include <util/system/mutex.h>
-#include <util/system/condvar.h>
-#include <util/system/event.h>
-#include <util/system/thread.h>
 
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
 #include <util/generic/stroka.h>
-#include <util/generic/ptr.h>
-#include <util/generic/vector.h>
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
-#include <util/generic/map.h>
-#include <util/generic/set.h>
 #include <util/generic/singleton.h>
-#include <util/generic/pair.h>
 
 #include <util/datetime/base.h>
 
 #include <util/string/printf.h>
 #include <util/string/cast.h>
-#include <util/string/split.h>
+
+// Check platform bitness.
+#if !defined(__x86_64__) && !defined(_M_X64)
+    #error YT requires 64-bit platform
+#endif
 
 // This define enables tracking of reference-counted objects to provide
 // various insightful information on memory usage and object creation patterns.
-#define ENABLE_REF_COUNTED_TRACKING
+#define YT_ENABLE_REF_COUNTED_TRACKING
 
 // This define causes printing enormous amount of debugging information to stderr.
 // Use when you really have to.
-#undef ENABLE_REF_COUNTED_DEBUGGING
+#undef YT_ENABLE_REF_COUNTED_DEBUGGING
 
 #ifndef NDEBUG
     // This define enables thread affinity check -- a user-defined verification ensuring
     // that some functions are called from particular threads.
-    #define ENABLE_THREAD_AFFINITY_CHECK
+    #define YT_ENABLE_THREAD_AFFINITY_CHECK
 
     // This define enables logging with TRACE level.
-    #define ENABLE_TRACE_LOGGING
-#endif
+    #define YT_ENABLE_TRACE_LOGGING
 
-// This define enables tracking of bind location
-#define ENABLE_BIND_LOCATION_TRACKING
+    // This define enables tracking of bind location
+    #define YT_ENABLE_BIND_LOCATION_TRACKING
+#endif
 
 // Configure SSE usage.
 #ifdef __SSE4_2__
     #define YT_USE_SSE42
     #ifndef __APPLE__
-    	#define YT_USE_CRC_PCLMUL
+        #define YT_USE_CRC_PCLMUL
     #endif
 #endif
 
@@ -84,13 +72,9 @@
     #pragma warning (disable: 4250)
 #endif
 
-// A temporary workaround until we switch to a fresh VS version.
-#if defined(_MSC_VER) && (_MSC_VER < 1700)
-namespace std {
-    using ::std::tr1::tuple;
-    using ::std::tr1::tie;
-    using ::std::tr1::get;
-} // namespace std
+#if defined(_MSC_VER)
+    // VS does not support alignof natively yet.
+    #define alignof __alignof
 #endif
 
 // Used to mark Logger and Profiler static variables as probably unused
@@ -107,15 +91,73 @@ namespace std {
     #define TLS_STATIC static __declspec(thread)
 #endif
 
+namespace std {
+
+#ifdef __GNUC__
+
+// As of now, GCC does not support make_unique.
+// See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
+template <typename TResult, typename ...TArgs>
+std::unique_ptr<TResult> make_unique(TArgs&& ...args)
+{
+    return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
+}
+
+// As of now, GCC does not have std::aligned_union.
+template <typename... _Types>
+  struct __strictest_alignment
+  {
+    static const size_t _S_alignment = 0;
+    static const size_t _S_size = 0;
+  };
+
+template <typename _Tp, typename... _Types>
+  struct __strictest_alignment<_Tp, _Types...>
+  {
+    static const size_t _S_alignment =
+      alignof(_Tp) > __strictest_alignment<_Types...>::_S_alignment
+ ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
+    static const size_t _S_size =
+      sizeof(_Tp) > __strictest_alignment<_Types...>::_S_size
+ ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
+  };
+
+template <size_t _Len, typename... _Types>
+  struct aligned_union
+  {
+  private:
+    static_assert(sizeof...(_Types) != 0, "At least one type is required");
+
+    using __strictest = __strictest_alignment<_Types...>;
+    static const size_t _S_len = _Len > __strictest::_S_size
+ ? _Len : __strictest::_S_size;
+  public:
+    /// The value of the strictest alignment of _Types.
+    static const size_t alignment_value = __strictest::_S_alignment;
+    /// The storage.
+    typedef typename aligned_storage<_S_len, alignment_value>::type type;
+  };
+
+template <size_t _Len, typename... _Types>
+  const size_t aligned_union<_Len, _Types...>::alignment_value;
+
+#endif
+
+#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
+// GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
+template<typename T>
+using is_trivially_destructible = std::has_trivial_destructor<T>;
+#endif
+
+} // namespace std
+
 #include "enum.h"
 #include "assert.h"
 #include "intrusive_ptr.h"
 #include "weak_ptr.h"
 #include "ref_counted.h"
 #include "new.h"
-#include "arcadia_helper.h"
 #include "hash.h"
-#include "foreach.h"
 
 namespace NYT {
 

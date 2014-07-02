@@ -52,8 +52,17 @@ function stubDriver(echo)
         "low_watermark": 100,
         "high_watermark": 200,
         "proxy": {
-            "driver": { "masters": { "addresses": [ "localhost:0" ] } },
-            "logging": { "rules": [], "writers": {} }
+            "driver": {
+                "master": {
+                    "addresses": [ "localhost:0" ]
+                }
+            },
+            "tracing": {
+            },
+            "logging": {
+                "rules": [],
+                "writers": {}
+            }
         }
     };
 

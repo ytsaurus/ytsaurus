@@ -5,29 +5,39 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
-#include "node_directory_builder.h"
+
+#include <core/concurrency/scheduler.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/fluent.h>
 #include <core/ytree/system_attribute_provider.h>
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/erasure/codec.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/erasure/codec.h>
+#include <ytlib/object_client/helpers.h>
+
+#include <server/node_tracker_server/node_directory_builder.h>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NNodeTrackerServer;
+using namespace NVersionedTableClient;
+using namespace NObjectClient;
 
 using NChunkClient::TChannel;
+using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +49,7 @@ class TFetchChunkVisitor
     : public IChunkVisitor
 {
 public:
-    typedef NYT::NRpc::TTypedServiceContext<TReqFetch, TRspFetch> TCtxFetch;
-
+    typedef NRpc::TTypedServiceContext<TReqFetch, TRspFetch> TCtxFetch;
     typedef TIntrusivePtr<TCtxFetch> TCtxFetchPtr;
 
     TFetchChunkVisitor(
@@ -57,21 +66,21 @@ public:
     void Complete();
 
 private:
-    NCellMaster::TBootstrap* Bootstrap;
-    TChunkList* ChunkList;
-    TCtxFetchPtr Context;
-    TChannel Channel;
-    bool FetchParityReplicas;
+    NCellMaster::TBootstrap* Bootstrap_;
+    TChunkList* ChunkList_;
+    TCtxFetchPtr Context_;
+    TChannel Channel_;
+    bool FetchParityReplicas_;
 
-    yhash_set<int> ExtensionTags;
-    TNodeDirectoryBuilder NodeDirectoryBuilder;
-    int SessionCount;
-    bool Completed;
-    bool Finished;
+    yhash_set<int> ExtensionTags_;
+    TNodeDirectoryBuilder NodeDirectoryBuilder_;
+    int SessionCount_ = 0;
+    bool Completed_ = false;
+    bool Finished_ = false;
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void Reply();
+    void ReplySuccess();
     void ReplyError(const TError& error);
 
     virtual bool OnChunk(
@@ -95,19 +104,16 @@ TFetchChunkVisitor::TFetchChunkVisitor(
     TCtxFetchPtr context,
     const TChannel& channel,
     bool fetchParityReplicas)
-    : Bootstrap(bootstrap)
-    , ChunkList(chunkList)
-    , Context(context)
-    , Channel(channel)
-    , FetchParityReplicas(fetchParityReplicas)
-    , NodeDirectoryBuilder(context->Response().mutable_node_directory())
-    , SessionCount(0)
-    , Completed(false)
-    , Finished(false)
+    : Bootstrap_(bootstrap)
+    , ChunkList_(chunkList)
+    , Context_(context)
+    , Channel_(channel)
+    , FetchParityReplicas_(fetchParityReplicas)
+    , NodeDirectoryBuilder_(context->Response().mutable_node_directory())
 {
-    if (!Context->Request().fetch_all_meta_extensions()) {
-        FOREACH (int tag, Context->Request().extension_tags()) {
-            ExtensionTags.insert(tag);
+    if (!Context_->Request().fetch_all_meta_extensions()) {
+        for (int tag : Context_->Request().extension_tags()) {
+            ExtensionTags_.insert(tag);
         }
     }
 }
@@ -116,34 +122,74 @@ void TFetchChunkVisitor::StartSession(
     const TReadLimit& lowerBound,
     const TReadLimit& upperBound)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ++SessionCount;
+    ++SessionCount_;
 
     TraverseChunkTree(
-        CreateTraverserCallbacks(Bootstrap),
+        CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
         this,
-        ChunkList,
+        ChunkList_,
         lowerBound,
         upperBound);
 }
 
 void TFetchChunkVisitor::Complete()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-    YCHECK(!Completed);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(!Completed_);
 
-    Completed = true;
-    if (SessionCount == 0 && !Finished) {
-        Reply();
+    Completed_ = true;
+    if (SessionCount_ == 0 && !Finished_) {
+        ReplySuccess();
     }
 }
 
-void TFetchChunkVisitor::Reply()
+void TFetchChunkVisitor::ReplySuccess()
 {
-    Context->SetResponseInfo("ChunkCount: %d", Context->Response().chunks_size());
-    Context->Reply();
-    Finished = true;
+    YCHECK(!Finished_);
+    Finished_ = true;
+
+    auto* chunkSpecs = Context_->Response().mutable_chunks();
+    int chunkCount = chunkSpecs->size();
+
+    // Update the upper limit for the last journal chunk.
+    if (chunkCount > 0) {
+        auto* lastChunkSpec = chunkSpecs->Mutable(chunkCount - 1);
+        auto chunkId = FromProto<TChunkId>(lastChunkSpec->chunk_id());
+        if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (!chunk) {
+                Context_->Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Optimistic locking failed for chunk %s",
+                    ~ToString(chunkId)));
+                return;
+            }
+
+            auto lowerLimit = FromProto<TReadLimit>(lastChunkSpec->lower_limit());
+            auto upperLimit = FromProto<TReadLimit>(lastChunkSpec->upper_limit());
+
+            auto result = WaitFor(chunkManager->GetChunkQuorumRecordCount(chunk));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+            int quorumRecordCount = result.Value();
+            int specLowerLimit = lowerLimit.HasRecordIndex() ? lowerLimit.GetRecordIndex() : 0;
+            int specUpperLimit = upperLimit.HasRecordIndex() ? upperLimit.GetRecordIndex() : std::numeric_limits<int>::max();
+            
+            int adjustedUpperLimit = std::min(quorumRecordCount, specUpperLimit);
+            if (adjustedUpperLimit > specLowerLimit) {
+                upperLimit.SetRecordIndex(adjustedUpperLimit);
+                ToProto(lastChunkSpec->mutable_upper_limit(), upperLimit);
+            } else {
+                chunkSpecs->RemoveLast();
+            }
+        }
+    }
+
+    Context_->SetResponseInfo("ChunkCount: %d", chunkCount);
+    Context_->Reply();
 }
 
 bool TFetchChunkVisitor::OnChunk(
@@ -152,39 +198,34 @@ bool TFetchChunkVisitor::OnChunk(
     const TReadLimit& startLimit,
     const TReadLimit& endLimit)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
+    auto chunkManager = Bootstrap_->GetChunkManager();
 
     if (!chunk->IsConfirmed()) {
-        ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
+        ReplyError(TError("Cannot fetch an object containing an unconfirmed chunk %s",
             ~ToString(chunk->GetId())));
         return false;
     }
 
-    auto* chunkSpec = Context->Response().add_chunks();
+    auto* chunkSpec = Context_->Response().add_chunks();
 
     chunkSpec->set_table_row_index(rowIndex);
 
-    if (!Channel.IsUniversal()) {
-        *chunkSpec->mutable_channel() = Channel.ToProto();
+    if (!Channel_.IsUniversal()) {
+        ToProto(chunkSpec->mutable_channel(), Channel_);
     }
 
-    // Default value for non-erasure chunks.
-    int firstParityPartIndex = 1;
-    
     auto erasureCodecId = chunk->GetErasureCodec();
-    if (erasureCodecId != NErasure::ECodec::None) {
-        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-        firstParityPartIndex = FetchParityReplicas 
-            ? erasureCodec->GetTotalPartCount()
-            : erasureCodec->GetDataPartCount();
-    }
+    int firstInfeasibleReplicaIndex =
+        erasureCodecId == NErasure::ECodec::None || FetchParityReplicas_
+        ? std::numeric_limits<int>::max() // all replicas are feasible
+        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     auto replicas = chunk->GetReplicas();
-    FOREACH (auto replica, replicas) {
-        if (replica.GetIndex() < firstParityPartIndex) {
-            NodeDirectoryBuilder.Add(replica);
+    for (auto replica : replicas) {
+        if (replica.GetIndex() < firstInfeasibleReplicaIndex) {
+            NodeDirectoryBuilder_.Add(replica);
             chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
         }
     }
@@ -192,21 +233,24 @@ bool TFetchChunkVisitor::OnChunk(
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(erasureCodecId);
 
-    if (Context->Request().fetch_all_meta_extensions()) {
-        *chunkSpec->mutable_extensions() = chunk->ChunkMeta().extensions();
+    chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
+    chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+
+    if (Context_->Request().fetch_all_meta_extensions()) {
+        *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
     } else {
         FilterProtoExtensions(
-            chunkSpec->mutable_extensions(),
+            chunkSpec->mutable_chunk_meta()->mutable_extensions(),
             chunk->ChunkMeta().extensions(),
-            ExtensionTags);
+            ExtensionTags_);
     }
 
     // Try to keep responses small -- avoid producing redundant limits.
-    if (IsNontrivial(startLimit)) {
-        *chunkSpec->mutable_start_limit() = startLimit;
+    if (!IsTrivial(startLimit)) {
+        ToProto(chunkSpec->mutable_lower_limit(), startLimit);
     }
-    if (IsNontrivial(endLimit)) {
-        *chunkSpec->mutable_end_limit() = endLimit;
+    if (!IsTrivial(endLimit)) {
+        ToProto(chunkSpec->mutable_upper_limit(), endLimit);
     }
 
     return true;
@@ -214,33 +258,34 @@ bool TFetchChunkVisitor::OnChunk(
 
 void TFetchChunkVisitor::OnError(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    --SessionCount;
-    YCHECK(SessionCount >= 0);
+    --SessionCount_;
+    YCHECK(SessionCount_ >= 0);
 
     ReplyError(error);
 }
 
 void TFetchChunkVisitor::OnFinish()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    --SessionCount;
-    YCHECK(SessionCount >= 0);
+    --SessionCount_;
+    YCHECK(SessionCount_ >= 0);
 
-    if (Completed && !Finished && SessionCount == 0) {
-        Reply();
+    if (Completed_ && !Finished_ && SessionCount_ == 0) {
+        ReplySuccess();
     }
 }
 
 void TFetchChunkVisitor::ReplyError(const TError& error)
 {
-    if (Finished)
+    if (Finished_)
         return;
 
-    Context->Reply(error);
-    Finished = true;
+    Finished_ = true;
+
+    Context_->Reply(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,10 +296,10 @@ class TChunkVisitorBase
 public:
     TAsyncError Run()
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TraverseChunkTree(
-            CreateTraverserCallbacks(Bootstrap),
+            CreatePreemptableChunkTraverserCallbacks(Bootstrap),
             this,
             ChunkList);
 
@@ -267,7 +312,7 @@ protected:
     TChunkList* ChunkList;
     TPromise<TError> Promise;
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
@@ -278,12 +323,12 @@ protected:
         , ChunkList(chunkList)
         , Promise(NewPromise<TError>())
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
 
     virtual void OnError(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Promise.Set(TError("Error traversing chunk tree") << error);
     }
@@ -310,7 +355,7 @@ public:
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
@@ -323,7 +368,7 @@ public:
 
     virtual void OnFinish() override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Consumer->OnEndList();
         Promise.Set(TError());
@@ -363,7 +408,7 @@ public:
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
@@ -374,7 +419,7 @@ public:
 
     virtual void OnFinish() override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         BuildYsonFluently(Consumer)
             .DoMapFor(CodecInfo, [=] (TFluentMap fluent, const typename TCodecInfoMap::value_type& pair) {
@@ -429,12 +474,6 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
-}
-
-bool TChunkOwnerNodeProxy::IsWriteRequest(NRpc::IServiceContextPtr context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
-    return TNontemplateCypressNodeProxyBase::IsWriteRequest(context);
 }
 
 NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
@@ -558,7 +597,7 @@ TAsyncError TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
-
+    
     if (key == "erasure_statistics") {
         struct TExtractErasureCodec
         {
@@ -629,7 +668,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityManager->UpdateAccountNodeUsage(node);
 
             if (IsLeader()) {
-                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
+                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
         return true;
@@ -646,7 +685,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             node->SetVital(vital);
 
             if (IsLeader()) {
-                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
+                chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
 
@@ -656,18 +695,31 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
 }
 
-void TChunkOwnerNodeProxy::ValidatePathAttributes(
-    const TNullable<TChannel>& channel,
-    const TReadLimit& upperLimit,
-    const TReadLimit& lowerLimit)
+void TChunkOwnerNodeProxy::ValidateFetchParameters(
+    const TChannel& /*channel*/,
+    const TReadLimit& /*upperLimit*/,
+    const TReadLimit& /*lowerLimit*/)
+{ }
+
+void TChunkOwnerNodeProxy::Clear()
+{ }
+
+void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
 {
-    UNUSED(channel);
-    UNUSED(upperLimit);
-    UNUSED(lowerLimit);
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    if (node->GetUpdateMode() != EUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is already in %s mode",
+            ~FormatEnum(node->GetUpdateMode()).Quote());
+    }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
+void TChunkOwnerNodeProxy::ValidateFetch()
+{ }
+
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
+    DeclareMutating();
+
     auto mode = EUpdateMode(request->mode());
     YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
 
@@ -679,11 +731,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
         NSecurityServer::EPermission::Write);
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
-
-    if (node->GetUpdateMode() != EUpdateMode::None) {
-        THROW_ERROR_EXCEPTION("Node is already in %s mode",
-            ~FormatEnum(node->GetUpdateMode()).Quote());
-    }
+    ValidatePrepareForUpdate();
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
@@ -700,7 +748,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             node->SetChunkList(newChunkList);
             objectManager->RefObject(newChunkList);
 
-            newChunkList->SortedBy() = snapshotChunkList->SortedBy();
             chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
             auto* deltaChunkList = chunkManager->CreateChunkList();
@@ -733,6 +780,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
             resultChunkList = newChunkList;
 
+            Clear();
+
             LOG_DEBUG_UNLESS(
                 IsRecovery(),
                 "Node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
@@ -750,32 +799,37 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     SetModified();
 
     ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
-    context->SetResponseInfo("ChunkListId: %s", ~ToString(resultChunkList->GetId()));
+    context->SetResponseInfo("ChunkListId: %s",
+        ~ToString(resultChunkList->GetId()));
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
+    DeclareNonMutating();
+
     context->SetRequestInfo("");
 
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Read);
+    ValidateFetch();
+
+    auto channel = request->has_channel()
+        ? NYT::FromProto<TChannel>(request->channel())
+        : TChannel::Universal();
+    auto lowerLimit = request->has_lower_limit()
+        ? NYT::FromProto<TReadLimit>(request->lower_limit())
+        : TReadLimit();
+    auto upperLimit = request->has_upper_limit()
+        ? NYT::FromProto<TReadLimit>(request->upper_limit())
+        : TReadLimit();
+    bool fetchParityReplicas = request->fetch_parity_replicas();
+
+    ValidateFetchParameters(channel, lowerLimit, upperLimit);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-
-    auto attributes = NYTree::FromProto(request->attributes());
-    auto channelAttribute = attributes->Find<TChannel>("channel");
-    auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
-    auto upperLimit = attributes->Get("upper_limit", TReadLimit());
-    bool complement = attributes->Get("complement", false);
-    bool fetchParityReplicas = attributes->Get("fetch_parity_replicas", false);
-
-    ValidatePathAttributes(channelAttribute, lowerLimit, upperLimit);
-
-    auto channel = channelAttribute.Get(TChannel::Universal());
-
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
@@ -785,11 +839,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         channel,
         fetchParityReplicas);
 
-    if (complement) {
-        if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
+    if (request->complement()) {
+        if (lowerLimit.HasRowIndex() || lowerLimit.HasKey()) {
             visitor->StartSession(TReadLimit(), lowerLimit);
         }
-        if (upperLimit.has_row_index() || upperLimit.has_key()) {
+        if (upperLimit.HasRowIndex() || upperLimit.HasKey()) {
             visitor->StartSession(upperLimit, TReadLimit());
         }
     } else {
@@ -798,7 +852,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     visitor->Complete();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

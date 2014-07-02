@@ -5,7 +5,16 @@
 namespace NYT {
 namespace NObjectClient {
 
+using namespace NYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf ObjectIdPathPrefix("#");
+
+TYPath FromObjectId(const TObjectId& id)
+{
+    return Stroka(ObjectIdPathPrefix) + ToString(id);
+}
 
 bool IsVersionedType(EObjectType type)
 {
@@ -17,12 +26,14 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
         type == EObjectType::Table ||
+        type == EObjectType::Journal ||
         type == EObjectType::ChunkMap ||
         type == EObjectType::LostChunkMap ||
         type == EObjectType::OverreplicatedChunkMap ||
         type == EObjectType::UnderreplicatedChunkMap ||
         type == EObjectType::DataMissingChunkMap ||
         type == EObjectType::ParityMissingChunkMap ||
+        type == EObjectType::QuorumMissingChunkMap ||
         type == EObjectType::ChunkListMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||
@@ -35,7 +46,9 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::GroupMap ||
         type == EObjectType::Link ||
         type == EObjectType::Document ||
-        type == EObjectType::LockMap;
+        type == EObjectType::LockMap ||
+        type == EObjectType::TabletMap ||
+        type == EObjectType::TabletCellNode;
 }
 
 bool IsUserType(EObjectType type)
@@ -51,6 +64,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
         type == EObjectType::Table ||
+        type == EObjectType::Journal ||
         type == EObjectType::Link ||
         type == EObjectType::Document;
 }
@@ -58,6 +72,20 @@ bool IsUserType(EObjectType type)
 EObjectType TypeFromId(const TObjectId& id)
 {
     return EObjectType(id.Parts[1] & 0xffff);
+}
+
+TCellId CellIdFromId(const TObjectId& id)
+{
+    return id.Parts[1] >> 16;
+}
+
+ui64 CounterFromId(const TObjectId& id)
+{
+    ui64 result;
+    result   = id.Parts[3];
+    result <<= 32;
+    result  |= id.Parts[2];
+    return result;
 }
 
 bool HasSchema(EObjectType type)
@@ -118,11 +146,6 @@ TObjectId ReplaceTypeInId(
     result.Parts[1] &= ~0xffff;
     result.Parts[1] |= type;
     return result;
-}
-
-TCellId GetCellId(const TObjectId& id, EObjectType type)
-{
-    return (id.Parts[1] - type) >> 16;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,9 +19,9 @@ namespace NYT {
  */
 i64 GetProcessRss(int pid = -1);
 
-void KillAll(TCallback<std::vector<int>()> pidsGetter);
-
 TError StatusToError(int status);
+
+void RunCleaner(const Stroka& path);
 
 void RemoveDirAsRoot(const Stroka& path);
 
@@ -29,9 +29,7 @@ void SafeClose(int fd, bool ignoreInvalidFd = false);
 
 void CloseAllDescriptors();
 
-int getErrNoFromExitCode(int exitCode);
-
-int Spawn(const char* path, std::vector<Stroka>& arguments);
+int GetErrNoFromExitCode(int exitCode);
 
 
 DECLARE_ENUM(EExitStatus,

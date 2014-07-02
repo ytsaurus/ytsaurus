@@ -43,6 +43,7 @@ DECLARE_ENUM(EObjectType,
 
     // Transaction Manager stuff
     ((Transaction)                (1))
+    ((TabletTransaction)          (2))
 
     // Chunk Manager stuff
     ((Chunk)                      (100))
@@ -64,12 +65,13 @@ DECLARE_ENUM(EObjectType,
     ((ErasureChunkPart_13)        (116))
     ((ErasureChunkPart_14)        (117))
     ((ErasureChunkPart_15)        (118))
+    ((JournalChunk)               (119))
 
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersioned.
 
-    // Auxiliary.
+    // Auxiliary
     ((Lock)                       (200))
 
     // Static nodes
@@ -82,12 +84,14 @@ DECLARE_ENUM(EObjectType,
     // Dynamic nodes
     ((File)                       (400))
     ((Table)                      (401))
+    ((Journal)                    (423))
     ((ChunkMap)                   (402))
     ((LostChunkMap)               (403))
     ((OverreplicatedChunkMap)     (404))
     ((UnderreplicatedChunkMap)    (405))
     ((DataMissingChunkMap)        (419))
     ((ParityMissingChunkMap)      (420))
+    ((QuorumMissingChunkMap)      (424))
     ((ChunkListMap)               (406))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))
@@ -102,13 +106,25 @@ DECLARE_ENUM(EObjectType,
     ((Document)                   (421))
     ((LockMap)                    (422))
 
-    // Security
+    // Security stuff
     ((Account)                    (500))
     ((User)                       (501))
     ((Group)                      (502))
 
+    // Global stuff
     // A mysterious creature representing master as a whole.
     ((Master)                     (600))
+
+    // Tablet stuff
+    ((TabletCell)                 (700))
+    ((TabletCellNode)             (701))
+    ((Tablet)                     (702))
+    ((TabletMap)                  (703))
+    ((DynamicMemoryTabletStore)   (704))
+
+    // Query stuff
+    ((PlanFragment)               (800))
+    ((EmptyPlanFragment)          (801))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

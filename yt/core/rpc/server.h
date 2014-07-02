@@ -4,8 +4,6 @@
 
 #include <core/bus/public.h>
 
-#include <core/ytree/public.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -15,6 +13,9 @@ struct IServer
     : public virtual TRefCounted
 {
     virtual void RegisterService(IServicePtr service) = 0;
+    virtual void UnregisterService(IServicePtr service) = 0;
+
+    virtual IServicePtr FindService(const TServiceId& serviceId) = 0;
 
     virtual void Configure(TServerConfigPtr config) = 0;
 
@@ -22,7 +23,9 @@ struct IServer
     virtual void Stop() = 0;
 };
 
-IServerPtr CreateRpcServer(NBus::IBusServerPtr busServer);
+DEFINE_REFCOUNTED_TYPE(IServer)
+
+IServerPtr CreateBusServer(NBus::IBusServerPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

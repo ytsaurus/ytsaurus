@@ -8,9 +8,8 @@
 #include <core/ytree/convert.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/old_multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -50,7 +49,7 @@ int TUserJobIO::GetInputCount() const
 
 std::unique_ptr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
 {
-    return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
+    return DoCreateTableInput<TOldMultiChunkParallelReader>(index, consumer);
 }
 
 int TUserJobIO::GetOutputCount() const
@@ -80,7 +79,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
         transactionId,
         chunkListId);
 
-    auto writer = CreateSyncWriter<TTableChunkWriter>(asyncWriter);
+    auto writer = CreateSyncWriter<TTableChunkWriterProvider>(asyncWriter);
 
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -98,7 +97,7 @@ double TUserJobIO::GetProgress() const
     i64 total = 0;
     i64 current = 0;
 
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         total += input->GetSessionRowCount();
         current += input->GetSessionRowIndex();
     }
@@ -118,7 +117,7 @@ TDataStatistics TUserJobIO::GetInputDataStatistics() const
     TGuard<TSpinLock> guard(SpinLock);
 
     TDataStatistics statistics = ZeroDataStatistics();
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         statistics += input->GetDataStatistics();
     }
     return statistics;
@@ -129,7 +128,7 @@ TDataStatistics TUserJobIO::GetOutputDataStatistics() const
     TGuard<TSpinLock> guard(SpinLock);
 
     TDataStatistics statistics = ZeroDataStatistics();
-    FOREACH (const auto& output, Outputs) {
+    for (const auto& output : Outputs) {
         statistics += output->GetProvider()->GetDataStatistics();
     }    
     return statistics;
@@ -149,7 +148,7 @@ std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
 std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;
-    FOREACH (const auto& input, Inputs) {
+    for (const auto& input : Inputs) {
         auto part = input->GetFailedChunkIds();
         result.insert(result.end(), part.begin(), part.end());
     }
@@ -158,8 +157,8 @@ std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
-    FOREACH (const auto& output, Outputs) {
-        *result->add_output_boundary_keys() = output->GetProvider()->GetBoundaryKeys();
+    for (const auto& output : Outputs) {
+        *result->add_output_boundary_keys() = output->GetProvider()->GetOldBoundaryKeys();
     }
 }
 

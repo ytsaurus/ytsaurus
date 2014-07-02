@@ -21,7 +21,7 @@ EPermissionSet ParsePermissions(
     EPermissionSet supportedPermissions)
 {
     auto result = NonePermissions;
-    FOREACH (const auto& item, items) {
+    for (const auto& item : items) {
         if (item == AllPermissionsName) {
             return supportedPermissions;
         } else {
@@ -38,11 +38,10 @@ EPermissionSet ParsePermissions(
 std::vector<Stroka> FormatPermissions(
     EPermissionSet permissions)
 {
-    auto values = EPermission::GetDomainValues();
     std::vector<Stroka> result;
-    FOREACH (auto value, values) {
+    for (auto value : EPermission::GetDomainValues()) {
         if (permissions & value) {
-            result.push_back(FormatEnum(EPermission(value)));
+            result.push_back(FormatEnum(value));
         }
     }
     return result;

@@ -16,12 +16,35 @@ import sys
 import errno
 import simplejson as json
 from collections import defaultdict
+from datetime import datetime, timedelta
 
 GEN_PORT_ATTEMPTS = 10
 
 def init_logging(node, path, name):
-    for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
-        node['writers'][key]['file_name'] = os.path.join(path, name + suffix)
+    if not node:
+        node = configs.get_logging_pattern()
+
+    def process(node, key, value):
+        if isinstance(value, str):
+            node[key] = value.format(path=path, name=name)
+        else:
+            node[key] = traverse(value)
+
+    def traverse(node):
+        if isinstance(node, dict):
+            for key, value in node.iteritems():
+                process(node, key, value)
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                process(node, i, value)
+        return node
+
+    return traverse(node)
+
+def init_tracing(endpoint_port):
+    config = configs.get_tracing_config()
+    config['endpoint_port'] = endpoint_port
+    return config
 
 def write_config(config, filename):
     with open(filename, 'wt') as f:
@@ -45,7 +68,7 @@ def get_open_port():
         get_open_port.busy_ports.add(port)
 
         return port
-    
+
     raise RuntimeError("Failed to generate random port")
 
 class YTEnv(object):
@@ -96,15 +119,18 @@ class YTEnv(object):
         self.config_paths = defaultdict(lambda: [])
         self.log_paths = defaultdict(lambda: [])
 
+        short_hostname = socket.gethostname()
+        self._hostname = socket.gethostbyname_ex(short_hostname)[0]
         self._master_addresses = defaultdict(lambda: [])
+        self._node_addresses = defaultdict(lambda: [])
         self._process_to_kill = defaultdict(lambda: [])
         self._ports = defaultdict(lambda: [])
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
 
-        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, set_driver=True, ports=ports)
+        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY, ports=ports)
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, set_driver, identifier="", cell_id=0, ports=None):
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, instance_id="", cell_id=0, ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
@@ -113,11 +139,12 @@ class YTEnv(object):
             else:
                 self._ports[service_name] = [get_open_port() for i in xrange(count)]
 
-        master_name = "master" + identifier
-        scheduler_name = "scheduler" + identifier
-        node_name = "node" + identifier
-        driver_name = "driver" + identifier
-        proxy_name = "proxy" + identifier
+        master_name = "master" + instance_id
+        scheduler_name = "scheduler" + instance_id
+        node_name = "node" + instance_id
+        driver_name = "driver" + instance_id
+        console_driver_name = "console_driver" + instance_id
+        proxy_name = "proxy" + instance_id
 
         list_ports(master_name, 2 * masters_count)
         list_ports(scheduler_name, 2 * schedulers_count)
@@ -137,7 +164,8 @@ class YTEnv(object):
             self._run_masters(masters_count, master_name, cell_id)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
-            self._prepare_driver(driver_name, set_driver)
+            self._prepare_driver(driver_name)
+            self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name)
         except:
             self.clear_environment()
@@ -200,14 +228,14 @@ class YTEnv(object):
         self.pids_file.write(str(pid) + '\n')
         self.pids_file.flush();
 
-    def _run(self, args, name, number=1, timeout=0.5):
+    def _run(self, args, name, number=1, timeout=0.1):
         if self.supress_yt_output:
             stdout = open("/dev/null", "w")
             stderr = open("/dev/null", "w")
         else:
             stdout = sys.stdout
             stderr = sys.stderr
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid,
+        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
                              stdout=stdout, stderr=stderr)
         self._process_to_kill[name].append(p)
         self._append_pid(p.pid)
@@ -255,11 +283,8 @@ class YTEnv(object):
         if masters_count == 0:
              return
 
-        short_hostname = socket.gethostname()
-        hostname = socket.gethostbyname_ex(short_hostname)[0]
-
         self._master_addresses[master_name] = \
-                ["%s:%s" % (hostname, self._ports[master_name][2 * i])
+                ["%s:%s" % (self._hostname, self._ports[master_name][2 * i])
                  for i in xrange(masters_count)]
 
         os.mkdir(os.path.join(self.path_to_run, master_name))
@@ -270,17 +295,16 @@ class YTEnv(object):
             current = os.path.join(self.path_to_run, master_name, str(i))
             os.mkdir(current)
 
-            config["object_manager"]["cell_id"] = cell_id
-
-            config['meta_state']['cell']['rpc_port'] = self._ports[master_name][2 * i]
+            config['rpc_port'] = self._ports[master_name][2 * i]
             config['monitoring_port'] = self._ports[master_name][2 * i + 1]
 
-            config['meta_state']['cell']['addresses'] = self._master_addresses[master_name]
-            config['meta_state']['changelogs']['path'] = \
-                os.path.join(current, 'logs')
-            config['meta_state']['snapshots']['path'] = \
-                    os.path.join(current, 'snapshots')
-            init_logging(config['logging'], current, 'master-' + str(i))
+            config["master"]["cell_id"] = cell_id
+            config['master']['addresses'] = self._master_addresses[master_name]
+            config['timestamp_provider']['addresses'] = self._master_addresses[master_name]
+            config['changelogs']['path'] = os.path.join(current, 'changelogs')
+            config['snapshots']['path'] = os.path.join(current, 'snapshots')
+            config['logging'] = init_logging(config['logging'], current, 'master-' + str(i))
+            config['tracing'] = init_tracing(config['rpc_port'])
 
             self.modify_master_config(config)
             update(config, self.DELTA_MASTER_CONFIG)
@@ -290,14 +314,14 @@ class YTEnv(object):
 
             self.configs[master_name].append(config)
             self.config_paths[master_name].append(config_path)
-            self.log_paths[master_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[master_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_masters(self, master_name):
         self._run_ytserver("master", master_name)
 
         def masters_ready():
             good_marker = "World initialization completed"
-            bad_marker = "Active quorum lost"
+            bad_marker = "Stopped leading"
 
             master_id = 0
             for logging_file in self.log_paths[master_name]:
@@ -313,8 +337,7 @@ class YTEnv(object):
             return False
 
         self._wait_for(masters_ready, name=master_name)
-        logging.info('(Leader is: %d)', self.leader_id)
-
+        logging.info('Leader is %d', self.leader_id)
 
     def _run_masters(self, masters_count, master_name, cell_id):
         self._prepare_masters(masters_count, master_name, cell_id)
@@ -324,6 +347,10 @@ class YTEnv(object):
     def _prepare_nodes(self, nodes_count, node_name):
         if nodes_count == 0:
             return
+
+        self._node_addresses[node_name] = \
+                ["%s:%s" % (self._hostname, self._ports[node_name][2 * i])
+                 for i in xrange(nodes_count)]
 
         os.mkdir(os.path.join(self.path_to_run, node_name))
 
@@ -337,21 +364,26 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
-            config['masters']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['data_node']['cache_location']['path'] = \
-                os.path.join(current, 'chunk_cache')
-            config['data_node']['store_locations'].append(
-                {'path': os.path.join(current, 'chunk_store'),
-                 'low_watermark' : 0,
-                 'high_watermark' : 0})
+            config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+
+            config['data_node']['multiplexed_changelog']['path'] = os.path.join(current, 'multiplexed')
+            config['data_node']['cache_location']['path'] = os.path.join(current, 'chunk_cache')
+            config['data_node']['store_locations'].append({
+                'path': os.path.join(current, 'chunk_store'),
+                'low_watermark' : 0,
+                'high_watermark' : 0
+            })
             config['exec_agent']['slot_manager']['start_uid'] = current_user
-            config['exec_agent']['slot_manager']['path'] = \
-                os.path.join(current, 'slot')
+            config['exec_agent']['slot_manager']['path'] = os.path.join(current, 'slots')
+            config['tablet_node']['snapshots']['temp_path'] = os.path.join(current, 'snapshots')
 
             current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
 
-            init_logging(config['logging'], current, 'node-%d' % i)
-            init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
+            config['logging'] = init_logging(config['logging'], current, 'node-%d' % i)
+            config['tracing'] = init_tracing(config['rpc_port'])
+            config['exec_agent']['job_proxy_logging'] = \
+                init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
 
             self.modify_node_config(config)
             update(config, self.DELTA_NODE_CONFIG)
@@ -361,7 +393,7 @@ class YTEnv(object):
 
             self.configs[node_name].append(config)
             self.config_paths[node_name].append(config_path)
-            self.log_paths[node_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[node_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_nodes(self, node_name):
         self._run_ytserver("node", node_name)
@@ -408,6 +440,12 @@ class YTEnv(object):
         self._prepare_nodes(nodes_count, node_name)
         self.start_nodes(node_name)
 
+    def _get_cache_addresses(self, instance_id):
+        if len(self._node_addresses["node" + instance_id]) > 0:
+            return self._node_addresses["node" + instance_id]
+        else:
+            return self._master_addresses["master" + instance_id]
+
     def _prepare_schedulers(self, schedulers_count, scheduler_name):
         if schedulers_count == 0:
             return
@@ -419,13 +457,15 @@ class YTEnv(object):
             os.mkdir(current)
 
             config = configs.get_scheduler_config()
-            config['masters']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            init_logging(config['logging'], current, 'scheduler-' + str(i))
+            config['cluster_connection']['master']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
             config['monitoring_port'] = self._ports[scheduler_name][2 * i + 1]
-
             config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
+            
+            config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
+            config['tracing'] = init_tracing(config['rpc_port'])
 
             self.modify_scheduler_config(config)
             update(config, self.DELTA_SCHEDULER_CONFIG)
@@ -434,7 +474,7 @@ class YTEnv(object):
 
             self.configs[scheduler_name].append(config)
             self.config_paths[scheduler_name].append(config_path)
-            self.log_paths[scheduler_name].append(config['logging']['writers']['file']['file_name'])
+            self.log_paths[scheduler_name].append(config['logging']['writers']['debug']['file_name'])
 
     def start_schedulers(self, scheduler_name):
         self._run_ytserver("scheduler", scheduler_name)
@@ -460,17 +500,29 @@ class YTEnv(object):
         self.start_schedulers(scheduler_name)
 
 
-    def _prepare_driver(self, driver_name, set_driver):
+    def _prepare_driver(self, driver_name):
         config = configs.get_driver_config()
-        config['masters']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config_path = os.path.join(self.path_to_run, driver_name + '_config.yson')
-        write_config(config, config_path)
+        config['master']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
+        config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
+        config['master_cache']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
         self.configs[driver_name] = config
-        self.config_paths[driver_name] = config_path
+        self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
+        self.driver_tracing_config = init_tracing(0)
 
-        if set_driver:
-            os.environ['YT_CONFIG'] = config_path
+    def _prepare_console_driver(self, console_driver_name, driver_config):
+        config = configs.get_console_driver_config()
+        config["driver"] = driver_config
+        config['logging'] = init_logging(config['logging'], self.path_to_run, 'console_driver')
+        config['tracing'] = init_tracing(0)
+
+        config_path = os.path.join(self.path_to_run, 'console_driver_config.yson')
+
+        write_config(config, config_path)
+
+        self.configs[console_driver_name].append(config)
+        self.config_paths[console_driver_name].append(config_path)
+        self.log_paths[console_driver_name].append(config['logging']['writers']['debug']['file_name'])
 
 
     def _prepare_proxy(self, has_proxy, proxy_name):
@@ -480,12 +532,12 @@ class YTEnv(object):
         os.mkdir(current)
 
         driver_config = configs.get_driver_config()
-        driver_config['masters']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        init_logging(driver_config['logging'], current, 'node')
+        driver_config['master']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
+        driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
+        driver_config['master_cache']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
-        proxy_config['proxy']['logging'] = driver_config['logging']
-        del driver_config['logging']
+        proxy_config['proxy']['logging'] = init_logging(proxy_config['proxy']['logging'], current, "http_proxy")
         proxy_config['proxy']['driver'] = driver_config
         proxy_config['port'] = self._ports[proxy_name][0]
         proxy_config['log_port'] = self._ports[proxy_name][1]
@@ -522,17 +574,28 @@ class YTEnv(object):
         if has_proxy:
             self.start_proxy(proxy_name)
 
-    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
+    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.1, name=""):
+        print_dot_timeout = timedelta(seconds=0.5)
+        last_print_dot_time = datetime.now()
+
         current_wait_time = 0
         write_with_flush('Waiting for %s' % name)
         while current_wait_time < max_wait_time:
-            write_with_flush('.')
+            if last_print_dot_time < datetime.now():
+                write_with_flush('.')
+                last_print_dot_time += print_dot_timeout
             if condition():
                 write_with_flush(' %s ready\n' % name)
                 return
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
+
+    def get_master_addresses(self):
+        if len(self._master_addresses) == 0:
+            return []
+        if len(self._master_addresses) == 1:
+            return self._master_addresses.items()[0][1]
 
     # Unittest is painfull to integrate, so we simply reimplement some methods
     def assertItemsEqual(self, actual_seq, expected_seq):
@@ -569,3 +632,14 @@ class YTEnv(object):
             return context
         with context:
             callableObj(*args, **kwargs)
+
+    def assertAlmostEqual(self, first, second, places=7, msg="", delta=None):
+        """ check equality of float numbers with some precision """
+        if first == second:
+            return
+
+        if delta is not None:
+            assert (abs(first - second) <= delta), msg if msg else "|{0} - {1}| > {2}".format(first, second, delta)
+        else:
+            rounding = round(abs(second - first), places)
+            assert (rounding == 0), msg if msg else "rounding is {0} (not zero!)".format(rounding)

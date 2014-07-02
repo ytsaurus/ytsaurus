@@ -5,7 +5,7 @@
 #include "pipes.h"
 #include "job.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/public.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -50,6 +50,7 @@ private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
     TJobPtr Job;
+    NConcurrency::TActionQueuePtr JobThread;
 
     volatile i64 JobProxyMemoryLimit;
 

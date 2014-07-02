@@ -13,6 +13,11 @@ TBlockId::TBlockId(
     , BlockIndex(blockIndex)
 { }
 
+TBlockId::TBlockId()
+    : ChunkId(NullChunkId)
+    , BlockIndex(-1)
+{ }
+
 Stroka ToString(const TBlockId& id)
 {
     return Sprintf("%s:%d", ~ToString(id.ChunkId), id.BlockIndex);

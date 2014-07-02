@@ -9,7 +9,7 @@
 
 #include <core/ytree/permission.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -38,7 +38,7 @@ TAccessControlEntry::TAccessControlEntry(
 void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
-    SaveObjectRefs(context, Subjects);
+    Save(context, Subjects);
     Save(context, Permissions);
     Save(context, Action);
 }
@@ -46,7 +46,7 @@ void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    LoadObjectRefs(context, Subjects);
+    Load(context, Subjects);
     Load(context, Permissions);
     Load(context, Action);
 }
@@ -105,14 +105,14 @@ void Deserilize(
     TSecurityManagerPtr securityManager)
 {
     auto serializableAces = ConvertTo< std::vector<TSerializableAccessControlEntryPtr> >(node);
-    FOREACH (const auto& serializableAce, serializableAces) {
+    for (const auto& serializableAce : serializableAces) {
         TAccessControlEntry ace;
 
         // Action
         ace.Action = serializableAce->Action;
 
         // Subject
-        FOREACH (const auto& name, serializableAce->Subjects) {
+        for (const auto& name : serializableAce->Subjects) {
             auto* subject = securityManager->FindSubjectByName(name);
             if (!IsObjectAlive(subject)) {
                 THROW_ERROR_EXCEPTION("No such subject %s",
@@ -165,7 +165,7 @@ void TAccessControlDescriptor::SetOwner(TSubject* owner)
 
 void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 {
-    FOREACH (auto* subject, ace.Subjects) {
+    for (auto* subject : ace.Subjects) {
         subject->LinkObject(Object_);
     }
     Acl_.Entries.push_back(ace);
@@ -173,8 +173,8 @@ void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 
 void TAccessControlDescriptor::ClearEntries()
 {
-    FOREACH (const auto& ace, Acl_.Entries) {
-        FOREACH (auto* subject, ace.Subjects) {
+    for (const auto& ace : Acl_.Entries) {
+        for (auto* subject : ace.Subjects) {
             subject->UnlinkObject(Object_);
         }
     }
@@ -184,7 +184,7 @@ void TAccessControlDescriptor::ClearEntries()
 void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner)
 {
     // Remove the subject from every ACE.
-    FOREACH (auto& ace, Acl_.Entries) {
+    for (auto& ace : Acl_.Entries) {
         auto it = std::remove_if(
             ace.Subjects.begin(),
             ace.Subjects.end(),
@@ -217,7 +217,7 @@ void TAccessControlDescriptor::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Acl_);
     Save(context, Inherit_);
-    SaveObjectRef(context, Owner_);
+    Save(context, Owner_);
 }
 
 void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
@@ -225,7 +225,7 @@ void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Acl_);
     Load(context, Inherit_);
-    LoadObjectRef(context, Owner_);
+    Load(context, Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

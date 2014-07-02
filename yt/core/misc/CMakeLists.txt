@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
+  ${BASE}/checkpointable_stream.cpp
   ${BASE}/checksum.cpp
   ${BASE}/chunked_memory_pool.cpp
   ${BASE}/chunked_output_stream.cpp
@@ -17,16 +18,15 @@ set( SRCS
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
-  ${BASE}/home.cpp
   ${BASE}/hr_timer.cpp
   ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/lfalloc_helpers.cpp
-  ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/phoenix.cpp
   ${BASE}/proc.cpp
+  ${BASE}/process.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
   ${BASE}/ref.cpp
@@ -37,20 +37,22 @@ set( SRCS
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
-  ${BASE}/tclap_helpers.cpp
   ${BASE}/url.cpp
+  ${BASE}/varint.cpp
 )
 set( HDRS
+  ${BASE}/new.h
   ${BASE}/address.h
-  ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
+  ${BASE}/bitmap.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
+  ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
   ${BASE}/chunked_output_stream.h
@@ -59,22 +61,19 @@ set( HDRS
   ${BASE}/demangle.h
   ${BASE}/enum.h
   ${BASE}/error.h
-  ${BASE}/foreach.h
+  ${BASE}/error-inl.h
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
   ${BASE}/heap-inl.h
   ${BASE}/heap.h
   ${BASE}/high_resolution_clock.h
-  ${BASE}/home.h
   ${BASE}/hr_timer.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
-  ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
   ${BASE}/lfalloc_helpers.h
-  ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
@@ -84,9 +83,11 @@ set( HDRS
   ${BASE}/phoenix.h
   ${BASE}/preprocessor.h
   ${BASE}/proc.h
+  ${BASE}/process.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
+  ${BASE}/public.h
   ${BASE}/random-inl.h
   ${BASE}/random.h
   ${BASE}/raw_formatter.h
@@ -104,10 +105,21 @@ set( HDRS
   ${BASE}/stack_trace.h
   ${BASE}/string.h
   ${BASE}/sync.h
-  ${BASE}/tclap_helpers.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
+  ${BASE}/skip_list.h
+  ${BASE}/skip_list-inl.h
+  ${BASE}/varint.h
+  ${BASE}/zigzag.h
+  ${BASE}/collection_helpers.h
+  ${BASE}/collection_helpers-inl.h
+  ${BASE}/lock_free.h
+  ${BASE}/lock_free-inl.h
   ${BASE}/ioprio.h
+  ${BASE}/variant.h
+  ${BASE}/variant-inl.h
+  ${BASE}/any.h
+  ${BASE}/any-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -126,5 +138,4 @@ protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
 
-PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )

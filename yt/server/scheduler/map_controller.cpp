@@ -14,11 +14,8 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/transaction_client/transaction.h>
-
-#include <ytlib/chunk_client/key.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/job_proxy/config.h>
 
@@ -133,12 +130,12 @@ private:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return ~ChunkPool;
+            return ChunkPool.get();
         }
 
         virtual void Persist(TPersistenceContext& context) override
@@ -254,7 +251,7 @@ private:
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;
-        FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+        for (const auto& path : Spec->Mapper->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Map));
         }
         return result;

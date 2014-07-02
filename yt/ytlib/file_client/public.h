@@ -9,42 +9,14 @@ namespace NFileClient {
 
 const int FormatVersion = 1;
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TFileChunkOutput;
 
-class TFileChunkReader;
-typedef TIntrusivePtr<TFileChunkReader> TFileChunkReaderPtr;
+DECLARE_REFCOUNTED_CLASS(TFileChunkReader)
+DECLARE_REFCOUNTED_CLASS(TFileChunkReaderProvider)
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriter)
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriterProvider)
 
-class TFileChunkReaderProvider;
-typedef TIntrusivePtr<TFileChunkReaderProvider> TFileChunkReaderProviderPtr;
-
-class TFileChunkWriter;
-typedef TIntrusivePtr<TFileChunkWriter> TFileChunkWriterPtr;
-
-class TFileChunkWriterProvider;
-typedef TIntrusivePtr<TFileChunkWriterProvider> TFileChunkWriterProviderPtr;
-
-class TSyncWriter;
-typedef TIntrusivePtr<TSyncWriter> TSyncWriterPtr;
-
-class TAsyncWriter;
-typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
-
-class TSyncReader;
-typedef TIntrusivePtr<TSyncReader> TSyncReaderPtr;
-
-class TAsyncReader;
-typedef TIntrusivePtr<TAsyncReader> TAsyncReaderPtr;
-
-struct TFileChunkWriterConfig;
-typedef TIntrusivePtr<TFileChunkWriterConfig> TFileChunkWriterConfigPtr;
-
-struct TFileWriterConfig;
-typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
-
-class TFileReaderConfig;
-typedef TIntrusivePtr<TFileReaderConfig> TFileReaderConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TFileChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

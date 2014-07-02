@@ -16,8 +16,8 @@ using namespace NTransactionClient;
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
-    const NMetaState::TMutationId& mutationId,
-    ITransactionPtr userTransaction,
+    const NHydra::TMutationId& mutationId,
+    TTransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,
     TInstant startTime,
@@ -32,8 +32,8 @@ TOperation::TOperation(
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , StartTime_(startTime)
-    , StdErrCount_(0)
-    , MaxStdErrCount_(0)
+    , StderrCount_(0)
+    , MaxStderrCount_(0)
     , CleanStart_(false)
     , StartedPromise(NewPromise<TError>())
     , FinishedPromise(NewPromise())

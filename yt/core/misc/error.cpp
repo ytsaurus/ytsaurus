@@ -21,6 +21,31 @@ TError::TErrorOr()
     : Code_(OK)
 { }
 
+TError::TErrorOr(const TError& other)
+    : Code_(other.Code_)
+    , Message_(other.Message_)
+    , Attributes_(other.Attributes_ ? other.Attributes_->Clone() : nullptr)
+    , InnerErrors_(other.InnerErrors_)
+{ }
+
+TError::TErrorOr(TError&& other) noexcept
+    : Code_(other.Code_)
+    , Message_(std::move(other.Message_))
+    , Attributes_(std::move(other.Attributes_))
+    , InnerErrors_(std::move(other.InnerErrors_))
+{ }
+
+TError::TErrorOr(const std::exception& ex)
+{
+    const auto* errorEx = dynamic_cast<const TErrorException*>(&ex);
+    if (errorEx) {
+        *this = errorEx->Error();
+    } else {
+        Code_ = GenericFailure;
+        Message_ = ex.what();
+    }
+}
+
 TError::TErrorOr(const Stroka& message)
     : Code_(GenericFailure)
     , Message_(message)
@@ -37,31 +62,6 @@ TError::TErrorOr(const char* format, ...)
     va_end(params);
 
     CaptureOriginAttributes();
-}
-
-TError::TErrorOr(const TError& other)
-    : Code_(other.Code_)
-    , Message_(other.Message_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
-    , InnerErrors_(other.InnerErrors_)
-{ }
-
-TError::TErrorOr(TError&& other)
-    : Code_(other.Code_)
-    , Message_(std::move(other.Message_))
-    , Attributes_(std::move(other.Attributes_))
-    , InnerErrors_(std::move(other.InnerErrors_))
-{ }
-
-TError::TErrorOr(const std::exception& ex)
-{
-    const auto* errorEx = dynamic_cast<const TErrorException*>(&ex);
-    if (errorEx) {
-        *this = errorEx->Error();
-    } else {
-        Code_ = GenericFailure;
-        Message_ = ex.what();
-    }
 }
 
 TError::TErrorOr(int code, const Stroka& message)
@@ -102,13 +102,13 @@ TError& TError::operator= (const TError& other)
     if (this != &other) {
         Code_ = other.Code_;
         Message_ = other.Message_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : nullptr;
+        Attributes_ = other.Attributes_ ? other.Attributes_->Clone() : nullptr;
         InnerErrors_ = other.InnerErrors_;
     }
     return *this;
 }
 
-TError& TError::operator= (TError&& other)
+TError& TError::operator= (TError&& other) noexcept
 {
     if (this != &other) {
         Code_ = other.Code_;
@@ -143,7 +143,7 @@ TError& TError::SetMessage(const Stroka& message)
 
 const IAttributeDictionary& TError::Attributes() const
 {
-    return ~Attributes_ ? *Attributes_ : EmptyAttributes();
+    return Attributes_ ? *Attributes_ : EmptyAttributes();
 }
 
 IAttributeDictionary& TError::Attributes()
@@ -184,7 +184,7 @@ TNullable<TError> TError::FindMatching(int code) const
         return *this;
     }
 
-    FOREACH (const auto& innerError, InnerErrors_) {
+    for (const auto& innerError : InnerErrors_) {
         auto innerResult = innerError.FindMatching(code);
         if (innerResult) {
             return std::move(innerResult);
@@ -256,7 +256,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
     }
 
     auto keys = error.Attributes().List();
-    FOREACH (const auto& key, keys) {
+    for (const auto& key : keys) {
         if (key == "host" ||
             key == "datetime" ||
             key == "pid" ||
@@ -284,7 +284,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
         }
     }
 
-    FOREACH (const auto& innerError, error.InnerErrors()) {
+    for (const auto& innerError : error.InnerErrors()) {
         out->append('\n');
         AppendError(innerError, indent + 2, out);
     }
@@ -316,26 +316,22 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     }
 
     protoError->clear_inner_errors();
-    FOREACH (const auto& innerError, error.InnerErrors()) {
+    for (const auto& innerError : error.InnerErrors()) {
         ToProto(protoError->add_inner_errors(), innerError);
     }
 }
 
-TError FromProto(const NYT::NProto::TError& protoError)
+void FromProto(TError* error, const NYT::NProto::TError& protoError)
 {
-    TError error(
+    *error = TError(
         protoError.code(),
         protoError.has_message() ? protoError.message() : "");
 
     if (protoError.has_attributes()) {
-        error.Attributes().MergeFrom(*FromProto(protoError.attributes()));
+        error->Attributes().MergeFrom(*FromProto(protoError.attributes()));
     }
 
-    FOREACH (const auto& innerProtoError, protoError.inner_errors()) {
-        error.InnerErrors().push_back(FromProto(innerProtoError));
-    }
-
-    return error;
+    error->InnerErrors() = FromProto<TError>(protoError.inner_errors());
 }
 
 void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
@@ -375,7 +371,7 @@ void Deserialize(TError& error, NYTree::INodePtr node)
     error.InnerErrors().clear();
     auto innerErrorsNode = mapNode->FindChild("inner_errors");
     if (innerErrorsNode) {
-        FOREACH (auto innerErrorNode, innerErrorsNode->AsList()->GetChildren()) {
+        for (auto innerErrorNode : innerErrorsNode->AsList()->GetChildren()) {
             auto innerError = ConvertTo<TError>(innerErrorNode);
             error.InnerErrors().push_back(innerError);
         }
@@ -387,13 +383,22 @@ void Deserialize(TError& error, NYTree::INodePtr node)
 TError operator << (TError error, const TErrorAttribute& attribute)
 {
     error.Attributes().SetYson(attribute.Key, attribute.Value);
-    return std::move(error);
+    return error;
 }
 
 TError operator << (TError error, const TError& innerError)
 {
     error.InnerErrors().push_back(innerError);
-    return std::move(error);
+    return error;
+}
+
+TError operator << (TError error, const std::vector<TError>& innerErrors)
+{
+    error.InnerErrors().insert(
+        error.InnerErrors().end(),
+        innerErrors.begin(),
+        innerErrors.end());
+    return error;
 }
 
 TError operator >>= (const TErrorAttribute& attribute, TError error)
@@ -406,14 +411,6 @@ TError operator >>= (const TErrorAttribute& attribute, TError error)
 TErrorException::TErrorException()
 { }
 
-TErrorException::TErrorException(TErrorException&& other)
-    : Error_(other.Error_)
-{ }
-
-TErrorException::TErrorException(const TErrorException& other)
-    : Error_(other.Error_)
-{ }
-
 TErrorException::~TErrorException() throw()
 { }
 
@@ -424,6 +421,10 @@ const char* TErrorException::what() const throw()
     }
     return ~CachedWhat;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TError> OKFuture = MakeFuture(TError());
 
 ////////////////////////////////////////////////////////////////////////////////
 
