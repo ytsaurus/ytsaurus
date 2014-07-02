@@ -101,7 +101,7 @@ private:
             if (!maybeAddress) {
                 Promise_.Set(TError(
                     NRpc::EErrorCode::Unavailable,
-                    "No active peers left")
+                    "No alive peers left")
                     << TErrorAttribute("addresses", Owner_->GetAllAddresses()));
                 return;
             }
