@@ -79,9 +79,6 @@ public:
     void UpdateTablet(TTablet* tablet);
 
 
-    NHydra::ISnapshotStorePtr CreateSnapshotStore(const TCellGuid& cellGuid);
-    NHydra::IChangelogStorePtr CreateChangelogStore(const TCellGuid& cellGuid);
-
     NYTree::IYPathServicePtr GetOrchidService();
 
     DECLARE_SIGNAL(void(), BeginSlotScan);

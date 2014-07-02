@@ -14,11 +14,6 @@
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/fluent.h>
 
-#include <server/hydra/snapshot.h>
-#include <server/hydra/remote_snapshot_store.h>
-#include <server/hydra/changelog.h>
-#include <server/hydra/remote_changelog_store.h>
-
 #include <server/data_node/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -253,27 +248,6 @@ public:
     }
 
 
-    ISnapshotStorePtr CreateSnapshotStore(const TCellGuid& cellGuid)
-    {
-        return CreateRemoteSnapshotStore(
-            Config_->Snapshots,
-            // TODO(babenko): make configurable
-            New<TRemoteSnapshotStoreOptions>(),
-            Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellGuid)),
-            Bootstrap_->GetMasterClient());
-    }
-
-    IChangelogStorePtr CreateChangelogStore(const TCellGuid& cellGuid)
-    {
-        return CreateRemoteChangelogStore(
-            Config_->Changelogs,
-            // TODO(babenko): make configurable
-            New<TRemoteChangelogStoreOptions>(),
-            Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(cellGuid)),
-            Bootstrap_->GetMasterClient());
-    }
-
-
     IYPathServicePtr GetOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -485,16 +459,6 @@ void TTabletSlotManager::UpdateTablet(TTablet* tablet)
 void TTabletSlotManager::UnregisterTablets(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTablets(std::move(slot));
-}
-
-ISnapshotStorePtr TTabletSlotManager::CreateSnapshotStore(const TCellGuid& cellGuid)
-{
-    return Impl_->CreateSnapshotStore(cellGuid);
-}
-
-IChangelogStorePtr TTabletSlotManager::CreateChangelogStore(const TCellGuid& cellGuid)
-{
-    return Impl_->CreateChangelogStore(cellGuid);
 }
 
 IYPathServicePtr TTabletSlotManager::GetOrchidService()

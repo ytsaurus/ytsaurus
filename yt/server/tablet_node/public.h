@@ -32,6 +32,8 @@ using NTabletClient::NullStoreId;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
+using NTabletClient::TTabletCellOptions;
+using NTabletClient::TTabletCellOptionsPtr;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;

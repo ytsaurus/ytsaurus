@@ -93,6 +93,7 @@ message TReqIncrementalHeartbeat
 message TCreateTabletSlotInfo
 {
     required NYT.NProto.TGuid cell_guid = 1;
+    required bytes options = 2; // NTabletClient::TTabletCellOptions
 }
 
 message TConfigureTabletSlotInfo

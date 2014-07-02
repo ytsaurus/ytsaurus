@@ -216,17 +216,21 @@ public:
     }
 
 
-    TTabletCell* CreateCell(int size)
+    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell);
-        auto* cell = new TTabletCell(id);
+        auto cell_ = std::make_unique<TTabletCell>(id);
+        auto* cell = cell_.get();
+
         cell->SetSize(size);
+        cell->SetConfig(New<TTabletCellConfig>());
+        cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
         cell->Peers().resize(size);
         
-        TabletCellMap_.Insert(id, cell);
+        TabletCellMap_.Insert(id, cell_.release());
 
         // Make the fake reference.
         YCHECK(cell->RefObject() == 1);   
@@ -774,10 +778,11 @@ private:
             if (!response)
                 return;
 
-            auto* createInfo = response->add_tablet_slots_to_create();
+            auto* protoInfo = response->add_tablet_slots_to_create();
 
             const auto& cellId = cell->GetId();
-            ToProto(createInfo->mutable_cell_guid(), cell->GetId());
+            ToProto(protoInfo->mutable_cell_guid(), cell->GetId());
+            protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %s, CellId: %s)",
                 ~node->GetAddress(),
@@ -1539,7 +1544,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::Create(
     TRspCreateObjects* response)
 {
     // TODO(babenko): support arbitrary size
-    auto* cell = Owner_->CreateCell(1);
+    auto* cell = Owner_->CreateCell(1, attributes);
     return cell;
 }
 

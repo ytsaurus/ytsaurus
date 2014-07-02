@@ -26,13 +26,7 @@ public:
         RegisterParameter("cell_guid", CellGuid)
             .Default();
         RegisterParameter("addresses", Addresses)
-            .NonEmpty();
-
-        RegisterValidator([&] () {
-            if (Addresses.size() % 2 != 1) {
-                THROW_ERROR_EXCEPTION("Number of peers must be odd");
-            }
-        });
+            .Default();
     }
 };
 

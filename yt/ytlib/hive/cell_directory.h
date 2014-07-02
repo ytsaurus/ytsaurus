@@ -46,7 +46,7 @@ public:
 
     struct TCellDescriptor
     {
-        int Version;
+        int Version = -1;
         NElection::TCellConfigPtr Config;
     };
 
@@ -57,10 +57,10 @@ public:
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).
     //! Returns |true| if the cell was registered (or an update took place).
-    bool RegisterCell(NElection::TCellConfigPtr config, int version = 1);
+    bool RegisterCell(NElection::TCellConfigPtr config, int version = 0);
 
     //! Similar to the above but accepts discovery configuration.
-    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config, int version = 1);
+    bool RegisterCell(NHydra::TPeerConnectionConfigPtr config, int version = 0);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     bool UnregisterCell(const TCellGuid& cellGuid);

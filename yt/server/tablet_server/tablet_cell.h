@@ -24,6 +24,7 @@ class TTabletCell
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTablet>
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletCellState, State);
     DEFINE_BYVAL_RW_PROPERTY(int, Size);
 
@@ -48,7 +49,9 @@ class TTabletCell
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
     
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletCellConfigPtr, Config);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
+
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellOptionsPtr, Options);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTablet*>, Tablets);
 

@@ -16,13 +16,13 @@
 
 #include <ytlib/chunk_client/config.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/config.h>
 
 #include <ytlib/scheduler/public.h>
 
-#include <ytlib/hive/public.h>
+#include <ytlib/hive/config.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <ytlib/tablet_client/config.h>
 
 namespace NYT {
 namespace NApi {

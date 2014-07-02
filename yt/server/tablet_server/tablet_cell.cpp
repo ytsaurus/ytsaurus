@@ -31,7 +31,6 @@ TTabletCell::TTabletCell(const TTabletCellId& id)
     , State_(ETabletCellState::Starting)
     , Size_(-1)
     , ConfigVersion_(0)
-    , Config_(New<TTabletCellConfig>())
 { }
 
 void TTabletCell::Save(TSaveContext& context) const
@@ -44,6 +43,7 @@ void TTabletCell::Save(TSaveContext& context) const
     Save(context, Peers_);
     Save(context, ConfigVersion_);
     Save(context, *Config_);
+    Save(context, *Options_);
     Save(context, Tablets_);
 }
 
@@ -57,6 +57,7 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);
+    Load(context, *Options_);
     Load(context, Tablets_);
 }
 

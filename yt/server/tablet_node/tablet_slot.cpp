@@ -33,7 +33,9 @@
 #include <server/election/election_manager.h>
 
 #include <server/hydra/changelog.h>
+#include <server/hydra/remote_changelog_store.h>
 #include <server/hydra/snapshot.h>
+#include <server/hydra/remote_snapshot_store.h>
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
@@ -228,9 +230,7 @@ public:
         auto cellGuid = FromProto<TCellGuid>(createInfo.cell_guid());
         SetCellGuid(cellGuid);
 
-        auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        SnapshotStore_ = tabletSlotManager->CreateSnapshotStore(CellGuid_);
-        ChangelogStore_ = tabletSlotManager->CreateChangelogStore(CellGuid_);
+        Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
 
         State_ = EPeerState::Stopped;
 
@@ -260,6 +260,18 @@ public:
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
+            auto snapshotStore = CreateRemoteSnapshotStore(
+                Config_->Snapshots,
+                Options_,
+                Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(CellGuid_)),
+                Bootstrap_->GetMasterClient());
+
+            auto changelogStore = CreateRemoteChangelogStore(
+                Config_->Changelogs,
+                Options_,
+                Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(CellGuid_)),
+                Bootstrap_->GetMasterClient());
+
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
@@ -267,8 +279,8 @@ public:
                 Automaton_,
                 rpcServer,
                 CellManager_,
-                ChangelogStore_,
-                SnapshotStore_);
+                changelogStore,
+                snapshotStore);
 
             HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -384,9 +396,8 @@ private:
     TPeerId PeerId_;
     int CellConfigVersion_ = 0;
     TTabletCellConfigPtr CellConfig_;
+    TTabletCellOptionsPtr Options_;
 
-    IChangelogStorePtr ChangelogStore_;
-    ISnapshotStorePtr SnapshotStore_;
     TCellManagerPtr CellManager_;
     IHydraManagerPtr HydraManager_;
     

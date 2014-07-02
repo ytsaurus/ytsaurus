@@ -6,8 +6,24 @@
 
 #include <ytlib/election/config.h>
 
+#include <ytlib/hydra/config.h>
+
 namespace NYT {
 namespace NTabletClient {
+
+///////////////////////////////////////////////////////////////////////////////
+
+//! These options are directly controllable via object attributes.
+class TTabletCellOptions
+    : public NHydra::TRemoteSnapshotStoreOptions
+    , public NHydra::TRemoteChangelogStoreOptions
+{
+public:
+    TTabletCellOptions()
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -111,22 +111,6 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
-class TRemoteSnapshotStoreOptions
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    int SnapshotReplicationFactor;
-
-    TRemoteSnapshotStoreOptions()
-    {
-        RegisterParameter("snapshot_replication_factor", SnapshotReplicationFactor)
-            .GreaterThan(0)
-            .Default(3);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
-
 class TSnapshotDownloaderConfig
     : public NYTree::TYsonSerializable
 {
@@ -163,30 +147,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
-
-class TRemoteChangelogStoreOptions
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    int ChangelogReplicationFactor;
-    int ChangelogReadQuorum;
-    int ChangelogWriteQuorum;
-
-    TRemoteChangelogStoreOptions()
-    {
-        RegisterParameter("changelog_replication_factor", ChangelogReplicationFactor)
-            .GreaterThan(0)
-            .Default(3);
-        RegisterParameter("changelog_read_quorum", ChangelogReadQuorum)
-            .GreaterThan(0)
-            .Default(2);
-        RegisterParameter("changelog_write_quorum", ChangelogWriteQuorum)
-            .GreaterThan(0)
-            .Default(2);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreOptions)
 
 class TChangelogDownloaderConfig
     : public NYTree::TYsonSerializable

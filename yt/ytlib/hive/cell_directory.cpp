@@ -138,9 +138,6 @@ private:
 
     void InitChannel(TEntry* entry)
     {
-        if (entry->Descriptor.Version == 0)
-            return;
-
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellGuid = entry->Descriptor.Config->CellGuid;
         peerConfig->Addresses = entry->Descriptor.Config->Addresses;

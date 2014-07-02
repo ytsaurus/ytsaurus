@@ -12,6 +12,8 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreOptions)
+DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
 DECLARE_ENUM(EPeerState,
     ((None)                       (0))

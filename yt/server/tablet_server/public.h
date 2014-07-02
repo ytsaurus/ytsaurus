@@ -49,6 +49,8 @@ using NTabletClient::TypicalCellSize;
 
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
+using NTabletClient::TTabletCellOptions;
+using NTabletClient::TTabletCellOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
