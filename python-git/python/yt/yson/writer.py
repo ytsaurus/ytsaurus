@@ -46,26 +46,33 @@ from yson_types import YsonEntity
 
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
+def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent))
+    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent, yson_type=yson_type))
 
 
-def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
+def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8', yson_type=None):
     '''Serialize ``object`` as a Yson formatted string'''
-    if yson_format is not None and yson_format != "pretty":
-        raise YsonError("binary and text formats are not supported")
     if indent is None:
         indent = 4
     if isinstance(indent, int):
         indent = " " * indent
-    d = Dumper(check_circular, encoding, indent)
+    if yson_format is None:
+        yson_format = "pretty"
+    if yson_format not in ["pretty", "text"]:
+        raise YsonError("%s format is not supported" % yson_format)
+    if yson_format == "text":
+        indent = None
+
+    d = Dumper(check_circular, encoding, indent, yson_type)
     return d.dumps(object)
 
 
 class Dumper(object):
-    def __init__(self, check_circular, encoding, indent):
+    def __init__(self, check_circular, encoding, indent, yson_type):
+        self.yson_type = yson_type
+
         self._seen_objects = None
         if check_circular:
             self._seen_objects = {}
@@ -99,9 +106,9 @@ class Dumper(object):
 
     def _dump_string(self, obj):
         if isinstance(obj, str):
-            return _fix_repr(repr(obj))
+            return _fix_repr(repr(str(obj)))
         elif isinstance(obj, unicode):
-            return _fix_repr(repr(obj.encode(self._encoding)))
+            return _fix_repr(repr(str(obj.encode(self._encoding))))
         else:
             assert False
 
@@ -123,7 +130,7 @@ class Dumper(object):
         return ''.join(result)
 
     def _dump_list(self, obj):
-        result = ['[', self._format.nextline()]
+        result = [self._format.nextline()]
         for v in obj:
             @self._circular_check(v)
             def process_item():
@@ -132,8 +139,11 @@ class Dumper(object):
 
             result += process_item()
 
-        result += [self._format.prefix(self._level), ']']
-        return ''.join(result)
+        result += [self._format.prefix(self._level)]
+        if self.yson_type == "list_fragment" and self._level == 0:
+            return ''.join(result)
+        else:
+            return "[%s]" % ''.join(result)
 
     def _dump_attributes(self, obj):
         result = ['<', self._format.nextline()]
@@ -179,8 +189,8 @@ def _fix_repr(s):
     representation (as he usually does).
     See PyString_Repr() function in python sources for details.'''
     if s.startswith("'"):
-        s = s.replace(r"\'", "'").replace('"', r'\"')
-        return '"%s"' % s[1:-1]
+        s = s[1:-1].replace(r"\'", "'").replace('"', r'\"')
+        return '"%s"' % s
     else:
         return s
 

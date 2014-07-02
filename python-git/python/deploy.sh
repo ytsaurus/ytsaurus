@@ -14,11 +14,18 @@ YT="yt/wrapper/yt"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     make version
+    make docs
 fi
 
 # Build and upload package
 make deb_without_test
-dupload "../${PACKAGE}_${VERSION}_amd64.changes"
+
+if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
+    REPO="precise"
+else
+    REPO="common"
+fi
+dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     # Upload egg
@@ -27,9 +34,9 @@ if [ "$PACKAGE" = "yandex-yt-python" ]; then
 
     make egg
     EGG_VERSION=$(echo $VERSION | tr '-' '_')
-    eggname="Yt-${EGG_VERSION}_-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/Yt-${VERSION}-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/Yt-py2.7.egg"
+    eggname="YandexYt-${EGG_VERSION}_-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/YandexYt-${VERSION}-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/YandexYt-py2.7.egg"
     
     # Upload self-contained binaries
     mv yt/wrapper/pickling.py pickling.py

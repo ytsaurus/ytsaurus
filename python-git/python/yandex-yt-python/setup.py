@@ -18,6 +18,17 @@ class PyTest(TestCommand):
         pytest.main(self.test_args)
         subprocess.check_call("cd yt/wrapper && make clean", shell=True)
 
+def recursive(path):
+    prefix = path.strip("/").replace("/", ".")
+    return map(lambda package: prefix + "." + package, find_packages(path)) + [prefix]
+
+def build_documentation_files(source, target):
+    result = []
+    for root, dirs, files in os.walk(source, topdown=False):
+        dest = os.path.join(target, root[len(source):])
+        result.append((dest, [os.path.join(root, file) for file in files]))
+    return result
+
 def main():
     requires =["simplejson"]
     if sys.version_info[:2] <= (2, 6):
@@ -33,13 +44,15 @@ def main():
     else:
         data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
         data_files.append(("/usr/bin", ["yt/wrapper/yt2"]))
+        data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
     
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
 
+    find_packages("yt/packages")
     setup(
-        name = "Yt",
+        name = "YandexYt",
         version = version,
-        packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment", "yt.tools", "yt.bindings"]),
+        packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
         scripts = scripts,
 
         install_requires = requires,

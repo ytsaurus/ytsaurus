@@ -1,10 +1,13 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
+import yt
+
 import parser
+import writer
+
 import convert
 import yson_to_bash
-import yson_types
 
 from StringIO import StringIO
 import unittest
@@ -35,18 +38,18 @@ class PrintBashTest(unittest.TestCase):
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "c\t3\nd\t4", "1")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "3", "1/c")
 
-class TestYsonParser(unittest.TestCase):
+class YsonParserTestBase(object):
     def assert_equal(self, parsed, expected, attributes):
         if expected is None:
-            assert(isinstance(parsed, yson_types.YsonEntity))
+            assert isinstance(parsed, yt.yson.yson_types.YsonEntity)
+            self.assertEqual(parsed.attributes, attributes)
         else:
-            self.assertEqual(parsed, expected)
-        self.assertEqual(parsed.attributes, attributes)
+            self.assertEqual(parsed, convert.to_yson_type(expected, attributes))
 
     def assert_parse(self, string, expected, attributes = {}):
-        self.assert_equal(parser.loads(string), expected, attributes)
+        self.assert_equal(YsonParserTestBase.parser.loads(string), expected, attributes)
         stream = StringIO(string)
-        self.assert_equal(parser.load(stream), expected, attributes)
+        self.assert_equal(YsonParserTestBase.parser.load(stream), expected, attributes)
 
     def test_quoted_string(self):
         self.assert_parse('"abc\\"\\n"', 'abc"\n')
@@ -55,13 +58,13 @@ class TestYsonParser(unittest.TestCase):
         self.assert_parse('abc10', 'abc10')
 
     def test_binary_string(self):
-        self.assert_parse('\x03\x06abc', 'abc')
+        self.assert_parse('\x01\x06abc', 'abc')
 
     def test_int(self):
         self.assert_parse('64', 64)
 
     def test_binary_int(self):
-        self.assert_parse('\x01\x81\x40', -(2 ** 12) - 1)
+        self.assert_parse('\x02\x81\x40', -(2 ** 12) - 1)
 
     def test_double(self):
         self.assert_parse('1.5', 1.5)
@@ -70,7 +73,7 @@ class TestYsonParser(unittest.TestCase):
         self.assert_parse('1.73e23', 1.73e23)
 
     def test_binary_double(self):
-        self.assert_parse('\x02\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
+        self.assert_parse('\x03\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
 
     def test_empty_list(self):
         self.assert_parse('[ ]', [])
@@ -127,11 +130,17 @@ class TestYsonParser(unittest.TestCase):
         })
 
         z = str(bytearray(u"Брюссельская капуста", "utf-8"))
-        self.assertEqual(x, {"x": 10, "y": 11, "z": z})
+        self.assertEqual(dict(x), {"x": 10, "y": 11, "z": z})
         self.assertEqual(x.attributes, "abc")
 
         self.assertEqual(convert.json_to_yson("abc"), "abc")
 
+class TestParser(unittest.TestCase, YsonParserTestBase):
+    YsonParserTestBase.parser = parser
+
+class TestWriter(unittest.TestCase):
+    def test_slash(self):
+        self.assertEqual(writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
 
 if __name__ == "__main__":
     unittest.main()

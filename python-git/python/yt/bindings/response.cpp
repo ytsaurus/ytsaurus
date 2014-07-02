@@ -10,8 +10,8 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-    : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwds)
+TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+    : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
 { }
 
 void TDriverResponse::SetResponse(TFuture<NDriver::TDriverResponse> response)
@@ -30,7 +30,7 @@ void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& output
 }
 
 
-Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
     Py_BEGIN_ALLOW_THREADS
     Response_.Get();
@@ -39,12 +39,12 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict &kwds)
     return Py::None();
 }
     
-Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict& kwargs)
 {
     return Py::Boolean(Response_.IsSet());
 }
 
-Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
 {
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
@@ -52,7 +52,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
     return Py::Boolean(Response_.Get().Error.IsOK());
 }
 
-Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 {
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");

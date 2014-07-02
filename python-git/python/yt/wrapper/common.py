@@ -1,3 +1,5 @@
+"""Some common useful misc"""
+
 import yt.logger as logger
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
@@ -5,8 +7,8 @@ import yt.yson as yson
 import os
 import sys
 import random
-from functools import partial
-from itertools import ifilter
+from datetime import datetime
+from itertools import ifilter, chain
 import simplejson as json
 
 EMPTY_GENERATOR = (i for i in [])
@@ -17,9 +19,15 @@ def compose(*args):
     return reduce(compose_two, args)
 
 def unlist(l):
-    return l[0] if len(l) == 1 else l
+    try:
+        return l[0] if len(l) == 1 else l
+    except TypeError: # cannot calculate len
+        return l
 
 def parse_bool(word):
+    """convert 'true' and 'false' and something like this to Python bool
+
+    Raise `YtError` if input word is incorrect."""
     word = word.lower()
     if word == "true":
         return True
@@ -29,6 +37,12 @@ def parse_bool(word):
         raise YtError("Cannot parse boolean from %s" % word)
 
 def bool_to_string(bool_value):
+    """convert Python bool value to 'true' or 'false' string
+
+    Raise `YtError` if value is incorrect.
+    """
+    if bool_value not in [False, True]:
+        raise YtError("Incorrect bool value '{0}'".format(bool_value))
     if bool_value:
         return "true"
     else:
@@ -71,6 +85,12 @@ def remove_attributes(tree):
 def first_not_none(iter):
     return ifilter(None, iter).next()
 
+def filter_dict(predicate, dictionary):
+    return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
+
+def merge_dicts(*dicts):
+    return dict(chain(*[d.iteritems() for d in dicts]))
+
 def get_value(value, default):
     if value is None:
         return default
@@ -79,20 +99,6 @@ def get_value(value, default):
 
 def dump_to_json(obj):
     return json.dumps(yson.yson_to_json(obj), indent=2)
-
-def execute_handling_sigint(action, except_action):
-    try:
-        return action()
-    except KeyboardInterrupt:
-        while True:
-            try:
-                except_action()
-            except KeyboardInterrupt:
-                continue
-            break
-        raise
-    except:
-        raise
 
 def chunk_iter(stream, chunk_size):
     while True:
@@ -119,6 +125,11 @@ def die(message=None, return_code=1):
     if "YT_LOG_EXIT_CODE" in os.environ:
         logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
+
+def get_backoff(timeout, start_time):
+    def get_total_seconds(timedelta):
+        return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
+    return max(0.0, timeout / 1000.0, - get_total_seconds(datetime.now() - start_time))
 
 def generate_uuid():
     def get_int():
