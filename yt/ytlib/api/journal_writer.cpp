@@ -643,7 +643,8 @@ private:
                 auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
                 req->set_record_count(session->FlushedRecordCount);
                 auto rsp = WaitFor(Proxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk");
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %s",
+                    ~ToString(session->ChunkId));
             }
             LOG_INFO("Chunk sealed");
         }
