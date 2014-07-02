@@ -173,8 +173,7 @@ private:
         UNUSED(oldValue);
 
         // Forbid to remove configuration attributes.
-        static auto nodeConfigTemplate = New<TNodeConfig>();
-        static auto nodeConfigKeys = nodeConfigTemplate->GetRegisteredKeys();
+        static auto nodeConfigKeys = New<TNodeConfig>()->GetRegisteredKeys();
         if (!newValue &&
             std::find(nodeConfigKeys.begin(), nodeConfigKeys.end(), key) != nodeConfigKeys.end())
         {
