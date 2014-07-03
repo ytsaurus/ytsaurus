@@ -1391,35 +1391,46 @@ private:
                     batchReq->AddRequest(req, "create_std_err");
                 }
 
-                {
-                    auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
-                    auto req = TYPathProxy::Set(failContextRootPath);
-                    req->set_value(BuildYsonStringFluently()
-                        .BeginMap()
-                        .EndMap()
-                        .Data());
-                    batchReq->AddRequest(req, "update_op_node");
+                bool existNotNullFailContext = false;
+                for (const auto& failContext : request.FailContexts) {
+                    if (failContext != NChunkServer::NullChunkId) {
+                        existNotNullFailContext = true;
+                    }
                 }
 
-                size_t index = 0;
-                for (const auto& failContext : request.FailContexts) {
-                    auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
+                if (existNotNullFailContext) {
+                    {
+                        auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
+                        auto req = TYPathProxy::Set(failContextRootPath);
+                        req->set_value(BuildYsonStringFluently()
+                            .BeginMap()
+                            .EndMap()
+                            .Data());
+                        batchReq->AddRequest(req, "update_op_node");
+                    }
 
-                    auto req = TCypressYPathProxy::Create(failContextPath);
-                    GenerateMutationId(req);
-                    req->set_type(EObjectType::File);
+                    size_t index = 0;
+                    for (const auto& failContext : request.FailContexts) {
+                        if (failContext != NChunkServer::NullChunkId) {
+                            auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
 
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("vital", false);
-                    attributes->Set("replication_factor", 1);
-                    attributes->Set("account", TmpAccountName);
-                    ToProto(req->mutable_node_attributes(), *attributes);
+                            auto req = TCypressYPathProxy::Create(failContextPath);
+                            GenerateMutationId(req);
+                            req->set_type(EObjectType::File);
 
-                    auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                    ToProto(reqExt->mutable_chunk_id(), failContext);
+                            auto attributes = CreateEphemeralAttributes();
+                            attributes->Set("vital", false);
+                            attributes->Set("replication_factor", 1);
+                            attributes->Set("account", TmpAccountName);
+                            ToProto(req->mutable_node_attributes(), *attributes);
 
-                    batchReq->AddRequest(req, "create_fail_context");
-                    ++index;
+                            auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
+                            ToProto(reqExt->mutable_chunk_id(), failContext);
+
+                            batchReq->AddRequest(req, "create_fail_context");
+                        }
+                        ++index;
+                    }
                 }
             }
             requests.clear();
