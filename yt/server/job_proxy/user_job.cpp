@@ -163,7 +163,7 @@ public:
                     contextOutput->Finish();
                     auto contextChunkId = contextOutput->GetChunkId();
                     auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                    ToProto(schedulerResultExt->add_fail_contexts(), contextChunkId);
+                    ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
 
                     if (contextChunkId != NChunkServer::NullChunkId) {
                         LOG_INFO("Fail context chunk generated (ChunkId: %s)", ~ToString(contextChunkId));

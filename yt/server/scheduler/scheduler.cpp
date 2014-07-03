@@ -1424,7 +1424,7 @@ private:
         const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         std::vector<TChunkId> failContexts;
-        for (const auto& item : schedulerResultExt.fail_contexts()) {
+        for (const auto& item : schedulerResultExt.fail_context_chunk_ids()) {
             failContexts.push_back(FromProto<TGuid>(item));
         }
 

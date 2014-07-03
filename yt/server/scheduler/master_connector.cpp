@@ -1512,7 +1512,7 @@ private:
 
         {
             auto rsps = batchRsp->GetResponses("create_fail_context");
-            FOREACH (auto rsp, rsps) {
+            for (const auto& rsp: rsps) {
                 if (!rsp->IsOK()) {
                     LOG_WARNING(
                         rsp->GetError(),
