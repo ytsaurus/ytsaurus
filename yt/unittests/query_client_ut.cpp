@@ -200,6 +200,7 @@ TTableSchema GetSampleTableSchema()
     tableSchema.Columns().push_back({ "b", EValueType::Integer });
     tableSchema.Columns().push_back({ "c", EValueType::Integer });
     tableSchema.Columns().push_back({ "s", EValueType::String });
+    tableSchema.Columns().push_back({ "u", EValueType::String });
     return tableSchema;
 }
 
@@ -1506,6 +1507,28 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
     result.push_back(BuildRow("s=baz", resultSplit, true));
 
     Evaluate("s FROM [//t]", source, result);
+}
+
+TEST_F(TQueryEvaluateTest, SimpleStrings2)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("s", EValueType::String);
+    columns.emplace_back("u", EValueType::String);
+    auto simpleSplit = MakeSplit(columns);
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("s=foo; u=x", simpleSplit, true));
+    source.push_back(BuildRow("s=bar; u=y", simpleSplit, true));
+    source.push_back(BuildRow("s=baz; u=x", simpleSplit, true));
+    source.push_back(BuildRow("s=olala; u=z", simpleSplit, true));
+
+    auto resultSplit = MakeSplit(columns);
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("s=foo; u=x", resultSplit, true));
+    result.push_back(BuildRow("s=baz; u=x", resultSplit, true));
+
+    Evaluate("s, u FROM [//t] where u = \"x\"", source, result);
 }
 
 TEST_F(TQueryEvaluateTest, HasPrefixStrings)

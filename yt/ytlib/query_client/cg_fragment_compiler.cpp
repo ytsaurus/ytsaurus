@@ -655,13 +655,9 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 Value* rhsData = rhsValue.GetData(EValueType::String);
                 Value* rhsLength = rhsValue.GetLength();
 
-                Value* result = builder.CreateCall5(
+                Value* result = builder.CreateCall4(
                     Fragment_.GetRoutine("HasPrefix"),
-                    GetExecutionContextPtr(builder),
-                    lhsData,
-                    lhsLength,
-                    rhsData,
-                    rhsLength);
+                    lhsData, lhsLength, rhsData, rhsLength);
 
                 return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
             }, type);
@@ -682,9 +678,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
 
     auto nameTwine = Twine(name.c_str());
 
-    // Just to make sure. ;)
-    YCHECK(expr->GetLhs()->GetType(schema) == type);
-    YCHECK(expr->GetRhs()->GetType(schema) == type);
+    
 
     auto lhsValue = CodegenExpr(builder, expr->GetLhs(), schema, row);
 
@@ -700,71 +694,98 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
             }, [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder);
             }, [&] (TCGIRBuilder& builder) {
-                Value* lhsData = lhsValue.GetData(type);
-                Value* rhsData = rhsValue.GetData(type);
-                Value* evalData = nullptr;
+                auto operandType = expr->GetLhs()->GetType(schema);
+                YCHECK(operandType == expr->GetRhs()->GetType(schema));
 
-                switch (expr->GetOpcode()) {
-                    // Arithmetical operations.
-            #define XX(opcode, ioptype, foptype) \
-                    case EBinaryOp::opcode: \
-                        switch (type) { \
-                            case EValueType::Integer: \
-                                evalData = builder.Create##ioptype(lhsData, rhsData); \
-                                break; \
-                            case EValueType::Double: \
-                                evalData = builder.Create##foptype(lhsData, rhsData); \
-                                break; \
-                            default: \
-                                YUNREACHABLE(); /* Typechecked. */ \
-                        } \
-                        break;
-                    XX(Plus, Add, FAdd)
-                    XX(Minus, Sub, FSub)
-                    XX(Multiply, Mul, FMul)
-                    XX(Divide, SDiv, FDiv)
-            #undef XX
+                Value* lhsData = lhsValue.GetData(operandType);
+                Value* rhsData = rhsValue.GetData(operandType);
+                Value* evalData = nullptr;                
 
-                    // Integral and logical operations.
-            #define XX(opcode, optype) \
+                #define OP(opcode, optype) \
                     case EBinaryOp::opcode: \
-                        switch (type) { \
-                            case EValueType::Integer: \
-                                evalData = builder.Create##optype(lhsData, rhsData); \
-                                break; \
-                            default: \
-                                YUNREACHABLE(); /* Typechecked. */ \
-                        } \
+                        evalData = builder.Create##optype(lhsData, rhsData); \
                         break;
-                    XX(Modulo, SRem)
-                    XX(And, And)
-                    XX(Or, Or)
-            #undef XX
 
-                    // TODO(sandello): Remove zext after introducing boolean type.
-                    // Comparsion operations.
-            #define XX(opcode, ioptype, foptype) \
+                #define CMP_OP(opcode, optype) \
                     case EBinaryOp::opcode: \
-                        switch (type) { \
-                            case EValueType::Integer: \
-                                evalData = builder.CreateICmp##ioptype(lhsData, rhsData); \
-                                break; \
-                            case EValueType::Double: \
-                                evalData = builder.CreateFCmp##foptype(lhsData, rhsData); \
-                                break; \
-                            default: \
-                                YUNREACHABLE(); /* Typechecked. */ \
-                        } \
-                        evalData = builder.CreateZExtOrBitCast(evalData, builder.getInt64Ty()); \
+                        evalData = builder.CreateZExtOrBitCast( \
+                            builder.Create##optype(lhsData, rhsData), \
+                            builder.getInt64Ty()); \
                         break;
-                    XX(Equal, EQ, UEQ)
-                    XX(NotEqual, NE, UNE)
-                    XX(Less, SLT, ULT)
-                    XX(LessOrEqual, SLE, ULE)
-                    XX(Greater, SGT, UGT)
-                    XX(GreaterOrEqual, SGE, UGE)
-            #undef XX
+
+                switch (operandType) {
+                    case EValueType::Integer:
+                        switch (expr->GetOpcode()) {
+                            OP(Plus, Add)
+                            OP(Minus, Sub)
+                            OP(Multiply, Mul)
+                            OP(Divide, SDiv)
+                            OP(Modulo, SRem)
+                            OP(And, And)
+                            OP(Or, Or)
+                            CMP_OP(Equal, ICmpEQ)
+                            CMP_OP(NotEqual, ICmpNE)
+                            CMP_OP(Less, ICmpSLT)
+                            CMP_OP(LessOrEqual, ICmpSLE)
+                            CMP_OP(Greater, ICmpSGT)
+                            CMP_OP(GreaterOrEqual, ICmpSGE)
+                            default:
+                                YUNREACHABLE();
+                        }
+                        break;
+                    case EValueType::Double:
+                        switch (expr->GetOpcode()) {
+                            OP(Plus, FAdd)
+                            OP(Minus, FSub)
+                            OP(Multiply, FMul)
+                            OP(Divide, FDiv)
+                            CMP_OP(Equal, FCmpUEQ)
+                            CMP_OP(NotEqual, FCmpUNE)
+                            CMP_OP(Less, FCmpULT)
+                            CMP_OP(LessOrEqual, FCmpULE)
+                            CMP_OP(Greater, FCmpUGT)
+                            CMP_OP(GreaterOrEqual, FCmpUGE)
+                            default:
+                                YUNREACHABLE();
+                        }
+                        break;
+                    case EValueType::String: {
+                        Value* lhsLength = lhsValue.GetLength();
+                        Value* rhsLength = rhsValue.GetLength();
+
+                        switch (expr->GetOpcode()) {
+                            case EBinaryOp::Equal:
+                                evalData = builder.CreateCall4(
+                                    Fragment_.GetRoutine("Equal"),
+                                    lhsData, lhsLength, rhsData, rhsLength);
+                                break;
+                            case EBinaryOp::NotEqual:
+                                evalData = builder.CreateCall4(
+                                    Fragment_.GetRoutine("NotEqual"),
+                                    lhsData, lhsLength, rhsData, rhsLength);
+                                break;
+                            case EBinaryOp::Less:
+                                evalData = builder.CreateCall4(
+                                    Fragment_.GetRoutine("LexicographicalCompare"),
+                                    lhsData, lhsLength, rhsData, rhsLength);
+                                break;
+                            case EBinaryOp::Greater:
+                                evalData = builder.CreateCall4(
+                                    Fragment_.GetRoutine("LexicographicalCompare"),
+                                    rhsData, rhsLength, lhsData, lhsLength);
+                                break;
+                            default:
+                                YUNREACHABLE();
+                        }
+                        break;
+                    }
+                    default:
+                        YUNREACHABLE();
                 }
+
+                #undef OP
+                #undef CMP_OP
+
                 return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, evalData);
             }, type);
         }, type, nameTwine);

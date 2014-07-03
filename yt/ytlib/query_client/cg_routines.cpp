@@ -203,16 +203,40 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 HasPrefix(
-    TExecutionContext* executionContext,
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,
     ui32 rhsLength)
 {
-    CHECK_STACK()
-
     return lhsLength <= rhsLength &&
         std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
+}
+
+i64 Equal(
+    const char* lhsData,
+    ui32 lhsLength,
+    const char* rhsData,
+    ui32 rhsLength)
+{
+    return lhsLength == rhsLength && std::equal(lhsData, lhsData + lhsLength, rhsData);
+}
+
+i64 NotEqual(
+    const char* lhsData,
+    ui32 lhsLength,
+    const char* rhsData,
+    ui32 rhsLength)
+{
+    return !Equal(lhsData, lhsLength, rhsData, rhsLength);
+}
+
+i64 LexicographicalCompare(
+    const char* lhsData,
+    ui32 lhsLength,
+    const char* rhsData,
+    ui32 rhsLength)
+{
+    return std::lexicographical_compare(lhsData, lhsData + lhsLength, rhsData, rhsData + rhsLength);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,6 +258,9 @@ void RegisterCGRoutinesImpl()
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
     REGISTER_ROUTINE(HasPrefix);
+    REGISTER_ROUTINE(Equal);
+    REGISTER_ROUTINE(NotEqual);
+    REGISTER_ROUTINE(LexicographicalCompare);
 #undef REGISTER_ROUTINE
 }
 

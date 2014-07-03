@@ -400,42 +400,50 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                     << TErrorAttribute("lhs_type", ToString(lhsType))
                     << TErrorAttribute("rhs_type", ToString(rhsType));
             }
-            if (lhsType != EValueType::Integer && lhsType != EValueType::Double) {
-                THROW_ERROR_EXCEPTION(
-                    "Expression %s require either integral or floating-point operands",
-                    ~typedExpr->GetSource().Quote())
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
-            }
-            switch (typedExpr->GetOpcode()) {
-                // For arithmetic operations resulting type matches operands' type.
-                case EBinaryOp::Plus:
-                case EBinaryOp::Minus:
-                case EBinaryOp::Multiply:
-                case EBinaryOp::Divide:
-                    return lhsType;
-                // For integral and logical operations operands must be integral.
-                case EBinaryOp::Modulo:
-                case EBinaryOp::And:
-                case EBinaryOp::Or:
-                    if (lhsType != EValueType::Integer) {
-                        THROW_ERROR_EXCEPTION(
-                            "Operands must be integral in expression %s",
-                            ~typedExpr->GetSource().Quote())
-                            << TErrorAttribute("lhs_type", ToString(lhsType))
-                            << TErrorAttribute("rhs_type", ToString(rhsType));
+
+            switch (lhsType) {
+                case EValueType::Integer:
+                    return EValueType::Integer;
+                case EValueType::Double:
+                    switch (typedExpr->GetOpcode()) {
+                        case EBinaryOp::Plus:
+                        case EBinaryOp::Minus:
+                        case EBinaryOp::Multiply:
+                        case EBinaryOp::Divide:
+                            return EValueType::Double;
+                        case EBinaryOp::Equal:
+                        case EBinaryOp::NotEqual:
+                        case EBinaryOp::Less:
+                        case EBinaryOp::LessOrEqual:
+                        case EBinaryOp::Greater:
+                        case EBinaryOp::GreaterOrEqual:
+                            return EValueType::Integer;
+                        default:
+                             THROW_ERROR_EXCEPTION(
+                                "Expression %s is not supported",
+                                ~typedExpr->GetSource().Quote())
+                                << TErrorAttribute("lhs_type", ToString(lhsType))
+                                << TErrorAttribute("rhs_type", ToString(rhsType));
                     }
-                    return EValueType::Integer;
-                // For comparsion operations resulting type is integer type
-                // because we do not have built-in boolean type, and thus
-                // we represent comparsion result as 0/1.
-                case EBinaryOp::Equal:
-                case EBinaryOp::NotEqual:
-                case EBinaryOp::Less:
-                case EBinaryOp::LessOrEqual:
-                case EBinaryOp::Greater:
-                case EBinaryOp::GreaterOrEqual:
-                    return EValueType::Integer;
+                    break;
+                case EValueType::String: {
+                    switch (typedExpr->GetOpcode()) {
+                        case EBinaryOp::Equal:
+                        case EBinaryOp::NotEqual:
+                        case EBinaryOp::Less:
+                        case EBinaryOp::Greater:
+                            return EValueType::Integer;
+                        default:
+                            THROW_ERROR_EXCEPTION(
+                                "Expression %s is not supported",
+                                ~typedExpr->GetSource().Quote())
+                                << TErrorAttribute("lhs_type", ToString(lhsType))
+                                << TErrorAttribute("rhs_type", ToString(rhsType));
+                    }
+                    break;   
+                }                    
+                default:
+                    YUNREACHABLE();
             }
         }
     }
