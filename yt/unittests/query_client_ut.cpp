@@ -1508,6 +1508,25 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
     Evaluate("s FROM [//t]", source, result);
 }
 
+TEST_F(TQueryEvaluateTest, HasPrefixStrings)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("s", EValueType::String);
+    auto simpleSplit = MakeSplit(columns);
+
+    std::vector<TUnversionedOwningRow> source;
+    source.push_back(BuildRow("s=foobar", simpleSplit, true));
+    source.push_back(BuildRow("s=bar", simpleSplit, true));
+    source.push_back(BuildRow("s=baz", simpleSplit, true));
+
+    auto resultSplit = MakeSplit(columns);
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("s=foobar", resultSplit, true));
+
+    Evaluate("s FROM [//t] where has_prefix(\"foo\", s)", source, result);
+}
+
 TEST_F(TQueryEvaluateTest, Complex)
 {
     std::vector<TColumnSchema> columns;

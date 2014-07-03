@@ -376,6 +376,15 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 YCHECK(thenType == elseType);
                 
                 return thenType;
+            } else if (functionName == "has_prefix") {
+                CHECK(typedExpr->GetArgumentCount() == 2);
+                const TExpression* lhsExpr = typedExpr->Arguments()[0];
+                const TExpression* rhsExpr = typedExpr->Arguments()[1];
+
+                YCHECK(lhsExpr->GetType(sourceSchema) == EValueType::String);
+                YCHECK(rhsExpr->GetType(sourceSchema) == EValueType::String);
+
+                return EValueType::Integer;
             }
             YUNIMPLEMENTED();
         }

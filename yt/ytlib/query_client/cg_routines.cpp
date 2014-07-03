@@ -202,6 +202,21 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 HasPrefix(
+    TExecutionContext* executionContext,
+    const char* lhsData,
+    ui32 lhsLength,
+    const char* rhsData,
+    ui32 rhsLength)
+{
+    CHECK_STACK()
+
+    return lhsLength <= rhsLength &&
+        std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +233,7 @@ void RegisterCGRoutinesImpl()
     REGISTER_ROUTINE(AllocateRow);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
+    REGISTER_ROUTINE(HasPrefix);
 #undef REGISTER_ROUTINE
 }
 

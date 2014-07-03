@@ -628,6 +628,44 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 return CodegenExpr(builder, elseExpr, schema, row);
             }, type);
         }, type, nameTwine);
+    } else if (functionName == "has_prefix") {
+        YCHECK(expr->GetArgumentCount() == 2);
+        const TExpression* lhsExpr = expr->Arguments()[0];
+        const TExpression* rhsExpr = expr->Arguments()[1];
+
+        YCHECK(lhsExpr->GetType(schema) == EValueType::String);
+        YCHECK(rhsExpr->GetType(schema) == EValueType::String);
+
+        auto lhsValue = CodegenExpr(builder, lhsExpr, schema, row);
+    
+        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+            return lhsValue.IsNull();
+        }, [&] (TCGIRBuilder& builder) {
+            return TCGValue::CreateNull(builder);
+        }, [&] (TCGIRBuilder& builder) {
+            auto rhsValue = CodegenExpr(builder, rhsExpr, schema, row);
+
+            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+                return rhsValue.IsNull();            
+            }, [&] (TCGIRBuilder& builder) {
+                return TCGValue::CreateNull(builder);
+            }, [&] (TCGIRBuilder& builder) {
+                Value* lhsData = lhsValue.GetData(EValueType::String);
+                Value* lhsLength = lhsValue.GetLength();
+                Value* rhsData = rhsValue.GetData(EValueType::String);
+                Value* rhsLength = rhsValue.GetLength();
+
+                Value* result = builder.CreateCall5(
+                    Fragment_.GetRoutine("HasPrefix"),
+                    GetExecutionContextPtr(builder),
+                    lhsData,
+                    lhsLength,
+                    rhsData,
+                    rhsLength);
+
+                return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
+            }, type);
+        }, type, nameTwine);
     }
 
     YUNIMPLEMENTED();
