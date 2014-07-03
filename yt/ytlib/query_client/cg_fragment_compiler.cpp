@@ -310,17 +310,17 @@ private:
     const TCGFragment& Fragment_;
     const TCGBinding& Binding_;
     Value* ConstantsRow_;
-    Value* PassedFragmentParamsPtr_;
+    Value* ExecutionContextPtr_;
 
     TCGContext(
         const TCGFragment& cgFragment,
         const TCGBinding& binding,
         Value* constantsRow,
-        Value* passedFragmentParamsPtr)
+        Value* executionContextPtr)
         : Fragment_(cgFragment)
         , Binding_(binding)
         , ConstantsRow_(constantsRow)
-        , PassedFragmentParamsPtr_(passedFragmentParamsPtr)
+        , ExecutionContextPtr_(executionContextPtr)
     { }
 
     Value* GetConstantsRows(TCGIRBuilder& builder) const
@@ -328,9 +328,9 @@ private:
         return builder.ViaClosure(ConstantsRow_, "constantsRow");
     }
 
-    Value* GetPassedFragmentParamsPtr(TCGIRBuilder& builder) const
+    Value* GetExecutionContextPtr(TCGIRBuilder& builder) const
     {
-        return builder.ViaClosure(PassedFragmentParamsPtr_, "passedFragmentParamsPtr");
+        return builder.ViaClosure(ExecutionContextPtr_, "executionContextPtr");
     }
 
     TCGValue CodegenExpr(
@@ -597,12 +597,12 @@ TCGValue TCGContext::CodegenFunctionExpr(
 {
     Stroka functionName(expr->GetFunctionName());
     functionName.to_lower();
+
+    auto name = "{" + expr->GetName() + "}";
+    auto type = expr->GetType(schema);
+    auto nameTwine = Twine(name.c_str());
+
     if (functionName == "if") {
-        auto name = "{" + expr->GetName() + "}";
-        auto type = expr->GetType(schema);
-
-        auto nameTwine = Twine(name.c_str());
-
         YCHECK(expr->GetArgumentCount() == 3);
         const TExpression* condExpr = expr->Arguments()[0];
         const TExpression* thenExpr = expr->Arguments()[1];
@@ -831,7 +831,7 @@ void TCGContext::CodegenScanOp(
 
     innerBuilder.CreateRetVoid();
 
-    Value* passedFragmentParamsPtr = GetPassedFragmentParamsPtr(builder);
+    Value* executionContextPtr = GetExecutionContextPtr(builder);
 
     auto it = Binding_.ScanOpToDataSplits.find(op);
     YCHECK(it != Binding_.ScanOpToDataSplits.end());
@@ -839,7 +839,7 @@ void TCGContext::CodegenScanOp(
 
     builder.CreateCall4(
         Fragment_.GetRoutine("ScanOpHelper"),
-        passedFragmentParamsPtr,
+        executionContextPtr,
         builder.getInt32(dataSplitsIndex),
         innerBuilder.GetClosure(),
         function);
@@ -896,7 +896,7 @@ void TCGContext::CodegenProjectOp(
 
             innerBuilder.CreateCall3(
                 Fragment_.GetRoutine("AllocateRow"),
-                GetPassedFragmentParamsPtr(innerBuilder),
+                GetExecutionContextPtr(innerBuilder),
                 builder.getInt32(projectionCount),
                 newRowPtr);
 
@@ -951,14 +951,14 @@ void TCGContext::CodegenGroupOp(
     Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
     CodegenOp(innerBuilder, op->GetSource(), [&] (TCGIRBuilder& innerBuilder, Value* row) {
-        Value* passedFragmentParamsPtrRef = GetPassedFragmentParamsPtr(innerBuilder);
+        Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
         Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
         Value* rowsRef = innerBuilder.ViaClosure(rows);
         Value* newRowPtrRef = innerBuilder.ViaClosure(newRowPtr);
 
         innerBuilder.CreateCall3(
             Fragment_.GetRoutine("AllocateRow"),
-            passedFragmentParamsPtrRef,
+            executionContextPtrRef,
             builder.getInt32(keySize + aggregateItemCount),
             newRowPtrRef);
 
@@ -993,7 +993,7 @@ void TCGContext::CodegenGroupOp(
 
         Value* foundRowPtr = innerBuilder.CreateCall3(
             Fragment_.GetRoutine("FindRow"),
-            passedFragmentParamsPtrRef,
+            executionContextPtrRef,
             rowsRef,
             newRowRef);
 
@@ -1017,7 +1017,7 @@ void TCGContext::CodegenGroupOp(
         }, [&] (TCGIRBuilder& innerBuilder) {
             innerBuilder.CreateCall5(
                 Fragment_.GetRoutine("AddRow"),
-                passedFragmentParamsPtrRef,
+                executionContextPtrRef,
                 rowsRef,
                 groupedRowsRef,
                 newRowPtrRef,
@@ -1061,17 +1061,17 @@ Function* TCGContext::CodegenEvaluate(
 
     auto args = function->arg_begin();
     Value* constants = args; constants->setName("constants");
-    Value* passedFragmentParamsPtr = ++args; passedFragmentParamsPtr->setName("passedFragmentParamsPtr");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
     YCHECK(++args == function->arg_end());
 
     TCGIRBuilder builder(BasicBlock::Create(context, "entry", function));
 
-    TCGContext ctx(cgFragment, binding, constants, passedFragmentParamsPtr);
+    TCGContext ctx(cgFragment, binding, constants, executionContextPtr);
 
     ctx.CodegenOp(builder, op,
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
-            Value* passedFragmentParamsPtrRef = innerBuilder.ViaClosure(passedFragmentParamsPtr);
-            innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, passedFragmentParamsPtrRef);
+            Value* executionContextPtrRef = innerBuilder.ViaClosure(executionContextPtr);
+            innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, executionContextPtrRef);
         });
 
     builder.CreateRetVoid();
