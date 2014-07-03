@@ -132,7 +132,7 @@ public:
             if (!result.IsOK()) {
                 return TError(result);
             }
-            return result.Value();
+            return TDownloadResult(result.Value());
         }));
     }
 
