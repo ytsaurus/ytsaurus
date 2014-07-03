@@ -171,6 +171,17 @@ template <bool Cross>
 class TypeBuilder<TValueData, Cross>
 {
 public:
+    typedef TypeBuilder<i64, Cross> TInteger;
+    typedef TypeBuilder<double, Cross> TDouble;
+    typedef TypeBuilder<const char*, Cross> TString;
+
+    enum Fields
+    {
+        Integer,
+        Double,
+        String
+    };
+
     static Type* get(LLVMContext& context)
     {
         enum
@@ -184,32 +195,17 @@ public:
 
         return TypeBuilder<i64, Cross>::get(context);
     }
-
-    enum Fields
-    {
-        Integer,
-        Double,
-        String
-    };
-
-    static Type* getAs(Fields dataFields, LLVMContext& context)
-    {
-        switch (dataFields) {
-            case Fields::Integer:
-                return TypeBuilder<i64, Cross>::get(context);
-            case Fields::Double:
-                return TypeBuilder<double, Cross>::get(context);
-            case Fields::String:
-                return TypeBuilder<const char*, Cross>::get(context);
-        }
-        YUNREACHABLE();
-    }
 };
 
 template <bool Cross>
 class TypeBuilder<TValue, Cross>
 {
 public:
+    typedef TypeBuilder<ui16, Cross> TId;
+    typedef TypeBuilder<ui16, Cross> TType;
+    typedef TypeBuilder<ui32, Cross> TLength;
+    typedef TypeBuilder<TValueData, Cross> TData;
+
     enum Fields
     {
         Id,
@@ -218,24 +214,13 @@ public:
         Data
     };
 
-    static ::llvm::Type* getFor(Fields field, LLVMContext& context)
-    {
-        switch (field) {
-            case Id:     return TypeBuilder<ui16, Cross>::get(context);
-            case Type:   return TypeBuilder<ui16, Cross>::get(context);
-            case Length: return TypeBuilder<ui32, Cross>::get(context);
-            case Data:   return TypeBuilder<TValueData, Cross>::get(context);
-        }
-        YUNREACHABLE();
-    }
-
     static ::llvm::StructType* get(LLVMContext& context)
     {
         return StructType::get(
-            getFor(Id, context),
-            getFor(Type, context),
-            getFor(Length, context),
-            getFor(Data, context),
+            TId::get(context),
+            TType::get(context),
+            TLength::get(context),
+            TData::get(context),
             nullptr);
     }
 };
@@ -244,6 +229,12 @@ template <bool Cross>
 class TypeBuilder<TRowHeader, Cross>
 {
 public:
+    enum Fields
+    {
+        Count,
+        Padding
+    };
+
     static StructType* get(LLVMContext& context)
     {
         return StructType::get(
@@ -251,29 +242,25 @@ public:
             TypeBuilder<ui32, Cross>::get(context),
             nullptr);
     }
-
-    enum Fields
-    {
-        Count,
-        Padding
-    };
 };
 
 template <bool Cross>
 class TypeBuilder<TRow, Cross>
 {
 public:
-    static StructType* get(LLVMContext& context)
-    {
-        return StructType::get(
-            TypeBuilder<TRowHeader*, Cross>::get(context),
-            nullptr);
-    }
+    typedef TypeBuilder<TRowHeader*, Cross> THeader;
 
     enum Fields
     {
         Header
     };
+
+    static StructType* get(LLVMContext& context)
+    {
+        return StructType::get(
+            THeader::get(context),
+            nullptr);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

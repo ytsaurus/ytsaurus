@@ -55,14 +55,16 @@ using llvm::Value;
 
 typedef std::function<void(TCGIRBuilder& builder, Value* row)> TCodegenConsumer;
 
+
 static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
 
 class TCGValue
 {
-private:
+public:
     typedef TypeBuilder<TValue, false> TTypeBuilder;
     typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
 
+private:
     TCGIRBuilder& Builder_;
     Value* Type_;
     Value* Length_;
@@ -77,17 +79,19 @@ private:
         , Name_(name.str())
     {
         if (Type_) {
-            YCHECK(Type_->getType() == TTypeBuilder::getFor(TTypeBuilder::Type, Builder_.getContext()));
+            YCHECK(Type_->getType() == TTypeBuilder::TType::get(Builder_.getContext()));
         }
         if (Length_) {
-            YCHECK(Length_->getType() == TTypeBuilder::getFor(TTypeBuilder::Length, Builder_.getContext()));
+            YCHECK(Length_->getType() == TTypeBuilder::TLength::get(Builder_.getContext()));
         }
         if (Data_) {
-            YCHECK(Data_->getType() == TTypeBuilder::getFor(TTypeBuilder::Data, Builder_.getContext()));
+            YCHECK(Data_->getType() == TTypeBuilder::TData::get(Builder_.getContext()));
         }
     }
 
 public:
+    TCGValue(const TCGValue& other) = default;
+
     TCGValue(TCGValue&& other)
         : Builder_(other.Builder_)
         , Type_(other.Type_)
@@ -172,8 +176,8 @@ public:
         return TCGValue(
             builder,
             builder.getInt16(EValueType::Null),
-            nullptr,
-            nullptr,
+            llvm::UndefValue::get(TCGValue::TTypeBuilder::TLength::get(builder.getContext())),
+            llvm::UndefValue::get(TCGValue::TTypeBuilder::TData::get(builder.getContext())),
             name);
     }
 
@@ -238,22 +242,21 @@ public:
 
     Value* GetData(EValueType type)
     {
-        TDataTypeBuilder::Fields field;
+        Type* targetType;
+
         switch (type) {
             case EValueType::Integer:
-                field = TDataTypeBuilder::Fields::Integer;
+                targetType = TDataTypeBuilder::TInteger::get(Builder_.getContext());
                 break;
             case EValueType::Double:
-                field = TDataTypeBuilder::Fields::Double;
+                targetType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
                 break;
             case EValueType::String:
-                field = TDataTypeBuilder::Fields::String;
+                targetType = TDataTypeBuilder::TString::get(Builder_.getContext());
                 break;
             default:
                 YUNREACHABLE();
         }
-
-        Type* targetType = TDataTypeBuilder::getAs(field, Builder_.getContext());
 
         if (targetType->isPointerTy()) {
             return Builder_.CreateIntToPtr(Data_,
@@ -290,6 +293,10 @@ public:
         return *this;
     }
 };
+
+typedef std::function<Value* (TCGIRBuilder& builder)> TCodegenBlock;
+typedef std::function<TCGValue(TCGIRBuilder& builder)> TCodegenValueBlock;
+typedef std::function<void(TCGIRBuilder& builder)> TCodegenVoidBlock;
 
 class TCGContext
 {
@@ -371,6 +378,97 @@ private:
 
 };
 
+void CodegenIf(
+    TCGIRBuilder& builder,
+    const TCodegenBlock& conditionCodegen,
+    const TCodegenVoidBlock& thenCodegen,
+    const TCodegenVoidBlock& elseCodegen)
+{
+    auto* conditionBB = builder.CreateBBHere("condition");
+    auto* thenBB = builder.CreateBBHere("then");
+    auto* elseBB = builder.CreateBBHere("else");
+    auto* endBB = builder.CreateBBHere("end");
+
+    builder.CreateBr(conditionBB);
+
+    builder.SetInsertPoint(conditionBB);
+    builder.CreateCondBr(conditionCodegen(builder), thenBB, elseBB);
+    conditionBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(thenBB);
+    thenCodegen(builder);
+    builder.CreateBr(endBB);
+    thenBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(elseBB);
+    elseCodegen(builder);
+    builder.CreateBr(endBB);
+    elseBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(endBB);
+}
+
+TCGValue CodegenIfValue(
+    TCGIRBuilder& builder,
+    const TCodegenBlock& conditionCodegen,
+    const TCodegenValueBlock& thenCodegen,
+    const TCodegenValueBlock& elseCodegen,
+    EValueType type,
+    Twine name = Twine())
+{
+    auto* conditionBB = builder.CreateBBHere("condition");
+    auto* thenBB = builder.CreateBBHere("then");
+    auto* elseBB = builder.CreateBBHere("else");
+    auto* endBB = builder.CreateBBHere("end");
+
+    builder.CreateBr(conditionBB);
+
+    builder.SetInsertPoint(conditionBB);
+    builder.CreateCondBr(conditionCodegen(builder), thenBB, elseBB);
+    conditionBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(thenBB);
+    auto thenValue = thenCodegen(builder);
+    Value* thenType = thenValue.GetType();
+    Value* thenLength = thenValue.GetLength();
+    Value* thenData = thenValue.GetData(type);
+    builder.CreateBr(endBB);
+    thenBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(elseBB);
+    auto elseValue = elseCodegen(builder);
+    Value* elseType = elseValue.GetType();
+    Value* elseLength = elseValue.GetLength();
+    Value* elseData = elseValue.GetData(type);
+    builder.CreateBr(endBB);
+    elseBB = builder.GetInsertBlock();
+
+    builder.SetInsertPoint(endBB);
+    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
+    //phiType->addIncoming(builder.getInt16(EValueType::Null), conditionBB);
+    phiType->addIncoming(thenType, thenBB);
+    phiType->addIncoming(elseType, elseBB);
+
+    YCHECK(thenData->getType() == elseData->getType());
+
+    PHINode* phiData = builder.CreatePHI(thenData->getType(), 2, name + ".phiData");
+    //phiData->addIncoming(llvm::UndefValue::get(thenData->getType()), conditionBB);
+    phiData->addIncoming(thenData, thenBB);
+    phiData->addIncoming(elseData, elseBB);
+
+    PHINode* phiLength = nullptr;
+    if (type == EValueType::String) {
+        YCHECK(thenLength->getType() == elseLength->getType());
+
+        phiLength = builder.CreatePHI(thenLength->getType(), 2, name + ".phiLength");
+        //phiLength->addIncoming(llvm::UndefValue::get(thenLength->getType()), conditionBB);
+        phiLength->addIncoming(thenLength, thenBB);
+        phiLength->addIncoming(elseLength, elseBB);
+    }
+
+    return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, name);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Row manipulation helpers
 //
@@ -406,75 +504,49 @@ void CodegenAggregateFunction(
     EValueType type,
     Twine name = Twine())
 {
-    auto* checkNewValueBB = builder.CreateBBHere(name + ".checkNewValue");
-    auto* checkAggregateValueBB = builder.CreateBBHere(name + ".checkAggregateValue");
-    auto* aggregateBB = builder.CreateBBHere(name + ".aggregate");
-    auto* storeBB = builder.CreateBBHere(name + ".store");
-    auto* endBB = builder.CreateBBHere(name + ".end");
-
-    builder.CreateBr(checkNewValueBB);
-
-    // Check if a new data is NULL.
-    builder.SetInsertPoint(checkNewValueBB);
-
     auto newValue = TCGValue::CreateFromRow(builder, newRow, index, name + ".new");
-    builder.CreateCondBr(newValue.IsNull(), endBB, checkAggregateValueBB);
 
-    // Check if an aggregated data is NULL.
-    builder.SetInsertPoint(checkAggregateValueBB);
+    CodegenIf(builder, [&] (TCGIRBuilder& builder) {
+        return newValue.IsNull();
+    }, [&] (TCGIRBuilder& builder) {
 
-    Value* newData = newValue.GetData(type);
+    }, [&] (TCGIRBuilder& builder) {
+        auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, name + ".aggregate");
 
-    auto aggregateValue = TCGValue::CreateFromRow(builder, aggregateRow, index, name + ".aggregate");
-    builder.CreateCondBr(aggregateValue.IsNull(), storeBB, aggregateBB);
+        CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+            return aggregateValue.IsNull();
+        }, [&] (TCGIRBuilder& builder) {
+            return newValue;
+        }, [&] (TCGIRBuilder& builder) {
+            Value* newData = newValue.GetData(type);
+            Value* aggregateData = aggregateValue.GetData(type);
+            Value* resultData = nullptr;
 
-    // Update previously aggregated result with a new one.
-    builder.SetInsertPoint(aggregateBB);
+            switch (aggregateFunction) {
+                case EAggregateFunctions::Sum:
+                    resultData = builder.CreateAdd(
+                        aggregateData,
+                        newData);
+                    break;
+                case EAggregateFunctions::Min:
+                    resultData = builder.CreateSelect(
+                        builder.CreateICmpSLE(aggregateData, newData),
+                        aggregateData,
+                        newData);
+                    break;
+                case EAggregateFunctions::Max:
+                    resultData = builder.CreateSelect(
+                        builder.CreateICmpSGE(aggregateData, newData),
+                        aggregateData,
+                        newData);
+                    break;
+                default:
+                    YUNIMPLEMENTED();
+            }
 
-    Value* aggregateData = aggregateValue.GetData(type);
-
-    Value* resultData = nullptr;
-
-    switch (aggregateFunction) {
-        case EAggregateFunctions::Sum:
-            resultData = builder.CreateAdd(
-                aggregateData,
-                newData);
-            break;
-        case EAggregateFunctions::Min:
-            resultData = builder.CreateSelect(
-                builder.CreateICmpSLE(aggregateData, newData),
-                aggregateData,
-                newData);
-            break;
-        case EAggregateFunctions::Max:
-            resultData = builder.CreateSelect(
-                builder.CreateICmpSGE(aggregateData, newData),
-                aggregateData,
-                newData);
-            break;
-        default:
-            YUNIMPLEMENTED();
-    }
-
-    builder.CreateBr(storeBB);
-
-    builder.SetInsertPoint(storeBB);
-
-    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 2, name + ".phiType");
-    phiType->addIncoming(newValue.GetType(), checkAggregateValueBB);
-    phiType->addIncoming(builder.getInt16(type), aggregateBB);
-
-    PHINode* phiData = builder.CreatePHI(builder.getInt64Ty(), 2, name + ".phiData");
-    phiData->addIncoming(newData, checkAggregateValueBB);
-    phiData->addIncoming(resultData, aggregateBB);
-
-    TCGValue::CreateFromValue(builder, phiType, nullptr, phiData, name)
-        .StoreToRow(aggregateRow, index, id);
-
-    builder.CreateBr(endBB);
-
-    builder.SetInsertPoint(endBB);
+            return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, resultData, name);
+        }, type).StoreToRow(aggregateRow, index, id);
+    });
 }
 
 void CodegenForEachRow(
@@ -539,67 +611,23 @@ TCGValue TCGContext::CodegenFunctionExpr(
         YCHECK(thenExpr->GetType(schema) == type);
         YCHECK(elseExpr->GetType(schema) == type);
 
-        auto* conditionBB = builder.CreateBBHere("condition");
-        auto* ifBB = builder.CreateBBHere("if");
-        auto* thenBB = builder.CreateBBHere("then");
-        auto* elseBB = builder.CreateBBHere("else");
-        auto* endBB = builder.CreateBBHere("end");
-        builder.CreateBr(conditionBB);
-
-        builder.SetInsertPoint(conditionBB);
         auto condition = CodegenExpr(builder, condExpr, schema, row);
-        builder.CreateCondBr(condition.IsNull(), endBB, ifBB);
-        conditionBB = builder.GetInsertBlock();
 
-        builder.SetInsertPoint(ifBB);
-        Value* conditionResult = builder.CreateZExtOrBitCast(
-            condition.GetData(EValueType::Integer),
-            builder.getInt64Ty());
-
-        builder.CreateCondBr(
-            builder.CreateICmpNE(conditionResult, builder.getInt64(0)),
-            thenBB,
-            elseBB);
-        ifBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(thenBB);
-        auto thenValue = CodegenExpr(builder, thenExpr, schema, row);
-        Value* thenLength = thenValue.GetLength();
-        Value* thenData = thenValue.GetData(type);
-        builder.CreateBr(endBB);
-        thenBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(elseBB);
-        auto elseValue = CodegenExpr(builder, elseExpr, schema, row);
-        Value* elseLength = elseValue.GetLength();
-        Value* elseData = elseValue.GetData(type);
-        builder.CreateBr(endBB);
-        elseBB = builder.GetInsertBlock();
-
-        builder.SetInsertPoint(endBB);
-        PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 3, nameTwine + ".phiType");
-        phiType->addIncoming(builder.getInt16(EValueType::Null), conditionBB);
-        phiType->addIncoming(builder.getInt16(type), thenBB);
-        phiType->addIncoming(builder.getInt16(type), elseBB);
-
-        YCHECK(thenData->getType() == elseData->getType());
-
-        PHINode* phiData = builder.CreatePHI(thenData->getType(), 3, nameTwine + ".phiData");
-        phiData->addIncoming(llvm::UndefValue::get(thenData->getType()), conditionBB);
-        phiData->addIncoming(thenData, thenBB);
-        phiData->addIncoming(elseData, elseBB);
-
-        PHINode* phiLength = nullptr;
-        if (type == EValueType::String) {
-            YCHECK(thenLength->getType() == elseLength->getType());
-
-            phiLength = builder.CreatePHI(thenLength->getType(), 3, nameTwine + ".phiLength");
-            phiLength->addIncoming(llvm::UndefValue::get(thenLength->getType()), conditionBB);
-            phiLength->addIncoming(thenLength, thenBB);
-            phiLength->addIncoming(elseLength, elseBB);
-        }
-
-        return TCGValue::CreateFromValue(builder, phiType, phiLength, phiData, nameTwine);
+        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+            return condition.IsNull();
+        }, [&] (TCGIRBuilder& builder) {
+            return TCGValue::CreateNull(builder);
+        }, [&] (TCGIRBuilder& builder) {
+            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+                return builder.CreateICmpNE(
+                    builder.CreateZExtOrBitCast(condition.GetData(EValueType::Integer), builder.getInt64Ty()),
+                    builder.getInt64(0));            
+            }, [&] (TCGIRBuilder& builder) {
+                return CodegenExpr(builder, thenExpr, schema, row);
+            }, [&] (TCGIRBuilder& builder) {
+                return CodegenExpr(builder, elseExpr, schema, row);
+            }, type);
+        }, type, nameTwine);
     }
 
     YUNIMPLEMENTED();
@@ -620,111 +648,88 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
     YCHECK(expr->GetLhs()->GetType(schema) == type);
     YCHECK(expr->GetRhs()->GetType(schema) == type);
 
-    auto* getLhsValueBB = builder.CreateBBHere(nameTwine + ".getLhsValue");
-    auto* getRhsValueBB = builder.CreateBBHere(nameTwine + ".getRhsValue");
-    auto* evalBB = builder.CreateBBHere(nameTwine + ".eval");
-    auto* resultBB = builder.CreateBBHere(nameTwine + ".result");
-
-    builder.CreateBr(getLhsValueBB);
-
-    // Evaluate LHS.
-    builder.SetInsertPoint(getLhsValueBB);
-
     auto lhsValue = CodegenExpr(builder, expr->GetLhs(), schema, row);
-    builder.CreateCondBr(lhsValue.IsNull(), resultBB, getRhsValueBB);
-    getLhsValueBB = builder.GetInsertBlock();
 
-    // Evaluate RHS if LHS is not null.
-    builder.SetInsertPoint(getRhsValueBB);
+    return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+            return lhsValue.IsNull();
+        }, [&] (TCGIRBuilder& builder) {
+            return TCGValue::CreateNull(builder);
+        }, [&] (TCGIRBuilder& builder) {
+            auto rhsValue = CodegenExpr(builder, expr->GetRhs(), schema, row);
 
-    auto rhsValue = CodegenExpr(builder, expr->GetRhs(), schema, row);
-    builder.CreateCondBr(rhsValue.IsNull(), resultBB, evalBB);
-    getRhsValueBB = builder.GetInsertBlock();
+            return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+                return rhsValue.IsNull();            
+            }, [&] (TCGIRBuilder& builder) {
+                return TCGValue::CreateNull(builder);
+            }, [&] (TCGIRBuilder& builder) {
+                Value* lhsData = lhsValue.GetData(type);
+                Value* rhsData = rhsValue.GetData(type);
+                Value* evalData = nullptr;
 
-    // Evaluate expression if both sides are not null.
-    builder.SetInsertPoint(evalBB);
+                switch (expr->GetOpcode()) {
+                    // Arithmetical operations.
+            #define XX(opcode, ioptype, foptype) \
+                    case EBinaryOp::opcode: \
+                        switch (type) { \
+                            case EValueType::Integer: \
+                                evalData = builder.Create##ioptype(lhsData, rhsData); \
+                                break; \
+                            case EValueType::Double: \
+                                evalData = builder.Create##foptype(lhsData, rhsData); \
+                                break; \
+                            default: \
+                                YUNREACHABLE(); /* Typechecked. */ \
+                        } \
+                        break;
+                    XX(Plus, Add, FAdd)
+                    XX(Minus, Sub, FSub)
+                    XX(Multiply, Mul, FMul)
+                    XX(Divide, SDiv, FDiv)
+            #undef XX
 
-    Value* lhsData = lhsValue.GetData(type);
-    Value* rhsData = rhsValue.GetData(type);
-    Value* evalData = nullptr;
+                    // Integral and logical operations.
+            #define XX(opcode, optype) \
+                    case EBinaryOp::opcode: \
+                        switch (type) { \
+                            case EValueType::Integer: \
+                                evalData = builder.Create##optype(lhsData, rhsData); \
+                                break; \
+                            default: \
+                                YUNREACHABLE(); /* Typechecked. */ \
+                        } \
+                        break;
+                    XX(Modulo, SRem)
+                    XX(And, And)
+                    XX(Or, Or)
+            #undef XX
 
-    switch (expr->GetOpcode()) {
-        // Arithmetical operations.
-#define XX(opcode, ioptype, foptype) \
-        case EBinaryOp::opcode: \
-            switch (type) { \
-                case EValueType::Integer: \
-                    evalData = builder.Create##ioptype(lhsData, rhsData); \
-                    break; \
-                case EValueType::Double: \
-                    evalData = builder.Create##foptype(lhsData, rhsData); \
-                    break; \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            break;
-        XX(Plus, Add, FAdd)
-        XX(Minus, Sub, FSub)
-        XX(Multiply, Mul, FMul)
-        XX(Divide, SDiv, FDiv)
-#undef XX
-
-        // Integral and logical operations.
-#define XX(opcode, optype) \
-        case EBinaryOp::opcode: \
-            switch (type) { \
-                case EValueType::Integer: \
-                    evalData = builder.Create##optype(lhsData, rhsData); \
-                    break; \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            break;
-        XX(Modulo, SRem)
-        XX(And, And)
-        XX(Or, Or)
-#undef XX
-
-        // TODO(sandello): Remove zext after introducing boolean type.
-        // Comparsion operations.
-#define XX(opcode, ioptype, foptype) \
-        case EBinaryOp::opcode: \
-            switch (type) { \
-                case EValueType::Integer: \
-                    evalData = builder.CreateICmp##ioptype(lhsData, rhsData); \
-                    break; \
-                case EValueType::Double: \
-                    evalData = builder.CreateFCmp##foptype(lhsData, rhsData); \
-                    break; \
-                default: \
-                    YUNREACHABLE(); /* Typechecked. */ \
-            } \
-            evalData = builder.CreateZExtOrBitCast(evalData, builder.getInt64Ty()); \
-            break;
-        XX(Equal, EQ, UEQ)
-        XX(NotEqual, NE, UNE)
-        XX(Less, SLT, ULT)
-        XX(LessOrEqual, SLE, ULE)
-        XX(Greater, SGT, UGT)
-        XX(GreaterOrEqual, SGE, UGE)
-#undef XX
-    }
-
-    builder.CreateBr(resultBB);
-
-    builder.SetInsertPoint(resultBB);
-
-    PHINode* phiType = builder.CreatePHI(builder.getInt16Ty(), 3, nameTwine + ".phiType");
-    phiType->addIncoming(builder.getInt16(EValueType::Null), getLhsValueBB);
-    phiType->addIncoming(builder.getInt16(EValueType::Null), getRhsValueBB);
-    phiType->addIncoming(builder.getInt16(type), evalBB);
-
-    PHINode* phiData = builder.CreatePHI(evalData->getType(), 3, nameTwine + ".phiData");
-    phiData->addIncoming(llvm::UndefValue::get(evalData->getType()), getLhsValueBB);
-    phiData->addIncoming(llvm::UndefValue::get(evalData->getType()), getRhsValueBB);
-    phiData->addIncoming(evalData, evalBB);
-
-    return TCGValue::CreateFromValue(builder, phiType, nullptr, phiData, nameTwine);
+                    // TODO(sandello): Remove zext after introducing boolean type.
+                    // Comparsion operations.
+            #define XX(opcode, ioptype, foptype) \
+                    case EBinaryOp::opcode: \
+                        switch (type) { \
+                            case EValueType::Integer: \
+                                evalData = builder.CreateICmp##ioptype(lhsData, rhsData); \
+                                break; \
+                            case EValueType::Double: \
+                                evalData = builder.CreateFCmp##foptype(lhsData, rhsData); \
+                                break; \
+                            default: \
+                                YUNREACHABLE(); /* Typechecked. */ \
+                        } \
+                        evalData = builder.CreateZExtOrBitCast(evalData, builder.getInt64Ty()); \
+                        break;
+                    XX(Equal, EQ, UEQ)
+                    XX(NotEqual, NE, UNE)
+                    XX(Less, SLT, ULT)
+                    XX(LessOrEqual, SLE, ULE)
+                    XX(Greater, SGT, UGT)
+                    XX(GreaterOrEqual, SGE, UGE)
+            #undef XX
+                }
+                return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, evalData);
+            }, type);
+        }, type, nameTwine);
 }
 
 TCGValue TCGContext::CodegenExpr(
@@ -992,42 +997,32 @@ void TCGContext::CodegenGroupOp(
             rowsRef,
             newRowRef);
 
-        auto* ifBB = innerBuilder.CreateBBHere("if");
-        auto* elseBB = innerBuilder.CreateBBHere("else");
-        auto* endIfBB = innerBuilder.CreateBBHere("endif");
 
-        innerBuilder.CreateCondBr(
-            innerBuilder.CreateICmpNE(
+        CodegenIf(innerBuilder, [&] (TCGIRBuilder& innerBuilder) {
+            return innerBuilder.CreateICmpNE(
                 foundRowPtr,
-                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo())),
-            ifBB,
-            elseBB);
+                llvm::ConstantPointerNull::get(newRowRef->getType()->getPointerTo()));
+        }, [&] (TCGIRBuilder& innerBuilder) {
+            Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
+            for (int index = 0; index < aggregateItemCount; ++index) {
+                const auto& item = op->GetAggregateItem(index);
+                const auto& name = item.Name;
 
-        innerBuilder.SetInsertPoint(ifBB);
-        Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
-        for (int index = 0; index < aggregateItemCount; ++index) {
-            const auto& item = op->GetAggregateItem(index);
-            const auto& name = item.Name;
+                auto id = nameTable->GetId(name);
+                auto type = item.Expression->GetType(sourceTableSchema);
+                auto fn = item.AggregateFunction;
 
-            auto id = nameTable->GetId(name);
-            auto type = item.Expression->GetType(sourceTableSchema);
-            auto fn = item.AggregateFunction;
-
-            CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
-        }
-        innerBuilder.CreateBr(endIfBB);
-
-        innerBuilder.SetInsertPoint(elseBB);
-        innerBuilder.CreateCall5(
-            Fragment_.GetRoutine("AddRow"),
-            passedFragmentParamsPtrRef,
-            rowsRef,
-            groupedRowsRef,
-            newRowPtrRef,
-            builder.getInt32(keySize + aggregateItemCount));
-        innerBuilder.CreateBr(endIfBB);
-
-        innerBuilder.SetInsertPoint(endIfBB);
+                CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
+            }
+        }, [&] (TCGIRBuilder& innerBuilder) {
+            innerBuilder.CreateCall5(
+                Fragment_.GetRoutine("AddRow"),
+                passedFragmentParamsPtrRef,
+                rowsRef,
+                groupedRowsRef,
+                newRowPtrRef,
+                builder.getInt32(keySize + aggregateItemCount));
+        });
     });
 
     CodegenForEachRow(
