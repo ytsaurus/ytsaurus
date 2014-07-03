@@ -302,7 +302,6 @@ TInputPipe::TInputPipe(
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
     , Position(0)
-    , BytesNotRead(0)
     , HasData(true)
     , IsFinished(false)
 {
@@ -413,17 +412,10 @@ void TInputPipe::Finish()
 {
     bool dataConsumed = !HasData;
     if (dataConsumed) {
-        std::array<char, 65536> buffer;
-
-        ssize_t res;
-        do {
-            // Try to read some data from the pipe.
-            res = read(Pipe.ReadFd, buffer.data(), buffer.size());
-            if (res > 0) {
-                BytesNotRead += res;
-                dataConsumed = false;
-            }
-        } while (res > 0);
+        char buffer;
+        // Try to read some data from the pipe.
+        ssize_t res = read(Pipe.ReadFd, &buffer, 1);
+        dataConsumed = res <= 0;
     }
 
     SafeClose(Pipe.ReadFd);
@@ -440,11 +432,6 @@ TBlob TInputPipe::GetFailContext() const
     TBlob result;
     result.Append(TRef::FromBlob(PreviousBuffer.Blob()));
     result.Append(Buffer->Blob().Begin(), Position);
-    if (BytesNotRead <= result.Size()) {
-        result.Resize(result.Size() - BytesNotRead);
-    } else {
-        result.Resize(0);
-    }
     return result;
 }
 

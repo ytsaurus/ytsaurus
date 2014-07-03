@@ -139,7 +139,6 @@ private:
     TBlobOutput PreviousBuffer;
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
     int Position;
-    int BytesNotRead;
 
     bool HasData;
     bool IsFinished;
