@@ -197,7 +197,9 @@ public:
 
         ValidateMemoryLimit();
         ValidateTabletMounted(tablet);
-        transaction->ValidateActive();
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
         TWireProtocolReader reader(requestData);
 

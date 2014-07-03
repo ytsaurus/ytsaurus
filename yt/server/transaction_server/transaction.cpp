@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "transaction.h"
 
+#include <core/misc/string.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
 
@@ -70,20 +72,19 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 ETransactionState TTransaction::GetPersistentState() const
 {
     switch (State_) {
-        case ETransactionState::TransientlyPrepared:
-        case ETransactionState::Aborting:
+        case ETransactionState::TransientCommitPrepared:
+        case ETransactionState::TransientAbortPrepared:
             return ETransactionState::Active;
         default:
             return State_;
     }
 }
 
-void TTransaction::ValidateActive() const
+void TTransaction::ThrowInvalidState() const
 {
-    if (State_ != ETransactionState::Active) {
-        THROW_ERROR_EXCEPTION("Transaction %s is not active",
-            ~ToString(Id));
-    }    
+    THROW_ERROR_EXCEPTION("Transaction %s is in %s state",
+        ~ToString(Id),
+        ~FormatEnum(State_).Quote());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -392,14 +392,11 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto state = transaction->GetState();
-    if (state != ETransactionState::Active &&
-        state != ETransactionState::TransientlyPrepared &&
-        state != ETransactionState::PersistentlyPrepared)
+    if (transaction->GetState() != ETransactionState::Active &&
+        transaction->GetState() != ETransactionState::TransientCommitPrepared &&
+        transaction->GetState() != ETransactionState::PersistentCommitPrepared)
     {
-        THROW_ERROR_EXCEPTION("Transaction %s is in %s state",
-            ~ToString(transaction->GetId()),
-            ~FormatEnum(state).Quote());
+        transaction->ThrowInvalidState();
     }
 
     // NB: Save it for logging.
@@ -423,8 +420,8 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (transaction->GetState() == ETransactionState::PersistentlyPrepared) {
-        THROW_ERROR_EXCEPTION("Cannot abort a persistently prepared transaction");
+    if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+        transaction->ThrowInvalidState();
     }
 
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -487,9 +484,11 @@ void TTransactionManager::PingTransaction(const TTransaction* transaction, bool 
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    transaction->ValidateActive();
+    if (transaction->GetState() != ETransactionState::Active) {
+        transaction->ThrowInvalidState();
+    }
 
-    // TODO(babenko): possibly validate permissions?
+    // TODO(babenko): validate permissions?
 
     DoPingTransaction(transaction);
 
@@ -610,7 +609,7 @@ void TTransactionManager::OnLeaderActive()
     for (const auto& pair : TransactionMap) {
         const auto* transaction = pair.second;
         if (transaction->GetState() == ETransactionState::Active ||
-            transaction->GetState() == ETransactionState::PersistentlyPrepared)
+            transaction->GetState() == ETransactionState::PersistentCommitPrepared)
         {
             auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
             CreateLease(transaction, actualTimeout);
@@ -705,9 +704,6 @@ void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
     auto objectManager = Bootstrap->GetObjectManager();
     auto handler = objectManager->GetHandler(object);
     auto* transaction = handler->GetStagingTransaction(object);
-    if (transaction) {
-        transaction->ValidateActive();
-    }
 
     handler->Unstage(object, recursive);
 
@@ -720,8 +716,6 @@ void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
 void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    transaction->ValidateActive();
 
     auto objectManager = Bootstrap->GetObjectManager();
     transaction->StagedNodes().push_back(node);
@@ -736,7 +730,9 @@ void TTransactionManager::PrepareTransactionCommit(
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
-    transaction->ValidateActive();
+    if (transaction->GetState() != ETransactionState::Active) {
+        transaction->ThrowInvalidState();
+    }
 
     auto securityManager = Bootstrap->GetSecurityManager();
     securityManager->ValidatePermission(transaction, EPermission::Write);
@@ -748,8 +744,8 @@ void TTransactionManager::PrepareTransactionCommit(
     }
 
     transaction->SetState(persistent
-        ? ETransactionState::PersistentlyPrepared
-        : ETransactionState::TransientlyPrepared);
+        ? ETransactionState::PersistentCommitPrepared
+        : ETransactionState::TransientCommitPrepared);
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %s, Presistent: %s)",
         ~ToString(transactionId),
@@ -761,9 +757,11 @@ void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transact
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
-    transaction->ValidateActive();
+    if (transaction->GetState() != ETransactionState::Active) {
+        transaction->ThrowInvalidState();
+    }
 
-    transaction->SetState(ETransactionState::Aborting);
+    transaction->SetState(ETransactionState::TransientAbortPrepared);
 
     LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
         ~ToString(transactionId));

@@ -24,15 +24,6 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionState,
-    ((Active)                 (0))
-    ((TransientlyPrepared)    (1))
-    ((PersistentlyPrepared)   (2))
-    ((Committed)              (3))
-    ((Aborting)               (4))
-    ((Aborted)                (5))
-);
-
 class TTransaction
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TTransaction>
@@ -70,7 +61,7 @@ public:
 
     ETransactionState GetPersistentState() const;
 
-    void ValidateActive() const;
+    void ThrowInvalidState() const;
 
 };
 

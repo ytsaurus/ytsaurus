@@ -15,6 +15,8 @@
 
 #include <server/hydra/public.h>
 
+#include <server/hive/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -50,6 +52,8 @@ using NVersionedTableClient::TVersionedValue;
 using NVersionedTableClient::TUnversionedRow;
 using NVersionedTableClient::TVersionedRow;
 using NVersionedTableClient::TColumnFilter;
+
+using NHive::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
     

@@ -139,12 +139,14 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        transaction->ValidateActive();
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
         transaction->SetPrepareTimestamp(prepareTimestamp);
         transaction->SetState(persistent
-            ? ETransactionState::PersistentlyPrepared
-            : ETransactionState::TransientlyPrepared);
+            ? ETransactionState::PersistentCommitPrepared
+            : ETransactionState::TransientCommitPrepared);
 
         TransactionPrepared_.Fire(transaction);
 
@@ -159,9 +161,11 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        transaction->ValidateActive();
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
-        transaction->SetState(ETransactionState::Aborting);
+        transaction->SetState(ETransactionState::TransientAbortPrepared);
 
         LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
             ~ToString(transactionId));
@@ -175,14 +179,11 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        auto state = transaction->GetState();
-        if (state != ETransactionState::Active &&
-            state != ETransactionState::TransientlyPrepared &&
-            state != ETransactionState::PersistentlyPrepared)
+        if (transaction->GetState() != ETransactionState::Active &&
+            transaction->GetState() != ETransactionState::TransientCommitPrepared &&
+            transaction->GetState() != ETransactionState::PersistentCommitPrepared)
         {
-            THROW_ERROR_EXCEPTION("Transaction %s is in %s state",
-                ~ToString(transaction->GetId()),
-                ~FormatEnum(state).Quote());
+            transaction->ThrowInvalidState();
         }
 
         if (IsLeader()) {
@@ -208,8 +209,8 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetState() == ETransactionState::PersistentlyPrepared) {
-            THROW_ERROR_EXCEPTION("Cannot abort a persistently prepared transaction");
+        if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+            transaction->ThrowInvalidState();
         }
 
         if (IsLeader()) {
@@ -233,7 +234,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        transaction->ValidateActive();
+        if (transaction->GetState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
         auto it = LeaseMap_.find(transaction->GetId());
         YCHECK(it != LeaseMap_.end());
@@ -288,8 +291,6 @@ private:
 
         LOG_INFO("Transaction lease expired (TransactionId: %s)",
             ~ToString(id));
-
-        transaction->SetState(ETransactionState::Aborting);
 
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
 
@@ -347,7 +348,7 @@ private:
         for (const auto& pair : TransactionMap_) {
             const auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active ||
-                transaction->GetState() == ETransactionState::PersistentlyPrepared)
+                transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
                 auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
                 CreateLease(transaction, actualTimeout);

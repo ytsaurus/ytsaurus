@@ -13,14 +13,14 @@ message TReqStartDistributedCommit
     required int64 prepare_timestamp = 4;
 }
 
-message TReqPrepareTransaction
+message TReqPrepareTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int64 prepare_timestamp = 2;
     required NYT.NProto.TGuid coordinator_cell_guid = 3;
 }
 
-message TReqOnTransactionPrepared
+message TReqOnTransactionCommitPrepared
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid participant_cell_guid = 2;

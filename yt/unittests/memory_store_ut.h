@@ -146,12 +146,12 @@ protected:
     {
         ASSERT_EQ(transaction->GetState(), ETransactionState::Active);
         transaction->SetPrepareTimestamp(GenerateTimestamp());
-        transaction->SetState(ETransactionState::TransientlyPrepared);
+        transaction->SetState(ETransactionState::TransientCommitPrepared);
     }
 
     void CommitTransaction(TTransaction* transaction)
     {
-        ASSERT_EQ(transaction->GetState(), ETransactionState::TransientlyPrepared);
+        ASSERT_EQ(transaction->GetState(), ETransactionState::TransientCommitPrepared);
         transaction->SetCommitTimestamp(GenerateTimestamp());
         transaction->SetState(ETransactionState::Committed);
     }

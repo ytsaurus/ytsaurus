@@ -7,6 +7,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <server/hive/public.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -28,6 +30,8 @@ using NObjectClient::NullTransactionId;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+
+using NHive::ETransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

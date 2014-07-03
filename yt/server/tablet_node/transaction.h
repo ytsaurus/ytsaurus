@@ -15,15 +15,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETransactionState,
-    ((Active)               (0))
-    ((PersistentlyPrepared) (1))
-    ((TransientlyPrepared)  (2))
-    ((Committed)            (3))
-    ((Aborting)             (4))
-    ((Aborted)              (5))
-);
-
 class TTransaction
     : public TRefTracked<TTransaction>
 {
@@ -50,7 +41,7 @@ public:
     ETransactionState GetPersistentState() const;
     TTimestamp GetPersistentPrepareTimestamp() const;
 
-    void ValidateActive() const;
+    void ThrowInvalidState() const;
 
 private:
     TPromise<void> Finished_;

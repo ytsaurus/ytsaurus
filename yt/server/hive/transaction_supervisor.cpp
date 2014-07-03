@@ -85,8 +85,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartDistributedCommit, Unretained(this), nullptr));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraFinalizeDistributedCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionPrepared, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionCommitPrepared, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitPreparedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortFailedTransaction, Unretained(this)));
 
@@ -304,7 +304,7 @@ private:
 
         // Prepare at participants.
         {
-            TReqPrepareTransaction hydraRequest;
+            TReqPrepareTransactionCommit hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             ToProto(hydraRequest.mutable_coordinator_cell_guid(), coordinatorCellGuid);
@@ -312,13 +312,13 @@ private:
         }
     }
 
-    void HydraPrepareTransaction(const TReqPrepareTransaction& request)
+    void HydraPrepareTransactionCommit(const TReqPrepareTransactionCommit& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
         auto coordinatorCellGuid = FromProto<TCellGuid>(request.coordinator_cell_guid());
 
-        TReqOnTransactionPrepared response;
+        TReqOnTransactionCommitPrepared response;
         ToProto(response.mutable_transaction_id(), transactionId);
         ToProto(response.mutable_participant_cell_guid(), HiveManager->GetSelfCellGuid());
 
@@ -336,7 +336,7 @@ private:
         PostToCoordinator(coordinatorCellGuid, response);
     }
 
-    void HydraOnTransactionPrepared(const TReqOnTransactionPrepared& request)
+    void HydraOnTransactionCommitPrepared(const TReqOnTransactionCommitPrepared& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto participantCellGuid = FromProto<TCellGuid>(request.participant_cell_guid());

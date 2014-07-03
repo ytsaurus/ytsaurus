@@ -157,7 +157,6 @@ private:
         auto transactionId = GetTransactionId(context);
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->GetTransactionOrThrow(transactionId);
-            transaction->ValidateActive();
         }
 
         NYPath::TTokenizer tokenizer(path);
