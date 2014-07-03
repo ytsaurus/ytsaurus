@@ -44,7 +44,9 @@ endfunction()
 
 function(PUMP pump output)
   get_filename_component( _source_path ${pump} REALPATH )
-  string(REPLACE ".pump" "" _target_path "${_source_path}")
+  get_filename_component( filename ${_source_path} NAME )
+  string(REPLACE ".pump" "" _target_filename "${filename}")
+  set(_target_path ${CMAKE_BINARY_DIR}/include/${_target_filename})
 
   set(${output} ${${output}} ${_target_path} PARENT_SCOPE)
 
