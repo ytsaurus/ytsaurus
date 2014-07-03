@@ -499,7 +499,7 @@ private:
             for (auto node : CurrentSession_->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
                     GetCurrentInvoker(),
-                    BIND(&TImpl::SendPing, MakeWeak(this), MakeWeak(node), CurrentSession_),
+                    BIND(&TImpl::SendPing, MakeWeak(this), CurrentSession_, MakeWeak(node)),
                     Config_->NodePingPeriod);
                 node->PingExecutor->Start();
             }
@@ -622,7 +622,8 @@ private:
 
         void CloseChunk()
         {
-            // Release the current session to prevent writing more records.
+            // Release the current session to prevent writing more records
+            // or detecting failed pings.
             auto session = CurrentSession_;
             CurrentSession_.Reset();
 
@@ -757,19 +758,38 @@ private:
         }
   
 
-        void SendPing(TNodeWeakPtr node, TChunkSessionPtr session)
+        void SendPing(TChunkSessionPtr session, TNodeWeakPtr node)
         {
             auto node_ = node.Lock();
             if (!node_)
                 return;
 
-            LOG_DEBUG("Sending ping (Address: %s)",
-                ~node_->Descriptor.GetDefaultAddress());
+            LOG_DEBUG("Sending ping (Address: %s, ChunkId: %s)",
+                ~node_->Descriptor.GetDefaultAddress(),
+                ~ToString(session->ChunkId));
 
             auto req = node_->LightProxy.PingSession();
             ToProto(req->mutable_chunk_id(), session->ChunkId);
-            req->Invoke();
+            req->Invoke().Subscribe(
+                BIND(&TImpl::OnPingSent, MakeWeak(this), session, node_)
+                    .Via(GetCurrentInvoker()));
         }
+
+        void OnPingSent(TChunkSessionPtr session, TNodePtr node, TDataNodeServiceProxy::TRspPingSessionPtr rsp)
+        {
+            if (session != CurrentSession_)
+                return;
+
+            if (!rsp->IsOK()) {
+                OnReplicaFailed(rsp->GetError(), node, session);
+                return;
+            }
+
+            LOG_DEBUG("Ping succeeded (Address: %s, ChunkId: %s)",
+                ~node->Descriptor.GetDefaultAddress(),
+                ~ToString(session->ChunkId));
+        }
+
 
         TError OnChunkStarted(TNodePtr node, TDataNodeServiceProxy::TRspStartChunkPtr rsp)
         {
@@ -839,47 +859,54 @@ private:
             if (session != CurrentSession_)
                 return;
 
-            if (rsp->IsOK()) {
-                LOG_DEBUG("Journal replica flushed (Address: %s, BlockIds: %s:%d-%d)",
-                    ~node->Descriptor.GetDefaultAddress(),
-                    ~ToString(session->ChunkId),
-                    firstBlockIndex,
-                    lastBlockIndex);
-
-                node->FirstBlockIndex = lastBlockIndex + 1;
-                node->FlushInProgress = false;
-
-                ++batch->FlushedReplicas;
-
-                while (!PendingBatches_.empty()) {
-                    auto front = PendingBatches_.front();
-                    if (front->FlushedReplicas <  WriteQuorum_)
-                        break;
-
-                    front->FlushedPromise.Set(TError());
-                    int recordCount = static_cast<int>(front->Records.size());
-                    session->FlushedRecordCount += recordCount;
-                    PendingBatches_.pop_front();
-
-                    LOG_DEBUG("Records are flushed by a quorum of replicas (Records: %d-%d)",
-                        front->FirstRecordIndex,
-                        front->FirstRecordIndex + recordCount - 1);
-                }
-
-                MaybeFlushBlocks(node);
-            } else {
-                LOG_WARNING(*rsp, "Journal replica failed (Address: %s, BlockIds: %s:%d-%d)",
-                    ~node->Descriptor.GetDefaultAddress(),
-                    ~ToString(session->ChunkId),
-                    firstBlockIndex,
-                    lastBlockIndex);
-
-                BanNode(node->Descriptor.GetDefaultAddress());
-
-                TSwitchChunkCommand command;
-                command.Session = session;
-                EnqueueCommand(command);
+            if (!rsp->IsOK()) {
+                OnReplicaFailed(rsp->GetError(), node, session);
+                return;
             }
+
+            LOG_DEBUG("Journal replica flushed (Address: %s, BlockIds: %s:%d-%d)",
+                ~node->Descriptor.GetDefaultAddress(),
+                ~ToString(session->ChunkId),
+                firstBlockIndex,
+                lastBlockIndex);
+
+            node->FirstBlockIndex = lastBlockIndex + 1;
+            node->FlushInProgress = false;
+
+            ++batch->FlushedReplicas;
+
+            while (!PendingBatches_.empty()) {
+                auto front = PendingBatches_.front();
+                if (front->FlushedReplicas <  WriteQuorum_)
+                    break;
+
+                front->FlushedPromise.Set(TError());
+                int recordCount = static_cast<int>(front->Records.size());
+                session->FlushedRecordCount += recordCount;
+                PendingBatches_.pop_front();
+
+                LOG_DEBUG("Records are flushed by a quorum of replicas (Records: %d-%d)",
+                    front->FirstRecordIndex,
+                    front->FirstRecordIndex + recordCount - 1);
+            }
+
+            MaybeFlushBlocks(node);
+        }
+
+
+        void OnReplicaFailed(const TError& error, TNodePtr node, TChunkSessionPtr session)
+        {
+            const auto& address = node->Descriptor.GetDefaultAddress();
+
+            LOG_WARNING(error, "Journal replica failed (Address: %s, ChunkId: %s)",
+                ~address,
+                ~ToString(session->ChunkId));
+
+            BanNode(address);
+
+            TSwitchChunkCommand command;
+            command.Session = session;
+            EnqueueCommand(command);
         }
 
     };
