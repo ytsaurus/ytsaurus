@@ -267,7 +267,7 @@ void TBlobChunkBase::AdjustReadRange(
     *blockCount = std::min(*blockCount, config->MaxBlocksPerRead);
 
     *dataSize = 0;
-    int blockIndex = 0;
+    int blockIndex = firstBlockIndex;
     while (
         blockIndex < firstBlockIndex + *blockCount &&
         blockIndex < BlocksExt_.blocks_size() &&
