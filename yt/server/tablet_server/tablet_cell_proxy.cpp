@@ -49,7 +49,7 @@ private:
         }
     }
 
-    virtual void ValidateUserAttributeUpdate(
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
@@ -60,7 +60,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot change tablet cell options after creation");
         }
 
-        return TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
+        return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override

@@ -28,6 +28,7 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NJobProxy;
+using namespace NCGroup;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,7 +84,7 @@ public:
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
-    TAsyncError Run()
+    virtual TAsyncError Run() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -124,7 +125,7 @@ public:
     }
 
     // Safe to call multiple times
-    void Kill(const NCGroup::TNonOwningCGroup& group, const TError& error) throw()
+    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -152,7 +153,7 @@ public:
         OnExit.Get();
 
         try {
-            NCGroup::RunKiller(group.GetFullPath());
+            RunKiller(group.GetFullPath());
         } catch (const std::exception& ex) {
             LOG_FATAL(TError(ex));
         }
@@ -222,7 +223,7 @@ class TUnsafeProxyController
     : public IProxyController
 {
 public:
-    TUnsafeProxyController(const TJobId& jobId)
+    explicit TUnsafeProxyController(const TJobId& jobId)
         : Logger(ExecAgentLogger)
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
@@ -240,7 +241,7 @@ public:
         return OnExit;
     }
 
-    void Kill(int uid, const TError& error)
+    virtual void Kill(const TNonOwningCGroup& group, const TError& error) throw() override
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();
@@ -283,8 +284,8 @@ IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
     return New<TUnsafeProxyController>(ProxyPath, jobId, slot, workingDirectory, this);
 #else
     UNUSED(config);
+    UNUSED(slot);
     UNUSED(workingDirectory);
-    UNUSED(slotId);
     return New<TUnsafeProxyController>(jobId);
 #endif
 }
