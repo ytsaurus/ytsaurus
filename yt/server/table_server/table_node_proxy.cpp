@@ -152,12 +152,17 @@ private:
             ValidateNoTransaction();
 
             auto* node = LockThisTypedImpl();
+            if (!node->Tablets().empty()) {
+                THROW_ERROR_EXCEPTION("Table has tablets");
+            }
+
             auto* chunkList = node->GetChunkList();
-            if (!chunkList->Children().empty() ||
-                !chunkList->Parents().empty() ||
-                !node->Tablets().empty())
-            {
-                THROW_ERROR_EXCEPTION("Operation is not supported");
+            if (!chunkList->Children().empty()) {
+                THROW_ERROR_EXCEPTION("Table is not empty");
+            }
+
+            if (!chunkList->Parents().empty()) {
+                THROW_ERROR_EXCEPTION("Table data is shared");
             }
 
             auto keyColumns = ConvertTo<TKeyColumns>(value);
