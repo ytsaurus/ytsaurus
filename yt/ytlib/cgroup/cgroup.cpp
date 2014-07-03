@@ -34,21 +34,34 @@ namespace {
 
 Stroka GetParentFor(const Stroka& type)
 {
+#ifdef _linux_
     auto rawData = TFileInput("/proc/self/cgroup").ReadAll();
     auto result = ParseCurrentProcessCGroups(TStringBuf(rawData.data(), rawData.size()));
     return result[type];
+#else
+    return "_parent_";
+#endif
 }
 
-
-yvector<Stroka> ReadAllValues(const Stroka& filename)
+yvector<Stroka> ReadAllValues(const Stroka& fileName)
 {
-    auto raw = TFileInput(filename).ReadAll();
+    auto raw = TFileInput(fileName).ReadAll();
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
     return values;
 }
 
+#ifdef _linux_
+
+TDuration FromJiffies(i64 jiffies)
+{
+    long ticksPerSecond = sysconf(_SC_CLK_TCK);
+    return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
 }
+
+#endif
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,7 +244,11 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
-    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
+    : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(
+        CGroupRootPath,
+        type),
+        GetParentFor(type)),
+        name))
 { }
 
 void TNonOwningCGroup::AddCurrentTask()
@@ -248,9 +265,11 @@ void TNonOwningCGroup::AddCurrentTask()
 
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 {
+#ifdef _linux_
     auto path = NFS::CombinePaths(FullPath_, name);
     TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
+#endif
 }
 
 std::vector<int> TNonOwningCGroup::GetTasks() const
@@ -323,18 +342,6 @@ bool TCGroup::IsCreated() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-
-TDuration FromJiffies(i64 jiffies)
-{
-    long ticksPerSecond = sysconf(_SC_CLK_TCK);
-    return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
-}
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCpuAccounting::TStatistics::TStatistics()
     : UserTime(0)
     , SystemTime(0)
@@ -348,10 +355,12 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
 {
     TCpuAccounting::TStatistics result;
 #ifdef _linux_
-    const auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
+    auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~path.Quote(), values.size());
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %" PRISZT,
+            ~path.Quote(),
+            values.size());
     }
 
     Stroka type[2];
@@ -396,7 +405,7 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
     TBlockIO::TStatistics result;
 #ifdef _linux_
     {
-        const auto path = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
+        auto path = NFS::CombinePaths(GetFullPath(), "blkio.io_service_bytes");
         auto values = ReadAllValues(path);
 
         result.BytesRead = result.BytesWritten = 0;
@@ -419,7 +428,7 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
         }
     }
     {
-        const auto path = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
+        auto path = NFS::CombinePaths(GetFullPath(), "blkio.sectors");
         auto values = ReadAllValues(path);
 
         result.TotalSectors = 0;
@@ -429,7 +438,9 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start with \"8:\"",
+                    ~path,
+                    ~deviceId.Quote());
             }
 
             result.TotalSectors += sectors;
@@ -457,8 +468,8 @@ TMemory::TStatistics TMemory::GetStatistics()
 {
     TMemory::TStatistics result;
 #ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-    auto rawData = TFileInput(filename).ReadAll();
+    auto fileName = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+    auto rawData = TFileInput(fileName).ReadAll();
     result.UsageInBytes = FromString<i64>(strip(rawData));
 #endif
     return result;
@@ -479,8 +490,8 @@ void TMemory::DisableOom() const
 TEvent TMemory::GetOomEvent() const
 {
 #ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
-    auto fd = ::open(~filename, O_WRONLY | O_CLOEXEC);
+    auto fileName = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
+    auto fd = ::open(~fileName, O_WRONLY | O_CLOEXEC);
 
     auto eventFd = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     auto data = ToString(eventFd) + ' ' + ToString(fd);
