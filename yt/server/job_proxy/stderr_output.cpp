@@ -72,7 +72,7 @@ void TErrorOutput::DoFinish()
         return;
 
     FileWriter->Finish();
-    IsClosed = true;;
+    IsClosed = true;
 }
 
 TChunkId TErrorOutput::GetChunkId() const

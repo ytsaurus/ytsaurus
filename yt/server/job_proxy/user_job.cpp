@@ -150,6 +150,28 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
+        if (!JobExitError.IsOK()) {
+            if (UserJobSpec.has_stderr_transaction_id()) {
+                // save fail contexts for all inputs
+                auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
+                for (const auto& pipe: InputPipes) {
+                    const TInputPipe* input = dynamic_cast<const TInputPipe*>(pipe.Get());
+                    auto contextOutput = JobIO->CreateErrorOutput(
+                        stderrTransactionId,
+                        UserJobSpec.max_stderr_size());
+                    contextOutput->Write(input->GetFailContext().ToStringBuf());
+                    contextOutput->Finish();
+                    auto contextChunkId = contextOutput->GetChunkId();
+                    auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                    ToProto(schedulerResultExt->add_fail_contexts(), contextChunkId);
+
+                    if (contextChunkId != NChunkServer::NullChunkId) {
+                        LOG_INFO("Fail context chunk generated (ChunkId: %s)", ~ToString(contextChunkId));
+                    }
+                }
+            }
+        }
+
         if (UserJobSpec.enable_accounting()) {
             RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
                     CpuAccountingStats = cgroup.GetStatistics();

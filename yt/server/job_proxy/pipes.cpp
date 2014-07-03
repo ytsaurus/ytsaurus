@@ -27,6 +27,8 @@
     #include <io.h>
 #endif
 
+#include <array>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -300,6 +302,7 @@ TInputPipe::TInputPipe(
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
     , Position(0)
+    , BytesNotRead(0)
     , HasData(true)
     , IsFinished(false)
 {
@@ -359,6 +362,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     while (true) {
         if (Position == Buffer->Size()) {
             Position = 0;
+            PreviousBuffer.Swap(*Buffer);
             Buffer->Clear();
             while (HasData && Buffer->Size() < InputBufferSize) {
                 HasData = TableProducer->ProduceRow();
@@ -375,9 +379,6 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         YASSERT(Position < Buffer->Size());
 
         auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->Size() - Position);
-        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
-            res,
-            JobDescriptor);
 
         if (res < 0)  {
             if (errno == EAGAIN) {
@@ -391,6 +392,9 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                     << TError::FromSystem();
             }
         }
+        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
+            res,
+            JobDescriptor);
 
         Position += res;
         YASSERT(Position <= Buffer->Size());
@@ -409,10 +413,17 @@ void TInputPipe::Finish()
 {
     bool dataConsumed = !HasData;
     if (dataConsumed) {
-        char buffer;
-        // Try to read some data from the pipe.
-        ssize_t res = read(Pipe.ReadFd, &buffer, 1);
-        dataConsumed = res <= 0;
+        std::array<char, 65536> buffer;
+
+        ssize_t res;
+        do {
+            // Try to read some data from the pipe.
+            res = read(Pipe.ReadFd, buffer.data(), buffer.size());
+            if (res > 0) {
+                BytesNotRead += res;
+                dataConsumed = false;
+            }
+        } while (res > 0);
     }
 
     SafeClose(Pipe.ReadFd);
@@ -422,6 +433,19 @@ void TInputPipe::Finish()
             Pipe.WriteFd,
             JobDescriptor);
     }
+}
+
+TBlob TInputPipe::GetFailContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer.Blob()));
+    result.Append(Buffer->Blob().Begin(), Position);
+    if (BytesNotRead <= result.Size()) {
+        result.Resize(result.Size() - BytesNotRead);
+    } else {
+        result.Resize(0);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

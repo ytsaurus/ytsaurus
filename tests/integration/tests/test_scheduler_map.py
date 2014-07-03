@@ -165,6 +165,24 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command)
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_fail_context(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', {"foo": "bar"})
+
+        command = "python -c 'import os; os.read(0, 1);'"
+
+        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, spec={ 'mapper': { 'input_format' : 'dsv'}})
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YtError): track_op(op_id)
+
+        jobs_path = '//sys/operations/' + op_id + '/jobs'
+        for job_id in ls(jobs_path):
+            value = download(jobs_path + '/' + job_id + '/fail_contexts/0')
+            print value.decode('utf-8')
+            assert download(jobs_path + '/' + job_id + '/fail_contexts/0') == 'f'
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_sorted_output(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
