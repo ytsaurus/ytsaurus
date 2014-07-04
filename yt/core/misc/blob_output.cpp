@@ -38,6 +38,13 @@ TSharedRef TBlobOutput::Flush()
     return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob_));
 }
 
+void TBlobOutput::Swap(TBlobOutput& other)
+{
+    if (this != &other) {
+        Blob_.Swap(other.Blob_);
+    }
+}
+
 const TBlob& TBlobOutput::Blob() const
 {
     return Blob_;

@@ -29,6 +29,8 @@ public:
     void Clear();
     TSharedRef Flush();
 
+    void Swap(TBlobOutput& other);
+
 private:
     virtual void DoWrite(const void* buf, size_t len) override;
 

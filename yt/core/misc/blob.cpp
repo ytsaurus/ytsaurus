@@ -110,6 +110,7 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 TBlob& TBlob::operator = (TBlob&& rhs)
 {
     if (this != &rhs) {
+        delete[] Begin_;
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
@@ -133,6 +134,15 @@ void TBlob::Reset()
 {
     Begin_ = nullptr;   
     Size_ = Capacity_ = 0;
+}
+
+void TBlob::Swap(TBlob& other)
+{
+    if (this != &other) {
+        std::swap(this->Begin_, other.Begin_);
+        std::swap(this->Size_, other.Size_);
+        std::swap(this->Capacity_, other.Capacity_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,11 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize);
 
+    TErrorOutput(
+        NFileClient::TFileWriterConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        const NTransactionClient::TTransactionId& transactionId);
+
     ~TErrorOutput() throw();
 
     NChunkClient::TChunkId GetChunkId() const;
