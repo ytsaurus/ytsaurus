@@ -329,7 +329,7 @@ private:
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->FindSession(Chunk_->GetId());
         if (session) {
-            session->Cancel();
+            session->Cancel(TError("Chunk is removed"));
         }
 
         auto chunkStore = Bootstrap_->GetChunkStore();
