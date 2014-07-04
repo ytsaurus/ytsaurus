@@ -302,12 +302,17 @@ void TTcpConnection::SyncClose(const TError& error)
     // Break the cycle.
     MessageEnqueuedCallback_.Reset();
 
+    // Construct a detailed error.
+    auto detailedError = error
+        << TErrorAttribute("connection_id", Id_)
+        << TErrorAttribute("address", Address_);
+
+    LOG_DEBUG(detailedError, "Connection closed");
+
     // Invoke user callback.
     PROFILE_TIMING ("/terminate_handler_time") {
-        TerminatedPromise_.Set(error);
+        TerminatedPromise_.Set(detailedError);
     }
-
-    LOG_DEBUG(error, "Connection closed");
 
     UpdateConnectionCount(-1);
 
