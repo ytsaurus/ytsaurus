@@ -99,7 +99,8 @@ void TSessionBase::Cancel(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ValidateActive();
+    if (!Active_)
+        return;
 
     LOG_INFO(error, "Canceling session");
 
