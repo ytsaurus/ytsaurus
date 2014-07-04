@@ -345,7 +345,7 @@ private:
 
         TSpinLock SpinLock_;
         TRequestMap ActiveRequests_;
-        volatile bool Terminated_;
+        volatile bool Terminated_ = false;
         TError TerminationError_;
 
         void OnRequestSerialized(
