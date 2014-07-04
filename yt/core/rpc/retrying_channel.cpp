@@ -153,7 +153,6 @@ private:
             LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
                 ~ToString(Request_->GetRequestId()));
 
-            auto this_ = MakeStrong(this);
             OriginalHandler_->OnResponse(message);
         }
 
