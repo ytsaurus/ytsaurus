@@ -16,6 +16,26 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCandidatePool
+{
+public:
+    explicit TCandidatePool(NCellMaster::TBootstrap* bootstrap);
+
+    NNodeTrackerServer::TNode* TryAllocate(
+        TTabletCell* cell,
+        const TSmallSet<Stroka, TypicalCellSize>& forbiddenAddresses);
+
+private:
+    NCellMaster::TBootstrap* Bootstrap;
+
+    yhash_set<NNodeTrackerServer::TNode*> Candidates;
+
+    static bool HasAvailableSlots(NNodeTrackerServer::TNode* node);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletTracker
     : public TRefCounted
 {
@@ -28,13 +48,11 @@ public:
     void Stop();
 
 private:
-    class TCandidatePool;
+    TTabletManagerConfigPtr Config;
+    NCellMaster::TBootstrap* Bootstrap;
 
-    TTabletManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
-
-    TInstant StartTime_;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    TInstant StartTime;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

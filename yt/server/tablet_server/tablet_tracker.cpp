@@ -24,104 +24,77 @@ using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto CellsScanPeriod = TDuration::Seconds(1);
+static const TDuration CellsScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTracker::TCandidatePool
+TCandidatePool::TCandidatePool(NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap(bootstrap)
 {
-public:
-    explicit TCandidatePool(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
-    {
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto* node : nodeTracker->Nodes().GetValues()) {
-            if (HasAvailableSlots(node)) {
-                YCHECK(Candidates_.insert(node).second);
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    for (auto* node : nodeTracker->Nodes().GetValues()) {
+        if (HasAvailableSlots(node)) {
+            YCHECK(Candidates.insert(node).second);
+        }
+    }
+}
+
+TNode* TCandidatePool::TryAllocate(
+    TTabletCell* cell,
+    const TSmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
+{
+    for (auto it = Candidates.begin(); it != Candidates.end(); ++it) {
+        auto* node = *it;
+        if (forbiddenAddresses.count(node->GetAddress()) == 0) {
+            node->AddTabletSlotHint();
+            if (!HasAvailableSlots(node)) {
+                Candidates.erase(it);
             }
+            return node;
         }
     }
+    return nullptr;
+}
 
-    TNode* TryAllocate(
-        const TNullable<Stroka>& preferredAddress,
-        const TSmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
-    {
-        // Try to allocate preferred.
-        if (preferredAddress && forbiddenAddresses.count(*preferredAddress) == 0) {
-            auto nodeTracker = Bootstrap_->GetNodeTracker();
-            auto* node = nodeTracker->FindNodeByAddress(*preferredAddress);
-            if (node && HasAvailableSlots(node)) {
-                AllocateSlot(node);
-                return node;
-            }
-        }
-
-        // Try to allocate from candidates.
-        for (auto* node : Candidates_) {
-            if (forbiddenAddresses.count(node->GetAddress()) == 0) {
-                AllocateSlot(node);
-                return node;
-            }
-        }
-
-        return nullptr;
-    }
-
-private:
-    NCellMaster::TBootstrap* Bootstrap_;
-
-    yhash_set<TNode*> Candidates_;
-
-
-    static bool HasAvailableSlots(TNode* node)
-    {
-        return node->GetTotalUsedTabletSlots() < node->GetTotalTabletSlots();
-    }
-
-    void AllocateSlot(TNode* node)
-    {
-        node->AddTabletSlotHint();
-        if (!HasAvailableSlots(node)) {
-            YCHECK(Candidates_.erase(node) == 1);
-        }
-    }
-
-};
+bool TCandidatePool::HasAvailableSlots(TNode* node)
+{
+    return node->GetTotalUsedTabletSlots() < node->GetTotalTabletSlots();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletTracker::TTabletTracker(
     TTabletManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Config_(config)
-    , Bootstrap_(bootstrap)
+    : Config(config)
+    , Bootstrap(bootstrap)
 {
-    YCHECK(Config_);
-    YCHECK(Bootstrap_);
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
+    YCHECK(Config);
+    YCHECK(Bootstrap);
+    VERIFY_INVOKER_AFFINITY(Bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
 }
 
 void TTabletTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    StartTime_ = TInstant::Now();
+    StartTime = TInstant::Now();
 
-    YCHECK(!PeriodicExecutor_);
-    PeriodicExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetMetaStateFacade()->GetEpochInvoker(),
+    YCHECK(!PeriodicExecutor);
+    PeriodicExecutor = New<TPeriodicExecutor>(
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
         CellsScanPeriod);
-    PeriodicExecutor_->Start();
+    PeriodicExecutor->Start();
 }
 
 void TTabletTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (PeriodicExecutor_) {
-        PeriodicExecutor_->Stop();
-        PeriodicExecutor_.Reset();
+    if (PeriodicExecutor) {
+        PeriodicExecutor->Stop();
+        PeriodicExecutor.Reset();
     }
 }
 
@@ -129,9 +102,9 @@ void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TCandidatePool pool(Bootstrap_);
+    TCandidatePool pool(Bootstrap);
 
-    auto tabletManger = Bootstrap_->GetTabletManager();
+    auto tabletManger = Bootstrap->GetTabletManager();
     for (auto* cell : tabletManger->TabletCells().GetValues()) {
         if (!IsObjectAlive(cell))
             continue;
@@ -155,7 +128,7 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_state(ETabletCellState::Running);
 
-    auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
     CreateMutation(hydraManager, request)
         ->Commit();
 }
@@ -166,34 +139,33 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
     ToProto(request.mutable_cell_id(), cell->GetId());
 
     const auto& peers = cell->Peers();
-    for (int peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
+    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
         request.add_node_ids(InvalidNodeId);
     }
 
     TSmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
     for (const auto& peer : cell->Peers()) {
-        if (peer.Node) {
+        if (peer.Address) {
             forbiddenAddresses.insert(*peer.Address);
         }
     }
 
     bool assigned = false;
-    for (int peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
-        const auto& peer = cell->Peers()[peerId];
-        if (peer.Node) 
+    for (int index = 0; index < static_cast<int>(peers.size()); ++index) {
+        if (cell->Peers()[index].Address)
             continue;
 
-        auto* node = pool->TryAllocate(peer.Address, forbiddenAddresses);
+        auto* node = pool->TryAllocate(cell, forbiddenAddresses);
         if (!node)
-            break; // all subsequent allocations will fail anyway
+            break;
 
-        request.set_node_ids(peerId, node->GetId());
+        request.set_node_ids(index, node->GetId());
         forbiddenAddresses.insert(node->GetAddress());
         assigned = true;
     }
 
     if (assigned) {
-        auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
         CreateMutation(hydraManager, request)
             ->Commit();
     }
@@ -202,7 +174,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
 void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
 {
     // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + Config_->PeerFailoverTimeout)
+    if (TInstant::Now() < StartTime + Config->PeerFailoverTimeout)
         return;
 
     const auto& cellId = cell->GetId();
@@ -214,7 +186,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
             ToProto(request.mutable_cell_id(), cellId);
             request.set_peer_id(peerId);
 
-            auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+            auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
             CreateMutation(hydraManager, request)
                 ->Commit();
         }
@@ -230,7 +202,7 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
     if (peer.Node)
         return false;
 
-    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout)
+    if (peer.LastSeenTime > TInstant::Now() - Config->PeerFailoverTimeout)
         return false;
 
     return true;
