@@ -184,9 +184,6 @@ public:
     //! Split (per chunk) changelog configuration.
     NHydra::TFileChangelogConfigPtr SplitChangelog;
 
-    //! Maximum number of cached split changelogs.
-    int MaxCachedChangelogs;
-
     //! Maximum number of cached opened changelogs.
     int ChangelogReaderCacheSize;
 
@@ -289,9 +286,6 @@ public:
             .Default(nullptr);
         RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
-        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
-            .GreaterThan(0)
-            .Default(256);
         RegisterParameter("changelog_reader_cache_size", ChangelogReaderCacheSize)
             .GreaterThan(0)
             .Default(256);
