@@ -119,57 +119,57 @@ private:
         (Closed)
     );
 
-    TTcpBusConfigPtr Config;
-    TTcpDispatcherThreadPtr DispatcherThread;
-    EConnectionType ConnectionType;
-    ETcpInterfaceType InterfaceType;
-    TConnectionId Id;
-    int Socket;
-    int Fd;
-    Stroka Address;
+    TTcpBusConfigPtr Config_;
+    TTcpDispatcherThreadPtr DispatcherThread_;
+    EConnectionType ConnectionType_;
+    ETcpInterfaceType InterfaceType_;
+    TConnectionId Id_;
+    int Socket_;
+    int Fd_;
+    Stroka Address_;
 #ifdef _linux_
-    int Priority;
+    int Priority_;
 #endif
-    IMessageHandlerPtr Handler;
+    IMessageHandlerPtr Handler_;
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
     
     // Only used by client sockets.
-    int Port;
+    int Port_;
 
-    TAtomic State;
+    TAtomic State_;
 
-    TClosure MessageEnqueuedCallback;
-    TAtomic MessageEnqueuedCallbackPending;
+    TClosure MessageEnqueuedCallback_;
+    TAtomic MessageEnqueuedCallbackPending_;
 
-    TSpinLock TerminationSpinLock;
-    TError TerminationError;
+    TSpinLock TerminationSpinLock_;
+    TError TerminationError_;
 
-    std::unique_ptr<ev::io> SocketWatcher;
+    std::unique_ptr<ev::io> SocketWatcher_;
 
-    TPacketDecoder Decoder;
-    TBlob ReadBuffer;
+    TPacketDecoder Decoder_;
+    TBlob ReadBuffer_;
 
-    TPromise<TError> TerminatedPromise;
+    TPromise<TError> TerminatedPromise_;
 
-    TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages;
+    TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
     
-    TRingQueue<TPacket*> QueuedPackets;
-    TRingQueue<TPacket*> EncodedPackets;
+    TRingQueue<TPacket*> QueuedPackets_;
+    TRingQueue<TPacket*> EncodedPackets_;
 
-    TPacketEncoder Encoder;
-    std::vector<std::unique_ptr<TBlob>> WriteBuffers;
-    TRingQueue<TRef> EncodedFragments;
-    TRingQueue<size_t> EncodedPacketSizes;
+    TPacketEncoder Encoder_;
+    std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
+    TRingQueue<TRef> EncodedFragments_;
+    TRingQueue<size_t> EncodedPacketSizes_;
 
 #ifdef _WIN32
-    std::vector<WSABUF> SendVector;
+    std::vector<WSABUF> SendVector_;
 #else
-    std::vector<struct iovec> SendVector;
+    std::vector<struct iovec> SendVector_;
 #endif
 
-    TRingQueue<TUnackedMessage> UnackedMessages;
+    TRingQueue<TUnackedMessage> UnackedMessages_;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
