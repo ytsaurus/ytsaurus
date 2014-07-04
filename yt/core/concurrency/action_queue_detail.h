@@ -151,7 +151,6 @@ protected:
     bool FiberMainStep(unsigned int spawnedEpoch);
 
     void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
-    void Crash(std::exception_ptr exception);
 
     void OnContextSwitch();
 

@@ -311,10 +311,8 @@ void TSchedulerThread::ThreadMainStep()
             CurrentFiber.Reset();
             break;
 
-        case EFiberState::Crashed:
-            // Notify about an unhandled exception.
-            Crash(CurrentFiber->GetException());
-            break;
+        default:
+            YUNREACHABLE();
     }
 
     // Finish sync part of the execution.
@@ -405,18 +403,6 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
         future.Subscribe(std::move(continuation));
     } else {
         continuation.Run();
-    }
-}
-
-void TSchedulerThread::Crash(std::exception_ptr exception)
-{
-    try {
-        std::rethrow_exception(std::move(exception));
-    } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Fiber has crashed in executor thread (Name: %s)",
-            ~ThreadName);
-    } catch (...) {
-        YUNREACHABLE();
     }
 }
 

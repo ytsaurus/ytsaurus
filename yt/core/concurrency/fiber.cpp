@@ -18,7 +18,6 @@ TFiber::TFiber(TClosure callee, EExecutionStack stack)
     , State_(EFiberState::Suspended)
     , Stack_(CreateExecutionStack(stack))
     , Context_(CreateExecutionContext(Stack_.get(), &TFiber::Trampoline))
-    , Exception_(nullptr)
     , Callee_(std::move(callee))
 {
     // XXX(babenko): VS2013 compat
@@ -57,13 +56,6 @@ TExecutionContext* TFiber::GetContext()
     return &Context_;
 }
 
-std::exception_ptr TFiber::GetException()
-{
-    std::exception_ptr result;
-    std::swap(result, Exception_);
-    return result;
-}
-
 void TFiber::Cancel()
 {
     Canceled_.store(true, std::memory_order_relaxed);
@@ -78,8 +70,7 @@ bool TFiber::CanReturn() const
 {
     return
         State_ == EFiberState::Terminated ||
-        State_ == EFiberState::Canceled ||
-        State_ == EFiberState::Crashed;
+        State_ == EFiberState::Canceled;
 }
 
 uintptr_t& TFiber::FsdAt(int index)
@@ -115,10 +106,10 @@ void TFiber::Trampoline(void* opaque)
     } catch (const TFiberCanceledException&) {
         // Thrown intentionally, ignore.
         fiber->State_ = EFiberState::Canceled;
-    } catch (...) {
-        fiber->Exception_ = std::current_exception();
-        fiber->State_ = EFiberState::Crashed;
     }
+
+    // NB: All other uncaught exceptions will lead to std::terminate().
+    // This way we preserve the much-needed backtrace.
 
     GetCurrentScheduler()->Return();
 

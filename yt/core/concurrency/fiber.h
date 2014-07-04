@@ -22,7 +22,6 @@ DECLARE_ENUM(EFiberState,
     (Running)     // Currently executing.
     (Terminated)  // Terminated.
     (Canceled)    // Canceled. :)
-    (Crashed)     // Crashed. :)
 );
 
 class TFiber
@@ -44,7 +43,6 @@ public:
     void SetState(EFiberState state);
 
     TExecutionContext* GetContext();
-    std::exception_ptr GetException();
 
     void Cancel();
 
@@ -60,7 +58,6 @@ private:
 
     std::shared_ptr<TExecutionStack> Stack_;
     TExecutionContext Context_;
-    std::exception_ptr Exception_;
 
     std::atomic<bool> Canceled_;
 
