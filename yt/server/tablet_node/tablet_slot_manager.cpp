@@ -283,7 +283,9 @@ private:
 
         BuildYsonFluently(consumer)
             .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
-                slot->BuildOrchidYson(fluent);
+                fluent
+                    .Item()
+                    .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
             });
     }
 
