@@ -7,6 +7,8 @@
 #include "config.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
+#include "session_manager.h"
+#include "session.h"
 #include "private.h"
 
 #include <core/misc/protobuf_helpers.h>
@@ -324,6 +326,12 @@ public:
 private:
     virtual void DoRun() override
     {
+        auto sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->FindSession(Chunk_->GetId());
+        if (session) {
+            session->Cancel();
+        }
+
         auto chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(Chunk_));
     }
