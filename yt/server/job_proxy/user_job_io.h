@@ -49,6 +49,9 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize) const;
 
+    virtual std::unique_ptr<TErrorOutput> CreateFailContextOutput(
+        const NTransactionClient::TTransactionId& transactionId) const;
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
 
     virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;

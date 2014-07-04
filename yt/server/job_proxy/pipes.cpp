@@ -431,7 +431,7 @@ TBlob TInputPipe::GetFailContext() const
 {
     TBlob result;
     result.Append(TRef::FromBlob(PreviousBuffer.Blob()));
-    result.Append(Buffer->Blob().Begin(), Position);
+    result.Append(TRef::FromBlob(Buffer->Blob()));
     return result;
 }
 

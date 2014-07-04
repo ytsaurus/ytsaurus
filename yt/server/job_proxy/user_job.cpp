@@ -156,9 +156,7 @@ public:
                 auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
                 for (const auto& pipe: InputPipes) {
                     const TInputPipe* input = dynamic_cast<const TInputPipe*>(pipe.Get());
-                    auto contextOutput = JobIO->CreateErrorOutput(
-                        stderrTransactionId,
-                        UserJobSpec.max_stderr_size());
+                    auto contextOutput = JobIO->CreateFailContextOutput(stderrTransactionId);
                     contextOutput->Write(input->GetFailContext().ToStringBuf());
                     contextOutput->Finish();
                     auto contextChunkId = contextOutput->GetChunkId();
