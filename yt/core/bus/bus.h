@@ -8,6 +8,8 @@
 #include <core/actions/signal.h>
 #include <core/actions/future.h>
 
+#include <core/ytree/public.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -23,6 +25,10 @@ DECLARE_ENUM(EDeliveryTrackingLevel,
 struct IBus
     : public virtual TRefCounted
 {
+    //! Returns a textual representation of bus' endpoint.
+    //! For informative uses only.
+    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
+
     //! Asynchronously sends a message via the bus.
     /*!
      *  \param message A message to send.

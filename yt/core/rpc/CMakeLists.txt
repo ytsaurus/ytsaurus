@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/rpc )
 set( SRCS
   ${BASE}/bus_channel.cpp
+  ${BASE}/channel_detail.cpp
   ${BASE}/client.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/helpers.cpp
@@ -28,6 +29,7 @@ set( SRCS
 set( HDRS
   ${BASE}/bus_channel.h
   ${BASE}/channel.h
+  ${BASE}/channel_detail.h
   ${BASE}/client.h
   ${BASE}/config.h
   ${BASE}/dispatcher.h

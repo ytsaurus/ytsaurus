@@ -171,7 +171,10 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
     auto rsp = WaitFor(objectProxy.Execute(req));
 
     if (!rsp->IsOK()) {
-        CompletionError_.TrySet(TError(EErrorCode::MasterCommunicationFailed, "Error creating chunk") << *rsp);
+        CompletionError_.TrySet(TError(
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Error creating chunk")
+            << *rsp);
         return;
     }
 

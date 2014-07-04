@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "caching_channel_factory.h"
+#include "channel_detail.h"
 #include "channel.h"
 #include "client.h"
 
@@ -7,48 +8,6 @@ namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TCachedChannel
-    : public IChannel
-{
-public:
-    explicit TCachedChannel(IChannelPtr underlyingChannel)
-        : UnderlyingChannel_(std::move(underlyingChannel))
-    { }
-
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return DefaultTimeout_;
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        DefaultTimeout_ = timeout;
-    }
-
-    virtual void Send(
-        IClientRequestPtr request,
-        IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout,
-        bool requestAck) override
-    {
-        UnderlyingChannel_->Send(
-            std::move(request),
-            std::move(responseHandler),
-            timeout ? timeout : DefaultTimeout_,
-            requestAck);
-    }
-
-    virtual TFuture<void> Terminate(const TError& /*error*/) override
-    {
-        YUNREACHABLE();
-    }
-
-private:
-    IChannelPtr UnderlyingChannel_;
-    TNullable<TDuration> DefaultTimeout_;
-
-};
 
 class TCachingChannelFactory
     : public IChannelFactory
@@ -79,7 +38,7 @@ public:
             }
         }
 
-        return New<TCachedChannel>(it->second);
+        return New<TChannelWrapper>(it->second);
     }
 
 private:

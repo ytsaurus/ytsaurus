@@ -13,15 +13,19 @@
 
 #include <core/rpc/public.h>
 
+#include <core/ytree/convert.h>
+
 #include <errno.h>
 
-#ifndef _WIN32
+#ifndef _win_
     #include <netinet/tcp.h>
     #include <sys/socket.h>
 #endif
 
 namespace NYT {
 namespace NBus {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,21 +46,21 @@ public:
     TTcpClientBusProxy(
         TTcpBusClientConfigPtr config,
         IMessageHandlerPtr handler)
-        : Config(std::move(config))
-        , Handler(std::move(handler))
-        , DispatcherThread(TTcpDispatcher::TImpl::Get()->AllocateThread())
-        , Id(TConnectionId::Create())
+        : Config_(std::move(config))
+        , Handler_(std::move(handler))
+        , DispatcherThread_(TTcpDispatcher::TImpl::Get()->AllocateThread())
+        , Id_(TConnectionId::Create())
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(Config);
-        YCHECK(Handler);
+        YCHECK(Config_);
+        YCHECK(Handler_);
     }
 
     ~TTcpClientBusProxy()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        if (Connection) {
-            Connection->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
+        if (Connection_) {
+            Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
         }
     }
 
@@ -64,57 +68,63 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto interfaceType = GetInterfaceType(Config->Address);
+        auto interfaceType = GetInterfaceType(Config_->Address);
 
         LOG_DEBUG("Connecting to %s (ConnectionId: %s, InterfaceType: %s)",
-            ~Config->Address,
-            ~ToString(Id),
+            ~Config_->Address,
+            ~ToString(Id_),
             ~ToString(interfaceType));
 
-        Connection = New<TTcpConnection>(
-            Config,
-            DispatcherThread,
+        Connection_ = New<TTcpConnection>(
+            Config_,
+            DispatcherThread_,
             EConnectionType::Client,
             interfaceType, 
-            Id,
+            Id_,
             INVALID_SOCKET,
-            Config->Address,
-            Config->Priority,
-            Handler);
-        DispatcherThread->AsyncRegister(Connection);
+            Config_->Address,
+            Config_->Priority,
+            Handler_);
+        DispatcherThread_->AsyncRegister(Connection_);
+    }
+
+    virtual TYsonString GetEndpointDescription() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->GetEndpointDescription();
     }
 
     virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection->Send(std::move(message), level);
+        return Connection_->Send(std::move(message), level);
     }
 
     virtual void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Connection->Terminate(error);
+        Connection_->Terminate(error);
     }
 
     virtual void SubscribeTerminated(const TCallback<void(TError)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Connection->SubscribeTerminated(callback);
+        Connection_->SubscribeTerminated(callback);
     }
 
     virtual void UnsubscribeTerminated(const TCallback<void(TError)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Connection->UnsubscribeTerminated(callback);
+        Connection_->UnsubscribeTerminated(callback);
     }
 
 private:
-    TTcpBusClientConfigPtr Config;
-    IMessageHandlerPtr Handler;
-    TTcpDispatcherThreadPtr DispatcherThread;
-    TConnectionId Id;
+    TTcpBusClientConfigPtr Config_;
+    IMessageHandlerPtr Handler_;
+    TTcpDispatcherThreadPtr DispatcherThread_;
+    TConnectionId Id_;
 
-    TTcpConnectionPtr Connection;
+    TTcpConnectionPtr Connection_;
 
     static ETcpInterfaceType GetInterfaceType(const Stroka& address)
     {
@@ -133,26 +143,29 @@ class TTcpBusClient
 {
 public:
     explicit TTcpBusClient(TTcpBusClientConfigPtr config)
-        : Config(config)
+        : Config_(config)
     { }
+
+    virtual TYsonString GetEndpointDescription() const override
+    {
+        return ConvertToYsonString(Config_->Address);
+    }
 
     virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto proxy = New<TTcpClientBusProxy>(
-            Config,
+            Config_,
             std::move(handler));
         proxy->Open();
         return proxy;
     }
 
 private:
-    TTcpBusClientConfigPtr Config;
+    TTcpBusClientConfigPtr Config_;
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 IBusClientPtr CreateTcpBusClient(TTcpBusClientConfigPtr config)
 {

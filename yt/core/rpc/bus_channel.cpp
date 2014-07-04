@@ -73,20 +73,24 @@ class TChannel
 {
 public:
     explicit TChannel(IBusClientPtr client)
-        : Client(std::move(client))
-        , Terminated(false)
+        : Client_(std::move(client))
     {
-        YCHECK(Client);
+        YCHECK(Client_);
     }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
-        return DefaultTimeout;
+        return DefaultTimeout_;
     }
 
-    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
-        DefaultTimeout = timeout;
+        DefaultTimeout_ = timeout;
+    }
+
+    virtual TYsonString GetEndpointDescription() const override
+    {
+        return Client_->GetEndpointDescription();
     }
 
     virtual void Send(
@@ -117,17 +121,17 @@ public:
 
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            if (Terminated) {
+            if (Terminated_) {
                 return VoidFuture;
             }
 
-            session = Session;
-            Session.Reset();
+            session = Session_;
+            Session_.Reset();
 
-            Terminated = true;
-            TerminationError = error;
+            Terminated_ = true;
+            TerminationError_ = error;
         }
 
         if (session) {
@@ -148,19 +152,19 @@ private:
     {
     public:
         explicit TMessageHandler(TSessionPtr session)
-            : Session(session)
+            : Session_(session)
         { }
 
         virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) override
         {
-            auto session_ = Session.Lock();
+            auto session_ = Session_.Lock();
             if (session_) {
                 session_->OnMessage(message, replyBus);
             }
         }
 
     private:
-        TWeakPtr<TSession> Session;
+        TWeakPtr<TSession> Session_;
 
     };
 
@@ -171,14 +175,13 @@ private:
     {
     public:
         explicit TSession(TNullable<TDuration> defaultTimeout)
-            : DefaultTimeout(defaultTimeout)
-            , Terminated(false)
+            : DefaultTimeout_(defaultTimeout)
         { }
 
         void Init(IBusPtr bus)
         {
             YCHECK(bus);
-            Bus = bus;
+            Bus_ = bus;
         }
 
         void Terminate(const TError& error)
@@ -188,10 +191,10 @@ private:
             TRequestMap activeRequests;
 
             {
-                TGuard<TSpinLock> guard(SpinLock);
-                Terminated = true;
-                TerminationError = error;
-                activeRequests.swap(ActiveRequests);
+                TGuard<TSpinLock> guard(SpinLock_);
+                Terminated_ = true;
+                TerminationError_ = error;
+                activeRequests.swap(ActiveRequests_);
             }
 
             for (auto& pair : activeRequests) {
@@ -229,10 +232,10 @@ private:
 
             IBusPtr bus;
             {
-                TGuard<TSpinLock> guard(SpinLock);
+                TGuard<TSpinLock> guard(SpinLock_);
 
-                if (Terminated) {
-                    auto error = TerminationError;
+                if (Terminated_) {
+                    auto error = TerminationError_;
                     guard.Release();
 
                     LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Service: %s, Method: %s)",
@@ -250,8 +253,8 @@ private:
                         timeout.Get());
                 }
 
-                YCHECK(ActiveRequests.insert(std::make_pair(requestId, activeRequest)).second);
-                bus = Bus;
+                YCHECK(ActiveRequests_.insert(std::make_pair(requestId, activeRequest)).second);
+                bus = Bus_;
             }
 
             if (request->IsRequestHeavy()) {
@@ -291,16 +294,16 @@ private:
 
             TActiveRequest activeRequest;
             {
-                TGuard<TSpinLock> guard(SpinLock);
+                TGuard<TSpinLock> guard(SpinLock_);
 
-                if (Terminated) {
+                if (Terminated_) {
                     LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
                         ~ToString(requestId));
                     return;
                 }
 
-                auto it = ActiveRequests.find(requestId);
-                if (it == ActiveRequests.end()) {
+                auto it = ActiveRequests_.find(requestId);
+                if (it == ActiveRequests_.end()) {
                     // This may happen when the other party responds to an already timed-out request.
                     LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
                         ~ToString(requestId));
@@ -325,9 +328,9 @@ private:
         }
 
     private:
-        IBusPtr Bus;
+        IBusPtr Bus_;
 
-        TNullable<TDuration> DefaultTimeout;
+        TNullable<TDuration> DefaultTimeout_;
 
         struct TActiveRequest
         {
@@ -340,10 +343,10 @@ private:
 
         typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
 
-        TSpinLock SpinLock;
-        TRequestMap ActiveRequests;
-        volatile bool Terminated;
-        TError TerminationError;
+        TSpinLock SpinLock_;
+        TRequestMap ActiveRequests_;
+        volatile bool Terminated_;
+        TError TerminationError_;
 
         void OnRequestSerialized(
             IBusPtr bus,
@@ -374,10 +377,10 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            auto it = ActiveRequests.find(requestId);
-            if (it == ActiveRequests.end()) {
+            auto it = ActiveRequests_.find(requestId);
+            if (it == ActiveRequests_.end()) {
                 // This one may easily get the actual response before the acknowledgment.
                 LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
                     ~ToString(requestId));
@@ -404,11 +407,8 @@ private:
                 // Don't need the guard anymore.
                 guard.Release();
 
-                auto wrappedError = AddErrorAttributes(
-                    activeRequest,
-                    TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
-                        << error);
-                NotifyError(activeRequest, wrappedError);
+                auto error = TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed");
+                NotifyError(activeRequest, error);
             }
         }
 
@@ -418,10 +418,10 @@ private:
 
             TActiveRequest activeRequest;
             {
-                TGuard<TSpinLock> guard(SpinLock);
+                TGuard<TSpinLock> guard(SpinLock_);
 
-                auto it = ActiveRequests.find(requestId);
-                if (it == ActiveRequests.end()) {
+                auto it = ActiveRequests_.find(requestId);
+                if (it == ActiveRequests_.end()) {
                     LOG_DEBUG("Timeout for an incorrect or obsolete request occurred (RequestId: %s)",
                         ~ToString(requestId));
                     return;
@@ -433,9 +433,7 @@ private:
                 UnregisterRequest(it);
             }
 
-            auto error = AddErrorAttributes(
-                activeRequest,
-                TError(EErrorCode::Timeout, "Request timed out"));
+            auto error = TError(NRpc::EErrorCode::Timeout, "Request timed out");
             NotifyError(activeRequest, error);
         }
 
@@ -447,10 +445,10 @@ private:
 
         void UnregisterRequest(TRequestMap::iterator it)
         {
-            VERIFY_SPINLOCK_AFFINITY(SpinLock);
+            VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
             FinalizeRequest(it->second);
-            ActiveRequests.erase(it);
+            ActiveRequests_.erase(it);
         }
 
 
@@ -464,10 +462,20 @@ private:
 
         void NotifyError(const TActiveRequest& activeRequest, const TError& error)
         {
-            LOG_DEBUG(error, "Request failed (RequestId: %s)",
+            auto detailedError = error
+                << TErrorAttribute("request_id", activeRequest.ClientRequest->GetRequestId())
+                << TErrorAttribute("service", activeRequest.ClientRequest->GetService())
+                << TErrorAttribute("method", activeRequest.ClientRequest->GetMethod())
+                << TErrorAttribute("endpoint", Bus_->GetEndpointDescription());
+            if (activeRequest.Timeout) {
+                detailedError = detailedError
+                    << TErrorAttribute("timeout", activeRequest.Timeout->MilliSeconds());
+            }
+
+            LOG_DEBUG(detailedError, "Request failed (RequestId: %s)",
                 ~ToString(activeRequest.ClientRequest->GetRequestId()));
 
-            activeRequest.ResponseHandler->OnError(error);
+            activeRequest.ResponseHandler->OnError(detailedError);
         }
 
         void NotifyResponse(const TActiveRequest& activeRequest, TSharedRefArray message)
@@ -487,58 +495,44 @@ private:
             }
         }
 
-
-        static TError AddErrorAttributes(const TActiveRequest& activeRequest, TError error)
-        {
-            error = error
-                << TErrorAttribute("request_id", activeRequest.ClientRequest->GetRequestId())
-                << TErrorAttribute("service", activeRequest.ClientRequest->GetService())
-                << TErrorAttribute("method", activeRequest.ClientRequest->GetMethod());
-            if (activeRequest.Timeout) {
-                error = error
-                    << TErrorAttribute("timeout", activeRequest.Timeout->MilliSeconds());
-            }
-            return error;
-        }
-
     };
 
-    IBusClientPtr Client;
+    IBusClientPtr Client_;
 
-    TNullable<TDuration> DefaultTimeout;
+    TNullable<TDuration> DefaultTimeout_;
 
-    TSpinLock SpinLock;
-    volatile bool Terminated;
-    TError TerminationError;
-    TSessionPtr Session;
+    TSpinLock SpinLock_;
+    volatile bool Terminated_ = false;
+    TError TerminationError_;
+    TSessionPtr Session_;
 
     TErrorOr<TSessionPtr> GetOrCreateSession()
     {
         IBusPtr bus;
         TSessionPtr session;
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            if (Session) {
-                return Session;
+            if (Session_) {
+                return Session_;
             }
 
-            if (Terminated) {
-                return TError(EErrorCode::TransportError, "Channel terminated")
-                    << TerminationError;
+            if (Terminated_) {
+                return TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                    << TerminationError_;
             }
 
-            session = New<TSession>(DefaultTimeout);
+            session = New<TSession>(DefaultTimeout_);
             auto messageHandler = New<TMessageHandler>(session);
 
             try {
-                bus = Client->CreateBus(messageHandler);
+                bus = Client_->CreateBus(messageHandler);
             } catch (const std::exception& ex) {
                 return ex;
             }
 
             session->Init(bus);
-            Session = session;
+            Session_ = session;
         }
 
         bus->SubscribeTerminated(BIND(
@@ -556,9 +550,9 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (Session == session_) {
-                Session.Reset();
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Session_ == session_) {
+                Session_.Reset();
             }
         }
 

@@ -545,7 +545,7 @@ private:
                 memoryLimit);
 
             if (OomEvent.Fired()) {
-                SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
+                SetError(TError(NExecAgent::EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
                     << TErrorAttribute("limit", memoryLimit));

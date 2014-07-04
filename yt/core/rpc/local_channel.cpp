@@ -6,6 +6,8 @@
 #include "service.h"
 #include "message.h"
 
+#include <core/ytree/convert.h>
+
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/bus/bus.h>
@@ -15,6 +17,7 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NYTree;
 using namespace NConcurrency;
 using namespace NBus;
 
@@ -36,6 +39,11 @@ public:
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
         DefaultTimeout_ = timeout;
+    }
+
+    virtual TYsonString GetEndpointDescription() const override
+    {
+        return ConvertToYsonString(Stroka("<local>"));
     }
 
     virtual void Send(
@@ -98,6 +106,11 @@ private:
             }
         }
 
+        virtual TYsonString GetEndpointDescription() const
+        {
+            return ConvertToYsonString(Stroka("<local>"));
+        }
+
         virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
         {
             NProto::TResponseHeader header;
@@ -133,9 +146,15 @@ private:
         void OnTimeout()
         {
             if (AcquireLock()) {
-                auto error = TError(EErrorCode::Timeout, "Request timed out");
-                Handler_->OnError(error);
+                ReportError(TError(NRpc::EErrorCode::Timeout, "Request timed out"));
             }
+        }
+
+        void ReportError(const TError& error)
+        {
+            auto detailedError = error
+                << TErrorAttribute("endpoint", GetEndpointDescription());
+            Handler_->OnError(detailedError);
         }
 
     };

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "serialized_channel.h"
+#include "channel_detail.h"
 #include "client.h"
 
 #include <queue>
@@ -9,27 +10,87 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSerializedChannel;
+typedef TIntrusivePtr<TSerializedChannel> TSerializedChannelPtr;
+
 class TSerializedChannel
-    : public IChannel
+    : public TChannelWrapper
 {
 public:
-    explicit TSerializedChannel(IChannelPtr underlyingChannel);
-
-    virtual TNullable<TDuration> GetDefaultTimeout() const override;
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
+    explicit TSerializedChannel(IChannelPtr underlyingChannel)
+        : TChannelWrapper(std::move(underlyingChannel))
+    { }
 
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
-        bool requestAck) override;
+        bool requestAck) override
+    {
+        auto entry = New<TEntry>(
+            request,
+            responseHandler,
+            timeout,
+            requestAck);
 
-    virtual TFuture<void> Terminate(const TError& error) override;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            Queue_.push(entry);
+        }
 
-    void OnRequestCompleted();
+        TrySendQueuedRequests();
+    }
+
+    virtual TFuture<void> Terminate(const TError& /*error*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    void OnRequestCompleted()
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(RequestInProgress_);
+            RequestInProgress_ = false;
+        }
+
+        TrySendQueuedRequests();
+    }
 
 private:
-    IChannelPtr UnderlyingChannel;
+    class TResponseHandler
+        : public IClientResponseHandler
+    {
+    public:
+        TResponseHandler(
+            IClientResponseHandlerPtr underlyingHandler,
+            TSerializedChannelPtr owner)
+            : UnderlyingHandler_(std::move(underlyingHandler))
+            , Owner_(std::move(owner))
+        { }
+
+        virtual void OnAcknowledgement() override
+        {
+            UnderlyingHandler_->OnAcknowledgement();
+        }
+
+        virtual void OnResponse(TSharedRefArray message) override
+        {
+            UnderlyingHandler_->OnResponse(std::move(message));
+            Owner_->OnRequestCompleted();
+        }
+
+        virtual void OnError(const TError& error) override
+        {
+            UnderlyingHandler_->OnError(error);
+            Owner_->OnRequestCompleted();
+        }
+
+    private:
+        IClientResponseHandlerPtr UnderlyingHandler_;
+        TSerializedChannelPtr Owner_;
+
+    };
 
     struct TEntry
         : public TIntrinsicRefCounted
@@ -53,129 +114,38 @@ private:
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    TSpinLock SpinLock;
-    std::queue<TEntryPtr> Queue;
-    bool RequestInProgress;
+    TSpinLock SpinLock_;
+    std::queue<TEntryPtr> Queue_;
+    bool RequestInProgress_ = false;
 
-    void TrySendQueuedRequests();
+
+    void TrySendQueuedRequests()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        while (!RequestInProgress_ && !Queue_.empty()) {
+            auto entry = Queue_.front();
+            Queue_.pop();
+            RequestInProgress_ = true;
+            guard.Release();
+
+            auto serializedHandler = New<TResponseHandler>(entry->Handler, this);
+            UnderlyingChannel_->Send(
+                entry->Request,
+                serializedHandler,
+                entry->Timeout,
+                entry->RequestAck);
+            entry->Request.Reset();
+            entry->Handler.Reset();
+        }
+    }
 
 };
-
-typedef TIntrusivePtr<TSerializedChannel> TSerializedChannelPtr;
 
 IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel)
 {
     YCHECK(underlyingChannel);
 
     return New<TSerializedChannel>(std::move(underlyingChannel));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSerializedResponseHandler
-    : public IClientResponseHandler
-{
-public:
-    TSerializedResponseHandler(
-        IClientResponseHandlerPtr underlyingHandler,
-        TSerializedChannelPtr channel)
-        : UnderlyingHandler(std::move(underlyingHandler))
-        , Channel(std::move(channel))
-    { }
-
-    virtual void OnAcknowledgement() override
-    {
-        UnderlyingHandler->OnAcknowledgement();
-    }
-
-    virtual void OnResponse(TSharedRefArray message) override
-    {
-        UnderlyingHandler->OnResponse(std::move(message));
-        Channel->OnRequestCompleted();
-    }
-
-    virtual void OnError(const TError& error) override
-    {
-        UnderlyingHandler->OnError(error);
-        Channel->OnRequestCompleted();
-    }
-
-private:
-    IClientResponseHandlerPtr UnderlyingHandler;
-    TSerializedChannelPtr Channel;
-
-};
-
-TSerializedChannel::TSerializedChannel(IChannelPtr underlyingChannel)
-    : UnderlyingChannel(std::move(underlyingChannel))
-    , RequestInProgress(false)
-{ }
-
-TNullable<TDuration> TSerializedChannel::GetDefaultTimeout() const
-{
-    return UnderlyingChannel->GetDefaultTimeout();
-}
-
-void TSerializedChannel::SetDefaultTimeout(const TNullable<TDuration>& timeout)
-{
-    UnderlyingChannel->SetDefaultTimeout(timeout);
-}
-
-void TSerializedChannel::Send(
-    IClientRequestPtr request,
-    IClientResponseHandlerPtr responseHandler,
-    TNullable<TDuration> timeout,
-    bool requestAck)
-{
-    auto entry = New<TEntry>(
-        request,
-        responseHandler,
-        timeout,
-        requestAck);
-
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        Queue.push(entry);
-    }
-
-    TrySendQueuedRequests();
-}
-
-TFuture<void> TSerializedChannel::Terminate(const TError& error)
-{
-    UNUSED(error);
-    YUNREACHABLE();
-}
-
-void TSerializedChannel::TrySendQueuedRequests()
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    while (!RequestInProgress && !Queue.empty()) {
-        auto entry = Queue.front();
-        Queue.pop();
-        RequestInProgress = true;
-        guard.Release();
-
-        auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
-        UnderlyingChannel->Send(
-            entry->Request,
-            serializedHandler,
-            entry->Timeout,
-            entry->RequestAck);
-        entry->Request.Reset();
-        entry->Handler.Reset();
-    }
-}
-
-void TSerializedChannel::OnRequestCompleted()
-{
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        YCHECK(RequestInProgress);
-        RequestInProgress = false;
-    }
-
-    TrySendQueuedRequests();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "helpers.h"
+#include "channel_detail.h"
 #include "service.h"
 
 #include <core/ytree/attribute_helpers.h>
@@ -47,23 +48,13 @@ Stroka GetAuthenticatedUserOrThrow(IServiceContextPtr context)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAuthenticatedChannel
-    : public IChannel
+    : public TChannelWrapper
 {
 public:
     TAuthenticatedChannel(IChannelPtr underlyingChannel, const Stroka& user)
-        : UnderlyingChannel_(underlyingChannel)
+        : TChannelWrapper(std::move(underlyingChannel))
         , User_(user)
     { }
-
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return UnderlyingChannel_->GetDefaultTimeout();
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        UnderlyingChannel_->SetDefaultTimeout(timeout);
-    }
 
     virtual void Send(
         IClientRequestPtr request,
@@ -79,13 +70,7 @@ public:
             requestAck);
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
-    {
-        return UnderlyingChannel_->Terminate(error);
-    }
-
 private:
-    IChannelPtr UnderlyingChannel_;
     Stroka User_;
 
 };
@@ -100,23 +85,13 @@ IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stro
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRealmChannel
-    : public IChannel
+    : public TChannelWrapper
 {
 public:
     TRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
-        : UnderlyingChannel_(underlyingChannel)
+        : TChannelWrapper(std::move(underlyingChannel))
         , RealmId_(realmId)
     { }
-
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return UnderlyingChannel_->GetDefaultTimeout();
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        UnderlyingChannel_->SetDefaultTimeout(timeout);
-    }
 
     virtual void Send(
         IClientRequestPtr request,
@@ -132,13 +107,7 @@ public:
             requestAck);
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
-    {
-        return UnderlyingChannel_->Terminate(error);
-    }
-
 private:
-    IChannelPtr UnderlyingChannel_;
     TRealmId RealmId_;
 
 };

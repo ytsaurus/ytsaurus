@@ -14,6 +14,10 @@ namespace NBus {
 struct IBusClient
     : public virtual TRefCounted
 {
+    //! Returns a textual representation of bus' endpoint.
+    //! For informative uses only.
+    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
+
     //! Creates a new bus.
     /*!
      *  The bus will point to the address supplied during construction.

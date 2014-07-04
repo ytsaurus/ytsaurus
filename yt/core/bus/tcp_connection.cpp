@@ -8,6 +8,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/ytree/convert.h>
+
 #include <core/profiling/profiling_manager.h>
 
 #include <util/system/error.h>
@@ -20,6 +22,8 @@
 
 namespace NYT {
 namespace NBus {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,6 +423,11 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
             }
         }
     }
+}
+
+TYsonString TTcpConnection::GetEndpointDescription() const
+{
+    return ConvertToYsonString(Address_);
 }
 
 TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)

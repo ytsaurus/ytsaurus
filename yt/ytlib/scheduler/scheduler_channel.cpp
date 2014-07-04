@@ -4,6 +4,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <core/ytree/convert.h>
 #include <core/ytree/ypath_proxy.h>
 
 #include <core/bus/config.h>
@@ -23,27 +24,54 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchedulerChannelProvider
+    : public IRoamingChannelProvider
+{
+public:
+    TSchedulerChannelProvider(IChannelFactoryPtr channelFactory, IChannelPtr masterChannel)
+        : ChannelFactory_(std::move(channelFactory))
+        , MasterChannel_(std::move(masterChannel))
+    { }
+
+    virtual NYTree::TYsonString GetEndpointDescription() const override
+    {
+        return ConvertToYsonString(Stroka("<scheduler>"));
+    }
+
+    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
+    {
+        TObjectServiceProxy proxy(MasterChannel_);
+        auto req = TYPathProxy::Get("//sys/scheduler/@address");
+        auto this_ = MakeStrong(this);
+        return proxy
+            .Execute(req)
+            .Apply(BIND([this, this_] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<IChannelPtr> {
+                if (!rsp->IsOK()) {
+                    return rsp->GetError();
+                }
+
+                auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                return ChannelFactory_->CreateChannel(address);
+            }));
+    }
+
+private:
+    IChannelFactoryPtr ChannelFactory_;
+    IChannelPtr MasterChannel_;
+
+};
+
 IChannelPtr CreateSchedulerChannel(
     TSchedulerConnectionConfigPtr config,
     IChannelFactoryPtr channelFactory,
     IChannelPtr masterChannel)
 {
-    auto roamingChannel = CreateRoamingChannel(
-        BIND([=] (IClientRequestPtr /*request*/) -> TFuture<TErrorOr<IChannelPtr>> {
-            TObjectServiceProxy proxy(masterChannel);
-            auto req = TYPathProxy::Get("//sys/scheduler/@address");
-            return proxy
-                .Execute(req)
-                .Apply(BIND([=] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<IChannelPtr> {
-                    if (!rsp->IsOK()) {
-                        return rsp->GetError();
-                    }
+    YCHECK(config);
+    YCHECK(channelFactory);
+    YCHECK(masterChannel);
 
-                    auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
-                    return channelFactory->CreateChannel(address);
-                }));
-        }));
-
+    auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel);
+    auto roamingChannel = CreateRoamingChannel(channelProvider);
     roamingChannel->SetDefaultTimeout(config->RpcTimeout);
     return CreateRetryingChannel(config, roamingChannel);
 }

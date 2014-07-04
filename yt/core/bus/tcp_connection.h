@@ -54,6 +54,7 @@ public:
     virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
+    virtual NYTree::TYsonString GetEndpointDescription() const override;
     virtual TAsyncError Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 

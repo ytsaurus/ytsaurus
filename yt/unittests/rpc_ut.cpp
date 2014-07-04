@@ -299,7 +299,7 @@ TEST_F(TRpcTest, TransportError)
     auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, NoService)
@@ -308,7 +308,7 @@ TEST_F(TRpcTest, NoService)
     auto request = proxy.DoNothing();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchService, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::NoSuchService, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, NoMethod)
@@ -317,7 +317,7 @@ TEST_F(TRpcTest, NoMethod)
     auto request = proxy.NotRegistered();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchMethod, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::NoSuchMethod, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, Timeout)
@@ -328,7 +328,7 @@ TEST_F(TRpcTest, Timeout)
     auto request = proxy.LongReply();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::Timeout, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::Timeout, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, NoReply)
@@ -338,7 +338,7 @@ TEST_F(TRpcTest, NoReply)
     auto request = proxy.NoReply();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::Unavailable, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::Unavailable, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
@@ -445,7 +445,7 @@ TEST_F(TRpcTest, LostConnection)
     EXPECT_TRUE(future.IsSet());
     auto response = future.Get();
     EXPECT_FALSE(response->IsOK());
-    EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
+    EXPECT_EQ(NRpc::EErrorCode::TransportError, response->GetError().GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

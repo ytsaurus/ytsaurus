@@ -85,7 +85,7 @@ private:
             header->has_retry_start_time() ? ~ToString(TInstant(header->retry_start_time())) : "<Null>");
 
         if (!Started_) {
-            auto error = TError(EErrorCode::Unavailable, "Server is not started");
+            auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
 
             LOG_DEBUG(error);
 

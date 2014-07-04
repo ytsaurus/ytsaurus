@@ -8,6 +8,8 @@
 
 #include <core/bus/client.h>
 
+#include <core/ytree/public.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -25,6 +27,10 @@ struct IChannel
 
     //! Sets the default timeout.
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) = 0;
+
+    //! Returns a textual representation of channel's endpoint.
+    //! For informative uses only.
+    virtual NYTree::TYsonString GetEndpointDescription() const = 0;
 
     //! Sends a request via the channel.
     /*!

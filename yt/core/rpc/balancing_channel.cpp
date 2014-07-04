@@ -11,11 +11,14 @@
 
 #include <core/misc/string.h>
 
+#include <core/ytree/convert.h>
+
 #include <util/random/random.h>
 
 namespace NYT {
 namespace NRpc {
 
+using namespace NYTree;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,28 +27,30 @@ static auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TBalancingDiscovery)
+DECLARE_REFCOUNTED_CLASS(TBalancingChannelProvider)
 
-class TBalancingDiscovery
-    : public TRefCounted
+class TBalancingChannelProvider
+    : public IRoamingChannelProvider
 {
 public:
-    explicit TBalancingDiscovery(
+    explicit TBalancingChannelProvider(
         TBalancingChannelConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(config)
         , ChannelFactory_(channelFactory)
         , Logger(RpcClientLogger)
     {
-        YCHECK(Config_);
-        YCHECK(ChannelFactory_);
-
         Logger.AddTag(Sprintf("Channel: %p", this));
 
         AddPeers(Config_->Addresses);
     }
 
-    TFuture<TErrorOr<IChannelPtr>> Discover(IClientRequestPtr request)
+    virtual TYsonString GetEndpointDescription() const override
+    {
+        return ConvertToYsonString(GetAllAddresses());
+    }
+
+    virtual TFuture<TErrorOr<IChannelPtr>> DiscoverChannel(IClientRequestPtr request) override
     {
         return New<TSession>(this, request)->Run();
     }
@@ -54,7 +59,7 @@ private:
     TBalancingChannelConfigPtr Config_;
     IChannelFactoryPtr ChannelFactory_;
 
-    TSpinLock SpinLock_;
+    mutable TSpinLock SpinLock_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
@@ -66,7 +71,7 @@ private:
     {
     public:
         TSession(
-            TBalancingDiscoveryPtr owner,
+            TBalancingChannelProviderPtr owner,
             IClientRequestPtr request)
             : Owner_(owner)
             , Request_(request)
@@ -84,7 +89,7 @@ private:
         }
 
     private:
-        TBalancingDiscoveryPtr Owner_;
+        TBalancingChannelProviderPtr Owner_;
         IClientRequestPtr Request_;
 
         TPromise<TErrorOr<IChannelPtr>> Promise_;
@@ -99,10 +104,7 @@ private:
         {
             auto maybeAddress = Owner_->PickPeer();
             if (!maybeAddress) {
-                Promise_.Set(TError(
-                    NRpc::EErrorCode::Unavailable,
-                    "No alive peers left")
-                    << TErrorAttribute("addresses", Owner_->GetAllAddresses()));
+                ReportError(TError(NRpc::EErrorCode::Unavailable, "No alive peers left"));
                 return;
             }
             CurrentAddress_ = *maybeAddress;
@@ -148,6 +150,12 @@ private:
             }
         }
 
+        void ReportError(const TError& error)
+        {
+            auto detailedError = error
+                << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
+            Promise_.Set(detailedError);
+        }
     };
 
 
@@ -161,7 +169,7 @@ private:
         return addresses[RandomNumber(addresses.size())];
     }
 
-    std::vector<Stroka> GetAllAddresses()
+    std::vector<Stroka> GetAllAddresses() const
     {
         std::vector<Stroka> result;
         TGuard<TSpinLock> guard(SpinLock_);
@@ -200,7 +208,7 @@ private:
             ~ToString(backoffTime));
 
         TDelayedExecutor::Submit(
-            BIND(&TBalancingDiscovery::UnbanPeer, MakeWeak(this), address),
+            BIND(&TBalancingChannelProvider::UnbanPeer, MakeWeak(this), address),
             backoffTime);
     }
 
@@ -219,17 +227,17 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TBalancingDiscovery)
+DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
 
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
     IChannelFactoryPtr channelFactory)
 {
-    auto discovery = New<TBalancingDiscovery>(
-        config,
-        channelFactory);
-    auto producer = BIND(&TBalancingDiscovery::Discover, discovery);
-    return CreateRoamingChannel(producer);
+    YCHECK(config);
+    YCHECK(channelFactory);
+
+    auto channelProvider = New<TBalancingChannelProvider>(config, channelFactory);
+    return CreateRoamingChannel(channelProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,9 +16,8 @@ class TRoamingChannel
     : public IChannel
 {
 public:
-    explicit TRoamingChannel(TChannelProducer producer)
-        : Producer_(std::move(producer))
-        , Terminated_(false)
+    explicit TRoamingChannel(IRoamingChannelProviderPtr provider)
+        : Provider_(std::move(provider))
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
@@ -25,9 +25,20 @@ public:
         return DefaultTimeout_;
     }
 
-    void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
+    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
     {
         DefaultTimeout_ = timeout;
+    }
+
+    virtual TYsonString GetEndpointDescription() const override
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (ChannelPromise_ && ChannelPromise_.IsSet() && ChannelPromise_.Get().IsOK()) {
+            return ChannelPromise_.Get().Value()->GetEndpointDescription();
+        } else {
+            return Provider_->GetEndpointDescription();
+        }
     }
 
     virtual void Send(
@@ -45,16 +56,16 @@ public:
 
             if (Terminated_) {
                 guard.Release();
-                responseHandler->OnError(TError(EErrorCode::TransportError, "Channel terminated"));
+                responseHandler->OnError(TError(NRpc::EErrorCode::TransportError, "Channel terminated"));
                 return;
             }
 
-            channelPromise = ChannelPromise;
+            channelPromise = ChannelPromise_;
             if (!channelPromise) {
-                channelPromise = ChannelPromise = NewPromise< TErrorOr<IChannelPtr> >();
+                channelPromise = ChannelPromise_ = NewPromise< TErrorOr<IChannelPtr> >();
                 guard.Release();
 
-                Producer_.Run(request).Subscribe(BIND(
+                Provider_->DiscoverChannel(request).Subscribe(BIND(
                     &TRoamingChannel::OnEndpointDiscovered,
                     MakeStrong(this),
                     channelPromise));
@@ -82,9 +93,9 @@ public:
                 return VoidFuture;
             }
 
-            channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
-            ChannelPromise.Reset();
-            TerminationError = error;
+            channel = ChannelPromise_ ? ChannelPromise_.TryGet() : Null;
+            ChannelPromise_.Reset();
+            TerminationError_ = error;
             Terminated_ = true;
         }
 
@@ -103,31 +114,31 @@ private:
         TResponseHandler(
             IClientResponseHandlerPtr underlyingHandler,
             TClosure onFailed)
-            : UnderlyingHandler(underlyingHandler)
-            , OnFailed(onFailed)
+            : UnderlyingHandler_(underlyingHandler)
+            , OnFailed_(onFailed)
         { }
 
         virtual void OnAcknowledgement() override
         {
-            UnderlyingHandler->OnAcknowledgement();
+            UnderlyingHandler_->OnAcknowledgement();
         }
 
         virtual void OnResponse(TSharedRefArray message) override
         {
-            UnderlyingHandler->OnResponse(message);
+            UnderlyingHandler_->OnResponse(message);
         }
 
         virtual void OnError(const TError& error) override
         {
-            UnderlyingHandler->OnError(error);
+            UnderlyingHandler_->OnError(error);
             if (IsRetriableError(error)) {
-                OnFailed.Run();
+                OnFailed_.Run();
             }
         }
 
     private:
-        IClientResponseHandlerPtr UnderlyingHandler;
-        TClosure OnFailed;
+        IClientResponseHandlerPtr UnderlyingHandler_;
+        TClosure OnFailed_;
 
     };
 
@@ -142,13 +153,13 @@ private:
             guard.Release();
             if (result.IsOK()) {
                 auto channel = result.Value();
-                channel->Terminate(TerminationError);
+                channel->Terminate(TerminationError_);
             }
             return;
         }
 
-        if (ChannelPromise == channelPromise && !result.IsOK()) {
-            ChannelPromise.Reset();
+        if (ChannelPromise_ == channelPromise && !result.IsOK()) {
+            ChannelPromise_.Reset();
         }
 
         guard.Release();
@@ -181,26 +192,26 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (ChannelPromise) {
-            auto currentChannel = ChannelPromise.TryGet();
+        if (ChannelPromise_) {
+            auto currentChannel = ChannelPromise_.TryGet();
             if (currentChannel && currentChannel->IsOK() && currentChannel->Value() == failedChannel) {
-                ChannelPromise.Reset();
+                ChannelPromise_.Reset();
             }
         }
     }
 
 
     TNullable<TDuration> DefaultTimeout_;
-    TChannelProducer Producer_;
+    IRoamingChannelProviderPtr Provider_;
 
     TSpinLock SpinLock;
-    volatile bool Terminated_;
-    TError TerminationError;
-    TPromise< TErrorOr<IChannelPtr> > ChannelPromise;
+    volatile bool Terminated_ = false;
+    TError TerminationError_;
+    TPromise<TErrorOr<IChannelPtr>> ChannelPromise_;
 
 };
 
-IChannelPtr CreateRoamingChannel(TChannelProducer producer)
+IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr producer)
 {
     return New<TRoamingChannel>(producer);
 }

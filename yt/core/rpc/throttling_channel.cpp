@@ -1,7 +1,7 @@
 #include "stdafx.h"
-#include "config.h"
-#include "public.h"
 #include "throttling_channel.h"
+#include "channel_detail.h"
+#include "config.h"
 
 #include <core/concurrency/public.h>
 #include <core/concurrency/throughput_throttler.h>
@@ -12,56 +12,38 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannel
-    : public IChannel
+    : public TChannelWrapper
 {
 public:
-    TThrottlingChannel(
-        TThrottlingChannelConfigPtr config,
-        IChannelPtr underlyingChannel)
-        : Config(config)
-        , UnderlyingChannel(underlyingChannel)
+    TThrottlingChannel(TThrottlingChannelConfigPtr config, IChannelPtr underlyingChannel)
+        : TChannelWrapper(std::move(underlyingChannel))
+        , Config_(config)
     {
         auto throttlerConfig = New<NConcurrency::TThroughputThrottlerConfig>();
         throttlerConfig->Period = TDuration::Seconds(1);
-        throttlerConfig->Limit = Config->RateLimit;
-        Throttler = CreateLimitedThrottler(throttlerConfig);
+        throttlerConfig->Limit = Config_->RateLimit;
+        Throttler_ = CreateLimitedThrottler(throttlerConfig);
     }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return UnderlyingChannel->GetDefaultTimeout();
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        UnderlyingChannel->SetDefaultTimeout(timeout);
-    }
-    
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
-        Throttler->Throttle(1).Subscribe(BIND(
+        Throttler_->Throttle(1).Subscribe(BIND(
             &IChannel::Send,
-            UnderlyingChannel,
+            UnderlyingChannel_,
             std::move(request),
             std::move(responseHandler),
             timeout,
             requestAck));
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
-    {
-        return UnderlyingChannel->Terminate(error);
-    }
-
 private:
-    TThrottlingChannelConfigPtr Config;
-    IChannelPtr UnderlyingChannel;
+    TThrottlingChannelConfigPtr Config_;
 
-    NConcurrency::IThroughputThrottlerPtr Throttler;
+    NConcurrency::IThroughputThrottlerPtr Throttler_;
 
 };
 

@@ -216,6 +216,7 @@ protected:
                     auto wrappedError = TError(
                         NRpc::EErrorCode::TransportError,
                         "Error accepting connection")
+                        << TErrorAttribute("address", ToString(clientAddress, false))
                         << TError::FromSystem(error);
                     LOG_WARNING(wrappedError);
                 }

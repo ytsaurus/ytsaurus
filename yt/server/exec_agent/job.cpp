@@ -378,7 +378,7 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
+            auto error = TError(NExecAgent::EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
                 << ex;
             THROW_ERROR error;
         }
@@ -738,12 +738,12 @@ private:
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed))
+            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed))
         {
             return MakeNullable(EAbortReason::Other);
-        } else if (resultError.FindMatching(EErrorCode::ResourceOverdraft)) {
+        } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return MakeNullable(EAbortReason::ResourceOverdraft);
-        } else if (resultError.FindMatching(EErrorCode::AbortByScheduler)) {
+        } else if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
             return MakeNullable(EAbortReason::Scheduler);
         }
 
