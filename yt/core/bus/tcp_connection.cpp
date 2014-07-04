@@ -70,10 +70,8 @@ TTcpConnection::TTcpConnection(
     , Handler_(handler)
     , Logger(BusLogger)
     , Profiler(BusProfiler)
-    , Port_(0)
     // NB: This produces a cycle, which gets broken in SyncFinalize.
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueued, MakeStrong(this)))
-    , MessageEnqueuedCallbackPending_(false)
     , ReadBuffer_(MinBatchReadSize)
     , TerminatedPromise_(NewPromise<TError>())
 {
@@ -90,19 +88,19 @@ TTcpConnection::TTcpConnection(
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YCHECK(Socket_ == INVALID_SOCKET);
-            AtomicSet(State_, EState::Resolving);
+            State_.store(EState::Resolving);
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket_ != INVALID_SOCKET);
-            AtomicSet(State_, EState::Opening);
+            State_.store(EState::Opening);
             break;
 
         default:
             YUNREACHABLE();
     }
 
-    WriteBuffers_.push_back(std::unique_ptr<TBlob>(new TBlob()));
+    WriteBuffers_.push_back(std::make_unique<TBlob>());
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
     UpdateConnectionCount(+1);
@@ -210,7 +208,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    AtomicSet(State_, EState::Open);
+    State_.store(EState::Open);
 
     LOG_DEBUG("Connection established");
 
@@ -271,7 +269,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitFd();
 
-    AtomicSet(State_, EState::Opening);
+    State_.store(EState::Opening);
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -280,11 +278,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    if (State_ == EState::Closed) {
+    if (State_.load() == EState::Closed) {
         return;
     }
 
-    AtomicSet(State_, EState::Closed);
+    State_.store(EState::Closed);
 
     // Stop all watchers.
     SocketWatcher_.reset();
@@ -430,19 +428,19 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
 
     QueuedMessages_.Enqueue(queuedMessage);
 
-    auto state = AtomicGet(State_);
+    auto state = State_.load();
     if (state == EState::Closed) {
         return MakeFuture(TError(
             NRpc::EErrorCode::TransportError,
             "Connection closed"));
     }
 
-    bool callbackPending = AtomicGet(MessageEnqueuedCallbackPending_);
-    if (!callbackPending &&
+    if (!MessageEnqueuedCallbackPending_.load(std::memory_order_relaxed) &&
         state != EState::Resolving &&
         state != EState::Opening)
     {
-        if (AtomicCas(&MessageEnqueuedCallbackPending_, true, false)) {
+        bool expected = false;
+        if (MessageEnqueuedCallbackPending_.compare_exchange_strong(expected, true)) {
             DispatcherThread_->GetInvoker()->Invoke(MessageEnqueuedCallback_);
         }
     }
@@ -484,7 +482,7 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(TError)>& callba
 void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State_ != EState::Closed);
+    YASSERT(State_.load() != EState::Closed);
 
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
@@ -507,7 +505,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
 
 void TTcpConnection::OnSocketRead()
 {
-    if (State_ == EState::Closed) {
+    if (State_.load() == EState::Closed) {
         return;
     }
 
@@ -715,13 +713,13 @@ void TTcpConnection::EnqueuePacket(
 
 void TTcpConnection::OnSocketWrite()
 {
-    if (State_ == EState::Closed) {
+    if (State_.load() == EState::Closed) {
         return;
     }
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
-    if (ConnectionType_ == EConnectionType::Client && State_ == EState::Opening) {
+    if (ConnectionType_ == EConnectionType::Client && State_.load() == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
@@ -1011,9 +1009,9 @@ void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
-    AtomicSet(MessageEnqueuedCallbackPending_, false);
+    MessageEnqueuedCallbackPending_.store(false);
 
-    if (State_ == EState::Closed) {
+    if (State_.load() == EState::Closed) {
         DiscardOutcomingMessages(TError(
             NRpc::EErrorCode::TransportError,
             "Connection closed"));
@@ -1075,7 +1073,7 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
 
 void TTcpConnection::UpdateSocketWatcher()
 {
-    if (State_ == EState::Open) {
+    if (State_.load() == EState::Open) {
         SocketWatcher_->set(HasUnsentData() ? ev::READ|ev::WRITE : ev::READ);
     }
 }
@@ -1084,7 +1082,7 @@ void TTcpConnection::OnTerminated()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
-    if (State_ == EState::Closed) {
+    if (State_.load() == EState::Closed) {
         return;
     }
 

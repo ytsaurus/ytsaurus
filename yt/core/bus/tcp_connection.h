@@ -17,9 +17,11 @@
 
 #include <contrib/libev/ev++.h>
 
-#ifndef _WIN32
+#ifndef _win_
     #include <sys/uio.h>
 #endif
+
+#include <atomic>
 
 namespace NYT {
 namespace NBus {
@@ -136,12 +138,12 @@ private:
     NProfiling::TProfiler Profiler;
     
     // Only used by client sockets.
-    int Port_;
+    int Port_ = 0;
 
-    TAtomic State_;
+    std::atomic<EState> State_;
 
     TClosure MessageEnqueuedCallback_;
-    TAtomic MessageEnqueuedCallbackPending_;
+    std::atomic<bool> MessageEnqueuedCallbackPending_ = false;
 
     TSpinLock TerminationSpinLock_;
     TError TerminationError_;
