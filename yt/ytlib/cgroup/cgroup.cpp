@@ -251,11 +251,12 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
         name))
 { }
 
+// This method SHOULD work fine in forked process
+// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask()
 {
 #ifdef _linux_
     auto pid = getpid();
-    LOG_INFO("Adding process %d to cgroup %s", pid, ~FullPath_.Quote());
 
     auto path = NFS::CombinePaths(FullPath_, "tasks");
     TFileOutput output(TFile(path, OpenMode::ForAppend));
