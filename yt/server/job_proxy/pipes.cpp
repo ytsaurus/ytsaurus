@@ -27,8 +27,6 @@
     #include <io.h>
 #endif
 
-#include <array>
-
 namespace NYT {
 namespace NJobProxy {
 
