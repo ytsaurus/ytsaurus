@@ -195,8 +195,7 @@ public:
     void ParseMapFragment(char endSymbol)
     {
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-        while (ch != endSymbol)
-        {
+        while (ch != endSymbol) {
             ParseKey(ch);
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             if (ch == KeyValueSeparatorSymbol) {
@@ -232,8 +231,7 @@ public:
     void ParseListFragment(char endSymbol)
     {
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-        while (ch != endSymbol)
-        {
+        while (ch != endSymbol) {
             Consumer->OnListItem();
             ParseNode<AllowFinish>(ch);
             ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
