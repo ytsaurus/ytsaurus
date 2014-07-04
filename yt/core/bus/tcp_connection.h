@@ -141,7 +141,7 @@ private:
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<EState> State_;
+    std::atomic<int> State_; // EState actually
 
     TClosure MessageEnqueuedCallback_;
     std::atomic<bool> MessageEnqueuedCallbackPending_;
