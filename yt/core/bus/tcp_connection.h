@@ -144,7 +144,7 @@ private:
     std::atomic<EState> State_;
 
     TClosure MessageEnqueuedCallback_;
-    std::atomic<bool> MessageEnqueuedCallbackPending_ = false;
+    std::atomic<bool> MessageEnqueuedCallbackPending_;
 
     TSpinLock TerminationSpinLock_;
     TError TerminationError_;

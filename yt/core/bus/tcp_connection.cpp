@@ -104,6 +104,8 @@ TTcpConnection::TTcpConnection(
             YUNREACHABLE();
     }
 
+    MessageEnqueuedCallbackPending_.store(false);
+
     WriteBuffers_.push_back(std::make_unique<TBlob>());
     WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
 
