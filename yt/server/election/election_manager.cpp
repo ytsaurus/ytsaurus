@@ -510,9 +510,7 @@ private:
             // His status must be present in the table by the above checks.
             const auto& candidateStatus = StatusTable[bestCandidate->VoteId];
             Owner->StartVoteFor(candidateStatus.VoteId, candidateStatus.VoteEpochId);
-        }
-        else {
-            Owner->Reset();
+        } else {
             Owner->StartVoteForSelf();
         }
     }
@@ -758,7 +756,11 @@ void TElectionManager::TImpl::StartVoteForSelf()
     VoteId = CellManager->GetSelfId();
     VoteEpochId = TGuid::Create();
 
-    YCHECK(!EpochContext);
+    if (EpochContext) {
+        EpochContext->CancelableContext->Cancel();
+        EpochContext.Reset();
+    }
+
     EpochContext = New<TEpochContext>();
     ControlEpochInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
 
