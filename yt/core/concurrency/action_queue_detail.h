@@ -81,6 +81,8 @@ public:
     int GetSize() const;
     bool IsEmpty() const;
 
+    bool IsRunning() const;
+
 private:
     TEventCount* EventCount;
     TThreadId ThreadId;
@@ -92,7 +94,7 @@ private:
 
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter DequeueCounter;
-    TAtomic QueueSize;
+    std::atomic<int> QueueSize;
     NProfiling::TAggregateCounter QueueSizeCounter;
     NProfiling::TAggregateCounter WaitTimeCounter;
     NProfiling::TAggregateCounter ExecTimeCounter;

@@ -64,7 +64,7 @@ void TInvokerQueue::Invoke(const TClosure& callback)
         return;
     }
 
-    AtomicIncrement(QueueSize);
+    ++QueueSize;
     Profiler.Increment(EnqueueCounter);
 
     LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
@@ -87,6 +87,11 @@ TThreadId TInvokerQueue::GetThreadId() const
 void TInvokerQueue::Shutdown()
 {
     Running.store(false, std::memory_order_relaxed);
+}
+
+bool TInvokerQueue::IsRunning() const
+{
+    return Running;
 }
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
@@ -124,7 +129,7 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     if (action->Finished)
         return;
 
-    auto size = AtomicDecrement(QueueSize);
+    int size = --QueueSize;
     Profiler.Aggregate(QueueSizeCounter, size);
 
     auto endedAt = GetCpuInstant();
@@ -140,7 +145,7 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 
 int TInvokerQueue::GetSize() const
 {
-    return static_cast<int>(QueueSize);
+    return QueueSize.load();
 }
 
 bool TInvokerQueue::IsEmpty() const
