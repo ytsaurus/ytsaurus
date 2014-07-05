@@ -21,6 +21,9 @@ public:
 public:
     explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
 
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
+
     NChunkServer::TChunk* GetTrailingChunk() const;
     bool IsSealed() const;
 
