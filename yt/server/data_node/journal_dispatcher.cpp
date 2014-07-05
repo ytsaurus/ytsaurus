@@ -247,16 +247,12 @@ private:
             LOG_FATAL(flushError);
         }
 
-        auto sealResult = MultiplexedChangelog_->Seal(MultiplexedChangelog_->GetRecordCount());
-        auto sealError = WaitFor(sealResult);
-        if (!sealError.IsOK()) {
-            LOG_FATAL(sealError);
-        }
+        auto changelog = CreateMultiplexedChangelog(newId);
 
         LOG_INFO("Finished rotating multiplexed changelog %d",
             oldId);
 
-        return CreateMultiplexedChangelog(newId);
+        return changelog;
     }
 
     void WaitAndMarkMultplexedChangelogClean(
@@ -397,7 +393,7 @@ public:
     {
         if (EnableMultiplexing_) {
             int recordId = UnderlyingChangelog_->GetRecordCount();
-            LastAppendResult_ = UnderlyingChangelog_->Append(data);
+            LastSplitAppendResult_ = UnderlyingChangelog_->Append(data);
 
             // Construct the multiplexed data record.
             TMultiplexedRecord record;
@@ -441,11 +437,11 @@ public:
         return UnderlyingChangelog_->Unseal();
     }
 
-    TAsyncError GetLastAppendResult()
+    TAsyncError GetLastSplitAppendResult() const
     {
         YASSERT(EnableMultiplexing_);
-        YASSERT(LastAppendResult_);
-        return LastAppendResult_;
+        YASSERT(LastSplitAppendResult_);
+        return LastSplitAppendResult_;
     }
 
 private:
@@ -453,7 +449,7 @@ private:
     IChangelogPtr UnderlyingChangelog_;
     bool EnableMultiplexing_;
 
-    TAsyncError LastAppendResult_;
+    TAsyncError LastSplitAppendResult_;
 
 };
 
@@ -534,11 +530,6 @@ private:
 
         int startRecordId = 0;
         int recordCount = multiplexedChangelog->GetRecordCount();
-            
-        if (!multiplexedChangelog->IsSealed()) {
-            multiplexedChangelog->Seal(recordCount).Get();
-        }
-            
         while (startRecordId < recordCount) {
             auto records = multiplexedChangelog->Read(
                 startRecordId,
