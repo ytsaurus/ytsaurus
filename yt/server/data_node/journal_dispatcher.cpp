@@ -804,7 +804,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         std::vector<TAsyncError> cleanResults;
         cleanResults.push_back(multiplexedFlushResult);
         for (auto changelog : ActiveChangelogs_) {
-            cleanResults.push_back(changelog->GetLastAppendResult());
+            cleanResults.push_back(changelog->GetLastSplitAppendResult());
         }
         ActiveChangelogs_.clear();
 
