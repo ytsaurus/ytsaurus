@@ -365,6 +365,9 @@ private:
 
     void ProcessVote(TPeerId id, const TStatus& status)
     {
+        if (status.Priority < 0)
+            return;
+
         YCHECK(id != InvalidPeerId);
         StatusTable[id] = status;
 
