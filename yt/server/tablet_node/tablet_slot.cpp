@@ -463,7 +463,8 @@ private:
             .Item("state").Value(GetControlState())
             .DoIf(GetControlState() != EPeerState::None, [&] (TFluentMap fluent) {
                 fluent
-                    .Item("cell_guid").Value(CellGuid_);
+                    .Item("cell_guid").Value(CellGuid_)
+                    .Item("options").Value(*Options_);
             });
     }
 
