@@ -904,8 +904,7 @@ private:
                 slotInfo.config_version());
 
             // Request slot reconfiguration if states are appropriate and versions differ.
-            if (slot.PeerState != EPeerState::Initializing &&
-                slot.Cell->GetState() == ETabletCellState::Running &&
+            if (slot.Cell->GetState() == ETabletCellState::Running &&
                 slotInfo.config_version() != slot.Cell->GetConfigVersion())
             {
                 requestConfigureSlot(slot.Cell);

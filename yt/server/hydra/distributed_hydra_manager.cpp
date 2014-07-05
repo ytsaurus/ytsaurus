@@ -63,25 +63,27 @@ public:
         virtual void OnStartLeading() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartLeading, Owner_));
+                BIND(&TDistributedHydraManager::OnElectionStartLeading, MakeStrong(Owner_)));
         }
 
         virtual void OnStopLeading() override
         {
+            Owner_->ComputeReachableVersion();
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopLeading, Owner_));
+                BIND(&TDistributedHydraManager::OnElectionStopLeading, MakeStrong(Owner_)));
         }
 
         virtual void OnStartFollowing() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartFollowing, Owner_));
+                BIND(&TDistributedHydraManager::OnElectionStartFollowing, MakeStrong(Owner_)));
         }
 
         virtual void OnStopFollowing() override
         {
+            Owner_->ComputeReachableVersion();
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopFollowing, Owner_));
+                BIND(&TDistributedHydraManager::OnElectionStopFollowing, MakeStrong(Owner_)));
         }
 
         virtual TPeerPriority GetPriority() override
@@ -91,7 +93,8 @@ public:
 
         virtual Stroka FormatPriority(TPeerPriority priority) override
         {
-            return ToString(TVersion::FromRevision(priority));
+            auto version = TVersion::FromRevision(priority);
+            return version.IsValid() ? ToString(version) : Stroka("invalid");
         }
 
     private:
@@ -705,17 +708,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(ControlState_ == EPeerState::None);
-        ControlState_ = EPeerState::Initializing;
-
-        auto reachableVersion = WaitFor(ComputeReachableVersion());
-        DecoratedAutomaton_->SetLoggedVersion(reachableVersion);
-
-        // Check if we were canceled while initializing.
-        if (ControlState_ != EPeerState::Initializing)
-            return;
-
         ControlState_ = EPeerState::Elections;
+
+        ComputeReachableVersion();
 
         DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
             &TDecoratedAutomaton::Clear,
@@ -761,20 +756,24 @@ private:
     }
 
 
-    TFuture<TVersion> ComputeReachableVersion()
+    void ComputeReachableVersion()
     {
-        return BIND(&TDistributedHydraManager::DoComputeReachableVersion, MakeStrong(this))
-            .AsyncVia(ControlInvoker_)
-            .Run();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        DecoratedAutomaton_->SetLoggedVersion(InvalidVersion);
+
+        ControlInvoker_->Invoke(BIND(
+            &TDistributedHydraManager::DoComputeReachableVersion,
+            MakeStrong(this)));
     }
 
-    TVersion DoComputeReachableVersion()
+    void DoComputeReachableVersion()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Computing reachable version");
 
-        while (true) {
+        while (ControlState_ != EPeerState::Stopped) {
             try {
                 auto maxSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
                 THROW_ERROR_EXCEPTION_IF_FAILED(maxSnapshotIdOrError);
@@ -803,7 +802,10 @@ private:
                 }
 
                 LOG_INFO("Reachable version is %s", ~ToString(version));
-                return version;
+
+                YCHECK(DecoratedAutomaton_->GetLoggedVersion() == InvalidVersion);
+                DecoratedAutomaton_->SetLoggedVersion(version);
+                break;
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Error computing reachable version, backing off and retrying");
                 WaitFor(MakeDelayed(Config_->BackoffTime));
@@ -982,7 +984,7 @@ private:
 
         YCHECK(ControlState_ == EPeerState::Leading|| ControlState_ == EPeerState::LeaderRecovery);
         ControlState_ = EPeerState::Elections;
-
+        
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

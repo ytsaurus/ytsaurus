@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/hydra )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/version.cpp
   ${BASE}/peer_channel.cpp
   ${BASE}/rpc_helpers.cpp
 )

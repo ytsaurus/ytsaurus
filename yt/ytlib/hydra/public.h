@@ -17,13 +17,12 @@ DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
 DECLARE_ENUM(EPeerState,
     ((None)                       (0))
-    ((Initializing)               (1))
-    ((Stopped)                    (2))
-    ((Elections)                  (3))
-    ((FollowerRecovery)           (4))
-    ((Following)                  (5))
-    ((LeaderRecovery)             (6))
-    ((Leading)                    (7))
+    ((Stopped)                    (1))
+    ((Elections)                  (2))
+    ((FollowerRecovery)           (3))
+    ((Following)                  (4))
+    ((LeaderRecovery)             (5))
+    ((Leading)                    (6))
 );
 
 DECLARE_ENUM(EErrorCode,

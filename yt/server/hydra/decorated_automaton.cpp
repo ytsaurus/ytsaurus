@@ -275,6 +275,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SnapshotStore_(snapshotStore)
     , ChangelogStore_(changelogStore)
     , MutationContext_(nullptr)
+    , LoggedVersion_(InvalidVersion)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
     , Profiler(profiler)

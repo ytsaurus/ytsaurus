@@ -27,69 +27,13 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
+    bool IsValid() const;
+
 };
 
+extern const TVersion InvalidVersion;
+
 Stroka ToString(TVersion version);
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TVersion::TVersion()
-    : SegmentId(0)
-    , RecordId(0)
-{ }
-
-inline TVersion::TVersion(i32 segmentId, i32 recordId)
-    : SegmentId(segmentId)
-    , RecordId(recordId)
-{ }
-
-inline bool TVersion::operator < (TVersion other) const
-{
-    return
-        SegmentId < other.SegmentId ||
-        (SegmentId == other.SegmentId && RecordId < other.RecordId);
-}
-
-inline bool TVersion::operator == (TVersion other) const
-{
-    return SegmentId == other.SegmentId && RecordId == other.RecordId;
-}
-
-inline bool TVersion::operator != (TVersion other) const
-{
-    return !(*this == other);
-}
-
-inline bool TVersion::operator > (TVersion other) const
-{
-    return !(*this <= other);
-}
-
-inline bool TVersion::operator <= (TVersion other) const
-{
-    return *this < other || *this == other;
-}
-
-inline bool TVersion::operator >= (TVersion other) const
-{
-    return !(*this < other);
-}
-
-inline i64 TVersion::ToRevision() const
-{
-    return (static_cast<i64>(SegmentId) << 32) +
-           static_cast<i64>(RecordId);
-}
-
-inline TVersion TVersion::FromRevision(i64 revision)
-{
-    return TVersion(revision >> 32, revision & 0xffffffff);
-}
-
-inline Stroka ToString(TVersion version)
-{
-    return Sprintf("%d:%d", version.SegmentId, version.RecordId);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
