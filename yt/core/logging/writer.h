@@ -10,6 +10,8 @@
 #include <util/system/file.h>
 #include <util/stream/file.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NLog {
 
@@ -79,15 +81,13 @@ public:
     virtual void CheckSpace(i64 minSpace) override;
 
 protected:
-    static const size_t BufferSize = 1 << 16;
-
     void ReopenFile();
     void EnsureInitialized(bool writeTrailingNewline = false);
 
     Stroka FileName_;
     bool Initialized_;
 
-    TAtomic NotEnoughSpace_;
+    std::atomic<bool> Disabled_;
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TBufferedFileOutput> FileOutput_;

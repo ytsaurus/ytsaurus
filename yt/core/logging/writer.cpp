@@ -14,6 +14,8 @@ namespace NLog {
 
 static TLogger Logger(SystemLoggingCategory);
 
+static const size_t BufferSize = 1 << 16;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -98,7 +100,7 @@ TFileLogWriter::TFileLogWriter(const Stroka& fileName)
     : FileName_(fileName)
     , Initialized_(false)
 {
-    AtomicSet(NotEnoughSpace_, false);
+    Disabled_.store(false);
     EnsureInitialized();
 }
 
@@ -107,19 +109,16 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(FileName_);
         if (statistics.AvailableSpace < minSpace) {
-            AtomicSet(NotEnoughSpace_, true);
-            LOG_ERROR(
-                "Disable log writer: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
+            Disabled_.store(true);
+            LOG_ERROR("Logging disabled: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
                 ~FileName_,
                 statistics.AvailableSpace,
                 minSpace);
         }
     } catch (const std::exception& ex) {
-        AtomicSet(NotEnoughSpace_, true);
-            LOG_ERROR(
-                ex,
-                "Disable log writer: space check failed (FileName: %s)",
-                ~FileName_);
+        Disabled_.store(true);
+        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %s)",
+            ~FileName_);
     }
 }
 
@@ -140,14 +139,14 @@ void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
     Initialized_ = true;
 
-    if (NotEnoughSpace_) {
+    if (Disabled_.load()) {
         return;
     }
 
     try {
         ReopenFile();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName_.Quote());
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName_);
         return;
     }
 
@@ -161,18 +160,18 @@ void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
 
 void TFileLogWriter::Write(const TLogEvent& event)
 {
-    if (Stream_ && !NotEnoughSpace_) {
+    if (Stream_ && !Disabled_.load()) {
         TStreamLogWriter::Write(event);
     }
 }
 
 void TFileLogWriter::Flush()
 {
-    if (Stream_ && !NotEnoughSpace_) {
+    if (Stream_ && !Disabled_.load()) {
         try {
             FileOutput_->Flush();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName_.Quote());
+            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName_);
         }
     }
 }
@@ -185,7 +184,7 @@ void TFileLogWriter::Reload()
         try {
             File_->Close();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to close log file %s", ~FileName_.Quote());
+            LOG_ERROR(ex, "Failed to close log file %s", ~FileName_);
         }
     }
 
