@@ -32,7 +32,7 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     , WriteQuorum_(0)
 { }
 
-void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
+void TJournalNode::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
 
@@ -41,7 +41,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, WriteQuorum_);
 }
 
-void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
+void TJournalNode::Load(NCellMaster::TLoadContext& context)
 {
     TChunkOwnerBase::Load(context);
 
