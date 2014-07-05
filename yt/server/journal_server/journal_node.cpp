@@ -7,6 +7,7 @@
 #include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NJournalServer {
@@ -30,6 +31,24 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     , ReadQuorum_(0)
     , WriteQuorum_(0)
 { }
+
+void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
+{
+    TChunkOwnerBase::Save(context);
+
+    using NYT::Save;
+    Save(context, ReadQuorum_);
+    Save(context, WriteQuorum_);
+}
+
+void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
+{
+    TChunkOwnerBase::Load(context);
+
+    using NYT::Load;
+    Load(context, ReadQuorum_);
+    Load(context, WriteQuorum_);
+}
 
 TChunk* TJournalNode::GetTrailingChunk() const
 {
