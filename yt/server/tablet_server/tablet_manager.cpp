@@ -1240,7 +1240,7 @@ private:
                 detachedRowCount);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING(error, "Error updating tablet stores (TabletId: %s)",
+            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %s)",
                 ~ToString(tabletId));
             ToProto(response.mutable_error(), error);
         }
