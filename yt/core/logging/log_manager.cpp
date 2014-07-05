@@ -7,6 +7,7 @@
 #include <core/misc/property.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/raw_formatter.h>
+#include <core/misc/hash.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -20,7 +21,7 @@
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
-#include <util/generic/map.h>
+#include <util/system/yield.h>
 
 #include <atomic>
 
@@ -33,7 +34,6 @@
 #ifdef _linux_
     #include <sys/inotify.h>
 #endif
-
 
 namespace NYT {
 namespace NLog {
@@ -125,8 +125,8 @@ public:
         TClosure callback)
         : Fd_(handle->GetFd())
         , Wd_(-1)
-        , Path(path)
-        , Callback(std::move(callback))
+        , Path_(path)
+        , Callback_(std::move(callback))
 
     {
         Fd_ = handle->GetFd();
@@ -145,7 +145,7 @@ public:
 
     void Run()
     {
-        Callback.Run();
+        Callback_.Run();
         // Reinitialize watch to hook to the newly created file.
         DropWatch();
         CreateWatch();
@@ -158,20 +158,17 @@ private:
 #ifdef _linux_
         Wd_ = inotify_add_watch(
             Fd_,
-            Path.c_str(),
+            Path_.c_str(),
             IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
 
         if (Wd_ < 0) {
-            LOG_ERROR(
-                TError::FromSystem(errno),
-                "Unable to register watch for path %s",
-                Path.Quote().c_str());
+            LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %s",
+                ~Path_);
             Wd_ = -1;
         } else if (Wd_ > 0) {
-            LOG_TRACE(
-                "Registered watch %d for path %s",
+            LOG_TRACE("Registered watch %d for %s",
                 Wd_,
-                Path.Quote().c_str());
+                ~Path_);
         } else {
             YUNREACHABLE();
         }
@@ -184,10 +181,9 @@ private:
     {
 #ifdef _linux_
         if (Wd_ > 0) {
-            LOG_TRACE(
-                "Unregistering watch %d for path %s",
+            LOG_TRACE("Unregistering watch %d for %s",
                 Wd_,
-                Path.Quote().c_str());
+                ~Path_);
             inotify_rm_watch(Fd_, Wd_);
         }
 #endif
@@ -195,8 +191,9 @@ private:
     }
 
 private:
-    Stroka Path;
-    TClosure Callback;
+    Stroka Path_;
+    TClosure Callback_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,36 +214,36 @@ class TLogManager::TImpl
 {
 public:
     TImpl()
-        : WasShutdown(false)
-        , EventQueue(New<TInvokerQueue>(
-            &EventCount,
+        : EventQueue_(New<TInvokerQueue>(
+            &EventCount_,
             NProfiling::EmptyTagIds,
             false,
             false))
-        , LoggingThread(New<TThread>(this))
+        , LoggingThread_(New<TThread>(this))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
-        , Version(-1)
-        , EnqueueCounter("/enqueue_rate")
-        , WriteCounter("/write_rate")
-        , BacklogCounter("/backlog")
-        , Suspended(false)
-        , ReopenEnqueued(false)
+        , Version_(-1)
+        , EnqueueCounter_("/enqueue_rate")
+        , WriteCounter_("/write_rate")
+        , BacklogCounter_("/backlog")
+        , Suspended_(false)
+        , ReopenRequested_(false)
+        , ShutdownRequested_(false)
     {
-        SystemWriters.push_back(New<TStderrLogWriter>());
+        SystemWriters_.push_back(New<TStderrLogWriter>());
         DoUpdateConfig(TLogConfig::CreateDefault(), false);
-        Writers.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
+        Writers_.insert(std::make_pair(DefaultStderrWriterName, New<TStderrLogWriter>()));
 
-        LoggingThread->Start();
-        EventQueue->SetThreadId(LoggingThread->GetId());
+        LoggingThread_->Start();
+        EventQueue_->SetThreadId(LoggingThread_->GetId());
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (LoggingThread->IsRunning()) {
+        if (LoggingThread_->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
-            ConfigsToUpdate.Enqueue(config);
-            EventCount.Notify();
+            ConfigsToUpdate_.Enqueue(config);
+            EventCount_.Notify();
         }
     }
 
@@ -264,9 +261,8 @@ public:
 
     void Shutdown()
     {
-        WasShutdown = true;
-        EventQueue->Shutdown();
-        LoggingThread->Shutdown();
+        EventQueue_->Shutdown();
+        LoggingThread_->Shutdown();
         FlushWriters();
     }
 
@@ -274,17 +270,17 @@ public:
      * In some cases (when configuration is being updated at the same time),
      * the actual version is greater than the version returned by this method.
      */
-    int GetVersion()
+    int GetVersion() const
     {
-        return Version;
+        return Version_;
     }
 
     ELogLevel GetMinLevel(const Stroka& category) const
     {
-        TGuard<TSpinLock> guard(&SpinLock);
+        TGuard<TSpinLock> guard(&SpinLock_);
 
         ELogLevel level = ELogLevel::Maximum;
-        for (const auto& rule : Config->Rules) {
+        for (const auto& rule : Config_->Rules) {
             if (rule->IsApplicable(category)) {
                 level = Min(level, rule->MinLevel);
             }
@@ -294,7 +290,23 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
+        if (ShutdownRequested_) {
+            return;
+        }
+
         if (event.Level == ELogLevel::Fatal) {
+            ShutdownRequested_ = true;
+
+            // Add fatal message to log and notify event log queue.
+            LoggingProfiler.Increment(EnqueueCounter_);
+            LogEventQueue_.Enqueue(event);
+
+            // Waiting for release log queue
+            while (!LogEventQueue_.IsEmpty() && EventQueue_->IsRunning()) {
+                EventCount_.Notify();
+                SchedYield();
+            }
+
             // Flush everything and die.
             Shutdown();
 
@@ -316,25 +328,25 @@ public:
             std::terminate();
         }
 
-        if (!LoggingThread->IsRunning() || Suspended) {
+        if (!LoggingThread_->IsRunning() || Suspended_) {
             return;
         }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter);
-        LoggingProfiler.Increment(EnqueueCounter);
-        LogEventQueue.Enqueue(std::move(event));
-        EventCount.Notify();
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter_);
+        LoggingProfiler.Increment(EnqueueCounter_);
+        LogEventQueue_.Enqueue(std::move(event));
+        EventCount_.Notify();
 
-        if (!Suspended && backlogSize == Config->HighBacklogWatermark) {
+        if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %d, logging suspended",
-                Config->HighBacklogWatermark);
-            Suspended = true;
+                Config_->HighBacklogWatermark);
+            Suspended_ = true;
         }
     }
 
     void Reopen()
     {
-        ReopenEnqueued = true;
+        ReopenRequested_ = true;
     }
 
 private:
@@ -344,16 +356,16 @@ private:
     public:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
-                &owner->EventCount,
+                &owner->EventCount_,
                 "Logging",
                 NProfiling::EmptyTagIds,
                 false,
                 false)
-            , Owner(owner)
+            , Owner_(owner)
         { }
 
     private:
-        TImpl* Owner;
+        TImpl* Owner_;
 
         virtual void OnThreadStart() override
         {
@@ -370,18 +382,18 @@ private:
             sigemptyset(&sa.sa_mask);
             sa.sa_handler = &ReloadSignalHandler;
 
-            YCHECK(sigaction(SIGHUP, &sa, NULL) == 0);
+            YCHECK(sigaction(SIGHUP, &sa, nullptr) == 0);
 #endif
         }
 
         virtual EBeginExecuteResult BeginExecute() override
         {
-            return Owner->BeginExecute();
+            return Owner_->BeginExecute();
         }
 
         virtual void EndExecute() override
         {
-            Owner->EndExecute();
+            Owner_->EndExecute();
         }
 
     };
@@ -391,28 +403,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        auto result = EventQueue->BeginExecute(&CurrentAction);
+        auto result = EventQueue_->BeginExecute(&CurrentAction_);
         if (result != EBeginExecuteResult::QueueEmpty) {
             return result;
         }
 
         bool configsUpdated = false;
         TLogConfigPtr config;
-        while (ConfigsToUpdate.Dequeue(&config)) {
+        while (ConfigsToUpdate_.Dequeue(&config)) {
             DoUpdateConfig(config);
             configsUpdated = true;
         }
 
         int eventsWritten = 0;
         TLogEvent event;
-        while (LogEventQueue.Dequeue(&event)) {
+        while (LogEventQueue_.Dequeue(&event)) {
             // To avoid starvation of config update
-            while (ConfigsToUpdate.Dequeue(&config)) {
+            while (ConfigsToUpdate_.Dequeue(&config)) {
                 DoUpdateConfig(config);
             }
 
-            if (ReopenEnqueued) {
-                ReopenEnqueued = false;
+            if (ReopenRequested_) {
+                ReopenRequested_ = false;
                 ReloadWriters();
             }
 
@@ -420,19 +432,19 @@ private:
             ++eventsWritten;
         }
 
-        int backlogSize = LoggingProfiler.Increment(BacklogCounter, -eventsWritten);
-        if (Suspended && backlogSize < Config->LowBacklogWatermark) {
-            Suspended = false;
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
+        if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
+            Suspended_ = false;
             LOG_INFO("Backlog size has dropped below low watermark %d, logging resumed",
-                Config->LowBacklogWatermark);
+                Config_->LowBacklogWatermark);
         }
 
-        if (eventsWritten > 0 && !Config->FlushPeriod) {
+        if (eventsWritten > 0 && !Config_->FlushPeriod) {
             FlushWriters();
         }
 
         if (configsUpdated || eventsWritten > 0) {
-            EventCount.CancelWait();
+            EventCount_.CancelWait();
             return EBeginExecuteResult::Success;
         } else {
             return EBeginExecuteResult::QueueEmpty;
@@ -443,7 +455,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        EventQueue->EndExecute(&CurrentAction);
+        EventQueue_->EndExecute(&CurrentAction_);
     }
 
     ILogWriters GetWriters(const TLogEvent& event)
@@ -451,29 +463,29 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         if (event.Category == SystemLoggingCategory) {
-            return SystemWriters;
+            return SystemWriters_;
         } else {
             ILogWriters writers;
 
             std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
-            auto it = CachedWriters.find(cacheKey);
-            if (it != CachedWriters.end())
+            auto it = CachedWriters_.find(cacheKey);
+            if (it != CachedWriters_.end())
                 return it->second;
 
             yhash_set<Stroka> writerIds;
-            for (const auto& rule : Config->Rules) {
+            for (const auto& rule : Config_->Rules) {
                 if (rule->IsApplicable(event.Category, event.Level)) {
                     writerIds.insert(rule->Writers.begin(), rule->Writers.end());
                 }
             }
 
             for (const Stroka& writerId : writerIds) {
-                auto writerIt = Writers.find(writerId);
-                YASSERT(writerIt != Writers.end());
+                auto writerIt = Writers_.find(writerId);
+                YASSERT(writerIt != Writers_.end());
                 writers.push_back(writerIt->second);
             }
 
-            YCHECK(CachedWriters.insert(std::make_pair(cacheKey, writers)).second);
+            YCHECK(CachedWriters_.insert(std::make_pair(cacheKey, writers)).second);
 
             return writers;
         }
@@ -484,7 +496,7 @@ private:
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
         for (auto& writer : GetWriters(event)) {
-            LoggingProfiler.Increment(WriteCounter);
+            LoggingProfiler.Increment(WriteCounter_);
             writer->Write(event);
         }
     }
@@ -492,13 +504,13 @@ private:
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
     {
 #ifdef _linux_
-        if (Config->WatchPeriod) {
-            if (!NotificationHandle) {
-                NotificationHandle.reset(new TNotificationHandle());
+        if (Config_->WatchPeriod) {
+            if (!NotificationHandle_) {
+                NotificationHandle_.reset(new TNotificationHandle());
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
-                    NotificationHandle.get(),
+                    NotificationHandle_.get(),
                     fileName.c_str(),
                     BIND(&ILogWriter::Reload, writer)));
         }
@@ -515,15 +527,15 @@ private:
         FlushWriters();
 
         {
-            TGuard<TSpinLock> guard(&SpinLock);
+            TGuard<TSpinLock> guard(&SpinLock_);
 
-            Writers.clear();
-            CachedWriters.clear();
+            Writers_.clear();
+            CachedWriters_.clear();
 
-            Config = config;
+            Config_ = config;
         }
 
-        for (const auto& pair : Config->WriterConfigs) {
+        for (const auto& pair : Config_->WriterConfigs) {
             const auto& name = pair.first;
             const auto& config = pair.second;
 
@@ -545,78 +557,78 @@ private:
                     YUNREACHABLE();
             }
 
-            YCHECK(Writers.insert(std::make_pair(name, std::move(writer))).second);
+            YCHECK(Writers_.insert(std::make_pair(name, std::move(writer))).second);
 
             if (watch) {
                 if (watch->GetWd() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex.insert(
+                    YCHECK(NotificationWatchesIndex_.insert(
                         std::make_pair(watch->GetWd(), watch.get())).second);
                 }
-                NotificationWatches.emplace_back(std::move(watch));
+                NotificationWatches_.emplace_back(std::move(watch));
             }
         }
 
-        Version++;
+        Version_++;
 
-        if (FlushExecutor) {
-            FlushExecutor->Stop();
-            FlushExecutor.Reset();
+        if (FlushExecutor_) {
+            FlushExecutor_->Stop();
+            FlushExecutor_.Reset();
         }
 
-        if (WatchExecutor) {
-            WatchExecutor->Stop();
-            WatchExecutor.Reset();
+        if (WatchExecutor_) {
+            WatchExecutor_->Stop();
+            WatchExecutor_.Reset();
         }
 
-        auto flushPeriod = Config->FlushPeriod;
+        auto flushPeriod = Config_->FlushPeriod;
         if (flushPeriod) {
-            FlushExecutor = New<TPeriodicExecutor>(
-                EventQueue,
+            FlushExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
                 BIND(&TImpl::FlushWriters, MakeStrong(this)),
                 *flushPeriod);
-            FlushExecutor->Start();
+            FlushExecutor_->Start();
         }
 
-        auto watchPeriod = Config->WatchPeriod;
+        auto watchPeriod = Config_->WatchPeriod;
         if (watchPeriod) {
-            WatchExecutor = New<TPeriodicExecutor>(
-                EventQueue,
+            WatchExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
                 BIND(&TImpl::WatchWriters, MakeStrong(this)),
                 TDuration::MilliSeconds(1000));
-            WatchExecutor->Start();
+            WatchExecutor_->Start();
         }
 
-        auto checkSpacePeriod = Config->CheckSpacePeriod;
+        auto checkSpacePeriod = Config_->CheckSpacePeriod;
         if (checkSpacePeriod) {
-            CheckSpaceExecutor = New<TPeriodicExecutor>(
-                EventQueue,
+            CheckSpaceExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
                 BIND(&TImpl::CheckSpace, MakeStrong(this)),
                 *checkSpacePeriod);
-            CheckSpaceExecutor->Start();
+            CheckSpaceExecutor_->Start();
         }
     }
 
     void FlushWriters()
     {
-        for (auto& pair : Writers) {
+        for (auto& pair : Writers_) {
             pair.second->Flush();
         }
     }
 
     void ReloadWriters()
     {
-        Version++;
-        for (auto& pair : Writers) {
+        Version_++;
+        for (auto& pair : Writers_) {
             pair.second->Reload();
         }
     }
 
     void CheckSpace()
     {
-        for (auto& pair : Writers) {
-            pair.second->CheckSpace(Config->MinDiskSpace);
+        for (auto& pair : Writers_) {
+            pair.second->CheckSpace(Config_->MinDiskSpace);
         }
     }
 
@@ -624,27 +636,27 @@ private:
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
 
-        if (!NotificationHandle)
+        if (!NotificationHandle_)
             return;
 
         int previousWd = -1, currentWd = -1;
-        while ((currentWd = NotificationHandle->Poll()) > 0) {
+        while ((currentWd = NotificationHandle_->Poll()) > 0) {
             if (currentWd == previousWd) {
                 continue;
             }
-            auto&& it = NotificationWatchesIndex.find(currentWd);
-            auto&& jt = NotificationWatchesIndex.end();
+            auto&& it = NotificationWatchesIndex_.find(currentWd);
+            auto&& jt = NotificationWatchesIndex_.end();
             YCHECK(it != jt);
 
             auto* watch = it->second;
             watch->Run();
 
             if (watch->GetWd() != currentWd) {
-                NotificationWatchesIndex.erase(it);
+                NotificationWatchesIndex_.erase(it);
                 if (watch->GetWd() >= 0) {
                     // Watch can fail to initialize if the writer is disabled
                     // e.g. due to the lack of space.
-                    YCHECK(NotificationWatchesIndex.insert(
+                    YCHECK(NotificationWatchesIndex_.insert(
                         std::make_pair(watch->GetWd(), watch)).second);
                 }
             }
@@ -654,41 +666,41 @@ private:
     }
 
 
-    TEventCount EventCount;
-    volatile bool WasShutdown;
-    TInvokerQueuePtr EventQueue;
+    TEventCount EventCount_;
+    TInvokerQueuePtr EventQueue_;
 
-    TIntrusivePtr<TThread> LoggingThread;
+    TIntrusivePtr<TThread> LoggingThread_;
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     // Configuration.
-    std::atomic<int> Version;
+    TSpinLock SpinLock_;
+    std::atomic<int> Version_;
+    TLogConfigPtr Config_;
+    NProfiling::TRateCounter EnqueueCounter_;
+    NProfiling::TRateCounter WriteCounter_;
+    NProfiling::TAggregateCounter BacklogCounter_;
+    bool Suspended_;
 
-    TLogConfigPtr Config;
-    NProfiling::TRateCounter EnqueueCounter;
-    NProfiling::TRateCounter WriteCounter;
-    NProfiling::TAggregateCounter BacklogCounter;
-    bool Suspended;
-    TSpinLock SpinLock;
+    TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate_;
+    TLockFreeQueue<TLogEvent> LogEventQueue_;
 
-    TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;
-    TLockFreeQueue<TLogEvent> LogEventQueue;
+    yhash_map<Stroka, ILogWriterPtr> Writers_;
+    yhash_map<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters_;
+    ILogWriters SystemWriters_;
 
-    yhash_map<Stroka, ILogWriterPtr> Writers;
-    ymap<std::pair<Stroka, ELogLevel>, ILogWriters> CachedWriters;
-    ILogWriters SystemWriters;
+    volatile bool ReopenRequested_;
+    std::atomic<bool> ShutdownRequested_;
 
-    volatile bool ReopenEnqueued;
+    TPeriodicExecutorPtr FlushExecutor_;
+    TPeriodicExecutorPtr WatchExecutor_;
+    TPeriodicExecutorPtr CheckSpaceExecutor_;
 
-    TPeriodicExecutorPtr FlushExecutor;
-    TPeriodicExecutorPtr WatchExecutor;
-    TPeriodicExecutorPtr CheckSpaceExecutor;
+    std::unique_ptr<TNotificationHandle> NotificationHandle_;
+    std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;
+    yhash_map<int, TNotificationWatch*> NotificationWatchesIndex_;
 
-    std::unique_ptr<TNotificationHandle> NotificationHandle;
-    std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
-    yhash_map<int, TNotificationWatch*> NotificationWatchesIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
