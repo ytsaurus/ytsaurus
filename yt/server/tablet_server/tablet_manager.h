@@ -31,6 +31,8 @@ public:
 
     void Initialize();
 
+    int GetAssignedTabletCellCount(const Stroka& address) const;
+
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
     void MountTable(

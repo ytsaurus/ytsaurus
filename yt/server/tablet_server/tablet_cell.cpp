@@ -97,11 +97,11 @@ TPeerId TTabletCell::GetPeerId(TNode* node) const
     return peerId;
 }
 
-void TTabletCell::AssignPeer(TNode* node, TPeerId peerId)
+void TTabletCell::AssignPeer(const Stroka& address, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(!peer.Address);
-    peer.Address = node->GetAddress();
+    peer.Address = address;
 }
 
 void TTabletCell::RevokePeer(TPeerId peerId)

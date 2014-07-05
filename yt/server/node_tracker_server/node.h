@@ -99,9 +99,6 @@ public:
     typedef SmallVector<TTabletSlot, NTabletClient::TypicalCellSize> TTabletSlotList;
     DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
 
-    typedef yhash_set<NTabletServer::TTabletCell*> TTabletCellSet;
-    DEFINE_BYREF_RO_PROPERTY(TTabletCellSet, TabletCellCreateQueue);
-
 public:
     TNode(
         TNodeId id,
@@ -147,16 +144,11 @@ public:
     int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
 
-    void AddTabletSlotHint();
-    int GetTotalUsedTabletSlots() const;
     int GetTotalTabletSlots() const;
 
     TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
 
-    bool IsTabletCellStartScheduled(NTabletServer::TTabletCell* cell) const;
-    void ScheduleTabletCellStart(NTabletServer::TTabletCell* cell);
-    void CancelTabletCellStart(NTabletServer::TTabletCell* cell);
     void DetachTabletCell(NTabletServer::TTabletCell* cell);
 
     static ui64 GenerateVisitMark();
@@ -167,7 +159,6 @@ private:
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
-    int HintedTabletSlots_;
 
     void Init();
 

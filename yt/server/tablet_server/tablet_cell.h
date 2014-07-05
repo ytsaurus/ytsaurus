@@ -67,7 +67,7 @@ public:
     TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
 
-    void AssignPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
+    void AssignPeer(const Stroka& address, TPeerId peerId);
     void RevokePeer(TPeerId peerId);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId, int slotIndex);

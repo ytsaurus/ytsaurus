@@ -281,6 +281,9 @@ public:
         cellMapNodeProxy->RemoveChild(ToString(cell->GetId()));
 
         for (const auto& peer : cell->Peers()) {
+            if (peer.Address) {
+                RemoveFromAddressToCellMap(*peer.Address, cell);
+            }
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
@@ -322,6 +325,12 @@ public:
             ~ToString(tablet->GetId()));
     }
 
+
+    int GetAssignedTabletCellCount(const Stroka& address) const
+    {
+        auto range = AddressToCell_.equal_range(address);
+        return std::distance(range.first, range.second);
+    }
 
     TTableSchema GetTableSchema(TTableNode* table)
     {
@@ -683,6 +692,8 @@ private:
     TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
     TEntityMap<TTabletId, TTablet> TabletMap_;
 
+    yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
+
     TPeriodicExecutorPtr CleanupExecutor_;
 
 
@@ -725,11 +736,28 @@ private:
         TabletMap_.LoadValues(context);
     }
 
+    virtual void OnAfterSnapshotLoaded() override
+    {
+        AddressToCell_.clear();
+
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
+            if (IsObjectAlive(cell)) {
+                for (const auto& peer : cell->Peers()) {
+                    if (peer.Address) {
+                        AddressToCell_.insert(std::make_pair(*peer.Address, cell));
+                    }
+                }
+            }
+        }
+    }
+
 
     void DoClear()
     {
         TabletCellMap_.Clear();
         TabletMap_.Clear();
+        AddressToCell_.clear();
     }
 
     virtual void Clear() override
@@ -751,16 +779,12 @@ private:
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (cell) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet peer offline: node unregistered (Address: %s, CellId: %s, PeerId: %d)",
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %s, CellId: %s, PeerId: %d)",
                     ~node->GetAddress(),
                     ~ToString(cell->GetId()),
                     slot.PeerId);
                 cell->DetachPeer(node);
             }
-        }
-
-        for (auto* cell : node->TabletCellCreateQueue()) {
-            cell->DetachPeer(node);
         }
     }
 
@@ -772,7 +796,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // Various request helpers.
-
         auto requestCreateSlot = [&] (TTabletCell* cell) {
             if (!response)
                 return;
@@ -821,6 +844,7 @@ private:
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
         auto hydraManager = metaStateFacade->GetManager();
         auto* mutationContext = hydraManager->GetMutationContext();
+        const auto& address = node->GetAddress();
 
         // Our expectations.
         yhash_set<TTabletCell*> expectedCells;
@@ -846,23 +870,16 @@ private:
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %s, CellId: %s)",
-                    ~node->GetAddress(),
+                    ~address,
                     ~ToString(cellId));
                 requestRemoveSlot(cellId);
                 continue;
             }
 
-            if (node->IsTabletCellStartScheduled(cell)) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet slot created (Address: %s, CellId: %s)",
-                    ~node->GetAddress(),
-                    ~ToString(cellId));
-                node->CancelTabletCellStart(cell);
-            }
-
-            auto peerId = cell->FindPeerId(node->GetAddress());
+            auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %s, CellId: %s)",
-                    ~node->GetAddress(),
+                    ~address,
                     ~ToString(cellId));
                 requestRemoveSlot(cellId);
                 continue;
@@ -872,7 +889,7 @@ private:
                 LOG_INFO_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %d instead of %d (Address: %s, CellId: %s)",
                     slotInfo.peer_id(),
                     peerId,
-                    ~node->GetAddress(),
+                    ~address,
                     ~ToString(cellId));
                 requestRemoveSlot(cellId);
                 continue;
@@ -881,8 +898,8 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId, slotIndex);
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet peer online (Address: %s, CellId: %s, PeerId: %d)",
-                    ~node->GetAddress(),
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %s, CellId: %s, PeerId: %d)",
+                    ~address,
                     ~ToString(cellId),
                     peerId);
             }
@@ -896,7 +913,7 @@ private:
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %s, CellId: %s, PeerId: %d, State: %s, ConfigVersion: %d)",
-                ~node->GetAddress(),
+                ~address,
                 ~ToString(slot.Cell->GetId()),
                 slot.PeerId,
                 ~ToString(slot.PeerState),
@@ -912,25 +929,24 @@ private:
 
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
-            if (actualCells.find(cell) == actualCells.end() && !node->IsTabletCellStartScheduled(cell)) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet peer offline: slot is missing (CellId: %s, Address: %s)",
+            if (actualCells.find(cell) == actualCells.end()) {
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %s, Address: %s)",
                     ~ToString(cell->GetId()),
-                    ~node->GetAddress());
+                    ~address);
                 cell->DetachPeer(node);
             }
         }
 
         // Request slot starts.
-        int availableSlots = node->Statistics().available_tablet_slots();
-        for (auto* cell : node->TabletCellCreateQueue()) {
-            if (availableSlots == 0)
-                break;
-
-            // Skip cells whose instances were already found on the node.
-            // Only makes sense to protect from asking to create a slot that is already initializing.
-            if (actualCells.find(cell) == actualCells.end()) {
-                requestCreateSlot(cell);
-                --availableSlots;
+        {
+            int availableSlots = node->Statistics().available_tablet_slots();
+            auto range = AddressToCell_.equal_range(address);
+            for (auto it = range.first; it != range.second; ++it) {
+                auto* cell = it->second;
+                if (actualCells.find(cell) == actualCells.end()) {
+                    requestCreateSlot(cell);
+                    --availableSlots;
+                }
             }
         }
 
@@ -981,6 +997,24 @@ private:
     }
 
 
+    void AddToAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    {
+        AddressToCell_.insert(std::make_pair(address, cell));
+    }
+
+    void RemoveFromAddressToCellMap(const Stroka& address, TTabletCell* cell)
+    {
+        auto range = AddressToCell_.equal_range(address);
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second == cell) {
+                AddressToCell_.erase(it);
+                break;
+            }
+        }  
+    }
+
+
+
     void HydraAssignPeers(const TReqAssignPeers& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1008,17 +1042,16 @@ private:
             if (cell->Peers()[peerId].Address)
                 continue;
 
-            if (node->IsTabletCellStartScheduled(cell))
-                continue;
+            const auto& address = node->GetAddress();
+            AddToAddressToCellMap(address, cell);
+            cell->AssignPeer(address, peerId);
+            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation scheduled (CellId: %s, Address: %s, PeerId: %d)",
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %s, Address: %s, PeerId: %d)",
                 ~ToString(cellId),
-                ~node->GetAddress(),
+                ~address,
                 peerId);
 
-            cell->AssignPeer(node, peerId);
-            cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
-            node->ScheduleTabletCellStart(cell);
             ReconfigureCell(cell);
         }
     }
@@ -1056,19 +1089,15 @@ private:
         if (!peer.Address || peer.Node)
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet peer revoked (CellId: %s, Address: %s, PeerId: %d)",
+        const auto& address = *peer.Address;
+        RemoveFromAddressToCellMap(address, cell);
+        cell->RevokePeer(peerId);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %s, Address: %s, PeerId: %d)",
             ~ToString(cell->GetId()),
-            ~*peer.Address,
+            ~address,
             peerId);
 
-        // Remove cell from the start queue.
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-        auto* node = nodeTracker->FindNodeByAddress(*peer.Address);
-        if (node) {
-            node->CancelTabletCellStart(cell);
-        }
-   
-        cell->RevokePeer(peerId);
         ReconfigureCell(cell);
     }
 
@@ -1576,6 +1605,11 @@ TTabletManager::~TTabletManager()
 void TTabletManager::Initialize()
 {
     return Impl_->Initialize();
+}
+
+int TTabletManager::GetAssignedTabletCellCount(const Stroka& address) const
+{
+    return Impl_->GetAssignedTabletCellCount(address);
 }
 
 TTableSchema TTabletManager::GetTableSchema(TTableNode* table)

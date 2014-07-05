@@ -95,7 +95,6 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, CachedReplicas_);
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
-    Save(context, TabletCellCreateQueue_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -121,7 +120,6 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, CachedReplicas_);
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
-    Load(context, TabletCellCreateQueue_);
 }
 
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
@@ -266,7 +264,6 @@ void TNode::ResetHints()
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
     HintedRepairSessionCount_ = 0;
-    HintedTabletSlots_ = 0;
 }
 
 void TNode::AddSessionHint(EWriteSessionType sessionType)
@@ -325,26 +322,8 @@ TNode::TTabletSlot* TNode::GetTabletSlot(TTabletCell* cell)
     return slot;
 }
 
-bool TNode::IsTabletCellStartScheduled(TTabletCell* cell) const
-{
-    return TabletCellCreateQueue_.find(cell) != TabletCellCreateQueue_.end();
-}
-
-void TNode::ScheduleTabletCellStart(TTabletCell* cell)
-{
-    YCHECK(TabletCellCreateQueue_.insert(cell).second);
-}
-
-void TNode::CancelTabletCellStart(TTabletCell* cell)
-{
-    // NB: Need not be there.
-    TabletCellCreateQueue_.erase(cell);
-}
-
 void TNode::DetachTabletCell(TTabletCell* cell)
 {
-    TabletCellCreateQueue_.erase(cell);
-
     auto* slot = FindTabletSlot(cell);
     if (slot) {
         *slot = TTabletSlot();
@@ -355,19 +334,6 @@ ui64 TNode::GenerateVisitMark()
 {
     static std::atomic<ui64> result(0);
     return ++result;
-}
-
-void TNode::AddTabletSlotHint()
-{
-    ++HintedTabletSlots_;
-}
-
-int TNode::GetTotalUsedTabletSlots() const
-{
-    return
-        Statistics_.used_tablet_slots() +
-        TabletCellCreateQueue_.size() +
-        HintedTabletSlots_;
 }
 
 int TNode::GetTotalTabletSlots() const
