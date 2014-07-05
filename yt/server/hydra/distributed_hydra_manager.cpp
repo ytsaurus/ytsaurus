@@ -821,13 +821,30 @@ private:
         YCHECK(epochContext->IsActiveLeader);
 
         auto changelogRotation = epochContext->ChangelogRotation;
+        TAsyncError result;
         if (changelogRotation->IsSnapshotInProgress()) {
             LOG_WARNING("Previous snapshot is still being built, skipping the current one");
-            changelogRotation->RotateChangelog();
+            result = changelogRotation->RotateChangelog();
         } else {
-            changelogRotation->BuildSnapshot();
+            result = changelogRotation->BuildSnapshot().Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> result) {
+                return TError(result);
+            }));
+        }
+
+        result.Subscribe(BIND(&TDistributedHydraManager::OnCheckpointResult, MakeStrong(this))
+            .Via(epochContext->EpochControlInvoker));
+    }
+
+    void OnCheckpointResult(TError error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!error.IsOK()) {
+            LOG_ERROR(error);
+            Restart();
         }
     }
+
 
     void OnCommitFailed(const TError& error)
     {
