@@ -114,14 +114,18 @@ TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ValidateActive();
+    try {
+        ValidateActive();
 
-    LOG_INFO("Finishing session");
+        LOG_INFO("Finishing session");
     
-    TLeaseManager::CloseLease(Lease_);
-    Active_ = false;
+        TLeaseManager::CloseLease(Lease_);
+        Active_ = false;
 
-    return DoFinish(chunkMeta);
+        return DoFinish(chunkMeta);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TErrorOr<IChunkPtr>>(ex);
+    }
 }
 
 TAsyncError TSessionBase::PutBlocks(
@@ -131,10 +135,14 @@ TAsyncError TSessionBase::PutBlocks(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ValidateActive();
-    Ping();
+    try {
+        ValidateActive();
+        Ping();
 
-    return DoPutBlocks(startBlockIndex, blocks, enableCaching);
+        return DoPutBlocks(startBlockIndex, blocks, enableCaching);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TError>(ex);
+    }
 }
 
 TAsyncError TSessionBase::SendBlocks(
@@ -144,20 +152,28 @@ TAsyncError TSessionBase::SendBlocks(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ValidateActive();
-    Ping();
+    try {
+        ValidateActive();
+        Ping();
 
-    return DoSendBlocks(startBlockIndex, blockCount, target);
+        return DoSendBlocks(startBlockIndex, blockCount, target);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TError>(ex);
+    }
 }
 
 TAsyncError TSessionBase::FlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ValidateActive();
-    Ping();
+    try {
+        ValidateActive();
+        Ping();
 
-    return DoFlushBlocks(blockIndex);
+        return DoFlushBlocks(blockIndex);
+    } catch (const std::exception& ex) {
+        return MakeFuture<TError>(ex);
+    }
 }
 
 void TSessionBase::ValidateActive()
