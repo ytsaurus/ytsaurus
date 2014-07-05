@@ -31,6 +31,8 @@ TTabletCell::TTabletCell(const TTabletCellId& id)
     , State_(ETabletCellState::Starting)
     , Size_(-1)
     , ConfigVersion_(0)
+    , Config_(New<TTabletCellConfig>())
+    , Options_(New<TTabletCellOptions>())
 { }
 
 void TTabletCell::Save(TSaveContext& context) const

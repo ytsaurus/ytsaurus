@@ -226,7 +226,6 @@ public:
         auto* cell = cell_.get();
 
         cell->SetSize(size);
-        cell->SetConfig(New<TTabletCellConfig>());
         cell->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
         cell->Peers().resize(size);
         
