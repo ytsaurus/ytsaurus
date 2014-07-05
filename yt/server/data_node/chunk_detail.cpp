@@ -67,7 +67,7 @@ bool TChunkBase::TryAcquireReadLock()
     int lockCount;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (RemovedEvent_) {
+        if (RemovedPromise_) {
             LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
                 ~ToString(Id_));
             return false;
@@ -85,14 +85,14 @@ bool TChunkBase::TryAcquireReadLock()
 
 void TChunkBase::ReleaseReadLock()
 {
-    bool scheduleRemoval = false;
+    bool removing = false;
     int lockCount;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        YCHECK(ReadLockCounter_ > 0);
         lockCount = --ReadLockCounter_;
-        if (ReadLockCounter_ == 0 && !RemovalScheduled_ && RemovedEvent_) {
-            scheduleRemoval = RemovalScheduled_ = true;
+        YCHECK(lockCount >= 0);
+        if (ReadLockCounter_ == 0 && !Removing_ && RemovedPromise_) {
+            removing = Removing_ = true;
         }
     }
 
@@ -100,8 +100,8 @@ void TChunkBase::ReleaseReadLock()
         ~ToString(Id_),
         lockCount);
 
-    if (scheduleRemoval) {
-        DoRemove();
+    if (removing) {
+        StartAsyncRemove();
     }
 }
 
@@ -110,39 +110,38 @@ bool TChunkBase::IsReadLockAcquired() const
     return ReadLockCounter_ > 0;
 }
 
-TFuture<void> TChunkBase::ScheduleRemoval()
+TFuture<void> TChunkBase::ScheduleRemove()
 {
-    LOG_INFO("Chunk removal scheduled (ChunkId: %s)",
+    LOG_INFO("Chunk remove scheduled (ChunkId: %s)",
         ~ToString(Id_));
 
-    bool scheduleRemoval = false;
-
+    bool removing = false;
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (RemovedEvent_) {
-            return RemovedEvent_;
+        if (RemovedPromise_) {
+            return RemovedPromise_;
         }
 
-        RemovedEvent_ = NewPromise();
-        if (ReadLockCounter_ == 0 && !RemovalScheduled_) {
-            scheduleRemoval = RemovalScheduled_ = true;
+        RemovedPromise_ = NewPromise();
+        if (ReadLockCounter_ == 0 && !Removing_) {
+            removing = Removing_ = true;
         }
     }
 
-    if (scheduleRemoval) {
-        DoRemove();
+    if (removing) {
+        StartAsyncRemove();
     }
 
-    return RemovedEvent_;
+    return RemovedPromise_;
 }
 
-void TChunkBase::DoRemove()
+void TChunkBase::StartAsyncRemove()
 {
     EvictFromCache();
 
     auto this_ = MakeStrong(this);
-    RemoveFiles().Subscribe(BIND([=] () {
-        this_->RemovedEvent_.Set();
+    AsyncRemove().Subscribe(BIND([=] () {
+        this_->RemovedPromise_.Set();
     }));
 }
 

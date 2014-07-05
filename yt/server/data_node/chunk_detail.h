@@ -34,7 +34,7 @@ public:
     virtual void ReleaseReadLock() override;
     virtual bool IsReadLockAcquired() const override;
 
-    virtual TFuture<void> ScheduleRemoval() override;
+    virtual TFuture<void> ScheduleRemove() override;
 
 protected:
     NCellNode::TBootstrap* Bootstrap_;
@@ -47,9 +47,9 @@ protected:
     TRefCountedChunkMetaPtr Meta_;
 
     TSpinLock SpinLock_;
-    TPromise<void> RemovedEvent_;
+    TPromise<void> RemovedPromise_; // if not null then remove is scheduled
     int ReadLockCounter_ = 0;
-    bool RemovalScheduled_ = false;
+    bool Removing_ = false;
 
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,
@@ -57,9 +57,9 @@ protected:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
-    void DoRemove();
+    void StartAsyncRemove();
     virtual void EvictFromCache() = 0;
-    virtual TFuture<void> RemoveFiles() = 0;
+    virtual TFuture<void> AsyncRemove() = 0;
 
     TRefCountedChunkMetaPtr FilterCachedMeta(const std::vector<int>* tags) const;
 

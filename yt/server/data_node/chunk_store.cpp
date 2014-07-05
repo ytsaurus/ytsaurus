@@ -115,7 +115,7 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             ~currentPath,
             ~oldPath);
 
-        chunk->ScheduleRemoval().Get();
+        chunk->SyncRemove();
         return;
     }
 
@@ -223,7 +223,7 @@ IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
-    return chunk->ScheduleRemoval().Apply(
+    return chunk->ScheduleRemove().Apply(
         BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }

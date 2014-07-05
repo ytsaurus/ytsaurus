@@ -14,6 +14,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/hydra/changelog.h>
+#include <server/hydra/sync_file_changelog.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -171,7 +172,12 @@ void TJournalChunk::EvictFromCache()
     dispatcher->EvictChangelog(this);
 }
 
-TFuture<void> TJournalChunk::RemoveFiles()
+void TJournalChunk::SyncRemove()
+{
+    RemoveChangelogFiles(GetFileName());
+}
+
+TFuture<void> TJournalChunk::AsyncRemove()
 {
     auto location = Location_;
     auto dispatcher = Bootstrap_->GetJournalDispatcher();

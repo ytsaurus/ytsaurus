@@ -20,6 +20,8 @@ public:
         const TChunkId& id,
         const NChunkClient::NProto::TChunkInfo& info);
 
+    virtual void SyncRemove() override;
+
     void SetActive(bool value);
     virtual bool IsActive() const override;
 
@@ -43,7 +45,7 @@ private:
     void UpdateInfo();
 
     virtual void EvictFromCache() override;
-    virtual TFuture<void> RemoveFiles() override;
+    virtual TFuture<void> AsyncRemove() override;
 
     void DoReadBlocks(
         int firstBlockIndex,

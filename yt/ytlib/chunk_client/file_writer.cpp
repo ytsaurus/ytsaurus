@@ -196,6 +196,18 @@ i64 TFileWriter::GetDataSize() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
+void RemoveChunkFiles(const Stroka& dataFileName)
+{
+    NFS::Remove(dataFileName);
+
+    auto metaFileName = dataFileName + ChunkMetaSuffix;
+    if (NFS::Exists(metaFileName)) {
+        NFS::Remove(metaFileName);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
 

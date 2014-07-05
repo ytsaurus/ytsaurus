@@ -26,6 +26,8 @@ public:
         int blockCount,
         i64 priority) override;
 
+    virtual void SyncRemove() override;
+
 protected:
     TBlobChunkBase(
         NCellNode::TBootstrap* bootstrap,
@@ -36,9 +38,11 @@ protected:
     ~TBlobChunkBase();
 
     virtual void EvictFromCache() override;
-    virtual TFuture<void> RemoveFiles() override;
+    virtual TFuture<void> AsyncRemove() override;
 
 private:
+    void DoSyncRemove(const Stroka& dataFileName);
+
     TAsyncError ReadMeta(i64 priority);
     void DoReadMeta(TPromise<TError> promise);
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);

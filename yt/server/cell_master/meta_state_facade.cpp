@@ -35,7 +35,7 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
-#include <server/hydra/private.h>
+#include <server/hydra/sync_file_changelog.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -243,14 +243,7 @@ private:
                 if (changelogId < thresholdId) {
                     LOG_INFO("Removing changelog %d",
                         changelogId);
-
-                    auto dataFile = NFS::CombinePaths(changelogsPath, fileName);
-                    NFS::Remove(dataFile);
-                    
-                    auto indexFile = dataFile + "." + ChangelogIndexExtension;
-                    if (NFS::Exists(indexFile)) {
-                        NFS::Remove(indexFile);
-                    }
+                    RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 }
             } catch (const std::exception& ex) {
                 LOG_WARNING("Unrecognized item %s in changelog store",

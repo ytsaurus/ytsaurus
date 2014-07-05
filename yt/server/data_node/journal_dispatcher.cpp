@@ -15,10 +15,10 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 
-#include <server/hydra/private.h>
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog_dispatcher.h>
 #include <server/hydra/lazy_changelog.h>
+#include <server/hydra/sync_file_changelog.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -201,10 +201,7 @@ private:
         auto& Profiler = location->Profiler();
         PROFILE_TIMING("/journal_chunk_remove_time") {
             try {
-                auto dataFileName = chunk->GetFileName();
-                auto indexFileName = dataFileName + "." + ChangelogIndexExtension;
-                NFS::Remove(dataFileName);
-                NFS::Remove(indexFileName);
+                RemoveChangelogFiles(chunk->GetFileName());
             } catch (const std::exception& ex) {
                 location->Disable();
                 THROW_ERROR_EXCEPTION(
@@ -348,13 +345,8 @@ private:
             for (int id : ids) {
                 LOG_INFO("Removing clean multiplexed changelog %d", id);
 
-                auto dataFileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
-                NFS::Remove(dataFileName);
-
-                auto indexFileName = GetMultiplexedChangelogPath(id) + "." + ChangelogIndexExtension + "." + CleanExtension;
-                if (NFS::Exists(indexFileName)) {
-                    NFS::Remove(indexFileName);
-                }
+                auto fileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
+                RemoveChangelogFiles(fileName);
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error cleaning up multiplexed changelogs");

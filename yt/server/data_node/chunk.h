@@ -94,8 +94,12 @@ struct IChunk
      *  If no read lock is currently in progress, enqueues removal actions
      *  to the appropriate thread.
      */
-    virtual TFuture<void> ScheduleRemoval() = 0;
+    virtual TFuture<void> ScheduleRemove() = 0;
 
+    //! Performs synchronous physical removal of chunk files.
+    //! For journal chunks this call bypasses multiplexed changelogs.
+    //! Only called during initialization.
+    virtual void SyncRemove() = 0;
 
     //! Returns the instance cast to TJournalChunk. Fails if cast is not possible.
     TJournalChunkPtr AsJournalChunk();

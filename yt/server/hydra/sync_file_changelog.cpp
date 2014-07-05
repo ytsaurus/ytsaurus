@@ -3,6 +3,8 @@
 #include "sync_file_changelog_impl.h"
 #include "config.h"
 
+#include <core/misc/fs.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -97,6 +99,18 @@ void TSyncFileChangelog::Seal(int recordCount)
 void TSyncFileChangelog::Unseal()
 {
     Impl_->Unseal();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RemoveChangelogFiles(const Stroka& dataFileName)
+{
+    NFS::Remove(dataFileName);
+
+    auto indexFileName = dataFileName + "." + ChangelogIndexExtension;
+    if (NFS::Exists(indexFileName)) {
+        NFS::Remove(indexFileName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

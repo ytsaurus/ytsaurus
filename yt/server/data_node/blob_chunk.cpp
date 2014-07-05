@@ -8,9 +8,8 @@
 
 #include <core/profiling/scoped_timer.h>
 
-#include <core/misc/fs.h>
-
 #include <ytlib/chunk_client/file_reader.h>
+#include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -287,20 +286,23 @@ void TBlobChunkBase::EvictFromCache()
     readerCache->EvictReader(this);
 }
 
-TFuture<void> TBlobChunkBase::RemoveFiles()
+void TBlobChunkBase::SyncRemove()
 {
+    DoSyncRemove(GetFileName());
+}
+
+TFuture<void> TBlobChunkBase::AsyncRemove()
+{
+    // NB: Can be called from dtor, cannot capture this.
     auto dataFileName = GetFileName();
-    auto metaFileName = dataFileName + ChunkMetaSuffix;
     auto id = Id_;
     auto location = Location_;
-
     return BIND([=] () {
         LOG_DEBUG("Started removing blob chunk files (ChunkId: %s)",
             ~ToString(id));
 
         try {
-            NFS::Remove(dataFileName);
-            NFS::Remove(metaFileName);
+            DoSyncRemove(dataFileName);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error removing blob chunk files");
             location->Disable();
@@ -309,6 +311,11 @@ TFuture<void> TBlobChunkBase::RemoveFiles()
         LOG_DEBUG("Finished removing blob chunk files (ChunkId: %s)",
             ~ToString(id));
     }).AsyncVia(location->GetWriteInvoker()).Run();
+}
+
+void TBlobChunkBase::DoSyncRemove(const Stroka& dataFileName)
+{
+    RemoveChunkFiles(dataFileName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,7 +358,7 @@ TCachedBlobChunk::~TCachedBlobChunk()
     if (!ChunkCache_.IsExpired()) {
         LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~ToString(GetId()));
         EvictFromCache();
-        RemoveFiles();
+        AsyncRemove();
     }
 }
 
