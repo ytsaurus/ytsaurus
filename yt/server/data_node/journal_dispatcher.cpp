@@ -81,6 +81,29 @@ namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka ChopExtension(Stroka* fileName)
+{
+    auto extension = NFS::GetFileExtension(*fileName);
+    *fileName = NFS::GetFileNameWithoutExtension(*fileName);
+    return extension;
+}
+
+int ParseChangelogId(const Stroka& str, const Stroka& fileName)
+{
+    try {
+        return FromString<int>(str);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s",
+            ~fileName.Quote());
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalDispatcher::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedChangelog>
 {
@@ -312,25 +335,21 @@ private:
     void OnCleanup()
     {
         try {
-            auto path = GetMultiplexedPath();
-            auto fileNames = NFS::EnumerateFiles(path);
+            auto fileNames = NFS::EnumerateFiles(GetMultiplexedPath());
 
             std::vector<int> ids;
-            for (const auto& fileName : fileNames) {
-                if (NFS::GetFileExtension(fileName) != CleanExtension) 
+            for (const auto& originalFileName : fileNames) {
+                auto fileName = originalFileName;
+                auto cleanExtension = ChopExtension(&fileName);
+                if (cleanExtension != CleanExtension) 
                     continue;
-                auto fileNameWithoutClean = NFS::GetFileNameWithoutExtension(fileName);
-                if (NFS::GetFileExtension(fileNameWithoutClean) != ChangelogExtension)
+
+                auto changelogExtension = ChopExtension(&fileName);
+                if (changelogExtension != ChangelogExtension)
                     continue;
-                auto fileNameWithoutExtensions = NFS::GetFileNameWithoutExtension(fileNameWithoutClean);
-                try {
-                    int id = FromString<int>(fileNameWithoutExtensions);
-                    ids.push_back(id);
-                } catch (const std::exception& ex) {
-                    LOG_WARNING("Unrecognized item %s in multiplexed changelog store %s",
-                        ~fileName.Quote(),
-                        ~path);
-                }
+
+                int id = ParseChangelogId(fileName, originalFileName);
+                ids.push_back(id);
             }
 
             if (ids.size() <= Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep)
@@ -468,29 +487,30 @@ public:
         auto path = Owner_->GetMultiplexedPath();
         NFS::ForcePath(path);
 
-        int minId = std::numeric_limits<int>::max();
-        int maxId = std::numeric_limits<int>::min();
-            
+        int minDirtyId = std::numeric_limits<int>::max();
+        int maxDirtyId = std::numeric_limits<int>::min();
+        int maxCleanId = std::numeric_limits<int>::min();
+
         auto fileNames = NFS::EnumerateFiles(path);
-        for (const auto& fileName : fileNames) {
-            if (NFS::GetFileExtension(fileName) != ChangelogExtension)
-                continue;
-
-            int id = NonexistingSegmentId;
-            try {
-                id = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-            } catch (const std::exception) {
-                THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s",
-                    ~fileName.Quote());
+        for (const auto& originalFileName : fileNames) {
+            auto fileName = originalFileName;
+            auto extension = ChopExtension(&fileName);
+            if (extension == CleanExtension) {
+                extension = ChopExtension(&fileName);
+                if (extension == ChangelogExtension) {
+                    int id = ParseChangelogId(fileName, originalFileName);
+                    LOG_INFO("Found clean multiplexed changelog %d", id);
+                    maxCleanId = std::max(maxCleanId, id);
+                }
+            } else if (extension == ChangelogExtension) {
+                int id = ParseChangelogId(fileName, originalFileName);
+                LOG_INFO("Found dirty multiplexed changelog %d", id);
+                minDirtyId = std::min(minDirtyId, id);
+                maxDirtyId = std::max(maxDirtyId, id);
             }
-
-            LOG_INFO("Found dirty multiplexed changelog %d", id);
-
-            minId = std::min(minId, id);
-            maxId = std::max(maxId, id);
         }
 
-        for (int id = minId; id <= maxId; ++id) {
+        for (int id = minDirtyId; id <= maxDirtyId; ++id) {
             ReplayChangelog(id);
         }
 
@@ -499,7 +519,15 @@ public:
             entry.Chunk->DetachChangelog();
         }
 
-        return maxId == std::numeric_limits<int>::min() ? 0 : maxId + 1;
+        if (maxDirtyId >= 0) {
+            return maxDirtyId + 1;
+        }
+
+        if (maxCleanId >= 0) {
+            return maxCleanId + 1;
+        }
+
+        return 0;
     }
 
 private:
