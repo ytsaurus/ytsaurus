@@ -138,7 +138,7 @@ void TFollowerTracker::SetFollowerState(TPeerId followerId, EPeerState newState)
     if (oldState == newState)
         return;
 
-    LOG_INFO("Follower %d state changed: %s->%s",
+    LOG_INFO("Follower %d state changed: %s -> %s",
         followerId,
         ~ToString(oldState),
         ~ToString(newState));

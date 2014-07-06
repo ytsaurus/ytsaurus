@@ -878,7 +878,7 @@ void TElectionManager::TImpl::SetState(EPeerState newState)
         return;
 
     // This generic message logged to simplify tracking state changes.
-    LOG_INFO("State changed: %s->%s",
+    LOG_INFO("State changed: %s -> %s",
         ~ToString(State),
         ~ToString(newState));
     State = newState;

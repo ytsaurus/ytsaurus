@@ -1069,7 +1069,7 @@ private:
         auto newState = ETabletCellState(request.state());
         cell->SetState(newState);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %s->%s (CellId: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %s -> %s (CellId: %s)",
             ~ToString(oldState),
             ~ToString(newState),
             ~ToString(cellId));
