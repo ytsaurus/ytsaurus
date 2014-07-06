@@ -285,9 +285,10 @@ private:
 
     void MarkMultiplexedChangelogClean(int changelogId)
     {
-        auto path = GetMultiplexedChangelogPath(changelogId);
-        NFS::Rename(path, path + "." + CleanExtension);
-        NFS::Rename(path + "." + ChangelogIndexExtension, path + "." + ChangelogIndexExtension + "." + CleanExtension);
+        auto dataFileName = GetMultiplexedChangelogPath(changelogId);
+        auto cleanDataFileName = dataFileName + "." + CleanExtension;
+        NFS::Rename(dataFileName, cleanDataFileName);
+        NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
         LOG_INFO("Multiplexed changelog %d is clean", changelogId);
     }
 
