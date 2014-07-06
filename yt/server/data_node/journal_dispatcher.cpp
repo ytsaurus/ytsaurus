@@ -387,6 +387,7 @@ public:
         , Owner_(owner)
         , UnderlyingChangelog_(underlyingChangelog)
         , EnableMultiplexing_(enableMultiplexing)
+        , LastSplitFlushResult_(UnderlyingChangelog_->Flush())
     { }
 
     virtual TSharedRef GetMeta() const override
@@ -413,7 +414,7 @@ public:
     {
         if (EnableMultiplexing_) {
             int recordId = UnderlyingChangelog_->GetRecordCount();
-            LastSplitAppendResult_ = UnderlyingChangelog_->Append(data);
+            LastSplitFlushResult_ = UnderlyingChangelog_->Append(data);
 
             // Construct the multiplexed data record.
             TMultiplexedRecord record;
@@ -457,11 +458,10 @@ public:
         return UnderlyingChangelog_->Unseal();
     }
 
-    TAsyncError GetLastSplitAppendResult() const
+    TAsyncError GetLastSplitFlushResult() const
     {
         YASSERT(EnableMultiplexing_);
-        YASSERT(LastSplitAppendResult_);
-        return LastSplitAppendResult_;
+        return LastSplitFlushResult_;
     }
 
 private:
@@ -469,7 +469,7 @@ private:
     IChangelogPtr UnderlyingChangelog_;
     bool EnableMultiplexing_;
 
-    TAsyncError LastSplitAppendResult_;
+    TAsyncError LastSplitFlushResult_;
 
 };
 
@@ -797,7 +797,7 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
     record.Header.Type = EMultiplexedRecordType::Create;
     record.Header.ChunkId = chunkId;
     record.Header.RecordId = -1;
-    AppendMultiplexedRecord(record, nullptr);
+    AppendMultiplexedRecord(record, cachedChangelog);
 
     return cachedChangelog;
 }
@@ -833,7 +833,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
         std::vector<TAsyncError> cleanResults;
         cleanResults.push_back(multiplexedFlushResult);
         for (auto changelog : ActiveChangelogs_) {
-            cleanResults.push_back(changelog->GetLastSplitAppendResult());
+            cleanResults.push_back(changelog->GetLastSplitFlushResult());
         }
         ActiveChangelogs_.clear();
 
