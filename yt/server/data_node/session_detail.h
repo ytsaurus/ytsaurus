@@ -40,7 +40,8 @@ public:
     virtual void Cancel(const TError& error) override;
 
     virtual TFuture<TErrorOr<IChunkPtr>> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TNullable<int>& blockCount) override;
 
     virtual TAsyncError PutBlocks(
         int startBlockIndex,
@@ -75,7 +76,8 @@ protected:
     virtual void DoStart() = 0;
     virtual void DoCancel() = 0;
     virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TNullable<int>& blockCount) = 0;
     virtual TAsyncError DoPutBlocks(
         int startBlockIndex,
         const std::vector<TSharedRef>& blocks,

@@ -41,23 +41,17 @@ private:
 
     struct TSlot
     {
-        TSlot()
-            : State(ESlotState::Empty)
-            , IsWritten(NewPromise())
-        { }
-
-        ESlotState State;
+        ESlotState State = ESlotState::Empty;
         TSharedRef Block;
-        TPromise<void> IsWritten;
+        TPromise<void> WrittenPromise = NewPromise();
     };
 
-    typedef std::vector<TSlot> TWindow;
-
     TError Error_;
-    TWindow Window_;
-    int WindowStartIndex_;
-    int WriteIndex_;
-    i64 Size_;
+    std::vector<TSlot> Window_;
+    int WindowStartIndex_ = 0;
+    int WriteIndex_ = 0;
+    i64 Size_ = 0;
+    int BlockCount_ = 0;
     NChunkClient::TFileWriterPtr Writer_;
 
 
@@ -79,7 +73,8 @@ private:
     virtual void DoCancel() override;
 
     virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TNullable<int>& blockCount) override;
 
     bool IsInWindow(int blockIndex);
     void ValidateBlockIsInWindow(int blockIndex);

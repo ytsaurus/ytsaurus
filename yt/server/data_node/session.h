@@ -4,6 +4,7 @@
 
 #include <core/misc/error.h>
 #include <core/misc/lease_manager.h>
+#include <core/misc/nullable.h>
 
 #include <core/actions/signal.h>
 
@@ -48,7 +49,8 @@ struct ISession
 
     //! Finishes the session.
     virtual TFuture<TErrorOr<IChunkPtr>> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TNullable<int>& blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.
     virtual TAsyncError PutBlocks(

@@ -27,6 +27,7 @@ message TReqFinishChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required TChunkMeta chunk_meta = 2;
+    optional int32 block_count = 3;
 }
 
 message TRspFinishChunk

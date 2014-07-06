@@ -78,10 +78,29 @@ void TJournalSession::DoCancel()
     Finished_.Fire(TError());
 }
 
-TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(const TChunkMeta& /*chunkMeta*/)
+TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
+    const TChunkMeta& /*chunkMeta*/,
+    const TNullable<int>& blockCount)
 {
-    DoCancel();
-    return MakeFuture<TErrorOr<IChunkPtr>>(IChunkPtr(Chunk_));
+    auto sealResult = OKFuture;
+    if (blockCount) {
+        if (*blockCount != Changelog_->GetRecordCount()) {
+            THROW_ERROR_EXCEPTION("Block count mismatch in journal session %s: expected %d, got %d",
+                ~ToString(ChunkId_),
+                Changelog_->GetRecordCount(),
+                *blockCount);
+        }
+        sealResult = Changelog_->Seal(Changelog_->GetRecordCount());
+    }
+
+    auto this_ = MakeStrong(this);
+    return sealResult.Apply(BIND([this, this_] (TError error) -> TErrorOr<IChunkPtr> {
+        DoCancel();
+        if (!error.IsOK()) {
+            return error;
+        }
+        return IChunkPtr(Chunk_);
+    }).AsyncVia(GetCurrentInvoker()));
 }
 
 TAsyncError TJournalSession::DoPutBlocks(

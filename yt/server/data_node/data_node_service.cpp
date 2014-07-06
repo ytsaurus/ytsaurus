@@ -159,13 +159,16 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto& meta = request->chunk_meta();
+        auto blockCount = request->has_block_count() ? MakeNullable<int>(request->block_count()) : Null;
 
-        context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
+        context->SetRequestInfo("ChunkId: %s, BlockCount: %s",
+            ~ToString(chunkId),
+            blockCount ? ToString(*blockCount) : "<null>");
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
 
-        session->Finish(meta)
+        session->Finish(meta, blockCount)
             .Subscribe(BIND([=] (TErrorOr<IChunkPtr> chunkOrError) {
                 if (chunkOrError.IsOK()) {
                     auto chunk = chunkOrError.Value();

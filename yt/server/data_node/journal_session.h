@@ -52,7 +52,8 @@ private:
     virtual void DoCancel() override;
 
     virtual TFuture<TErrorOr<IChunkPtr>> DoFinish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TNullable<int>& blockCount) override;
 
 };
 

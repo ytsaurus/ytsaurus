@@ -110,7 +110,7 @@ void TSessionBase::Cancel(const TError& error)
     DoCancel();
 }
 
-TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta)
+TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta, const TNullable<int>& blockCount)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -122,7 +122,7 @@ TFuture<TErrorOr<IChunkPtr>> TSessionBase::Finish(const TChunkMeta& chunkMeta)
         TLeaseManager::CloseLease(Lease_);
         Active_ = false;
 
-        return DoFinish(chunkMeta);
+        return DoFinish(chunkMeta, blockCount);
     } catch (const std::exception& ex) {
         return MakeFuture<TErrorOr<IChunkPtr>>(ex);
     }

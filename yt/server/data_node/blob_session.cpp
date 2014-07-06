@@ -49,9 +49,6 @@ TBlobSession::TBlobSession(
         chunkId,
         options,
         location)
-    , WindowStartIndex_(0)
-    , WriteIndex_(0)
-    , Size_(0)
 { }
 
 void TBlobSession::DoStart()
@@ -60,17 +57,30 @@ void TBlobSession::DoStart()
         BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
 }
 
-TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(const TChunkMeta& chunkMeta)
+TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
+    const TChunkMeta& chunkMeta,
+    const TNullable<int>& blockCount)
 {
+    if (!blockCount) {
+        THROW_ERROR_EXCEPTION("Attempt to finish a blob session %s without specifying block count",
+            ~ToString(ChunkId_));
+    }
+
+    if (*blockCount != BlockCount_) {
+        THROW_ERROR_EXCEPTION("Block count mismatch in blob session %s: expected %d, got %d",
+            ~ToString(ChunkId_),
+            BlockCount_,
+            *blockCount);
+    }
+
     for (int blockIndex = WindowStartIndex_; blockIndex < Window_.size(); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::WindowError,
-                "Attempt to finish a session with an unflushed block %d",
-                blockIndex)
-                << TErrorAttribute("window_start", WindowStartIndex_)
-                << TErrorAttribute("window_size", Window_.size());
+                "Attempt to finish a session with an unflushed block %s:%d",
+                ~ToString(ChunkId_),
+                blockIndex);
         }
     }
 
@@ -113,16 +123,19 @@ TAsyncError TBlobSession::DoPutBlocks(
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block, block)) {
-                LOG_WARNING("Block is already received (Block: %d)", blockIndex);
+                LOG_WARNING("Skipped duplicate block (Block: %d)", blockIndex);
                 continue;
             }
 
             return MakeFuture(TError(
                 NChunkClient::EErrorCode::BlockContentMismatch,
-                "Block %d with a different content already received",
+                "Block %s:%d with a different content already received",
+                ~ToString(ChunkId_),
                 blockIndex)
                 << TErrorAttribute("window_start", WindowStartIndex_));
         }
+
+        ++BlockCount_;
 
         slot.State = ESlotState::Received;
         slot.Block = block;
@@ -135,7 +148,7 @@ TAsyncError TBlobSession::DoPutBlocks(
         Size_ += block.Size();
         requestSize += block.Size();
 
-        LOG_DEBUG("Chunk block received (Block: %d)", blockIndex);
+        LOG_DEBUG("Block received (Block: %d)", blockIndex);
 
         ++blockIndex;
     }
@@ -249,7 +262,7 @@ void TBlobSession::OnBlockWritten(int blockIndex, TError error)
     auto& slot = GetSlot(blockIndex);
     YCHECK(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten.Set();
+    slot.WrittenPromise.Set();
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
@@ -264,14 +277,13 @@ TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
-            blockIndex,
-            WindowStartIndex_,
-            Window_.size());
+            "Attempt to flush an unreceived block %s:%d",
+            ~ToString(ChunkId_),
+            blockIndex);
     }
 
-    // IsWritten is set in the control thread, hence no need for AsyncVia.
-    return slot.IsWritten.ToFuture().Apply(
+    // WrittenPromise is set in the control thread, hence no need for AsyncVia.
+    return slot.WrittenPromise.ToFuture().Apply(
         BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
@@ -436,7 +448,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         auto& slot = GetSlot(WindowStartIndex_);
         YCHECK(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
-        slot.IsWritten.Reset();
+        slot.WrittenPromise.Reset();
         ++WindowStartIndex_;
     }
 
@@ -458,10 +470,9 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
     if (!IsInWindow(blockIndex)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Block %d is out of the window (WindowStart: %d, WindowSize: %" PRISZT ")",
-            blockIndex,
-            WindowStartIndex_,
-            Window_.size());
+            "Block %s:%d is out of the window",
+            ~ToString(ChunkId_),
+            blockIndex);
     }
 }
 
@@ -472,7 +483,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
 
     while (Window_.size() <= blockIndex) {
         // NB: do not use resize here!
-        // Newly added slots must get a fresh copy of IsWritten promise.
+        // Newly added slots must get a fresh copy of WrittenPromise promise.
         // Using resize would cause all of these slots to share a single promise.
         Window_.push_back(TSlot());
     }
@@ -492,12 +503,12 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
-            blockIndex,
-            WindowStartIndex_);
+            "Trying to retrieve a block %s:%d that is not received yet",
+            ~ToString(ChunkId_),
+            blockIndex);
     }
 
-    LOG_DEBUG("Chunk block %d retrieved", blockIndex);
+    LOG_DEBUG("Block retrieved (Block: %d)", blockIndex);
 
     return slot.Block;
 }
@@ -510,7 +521,7 @@ void TBlobSession::MarkAllSlotsWritten()
     for (auto& slot : Window_) {
         if (slot.State != ESlotState::Written) {
             slot.State = ESlotState::Written;
-            slot.IsWritten.Set();
+            slot.WrittenPromise.Set();
         }
     }
 }
