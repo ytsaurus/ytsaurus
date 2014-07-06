@@ -163,7 +163,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %s, BlockCount: %s",
             ~ToString(chunkId),
-            blockCount ? ToString(*blockCount) : "<null>");
+            blockCount ? ~ToString(*blockCount) : "<null>");
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
