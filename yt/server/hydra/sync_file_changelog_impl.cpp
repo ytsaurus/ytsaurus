@@ -7,6 +7,8 @@
 #include <core/misc/string.h>
 #include <core/misc/serialize.h>
 
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -209,6 +211,24 @@ const Stroka& TSyncFileChangelog::TImpl::GetFileName() const
     return FileName_;
 }
 
+void TSyncFileChangelog::TImpl::CreateIndexFile()
+{
+    auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
+    TFile tempFile(tempFileName, WrOnly|CreateAlways);
+
+    TChangelogIndexHeader header(0);
+    WritePod(tempFile, header);
+
+    tempFile.Flush();
+    tempFile.Close();
+
+    ReplaceFile(tempFileName, IndexFileName_);
+
+    IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
+    IndexFile_->Flock(LOCK_EX | LOCK_NB);
+    IndexFile_->Seek(0, sEnd);
+}
+
 void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 {
     YCHECK(!Open_);
@@ -249,22 +269,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
         }
 
         // Index file.
-        {
-            auto tempFileName = IndexFileName_ + NFS::TempFileSuffix;
-            TFile tempFile(tempFileName, WrOnly|CreateAlways);
-
-            TChangelogIndexHeader header(0);
-            WritePod(tempFile, header);
-
-            tempFile.Flush();
-            tempFile.Close();
-
-            ReplaceFile(tempFileName, IndexFileName_);
-
-            IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
-            IndexFile_->Flock(LOCK_EX | LOCK_NB);
-            IndexFile_->Seek(0, sEnd);
-        }
+        CreateIndexFile();
 
         CurrentFilePosition_ = currentFilePosition;
         CurrentBlockSize_ = 0;
@@ -560,6 +565,11 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
 
 void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 {
+    // Create index if it is missing
+    if (!isexist(~IndexFileName_)) {
+        CreateIndexFile();
+    }
+
     // Read the existing index.
     {
         TMappedFileInput indexStream(IndexFileName_);
@@ -586,7 +596,7 @@ void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
         LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
         Index_.resize(correctPrefixSize);
 
-        IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec));
+        IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec|OpenAlways));
         IndexFile_->Flock(LOCK_EX | LOCK_NB);
         IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
         IndexFile_->Seek(0, sEnd);

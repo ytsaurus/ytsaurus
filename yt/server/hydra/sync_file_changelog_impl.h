@@ -195,6 +195,8 @@ private:
         TSharedRef Blob;
     };
 
+    void CreateIndexFile();
+
     void DoAppend(const TRef& record);
     void DoAppend(const std::vector<TSharedRef>& records);
 

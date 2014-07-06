@@ -35,6 +35,8 @@ protected:
 
     virtual void TearDown()
     {
+        NFs::Remove(~TemporaryFile->Name());
+        NFs::Remove(~TemporaryIndexFile->Name());
         TemporaryFile.reset();
         TemporaryIndexFile.reset();
     }
@@ -343,6 +345,20 @@ TEST_F(TSyncFileChangelogTest, UnalignedChecksum)
         auto changelog = CreateChangelog<ui8>(logRecordCount);
     }
     {
+        auto changelog = OpenChangelog();
+        CheckRead<ui8>(changelog, 0, logRecordCount, logRecordCount);
+    }
+}
+
+TEST_F(TSyncFileChangelogTest, MissingIndex)
+{
+    const int logRecordCount = 256;
+
+    {
+        auto changelog = CreateChangelog<ui8>(logRecordCount);
+    }
+    {
+        NFs::Remove(~TemporaryIndexFile->Name());
         auto changelog = OpenChangelog();
         CheckRead<ui8>(changelog, 0, logRecordCount, logRecordCount);
     }
