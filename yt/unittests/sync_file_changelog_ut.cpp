@@ -8,6 +8,8 @@
 
 #include <core/profiling/scoped_timer.h>
 
+#include <core/misc/fs.h>
+
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
 
@@ -35,8 +37,8 @@ protected:
 
     virtual void TearDown()
     {
-        NFs::Remove(~TemporaryFile->Name());
-        NFs::Remove(~TemporaryIndexFile->Name());
+        NFS::Remove(TemporaryFile->Name());
+        NFS::Remove(TemporaryIndexFile->Name());
         TemporaryFile.reset();
         TemporaryIndexFile.reset();
     }
@@ -358,7 +360,7 @@ TEST_F(TSyncFileChangelogTest, MissingIndex)
         auto changelog = CreateChangelog<ui8>(logRecordCount);
     }
     {
-        NFs::Remove(~TemporaryIndexFile->Name());
+        NFS::Remove(TemporaryIndexFile->Name());
         auto changelog = OpenChangelog();
         CheckRead<ui8>(changelog, 0, logRecordCount, logRecordCount);
     }

@@ -7,8 +7,6 @@
 #include <core/misc/string.h>
 #include <core/misc/serialize.h>
 
-#include <util/folder/dirut.h>
-
 namespace NYT {
 namespace NHydra {
 
@@ -89,7 +87,7 @@ size_t ComputeValidIndexPrefix(
 {
     // Validate index records.
     size_t result = 0;
-    for (int i = 0; i < index.size(); ++i) {\
+    for (int i = 0; i < index.size(); ++i) {
         const auto& record = index[i];
         bool correct;
         if (i == 0) {
@@ -565,8 +563,8 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
 
 void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 {
-    // Create index if it is missing
-    if (!isexist(~IndexFileName_)) {
+    // Create index if it is missing.
+    if (!NFS::Exists(IndexFileName_)) {
         CreateIndexFile();
     }
 
