@@ -197,7 +197,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
             ~ToString(transactionId),
             commitTimestamp);
     }
@@ -223,7 +223,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
             ~ToString(transactionId));
     }
 
@@ -289,7 +289,7 @@ private:
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
-        LOG_INFO("Transaction lease expired (TransactionId: %s)",
+        LOG_DEBUG("Transaction lease expired (TransactionId: %s)",
             ~ToString(id));
 
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
