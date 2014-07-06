@@ -58,8 +58,6 @@ public:
     TEpochContextPtr GetEpochContext();
 
 private:
-    typedef TImpl TThis;
-
     class TVotingRound;
     typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;
 
@@ -435,11 +433,11 @@ private:
         // Become a leader or a follower.
         if (candidateId == Owner->CellManager->GetSelfId()) {
             ControlEpochInvoker->Invoke(BIND(
-                &TThis::StartLeading,
+                &TImpl::StartLeading,
                 Owner));
         } else {
             ControlEpochInvoker->Invoke(BIND(
-                &TThis::StartFollowing,
+                &TImpl::StartFollowing,
                 Owner,
                 candidateId,
                 candidateStatus.VoteEpochId));
@@ -555,7 +553,7 @@ TElectionManager::TImpl::TImpl(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
     CellManager->SubscribePeerReconfigured(
-        BIND(&TThis::OnPeerReconfigured, Unretained(this))
+        BIND(&TImpl::OnPeerReconfigured, Unretained(this))
             .Via(ControlInvoker));
 }
 
@@ -565,7 +563,7 @@ void TElectionManager::TImpl::Start()
 
     RpcServer->RegisterService(this);
 
-    ControlInvoker->Invoke(BIND(&TThis::DoStart, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
 }
 
 void TElectionManager::TImpl::Stop()
@@ -574,7 +572,7 @@ void TElectionManager::TImpl::Stop()
 
     AsyncCancel();
 
-    ControlInvoker->Invoke(BIND(&TThis::DoStop, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
 
     RpcServer->UnregisterService(this);
 }
@@ -584,7 +582,7 @@ void TElectionManager::TImpl::Restart()
     VERIFY_THREAD_AFFINITY_ANY();
 
     AsyncCancel();
-    ControlInvoker->Invoke(BIND(&TThis::DoRestart, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoRestart, MakeWeak(this)));
 }
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
@@ -797,7 +795,7 @@ void TElectionManager::TImpl::StartFollowing(
     InitEpochContext(leaderId, epochId);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TThis::OnFollowerPingTimeout, MakeWeak(this))
+        BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
@@ -940,7 +938,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     TDelayedExecutor::Cancel(PingTimeoutCookie);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TThis::OnFollowerPingTimeout, MakeWeak(this))
+        BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->FollowerPingTimeout);
 
