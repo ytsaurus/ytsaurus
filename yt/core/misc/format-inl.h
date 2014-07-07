@@ -8,6 +8,7 @@
 #include "nullable.h"
 #include "enum.h"
 #include "guid.h"
+#include "asert.h"
 
 namespace NYT {
 
