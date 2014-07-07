@@ -2230,7 +2230,7 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
-TNodeResources TOperationControllerBase::GetNeededResources() const
+const TNodeResources& TOperationControllerBase::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

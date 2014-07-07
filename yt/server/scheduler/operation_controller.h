@@ -195,7 +195,7 @@ struct IOperationController
     virtual int GetTotalJobCount() const = 0;
 
     //! Returns the total resources that are additionally needed.
-    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const = 0;
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetNeededResources() const = 0;
 
 
     //! Called during heartbeat processing to notify the controller that a job is running.
