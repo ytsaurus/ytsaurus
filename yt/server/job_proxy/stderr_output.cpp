@@ -41,7 +41,11 @@ TErrorOutput::TErrorOutput(
     TFileWriterConfigPtr config,
     IChannelPtr masterChannel,
     const TTransactionId& transactionId)
-    : TErrorOutput(config, masterChannel, transactionId, std::numeric_limits<i64>::max())
+    : TErrorOutput(
+        config,
+        masterChannel,
+        transactionId,
+        std::numeric_limits<i64>::max())
 { }
 
 TErrorOutput::~TErrorOutput() throw()

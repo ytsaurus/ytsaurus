@@ -152,10 +152,12 @@ public:
 
         if (!JobExitError.IsOK()) {
             if (UserJobSpec.has_stderr_transaction_id()) {
-                // save fail contexts for all inputs
+                // Save fail contexts for all inputs.
+                int pipeIndex = 0;
                 auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
-                for (const auto& pipe: InputPipes) {
-                    const TInputPipe* input = dynamic_cast<const TInputPipe*>(pipe.Get());
+                for (const auto& pipe : InputPipes) {
+                    const auto* input = dynamic_cast<const TInputPipe*>(pipe.Get());
+                    YCHECK(input);
                     auto contextOutput = JobIO->CreateFailContextOutput(stderrTransactionId);
                     contextOutput->Write(input->GetFailContext().ToStringBuf());
                     contextOutput->Finish();
@@ -164,8 +166,9 @@ public:
                     ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
 
                     if (contextChunkId != NChunkServer::NullChunkId) {
-                        LOG_INFO("Fail context chunk generated (ChunkId: %s)", ~ToString(contextChunkId));
+                        LOG_INFO("Fail context chunk generated (ChunkId: %s, PipeIndex: %d)", ~ToString(contextChunkId), pipeIndex);
                     }
+                    ++pipeIndex;
                 }
             }
         }
