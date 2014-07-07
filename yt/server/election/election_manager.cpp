@@ -52,7 +52,8 @@ public:
     void Initialize();
     void Finalize();
 
-    void Participate();
+    void Start();
+    void Stop();
 
     TYsonProducer GetMonitoringProducer();
 
@@ -101,9 +102,9 @@ private:
     void Reset();
     void OnFollowerPingTimeout();
 
-    void DoStart();
     void DoFinalize();
-    void DoParticipate();
+    void DoStart();
+    void DoStop();
 
     bool CheckQuorum();
 
@@ -570,9 +571,14 @@ void TElectionManager::TImpl::Finalize()
     RpcServer->UnregisterService(this);
 }
 
-void TElectionManager::TImpl::Participate()
+void TElectionManager::TImpl::Start()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoParticipate, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
+}
+
+void TElectionManager::TImpl::Stop()
+{
+    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
 }
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
@@ -637,27 +643,10 @@ void TElectionManager::TImpl::DoFinalize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    switch (State) {
-        case EPeerState::Stopped:
-        case EPeerState::Voting:
-            break;
-
-        case EPeerState::Leading:
-            StopLeading();
-            break;
-
-        case EPeerState::Following:
-            StopFollowing();
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-
-    Reset();
+    DoStop();
 }
 
-void TElectionManager::TImpl::DoParticipate()
+void TElectionManager::TImpl::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -684,6 +673,30 @@ void TElectionManager::TImpl::DoParticipate()
         default:
             YUNREACHABLE();
     }
+}
+
+void TElectionManager::TImpl::DoStop()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    switch (State) {
+        case EPeerState::Stopped:
+        case EPeerState::Voting:
+            break;
+
+        case EPeerState::Leading:
+            StopLeading();
+            break;
+
+        case EPeerState::Following:
+            StopFollowing();
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    Reset();
 }
 
 bool TElectionManager::TImpl::CheckQuorum()
@@ -858,7 +871,7 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
 
     if (peerId == CellManager->GetSelfId()) {
         if (State == EPeerState::Leading || State == EPeerState::Following) {
-            DoParticipate();
+            DoStart();
         }
     } else {
         if (State == EPeerState::Leading) {
@@ -866,7 +879,7 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
             AliveFollowers.erase(peerId);
             CheckQuorum();
         } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            DoParticipate();
+            DoStart();
         }
     }
 }
@@ -964,9 +977,14 @@ TElectionManager::~TElectionManager()
     Impl->Finalize();
 }
 
-void TElectionManager::Participate()
+void TElectionManager::Start()
 {
-    Impl->Participate();
+    Impl->Start();
+}
+
+void TElectionManager::Stop()
+{
+    Impl->Stop();
 }
 
 TYsonProducer TElectionManager::GetMonitoringProducer()

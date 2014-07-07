@@ -695,11 +695,16 @@ private:
     }
 
 
-    void Restart()
+    void Participate()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoRestart, MakeStrong(this)));
+        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
+    }
+
+    void Restart()
+    {
+        ElectionManager_->Stop();
     }
 
 
@@ -722,7 +727,7 @@ private:
 
         ControlState_ = EPeerState::Elections;
 
-        Restart();
+        Participate();
     }
 
     void DoStop()
@@ -742,7 +747,7 @@ private:
         LOG_INFO("Hydra instance stopped");
     }
 
-    void DoRestart()
+    void DoParticipate()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -794,7 +799,7 @@ private:
 
         LOG_INFO("Reachable version is %v", ReachableVersion_);
         DecoratedAutomaton_->SetLoggedVersion(ReachableVersion_);
-        ElectionManager_->Participate();
+        ElectionManager_->Start();
     }
 
 
@@ -991,7 +996,7 @@ private:
 
         StopEpoch();
 
-        YCHECK(ControlState_ == EPeerState::Leading|| ControlState_ == EPeerState::LeaderRecovery);
+        YCHECK(ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery);
         ControlState_ = EPeerState::Elections;
         
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
@@ -1001,7 +1006,7 @@ private:
         StopLeading_.Fire();
         DecoratedAutomaton_->OnStopLeading();
 
-        Restart();
+        Participate();
     }
 
 
@@ -1090,7 +1095,7 @@ private:
         StopFollowing_.Fire();
         DecoratedAutomaton_->OnStopFollowing();
 
-        Restart();
+        Participate();
     }
 
 
