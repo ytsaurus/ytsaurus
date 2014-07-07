@@ -105,7 +105,7 @@ struct TChunkReplicaAddressFormatter
 {
     explicit TChunkReplicaAddressFormatter(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-    Stroka Format(TChunkReplica replica) const;
+    Stroka operator() (TChunkReplica replica) const;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 

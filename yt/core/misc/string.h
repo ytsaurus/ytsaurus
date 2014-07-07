@@ -1,8 +1,73 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A simple helper for constructing strings by a sequence of appends.
+class TStringBuilder
+    : private TNonCopyable
+{
+public:
+    char* Preallocate(size_t size)
+    {
+        // Fast path.
+        if (Current_ + size <= End_) {
+            return Current_;
+        }
+
+        // Slow path.
+        FlushedLength_ += (Current_ - Begin_);
+        size = std::max(size, static_cast<size_t>(1024));
+        size_t capacity = FlushedLength_ + size;
+        Str_.ReserveAndResize(capacity);
+        Begin_ = Current_ = &*Str_.begin() + FlushedLength_;
+        End_ = Begin_ + size;
+        return Current_;
+    }
+
+    void Advance(size_t size)
+    {
+        Current_ += size;
+    }
+
+    void AppendChar(char ch)
+    {
+        *Preallocate(1) = ch;
+        Advance(1);
+    }
+
+    void AppendString(const TStringBuf& str)
+    {
+        char* dst = Preallocate(str.length());
+        memcpy(dst, str.begin(), str.length());
+        Advance(str.length());
+    }
+
+    void AppendString(const char* str)
+    {
+        AppendString(TStringBuf(str));
+    }
+
+    Stroka Flush()
+    {
+        FlushedLength_ += (Current_ - Begin_);
+        Begin_ = Current_ = End_ = nullptr;
+        Str_.resize(FlushedLength_);
+        return std::move(Str_);
+    }
+
+private:
+    Stroka Str_;
+    size_t FlushedLength_ = 0;
+
+    char* Begin_ = nullptr;
+    char* Current_ = nullptr;
+    char* End_ = nullptr;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,7 +76,7 @@ namespace NYT {
 struct TDefaultFormatter
 {
     template <class T>
-    Stroka Format(const T& obj) const
+    Stroka operator () (const T& obj) const
     {
         return ToString(obj);
     }
@@ -37,7 +102,7 @@ Stroka JoinToString(
         if (current != begin) {
             result.append(delimiter);
         }
-        result.append(formatter.Format(*current));
+        result.append(formatter(*current));
     }
     return result;
 }
@@ -88,7 +153,7 @@ std::vector<Stroka> ConvertToStrings(
 {
     std::vector<Stroka> result;
     for (auto it = begin; it != end; ++it) {
-        result.push_back(formatter.Format(*it));
+        result.push_back(formatter(*it));
         if (result.size() == maxSize) {
             break;
         }
@@ -127,10 +192,13 @@ std::vector<Stroka> ConvertToStrings(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka UnderscoreCaseToCamelCase(const Stroka& data);
-Stroka CamelCaseToUnderscoreCase(const Stroka& data);
+void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str);
+Stroka UnderscoreCaseToCamelCase(const TStringBuf& str);
 
-Stroka TrimLeadingWhitespaces(const Stroka& data);
+void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str);
+Stroka CamelCaseToUnderscoreCase(const TStringBuf& str);
+
+Stroka TrimLeadingWhitespaces(const Stroka& str);
 
 bool ParseBool(const Stroka& value);
 Stroka FormatBool(bool value);

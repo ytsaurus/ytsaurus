@@ -26,6 +26,8 @@ class TSkipList;
 class TBlobOutput;
 class TFakeStringBufStore;
 
+class TStringBuilder;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

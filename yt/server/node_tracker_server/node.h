@@ -171,7 +171,7 @@ private:
 
 struct TNodePtrAddressFormatter
 {
-    Stroka Format(TNode* node) const
+    Stroka operator () (TNode* node) const
     {
         return node->GetAddress();
     }

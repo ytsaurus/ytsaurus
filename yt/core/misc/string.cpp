@@ -6,55 +6,63 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka UnderscoreCaseToCamelCase(const Stroka& data)
+void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str)
 {
-    Stroka result;
-    result.reserve(data.length());
     bool first = true;
     bool upper = true;
-    for (char c : data) {
+    for (char c : str) {
         if (c == '_') {
             upper = true;
         } else {
             if (upper) {
                 if (!std::isalpha(c) && !first) {
-                    result.push_back('_');
+                    builder->AppendChar('_');
                 }
                 c = std::toupper(c);
             }
-            result.push_back(c);
+            builder->AppendChar(c);
             upper = false;
         }
         first = false;
     }
-    return result;
 }
 
-Stroka CamelCaseToUnderscoreCase(const Stroka& data)
+Stroka UnderscoreCaseToCamelCase(const TStringBuf& str)
 {
-    Stroka result;
-    result.reserve(data.length() * 2);
+    TStringBuilder builder;
+    UnderscoreCaseToCamelCase(&builder, str);
+    return builder.Flush();
+}
+
+void CamelCaseToUnderscoreCase(TStringBuilder* builder, const TStringBuf& str)
+{
     bool first = true;
-    for (char c : data) {
+    for (char c : str) {
         if (std::isupper(c) && std::isalpha(c)) {
             if (!first) {
-                result.push_back('_');
+                builder->AppendChar('_');
             }
             c = std::tolower(c);
         }
-        result.push_back(c);
+        builder->AppendChar(c);
         first = false;
     }
-    return result;
+}
+
+Stroka CamelCaseToUnderscoreCase(const TStringBuf& str)
+{
+    TStringBuilder builder;
+    CamelCaseToUnderscoreCase(&builder, str);
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimLeadingWhitespaces(const Stroka& data)
+Stroka TrimLeadingWhitespaces(const Stroka& str)
 {
-    for (int i = 0; i < data.size(); ++i) {
-        if (data[i] != ' ') {
-            return data.substr(i);
+    for (int i = 0; i < str.size(); ++i) {
+        if (str[i] != ' ') {
+            return str.substr(i);
         }
     }
     return "";
@@ -69,8 +77,8 @@ bool ParseBool(const Stroka& value)
     } else if (value == "false") {
         return false;
     } else {
-        THROW_ERROR_EXCEPTION("Error parsing boolean value: %s",
-            ~value);
+        THROW_ERROR_EXCEPTION("Error parsing boolean value %s",
+            ~value.Quote());
     }
 }
 
