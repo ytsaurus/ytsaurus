@@ -200,8 +200,8 @@ void TMasterConnector::SendRegister()
 
     State_ = EState::Registering;
 
-    LOG_INFO("Node register request sent to master (%s)",
-        ~ToString(*req->mutable_statistics()));
+    LOG_INFO("Node register request sent to master (%v)",
+        *req->mutable_statistics());
 }
 
 TNodeStatistics TMasterConnector::ComputeStatistics()
@@ -277,7 +277,7 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
     YCHECK(State_ == EState::Registering);
     State_ = EState::Registered;
 
-    LOG_INFO("Successfully registered node at master (NodeId: %d)",
+    LOG_INFO("Successfully registered node at master (NodeId: %v)",
         NodeId_);
 
     SendFullNodeHeartbeat();
@@ -310,7 +310,8 @@ void TMasterConnector::SendFullNodeHeartbeat()
         BIND(&TMasterConnector::OnFullNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_INFO("Full node heartbeat sent to master (%s)", ~ToString(request->statistics()));
+    LOG_INFO("Full node heartbeat sent to master (%v)",
+        request->statistics());
 }
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
@@ -362,10 +363,10 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_INFO("Incremental node heartbeat sent to master (%s, AddedChunks: %d, RemovedChunks: %d)",
-        ~ToString(request->statistics()),
-        static_cast<int>(request->added_chunks_size()),
-        static_cast<int>(request->removed_chunks_size()));
+    LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
+        request->statistics(),
+        request->added_chunks_size(),
+        request->removed_chunks_size());
 }
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
@@ -467,8 +468,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         YCHECK(cellGuid != NullCellGuid);
         auto slot = tabletSlotManager->FindSlot(cellGuid);
         if (!slot) {
-            LOG_WARNING("Requested to remove a non-existing slot %s, ignored",
-                ~ToString(cellGuid));
+            LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
+                cellGuid);
             continue;
         }
         tabletSlotManager->RemoveSlot(slot);
@@ -478,13 +479,13 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
         if (tabletSlotManager->GetAvailableTabletSlotCount() == 0) {
-            LOG_WARNING("Requested to start cell %s when all slots are used, ignored",
-                ~ToString(cellGuid));
+            LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
+                cellGuid);
             continue;
         }
         if (tabletSlotManager->FindSlot(cellGuid)) {
-            LOG_WARNING("Requested to start cell %s when this cell is already being served by the node, ignored",
-                ~ToString(cellGuid));
+            LOG_WARNING("Requested to start cell %v when this cell is already being served by the node, ignored",
+                cellGuid);
             continue;
         }
         tabletSlotManager->CreateSlot(info);
@@ -495,8 +496,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         YCHECK(cellGuid != NullCellGuid);
         auto slot = tabletSlotManager->FindSlot(cellGuid);
         if (!slot) {
-            LOG_WARNING("Requested to configure a non-existing slot %s, ignored",
-                ~ToString(cellGuid));
+            LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
+                cellGuid);
             continue;
         }
         tabletSlotManager->ConfigureSlot(slot, info);
@@ -508,8 +509,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
         YCHECK(cellGuid != NullCellGuid);
         if (cellDirectory->UnregisterCell(cellGuid)) {
-            LOG_DEBUG("Hive cell unregistered (CellGuid: %s)",
-                ~ToString(cellGuid));
+            LOG_DEBUG("Hive cell unregistered (CellGuid: %v)",
+                cellGuid);
         }
     }
 
@@ -517,8 +518,8 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
         auto config = ConvertTo<TCellConfigPtr>(TYsonString(info.config()));
         int configVersion = info.config_version();
         if (cellDirectory->RegisterCell(config, configVersion)) {
-            LOG_DEBUG("Hive cell reconfigured (CellGuid: %s, ConfigVersion: %d)",
-                ~ToString(config->CellGuid),
+            LOG_DEBUG("Hive cell reconfigured (CellGuid: %v, ConfigVersion: %v)",
+                config->CellGuid,
                 configVersion);
         }
     }
@@ -548,8 +549,8 @@ void TMasterConnector::SendJobHeartbeat()
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
             .Via(HeartbeatInvoker_));
 
-    LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%s})",
-        ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
+    LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%v})",
+        FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
 void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
@@ -603,8 +604,8 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     RemovedSinceLastSuccess_.erase(chunk);
     AddedSinceLastSuccess_.insert(chunk);
 
-    LOG_DEBUG("Chunk addition registered (ChunkId: %s)",
-        ~ToString(chunk->GetId()));
+    LOG_DEBUG("Chunk addition registered (ChunkId: %v)",
+        chunk->GetId());
 }
 
 void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
@@ -617,8 +618,8 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     AddedSinceLastSuccess_.erase(chunk);
     RemovedSinceLastSuccess_.insert(chunk);
 
-    LOG_DEBUG("Chunk removal registered (ChunkId: %s)",
-        ~ToString(chunk->GetId()));
+    LOG_DEBUG("Chunk removal registered (ChunkId: %v)",
+        chunk->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
