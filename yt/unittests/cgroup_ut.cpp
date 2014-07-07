@@ -230,7 +230,7 @@ TEST(TEvent, Fired)
     EXPECT_FALSE(event.Fired());
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(::write(eventFd, &value, sizeof(value)), sizeof(value));
 
     EXPECT_TRUE(event.Fired());
 }
@@ -241,7 +241,7 @@ TEST(TEvent, Sticky)
     TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(::write(eventFd, &value, sizeof(value)), sizeof(value));
 
     EXPECT_TRUE(event.Fired());
     EXPECT_TRUE(event.Fired());
@@ -253,7 +253,7 @@ TEST(TEvent, Clear)
     TTestableEvent event(eventFd, -1);
 
     i64 value = 1;
-    write(eventFd, &value, sizeof(value));
+    EXPECT_EQ(::write(eventFd, &value, sizeof(value)),sizeof(value));
 
     EXPECT_TRUE(event.Fired());
     event.Clear();
