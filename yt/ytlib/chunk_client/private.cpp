@@ -12,11 +12,13 @@ namespace NChunkClient {
 
 NLog::TLogger ChunkClientLogger("ChunkClient");
 
-// For light requests (e.g. SendBlocks, GetBlocks, etc).
-NRpc::IChannelFactoryPtr LightNodeChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+NRpc::IChannelFactoryPtr LightNodeChannelFactory(
+    NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
 
-// For heavy requests (e.g. PutBlocks).
-NRpc::IChannelFactoryPtr HeavyNodeChannelFactory(NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+NRpc::IChannelFactoryPtr HeavyNodeChannelFactory(
+    NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+
+const char* const ChunkMetaSuffix = ".meta";
 
 ////////////////////////////////////////////////////////////////////////////////
 

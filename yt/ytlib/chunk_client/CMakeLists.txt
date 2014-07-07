@@ -14,6 +14,7 @@ set( SRCS
   ${BASE}/encoding_writer.cpp
   ${BASE}/erasure_reader.cpp
   ${BASE}/erasure_writer.cpp
+  ${BASE}/format.cpp
   ${BASE}/fetcher_base.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
