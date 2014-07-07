@@ -136,12 +136,12 @@ void TBlob::Reset()
     Size_ = Capacity_ = 0;
 }
 
-void TBlob::Swap(TBlob& other)
+void swap(TBlob& left, TBlob& right)
 {
-    if (this != &other) {
-        std::swap(this->Begin_, other.Begin_);
-        std::swap(this->Size_, other.Size_);
-        std::swap(this->Capacity_, other.Capacity_);
+    if (&left != &right) {
+        std::swap(left.Begin_, right.Begin_);
+        std::swap(left.Size_, right.Size_);
+        std::swap(left.Capacity_, right.Capacity_);
     }
 }
 

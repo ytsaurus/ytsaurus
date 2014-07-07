@@ -359,7 +359,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     while (true) {
         if (Position == Buffer->Size()) {
             Position = 0;
-            PreviousBuffer.Swap(*Buffer);
+            swap(PreviousBuffer, *Buffer);
             Buffer->Clear();
             while (HasData && Buffer->Size() < InputBufferSize) {
                 HasData = TableProducer->ProduceRow();

@@ -29,7 +29,7 @@ public:
     void Clear();
     TSharedRef Flush();
 
-    void Swap(TBlobOutput& other);
+    friend void swap(TBlobOutput& left, TBlobOutput& right);
 
 private:
     virtual void DoWrite(const void* buf, size_t len) override;
@@ -37,6 +37,8 @@ private:
     TBlob Blob_;
 
 };
+
+void swap(TBlobOutput& left, TBlobOutput& right);
 
 ///////////////////////////////////////////////////////////////////////////////
 
