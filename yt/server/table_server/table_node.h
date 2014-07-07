@@ -29,8 +29,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
     DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
 
-    // Most tables have no tablets.
-    static const int MaxTabletCount = 1000;
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
     typedef TTabletList::iterator TTabletListIterator; 
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);

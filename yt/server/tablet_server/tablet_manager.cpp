@@ -568,9 +568,9 @@ public:
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
         int newTabletCount = static_cast<int>(pivotKeys.size());
 
-        if (tablets.size() - oldTabletCount + newTabletCount > TTableNode::MaxTabletCount) {
+        if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
-                TTableNode::MaxTabletCount);
+                MaxTabletCount);
         }
 
         if (!pivotKeys.empty()) {
