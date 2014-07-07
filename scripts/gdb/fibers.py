@@ -60,6 +60,12 @@ def get_fiber_stack_pointer(expr):
     return fiber["Context_"]["SP"].cast(voidty.pointer().pointer())
 
 
+def get_fiber_frame_pointer(expr):
+    # Suspended stack contains (top to bottom):
+    # 0: %r15, 1: %r14, 2: %r13, 3: %r12, 4: %rbx, 5: %rbp, 6: return address.
+    return get_fiber_stack_pointer(expr) + 5
+
+
 class FiberBtCmd(gdb.Command):
     """Print fiber backtrace by traversing frame pointers.
 
@@ -74,7 +80,7 @@ class FiberBtCmd(gdb.Command):
     def invoke(self, arg, _from_tty):
         vpp = gdb.lookup_type("void").pointer().pointer()
 
-        fp = get_fiber_stack_pointer(arg) + 5  # See context-switching implementation.
+        fp = get_fiber_frame_pointer(arg)
         no = 1
 
         while to_int(fp) != 0:
@@ -102,7 +108,7 @@ class FiberCmd(gdb.Command):
 
     Usage: (gdb) fib <fiberptr> <gdbcmd>
 
-    Note that it is ill-defined to modify state in the context of a goroutine.
+    Note that it is ill-defined to modify state in the context of a fiber.
     Restrict yourself to inspecting values.
     """
 
@@ -112,7 +118,7 @@ class FiberCmd(gdb.Command):
     def invoke(self, arg, _from_tty):
         arg, cmd = arg.split(None, 1)
 
-        fp = get_fiber_stack_pointer(arg) + 5  # See context-switching implementation.
+        fp = get_fiber_frame_pointer(arg)
         sp = (fp + 0).dereference()
         pc = (fp + 1).dereference()
 
