@@ -164,7 +164,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             auto attributes = CreateEphemeralAttributes();
             attributes->Set(
                 "title",
-                Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetId())));
+                Format("Snapshot upload for operation %v", operation->GetId()));
             options.Attributes = attributes.get();
             auto transactionOrError = WaitFor(MasterClient->StartTransaction(
                 NTransactionClient::ETransactionType::Master,

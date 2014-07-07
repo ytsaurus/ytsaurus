@@ -127,7 +127,7 @@ void CheckJobDescriptor(int fd)
 void ChmodJobDescriptor(int fd)
 {
     const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
-    auto procPath = Sprintf("/proc/self/fd/%d", fd);
+    auto procPath = Format("/proc/self/fd/%v", fd);
     auto res = chmod(~procPath, permissions);
 
     if (res == -1) {

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "node_statistics.h"
 
+#include <core/misc/format.h>
+
 #include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
@@ -11,9 +13,9 @@ namespace NProto {
 
 Stroka ToString(const TNodeStatistics& statistics)
 {
-    return Sprintf(
-        "Space: %" PRId64 "/%" PRId64 ", Chunks: %d, UserSessions: %d, "
-        "ReplicationSessions: %d, RepairSessions: %d, TabletSlots: %d/%d",
+    return Format(
+        "Space: %v/%v, Chunks: %v, UserSessions: %v, "
+        "ReplicationSessions: %v, RepairSessions: %v, TabletSlots: %v/%v",
         statistics.total_used_space(),
         statistics.total_available_space() + statistics.total_used_space(),
         statistics.total_chunk_count(),

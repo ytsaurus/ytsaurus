@@ -277,7 +277,7 @@ public:
             auto thread = New<TSingleQueueSchedulerThread>(
                 Queue_,
                 &EventCount_,
-                Sprintf("%s:%d", ~threadNamePrefix, i),
+                Format("%v:%v", threadNamePrefix, i),
                 GetThreadTagIds(threadNamePrefix),
                 true,
                 true);

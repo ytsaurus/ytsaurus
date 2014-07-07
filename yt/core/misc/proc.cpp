@@ -35,7 +35,7 @@ i64 GetProcessRss(int pid)
 #ifdef _linux_
     Stroka path = "/proc/self/statm";
     if (pid != -1) {
-        path = Sprintf("/proc/%d/statm", pid);
+        path = Format("/proc/%v/statm", pid);
     }
 
     TIFStream memoryStatFile(path);

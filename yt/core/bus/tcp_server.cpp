@@ -90,7 +90,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Sprintf("Port: %d", Config->Port);
+        return Format("Port: %v", Config->Port);
     }
 
 protected:
@@ -291,7 +291,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Sprintf("Port: %d", Config->Port);
+        return Format("Port: %v", Config->Port);
     }
 
 private:
@@ -371,7 +371,7 @@ public:
             std::move(dispatcherThread),
             std::move(handler))
     {
-        Logger.AddTag(Sprintf("LocalPort: %d", Config->Port));
+        Logger.AddTag(Format("LocalPort: %v", Config->Port));
     }
 
 
@@ -381,7 +381,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Sprintf("LocalPort: %d", Config->Port);
+        return Format("LocalPort: %v", Config->Port);
     }
 
 private:

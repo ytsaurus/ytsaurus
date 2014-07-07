@@ -144,7 +144,7 @@ public:
 private:
     virtual Stroka DoGetName(TChunk* chunk) override
     {
-        return Sprintf("chunk %s", ~ToString(chunk->GetId()));
+        return Format("chunk %v", chunk->GetId());
     }
 
 };
@@ -167,7 +167,7 @@ public:
 private:
     virtual Stroka DoGetName(TChunk* chunk) override
     {
-        return Sprintf("erasure chunk %s", ~ToString(chunk->GetId()));
+        return Format("erasure chunk %v", chunk->GetId());
     }
 
 };
@@ -190,7 +190,7 @@ public:
 private:
     virtual Stroka DoGetName(TChunk* chunk) override
     {
-        return Sprintf("journal chunk %s", ~ToString(chunk->GetId()));
+        return Format("journal chunk %v", chunk->GetId());
     }
 
 };
@@ -227,7 +227,7 @@ private:
 
     virtual Stroka DoGetName(TChunkList* chunkList) override
     {
-        return Sprintf("chunk list %s", ~ToString(chunkList->GetId()));
+        return Format("chunk list %v", chunkList->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;

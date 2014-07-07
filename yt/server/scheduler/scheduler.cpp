@@ -1724,9 +1724,9 @@ private:
         const auto& jobAddress = node->GetAddress();
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
-        Logger.AddTag(Sprintf("Address: %s, JobId: %s",
-            ~jobAddress,
-            ~ToString(jobId)));
+        Logger.AddTag(Format("Address: %v, JobId: %v",
+            jobAddress,
+            jobId));
 
         auto job = FindJob(jobId);
         if (!job) {

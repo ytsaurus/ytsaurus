@@ -146,7 +146,7 @@ private:
     {
         return NFS::CombinePaths(
             Config_->Path,
-            Sprintf("%09d.%s", id, ~ChangelogExtension));
+            Format("%09d.%v", id, ChangelogExtension));
     }
 
 

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "public.h"
 
+#include <core/misc/format.h>
+
 #include <util/string/vector.h>
 
 namespace NYT {
@@ -47,9 +49,9 @@ TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
 
 Stroka ToString(const TVersionedObjectId& id)
 {
-    return Sprintf("%s:%s",
-        ~ToString(id.ObjectId),
-        ~ToString(id.TransactionId));
+    return Format("%v:%v",
+        id.ObjectId,
+        id.TransactionId);
 }
 
 bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)

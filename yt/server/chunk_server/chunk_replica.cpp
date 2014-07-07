@@ -18,8 +18,8 @@ using namespace NChunkClient;
 
 Stroka ToString(TNodePtrWithIndex value)
 {
-    return Sprintf("%s/%d",
-        ~value.GetPtr()->GetAddress(),
+    return Format("%v/%v",
+        value.GetPtr()->GetAddress(),
         value.GetIndex());
 }
 
@@ -28,13 +28,13 @@ Stroka ToString(TChunkPtrWithIndex value)
     auto* chunk = value.GetPtr();
     int index = value.GetIndex();
     if (chunk->IsErasure() && index != GenericChunkReplicaIndex) {
-        return Sprintf("%s/%d",
-            ~ToString(chunk->GetId()),
+        return Format("%v/%v",
+            chunk->GetId(),
             index);
     } else if (chunk->IsJournal()) {
-        return Sprintf("%s/%s",
-            ~ToString(chunk->GetId()),
-            ~FormatEnum(EJournalReplicaType(index)));
+        return Format("%v/%lv",
+            chunk->GetId(),
+            EJournalReplicaType(index));
     } else {
         return ToString(chunk->GetId());
     }

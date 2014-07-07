@@ -1,10 +1,12 @@
 #include "stdafx.h"
 #include "chunk_replica.h"
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <core/misc/format.h>
 
 #include <core/erasure/public.h>
         
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/object_client/helpers.h>
 
 namespace NYT {
@@ -54,7 +56,7 @@ void FromProto(TChunkReplica* replica, ui32 value)
 
 Stroka ToString(TChunkReplica replica)
 {
-    return Sprintf("%d/%d", replica.GetNodeId(), replica.GetIndex());
+    return Format("%v/%v", replica.GetNodeId(), replica.GetIndex());
 }
 
 TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
@@ -64,7 +66,7 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
 Stroka TChunkReplicaAddressFormatter::operator () (TChunkReplica replica) const
 {
     const auto& descriptor = NodeDirectory->GetDescriptor(replica.GetNodeId());
-    return Sprintf("%s/%d", ~descriptor.GetDefaultAddress(), replica.GetIndex());
+    return Format("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +93,7 @@ bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
 
 Stroka ToString(const TChunkIdWithIndex& id)
 {
-    return Sprintf("%s/%d", ~ToString(id.Id), id.Index);
+    return Format("%v/%v", id.Id, id.Index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

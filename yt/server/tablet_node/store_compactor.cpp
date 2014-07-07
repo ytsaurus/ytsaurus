@@ -266,8 +266,8 @@ private:
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Eden partitioning, tablet %s",
-                    ~ToString(tabletId)));
+                attributes->Set("title", Format("Eden partitioning, tablet %v",
+                    tabletId));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -496,8 +496,8 @@ private:
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Partition compaction, tablet %s",
-                    ~ToString(tabletId)));
+                attributes->Set("title", Format("Partition compaction, tablet %v",
+                    tabletId));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,

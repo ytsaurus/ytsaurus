@@ -148,7 +148,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     size_t totalBytesAlive = 0;
     size_t totalBytesAllocated = 0;
 
-    stream << Sprintf("%10s %10s %15s %15s %s\n",
+    stream << Format("%10s %10s %15s %15s %s\n",
         "ObjAlive",
         "ObjAllocated",
         "BytesAlive",
@@ -162,7 +162,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
         totalBytesAlive += slot.GetBytesAlive();
         totalBytesAllocated += slot.GetBytesAllocated();
 
-        stream << Sprintf("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
+        stream << Format("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
             slot.GetObjectsAlive(),
             slot.GetObjectsAllocated(),
             slot.GetBytesAlive(),
@@ -171,7 +171,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
     }
 
     stream << "-------------------------------------------------------------------------------------------------------------\n";
-    stream << Sprintf("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
+    stream << Format("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
         totalObjectsAlive,
         totalObjectsAllocated,
         totalBytesAlive,

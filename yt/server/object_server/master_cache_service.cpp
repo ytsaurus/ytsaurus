@@ -95,11 +95,11 @@ private:
         // Formatter.
         friend Stroka ToString(const TKey& key)
         {
-            return Sprintf("%s %s:%s %s",
-                ~key.User,
-                ~key.Service,
-                ~key.Method,
-                ~key.Path);
+            return Format("%v %v:%v %v",
+                key.User,
+                key.Service,
+                key.Method,
+                key.Path);
         }
     };
 

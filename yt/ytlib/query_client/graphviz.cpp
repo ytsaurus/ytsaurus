@@ -191,9 +191,9 @@ public:
     {
         auto prefix = TGraphVizTraits<TNode>::GetPrefix();
         if (port.empty()) {
-            return Sprintf("%s%p", prefix, node);
+            return Format("%v%v", prefix, node);
         } else {
-            return Sprintf("%s%p:%s", prefix, node, port.c_str());
+            return Format("%v%v:%v", prefix, node, port);
         }
     }
 
@@ -279,10 +279,10 @@ public:
         void AddHeader(const TNode* node)
         {
             Value_ += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-            Value_ += Sprintf(
-                "<TR><TD BGCOLOR=\"//%d\">%s</TD></TR>",
+            Value_ += Format(
+                "<TR><TD BGCOLOR=\"//%d\">%v</TD></TR>",
                 TGraphVizTraits<TNode>::UniqueId,
-                ~ToString(node->GetKind()));
+                node->GetKind());
         }
 
         void AddFooter()
@@ -370,18 +370,20 @@ public:
             const auto& item = op->GetGroupItem(j);
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("G_%d[%s]: ", j, item.Name.c_str()) +
-                    NDot::EscapeHtml(item.Expression->GetSource()));
+                Format("G_%v[%v]: %s",
+                    j,
+                    item.Name,
+                    NDot::EscapeHtml(item.Expression->GetSource())));
         }
         for (int j = 0; j < op->GetAggregateItemCount(); ++i, ++j) {
             const auto& item = op->GetAggregateItem(j);
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("A_%d[%s]: ", j, item.Name.c_str()) +
-                    ToString(item.AggregateFunction) +
-                    "(" +
-                    NDot::EscapeHtml(item.Expression->GetSource()) +
-                    ")");
+                Format("A_%v[%v]: %v(%v)",
+                    j,
+                    item.Name,
+                    item.AggregateFunction,
+                    NDot::EscapeHtml(item.Expression->GetSource())));
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
@@ -409,7 +411,9 @@ public:
         for (int i = 0; i < op->GetProjectionCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i).Expression->GetSource()));
+                Format("[%v]: %v",
+                    i,
+                    NDot::EscapeHtml(op->GetProjection(i).Expression->GetSource())));
         }
         WriteNode(op, label.Build());
         WriteEdge(op, op->GetSource());
@@ -445,7 +449,9 @@ public:
         for (int i = 0; i < expr->GetArgumentCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(expr->GetArgument(i)->GetSource()));
+                Format("[%v]: %v",
+                    i,
+                    NDot::EscapeHtml(expr->GetArgument(i)->GetSource())));
         }
         WriteNode(expr, label.Build());
         for (int i = 0; i < expr->GetArgumentCount(); ++i) {

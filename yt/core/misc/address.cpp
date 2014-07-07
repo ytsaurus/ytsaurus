@@ -210,8 +210,8 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
             return
                 typedAddr->sun_path[0] == 0
-                ? Sprintf("unix://[%s]", typedAddr->sun_path + 1)
-                : Sprintf("unix://%s", typedAddr->sun_path);
+                ? Format("unix://[%v]", typedAddr->sun_path + 1)
+                : Format("unix://%v", typedAddr->sun_path);
         }
 #endif
         case AF_INET: {
@@ -229,7 +229,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             break;
         }
         default:
-            return Sprintf("unknown://family(%d)", sockAddr->sa_family);
+            return Format("unknown://family(%v)", sockAddr->sa_family);
     }
 
     std::array<char, 256> buffer;

@@ -200,13 +200,13 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return Sprintf("<%s>", ~ToString(EValueType(value.Type)));
+            return Format("<%v>", EValueType(value.Type));
 
         case EValueType::Integer:
-            return Sprintf("%" PRId64 "i", value.Data.Integer);
+            return Format("%vi", value.Data.Integer);
 
         case EValueType::Double:
-            return Sprintf("%lfd", value.Data.Double);
+            return Format("%v", value.Data.Double);
 
         case EValueType::String:
         case EValueType::Any:

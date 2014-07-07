@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "data_statistics.h"
 
+#include <core/misc/format.h>
+        
 #include <core/ytree/fluent.h>
 
 namespace NYT {
@@ -73,9 +75,9 @@ void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer
 
 Stroka ToString(const TDataStatistics& statistics)
 {
-    return Sprintf(
-        "UncompressedDataSize: %" PRId64 ", CompressedDataSize: %" PRId64
-        ", RowCount: %" PRId64 ", ChunkCount: %" PRId64,
+    return Format(
+        "UncompressedDataSize: %v, CompressedDataSize: %" PRId64
+        ", RowCount: %v, ChunkCount: %v",
         statistics.uncompressed_data_size(),
         statistics.compressed_data_size(),
         statistics.row_count(),

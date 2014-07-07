@@ -155,7 +155,7 @@ public:
 
 Stroka FormatInternalServerErrorResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 500 Internal Server Error\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -169,7 +169,7 @@ Stroka FormatInternalServerErrorResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatNotImplementedResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 501 Not Implemented\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -183,7 +183,7 @@ Stroka FormatNotImplementedResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatBadGatewayResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 502 Bad Gateway\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -197,7 +197,7 @@ Stroka FormatBadGatewayResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatServiceUnavailableResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 503 Service Unavailable\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -211,7 +211,7 @@ Stroka FormatServiceUnavailableResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatGatewayTimeoutResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 504 Gateway Timeout\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -225,7 +225,7 @@ Stroka FormatGatewayTimeoutResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatBadRequestResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 400 Bad Request\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -239,7 +239,7 @@ Stroka FormatBadRequestResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatNotFoundResponse(const Stroka& body, const Stroka& type)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 404 Not Found\r\n"
         "Connection: close\r\n"
         "Content-Type: %s\r\n"
@@ -253,7 +253,7 @@ Stroka FormatNotFoundResponse(const Stroka& body, const Stroka& type)
 
 Stroka FormatRedirectResponse(const Stroka& location)
 {
-    return Sprintf(
+    return Format(
         "HTTP/1.1 303 See Other\r\n"
         "Connection: close\r\n"
         "Content-Type: text/plain\r\n"
@@ -266,7 +266,7 @@ Stroka FormatRedirectResponse(const Stroka& location)
 Stroka FormatOKResponse(const Stroka& body, const Stroka& type)
 {
     // TODO(sandello): Unify headers across all these methods; also implement CRYT-61.
-    return Sprintf(
+    return Format(
         "HTTP/1.1 200 OK\r\n"
         "Server: YT\r\n"
         "Access-Control-Allow-Origin: *\r\n"

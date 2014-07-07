@@ -293,7 +293,7 @@ public:
 private:
     virtual Stroka DoGetName(TTransaction* transaction) override
     {
-        return Sprintf("transaction %s", ~ToString(transaction->GetId()));
+        return Format("transaction %v", transaction->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* dummyTransaction) override

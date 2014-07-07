@@ -1,5 +1,7 @@
 #pragma once
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace {
 
@@ -252,13 +254,12 @@ void PrintTo(const TProbeState& state, ::std::ostream* os)
     int copies = state.CopyConstructors + state.CopyAssignments;
     int moves = state.MoveConstructors + state.MoveAssignments;
 
-    *os << Sprintf(
-        "%d ctors, %d dtors; "
-        "copies: %d = %d + %d; moves: %d = %d + %d",
+    *os << Format(
+        "%v ctors, %v dtors; "
+        "copies: %v = %v + %v; moves: %v = %v + %v",
         state.Constructors, state.Destructors,
         copies, state.CopyConstructors, state.CopyAssignments,
-        moves, state.MoveConstructors, state.MoveAssignments
-    ).c_str();
+        moves, state.MoveConstructors, state.MoveAssignments);
 }
 
 void PrintTo(const TProbe& arg, ::std::ostream* os)

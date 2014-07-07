@@ -1179,8 +1179,8 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         reqExt->set_enable_staged_accounting(false);
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Sprintf("Scheduler async for operation %s",
-            ~ToString(operationId)));
+        attributes->Set("title", Format("Scheduler async for operation %v",
+            operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         NHydra::GenerateMutationId(req);
@@ -1232,7 +1232,8 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Sprintf("Scheduler sync for operation %s", ~ToString(operationId)));
+        attributes->Set("title", Format("Scheduler sync for operation %v",
+            operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         NHydra::GenerateMutationId(req);
@@ -1278,7 +1279,8 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Sprintf("Scheduler input for operation %s", ~ToString(operationId)));
+        attributes->Set("title", Format("Scheduler input for operation %v",
+            operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         NHydra::GenerateMutationId(req);
@@ -1322,8 +1324,8 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Sprintf("Scheduler output for operation %s",
-            ~ToString(operationId)));
+        attributes->Set("title", Format("Scheduler output for operation %v",
+            operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         NHydra::GenerateMutationId(req);
@@ -3427,7 +3429,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
         for (const auto& pair : env) {
-            jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
+            jobSpec->add_environment(Format("%v=%v", pair.first, pair.second));
         }
     };
 
@@ -3437,8 +3439,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     // Local environment.
     fillEnvironment(config->Environment);
 
-    jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
-        ~ToString(Operation->GetId())));
+    jobSpec->add_environment(Format("YT_OPERATION_ID=%v", Operation->GetId()));
 
     for (const auto& file : regularFiles) {
         auto *descriptor = jobSpec->add_regular_files();
@@ -3465,10 +3466,10 @@ void TOperationControllerBase::InitUserJobSpec(
 
     jobSpec->set_memory_reserve(memoryReserve);
 
-    jobSpec->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
-    jobSpec->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
+    jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
+    jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->Job->GetId()));
     if (joblet->StartRowIndex >= 0) {
-        jobSpec->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
+        jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
 }
 

@@ -4,6 +4,7 @@
 #include <core/misc/common.h>
 #include <core/misc/ref_counted.h>
 #include <core/misc/new.h>
+#include <core/misc/format.h>
 
 namespace NYT {
 namespace {
@@ -81,10 +82,9 @@ MATCHER_P3(HasRefCounts, increments, decrements, zeros,
 
 void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
 {
-    Stroka repr = Sprintf(
-        "%d increments, %d decrements and %d times vanished",
+    *os << Format(
+        "%v increments, %v decrements and %v times vanished",
         arg.Increments, arg.Decrements, arg.Zeros);
-    *os << repr.c_str();
 }
 
 // This is an object which creates intrusive pointers to the self

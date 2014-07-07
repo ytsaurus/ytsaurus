@@ -165,7 +165,7 @@ Stroka TTcpConnection::GetLoggingId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Sprintf("ConnectionId: %s", ~ToString(Id_));
+    return Format("ConnectionId: %v", Id_);
 }
 
 TTcpDispatcherStatistics& TTcpConnection::Statistics()

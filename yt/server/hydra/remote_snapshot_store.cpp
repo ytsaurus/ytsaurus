@@ -248,8 +248,8 @@ private:
             {
                 TTransactionStartOptions options;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Snapshot upload to %s",
-                    ~remotePath));
+                attributes->Set("title", Format("Snapshot upload to %v",
+                    remotePath));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(MasterClient_->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
@@ -359,9 +359,7 @@ private:
 
     TYPath GetRemotePath(int snapshotId)
     {
-        return Sprintf("%s/%09d",
-            ~RemotePath_,
-            snapshotId);
+        return Format("%s/%09d", RemotePath_, snapshotId);
     }
 
 };

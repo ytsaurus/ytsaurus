@@ -29,7 +29,7 @@ TNetworkAddress GetLocalBusAddress(int port)
     UNUSED(port);
     THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
 #else
-    auto name = Sprintf("yt-local-bus-%d", port);
+    auto name = Format("yt-local-bus-%v", port);
     sockaddr_un sockAddr;
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
@@ -119,8 +119,7 @@ TTcpDispatcher::TImpl::TImpl()
     : ThreadIdGenerator_(0)
 {
     for (int index = 0; index < ThreadCount; ++index) {
-        auto thread = New<TTcpDispatcherThread>(
-            Sprintf("Bus:%d", index));
+        auto thread = New<TTcpDispatcherThread>(Format("Bus:%v", index));
         thread->Start();
         Threads_.push_back(thread);
     }

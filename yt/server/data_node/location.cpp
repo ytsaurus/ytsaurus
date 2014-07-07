@@ -62,10 +62,10 @@ TLocation::TLocation(
     , UsedSpace_(0)
     , SessionCount_(0)
     , ChunkCount_(0)
-    , ReadQueue_(New<TFairShareActionQueue>(Sprintf("Read:%s", ~Id_), ELocationQueue::GetDomainNames()))
+    , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), ELocationQueue::GetDomainNames()))
     , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Data)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Meta)))
-    , WriteQueue_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Sprintf("Write:%s", ~Id_)))
+    , WriteQueue_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WriteInvoker_(WriteQueue_->GetInvoker())
     , Logger(DataNodeLogger)
 {
@@ -184,7 +184,7 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%02x%s%s", firstHashByte, LOCSLASH_S, ~ToString(chunkId)));
+        Format("%02x%v%v", firstHashByte, LOCSLASH_S, chunkId));
 }
 
 bool TLocation::IsFull() const
@@ -343,7 +343,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
 
     // Force subdirectories.
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)), ChunkFilesPermissions);
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), Format("%02x", hashByte)), ChunkFilesPermissions);
     }
 
     // Initialize and start health checker.

@@ -146,7 +146,7 @@ void TAsyncTableWriter::Open()
     options.ParentId = TransactionId;
     options.EnableUncommittedAccounting = false;
     auto attributes = CreateEphemeralAttributes();
-    attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
+    attributes->Set("title", Format("Table upload to %s", RichPath.GetPath()));
     options.Attributes = attributes.get();
     auto transactionOrError = WaitFor(TransactionManager->Start(
         ETransactionType::Master,

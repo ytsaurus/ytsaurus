@@ -56,7 +56,7 @@ void TOperationTracker::AppendPhaseProgress(
         out->append(", ");
     }
 
-    out->append(Sprintf("%3d%% ", percentComplete));
+    out->append(Format("%3d%% ", percentComplete));
     if (!phase.empty()) {
         out->append(phase);
         out->append(' ');

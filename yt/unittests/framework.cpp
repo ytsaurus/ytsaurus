@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/misc/format.h>
+
 #include <core/actions/future.h>
 
 #include <core/concurrency/scheduler.h>
@@ -14,7 +16,7 @@ namespace NYT {
 
 Stroka GenerateRandomFileName(const char* prefix)
 {
-    return Sprintf("%s-%016" PRIx64 "-%016" PRIx64,
+    return Format("%s-%016" PRIx64 "-%016" PRIx64,
         prefix,
         MicroSeconds(),
         RandomNumber<ui64>());

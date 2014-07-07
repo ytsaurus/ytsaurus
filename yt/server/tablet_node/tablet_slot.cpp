@@ -84,7 +84,7 @@ public:
         , State_(EPeerState::None)
         , PeerId_(InvalidPeerId)
         , AutomatonQueue_(New<TFairShareActionQueue>(
-            Sprintf("TabletSlot:%d", SlotIndex_),
+            Format("TabletSlot:%v", SlotIndex_),
             EAutomatonThreadQueue::GetDomainNames()))
         , Logger(TabletNodeLogger)
     {
@@ -263,13 +263,13 @@ public:
             auto snapshotStore = CreateRemoteSnapshotStore(
                 Config_->Snapshots,
                 Options_,
-                Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(CellGuid_)),
+                Format("//sys/tablet_cells/%v/snapshots", CellGuid_),
                 Bootstrap_->GetMasterClient());
 
             auto changelogStore = CreateRemoteChangelogStore(
                 Config_->Changelogs,
                 Options_,
-                Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(CellGuid_)),
+                Format("//sys/tablet_cells/%v/changelogs", CellGuid_),
                 Bootstrap_->GetMasterClient());
 
             HydraManager_ = CreateDistributedHydraManager(

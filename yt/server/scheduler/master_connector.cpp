@@ -511,7 +511,7 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddress));
+                attributes->Set("title", Format("Scheduler lock at %v", ServiceAddress));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);

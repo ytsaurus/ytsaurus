@@ -9,6 +9,7 @@
 
 #include <core/misc/error.h>
 #include <core/misc/lazy_ptr.h>
+#include <core/misc/format.h>
 
 #include <core/concurrency/async_stream.h>
 
@@ -442,7 +443,7 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
         config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
-        Message = Sprintf("Error loading configuration\n%s", ex.what());
+        Message = Format("Error loading configuration\n%v", ex.what());
         return;
     }
 
@@ -450,7 +451,7 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
         NDriver::TDispatcher::Get()->Configure(config->Driver->HeavyPoolSize);
         Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
-        Message = Sprintf("Error initializing driver instance\n%s", ex.what());
+        Message = Format("Error initializing driver instance\n%v", ex.what());
         return;
     }
 }

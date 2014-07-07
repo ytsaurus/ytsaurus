@@ -122,7 +122,7 @@ private:
 
     virtual Stroka DoGetName(TTabletCell* object) override
     {
-        return Sprintf("tablet cell %s", ~ToString(object->GetId()));
+        return Format("tablet cell %v", object->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
@@ -152,7 +152,7 @@ private:
 
     virtual Stroka DoGetName(TTablet* object) override
     {
-        return Sprintf("tablet %s", ~ToString(object->GetId()));
+        return Format("tablet %v", object->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
@@ -1463,7 +1463,7 @@ private:
         for (const auto& pair : TabletCellMap_) {
             const auto& cellId = pair.first;
 
-            auto snapshotsPath = Sprintf("//sys/tablet_cells/%s/snapshots", ~ToString(cellId));
+            auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
             auto snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
             if (!snapshotsMap)
                 continue;
@@ -1515,7 +1515,7 @@ private:
                 }
             }
 
-            auto changelogsPath = Sprintf("//sys/tablet_cells/%s/changelogs", ~ToString(cellId));
+            auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", cellId);
             auto changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
             if (!changelogsMap)
                 continue;

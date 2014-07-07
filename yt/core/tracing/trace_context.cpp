@@ -71,7 +71,7 @@ TTraceContext TTraceContext::CreateChild() const
 
 Stroka ToString(const TTraceContext& context)
 {
-    return Sprintf("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+    return Format("%08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
         context.GetTraceId(),
         context.GetSpanId(),
         context.GetParentSpanId());

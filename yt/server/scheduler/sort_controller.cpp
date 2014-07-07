@@ -418,7 +418,7 @@ protected:
                     Controller->AddTaskPendingHint(partition->SortTask);
                 }
             }
-            LOG_DEBUG("Sort data size updated: %" PRId64 " -> %" PRId64,
+            LOG_DEBUG("Sort data size updated: %v -> %" PRId64,
                 oldSortDataSize,
                 newSortDataSize);
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
@@ -468,14 +468,14 @@ protected:
             for (auto partition : Controller->Partitions) {
                 i64 dataSize = partition->ChunkPoolOutput->GetTotalDataSize();
                 if (dataSize == 0) {
-                    LOG_DEBUG("Partition %d is empty", partition->Index);
+                    LOG_DEBUG("Partition %v is empty", partition->Index);
                     // Job restarts may cause the partition task to complete several times.
                     // Thus we might have already marked the partition as completed, let's be careful.
                     if (!partition->Completed) {
                         Controller->OnPartitionCompleted(partition);
                     }
                 } else {
-                    LOG_DEBUG("Partition[%d] = %" PRId64,
+                    LOG_DEBUG("Partition[%v] = %" PRId64,
                         partition->Index,
                         dataSize);
                 }
@@ -751,7 +751,7 @@ protected:
 
         virtual Stroka GetId() const override
         {
-            return Sprintf("Sort(%d)", Partition->Index);
+            return Format("Sort(%v)", Partition->Index);
         }
 
         virtual int GetPendingJobCount() const override
@@ -891,7 +891,7 @@ protected:
 
         virtual Stroka GetId() const override
         {
-            return Sprintf("SortedMerge(%d)", Partition->Index);
+            return Format("SortedMerge(%v)", Partition->Index);
         }
 
         virtual int GetPendingJobCount() const override
@@ -1026,7 +1026,7 @@ protected:
 
         virtual Stroka GetId() const override
         {
-            return Sprintf("UnorderedMerge(%d)", Partition->Index);
+            return Format("UnorderedMerge(%v)", Partition->Index);
         }
 
         virtual int GetPendingJobCount() const override
@@ -1236,7 +1236,7 @@ protected:
             node->AssignedDataSize += partition->ChunkPoolOutput->GetTotalDataSize();
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
-            LOG_DEBUG("Partition assigned (Index: %d, DataSize: %" PRId64 ", Address: %s)",
+            LOG_DEBUG("Partition assigned (Index: %v, DataSize: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetTotalDataSize(),
                 ~address);
@@ -1244,7 +1244,7 @@ protected:
 
         for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
-                LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
+                LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
                     ~node->Node->GetAddress(),
                     node->Weight,
                     node->AssignedDataSize,
@@ -1288,7 +1288,7 @@ protected:
             }
             if (totalInputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
-                    "Input/output row count mismatch in sort operation: %" PRId64 " != %" PRId64,
+                    "Input/output row count mismatch in sort operation: %v != %" PRId64,
                     totalInputRowCount,
                     TotalOutputRowCount));
             }
@@ -1305,7 +1305,7 @@ protected:
 
         ++CompletedPartitionCount;
 
-        LOG_INFO("Partition completed (Partition: %d)", partition->Index);
+        LOG_INFO("Partition completed (Partition: %v)", partition->Index);
     }
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const
@@ -1332,7 +1332,7 @@ protected:
             }
         }
 
-        LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
+        LOG_DEBUG("Partition needs sorted merge (Partition: %v)", partition->Index);
         SortedMergeJobCounter.Increment(1);
         partition->CachedSortedMergeNeeded = true;
         return true;
@@ -1358,7 +1358,7 @@ protected:
         if (averageBufferSize < TChannelWriter::MinUpperReserveLimit) {
             i64 minAppropriateSize = partitionCount * 2 * TChannelWriter::MinUpperReserveLimit;
             THROW_ERROR_EXCEPTION(
-                "Too small table writer buffer size for partitioner (MaxBufferSize: %" PRId64 "). Min appropriate buffer size is %" PRId64,
+                "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %" PRId64,
                 averageBufferSize,
                 minAppropriateSize);
         }
@@ -1736,7 +1736,7 @@ private:
     std::vector<const TOwningKey*> SortSamples(const std::vector<TOwningKey>& samples)
     {
         int sampleCount = static_cast<int>(samples.size());
-        LOG_INFO("Sorting %d samples", sampleCount);
+        LOG_INFO("Sorting %v samples", sampleCount);
 
         std::vector<const TOwningKey*> sortedSamples;
         sortedSamples.reserve(sampleCount);
@@ -1802,7 +1802,7 @@ private:
         // NB: Cannot use TotalInputDataSize due to slicing and rounding issues.
         SortDataSizeCounter.Set(SimpleSortPool->GetTotalDataSize());
 
-        LOG_INFO("Sorting without partitioning (SortJobCount: %d)",
+        LOG_INFO("Sorting without partitioning (SortJobCount: %v)",
             sortJobCount);
 
         // Kick-start the sort task.
@@ -1814,7 +1814,7 @@ private:
         using NChunkClient::ToString;
 
         int index = static_cast<int>(Partitions.size());
-        LOG_DEBUG("Partition %d has starting key %s",
+        LOG_DEBUG("Partition %v has starting key %v",
             index,
             ~ToString(key));
 
@@ -1861,7 +1861,7 @@ private:
                 }
 
                 auto lastPartition = Partitions.back();
-                LOG_DEBUG("Partition %d is a maniac, skipped %d samples",
+                LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
                     lastPartition->Index,
                     skippedCount);
 
@@ -1887,7 +1887,7 @@ private:
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
 
-        LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
+        LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v)",
             partitionCount,
             PartitionJobCounter.GetTotal());
     }
@@ -2100,15 +2100,15 @@ private:
 
     virtual Stroka GetLoggingProgress() const override
     {
-        return Sprintf(
-            "Jobs = {T: %" PRId64 ", R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
-            "Partitions = {T: %d, C: %d}, "
-            "PartitionJobs = {%s}, "
-            "IntermediateSortJobs = {%s}, "
-            "FinalSortJobs = {%s}, "
-            "SortedMergeJobs = {%s}, "
-            "UnorderedMergeJobs = {%s}, "
-            "UnavailableInputChunks: %d",
+        return Format(
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
+            "Partitions = {T: %v, C: %v}, "
+            "PartitionJobs = {%v}, "
+            "IntermediateSortJobs = {%v}, "
+            "FinalSortJobs = {%v}, "
+            "SortedMergeJobs = {%v}, "
+            "UnorderedMergeJobs = {%v}, "
+            "UnavailableInputChunks: %v",
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
@@ -2118,18 +2118,18 @@ private:
             JobCounter.GetAborted(),
             JobCounter.GetLost(),
             // Partitions
-            static_cast<int>(Partitions.size()),
+            Partitions.size(),
             CompletedPartitionCount,
             // PartitionJobs
-            ~ToString(PartitionJobCounter),
+            PartitionJobCounter,
             // IntermediateSortJobs
-            ~ToString(IntermediateSortJobCounter),
+            IntermediateSortJobCounter,
             // FinaSortJobs
-            ~ToString(FinalSortJobCounter),
+            FinalSortJobCounter,
             // SortedMergeJobs
-            ~ToString(SortedMergeJobCounter),
+            SortedMergeJobCounter,
             // UnorderedMergeJobs
-            ~ToString(UnorderedMergeJobCounter),
+            UnorderedMergeJobCounter,
             UnavailableInputChunkCount);
     }
 
@@ -2227,7 +2227,7 @@ private:
         TSortControllerBase::DoInitialize();
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
-            THROW_ERROR_EXCEPTION("Reduce columns %s are not compatible with sort columns %s",
+            THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
                 ~ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
                 ~ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }
@@ -2356,7 +2356,7 @@ private:
         PartitionTask->FinishInput();
         RegisterTask(PartitionTask);
 
-        LOG_INFO("Map-reducing with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
+        LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v)",
             partitionCount,
             PartitionJobCounter.GetTotal());
     }
@@ -2643,14 +2643,14 @@ private:
 
     virtual Stroka GetLoggingProgress() const override
     {
-        return Sprintf(
-            "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
-            "Partitions = {T: %d, C: %d}, "
-            "MapJobs = {%s}, "
-            "SortJobs = {%s}, "
-            "PartitionReduceJobs = {%s}, "
-            "SortedReduceJobs = {%s}, "
-            "UnavailableInputChunks: %d",
+        return Format(
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
+            "Partitions = {T: %v, C: %v}, "
+            "MapJobs = {%v}, "
+            "SortJobs = {%v}, "
+            "PartitionReduceJobs = {%v}, "
+            "SortedReduceJobs = {%v}, "
+            "UnavailableInputChunks: %v",
             // Jobs
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
@@ -2660,16 +2660,16 @@ private:
             JobCounter.GetAborted(),
             JobCounter.GetLost(),
             // Partitions
-            static_cast<int>(Partitions.size()),
+            Partitions.size(),
             CompletedPartitionCount,
             // MapJobs
-            ~ToString(PartitionJobCounter),
+            PartitionJobCounter,
             // SortJobs
-            ~ToString(IntermediateSortJobCounter),
+            IntermediateSortJobCounter,
             // PartitionReduceJobs
-            ~ToString(FinalSortJobCounter),
+            FinalSortJobCounter,
             // SortedReduceJobs
-            ~ToString(SortedMergeJobCounter),
+            SortedMergeJobCounter,
             UnavailableInputChunkCount);
     }
 

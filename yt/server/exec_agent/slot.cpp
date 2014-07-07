@@ -28,7 +28,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
     , Path(path)
     , SlotId(slotId)
     , UserId(userId)
-    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", slotId)))
+    , SlotThread(New<TActionQueue>(Format("ExecSlot:%v", slotId)))
     , ProcessGroup("freezer", GetSlotProcessGroup(slotId))
     , Logger(ExecAgentLogger)
 {

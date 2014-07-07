@@ -88,9 +88,9 @@ void TCoordinator::Run()
             // Infer key range and push it down.
             auto keyRange = Fragment_.GetHead()->GetKeyRange();
             auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
-                return Sprintf("[%s .. %s]",
-                    ~ToString(range.first),
-                    ~ToString(range.second));
+                return Format("[%v .. %v]",
+                    range.first,
+                    range.second);
             };
             Fragment_.Rewrite([&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
                 if (auto* scanOp = op->As<TScanOperator>()) {

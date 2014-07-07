@@ -460,7 +460,7 @@ private:
     {
         return NFS::CombinePaths(
             Config_->Path,
-            Sprintf("%09d.%s", snapshotId, ~SnapshotExtension));
+            Format("%09d.%v", snapshotId, SnapshotExtension));
     }
 
     TSnapshotParams ReadSnapshotParams(int snapshotId)

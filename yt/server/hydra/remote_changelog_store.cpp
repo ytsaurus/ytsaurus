@@ -228,9 +228,7 @@ private:
 
     TYPath GetRemotePath(int id)
     {
-        return Sprintf("%s/%09d",
-            ~RemotePath_,
-            id);
+        return Format("%s/%09d", RemotePath_, id);
     }
 
 

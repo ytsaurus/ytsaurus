@@ -667,7 +667,7 @@ private:
             // Set "title" attribute.
             auto objectManager = Bootstrap->GetObjectManager();
             auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
-            auto title = ConvertToYsonString(Sprintf("Lease for node %s", ~node->GetAddress()));
+            auto title = ConvertToYsonString(Format("Lease for node %v", node->GetAddress()));
             YCHECK(attributeSet->Attributes().insert(std::make_pair("title", title)).second);
             
             if (IsLeader()) {

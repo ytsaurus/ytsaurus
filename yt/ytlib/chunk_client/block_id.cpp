@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "block_id.h"
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -20,7 +22,7 @@ TBlockId::TBlockId()
 
 Stroka ToString(const TBlockId& id)
 {
-    return Sprintf("%s:%d", ~ToString(id.ChunkId), id.BlockIndex);
+    return Format("%v:%v", id.ChunkId, id.BlockIndex);
 }
 
 bool operator == (const TBlockId& lhs, const TBlockId& rhs)

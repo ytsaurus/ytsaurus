@@ -305,9 +305,9 @@ private:
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Flushing store %s, tablet %s",
-                    ~ToString(store->GetId()),
-                    ~ToString(tabletId)));
+                attributes->Set("title", Format("Flushing store %v, tablet %v",
+                    store->GetId(),
+                    tabletId));
                 options.Attributes = attributes.get();
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,

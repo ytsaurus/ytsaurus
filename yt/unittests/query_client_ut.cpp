@@ -251,9 +251,9 @@ TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(
     const TYPath& path,
     TPlanContextPtr)
 {
-    return MakeFuture(TErrorOr<TDataSplit>(TError(Sprintf(
-        "Could not find table %s",
-        ~path))));
+    return MakeFuture(TErrorOr<TDataSplit>(TError(Format(
+        "Could not find table %v",
+        path))));
 }
 
 template <class TFunctor, class TMatcher>

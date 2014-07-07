@@ -329,7 +329,7 @@ private:
                 options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
                 options.EnableUncommittedAccounting = false;
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Journal upload to %s", ~Path_));
+                attributes->Set("title", Format("Journal upload to %v", Path_));
                 options.Attributes = attributes.get();
 
                 auto transactionManager = Client_->GetTransactionManager();

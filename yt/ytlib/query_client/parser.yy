@@ -359,15 +359,20 @@ function-expr-args
 
 %%
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TParser::error(const location_type& location, const std::string& message)
 {
     THROW_ERROR_EXCEPTION("Error while parsing query: %s", message.c_str())
-        << TErrorAttribute("query_range", Sprintf("%d-%d", location.first, location.second));
+        << TErrorAttribute("query_range", Format("%v-%v", location.first, location.second));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
-

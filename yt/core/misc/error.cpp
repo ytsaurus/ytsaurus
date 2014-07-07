@@ -198,31 +198,33 @@ TNullable<TError> TError::FindMatching(int code) const
 
 namespace {
 
-void AppendIndent(int indent, Stroka* out)
+void AppendIndent(TStringBuilder* builer, int indent)
 {
-    out->append(Stroka(indent, ' '));
+    for (int i = 0; i < indent; ++i) {
+        builer->AppendChar(' ');
+    }
 }
 
-void AppendAttribute(const Stroka& key, const Stroka& value, int indent, Stroka* out)
+void AppendAttribute(TStringBuilder* builder, const Stroka& key, const Stroka& value, int indent)
 {
-    AppendIndent(indent + 4, out);
-    out->append(Sprintf("%-15s %s", ~key, ~value));
-    out->append('\n');
+    AppendIndent(builder, indent + 4);
+    Format(builder, "%-15s %s", key, value);
+    builder->AppendChar('\n');
 }
 
-void AppendError(const TError& error, int indent, Stroka* out)
+void AppendError(TStringBuilder* builder, const TError& error, int indent)
 {
     if (error.IsOK()) {
-        out->append("OK");
+        builder->AppendString("OK");
         return;
     }
 
-    AppendIndent(indent, out);
-    out->append(error.GetMessage());
-    out->append('\n');
+    AppendIndent(builder, indent);
+    builder->AppendString(error.GetMessage());
+    builder->AppendChar('\n');
 
     if (error.GetCode() != TError::GenericFailure) {
-        AppendAttribute("code", ToString(error.GetCode()), indent, out);
+        AppendAttribute(builder, "code", ToString(error.GetCode()), indent);
     }
 
     // Pretty-print origin.
@@ -232,14 +234,14 @@ void AppendError(const TError& error, int indent, Stroka* out)
     auto tid = error.Attributes().Find<i64>("tid");
     if (host && datetime && pid && tid) {
         AppendAttribute(
+            builder,
             "origin",
-            Sprintf("%s on %s (pid %d, tid %x)",
-                ~host.Get(),
-                ~datetime.Get(),
-                static_cast<int>(pid.Get()),
-                static_cast<int>(tid.Get())),
-            indent,
-            out);
+            Format("%v on %v (pid %v, tid %v)",
+                *host,
+                *datetime,
+                *pid,
+                *tid),
+            indent);
     }
 
     // Pretty-print location.
@@ -247,12 +249,12 @@ void AppendError(const TError& error, int indent, Stroka* out)
     auto line = error.Attributes().Find<i64>("line");
     if (file && line) {
         AppendAttribute(
+            builder,
             "location",
-            Sprintf("%s:%d",
-            ~file.Get(),
-            static_cast<int>(line.Get())),
-            indent,
-            out);
+            Format("%v:%v",
+                *file,
+                *line),
+            indent);
     }
 
     auto keys = error.Attributes().List();
@@ -270,23 +272,23 @@ void AppendError(const TError& error, int indent, Stroka* out)
         YCHECK(tokenizer.ParseNext());
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String:
-                AppendAttribute(key, Stroka(tokenizer.CurrentToken().GetStringValue()), indent, out);
+                AppendAttribute(builder, key, Stroka(tokenizer.CurrentToken().GetStringValue()), indent);
                 break;
             case ETokenType::Integer:
-                AppendAttribute(key, ToString(tokenizer.CurrentToken().GetIntegerValue()), indent, out);
+                AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetIntegerValue()), indent);
                 break;
             case ETokenType::Double:
-                AppendAttribute(key, ToString(tokenizer.CurrentToken().GetDoubleValue()), indent, out);
+                AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetDoubleValue()), indent);
                 break;
             default:
-                AppendAttribute(key, ConvertToYsonString(value, EYsonFormat::Text).Data(), indent, out);
+                AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).Data(), indent);
                 break;
         }
     }
 
     for (const auto& innerError : error.InnerErrors()) {
-        out->append('\n');
-        AppendError(innerError, indent + 2, out);
+        builder->AppendChar('\n');
+        AppendError(builder, innerError, indent + 2);
     }
 }
 
@@ -294,9 +296,9 @@ void AppendError(const TError& error, int indent, Stroka* out)
 
 Stroka ToString(const TError& error)
 {
-    Stroka result;
-    AppendError(error, 0, &result);
-    return result;
+    TStringBuilder builder;
+    AppendError(&builder, error, 0);
+    return builder.Flush();
 }
 
 void ToProto(NYT::NProto::TError* protoError, const TError& error)

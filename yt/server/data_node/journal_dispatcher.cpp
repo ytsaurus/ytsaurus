@@ -302,7 +302,7 @@ private:
     {
         return NFS::CombinePaths(
             GetMultiplexedPath(),
-            Sprintf("%09d.%s", changelogId, ~ChangelogExtension));
+            Format("%09d.%v", changelogId, ChangelogExtension));
     }
 
 

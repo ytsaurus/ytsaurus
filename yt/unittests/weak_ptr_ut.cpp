@@ -3,6 +3,7 @@
 
 #include <core/misc/common.h>
 #include <core/misc/weak_ptr.h>
+#include <core/misc/format.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
@@ -119,11 +120,9 @@ typedef TWeakPtr<TSlowlyDyingObject> TSlowlyDyingObjectWkPtr;
 template <class T>
 void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
 {
-    Stroka repr = Sprintf(
-        "%d strong and %d weak references",
+    *os << Format("%v strong and %v weak references",
         arg.GetRefCounter()->GetRefCount(),
         arg.GetRefCounter()->GetWeakRefCount());
-    *os << repr.c_str();
 }
 
 void PrintTo(const TIntricateObject& arg, ::std::ostream* os)

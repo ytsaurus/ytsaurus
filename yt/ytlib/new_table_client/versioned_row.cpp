@@ -2,6 +2,8 @@
 #include <numeric>
 #include "versioned_row.h"
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -49,8 +51,8 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 
 Stroka ToString(const TVersionedValue& value)
 {
-    return Sprintf("%s@%" PRIu64,
-        ~ToString(static_cast<TUnversionedValue>(value)),
+    return Format("%v@%v",
+        static_cast<TUnversionedValue>(value),
         value.Timestamp);
 }
 

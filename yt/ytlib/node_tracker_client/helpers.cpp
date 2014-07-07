@@ -16,9 +16,9 @@ Stroka FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits)
 {
-    return Sprintf(
-        "UserSlots: %d/%d, Cpu: %d/%d, Memory: %d/%d, Network: %d/%d, "
-        "ReplicationSlots: %d/%d, RemovalSlots: %d/%d, RepairSlots: %d/%d, SealSlots: %d/%d",
+    return Format(
+        "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v, "
+        "ReplicationSlots: %v/%v, RemovalSlots: %v/%v, RepairSlots: %v/%v, SealSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -26,8 +26,8 @@ Stroka FormatResourceUsage(
         usage.cpu(),
         limits.cpu(),
         // Memory (in MB)
-        static_cast<int>(usage.memory() / (1024 * 1024)),
-        static_cast<int>(limits.memory() / (1024 * 1024)),
+        usage.memory() / (1024 * 1024),
+        limits.memory() / (1024 * 1024),
         // Network
         usage.network(),
         limits.network(),
@@ -47,12 +47,12 @@ Stroka FormatResourceUsage(
 
 Stroka FormatResources(const TNodeResources& resources)
 {
-    return Sprintf(
-        "UserSlots: %d, Cpu: %d, Memory: %d, Network: %d, "
-        "ReplicationSlots: %d, RemovalSlots: %d, RepairSlots: %d, SealSlots: %d",
+    return Format(
+        "UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, "
+        "ReplicationSlots: %v, RemovalSlots: %v, RepairSlots: %v, SealSlots: %v",
         resources.user_slots(),
         resources.cpu(),
-        static_cast<int>(resources.memory() / (1024 * 1024)),
+        resources.memory() / (1024 * 1024),
         resources.network(),
         resources.replication_slots(),
         resources.removal_slots(),

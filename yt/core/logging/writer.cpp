@@ -25,7 +25,7 @@ TLogEvent GetBannerEvent()
     return TLogEvent(
         SystemLoggingCategory,
         ELogLevel::Info,
-        Sprintf("Logging started (Version: %s, BuildHost: %s, BuildTime: %s)",
+        Format("Logging started (Version: %v, BuildHost: %v, BuildTime: %v)",
             GetVersion(),
             GetBuildHost(),
             GetBuildTime()));

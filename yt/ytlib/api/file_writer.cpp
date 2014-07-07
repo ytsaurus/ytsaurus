@@ -120,7 +120,7 @@ private:
             options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
             options.EnableUncommittedAccounting = false;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Sprintf("File upload to %s", ~Path_));
+            attributes->Set("title", Format("File upload to %s", Path_));
             options.Attributes = attributes.get();
 
             auto transactionManager = Client_->GetTransactionManager();

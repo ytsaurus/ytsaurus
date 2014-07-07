@@ -317,10 +317,9 @@ void TTableConsumer::ThrowEntityExpected() const
 
 void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong) const
 {
-    ThrowError(
-        Sprintf("Control attribute %s cannot %s",
-            ~FormatEnum(ControlAttribute).Quote(),
-            ~whatsWrong));
+    ThrowError(Format("Control attribute %Qlv cannot %v",
+        ControlAttribute,
+        whatsWrong));
 }
 
 void TTableConsumer::ThrowError(const Stroka& message) const

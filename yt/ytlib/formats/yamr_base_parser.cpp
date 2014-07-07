@@ -2,6 +2,7 @@
 
 #include <core/misc/error.h>
 #include <core/misc/string.h>
+#include <core/misc/format.h>
 
 #include <core/yson/consumer.h>
 
@@ -92,11 +93,11 @@ Stroka TYamrDelimitedBaseParser::GetDebugInfo() const
         context.append(last, ContextBuffer + ContextBufferSize);
     }
     context.append(ContextBuffer, last);
-    return Sprintf("Offset: %" PRId64 ", Record: %" PRId64 ", State: %s, Context: %s",
+    return Format("Offset: %v, Record: %v, State: %v, Context: %Qv",
             Offset,
             Record,
-            ~ToString(State),
-            ~context.Quote());
+            State,
+            context);
 }
 
 void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)

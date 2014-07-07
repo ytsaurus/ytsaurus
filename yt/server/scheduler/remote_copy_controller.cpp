@@ -350,9 +350,9 @@ private:
 
     virtual Stroka GetLoggingProgress() const override
     {
-        return Sprintf(
-            "Jobs = {T: %" PRId64", R: %" PRId64", C: %" PRId64", P: %d, F: %" PRId64", A: %" PRId64"}, "
-            "UnavailableInputChunks: %d",
+        return Format(
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
+            "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),

@@ -356,10 +356,10 @@ private:
     static NLog::TTaggedLogger BuildLogger(TPartition* partition)
     {
         NLog::TTaggedLogger logger(TabletNodeLogger);
-        logger.AddTag(Sprintf("TabletId: %s, PartitionKeys: %s .. %s",
-            ~ToString(partition->GetTablet()->GetId()),
-            ~ToString(partition->GetPivotKey()),
-            ~ToString(partition->GetNextPivotKey())));
+        logger.AddTag(Format("TabletId: %v, PartitionKeys: %v .. %v",
+            partition->GetTablet()->GetId(),
+            partition->GetPivotKey(),
+            partition->GetNextPivotKey()));
         return logger;
     }
 

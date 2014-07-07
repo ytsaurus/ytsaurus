@@ -122,7 +122,7 @@ private:
 
     virtual Stroka DoGetName(TAccount* object) override
     {
-        return Sprintf("account %s", ~object->GetName().Quote());
+        return Format("account %Qv", object->GetName());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
@@ -168,7 +168,7 @@ private:
 
     virtual Stroka DoGetName(TUser* user) override
     {
-        return Sprintf("user %s", ~user->GetName().Quote());
+        return Format("user %Qv", user->GetName());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
@@ -209,7 +209,7 @@ private:
 
     virtual Stroka DoGetName(TGroup* group) override
     {
-        return Sprintf("group %s", ~group->GetName().Quote());
+        return Format("group %Qv", group->GetName());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;

@@ -293,7 +293,7 @@ private:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
-        return Sprintf("node %s", ~path);
+        return Format("node %s", path);
     }
 
     virtual IObjectProxyPtr DoGetProxy(
@@ -334,7 +334,7 @@ public:
 private:
     virtual Stroka DoGetName(TLock* lock) override
     {
-        return Sprintf("lock %s", ~ToString(lock->GetId()));
+        return Format("lock %v", lock->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(

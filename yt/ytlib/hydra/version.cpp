@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "version.h"
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -69,7 +71,7 @@ bool TVersion::IsValid() const
 
 Stroka ToString(TVersion version)
 {
-    return Sprintf("%d:%d", version.SegmentId, version.RecordId);
+    return Format("%v:%v", version.SegmentId, version.RecordId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

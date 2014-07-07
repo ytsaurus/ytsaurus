@@ -175,22 +175,21 @@ void TProgressCounter::Persist(TStreamPersistenceContext& context)
 
 Stroka ToString(const TProgressCounter& counter)
 {
-    return
-        counter.IsTotalEnabled()
-        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
-        counter.GetTotal(),
-        counter.GetRunning(),
-        counter.GetCompleted(),
-        counter.GetPending(),
-        counter.GetFailed(),
-        counter.GetAborted(),
-        counter.GetLost())
-        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
-        counter.GetRunning(),
-        counter.GetCompleted(),
-        counter.GetFailed(),
-        counter.GetAborted(),
-        counter.GetLost());
+    return counter.IsTotalEnabled()
+        ? Format("T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v",
+            counter.GetTotal(),
+            counter.GetRunning(),
+            counter.GetCompleted(),
+            counter.GetPending(),
+            counter.GetFailed(),
+            counter.GetAborted(),
+            counter.GetLost())
+        : Format("R: %v, C: %v, F: %v, A: %v, L: %v",
+            counter.GetRunning(),
+            counter.GetCompleted(),
+            counter.GetFailed(),
+            counter.GetAborted(),
+            counter.GetLost());
 }
 
 void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)

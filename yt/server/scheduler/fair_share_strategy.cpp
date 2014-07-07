@@ -1045,20 +1045,20 @@ public:
     {
         auto element = GetOperationElement(operation);
         const auto& attributes = element->Attributes();
-        return Sprintf(
+        return Format(
             "Scheduling = {Status: %s, DominantResource: %s, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
-            "Starving: %s, Weight: %lf, "
-            "PreemptableRunningJobs: %" PRISZT "}",
-            ~ToString(element->GetStatus()),
-            ~ToString(attributes.DominantResource),
+            "Starving: %v, Weight: %v, "
+            "PreemptableRunningJobs: %v}",
+            element->GetStatus(),
+            attributes.DominantResource,
             attributes.DemandRatio,
             element->GetUsageRatio(),
             attributes.FairShareRatio,
             attributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
-            ~FormatBool(element->GetStarving()),
+            element->GetStarving(),
             element->GetWeight(),
             element->PreemptableJobs().size());
     }

@@ -70,7 +70,7 @@ private:
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));
             BuildYsonFluently(consumer)
-                .Value(Sprintf("schema:%s", ~FormatEnum(type)));
+                .Value(Format("schema:%lv", type));
             return true;
         }
 
@@ -139,18 +139,15 @@ private:
 
     EObjectType Type;
 
-    virtual Stroka DoGetName(TSchemaObject* object) override
+    virtual Stroka DoGetName(TSchemaObject* /*object*/) override
     {
-        UNUSED(object);
-        return Sprintf("%s schema", ~FormatEnum(Type).Quote());
+        return Format("%Qlv schema", Type);
     }
 
     virtual IObjectProxyPtr DoGetProxy(
-        TSchemaObject* object,
-        NTransactionServer::TTransaction* transaction) override
+        TSchemaObject* /*object*/,
+        NTransactionServer::TTransaction* /*transaction*/) override
     {
-        UNUSED(transaction);
-        UNUSED(object);
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->GetSchemaProxy(Type);
     }
