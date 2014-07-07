@@ -35,10 +35,12 @@ public:
     TErrorOr(const std::exception& ex);
 
     explicit TErrorOr(const Stroka& message);
-    explicit TErrorOr(const char* format, ...);
+    template <class... TArgs>
+    explicit TErrorOr(const char* format, const TArgs&... args);
 
     TErrorOr(int code, const Stroka& message);
-    TErrorOr(int code, const char* format, ...);
+    template <class... TArgs>
+    TErrorOr(int code, const char* format, const TArgs&... args);
 
     static TError FromSystem();
     static TError FromSystem(int error);

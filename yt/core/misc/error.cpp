@@ -53,34 +53,10 @@ TError::TErrorOr(const Stroka& message)
     CaptureOriginAttributes();
 }
 
-TError::TErrorOr(const char* format, ...)
-    : Code_(GenericFailure)
-{
-    va_list params;
-    va_start(params, format);
-    vsprintf(Message_, format, params);
-    va_end(params);
-
-    CaptureOriginAttributes();
-}
-
 TError::TErrorOr(int code, const Stroka& message)
     : Code_(code)
     , Message_(message)
 {
-    if (!IsOK()) {
-        CaptureOriginAttributes();
-    }
-}
-
-TError::TErrorOr(int code, const char* format, ...)
-    : Code_(code)
-{
-    va_list params;
-    va_start(params, format);
-    vsprintf(Message_, format, params);
-    va_end(params);
-
     if (!IsOK()) {
         CaptureOriginAttributes();
     }
@@ -93,7 +69,7 @@ TError TError::FromSystem()
 
 TError TError::FromSystem(int error)
 {
-    return TError("%s", LastSystemErrorText(error)) <<
+    return TError("%v", LastSystemErrorText(error)) <<
         TErrorAttribute("errno", error);
 }
 

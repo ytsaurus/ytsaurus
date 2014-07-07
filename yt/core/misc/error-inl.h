@@ -3,7 +3,29 @@
 #endif
 #undef ERROR_INL_H_
 
+#include <core/misc/format.h>
+
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... TArgs>
+TError::TErrorOr(const char* format, const TArgs&... args)
+    : Code_(GenericFailure)
+    , Message_(Format(format, args...))
+{
+    CaptureOriginAttributes();
+}
+
+template <class... TArgs>
+TError::TErrorOr(int code, const char* format, const TArgs&... args)
+    : Code_(code)
+    , Message_(Format(format, args...))
+{
+    if (!IsOK()) {
+        CaptureOriginAttributes();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
