@@ -29,7 +29,7 @@ static auto& Logger = HydraLogger;
 
 struct TSnapshotHeader
 {
-    static const ui64 ExpectedSignature =  0x3230303053535459ull; // YTSS0002
+    static const ui64 ExpectedSignature;
 
     ui64 Signature;
     i32 SnapshotId;
@@ -58,6 +58,8 @@ struct TSnapshotHeader
         }
     }
 };
+
+const ui64 TSnapshotHeader::ExpectedSignature =  0x3230303053535459ull; // YTSS0002
 
 static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has changed.");
 

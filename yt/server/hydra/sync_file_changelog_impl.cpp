@@ -14,6 +14,9 @@ namespace NHydra {
 
 static auto& Logger = HydraLogger;
 
+const ui64 TChangelogHeader::ExpectedSignature = 0x3330303044435459ull; // YTCD0003
+const ui64 TChangelogIndexHeader::ExpectedSignature = 0x3330303049435459ull; // YTCI0003
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
