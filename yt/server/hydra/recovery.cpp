@@ -141,16 +141,10 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
             }
         }
 
-        // Check if the current state contains some mutations that are redundant.
-        // If so, clear the state and restart recovery.
+        // Check that we don't have any uncommitted mutations applied.
         auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
         YCHECK(currentVersion.SegmentId == changelogId);
-        if (currentVersion.RecordId > changelog->GetRecordCount()) {
-            DecoratedAutomaton_->Clear();
-            THROW_ERROR_EXCEPTION("Current version is %s while only %d mutations are expected in this segment, forcing clean restart",
-                ~ToString(currentVersion),
-                changelog->GetRecordCount());
-        }
+        YCHECK(currentVersion.RecordId <= changelog->GetRecordCount());
 
         int targetRecordId = isLast ? targetVersion.RecordId : changelog->GetRecordCount();
         ReplayChangelog(changelog, changelogId, targetRecordId);
