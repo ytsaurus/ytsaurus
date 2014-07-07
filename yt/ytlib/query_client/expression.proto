@@ -9,28 +9,18 @@ message TExpression
     extensions 100 to max;
 }
 
-message TIntegerLiteralExpression
+message TLiteralExpression
 {
     extend TExpression {
-        optional TIntegerLiteralExpression integer_literal_expression = 101;
+        optional TLiteralExpression literal_expression = 107;
     }
-    required int64 value = 1;
-}
 
-message TDoubleLiteralExpression
-{
-    extend TExpression {
-        optional TDoubleLiteralExpression double_literal_expression = 102;
-    }
-    required double value = 1;
-}
+    required uint32 type = 1;
 
-message TStringLiteralExpression
-{
-    extend TExpression {
-        optional TStringLiteralExpression string_literal_expression = 103;
-    }
-    required string value = 1;
+    optional int64 int64_value = 2;
+    optional uint64 uint64_value = 3;
+    optional double double_value = 4;
+    optional string string_value = 5;
 }
 
 message TReferenceExpression

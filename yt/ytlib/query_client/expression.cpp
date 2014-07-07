@@ -121,24 +121,33 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
 
     switch (original->GetKind()) {
 
-        case EExpressionKind::IntegerLiteral: {
-            auto* expr = original->As<TIntegerLiteralExpression>();
-            auto* proto = serialized->MutableExtension(NProto::TIntegerLiteralExpression::integer_literal_expression);
-            proto->set_value(expr->GetValue());
-            break;
-        }
+        case EExpressionKind::Literal: {
+            auto* expr = original->As<TLiteralExpression>();
+            auto* proto = serialized->MutableExtension(NProto::TLiteralExpression::literal_expression);
 
-        case EExpressionKind::DoubleLiteral: {
-            auto* expr = original->As<TDoubleLiteralExpression>();
-            auto* proto = serialized->MutableExtension(NProto::TDoubleLiteralExpression::double_literal_expression);
-            proto->set_value(expr->GetValue());
-            break;
-        }
+            auto value = expr->GetValue();
+            auto data = value.Data;
 
-        case EExpressionKind::StringLiteral: {
-            auto* expr = original->As<TStringLiteralExpression>();
-            auto* proto = serialized->MutableExtension(NProto::TStringLiteralExpression::string_literal_expression);
-            proto->set_value(expr->GetValue());
+            switch (value.Type) {
+
+                case EValueType::Integer: {
+                    proto->set_int64_value(data.Integer);
+                    break;
+                }
+
+                case EValueType::Double: {
+                    proto->set_double_value(data.Double);
+                    break;
+                }
+
+                case EValueType::String: {
+                    proto->set_string_value(data.String, value.Length);
+                    break;
+                }
+
+                default:
+                    YUNREACHABLE();
+            }
             break;
         }
 
@@ -175,34 +184,41 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
 
     switch (EExpressionKind(serialized.kind())) {
 
-        case EExpressionKind::IntegerLiteral: {
-            auto data = serialized.GetExtension(NProto::TIntegerLiteralExpression::integer_literal_expression);
-            auto typedResult = new (context) TIntegerLiteralExpression(
-                context,
-                NullSourceLocation,
-                data.value());
-            YASSERT(!result);
-            result = typedResult;
-            break;
-        }
+        case EExpressionKind::Literal: {
+            auto data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
+            TLiteralExpression* typedResult = nullptr;
+            EValueType type(data.type());
 
-        case EExpressionKind::DoubleLiteral: {
-            auto data = serialized.GetExtension(NProto::TDoubleLiteralExpression::double_literal_expression);
-            auto typedResult = new (context) TDoubleLiteralExpression(
-                context,
-                NullSourceLocation,
-                data.value());
-            YASSERT(!result);
-            result = typedResult;
-            break;
-        }
+            switch (type) {
 
-        case EExpressionKind::StringLiteral: {
-            auto data = serialized.GetExtension(NProto::TStringLiteralExpression::string_literal_expression);
-            auto typedResult = new (context) TStringLiteralExpression(
-                context,
-                NullSourceLocation,
-                data.value());
+                case EValueType::Integer: {
+                    typedResult = new (context) TLiteralExpression(
+                        context,
+                        NullSourceLocation,
+                        data.int64_value());
+                    break;
+                }
+
+                case EValueType::Double: {
+                    typedResult = new (context) TLiteralExpression(
+                        context,
+                        NullSourceLocation,
+                        data.double_value());
+                    break;
+                }
+
+                case EValueType::String: {
+                    typedResult = new (context) TLiteralExpression(
+                        context,
+                        NullSourceLocation,
+                        context->Capture(data.string_value()));
+                    break;
+                }
+
+                default:
+                    YUNREACHABLE();
+            }
+
             YASSERT(!result);
             result = typedResult;
             break;

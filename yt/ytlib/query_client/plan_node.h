@@ -6,6 +6,8 @@
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
+#include <ytlib/new_table_client/unversioned_row.h>
+
 #include <core/misc/error.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>

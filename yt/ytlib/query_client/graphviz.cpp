@@ -420,23 +420,7 @@ public:
         return true;
     }
 
-    virtual bool Visit(const TIntegerLiteralExpression* expr) override
-    {
-        WriteNode(
-            expr,
-            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
-        return true;
-    }
-
-    virtual bool Visit(const TDoubleLiteralExpression* expr) override
-    {
-        WriteNode(
-            expr,
-            TLabel(expr, CurrentSourceSchema_).WithRow(ToString(expr->GetValue())).Build());
-        return true;
-    }
-
-    virtual bool Visit(const TStringLiteralExpression* expr) override
+    virtual bool Visit(const TLiteralExpression* expr) override
     {
         WriteNode(
             expr,

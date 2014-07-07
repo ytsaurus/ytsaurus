@@ -1530,7 +1530,7 @@ namespace NYT { namespace NQueryClient {
 
   case 22:
     {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TIntegerLiteralExpression>(yylhs.location, 0);
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, i64(0));
 
             for (const TExpression* current : yystack_[1].value.as< TFunctionExpression::TArguments > ()) {
                 yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(
@@ -1620,19 +1620,19 @@ namespace NYT { namespace NQueryClient {
 
   case 41:
     {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TIntegerLiteralExpression>(yylhs.location, yystack_[0].value.as< i64 > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, yystack_[0].value.as< i64 > ());
         }
     break;
 
   case 42:
     {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TDoubleLiteralExpression>(yylhs.location, yystack_[0].value.as< double > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, yystack_[0].value.as< double > ());
         }
     break;
 
   case 43:
     {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TStringLiteralExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
     break;
 

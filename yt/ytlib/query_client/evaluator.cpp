@@ -62,9 +62,7 @@ DECLARE_ENUM(EFoldingObjectType,
     (GroupOp)
     (ProjectOp)
 
-    (IntegerLiteralExpr)
-    (DoubleLiteralExpr)
-    (StringLiteralExpr)
+    (LiteralExpr)
     (ReferenceExpr)
     (FunctionExpr)
     (BinaryOpExpr)
@@ -177,36 +175,13 @@ void TFoldingProfiler::Profile(const TExpression* expr)
 
     switch (expr->GetKind()) {
 
-        case EExpressionKind::IntegerLiteral: {
-            const auto* integerLiteralExpr = expr->As<TIntegerLiteralExpression>();
-            Id_.AddInteger(EFoldingObjectType::IntegerLiteralExpr);
+        case EExpressionKind::Literal: {
+            const auto* literalExpr = expr->As<TLiteralExpression>();
+            Id_.AddInteger(EFoldingObjectType::LiteralExpr);
 
             int index = Variables_.ConstantArray.size();
-            Variables_.ConstantArray.push_back(MakeIntegerValue<TValue>(integerLiteralExpr->GetValue()));
+            Variables_.ConstantArray.push_back(literalExpr->GetValue());
             Binding_.NodeToConstantIndex[expr] = index;
-
-            break;
-        }
-
-        case EExpressionKind::DoubleLiteral: {
-            const auto* doubleLiteralExpr = expr->As<TDoubleLiteralExpression>();
-            Id_.AddInteger(EFoldingObjectType::DoubleLiteralExpr);
-
-            int index = Variables_.ConstantArray.size();
-            Variables_.ConstantArray.push_back(MakeIntegerValue<TValue>(doubleLiteralExpr->GetValue()));
-            Binding_.NodeToConstantIndex[expr] = index;
-
-            break;
-        }
-
-        case EExpressionKind::StringLiteral: {
-            const auto* doubleLiteralExpr = expr->As<TStringLiteralExpression>();
-            Id_.AddInteger(EFoldingObjectType::StringLiteralExpr);
-
-            int index = Variables_.ConstantArray.size();
-            Variables_.ConstantArray.push_back(MakeStringValue<TValue>(doubleLiteralExpr->GetValue()));
-            Binding_.NodeToConstantIndex[expr] = index;
-
             break;
         }
 

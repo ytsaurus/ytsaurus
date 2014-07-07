@@ -578,7 +578,7 @@ TEST_P(TRefineKeyRangeTest, Basic)
             testCase.GetInitialRightBound()),
         Make<TBinaryOpExpression>(testCase.ConstraintOpcode,
             Make<TReferenceExpression>(testCase.ConstraintColumnName),
-            Make<TIntegerLiteralExpression>(testCase.ConstraintValue)));
+            Make<TLiteralExpression>(testCase.ConstraintValue)));
 
     if (testCase.ResultIsEmpty) {
         ExpectIsEmpty(result);
@@ -975,10 +975,10 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(90));
+        Make<TLiteralExpression>(i64(90)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(10));
+        Make<TLiteralExpression>(i64(10)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -992,10 +992,10 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1010,13 +1010,13 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1033,10 +1033,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(10));
+        Make<TLiteralExpression>(i64(10)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(90));
+        Make<TLiteralExpression>(i64(90)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1051,16 +1051,16 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(10));
+        Make<TLiteralExpression>(i64(10)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(90));
+        Make<TLiteralExpression>(i64(90)));
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1078,10 +1078,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TIntegerLiteralExpression>(50));
+        Make<TLiteralExpression>(i64(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1096,13 +1096,13 @@ TEST_F(TRefineKeyRangeTest, NormalizeExtraMinToSuccessor)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(1));
+        Make<TLiteralExpression>(i64(1)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(1));
+        Make<TLiteralExpression>(i64(1)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TIntegerLiteralExpression>(1));
+        Make<TLiteralExpression>(i64(1)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1119,13 +1119,13 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TIntegerLiteralExpression>(1));
+        Make<TLiteralExpression>(i64(1)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TIntegerLiteralExpression>(2));
+        Make<TLiteralExpression>(i64(2)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TIntegerLiteralExpression>(3));
+        Make<TLiteralExpression>(i64(3)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),

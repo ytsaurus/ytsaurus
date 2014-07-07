@@ -351,12 +351,8 @@ bool IsEmpty(const TKeyRange& keyRange)
 EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
 {
     switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-            return EValueType::Integer;
-        case EExpressionKind::DoubleLiteral:
-            return EValueType::Double;
-        case EExpressionKind::StringLiteral:
-            return EValueType::String;
+        case EExpressionKind::Literal:
+            return EValueType(expr->As<TLiteralExpression>()->GetConstantValue().Type);
         case EExpressionKind::Reference:
             return sourceSchema.GetColumnOrThrow(expr->As<TReferenceExpression>()->GetColumnName()).Type;
         case EExpressionKind::Function: {
@@ -453,12 +449,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
 Stroka InferName(const TExpression* expr)
 {
     switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-            return ToString(expr->As<TIntegerLiteralExpression>()->GetValue());
-        case EExpressionKind::DoubleLiteral:
-            return ToString(expr->As<TDoubleLiteralExpression>()->GetValue());
-        case EExpressionKind::StringLiteral:
-            return ToString(expr->As<TStringLiteralExpression>()->GetValue());
+        case EExpressionKind::Literal:
+            return ToString(expr->As<TLiteralExpression>()->GetValue());
         case EExpressionKind::Reference:
             return expr->As<TReferenceExpression>()->GetColumnName();
         case EExpressionKind::Function: {
@@ -478,8 +470,7 @@ Stroka InferName(const TExpression* expr)
             auto* typedExpr = expr->As<TBinaryOpExpression>();
             auto canOmitParenthesis = [] (const TExpression* expr) {
                 return
-                    expr->GetKind() == EExpressionKind::IntegerLiteral ||
-                    expr->GetKind() == EExpressionKind::DoubleLiteral ||
+                    expr->GetKind() == EExpressionKind::Literal ||
                     expr->GetKind() == EExpressionKind::Reference ||
                     expr->GetKind() == EExpressionKind::Function;
             };
@@ -503,8 +494,7 @@ Stroka InferName(const TExpression* expr)
 bool IsConstant(const TExpression* expr)
 {
     switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral:
+        case EExpressionKind::Literal:
             return true;
         default:
             return false;
@@ -514,14 +504,8 @@ bool IsConstant(const TExpression* expr)
 TValue GetConstantValue(const TExpression* expr)
 {
     switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-            return MakeUnversionedIntegerValue(
-                expr->As<TIntegerLiteralExpression>()->GetValue(),
-                NullTimestamp);
-        case EExpressionKind::DoubleLiteral:
-            return MakeUnversionedIntegerValue(
-                expr->As<TDoubleLiteralExpression>()->GetValue(),
-                NullTimestamp);
+        case EExpressionKind::Literal:
+            return expr->As<TLiteralExpression>()->GetValue();
         default:
             YUNREACHABLE();
     }

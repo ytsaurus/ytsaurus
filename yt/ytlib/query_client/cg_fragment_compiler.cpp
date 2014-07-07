@@ -799,9 +799,7 @@ TCGValue TCGContext::CodegenExpr(
 {
     YASSERT(expr);
     switch (expr->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral: {
+        case EExpressionKind::Literal: {
             auto it = Binding_.NodeToConstantIndex.find(expr);
             YCHECK(it != Binding_.NodeToConstantIndex.end());
             auto index = it->second;

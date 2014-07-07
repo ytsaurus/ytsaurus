@@ -14,9 +14,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EExpressionKind,
-    (IntegerLiteral)
-    (DoubleLiteral)
-    (StringLiteral)
+    (Literal)
     (Reference)
     (Function)
     (BinaryOp)
@@ -91,90 +89,48 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a constant integral value.
-class TIntegerLiteralExpression
+//! Represents a constant value.
+class TLiteralExpression
     : public TExpression
 {
 public:
-    TIntegerLiteralExpression(
+    TLiteralExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
         i64 value)
-        : TExpression(context, EExpressionKind::IntegerLiteral, sourceLocation)
-        , Value_(value)
+        : TExpression(context, EExpressionKind::Literal, sourceLocation)
+        , Value_(NVersionedTableClient::MakeUnversionedIntegerValue(value))
     { }
 
-    TIntegerLiteralExpression(
-        TPlanContext* context,
-        const TIntegerLiteralExpression& other)
-        : TExpression(context, EExpressionKind::IntegerLiteral, other.SourceLocation_)
-        , Value_(other.Value_)
-    { }
-
-    static inline bool IsClassOf(const TExpression* expr)
-    {
-        return expr->GetKind() == EExpressionKind::IntegerLiteral;
-    }
-
-    DEFINE_BYVAL_RO_PROPERTY(i64, Value);
-
-};
-
-//! Represents a constant floating-point value.
-class TDoubleLiteralExpression
-    : public TExpression
-{
-public:
-    TDoubleLiteralExpression(
+    TLiteralExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
         double value)
-        : TExpression(context, EExpressionKind::DoubleLiteral, sourceLocation)
-        , Value_(value)
+        : TExpression(context, EExpressionKind::Literal, sourceLocation)
+        , Value_(NVersionedTableClient::MakeUnversionedDoubleValue(value))
     { }
 
-    TDoubleLiteralExpression(
-        TPlanContext* context,
-        const TDoubleLiteralExpression& other)
-        : TExpression(context, EExpressionKind::DoubleLiteral, other.SourceLocation_)
-        , Value_(other.Value_)
-    { }
-
-    static inline bool IsClassOf(const TExpression* expr)
-    {
-        return expr->GetKind() == EExpressionKind::DoubleLiteral;
-    }
-
-    DEFINE_BYVAL_RO_PROPERTY(double, Value);
-
-};
-
-//! Represents a constant string value.
-class TStringLiteralExpression
-    : public TExpression
-{
-public:
-    TStringLiteralExpression(
+    TLiteralExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
         const TStringBuf& value)
-        : TExpression(context, EExpressionKind::StringLiteral, sourceLocation)
-        , Value_(value)
+        : TExpression(context, EExpressionKind::Literal, sourceLocation)
+        , Value_(NVersionedTableClient::MakeUnversionedStringValue(value))
     { }
 
-    TStringLiteralExpression(
+    TLiteralExpression(
         TPlanContext* context,
-        const TStringLiteralExpression& other)
-        : TExpression(context, EExpressionKind::StringLiteral, other.SourceLocation_)
+        const TLiteralExpression& other)
+        : TExpression(context, EExpressionKind::Literal, other.SourceLocation_)
         , Value_(other.Value_)
     { }
 
     static inline bool IsClassOf(const TExpression* expr)
     {
-        return expr->GetKind() == EExpressionKind::StringLiteral;
+        return expr->GetKind() == EExpressionKind::Literal;
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Value);
+    DEFINE_BYVAL_RO_PROPERTY(NVersionedTableClient::TUnversionedValue, Value);
 
 };
 

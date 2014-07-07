@@ -244,7 +244,7 @@ relational-op-expr
         }
     | atomic-expr[expr] KwIn LeftParenthesis function-expr-args[args] RightParenthesis
         {
-            $$ = context->TrackedNew<TIntegerLiteralExpression>(@$, 0);
+            $$ = context->TrackedNew<TLiteralExpression>(@$, i64(0));
 
             for (const TExpression* current : $args) {
                 $$ = context->TrackedNew<TBinaryOpExpression>(
@@ -314,15 +314,15 @@ atomic-expr
         { $$ = $1; }
     | IntegerLiteral[value]
         {
-            $$ = context->TrackedNew<TIntegerLiteralExpression>(@$, $value);
+            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
         }
     | DoubleLiteral[value]
         {
-            $$ = context->TrackedNew<TDoubleLiteralExpression>(@$, $value);
+            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
         }
     | StringLiteral[value]
         {
-            $$ = context->TrackedNew<TStringLiteralExpression>(@$, $value);
+            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
         }
     | LeftParenthesis or-op-expr[expr] RightParenthesis
         {

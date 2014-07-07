@@ -67,18 +67,8 @@ bool Traverse(IPlanVisitor* visitor, const TExpression* root)
     while (!queue.empty()) {
         auto* item = queue.pop_back_val();
         switch (item->GetKind()) {
-            case EExpressionKind::IntegerLiteral: {
-                auto* typedItem = item->As<TIntegerLiteralExpression>();
-                if (!visitor->Visit(typedItem)) { return false; }
-                break;
-            }
-            case EExpressionKind::DoubleLiteral: {
-                auto* typedItem = item->As<TDoubleLiteralExpression>();
-                if (!visitor->Visit(typedItem)) { return false; }
-                break;
-            }
-            case EExpressionKind::StringLiteral: {
-                auto* typedItem = item->As<TStringLiteralExpression>();
+            case EExpressionKind::Literal: {
+                auto* typedItem = item->As<TLiteralExpression>();
                 if (!visitor->Visit(typedItem)) { return false; }
                 break;
             }
@@ -145,9 +135,7 @@ const TExpression* Apply(
     // TODO(sandello): Implement COW to get rid of extra copies.
     auto* mutatedRoot = functor(context, root)->Clone(context);
     switch (mutatedRoot->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral:
+        case EExpressionKind::Literal:
         case EExpressionKind::Reference:
             break;
         case EExpressionKind::Function: {
@@ -173,9 +161,7 @@ void Visit(
 {
     visitor(root);
     switch (root->GetKind()) {
-        case EExpressionKind::IntegerLiteral:
-        case EExpressionKind::DoubleLiteral:
-        case EExpressionKind::StringLiteral:
+        case EExpressionKind::Literal:
         case EExpressionKind::Reference:
             break;
         case EExpressionKind::Function:
