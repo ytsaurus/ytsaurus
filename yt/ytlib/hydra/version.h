@@ -27,14 +27,10 @@ struct TVersion
     i64 ToRevision() const;
     static TVersion FromRevision(i64 revision);
 
-    bool IsValid() const;
-
     void Advance(int delta = 1);
     void Rotate();
 
 };
-
-extern const TVersion InvalidVersion;
 
 Stroka ToString(TVersion version);
 

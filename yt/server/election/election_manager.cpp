@@ -49,9 +49,10 @@ public:
         IElectionCallbacksPtr electionCallbacks,
         NRpc::IServerPtr rpcServer);
 
-    void Start();
-    void Stop();
-    void Restart();
+    void Initialize();
+    void Finalize();
+
+    void Participate();
 
     TYsonProducer GetMonitoringProducer();
 
@@ -97,13 +98,12 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
-    void AsyncCancel();
     void Reset();
     void OnFollowerPingTimeout();
 
     void DoStart();
-    void DoStop();
-    void DoRestart();
+    void DoFinalize();
+    void DoParticipate();
 
     bool CheckQuorum();
 
@@ -363,9 +363,6 @@ private:
 
     void ProcessVote(TPeerId id, const TStatus& status)
     {
-        if (status.Priority < 0)
-            return;
-
         YCHECK(id != InvalidPeerId);
         StatusTable[id] = status;
 
@@ -557,32 +554,25 @@ TElectionManager::TImpl::TImpl(
             .Via(ControlInvoker));
 }
 
-void TElectionManager::TImpl::Start()
+void TElectionManager::TImpl::Initialize()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     RpcServer->RegisterService(this);
-
-    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
 }
 
-void TElectionManager::TImpl::Stop()
+void TElectionManager::TImpl::Finalize()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    AsyncCancel();
-
-    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoFinalize, MakeWeak(this)));
 
     RpcServer->UnregisterService(this);
 }
 
-void TElectionManager::TImpl::Restart()
+void TElectionManager::TImpl::Participate()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    AsyncCancel();
-    ControlInvoker->Invoke(BIND(&TImpl::DoRestart, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoParticipate, MakeWeak(this)));
 }
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
@@ -615,23 +605,6 @@ TEpochContextPtr TElectionManager::TImpl::GetEpochContext()
     return EpochContext;
 }
 
-void TElectionManager::TImpl::AsyncCancel()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    // Cancel the current epoch ASAP. No sync.
-
-    auto state = State;
-    if (state != EPeerState::Leading && state != EPeerState::Following)
-        return;
-
-    auto epochContext = EpochContext;
-    if (!epochContext)
-        return;
-
-    epochContext->CancelableContext->Cancel();
-}
-
 void TElectionManager::TImpl::Reset()
 {
     // May be called from ControlThread and also from ctor.
@@ -658,27 +631,15 @@ void TElectionManager::TImpl::OnFollowerPingTimeout()
     LOG_INFO("No recurrent ping from leader within timeout");
 
     StopFollowing();
-    StartVoteForSelf();
 }
 
-void TElectionManager::TImpl::DoStart()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(State == EPeerState::Stopped);
-
-    StartVoteForSelf();
-}
-
-void TElectionManager::TImpl::DoStop()
+void TElectionManager::TImpl::DoFinalize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
         case EPeerState::Stopped:
-            break;
-
         case EPeerState::Voting:
-            Reset();
             break;
 
         case EPeerState::Leading:
@@ -692,14 +653,19 @@ void TElectionManager::TImpl::DoStop()
         default:
             YUNREACHABLE();
     }
+
+    Reset();
 }
 
-void TElectionManager::TImpl::DoRestart()
+void TElectionManager::TImpl::DoParticipate()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
         case EPeerState::Stopped:
+            StartVoteForSelf();
+            break;
+
         case EPeerState::Voting:
             break;
 
@@ -727,7 +693,9 @@ bool TElectionManager::TImpl::CheckQuorum()
     }
 
     LOG_WARNING("Quorum is lost");
-    DoRestart();
+    
+    StopLeading();
+
     return false;
 }
 
@@ -889,13 +857,17 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (peerId == CellManager->GetSelfId()) {
-        Restart();
-    } else if (State == EPeerState::Leading) {
-        PotentialFollowers.erase(peerId);
-        AliveFollowers.erase(peerId);
-        CheckQuorum();
-    } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-        Restart();
+        if (State == EPeerState::Leading || State == EPeerState::Following) {
+            DoParticipate();
+        }
+    } else {
+        if (State == EPeerState::Leading) {
+            PotentialFollowers.erase(peerId);
+            AliveFollowers.erase(peerId);
+            CheckQuorum();
+        } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
+            DoParticipate();
+        }
     }
 }
 
@@ -983,24 +955,18 @@ TElectionManager::TElectionManager(
         controlInvoker,
         electionCallbacks,
         rpcServer))
-{ }
+{
+    Impl->Initialize();
+}
 
 TElectionManager::~TElectionManager()
-{ }
-
-void TElectionManager::Start()
 {
-    Impl->Start();
+    Impl->Finalize();
 }
 
-void TElectionManager::Stop()
+void TElectionManager::Participate()
 {
-    Impl->Stop();
-}
-
-void TElectionManager::Restart()
-{
-    Impl->Restart();
+    Impl->Participate();
 }
 
 TYsonProducer TElectionManager::GetMonitoringProducer()

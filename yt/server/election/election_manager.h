@@ -58,9 +58,7 @@ public:
 
     ~TElectionManager();
 
-    void Start();
-    void Stop();
-    void Restart();
+    void Participate();
 
     NYTree::TYsonProducer GetMonitoringProducer();
 

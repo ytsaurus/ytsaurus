@@ -68,7 +68,6 @@ public:
 
         virtual void OnStopLeading() override
         {
-            Owner_->ComputeReachableVersion();
             Owner_->ControlInvoker_->Invoke(
                 BIND(&TDistributedHydraManager::OnElectionStopLeading, MakeStrong(Owner_)));
         }
@@ -81,7 +80,6 @@ public:
 
         virtual void OnStopFollowing() override
         {
-            Owner_->ComputeReachableVersion();
             Owner_->ControlInvoker_->Invoke(
                 BIND(&TDistributedHydraManager::OnElectionStopFollowing, MakeStrong(Owner_)));
         }
@@ -94,7 +92,7 @@ public:
         virtual Stroka FormatPriority(TPeerPriority priority) override
         {
             auto version = TVersion::FromRevision(priority);
-            return version.IsValid() ? ToString(version) : Stroka("invalid");
+            return ToString(version);
         }
 
     private:
@@ -116,7 +114,7 @@ public:
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
             HydraLogger.GetCategory())
         , Config_(config)
-        , RpcServer(rpcServer)
+        , RpcServer_(rpcServer)
         , CellManager_(cellManager)
         , ControlInvoker_(controlInvoker)
         , AutomatonInvoker_(automatonInvoker)
@@ -384,7 +382,7 @@ public:
 
 private:
     TDistributedHydraManagerConfigPtr Config_;
-    NRpc::IServerPtr RpcServer;
+    NRpc::IServerPtr RpcServer_;
     TCellManagerPtr CellManager_;
     IInvokerPtr ControlInvoker_;
     IInvokerPtr AutomatonInvoker_;
@@ -392,6 +390,8 @@ private:
     ISnapshotStorePtr SnapshotStore_;
     std::atomic<bool> ReadOnly_;
     EPeerState ControlState_;
+
+    TVersion ReachableVersion_;
 
     TElectionManagerPtr ElectionManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
@@ -683,14 +683,13 @@ private:
     }
 
 
-    i64 GetElectionPriority()
+    i64 GetElectionPriority() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto version =
-            ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
+        auto version = ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
             ? DecoratedAutomaton_->GetAutomatonVersion()
-            : DecoratedAutomaton_->GetLoggedVersion();
+            : ReachableVersion_;
 
         return version.ToRevision();
     }
@@ -700,7 +699,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ElectionManager_->Restart();
+        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoRestart, MakeStrong(this)));
     }
 
 
@@ -708,21 +707,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ControlState_ = EPeerState::Elections;
-
-        ComputeReachableVersion();
+        if (ControlState_ != EPeerState::None)
+            return;
 
         DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
             &TDecoratedAutomaton::Clear,
             DecoratedAutomaton_));
 
-        ElectionManager_->Start();
-
-        RpcServer->RegisterService(this);
+        RpcServer_->RegisterService(this);
 
         LOG_INFO("Hydra instance started (SelfAddress: %s, SelfId: %d)",
             ~CellManager_->GetSelfAddress(),
             CellManager_->GetSelfId());
+
+        ControlState_ = EPeerState::Elections;
+
+        Restart();
     }
 
     void DoStop()
@@ -732,49 +732,33 @@ private:
         if (ControlState_ == EPeerState::Stopped)
             return;
 
-        if (ControlState_ == EPeerState::Elections ||
-            ControlState_ == EPeerState::LeaderRecovery ||
-            ControlState_ == EPeerState::Leading ||
-            ControlState_ == EPeerState::FollowerRecovery ||
-            ControlState_ == EPeerState::Following)
-        {
-            ElectionManager_->Stop();
-            RpcServer->UnregisterService(this);
+        if (ControlState_ != EPeerState::None) {
+            RpcServer_->UnregisterService(this);
         }
+        ElectionManager_.Reset();
 
         ControlState_ = EPeerState::Stopped;
 
         LOG_INFO("Hydra instance stopped");
     }
 
-
-    IChangelogPtr OpenChangelogOrThrow(int id)
-    {
-        auto changelogOrError = WaitFor(ChangelogStore_->OpenChangelog(id));
-        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
-        return changelogOrError.Value();
-    }
-
-
-    void ComputeReachableVersion()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        DecoratedAutomaton_->SetLoggedVersion(InvalidVersion);
-
-        ControlInvoker_->Invoke(BIND(
-            &TDistributedHydraManager::DoComputeReachableVersion,
-            MakeStrong(this)));
-    }
-
-    void DoComputeReachableVersion()
+    void DoRestart()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto checkState = [&] () {
+            if (ControlState_ == EPeerState::Stopped) {
+                throw TFiberCanceledException();
+            }
+            YCHECK(ControlState_ = EPeerState::Elections);
+        };
+
         LOG_INFO("Computing reachable version");
 
-        while (ControlState_ != EPeerState::Stopped) {
+        while (true) {
             try {
+                checkState();
+
                 auto maxSnapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
                 THROW_ERROR_EXCEPTION_IF_FAILED(maxSnapshotIdOrError);
                 int maxSnapshotId = maxSnapshotIdOrError.Value();
@@ -791,26 +775,34 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(maxChangelogIdOrError);
                 int maxChangelogId = maxChangelogIdOrError.Value();
 
-                TVersion version;
                 if (maxChangelogId == NonexistingSegmentId) {
                     LOG_INFO("No changelogs found");
-                    version = TVersion(maxSnapshotId, 0);
+                    ReachableVersion_ = TVersion(maxSnapshotId, 0);
                 } else {
                     LOG_INFO("The latest changelog is %d", maxChangelogId);
                     auto changelog = OpenChangelogOrThrow(maxChangelogId);
-                    version = TVersion(maxChangelogId, changelog->GetRecordCount());
+                    ReachableVersion_ = TVersion(maxChangelogId, changelog->GetRecordCount());
                 }
-
-                LOG_INFO("Reachable version is %s", ~ToString(version));
-
-                YCHECK(DecoratedAutomaton_->GetLoggedVersion() == InvalidVersion);
-                DecoratedAutomaton_->SetLoggedVersion(version);
                 break;
             } catch (const std::exception& ex) {
                 LOG_WARNING(ex, "Error computing reachable version, backing off and retrying");
                 WaitFor(MakeDelayed(Config_->BackoffTime));
             }
         }
+
+        checkState();
+
+        LOG_INFO("Reachable version is %v", ReachableVersion_);
+        DecoratedAutomaton_->SetLoggedVersion(ReachableVersion_);
+        ElectionManager_->Participate();
+    }
+
+
+    IChangelogPtr OpenChangelogOrThrow(int id)
+    {
+        auto changelogOrError = WaitFor(ChangelogStore_->OpenChangelog(id));
+        THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
+        return changelogOrError.Value();
     }
 
 
@@ -1008,6 +1000,8 @@ private:
         AutomatonEpochContext_.Reset();
         StopLeading_.Fire();
         DecoratedAutomaton_->OnStopLeading();
+
+        Restart();
     }
 
 
@@ -1095,6 +1089,8 @@ private:
         AutomatonEpochContext_.Reset();
         StopFollowing_.Fire();
         DecoratedAutomaton_->OnStopFollowing();
+
+        Restart();
     }
 
 

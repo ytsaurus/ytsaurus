@@ -8,8 +8,6 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TVersion InvalidVersion = TVersion(0, -1);
-
 TVersion::TVersion()
     : SegmentId(0)
     , RecordId(0)
@@ -54,19 +52,12 @@ bool TVersion::operator >= (TVersion other) const
 
 i64 TVersion::ToRevision() const
 {
-    return IsValid()
-        ? (static_cast<i64>(SegmentId) << 32) | static_cast<i64>(RecordId)
-        : -1;
+    return (static_cast<i64>(SegmentId) << 32) | static_cast<i64>(RecordId);
 }
 
 TVersion TVersion::FromRevision(i64 revision)
 {
     return TVersion(revision >> 32, revision & 0xffffffff);
-}
-
-bool TVersion::IsValid() const
-{
-    return SegmentId >= 0 && RecordId >= 0;
 }
 
 void TVersion::Advance(int delta)
