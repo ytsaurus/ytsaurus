@@ -377,7 +377,7 @@ void TLeaderCommitter::ResumeLogging()
 
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
-        auto version = DecoratedAutomaton_->GetAutomatonVersion();
+        auto version = DecoratedAutomaton_->GetLoggedVersion();
 
         TSharedRef recordData;
         TAsyncError localFLushResult;
