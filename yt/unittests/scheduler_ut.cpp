@@ -239,6 +239,111 @@ TEST_W(TSchedulerTest, WaitForAsyncVia)
     WaitFor(x);
 }
 
+// Various invokers.
+
+TEST_F(TSchedulerTest, WaitForInSerializedInvoker)
+{
+    auto invoker = CreateSerializedInvoker(Queue1->GetInvoker());
+    BIND([&] () {
+        for (int i = 0; i < 10; ++i) {
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(10)));
+        }
+    }).AsyncVia(invoker).Run().Get();
+}
+
+TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
+{
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
+    BIND([&] () {
+        for (int i = 0; i < 10; ++i) {
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(10)));
+        }
+    }).AsyncVia(invoker).Run().Get();
+}
+
+TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker2)
+{
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 2);
+
+    auto promise = NewPromise<void>();
+
+    auto a1 = BIND([&] () {
+        promise.Set();
+    });
+
+    auto a2 = BIND([&] () {
+        invoker->Invoke(a1);
+        WaitFor(promise);
+    });
+
+    a2.AsyncVia(invoker).Run().Get();
+}
+
+TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker3)
+{
+    auto invoker = CreateBoundedConcurrencyInvoker(Queue1->GetInvoker(), 1);
+
+    auto promise = NewPromise<void>();
+
+    bool a1called = false;
+    bool a1finished = false;
+    auto a1 = BIND([&] () {
+        a1called = true;
+        WaitFor(promise);
+        a1finished = true;
+    });
+
+    bool a2called = false;
+    auto a2 = BIND([&] () {
+        a2called = true;
+    });
+
+    invoker->Invoke(a1);
+    invoker->Invoke(a2);
+
+    Sleep(TDuration::MilliSeconds(10));
+    EXPECT_TRUE(a1called);
+    EXPECT_FALSE(a1finished);
+    EXPECT_FALSE(a2called);
+
+    promise.Set();
+
+    Sleep(TDuration::MilliSeconds(10));
+    EXPECT_TRUE(a1called);
+    EXPECT_TRUE(a1finished);
+    EXPECT_TRUE(a2called);
+}
+
+TEST_F(TSchedulerTest, ShouldUnwindFiberOnFutureCancellation)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+
+    TProbeState state;
+
+    auto a1 = BIND([=, &state] () {
+        TProbe probe(&state);
+        WaitFor(future);
+        probe.Tackle(); // Should not be called.
+    });
+
+    Queue1->GetInvoker()->Invoke(std::move(a1));
+
+    Sleep(TDuration::MilliSeconds(10));
+
+    EXPECT_EQ(1, state.Constructors);
+    EXPECT_EQ(0, state.Destructors);
+    EXPECT_EQ(0, state.Tackles);
+
+    future.Cancel();
+
+    Sleep(TDuration::MilliSeconds(10));
+
+    EXPECT_EQ(1, state.Constructors);
+    EXPECT_EQ(1, state.Destructors);
+    EXPECT_EQ(0, state.Tackles);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

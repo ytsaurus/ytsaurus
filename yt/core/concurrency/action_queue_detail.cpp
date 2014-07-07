@@ -398,16 +398,19 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
 {
     SetCurrentInvoker(invoker, fiber.Get());
 
-    auto continuation = BIND(
-        &GuardedInvoke,
-        Passed(std::move(invoker)),
-        Passed(BIND(&NDetail::ResumeFiber, fiber)),
-        Passed(BIND(&NDetail::UnwindFiber, fiber)));
+    auto resume = BIND(&NDetail::ResumeFiber, fiber);
+    auto unwind = BIND(&NDetail::UnwindFiber, fiber);
 
     if (future) {
+        auto continuation = BIND(
+            &GuardedInvoke,
+            Passed(std::move(invoker)),
+            Passed(std::move(resume)),
+            unwind);
+        future.OnCanceled(std::move(unwind));
         future.Subscribe(std::move(continuation));
     } else {
-        continuation.Run();
+        GuardedInvoke(std::move(invoker), std::move(resume), std::move(unwind));
     }
 }
 

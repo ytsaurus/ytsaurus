@@ -2214,10 +2214,13 @@ namespace NYT { namespace NQueryClient {
 
 } } // NYT::NQueryClient
 
+
 #include <core/misc/format.h>
 
 namespace NYT {
 namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TParser::error(const location_type& location, const std::string& message)
 {
@@ -2225,6 +2228,7 @@ void TParser::error(const location_type& location, const std::string& message)
         << TErrorAttribute("query_range", Format("%v-%v", location.first, location.second));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
-

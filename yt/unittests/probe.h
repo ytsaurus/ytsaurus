@@ -21,6 +21,7 @@ struct TProbeState
     int CopyAssignments;
     int MoveConstructors;
     int MoveAssignments;
+    int Tackles;
 
     TProbeState()
     {
@@ -156,7 +157,8 @@ public:
 
     void Tackle() const
     {
-        (void)0;
+        YASSERT(State);
+        ++State->Tackles;
     }
 
     bool IsValid() const
