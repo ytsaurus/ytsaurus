@@ -55,8 +55,8 @@ yvector<Stroka> ReadAllValues(const Stroka& fileName)
 
 TDuration FromJiffies(i64 jiffies)
 {
-    long ticksPerSecond = sysconf(_SC_CLK_TCK);
-    return TDuration::MicroSeconds(1000 * 1000 * jiffies/ ticksPerSecond);
+    static long ticksPerSecond = sysconf(_SC_CLK_TCK);
+    return TDuration::MicroSeconds(1000 * 1000 * jiffies / ticksPerSecond);
 }
 
 #endif
