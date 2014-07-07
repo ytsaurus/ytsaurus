@@ -120,6 +120,8 @@ set( HDRS
   ${BASE}/variant-inl.h
   ${BASE}/any.h
   ${BASE}/any-inl.h
+  ${BASE}/format.h
+  ${BASE}/format-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
