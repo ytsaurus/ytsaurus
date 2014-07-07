@@ -186,7 +186,7 @@ void TSessionManager::RegisterSession(ISessionPtr session)
     YCHECK(SessionMap_.insert(std::make_pair(session->GetChunkId(), session)).second);
 }
 
-void TSessionManager::UnregisterSession( ISessionPtr session )
+void TSessionManager::UnregisterSession(ISessionPtr session)
 {
     --PerTypeSessionCount_[session->GetType()];
     YCHECK(SessionMap_.erase(session->GetChunkId()) == 1);
