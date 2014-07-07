@@ -43,16 +43,19 @@ private:
     {
         ESlotState State = ESlotState::Empty;
         TSharedRef Block;
-        TPromise<void> WrittenPromise = NewPromise();
+        TAsyncErrorPromise WrittenPromise = NewPromise<TError>();
     };
 
+    // Thread affinity: WriterThread
     TError Error_;
+    NChunkClient::TFileWriterPtr Writer_;
+
+    // Thread affinity: ControlThread
     std::vector<TSlot> Window_;
-    int WindowStartIndex_ = 0;
-    int WriteIndex_ = 0;
+    int WindowStartBlockIndex_ = 0;
+    int WindowIndex_ = 0;
     i64 Size_ = 0;
     int BlockCount_ = 0;
-    NChunkClient::TFileWriterPtr Writer_;
 
 
     virtual void DoStart() override;
@@ -81,7 +84,7 @@ private:
     TSlot& GetSlot(int blockIndex);
     void ReleaseBlocks(int flushedBlockIndex);
     TSharedRef GetBlock(int blockIndex);
-    void MarkAllSlotsWritten();
+    void MarkAllSlotsWritten(const TError& error);
 
     TAsyncError AbortWriter();
     TError DoAbortWriter();
@@ -94,11 +97,11 @@ private:
     TError DoWriteBlock(const TSharedRef& block, int blockIndex);
     void OnBlockWritten(int blockIndex, TError error);
 
-    TError OnBlockFlushed(int blockIndex);
+    TError OnBlockFlushed(int blockIndex, TError error);
 
     void ReleaseSpace();
 
-    void OnIOError(const TError& error);
+    void SetFailed(const TError& error);
 
 };
 

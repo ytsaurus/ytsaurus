@@ -53,6 +53,8 @@ TBlobSession::TBlobSession(
 
 void TBlobSession::DoStart()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     WriteInvoker_->Invoke(
         BIND(&TBlobSession::DoOpenWriter, MakeStrong(this)));
 }
@@ -61,6 +63,8 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
     const TChunkMeta& chunkMeta,
     const TNullable<int>& blockCount)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!blockCount) {
         THROW_ERROR_EXCEPTION("Attempt to finish a blob session %s without specifying block count",
             ~ToString(ChunkId_));
@@ -73,7 +77,7 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
             *blockCount);
     }
 
-    for (int blockIndex = WindowStartIndex_; blockIndex < Window_.size(); ++blockIndex) {
+    for (int blockIndex = WindowStartBlockIndex_; blockIndex < Window_.size(); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
@@ -101,6 +105,8 @@ TAsyncError TBlobSession::DoPutBlocks(
     const std::vector<TSharedRef>& blocks,
     bool enableCaching)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (blocks.empty()) {
         return OKFuture;
     }
@@ -132,7 +138,7 @@ TAsyncError TBlobSession::DoPutBlocks(
                 "Block %s:%d with a different content already received",
                 ~ToString(ChunkId_),
                 blockIndex)
-                << TErrorAttribute("window_start", WindowStartIndex_));
+                << TErrorAttribute("window_start", WindowStartBlockIndex_));
         }
 
         ++BlockCount_;
@@ -154,8 +160,8 @@ TAsyncError TBlobSession::DoPutBlocks(
     }
 
     auto sessionManager = Bootstrap_->GetSessionManager();
-    while (WriteIndex_ < Window_.size()) {
-        const auto& slot = GetSlot(WriteIndex_);
+    while (WindowIndex_ < Window_.size()) {
+        const auto& slot = GetSlot(WindowIndex_);
         YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
         if (slot.State == ESlotState::Empty)
             break;
@@ -166,13 +172,13 @@ TAsyncError TBlobSession::DoPutBlocks(
             &TBlobSession::DoWriteBlock,
             MakeStrong(this),
             slot.Block,
-            WriteIndex_)
+            WindowIndex_)
         .AsyncVia(WriteInvoker_)
         .Run()
         .Subscribe(
-            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WriteIndex_)
+            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_)
                 .Via(Bootstrap_->GetControlInvoker()));
-        ++WriteIndex_;
+        ++WindowIndex_;
     }
 
     auto throttler = Bootstrap_->GetInThrottler(Options_.SessionType);
@@ -229,7 +235,7 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         }
     } catch (const std::exception& ex) {
         TBlockId blockId(ChunkId_, blockIndex);
-        OnIOError(TError(
+        SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
             "Error writing chunk block %s",
             ~ToString(blockId))
@@ -253,23 +259,25 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 void TBlobSession::OnBlockWritten(int blockIndex, TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(error);
-
-    if (!Error_.IsOK()) {
-        return;
-    }
 
     auto& slot = GetSlot(blockIndex);
-    YCHECK(slot.State == ESlotState::Received);
-    slot.State = ESlotState::Written;
-    slot.WrittenPromise.Set();
 
+    // NB: Update pending write size before setting the promise as the subscriber
+    // is likely to erase the slot.
     auto sessionManager = Bootstrap_->GetSessionManager();
     sessionManager->UpdatePendingWriteSize(-slot.Block.Size());
+
+    if (error.IsOK()) {
+        YCHECK(slot.State == ESlotState::Received);
+        slot.State = ESlotState::Written;
+        slot.WrittenPromise.Set(TError());
+    }
 }
 
 TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     // TODO(psushin): verify monotonicity of blockIndex
     ValidateBlockIsInWindow(blockIndex);
 
@@ -287,16 +295,19 @@ TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
         BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
-TError TBlobSession::OnBlockFlushed(int blockIndex)
+TError TBlobSession::OnBlockFlushed(int blockIndex, TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ReleaseBlocks(blockIndex);
-    return Error_;
+
+    return error;
 }
 
 void TBlobSession::DoCancel()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     AbortWriter()
         .Apply(BIND(&TBlobSession::OnWriterAborted, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
@@ -304,6 +315,8 @@ void TBlobSession::DoCancel()
 
 void TBlobSession::DoOpenWriter()
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
     LOG_DEBUG("Started opening blob chunk writer");
 
     PROFILE_TIMING ("/blob_chunk_open_time") {
@@ -313,7 +326,7 @@ void TBlobSession::DoOpenWriter()
             Writer_->Open();
         }
         catch (const std::exception& ex) {
-            OnIOError(TError(
+            SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error creating chunk %s",
                 ~ToString(ChunkId_))
@@ -348,7 +361,7 @@ TError TBlobSession::DoAbortWriter()
         try {
             Writer_->Abort();
         } catch (const std::exception& ex) {
-            OnIOError(TError(
+            SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error aborting chunk %s",
                 ~ToString(ChunkId_))
@@ -399,7 +412,7 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
             auto result = Writer_->Close(chunkMeta).Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         } catch (const std::exception& ex) {
-            OnIOError(TError(
+            SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error closing chunk %s",
                 ~ToString(ChunkId_))
@@ -442,25 +455,25 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YCHECK(WindowStartIndex_ <= flushedBlockIndex);
+    YCHECK(WindowStartBlockIndex_ <= flushedBlockIndex);
 
-    while (WindowStartIndex_ <= flushedBlockIndex) {
-        auto& slot = GetSlot(WindowStartIndex_);
+    while (WindowStartBlockIndex_ <= flushedBlockIndex) {
+        auto& slot = GetSlot(WindowStartBlockIndex_);
         YCHECK(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
         slot.WrittenPromise.Reset();
-        ++WindowStartIndex_;
+        ++WindowStartBlockIndex_;
     }
 
     LOG_DEBUG("Released blocks (WindowStart: %d)",
-        WindowStartIndex_);
+        WindowStartBlockIndex_);
 }
 
 bool TBlobSession::IsInWindow(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return blockIndex >= WindowStartIndex_;
+    return blockIndex >= WindowStartBlockIndex_;
 }
 
 void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
@@ -513,15 +526,14 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
     return slot.Block;
 }
 
-void TBlobSession::MarkAllSlotsWritten()
+void TBlobSession::MarkAllSlotsWritten(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Mark all slots as written to notify all guys waiting on Flush.
     for (auto& slot : Window_) {
-        if (slot.State != ESlotState::Written) {
+        if (slot.State == ESlotState::Received) {
             slot.State = ESlotState::Written;
-            slot.WrittenPromise.Set();
+            slot.WrittenPromise.Set(error);
         }
     }
 }
@@ -533,7 +545,7 @@ void TBlobSession::ReleaseSpace()
     Location_->UpdateUsedSpace(-Size_);
 }
 
-void TBlobSession::OnIOError(const TError& error)
+void TBlobSession::SetFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -545,7 +557,7 @@ void TBlobSession::OnIOError(const TError& error)
     LOG_ERROR(Error_, "Session failed");
 
     Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this)));
+        BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
     Location_->Disable();
 }
