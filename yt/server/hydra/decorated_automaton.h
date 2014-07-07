@@ -82,14 +82,14 @@ public:
     TInstant GetLastSnapshotTime() const;
 
     TVersion GetAutomatonVersion() const;
+    void RotateAutomatonVersion(int segmentId);
 
     IAutomatonPtr GetAutomaton();
 
     void Clear();
-    void LoadSnapshot(int snapshotId, TInputStream* input);
+    void LoadSnapshot(TVersion version, TInputStream* input);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
-    void RotateChangelogDuringRecovery();
 
     void LogLeaderMutation(
         const TMutationRequest& request,
@@ -170,7 +170,7 @@ private:
     NProfiling::TProfiler Profiler;
 
 
-    void DoApplyMutation(const TSharedRef& recordData);
+    void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
     void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();

@@ -383,12 +383,14 @@ void TDecoratedAutomaton::SaveSnapshot(TOutputStream* output)
     Automaton_->SaveSnapshot(output);
 }
 
-void TDecoratedAutomaton::LoadSnapshot(int snapshotId, TInputStream* input)
+void TDecoratedAutomaton::LoadSnapshot(TVersion version, TInputStream* input)
 {
     YCHECK(input);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_INFO("Started loading snapshot %d", snapshotId);
+    LOG_INFO("Started loading snapshot %v to reach version %v",
+        version.SegmentId + 1,
+        version);
 
     Changelog_.Reset();
 
@@ -401,7 +403,7 @@ void TDecoratedAutomaton::LoadSnapshot(int snapshotId, TInputStream* input)
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        AutomatonVersion_ = TVersion(snapshotId, 0);
+        AutomatonVersion_ = version;
     }
 }
 
@@ -409,22 +411,22 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    DoApplyMutation(recordData);
+    NProto::TMutationHeader header;
+    TSharedRef requestData;
+    DeserializeMutationRecord(recordData, &header, &requestData);
 
-    {
-        TGuard<TSpinLock> guard(VersionSpinLock_);
-        AutomatonVersion_.Advance();
-    }
-}
+    auto mutationVersion = TVersion(header.segment_id(), header.record_id());
+    RotateAutomatonVersionIfNeeded(mutationVersion);
 
-void TDecoratedAutomaton::RotateChangelogDuringRecovery()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    TMutationRequest request(header.mutation_type(), requestData);
 
-    {
-        TGuard<TSpinLock> guard(VersionSpinLock_);
-        AutomatonVersion_.Rotate();
-    }
+    TMutationContext context(
+        AutomatonVersion_,
+        request,
+        TInstant(header.timestamp()),
+        header.random_seed());
+
+    DoApplyMutation(&context);
 }
 
 void TDecoratedAutomaton::LogLeaderMutation(
@@ -458,8 +460,8 @@ void TDecoratedAutomaton::LogLeaderMutation(
     
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
-    LOG_DEBUG("Logging mutation at version %s",
-        ~ToString(LoggedVersion_));
+    LOG_DEBUG("Logging mutation at version %v",
+        LoggedVersion_);
 
     *logResult = Changelog_->Append(*recordData);
     
@@ -501,8 +503,8 @@ void TDecoratedAutomaton::LogFollowerMutation(
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
 
-    LOG_DEBUG("Logging mutation at version %s",
-        ~ToString(LoggedVersion_));
+    LOG_DEBUG("Logging mutation at version %v",
+        LoggedVersion_);
 
     auto actualLogResult = Changelog_->Append(recordData);
     if (logResult) {
@@ -523,8 +525,8 @@ TFuture<TErrorOr<TRemoteSnapshotParams>> TDecoratedAutomaton::BuildSnapshot()
     SnapshotVersion_ = LoggedVersion_;
     auto promise = SnapshotParamsPromise_ = NewPromise<TErrorOr<TRemoteSnapshotParams>>();
 
-    LOG_INFO("Scheduled snapshot at version %s",
-        ~ToString(LoggedVersion_));
+    LOG_INFO("Scheduled snapshot at version %v",
+        LoggedVersion_);
 
     MaybeStartSnapshotBuilder();
 
@@ -535,8 +537,8 @@ TAsyncError TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_INFO("Rotating changelog at version %s",
-        ~ToString(LoggedVersion_));
+    LOG_INFO("Rotating changelog at version %v",
+        LoggedVersion_);
 
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
         .Guarded()
@@ -554,7 +556,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
     }
     
     if (Changelog_->IsSealed()) {
-        LOG_WARNING("Changelog %d is already sealed",
+        LOG_WARNING("Changelog %v is already sealed",
             LoggedVersion_.SegmentId);
     } else {
         auto result = WaitFor(Changelog_->Seal(Changelog_->GetRecordCount()));
@@ -576,7 +578,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        LoggedVersion_ = LoggedVersion_.Rotate();
+        LoggedVersion_.Rotate();
     }
 
     LOG_INFO("Changelog rotated");
@@ -586,8 +588,8 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_DEBUG("Applying mutations upto version %s",
-        ~ToString(version));
+    LOG_DEBUG("Applying mutations upto version %v",
+        version);
 
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -595,18 +597,10 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             if (pendingMutation.Version >= version)
                 break;
 
-            LOG_DEBUG("Applying mutation at version %s",
-                ~ToString(pendingMutation.Version));
+            LOG_DEBUG("Applying mutation at version %v",
+                pendingMutation.Version);
 
-            // Check for rotated changelogs, update segmentId if needed.
-            if (pendingMutation.Version.SegmentId == AutomatonVersion_.SegmentId) {
-                YCHECK(pendingMutation.Version.RecordId == AutomatonVersion_.RecordId);
-            } else {
-                YCHECK(pendingMutation.Version.SegmentId > AutomatonVersion_.SegmentId);
-                YCHECK(pendingMutation.Version.RecordId == 0);
-                TGuard<TSpinLock> guard(VersionSpinLock_);
-                AutomatonVersion_ = pendingMutation.Version;
-            }
+            RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
             TMutationContext context(
                 AutomatonVersion_,
@@ -615,11 +609,6 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
                 pendingMutation.RandomSeed);
 
             DoApplyMutation(&context);
-
-            {
-                TGuard<TSpinLock> guard(VersionSpinLock_);
-                AutomatonVersion_.Advance();
-            }
 
             if (pendingMutation.CommitPromise) {
                 pendingMutation.CommitPromise.Set(context.Response());
@@ -630,40 +619,17 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             MaybeStartSnapshotBuilder();
         }
     }
-
-    // Check for rotated changelogs, once again.
-    if (version.SegmentId > AutomatonVersion_.SegmentId) {
-        YCHECK(version.RecordId == 0);
-        TGuard<TSpinLock> guard(VersionSpinLock_);
-        AutomatonVersion_ = version;
-    }
-
-    YCHECK(AutomatonVersion_ >= version);
 }
 
-void TDecoratedAutomaton::DoApplyMutation(const TSharedRef& recordData)
+void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersion)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    NProto::TMutationHeader header;
-    TSharedRef requestData;
-    DeserializeMutationRecord(recordData, &header, &requestData);
-
-    YCHECK(
-        header.segment_id() == AutomatonVersion_.SegmentId &&
-        header.record_id() == AutomatonVersion_.RecordId);
-
-    TMutationRequest request(
-        header.mutation_type(),
-        requestData);
-
-    TMutationContext context(
-        AutomatonVersion_,
-        request,
-        TInstant(header.timestamp()),
-        header.random_seed());
-
-    DoApplyMutation(&context);
+    if (mutationVersion.SegmentId == AutomatonVersion_.SegmentId) {
+        YCHECK(mutationVersion.RecordId == AutomatonVersion_.RecordId);
+    } else {
+        YCHECK(mutationVersion.SegmentId > AutomatonVersion_.SegmentId);
+        YCHECK(mutationVersion.RecordId == 0);
+        RotateAutomatonVersion(mutationVersion.SegmentId);
+    }
 }
 
 void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
@@ -680,6 +646,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         request.Action.Run(context);
     } else {
         Automaton_->ApplyMutation(context);
+    }
+
+    {
+        TGuard<TSpinLock> guard(VersionSpinLock_);
+        AutomatonVersion_.Advance();
     }
 
     if (context->Request().Id == NullMutationId || context->IsMutationSuppressed()) {
@@ -764,6 +735,21 @@ TVersion TDecoratedAutomaton::GetAutomatonVersion() const
     return AutomatonVersion_;
 }
 
+
+void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TGuard<TSpinLock> guard(VersionSpinLock_);
+        YCHECK(AutomatonVersion_.SegmentId < segmentId);
+        AutomatonVersion_ = TVersion(segmentId, 0);
+    }
+
+    LOG_INFO("Automaton version is rotated to %v",
+        AutomatonVersion_);
+}
+
 TMutationContext* TDecoratedAutomaton::GetMutationContext()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -795,14 +781,14 @@ void TDecoratedAutomaton::AcquireSystemLock()
     while (UserLock_.load() != 0) {
         SpinLockPause();
     }
-    LOG_DEBUG("System lock acquired (Lock: %d)",
+    LOG_DEBUG("System lock acquired (Lock: %v)",
         result);
 }
 
 void TDecoratedAutomaton::ReleaseSystemLock()
 {
     int result = --SystemLock_;
-    LOG_DEBUG("System lock released (Lock: %d)",
+    LOG_DEBUG("System lock released (Lock: %v)",
         result);
 }
 

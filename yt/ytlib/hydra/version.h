@@ -29,7 +29,7 @@ struct TVersion
 
     bool IsValid() const;
 
-    void Advance();
+    void Advance(int delta = 1);
     void Rotate();
 
 };

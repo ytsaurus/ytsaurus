@@ -69,9 +69,10 @@ bool TVersion::IsValid() const
     return SegmentId >= 0 && RecordId >= 0;
 }
 
-void TVersion::Advance()
+void TVersion::Advance(int delta)
 {
-    ++RecordId;
+    YASSERT(delta >= 0);
+    RecordId += delta;
 }
 
 void TVersion::Rotate()

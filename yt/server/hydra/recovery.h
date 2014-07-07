@@ -62,13 +62,6 @@ private:
      */
     void ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId);
 
-    //! Computes the previous record count parameter for a given segment id.
-    /*!
-     *  First tries to open the corresponding changelog and extract its record count.
-     *  If no changelog exists, then tries to consult the corresponding snapshot.
-     */
-    int ComputePrevRecordCount(int segmentId);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,9 +148,9 @@ private:
 
     typedef std::vector<TPostponedMutation> TPostponedMutations;
 
-    TSpinLock SpinLock;
-    TPostponedMutations PostponedMutations;
-    TVersion PostponedVersion;
+    TSpinLock SpinLock_;
+    TPostponedMutations PostponedMutations_;
+    TVersion PostponedVersion_;
 
     void DoRun();
 
