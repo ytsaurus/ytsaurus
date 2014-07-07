@@ -1,6 +1,0 @@
-source "https://rubygems.org"
-
-gem "rake"
-gem "posix-spawn"
-gem "sshkit"
-gem "term-ansicolor"
