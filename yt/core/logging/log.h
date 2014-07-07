@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <core/misc/error.h>
+#include <core/misc/format.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -29,10 +30,11 @@ private:
     TLogManager* GetLogManager() const;
     void Update();
 
-    Stroka Category;
-    int Version;
-    mutable TLogManager* LogManager;
-    ELogLevel MinLevel;
+    Stroka Category_;
+    int Version_ = -1;
+    mutable TLogManager* LogManager_ = nullptr;
+    ELogLevel MinLevel_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,32 +87,26 @@ private:
 
 namespace NDetail {
 
-inline Stroka printf_format(1,2) FormatLogMessage(const char* format, ...)
+template <class... TArgs>
+inline Stroka FormatLogMessage(const char* format, const TArgs&... args)
 {
-    Stroka result;
-    va_list params;
-    va_start(params, format);
-    vsprintf(result, format, params);
-    va_end(params);
-    return result;
+    return Format(format, args...);
+}
+
+template <class... TArgs>
+inline Stroka FormatLogMessage(const TError& error, const char* format, const TArgs&... args)
+{
+    TStringBuilder builder;
+    Format(&builder, format, args...);
+    builder.AppendChar('\n');
+    builder.AppendString(ToString(error));
+    return builder.Flush();
 }
 
 template <class T>
 inline Stroka FormatLogMessage(const T& obj)
 {
     return ToString(obj);
-}
-
-inline Stroka printf_format(2,3) FormatLogMessage(const TError& error, const char* format, ...)
-{
-    Stroka result;
-    va_list params;
-    va_start(params, format);
-    vsprintf(result, format, params);
-    va_end(params);
-    result.append('\n');
-    result.append(ToString(error));
-    return result;
 }
 
 template <class TLogger>
