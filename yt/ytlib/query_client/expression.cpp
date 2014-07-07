@@ -128,6 +128,8 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
             auto value = expr->GetValue();
             auto data = value.Data;
 
+            proto->set_type(value.Type);
+
             switch (value.Type) {
 
                 case EValueType::Integer: {
