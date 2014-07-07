@@ -406,7 +406,7 @@ void ExportEnumeration(
     Local<Array> mapping = Array::New();
 
     for (auto value : values) {
-        auto key = Stroka::Join(name, "_", E::GetLiteralByValue(value));
+        auto key = Stroka::Join(name, "_", E::GetLiteralByValue(value)->data());
         auto keyHandle = String::NewSymbol(key.c_str());
         auto valueHandle = Integer::New(value);
         target->Set(

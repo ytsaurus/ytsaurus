@@ -84,18 +84,24 @@ class TEnumBase
             return Value; \
         } \
         \
+        static const TStringBuf& GetTypeName() \
+        { \
+            static TStringBuf typeName = STRINGBUF(PP_STRINGIZE(name)); \
+            return typeName; \
+        } \
+        \
         friend TOutputStream& operator << (TOutputStream& stream, name value) \
         { \
-            auto* literal = GetLiteralByValue(value.Value); \
+            const auto* literal = GetLiteralByValue(value.Value); \
             if (literal) { \
-                stream << literal; \
+                stream << *literal; \
             } else { \
-                stream << PP_STRINGIZE(name) << "(" << static_cast<int>(value.Value) << ")"; \
+                stream << GetTypeName() << "(" << static_cast<int>(value.Value) << ")"; \
             } \
             return stream; \
         } \
         \
-        static const char* GetLiteralByValue(int value) \
+        static const TStringBuf* GetLiteralByValue(int value) \
         { \
             switch (value) \
             { \
@@ -188,8 +194,10 @@ class TEnumBase
     ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(item) \
-    case static_cast<int>(item): \
-        return PP_STRINGIZE(item);
+    case static_cast<int>(item): { \
+        static const TStringBuf literal = STRINGBUF(PP_STRINGIZE(item)); \
+        return &literal; \
+    } \
 //! \}
 
 //! #GetValueByLiteral() helper.
