@@ -177,7 +177,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
 
     self.request_id = self.req.uuid_ui64;
 
-    self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
+    self.rsp.statusCode = 200;
 
     Q
         .try(function() {
@@ -234,11 +234,7 @@ YtCommand.prototype._epilogue = function(result) {
         result: result,
     });
 
-    if (result.isOK()) {
-        if (!sent_headers) {
-            this.rsp.statusCode = 200;
-        }
-    } else {
+    if (!result.isOK()) {
         if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
             this.logger.debug("User '" + this.user + "' was banned or has hit rate limit");
             this.rate_check_cache.set(this.user, result.toJson());
@@ -289,7 +285,6 @@ YtCommand.prototype._getName = function() {
     var driver;
 
     if (!versioned_name.length) {
-        this.rsp.statusCode = 200;
         utils.dispatchJson(this.rsp, Object.keys(_VERSION_TO_FACADE));
         throw new YtError();
     }
@@ -318,7 +313,6 @@ YtCommand.prototype._getName = function() {
 
     if (!name.length) {
         // Bail out to API description.
-        this.rsp.statusCode = 200;
         utils.dispatchJson(
             this.rsp,
             driver.get_command_descriptors());
