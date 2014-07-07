@@ -69,6 +69,17 @@ bool TVersion::IsValid() const
     return SegmentId >= 0 && RecordId >= 0;
 }
 
+void TVersion::Advance()
+{
+    ++RecordId;
+}
+
+void TVersion::Rotate()
+{
+    ++SegmentId;
+    RecordId = 0;
+}
+
 Stroka ToString(TVersion version)
 {
     return Format("%v:%v", version.SegmentId, version.RecordId);

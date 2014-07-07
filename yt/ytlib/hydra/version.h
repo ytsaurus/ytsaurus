@@ -29,6 +29,9 @@ struct TVersion
 
     bool IsValid() const;
 
+    void Advance();
+    void Rotate();
+
 };
 
 extern const TVersion InvalidVersion;

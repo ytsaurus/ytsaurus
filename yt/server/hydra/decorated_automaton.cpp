@@ -413,7 +413,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        ++AutomatonVersion_.RecordId;
+        AutomatonVersion_.Advance();
     }
 }
 
@@ -423,7 +423,7 @@ void TDecoratedAutomaton::RotateChangelogDuringRecovery()
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        AutomatonVersion_ = TVersion(AutomatonVersion_.SegmentId + 1, 0);
+        AutomatonVersion_.Rotate();
     }
 }
 
@@ -465,7 +465,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
     
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        ++LoggedVersion_.RecordId;
+        LoggedVersion_.Advance();
     }
 }
 
@@ -511,7 +511,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        ++LoggedVersion_.RecordId;
+        LoggedVersion_.Advance();
     }
 }
 
@@ -576,7 +576,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
     {
         TGuard<TSpinLock> guard(VersionSpinLock_);
-        LoggedVersion_ = TVersion(LoggedVersion_.SegmentId + 1, 0);
+        LoggedVersion_ = LoggedVersion_.Rotate();
     }
 
     LOG_INFO("Changelog rotated");
@@ -618,7 +618,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
 
             {
                 TGuard<TSpinLock> guard(VersionSpinLock_);
-                ++AutomatonVersion_.RecordId;
+                AutomatonVersion_.Advance();
             }
 
             if (pendingMutation.CommitPromise) {
