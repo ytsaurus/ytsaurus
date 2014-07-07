@@ -84,10 +84,7 @@ public:
     {
         auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
         const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (headerExt.mutating() &&
-            !hydraManager->IsMutating() &&
-            !hydraManager->IsRecovery())
-        {
+        if (headerExt.mutating() && !hydraManager->IsMutating() && !hydraManager->IsRecovery()) {
             return TResolveResult::Here(path);
         } else {
             return DoResolve(path, std::move(context));
@@ -275,8 +272,8 @@ private:
         auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
         if (!nodeProxy) {
             THROW_ERROR_EXCEPTION(
-                "Cannot resolve nontrivial path %s for nonversioned object %s",
                 NYTree::EErrorCode::ResolveError,
+                "Cannot resolve nontrivial path %s for nonversioned object %s",
                 ~path,
                 ~ToString(proxy->GetId()));
         }
