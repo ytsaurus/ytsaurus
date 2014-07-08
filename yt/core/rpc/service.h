@@ -91,21 +91,24 @@ struct IServiceContext
     virtual NProto::TRequestHeader& RequestHeader() = 0;
 
     //! Sets and immediately logs the request logging info.
-    virtual void SetRequestInfo(const Stroka& info) = 0;
+    virtual void SetRequestInfo(const Stroka& info = "") = 0;
 
     //! Returns the previously set request logging info.
     virtual Stroka GetRequestInfo() const = 0;
 
     //! Sets the response logging info. This info will be logged when the context is replied.
-    virtual void SetResponseInfo(const Stroka& info) = 0;
+    virtual void SetResponseInfo(const Stroka& info = "") = 0;
 
     //! Returns the currently set response logging info.
     virtual Stroka GetResponseInfo() = 0;
 
 
     // Extension methods.
-    void SetRequestInfo(const char* format, ...);
-    void SetResponseInfo(const char* format, ...);
+    template <class... TArgs>
+    void SetRequestInfo(const char* format, const TArgs&... args);
+
+    template <class... TArgs>
+    void SetResponseInfo(const char* format, const TArgs&... args);
 
 };
 
@@ -171,3 +174,8 @@ struct hash<NYT::NRpc::TServiceId>
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define SERVICE_INL_H_
+#include "service-inl.h"
+#undef SERVICE_INL_H_
+

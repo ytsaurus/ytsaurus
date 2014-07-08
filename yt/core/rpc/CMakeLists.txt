@@ -48,6 +48,7 @@ set( HDRS
   ${BASE}/bus_server.h
   ${BASE}/local_server.h
   ${BASE}/service.h
+  ${BASE}/service-inl.h
   ${BASE}/service_detail.h
   ${BASE}/throttling_channel.h
   ${BASE}/static_channel_factory.h
