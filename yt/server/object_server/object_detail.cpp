@@ -208,7 +208,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ToProto(response->mutable_id(), GetId());
     response->set_type(Object->GetType());

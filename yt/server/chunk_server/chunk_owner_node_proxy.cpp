@@ -809,7 +809,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ValidatePermission(
         NYTree::EPermissionCheckScope::This,

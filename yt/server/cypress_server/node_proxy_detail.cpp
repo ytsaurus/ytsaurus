@@ -1380,7 +1380,7 @@ private:
 
     void ExistsAny(TCtxExistsPtr context)
     {
-        context->SetRequestInfo("");
+        context->SetRequestInfo();
         Reply(context, false);
     }
 };

@@ -935,7 +935,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
     UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     auto priority = ElectionCallbacks->GetPriority();
 

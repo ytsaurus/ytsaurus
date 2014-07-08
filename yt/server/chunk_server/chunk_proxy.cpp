@@ -422,7 +422,7 @@ private:
 
         DeclareNonMutating();
 
-        context->SetRequestInfo("");
+        context->SetRequestInfo();
 
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();

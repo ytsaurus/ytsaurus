@@ -50,7 +50,10 @@ public:
     virtual const NProto::TRequestHeader& RequestHeader() const override;
     virtual NProto::TRequestHeader& RequestHeader() override;
 
+    using IServiceContext::SetRequestInfo;
     virtual void SetRequestInfo(const Stroka& info) override;
+
+    using IServiceContext::SetResponseInfo;
     virtual void SetResponseInfo(const Stroka& info) override;
 
 protected:

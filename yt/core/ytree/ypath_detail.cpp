@@ -222,7 +222,7 @@ void TSupportsExists::ExistsAttribute(
     TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     Reply(context, false);
 }
@@ -232,7 +232,7 @@ void TSupportsExists::ExistsSelf(
     TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     Reply(context, true);
 }
@@ -243,7 +243,7 @@ void TSupportsExists::ExistsRecursive(
     TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     Reply(context, false);
 }
@@ -576,7 +576,7 @@ void TSupportsAttributes::ExistsAttribute(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
         response->set_value(result);
@@ -705,7 +705,7 @@ void TSupportsAttributes::SetAttribute(
     TRspSet* /*response*/,
     TCtxSetPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     DoSetAttribute(path, TYsonString(request->value()));
     
@@ -783,7 +783,7 @@ void TSupportsAttributes::RemoveAttribute(
     TRspRemove* /*response*/,
     TCtxRemovePtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     DoRemoveAttribute(path);
 

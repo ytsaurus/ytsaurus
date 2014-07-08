@@ -541,7 +541,7 @@ std::vector<Stroka> TServiceBase::SuggestAddresses() const
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     response->set_up(IsUp());
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());

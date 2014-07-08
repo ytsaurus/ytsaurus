@@ -72,7 +72,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
 {
     UNUSED(request);
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -105,7 +105,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 {
     UNUSED(response);
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     auto parent = GetParent();
     if (!parent) {
@@ -148,7 +148,7 @@ void TCompositeNodeMixin::SetRecursive(
 {
     UNUSED(response);
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
@@ -169,7 +169,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     UNUSED(request);
     UNUSED(response);
 
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
@@ -236,7 +236,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    context->SetRequestInfo("");
+    context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 

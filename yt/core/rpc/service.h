@@ -91,13 +91,16 @@ struct IServiceContext
     virtual NProto::TRequestHeader& RequestHeader() = 0;
 
     //! Sets and immediately logs the request logging info.
-    virtual void SetRequestInfo(const Stroka& info = "") = 0;
+    virtual void SetRequestInfo(const Stroka& info) = 0;
 
     //! Sets the response logging info. This info will be logged when the context is replied.
-    virtual void SetResponseInfo(const Stroka& info = "") = 0;
+    virtual void SetResponseInfo(const Stroka& info) = 0;
 
 
     // Extension methods.
+    void SetRequestInfo();
+    void SetResponseInfo();
+
     template <class... TArgs>
     void SetRequestInfo(const char* format, const TArgs&... args);
 

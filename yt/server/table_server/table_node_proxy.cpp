@@ -396,7 +396,7 @@ private:
     {
         DeclareNonMutating();
 
-        context->SetRequestInfo("");
+        context->SetRequestInfo();
 
         ValidateNoTransaction();
 

@@ -196,7 +196,7 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("");
+        context->SetRequestInfo();
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
@@ -215,7 +215,7 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("");
+        context->SetRequestInfo();
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 

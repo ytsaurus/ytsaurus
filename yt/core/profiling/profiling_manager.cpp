@@ -225,7 +225,8 @@ private:
             auto* profilingManager = TProfilingManager::Get()->Impl.get();
             TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
-            context->SetRequestInfo("");
+            context->SetRequestInfo();
+
             auto options = FromProto(request->options());
             auto fromTime = ParseInstant(options->Find<i64>("from_time"));
             auto range = GetSamples(fromTime);
@@ -244,6 +245,7 @@ private:
                             })
                         .EndMap();
                 }).Data());
+
             context->Reply();
         }
 
