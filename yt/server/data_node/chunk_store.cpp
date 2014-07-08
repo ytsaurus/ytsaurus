@@ -64,7 +64,8 @@ void TChunkStore::Initialize()
         Locations_.push_back(location);
     }
 
-    LOG_INFO("Chunk store scan complete, %d chunks found", GetChunkCount());
+    LOG_INFO("Chunk store scan complete, %v chunks found",
+        GetChunkCount());
 }
 
 void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
@@ -77,9 +78,9 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
     auto result = ChunkMap_.insert(std::make_pair(chunk->GetId(), entry));
     if (!result.second) {
         auto oldChunk = result.first->second.Chunk;
-        LOG_FATAL("Duplicate chunk (Current: %s, Previous: %s)",
-            ~chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
-            ~oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
+        LOG_FATAL("Duplicate chunk: %v vs %v",
+            chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
+            oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
     }
 
     DoRegisterChunk(entry);
@@ -99,21 +100,21 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         // Compare if replicas are equal.
         LOG_FATAL_IF(
             oldChunk->GetInfo().disk_space() != chunk->GetInfo().disk_space(),
-            "Duplicate chunks with different size (Current: %s, Previous: %s)",
-            ~currentPath,
-            ~oldPath);
+            "Duplicate chunks with different size: %v vs %v",
+            currentPath,
+            oldPath);
 
         // Check that replicas point to the different inodes.
         LOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
-            "Duplicate chunks point to the same inode (Current: %s, Previous: %s)",
-            ~currentPath,
-            ~oldPath);
+            "Duplicate chunks point to the same inode: %v vs %v",
+            currentPath,
+            oldPath);
 
         // Remove duplicate replica.
-        LOG_WARNING("Removing duplicate chunk (Current: %s, Previous: %s)",
-            ~currentPath,
-            ~oldPath);
+        LOG_WARNING("Removing duplicate chunk: %v vs %v",
+            currentPath,
+            oldPath);
 
         chunk->SyncRemove();
         return;
@@ -132,17 +133,17 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            LOG_DEBUG("Blob chunk registered (ChunkId: %s, DiskSpace: %" PRId64 ")",
-                ~ToString(chunk->GetId()),
+            LOG_DEBUG("Blob chunk registered (ChunkId: %v, DiskSpace: %v)",
+                chunk->GetId(),
                 entry.DiskSpace);
             break;
 
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk registered (ChunkId: %s, Version: %d, Sealed: %s, Active: %s)",
-                ~ToString(chunk->GetId()),
+            LOG_DEBUG("Journal chunk registered (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+                chunk->GetId(),
                 chunk->GetVersion(),
-                ~FormatBool(chunk->GetInfo().sealed()),
-                ~FormatBool(chunk->IsActive()));
+                chunk->GetInfo().sealed(),
+                chunk->IsActive());
             break;
 
         default:
@@ -172,11 +173,11 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk updated (ChunkId: %s, Version: %d, Sealed: %s, Active: %s)",
-                ~ToString(chunk->GetId()),
+            LOG_DEBUG("Journal chunk updated (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+                chunk->GetId(),
                 chunk->GetVersion(),
-                ~FormatBool(chunk->GetInfo().sealed()),
-                ~FormatBool(chunk->IsActive()));
+                chunk->GetInfo().sealed(),
+                chunk->IsActive());
             break;
 
         default:
@@ -193,16 +194,19 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
         return;
 
     auto it = ChunkMap_.find(chunk->GetId());
-    YCHECK(it != ChunkMap_.end());
+    // NB: Concurrent chunk removals are possible.
+    if (it == ChunkMap_.end())
+        return;
+
     const auto& entry = it->second;
 
     location->UpdateChunkCount(-1);
     location->UpdateUsedSpace(-entry.DiskSpace);
 
-    YCHECK(ChunkMap_.erase(chunk->GetId()) == 1);
+    ChunkMap_.erase(it);
 
-    LOG_DEBUG("Chunk unregistered (ChunkId: %s)",
-        ~ToString(chunk->GetId()));
+    LOG_DEBUG("Chunk unregistered (ChunkId: %v)",
+        chunk->GetId());
 
     ChunkRemoved_.Fire(chunk);
 }
