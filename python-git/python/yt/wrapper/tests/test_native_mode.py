@@ -16,19 +16,20 @@ import simplejson as json
 import pytest
 
 def test_docs_exist():
-    functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith('_'))
+    functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
+                                                 not o.__name__.startswith('_'))
     functions_without_doc = filter(lambda (name, func): not inspect.getdoc(func), functions)
     assert not functions_without_doc
-    #for name, f in functions:
-    #    assert inspect.getdoc(f), "function %s without doc! " % name
 
     classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))
     for name, cl  in classes:
         assert inspect.getdoc(cl)
         if name == "PingTransaction":
             continue # Python Thread is not documented O_o
-        public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and not o.__name__.startswith('_'))
-        methods_without_doc = [method for name, method in public_methods if (not inspect.getdoc(method))]
+        public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
+                                                          not o.__name__.startswith('_'))
+        methods_without_doc = [method for name, method in public_methods
+                                                            if (not inspect.getdoc(method))]
         assert not methods_without_doc
 
 class TestNativeMode(YtTestBase, YTEnv):
@@ -65,7 +66,8 @@ class TestNativeMode(YtTestBase, YTEnv):
 
     def test_remove(self):
         for recursive in [False, True]:
-            self.assertRaises(yt.YtError, lambda: yt.remove(TEST_DIR + "/some_node", recursive=recursive))
+            with pytest.raises(yt.YtError):
+                yt.remove(TEST_DIR + "/some_node", recursive=recursive)
             yt.remove(TEST_DIR + "/some_node", recursive=recursive, force=True)
 
         for force in [False, True]:
@@ -91,22 +93,21 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.upload_file("", TEST_DIR + "/file")
 
         self.assertEqual(set(yt.search(TEST_DIR)),
-                         set([TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"]))
+                         set([TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
+                              TEST_DIR + "/dir/table", TEST_DIR + "/file"]))
 
         self.assertEqual(set(yt.search(TEST_DIR, node_type="file")),
                          set([TEST_DIR + "/file"]))
 
-        self.assertEqual(set(yt.search(TEST_DIR, node_type="table", path_filter=lambda x: x.find("dir") != -1)),
+        self.assertEqual(set(yt.search(TEST_DIR, node_type="table",
+                                       path_filter=lambda x: x.find("dir") != -1)),
                          set([TEST_DIR + "/dir/table"]))
 
         # Search empty tables
-        res = yt.search(
-            TEST_DIR,
-            attributes=["row_count"],
-            object_filter=\
-                lambda x: x.attributes.get("row_count", -1) == 0)
+        res = yt.search(TEST_DIR, attributes=["row_count"],
+                        object_filter=lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(sorted(res),
-                sorted([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
+                         sorted([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
 
     def test_create(self):
         with pytest.raises(yt.YtError):
@@ -130,7 +131,8 @@ class TestNativeMode(YtTestBase, YTEnv):
         self.assertEqual(destinationA, destinationB)
 
         destination = yt.smart_upload_file(filename, placement_strategy="random")
-        self.assertTrue(destination.startswith(os.path.join(os.path.basename(filename), yt.config.FILE_STORAGE)))
+        path = os.path.join(os.path.basename(filename), yt.config.FILE_STORAGE)
+        assert destination.startswith(path)
 
     def test_read_write(self):
         table = TEST_DIR + "/table"
@@ -219,14 +221,16 @@ class TestNativeMode(YtTestBase, YTEnv):
         yt.run_map("grep 2", table, other_table)
         self.check(["x=2\n"], yt.read_table(other_table))
 
-        self.assertRaises(yt.YtError, lambda: yt.run_map("cat", [table, table + "xxx"], other_table))
+        with pytest.raises(yt.YtError):
+            yt.run_map("cat", [table, table + "xxx"], other_table)
 
     def test_sort(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["y=2\n", "x=1\n"])
 
-        self.assertRaises(yt.YtError, lambda: yt.run_sort([table, other_table], other_table, sort_by=["y"]))
+        with pytest.raises(yt.YtError):
+            yt.run_sort([table, other_table], other_table, sort_by=["y"])
 
         yt.run_sort(table, other_table, sort_by=["y"])
         self.assertItemsEqual(["x=1\n", "y=2\n"], yt.read_table(other_table))
@@ -289,9 +293,9 @@ class TestNativeMode(YtTestBase, YTEnv):
 
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        proc = subprocess.Popen(
-            "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.http.PROXY, os.path.join(current_dir, "../test_yt.sh")),
-            shell=True)
+        bash_cmd = "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.http.PROXY,
+                                                      os.path.join(current_dir, "../test_yt.sh"))
+        proc = subprocess.Popen(bash_cmd, shell=True)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
 
@@ -421,9 +425,7 @@ class TestNativeMode(YtTestBase, YTEnv):
             {"start_row_index": 2})
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"])).response
-        self.assertEqual(
-            json.loads(rsp.headers["X-YT-Response-Parameters"]),
-            {})
+        assert json.loads(rsp.headers["X-YT-Response-Parameters"]) == {}
 
     def test_read_with_retries(self):
         old_value = yt.config.RETRY_READ
@@ -472,7 +474,8 @@ class TestNativeMode(YtTestBase, YTEnv):
 
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\ty=2\n", "x=\\n\tz=3\n"])
-        self.check(["1\n", "\\n\n"], sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
+        self.check(["1\n", "\\n\n"],
+                   sorted(list(yt.read_table(table, format=yt.SchemedDsvFormat(columns=["x"])))))
 
         yt.run_map(foo, table, table, format=yt.SchemedDsvFormat(columns=["x"]))
         self.check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
@@ -506,7 +509,8 @@ class TestNativeMode(YtTestBase, YTEnv):
 
     #    self.check([], yt.select("x from [{}]".format(table)))
 
-    #    yt.write_table(yt.TablePath(table, append=True, sorted_by=True), ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
+    #    yt.write_table(yt.TablePath(table, append=True, sorted_by=True),
+    #                   ["{x=1;y=2;z=3}"], format=yt.YsonFormat())
 
     #    self.check(["{x=1;y=2;z=3}"], list(yt.select("x from {}".format(table))))
 
@@ -537,8 +541,9 @@ class TestNativeMode(YtTestBase, YTEnv):
         loading_time = usual_time - pause
 
         start = time.time()
-        with self.assertRaises(yt.YtTimeoutError):
-            yt.run_map(sleeep, table, "//tmp/1", strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
+        with pytest.raises(yt.YtTimeoutError):
+            yt.run_map(sleeep, table, "//tmp/1",
+                       strategy=yt.WaitStrategy(timeout=desired_timeout), job_count=1)
         timeout_time = time.time() - start
         self.assertAlmostEqual(timeout_time, desired_timeout, delta=loading_time)
 
@@ -554,6 +559,47 @@ class TestNativeMode(YtTestBase, YTEnv):
             yt.set("//@attr", 10)
             assert yt.exists("//@attr")
 
+    def test_table_index(self):
+        dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
+        schemaful_dsv = yt.format.SchemafulDsvFormat(columns=['1', '2', '3'],
+                                                     enable_table_index=True,
+                                                     table_index_column="_table_index_")
+
+        src_table_a = TEST_DIR + '/in_table_a'
+        src_table_b = TEST_DIR + '/in_table_b'
+        dst_table_a = TEST_DIR + '/out_table_a'
+        dst_table_b = TEST_DIR + '/out_table_b'
+        dst_table_ab = TEST_DIR + '/out_table_ab'
+
+        len_a = 5
+        len_b = 3
+
+        yt.create_table(src_table_a, recursive=True, ignore_existing=True)
+        yt.create_table(src_table_b, recursive=True, ignore_existing=True)
+        yt.write_table(src_table_a, "1=a\t2=a\t3=a\n" * len_a, format=dsv)
+        yt.write_table(src_table_b, "1=b\t2=b\t3=b\n" * len_b, format=dsv)
+
+        assert yt.records_count(src_table_a) == len_a
+        assert yt.records_count(src_table_b) == len_b
+
+        def mix_table_indexes(row):
+            row["_table_index_"] = row["TableIndex"]
+            yield row
+            row["_table_index_"] = 2
+            yield row
+
+        yt.table_commands.run_map(binary=mix_table_indexes,
+                                  source_table=[src_table_a, src_table_b],
+                                  destination_table=[dst_table_a, dst_table_b, dst_table_ab],
+                                  input_format=dsv,
+                                  output_format=schemaful_dsv)
+        assert yt.records_count(dst_table_b) == len_b
+        assert yt.records_count(dst_table_a) == len_a
+        assert yt.records_count(dst_table_ab) == len_a + len_b
+        for table in (dst_table_a, dst_table_b, dst_table_ab):
+            row = yt.read_table(table, raw=False).next()
+            for field in ("@table_index", "TableIndex", "_table_index_"):
+                assert field not in row
 
 # Map method for test operations with python entities
 class ChangeX__(object):
