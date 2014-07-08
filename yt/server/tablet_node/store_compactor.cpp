@@ -246,7 +246,7 @@ private:
                 dataSize += store->GetDataSize();
             }
 
-            LOG_INFO("Eden partitioning started (PartitionCount: %d, DataSize: % " PRId64 ", ChunkCount: %d)",
+            LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v)",
                 static_cast<int>(pivotKeys.size()),
                 dataSize,
                 static_cast<int>(stores.size()));
@@ -296,13 +296,14 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
-            auto startPartition = [&] () {
-                YCHECK(!currentWriter);
+            auto ensurePartitionStarted = [&] () {
+                if (currentWriter)
+                    return;
 
-                LOG_INFO("Started writing partition (PartitionIndex: %d, Keys: %s .. %s)",
+                LOG_INFO("Started writing partition (PartitionIndex: %v, Keys: %v .. %v)",
                     currentPartitionIndex,
-                    ~ToString(currentPivotKey),
-                    ~ToString(nextPivotKey));
+                    currentPivotKey,
+                    nextPivotKey);
 
                 currentWriter = CreateVersionedMultiChunkWriter(
                     Config_->ChunkWriter,
@@ -323,10 +324,13 @@ private:
                     return;
 
                 writeRowCount += writeRows.size();
+
+                ensurePartitionStarted();
                 if (!currentWriter->Write(writeRows)) {
                     auto result = WaitFor(currentWriter->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 }
+
                 writeRows.clear();
             };
 
@@ -338,27 +342,28 @@ private:
                 ++currentPartitionRowCount;
             };
 
-            auto finishPartition = [&] () {
-                YCHECK(currentWriter);
-
+            auto flushPartition = [&] () {
                 flushOutputRows();
 
-                {
-                    auto result = WaitFor(currentWriter->Close());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                if (currentWriter) {
+                    {
+                        auto result = WaitFor(currentWriter->Close());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    }
+
+                    LOG_INFO("Finished writing partition (PartitionIndex: %v, RowCount: %v)",
+                        currentPartitionIndex,
+                        currentPartitionRowCount);
+
+                    for (const auto& chunkSpec : currentWriter->GetWrittenChunks()) {
+                        auto* descriptor = updateStoresRequest.add_stores_to_add();
+                        descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+                        descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                    }
+
+                    currentWriter.Reset();
                 }
 
-                LOG_INFO("Finished writing partition (PartitionIndex: %d, RowCount: %d)",
-                    currentPartitionIndex,
-                    currentPartitionRowCount);
-
-                for (const auto& chunkSpec : currentWriter->GetWrittenChunks()) {
-                    auto* descriptor = updateStoresRequest.add_stores_to_add();
-                    descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
-                    descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-                }
-
-                currentWriter.Reset();
                 currentPartitionRowCount = 0;
                 ++currentPartitionIndex;
             };
@@ -399,8 +404,6 @@ private:
                 currentPivotKey = *it;
                 nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
 
-                startPartition();
-                
                 while (true) {
                     auto row = peekInputRow();
                     if (!row)
@@ -415,13 +418,13 @@ private:
                     writeOutputRow(row);
                 }
 
-                finishPartition();
+                flushPartition();
             }
             
             SwitchTo(automatonInvoker);
 
             YCHECK(readRowCount == writeRowCount);
-            LOG_INFO("Eden partitioning completed (RowCount: %d)",
+            LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
 
             CreateMutation(slot->GetHydraManager(), updateStoresRequest)
@@ -475,9 +478,9 @@ private:
                 dataSize += store->GetDataSize();
             }
 
-            LOG_INFO("Partition compaction started (DataSize: % " PRId64 ", ChunkCount: %d)",
+            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v)",
                 dataSize,
-                static_cast<int>(stores.size()));
+                stores.size());
 
             auto reader = CreateVersionedTabletReader(
                 tablet,
@@ -567,7 +570,7 @@ private:
             SwitchTo(automatonInvoker);
 
             YCHECK(readRowCount == writeRowCount);
-            LOG_INFO("Partition compaction completed (RowCount: %d)",
+            LOG_INFO("Partition compaction completed (RowCount: %v)",
                 readRowCount);
 
             CreateMutation(slot->GetHydraManager(), updateStoresRequest)
