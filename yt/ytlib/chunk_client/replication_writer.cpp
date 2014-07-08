@@ -21,6 +21,7 @@
 #include <core/misc/nullable.h>
 
 #include <deque>
+#include <atomic>
 
 namespace NYT {
 namespace NChunkClient {
@@ -43,23 +44,22 @@ struct TNode
     TDataNodeServiceProxy LightProxy;
     TDataNodeServiceProxy HeavyProxy;
     TPeriodicExecutorPtr PingExecutor;
+    std::atomic_flag Canceled;
 
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
         , LightProxy(LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
         , HeavyProxy(HeavyNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress()))
-    { }
+    {
+        Canceled.clear();
+    }
 
     bool IsAlive() const
     {
         return Error.IsOK();
     }
 
-    void SetError(const TError& error)
-    {
-        Error = error;
-    }
 };
 
 typedef TIntrusivePtr<TNode> TNodePtr;
@@ -200,9 +200,9 @@ private:
     void OnSessionFinished();
 
     void SendPing(TNodeWeakPtr node);
-    void StartPing(TNodePtr node);
-    void CancelPing(TNodePtr node);
-    void CancelAllPings();
+
+    void CancelWriter(bool abort);
+    void CancelNode(TNodePtr node, bool abort);
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
 
@@ -274,28 +274,28 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
     req->set_enable_caching(writer->Config_->EnableNodeCaching);
 
-    LOG_DEBUG("Ready to put blocks (Blocks: %d-%d, Address: %s, Size: %" PRId64 ")",
+    LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
         GetEndBlockIndex(),
-        ~node->Descriptor.GetDefaultAddress(),
+        node->Descriptor.GetDefaultAddress(),
         Size_);
 
     WaitFor(writer->Throttler_->Throttle(Size_));
 
-    LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
+    LOG_DEBUG("Putting blocks (Blocks: %v-%v, Address: %v)",
         FirstBlockIndex_,
         GetEndBlockIndex(),
-        ~node->Descriptor.GetDefaultAddress());
+        node->Descriptor.GetDefaultAddress());
 
     auto rsp = WaitFor(req->Invoke());
 
     if (rsp->IsOK()) {
         SentTo_[node->Index] = true;
 
-        LOG_DEBUG("Blocks are put (Blocks: %d-%d, Address: %s)",
+        LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
-            ~node->Descriptor.GetDefaultAddress());
+            node->Descriptor.GetDefaultAddress());
     } else {
         writer->OnNodeFailed(node, rsp->GetError());
     }
@@ -310,11 +310,11 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
     for (int dstNodeIndex = 0; dstNodeIndex < SentTo_.size(); ++dstNodeIndex) {
         auto dstNode = writer->Nodes_[dstNodeIndex];
         if (dstNode->IsAlive() && !SentTo_[dstNodeIndex]) {
-            LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
+            LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                 GetStartBlockIndex(),
                 GetEndBlockIndex(),
-                ~srcNode->Descriptor.GetDefaultAddress(),
-                ~dstNode->Descriptor.GetDefaultAddress());
+                srcNode->Descriptor.GetDefaultAddress(),
+                dstNode->Descriptor.GetDefaultAddress());
 
             auto req = srcNode->LightProxy.SendBlocks();
 
@@ -328,11 +328,11 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
             auto rsp = WaitFor(req->Invoke());
 
             if (rsp->IsOK()) {
-                LOG_DEBUG("Blocks are sent (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
+                LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                     FirstBlockIndex_,
                     GetEndBlockIndex(),
-                    ~srcNode->Descriptor.GetDefaultAddress(),
-                    ~dstNode->Descriptor.GetDefaultAddress());
+                    srcNode->Descriptor.GetDefaultAddress(),
+                    dstNode->Descriptor.GetDefaultAddress());
 
                 SentTo_[dstNode->Index] = true;
             } else {
@@ -386,7 +386,7 @@ void TGroup::Process()
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
     YCHECK(writer->IsInitComplete_);
 
-    LOG_DEBUG("Processing blocks (Blocks: %d-%d)",
+    LOG_DEBUG("Processing blocks (Blocks: %v-%v)",
         FirstBlockIndex_,
         GetEndBlockIndex());
 
@@ -437,7 +437,7 @@ TReplicationWriter::TReplicationWriter(
 {
     YCHECK(!targets.empty());
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
+    Logger.AddTag(Sprintf("ChunkId: %v", ~ToString(ChunkId_)));
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto node = New<TNode>(index, Targets_[index]);
@@ -461,15 +461,16 @@ TReplicationWriter::~TReplicationWriter()
 
     LOG_INFO("Writer canceled");
     State_.Cancel(TError("Writer canceled"));
-    CancelAllPings();
+
+    CancelWriter(true);
 }
 
 void TReplicationWriter::Open()
 {
-    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s, SessionType: %s)",
-        ~JoinToString(Targets_),
-        ~FormatBool(Config_->EnableNodeCaching),
-        ~ToString(SessionType_));
+    LOG_INFO("Opening writer (Addresses: [%v], EnableCaching: %v, SessionType: %v)",
+        JoinToString(Targets_),
+        Config_->EnableNodeCaching,
+        SessionType_);
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     for (auto node : Nodes_) {
@@ -528,9 +529,9 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
     if (!node->IsAlive())
         return;
 
-    LOG_DEBUG("Flushing block (Block: %d, Address: %s)",
+    LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
         blockIndex,
-        ~node->Descriptor.GetDefaultAddress());
+        node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.FlushBlocks();
     ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -539,9 +540,9 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
     auto rsp = WaitFor(req->Invoke());
 
     if (rsp->IsOK()) {
-        LOG_DEBUG("Block flushed (Block: %d, Address: %s)",
+        LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
             blockIndex,
-            ~node->Descriptor.GetDefaultAddress());
+            node->Descriptor.GetDefaultAddress());
     } else {
         OnNodeFailed(node, rsp->GetError());
     }
@@ -563,7 +564,7 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window shifted (Blocks: %d-%d, Size: %" PRId64 ")",
+        LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %" PRId64 ")",
             group->GetStartBlockIndex(),
             group->GetEndBlockIndex(),
             group->GetSize());
@@ -592,7 +593,7 @@ void TReplicationWriter::FlushCurrentGroup()
     if (!State_.IsActive())
         return;
 
-    LOG_DEBUG("Block group added (Blocks: %d-%d, Group: %p)",
+    LOG_DEBUG("Block group added (Blocks: %v-%v, Group: %p)",
         CurrentGroup_->GetStartBlockIndex(),
         CurrentGroup_->GetEndBlockIndex(),
         CurrentGroup_.Get());
@@ -613,16 +614,16 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     if (!node->IsAlive())
         return;
 
-    auto wrappedError = TError("Node %s failed",
-        ~node->Descriptor.GetDefaultAddress())
+    auto wrappedError = TError("Node %v failed",
+        node->Descriptor.GetDefaultAddress())
         << error;
     LOG_ERROR(wrappedError);
 
-    node->SetError(wrappedError);
+    node->Error = wrappedError;
     --AliveNodeCount_;
 
     if (State_.IsActive() && AliveNodeCount_ < MinUploadReplicationFactor_) {
-        TError cumulativeError(
+        auto cumulativeError = TError(
             NChunkClient::EErrorCode::AllTargetNodesFailed,
             "Not enough target nodes to finish upload");
         for (auto node : Nodes_) {
@@ -631,7 +632,7 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
             }
         }
         LOG_WARNING(cumulativeError, "Chunk writer failed");
-        CancelAllPings();
+        CancelWriter(true);
         State_.Fail(cumulativeError);
     }
 }
@@ -640,7 +641,8 @@ void TReplicationWriter::StartChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Starting chunk (Address: %s)", ~node->Descriptor.GetDefaultAddress());
+    LOG_DEBUG("Starting chunk (Address: %v)",
+        node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -648,14 +650,15 @@ void TReplicationWriter::StartChunk(TNodePtr node)
     req->set_sync_on_close(Config_->SyncOnClose);
 
     auto rsp = WaitFor(req->Invoke());
-
-    if (rsp->IsOK()) {
-        LOG_DEBUG("Chunk started (Address: %s)", ~node->Descriptor.GetDefaultAddress());
-
-        StartPing(node);
-    } else {
+    if (!rsp->IsOK()) {
         OnNodeFailed(node, rsp->GetError());
+        return;
     }
+
+    LOG_DEBUG("Chunk started (Address: %v)",
+        node->Descriptor.GetDefaultAddress());
+
+    node->PingExecutor->Start();
 }
 
 void TReplicationWriter::OnSessionStarted()
@@ -706,8 +709,8 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     if (!node->IsAlive())
         return;
 
-    LOG_DEBUG("Finishing chunk (Address: %s)",
-        ~node->Descriptor.GetDefaultAddress());
+    LOG_DEBUG("Finishing chunk (Address: %v)",
+        node->Descriptor.GetDefaultAddress());
 
     auto req = node->LightProxy.FinishChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
@@ -722,8 +725,8 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     }
 
     auto& chunkInfo = rsp->chunk_info();
-    LOG_DEBUG("Chunk finished (Address: %s, DiskSpace: %" PRId64 ")",
-        ~node->Descriptor.GetDefaultAddress(),
+    LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
+        node->Descriptor.GetDefaultAddress(),
         chunkInfo.disk_space());
 
     ChunkInfo_ = chunkInfo;
@@ -739,7 +742,7 @@ void TReplicationWriter::OnSessionFinished()
         State_.Close();
     }
 
-    CancelAllPings();
+    CancelWriter(false);
 
     LOG_INFO("Writer closed");
 
@@ -755,31 +758,34 @@ void TReplicationWriter::SendPing(TNodeWeakPtr node)
         return;
     }
 
-    LOG_DEBUG("Sending ping (Address: %s)",
-        ~node_->Descriptor.GetDefaultAddress());
+    LOG_DEBUG("Sending ping (Address: %v)",
+        node_->Descriptor.GetDefaultAddress());
 
     auto req = node_->LightProxy.PingSession();
     ToProto(req->mutable_chunk_id(), ChunkId_);
     req->Invoke();
 }
 
-void TReplicationWriter::StartPing(TNodePtr node)
+void TReplicationWriter::CancelWriter(bool abort)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // No thread affinity; may be called from dtor.
 
-    node->PingExecutor->Start();
-}
-
-void TReplicationWriter::CancelPing(TNodePtr node)
-{
-    node->PingExecutor->Stop();
-}
-
-void TReplicationWriter::CancelAllPings()
-{
-    // No thread affinity - called from dtor.
     for (auto node : Nodes_) {
-        CancelPing(node);
+        CancelNode(node, abort);
+    }
+}
+
+void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
+{
+    if (node->Canceled.test_and_set())
+        return;
+
+    node->PingExecutor->Stop();
+
+    if (abort) {
+        auto req = node->LightProxy.CancelChunk();
+        ToProto(req->mutable_chunk_id(), ChunkId_);
+        req->Invoke();
     }
 }
 
@@ -845,7 +851,7 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 
     int lastBlockIndex = BlockCount_ - 1;
 
-    LOG_DEBUG("Blocks added (Blocks: %d-%d, Size: %" PRISZT ")",
+    LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
         firstBlockIndex,
         lastBlockIndex,
         GetTotalSize(blocks));
@@ -885,6 +891,7 @@ TAsyncError TReplicationWriter::Close(const TChunkMeta& chunkMeta)
     ChunkMeta_ = chunkMeta;
 
     LOG_DEBUG("Requesting writer to close");
+    
     State_.StartOperation();
 
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
