@@ -157,7 +157,7 @@ private:
         int count = context->Request().count();
         YCHECK(count >= 0);
         if (count > Config_->MaxTimestampsPerRequest) {
-            context->Reply(TError("Too many timestamps requested: %" PRId64 " > %" PRId64,
+            context->Reply(TError("Too many timestamps requested: %v > %v",
                 count,
                 Config_->MaxTimestampsPerRequest));
             return;
@@ -203,14 +203,14 @@ private:
             return;
 
         if (nowSeconds < prevSeconds) {
-            LOG_WARNING("Clock went back, keeping current timestamp (PrevSeconds: %" PRId64 ", NowSeconds: %" PRId64 ")",
+            LOG_WARNING("Clock went back, keeping current timestamp (PrevSeconds: %v, NowSeconds: %v)",
                 prevSeconds,
                 nowSeconds);
             return;
         }
 
         CurrentTimestamp_ = (nowSeconds << TimestampCounterWidth);
-        LOG_DEBUG("Timestamp advanced (Timestamp: %" PRId64 ")",
+        LOG_DEBUG("Timestamp advanced (Timestamp: %v)",
             CurrentTimestamp_);
 
         auto commitTimestamp =
@@ -262,7 +262,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_INFO("Persistent timestamp is %" PRId64,
+        LOG_INFO("Persistent timestamp is %v",
             PersistentTimestamp_);
 
         auto this_ = MakeStrong(this);
@@ -271,6 +271,7 @@ private:
             ->GetAutomatonEpochContext()
             ->CancelableContext
             ->CreateInvoker(TimestampInvoker_);
+
         auto callback = BIND([this, this_, persistentTimestamp] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
@@ -278,7 +279,7 @@ private:
             CurrentTimestamp_ = persistentTimestamp;
             CommittedTimestamp_ = persistentTimestamp;
 
-            LOG_INFO("Timestamp generator is now active (Timestamp: %" PRId64 ")",
+            LOG_INFO("Timestamp generator is now active (Timestamp: %v)",
                 persistentTimestamp);
         }).Via(invoker);
 
@@ -286,8 +287,8 @@ private:
         if (TInstant::Now() >= deadline) {
             callback.Run();
         } else {
-            LOG_INFO("Timestamp generation postponed until %s to ensure monotonicity",
-                ~ToString(deadline));
+            LOG_INFO("Timestamp generation postponed until %v to ensure monotonicity",
+                deadline);
             TDelayedExecutor::Submit(callback, deadline);
         }
     }
@@ -326,7 +327,6 @@ private:
 
         return Active_;
     }
-
 
 };
 
