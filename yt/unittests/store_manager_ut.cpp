@@ -409,6 +409,24 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation2)
     });
 }
 
+TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation3)
+{
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto store1 = Tablet->GetActiveStore();
+
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+
+    Rotate();
+
+    StoreManager->RemoveStore(store1);
+
+    ASSERT_ANY_THROW({
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    });
+}
+
 TEST_F(TStoreManagerTest, AbortRowWithRotation)
 {
     auto store1 = Tablet->GetActiveStore();
