@@ -51,10 +51,7 @@ public:
     virtual NProto::TRequestHeader& RequestHeader() override;
 
     virtual void SetRequestInfo(const Stroka& info) override;
-    virtual Stroka GetRequestInfo() const override;
-
     virtual void SetResponseInfo(const Stroka& info) override;
-    virtual Stroka GetResponseInfo() override;
 
 protected:
     std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
@@ -142,12 +139,8 @@ public:
     using IServiceContext::SetRequestInfo;
     virtual void SetRequestInfo(const Stroka& info) override;
 
-    virtual Stroka GetRequestInfo() const override;
-
     using IServiceContext::SetResponseInfo;
     virtual void SetResponseInfo(const Stroka& info) override;
-
-    virtual Stroka GetResponseInfo() override;
 
 protected:
     IServiceContextPtr UnderlyingContext;

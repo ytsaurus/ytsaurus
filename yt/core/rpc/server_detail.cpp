@@ -231,22 +231,12 @@ void TServiceContextBase::SetRequestInfo(const Stroka& info)
     LogRequest();
 }
 
-Stroka TServiceContextBase::GetRequestInfo() const
-{
-    return RequestInfo_;
-}
-
 void TServiceContextBase::SetResponseInfo(const Stroka& info)
 {
     YASSERT(!Replied_);
     YASSERT(!IsOneWay());
 
     ResponseInfo_ = info;
-}
-
-Stroka TServiceContextBase::GetResponseInfo()
-{
-    return ResponseInfo_;
 }
 
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
@@ -375,19 +365,9 @@ void TServiceContextWrapper::SetRequestInfo(const Stroka& info)
     UnderlyingContext->SetRequestInfo(info);
 }
 
-Stroka TServiceContextWrapper::GetRequestInfo() const
-{
-    return UnderlyingContext->GetRequestInfo();
-}
-
 void TServiceContextWrapper::SetResponseInfo(const Stroka& info)
 {
     UnderlyingContext->SetResponseInfo(info);
-}
-
-Stroka TServiceContextWrapper::GetResponseInfo()
-{
-    return UnderlyingContext->GetRequestInfo();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

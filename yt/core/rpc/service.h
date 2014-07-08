@@ -93,14 +93,8 @@ struct IServiceContext
     //! Sets and immediately logs the request logging info.
     virtual void SetRequestInfo(const Stroka& info = "") = 0;
 
-    //! Returns the previously set request logging info.
-    virtual Stroka GetRequestInfo() const = 0;
-
     //! Sets the response logging info. This info will be logged when the context is replied.
     virtual void SetResponseInfo(const Stroka& info = "") = 0;
-
-    //! Returns the currently set response logging info.
-    virtual Stroka GetResponseInfo() = 0;
 
 
     // Extension methods.
