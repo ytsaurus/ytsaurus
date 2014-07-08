@@ -92,7 +92,8 @@ private:
         TChangelogMeta meta;
         YCHECK(DeserializeFromProto(&meta, metaBlob));
 
-        LOG_DEBUG("Creating changelog %d", id);
+        LOG_DEBUG("Creating changelog %v",
+            id);
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
@@ -108,7 +109,8 @@ private:
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
-        LOG_DEBUG("Changelog %d created", id);
+        LOG_DEBUG("Changelog %v created",
+            id);
 
         return CreateRemoteChangelog(
             id,
@@ -126,21 +128,21 @@ private:
         int recordCount;
         i64 dataSize;
 
-        LOG_DEBUG("Getting attributes of changelog %d from remote store",
+        LOG_DEBUG("Getting attributes of changelog %v from remote store",
             id);
         {
             TGetNodeOptions options;
             options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
             options.AttributeFilter.Keys.push_back("prev_record_count");
-            options.AttributeFilter.Keys.push_back("record_count");
+            options.AttributeFilter.Keys.push_back("quorum_record_count");
             options.AttributeFilter.Keys.push_back("uncompressed_data_size");
             auto result = WaitFor(MasterClient_->GetNode(path, options));
             if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchChangelog,
-                    "Changelog %d does not exist in remote store %s",
+                    "Changelog %v does not exist in remote store %v",
                     id,
-                    ~RemotePath_);                
+                    RemotePath_);                
             }
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
@@ -151,10 +153,10 @@ private:
             meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
             YCHECK(SerializeToProto(meta, &metaBlob));
 
-            recordCount = attributes.Get<int>("record_count");
+            recordCount = attributes.Get<int>("quorum_record_count");
             dataSize = attributes.Get<i64>("uncompressed_data_size");
         }
-        LOG_DEBUG("Changelog %d attributes received",
+        LOG_DEBUG("Changelog %v attributes received",
             id);
 
         return CreateRemoteChangelog(
@@ -184,18 +186,18 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                LOG_WARNING("Unrecognized item %s in remote store %s",
-                    ~key.Quote(),
-                    ~RemotePath_);
+                LOG_WARNING("Unrecognized item %Qv in remote store %v",
+                    key,
+                    RemotePath_);
             }
         }
 
         if (latestId != NonexistingSegmentId) {
             for (int id = initialId; id <= latestId; ++id) {
                 if (ids.find(id) == ids.end()) {
-                    THROW_ERROR_EXCEPTION("Interim changelog %d is missing in remote store %s",
+                    THROW_ERROR_EXCEPTION("Interim changelog %v is missing in remote store %v",
                         id,
-                        ~RemotePath_);                    
+                        RemotePath_);                    
                 }
             }
         }
