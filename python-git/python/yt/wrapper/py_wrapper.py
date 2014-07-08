@@ -1,7 +1,9 @@
 from pickling import dump
 import config
+import format
 import format_config
 
+import yt.yson
 from yt.zip import ZipFile
 import yt.logger as logger
 from errors import YtError
@@ -51,6 +53,11 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
+
+    if isinstance(input_format, format.YsonFormat) and yt.yson.TYPE == "PYTHON":
+        raise YtError("Using python implementation of yson parser in operations "
+                      "is forbidden because of memory limit issues. "
+                      "Install yandex-yt-python-yson to fix this problem.")
 
     compressed_files = set()
     zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
