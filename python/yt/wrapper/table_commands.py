@@ -26,8 +26,8 @@ strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (integer) number of output data replicas
 
-* **compression_codec** : (one of "lz4", "gzip", "gzip_best_compression", "gzip_normal",\
- TODO(veronikaiv): list it) compression algorithm for output data
+* **compression_codec** : (one of "none" (default for files), "lz4" (default for tables), "snappy", \
+"gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression algorithm for output data
 
 * **job_count** : (integer) recommendation how many jobs should run
 
@@ -287,7 +287,7 @@ def create_table(path, recursive=None, ignore_existing=False, replication_factor
 
     Shortcut for `create("table", ...)`.
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
-    :param recursive: (bool) create the path automatically
+    :param recursive: (bool) create the path automatically, `config.CREATE_RECURSIVE` by default
     :param ignore_existing: (bool) if it sets to `False` and table exists, Python Wrapper raises `YtResponseError`.
     :param replication_factor: (int) number of data replicas
     :param attributes: (dict)
@@ -334,8 +334,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
-    :param compression_codec: (string) data compression algorithm, one of "lz4" (default), "gzip", "gzip_best_compression",\
-    "gzip_normal", "snappy"... TODO(veronikaiv): list it!
+    :param compression_codec: (string) standard operation parameter
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
@@ -408,7 +407,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,
     else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
 
-    If :py:data:`yt.wrapper.config.RETRY_READ` isn't specified,
+    If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
     table = to_table(table, client=client)
