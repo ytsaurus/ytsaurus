@@ -128,13 +128,12 @@ private:
         int recordCount;
         i64 dataSize;
 
-        LOG_DEBUG("Getting attributes of changelog %v from remote store",
+        LOG_DEBUG("Getting attributes of changelog %v",
             id);
         {
             TGetNodeOptions options;
             options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
             options.AttributeFilter.Keys.push_back("prev_record_count");
-            options.AttributeFilter.Keys.push_back("quorum_record_count");
             options.AttributeFilter.Keys.push_back("uncompressed_data_size");
             auto result = WaitFor(MasterClient_->GetNode(path, options));
             if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -153,10 +152,20 @@ private:
             meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
             YCHECK(SerializeToProto(meta, &metaBlob));
 
-            recordCount = attributes.Get<int>("quorum_record_count");
             dataSize = attributes.Get<i64>("uncompressed_data_size");
         }
         LOG_DEBUG("Changelog %v attributes received",
+            id);
+
+        // TODO(babenko): consolidate with the above when YT-624 is done
+        LOG_DEBUG("Getting quorum record count of changelog %v",
+            id);
+        {
+            auto result = WaitFor(MasterClient_->GetNode(path + "/@quorum_record_count"));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            recordCount = ConvertTo<int>(result.Value());
+        }
+        LOG_DEBUG("Changelog %v quorum record count received",
             id);
 
         return CreateRemoteChangelog(
