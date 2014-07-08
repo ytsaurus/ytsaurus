@@ -437,7 +437,7 @@ TReplicationWriter::TReplicationWriter(
 {
     YCHECK(!targets.empty());
 
-    Logger.AddTag(Sprintf("ChunkId: %v", ~ToString(ChunkId_)));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto node = New<TNode>(index, Targets_[index]);
