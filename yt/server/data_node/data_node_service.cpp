@@ -94,6 +94,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks));
@@ -179,6 +180,20 @@ private:
                     context->Reply(chunkOrError);
                 }
             }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+        context->SetRequestInfo("ChunkId: %s",
+            ~ToString(chunkId));
+
+        auto sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSession(chunkId);
+        session->Cancel(TError("Canceled by client request"));
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
