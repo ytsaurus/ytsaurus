@@ -39,6 +39,14 @@ public:
         Advance(1);
     }
 
+    void AppendChar(char ch, int n)
+    {
+        YASSERT(n >= 0);
+        char* dst = Preallocate(n);
+        memset(dst, ch, n);
+        Advance(n);
+    }
+
     void AppendString(const TStringBuf& str)
     {
         char* dst = Preallocate(str.length());

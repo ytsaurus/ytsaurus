@@ -31,6 +31,15 @@ TEST(TFormatTest, Strings)
     EXPECT_EQ("test", Format("%s", "test"));
     EXPECT_EQ("test", Format("%s", STRINGBUF("test")));
     EXPECT_EQ("test", Format("%s", Stroka("test")));
+
+    EXPECT_EQ("   abc", Format("%6s", Stroka("abc")));
+    EXPECT_EQ("abc   ", Format("%-6s", Stroka("abc")));
+    EXPECT_EQ("       abc", Format("%10v", Stroka("abc")));
+    EXPECT_EQ("abc       ", Format("%-10v", Stroka("abc")));
+    EXPECT_EQ("abc", Format("%2s", Stroka("abc")));
+    EXPECT_EQ("abc", Format("%-2s", Stroka("abc")));
+    EXPECT_EQ("abc", Format("%0s", Stroka("abc")));
+    EXPECT_EQ("abc", Format("%-0s", Stroka("abc")));
 }
 
 TEST(TFormatTest, Integers)

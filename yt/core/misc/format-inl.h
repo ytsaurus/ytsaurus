@@ -22,13 +22,50 @@ void FormatValue(TStringBuilder* builder, const TValue& value, const TStringBuf&
 #ifdef __GNUC__
 // Catch attempts to format 128-bit numbers early.
 void FormatValue(TStringBuilder* builder, __int128 value, const TStringBuf& format) YDEPRECATED;
-//void FormatValue(TStringBuilder* builder, __uint128 value, const TStringBuf& format) YDEPRECATED;
 #endif
 
 // TStringBuf
 inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const TStringBuf& format)
 {
+    // Parse alignment.
+    bool alignLeft = false;
+    const char* current = format.begin();
+    if (*current == '-') {
+        alignLeft = true;
+        ++current;
+    }
+    
+    bool hasAlign = false;
+    int alignSize = 0;
+    while (*current >= '0' && *current <= '9') {
+        hasAlign = true;
+        alignSize = 10 * alignSize + (*current - '0');
+        if (alignSize > 1000000) {
+            builder->AppendString(STRINGBUF("<alignment overflow>"));
+            return;
+        }
+        ++current;
+    }
+
+    int padding = 0;
+    bool padLeft = false;
+    bool padRight = false;
+    if (hasAlign) {
+        padding = alignSize - value.size();
+        if (padding < 0) {
+            padding = 0;
+        }
+        padLeft = !alignLeft;
+        padRight = alignLeft;
+    }
+
+    if (padLeft) {
+        builder->AppendChar(' ', padding);
+    }
     builder->AppendString(value);
+    if (padRight) {
+        builder->AppendChar(' ', padding);
+    }
 }
 
 // Stroka

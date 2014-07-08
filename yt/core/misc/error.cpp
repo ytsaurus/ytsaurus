@@ -176,9 +176,7 @@ namespace {
 
 void AppendIndent(TStringBuilder* builer, int indent)
 {
-    for (int i = 0; i < indent; ++i) {
-        builer->AppendChar(' ');
-    }
+    builer->AppendChar(' ', indent);
 }
 
 void AppendAttribute(TStringBuilder* builder, const Stroka& key, const Stroka& value, int indent)
