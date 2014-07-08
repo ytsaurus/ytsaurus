@@ -85,7 +85,7 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
             if (!error.IsOK()) {
                 return error;
             }
-            return FilterCachedMeta(tags);
+            return FilterCachedMeta(tags_.GetPtr());
         }).AsyncVia(invoker));
 }
 
