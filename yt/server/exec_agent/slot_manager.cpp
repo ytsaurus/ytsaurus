@@ -59,7 +59,7 @@ void TSlotManager::Initialize(int slotCount)
             auto slotName = ToString(slotId);
             auto slotPath = NFS::CombinePaths(Config->Path, slotName);
             int userId = jobControlEnabled ? Config->StartUid + slotId : EmptyUserId;
-            auto slot = New<TSlot>(slotPath, slotId, userId);
+            auto slot = New<TSlot>(Config, slotPath, slotId, userId);
             slot->Initialize();
             Slots.push_back(slot);
         }

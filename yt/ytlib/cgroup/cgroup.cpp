@@ -239,6 +239,11 @@ void KillProcessGroup(const Stroka& processGroupPath)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNonOwningCGroup::TNonOwningCGroup()
+    : FullPath_()
+{ }
+
+
 TNonOwningCGroup::TNonOwningCGroup(const Stroka& fullPath)
     : FullPath_(fullPath)
 { }
@@ -255,6 +260,7 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
 // So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask()
 {
+    YCHECK(!IsNull());
 #ifdef _linux_
     auto pid = getpid();
 
@@ -266,6 +272,7 @@ void TNonOwningCGroup::AddCurrentTask()
 
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 {
+    YCHECK(!IsNull());
 #ifdef _linux_
     auto path = NFS::CombinePaths(FullPath_, name);
     TFileOutput output(TFile(path, OpenMode::WrOnly));
@@ -273,16 +280,23 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 #endif
 }
 
+bool TNonOwningCGroup::IsNull() const
+{
+    return FullPath_.Empty();
+}
+
 std::vector<int> TNonOwningCGroup::GetTasks() const
 {
     std::vector<int> results;
+    if (!IsNull()) {
 #ifdef _linux_
-    auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
-    for (const auto& value : values) {
-        int pid = FromString<int>(value);
-        results.push_back(pid);
-    }
+        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "tasks"));
+        for (const auto& value : values) {
+            int pid = FromString<int>(value);
+            results.push_back(pid);
+        }
 #endif
+    }
     return results;
 }
 
@@ -294,6 +308,8 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 void TNonOwningCGroup::EnsureExistance()
 {
     LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
+
+    YCHECK(!IsNull());
 
 #ifdef _linux_
     NFS::ForcePath(FullPath_, 0755);

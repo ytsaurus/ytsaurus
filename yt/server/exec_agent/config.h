@@ -70,6 +70,12 @@ public:
     //! uids in range [StartUid, StartUid + SlotCount - 1].
     int StartUid;
 
+    //! When set to |true| slot spawns job proxies into separate
+    //! freezer cgroup. It uses this to kill all job proxies descendant
+    //! This option requires node server process to have permission
+    //! to create freezer subcgroups
+    bool EnableCGroup;
+
     TSlotManagerConfig()
     {
         RegisterParameter("path", Path)
@@ -78,6 +84,8 @@ public:
             .Default(false);
         RegisterParameter("start_uid", StartUid)
             .Default(10000);
+        RegisterParameter("enable_cgroup", EnableCGroup)
+            .Default(false);
     }
 };
 

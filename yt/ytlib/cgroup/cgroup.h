@@ -59,6 +59,7 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
+    TNonOwningCGroup();
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
 
@@ -66,6 +67,7 @@ public:
 
     void Set(const Stroka& name, const Stroka& value) const;
 
+    bool IsNull() const;
     std::vector<int> GetTasks() const;
     const Stroka& GetFullPath() const;
 

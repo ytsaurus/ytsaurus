@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "slot.h"
 #include "private.h"
+#include "config.h"
 
 #include <ytlib/cgroup/cgroup.h>
 
@@ -22,7 +23,11 @@ Stroka GetSlotProcessGroup(int slotId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlot::TSlot(const Stroka& path, int slotId, int userId)
+TSlot::TSlot(
+    TSlotManagerConfigPtr config,
+    const Stroka& path,
+    int slotId,
+    int userId)
     : IsFree_(true)
     , IsClean(true)
     , Path(path)
@@ -30,28 +35,32 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
     , UserId(userId)
     , SlotThread(New<TActionQueue>(Format("ExecSlot:%v", slotId)))
     , ProcessGroup("freezer", GetSlotProcessGroup(slotId))
+    , NullCGroup()
     , Logger(ExecAgentLogger)
+    , Config(config)
 {
     Logger.AddTag(Sprintf("SlotId: %d", SlotId));
 }
 
 void TSlot::Initialize()
 {
-    try {
-        ProcessGroup.EnsureExistance();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to create process group %s",
-            ~ProcessGroup.GetFullPath().Quote()) << ex;
-    }
+    if (Config->EnableCGroup) {
+        try {
+            ProcessGroup.EnsureExistance();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to create process group %s",
+                ~ProcessGroup.GetFullPath().Quote()) << ex;
+        }
 
 #ifdef _linux_
-    try {
-        NCGroup::RunKiller(ProcessGroup.GetFullPath());
-    } catch (const std::exception& ex) {
-        // ToDo(psushin): think about more complex logic of handling fs errors.
-        LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
-    }
+        try {
+            NCGroup::RunKiller(ProcessGroup.GetFullPath());
+        } catch (const std::exception& ex) {
+            // ToDo(psushin): think about more complex logic of handling fs errors.
+            LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
+        }
 #endif
+    }
 
     try {
         NFS::ForcePath(Path, 0755);
@@ -86,20 +95,26 @@ int TSlot::GetUserId() const
 
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
-    return ProcessGroup;
+    if (Config->EnableCGroup) {
+        return ProcessGroup;
+    } else {
+        return NullCGroup;
+    }
 }
 
 std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
 
-    auto subgroupName = GetSlotProcessGroup(SlotId);
+    if (Config->EnableCGroup) {
+        auto subgroupName = GetSlotProcessGroup(SlotId);
 
-    for (const auto& type : NCGroup::GetSupportedCGroups()) {
-        NCGroup::TNonOwningCGroup group(type, subgroupName);
-        result.push_back(group.GetFullPath());
+        for (const auto& type : NCGroup::GetSupportedCGroups()) {
+            NCGroup::TNonOwningCGroup group(type, subgroupName);
+            result.push_back(group.GetFullPath());
+        }
+        result.push_back(ProcessGroup.GetFullPath());
     }
-    result.push_back(ProcessGroup.GetFullPath());
 
     return result;
 }

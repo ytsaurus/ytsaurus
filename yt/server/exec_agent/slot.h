@@ -22,7 +22,11 @@ class TSlot
     : public TRefCounted
 {
 public:
-    TSlot(const Stroka& path, int slotId, int userId);
+    TSlot(
+        TSlotManagerConfigPtr config,
+        const Stroka& path,
+        int slotId,
+        int userId);
 
     void Initialize();
 
@@ -67,8 +71,10 @@ private:
     NConcurrency::TActionQueuePtr SlotThread;
 
     NCGroup::TNonOwningCGroup ProcessGroup;
+    NCGroup::TNonOwningCGroup NullCGroup;
 
     NLog::TTaggedLogger Logger;
+    TSlotManagerConfigPtr Config;
 
     void DoCleanSandbox();
     void DoCleanProcessGroups();
