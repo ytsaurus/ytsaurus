@@ -608,6 +608,11 @@ public:
         , DataSize_(changelog->GetDataSize())
     { }
 
+    ~TFileChangelog()
+    {
+        Close();
+    }
+
     virtual int GetRecordCount() const override
     {
         return RecordCount_;
