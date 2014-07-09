@@ -43,7 +43,6 @@ using NVersionedTableClient::TKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t MaxRowsPerRead = 1024;
-static auto& Logger = TabletNodeLogger;
 
 struct TLookupPoolTag { };
 
@@ -57,11 +56,16 @@ TStoreManager::TStoreManager(
     , RotationScheduled_(false)
     , LastRotated_(TInstant::Now())
     , LookupMemoryPool_(TLookupPoolTag())
+    , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
 
     VersionedPooledRows_.reserve(MaxRowsPerRead);
+
+    if (Tablet_->GetSlot()) {
+        Logger.AddTag(Sprintf("CellId: %s", ~ToString(Tablet_->GetSlot()->GetCellGuid())));
+    }
 }
 
 TStoreManager::~TStoreManager()
@@ -289,16 +293,29 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
     ERowLockMode mode,
     bool checkChunkStores)
 {
+    // Check passive stores.
     for (const auto& store : PassiveStores_) {
         auto row  = store->FindRowAndCheckLocks(
             key,
             transaction,
-            ERowLockMode::Write);
+            mode);
         if (row) {
             return store;
         }
     }
 
+    // Check locked stored (except for passive).
+    for (const auto& store : LockedStores_) {
+        if (store->GetState() == EStoreState::PassiveDynamic)
+            continue;
+        auto row = store->FindRowAndCheckLocks(
+            key,
+            transaction,
+            mode);
+        YASSERT(!row);
+    } 
+
+    // Check chunk stores.
     if (checkChunkStores) {
         bool logged = false;
         auto startTimestamp = transaction->GetStartTimestamp();

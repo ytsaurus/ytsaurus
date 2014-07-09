@@ -12,6 +12,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <core/logging/tagged_logger.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -29,13 +31,10 @@ using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TabletNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TImpl
     : public TTabletAutomatonPart
 {
+public:
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
@@ -50,8 +49,11 @@ public:
             slot,
             bootstrap)
         , Config_(config)
+        , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
+
+        Logger.AddTag(Sprintf("CellId: %s", ~ToString(Slot_->GetCellGuid())));
 
         Slot_->GetAutomaton()->RegisterPart(this);
 
@@ -258,6 +260,8 @@ private:
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap_;
+
+    NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
