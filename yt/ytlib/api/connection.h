@@ -19,6 +19,13 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TClientOptions
+{
+    TNullable<Stroka> User;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents an established connection with a YT cluster.
 /*
  *  IConnection instance caches most of the stuff needed for fast interaction
@@ -40,6 +47,9 @@ struct IConnection
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NQueryClient::IPrepareCallbacks* GetQueryPrepareCallbacks() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
+
+    virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

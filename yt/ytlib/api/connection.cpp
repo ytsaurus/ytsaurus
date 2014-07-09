@@ -142,6 +142,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConnection
     : public IConnection
     , public IPrepareCallbacks
@@ -252,6 +256,11 @@ public:
     virtual IExecutorPtr GetQueryExecutor() override
     {
         return QueryExecutor_;
+    }
+
+    virtual IClientPtr CreateClient(const TClientOptions& options) override
+    {
+        return NApi::CreateClient(this, options);
     }
 
 

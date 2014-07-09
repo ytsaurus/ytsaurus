@@ -47,6 +47,8 @@
 
 #include <ytlib/cgroup/statistics.h>
 
+#include <ytlib/api/connection.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -71,6 +73,7 @@ using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -940,9 +943,7 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , AuthenticatedMasterClient(CreateClient(
-        host->GetMasterClient()->GetConnection(),
-        operation->GetAuthenticatedUser()))
+    , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
     , Logger(OperationLogger)
@@ -3553,6 +3554,16 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("statistics").Value(statistics);
+}
+
+IClientPtr TOperationControllerBase::CreateClient()
+{
+    TClientOptions options;
+    options.User = Operation->GetAuthenticatedUser();
+    return Host
+        ->GetMasterClient()
+        ->GetConnection()
+        ->CreateClient(options);
 }
 
 const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)

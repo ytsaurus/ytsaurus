@@ -898,7 +898,7 @@ private:
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
             auto connection = clusterDirectory->GetConnection(CellIdFromId(id));
-            auto client = CreateClient(connection);
+            auto client = connection->CreateClient();
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options(id);
             options.AutoAbort = false;

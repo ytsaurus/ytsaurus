@@ -99,7 +99,7 @@ void TBootstrap::Run()
         ~JoinToString(Config->ClusterConnection->Master->Addresses));
 
     auto connection = CreateConnection(Config->ClusterConnection);
-    MasterClient = CreateClient(connection);
+    MasterClient = connection->CreateClient();
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 

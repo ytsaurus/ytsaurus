@@ -268,7 +268,7 @@ private:
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
-            Client_ = CreateClient(Driver_->Connection_, options);
+            Client_ = Driver_->Connection_->CreateClient(options);
         }
 
         TFuture<void> Terminate()

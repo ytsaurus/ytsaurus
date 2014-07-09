@@ -155,7 +155,7 @@ void TBootstrap::Run()
     }
 
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
-    MasterClient = CreateClient(clusterConnection);
+    MasterClient = clusterConnection->CreateClient();
 
     ControlQueue = New<TActionQueue>("Control");
     ControlInvoker = ControlQueue->GetInvoker();

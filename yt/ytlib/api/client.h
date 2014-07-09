@@ -34,11 +34,6 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TClientOptions
-{
-    TNullable<Stroka> User;
-};
-
 struct TTabletRangeOptions
 {
     TNullable<int> FirstTabletIndex;
@@ -363,7 +358,7 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 //! A central entry point for all interactions with the YT cluster.
 /*!
  *  In contrast to IConnection, each IClient represents an authenticated entity.
- *  The needed username is passed to #CreateClient.
+ *  The needed username is passed to #IConnection::CreateClient via options.
  *  Note that YT API has no built-in authentication mechanisms so it must be wrapped
  *  with appropriate logic.
  *  
@@ -424,14 +419,6 @@ struct IClient
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
-
-IClientPtr CreateClient(
-    IConnectionPtr connection,
-    const TClientOptions& options = TClientOptions());
-
-IClientPtr CreateClient(
-    IConnectionPtr connection,
-    const Stroka user);
 
 ///////////////////////////////////////////////////////////////////////////////
 

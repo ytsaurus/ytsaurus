@@ -878,6 +878,8 @@ private:
     TIdGenerator JobIndexGenerator;
 
 
+    NApi::IClientPtr CreateClient();
+
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(

@@ -7,7 +7,10 @@
 #include "job_resources.h"
 
 #include <core/ytree/fluent.h>
+
 #include <core/rpc/helpers.h>
+
+#include <ytlib/api/connection.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
@@ -30,6 +33,7 @@ using namespace NChunkClient;
 using namespace NScheduler::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -259,9 +263,12 @@ private:
 
     virtual void Essentiate() override
     {
-        AuthenticatedInputMasterClient = CreateClient(
-            Host->GetClusterDirectory()->GetConnectionOrThrow(Spec_->ClusterName),
-            Operation->GetAuthenticatedUser());
+        TClientOptions options;
+        options.User = Operation->GetAuthenticatedUser();
+        AuthenticatedInputMasterClient = Host
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(Spec_->ClusterName)
+            ->CreateClient(options);
 
         TOperationControllerBase::Essentiate();
     }

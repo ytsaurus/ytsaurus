@@ -1016,24 +1016,11 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TClient)
 
-IClientPtr CreateClient(
-    IConnectionPtr connection,
-    const TClientOptions& options)
+IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options)
 {
     YCHECK(connection);
 
-    return New<TClient>(
-        std::move(connection),
-        options);
-}
-
-IClientPtr CreateClient(
-    IConnectionPtr connection,
-    const Stroka user)
-{
-    TClientOptions options;
-    options.User = user;
-    return CreateClient(connection, options);
+    return New<TClient>(std::move(connection), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
