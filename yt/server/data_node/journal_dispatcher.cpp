@@ -217,7 +217,7 @@ private:
     {
         const auto& chunkId = chunk->GetId();
 
-        LOG_DEBUG("Started removing journal chunk (ChunkId: %s)",
+        LOG_DEBUG("Started removing journal chunk files (ChunkId: %s)",
             ~ToString(chunkId));
 
         auto location = chunk->GetLocation();
@@ -235,7 +235,7 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished removing journal chunk (ChunkId: %s)",
+        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %s)",
             ~ToString(chunkId));
     }
 
