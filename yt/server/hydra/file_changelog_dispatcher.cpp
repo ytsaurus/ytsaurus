@@ -478,8 +478,7 @@ public:
 
         changelog->Close();
 
-        NFS::Remove(path);
-        NFS::Remove(path + "." + ChangelogIndexExtension);
+        RemoveChangelogFiles(path);
     }
 
 private:
