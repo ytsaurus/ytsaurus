@@ -409,14 +409,14 @@ private:
 
         int changelogId = request->changelog_id();
 
-        context->SetRequestInfo("ChangelogId: %d",
+        context->SetRequestInfo("ChangelogId: %v",
             changelogId);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
         int recordCount = changelog->GetRecordCount();
         response->set_record_count(recordCount);
 
-        context->SetResponseInfo("RecordCount: %d", recordCount);
+        context->SetResponseInfo("RecordCount: %v", recordCount);
         context->Reply();
     }
 
@@ -429,7 +429,7 @@ private:
         int startRecordId = request->start_record_id();
         int recordCount = request->record_count();
 
-        context->SetRequestInfo("ChangelogId: %d, StartRecordId: %d, RecordCount: %d",
+        context->SetRequestInfo("ChangelogId: %v, StartRecordId: %v, RecordCount: %v",
             changelogId,
             startRecordId,
             recordCount);
@@ -451,7 +451,7 @@ private:
         // Pack refs to minimize allocations.
         context->Response().Attachments().push_back(PackRefs(recordsData));
 
-        context->SetResponseInfo("RecordCount: %d", recordsData.size());
+        context->SetResponseInfo("RecordCount: %v", recordsData.size());
         context->Reply();
     }
 
@@ -464,15 +464,15 @@ private:
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
         int mutationCount = static_cast<int>(request->Attachments().size());
 
-        context->SetRequestInfo("StartVersion: %s, CommittedVersion: %s, EpochId: %s, MutationCount: %d",
-            ~ToString(startVersion),
-            ~ToString(committedVersion),
-            ~ToString(epochId),
+        context->SetRequestInfo("StartVersion: %v, CommittedVersion: %v, EpochId: %v, MutationCount: %v",
+            startVersion,
+            committedVersion,
+            epochId,
             mutationCount);
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidState,
+                NHydra::EErrorCode::InvalidState,
                 "Cannot apply mutations while not following");
         }
 
@@ -526,10 +526,10 @@ private:
         auto loggedVersion = TVersion::FromRevision(request->logged_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
 
-        context->SetRequestInfo("LoggedVersion: %s, CommittedVersion: %s, EpochId: %s",
-            ~ToString(loggedVersion),
-            ~ToString(committedVersion),
-            ~ToString(epochId));
+        context->SetRequestInfo("LoggedVersion: %v, CommittedVersion: %v, EpochId: %v",
+            loggedVersion,
+            committedVersion,
+            epochId);
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
@@ -548,9 +548,9 @@ private:
 
             case EPeerState::FollowerRecovery:
                 if (!epochContext->FollowerRecovery) {
-                    LOG_INFO("Received sync ping from leader (Version: %s, EpochId: %s)",
-                        ~ToString(loggedVersion),
-                        ~ToString(epochId));
+                    LOG_INFO("Received sync ping from leader (Version: %v, EpochId: %v)",
+                        loggedVersion,
+                        epochId);
 
                     epochContext->FollowerRecovery = New<TFollowerRecovery>(
                         Config_,
@@ -584,13 +584,13 @@ private:
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
 
-        context->SetRequestInfo("EpochId: %s, Version: %s",
-            ~ToString(epochId),
-            ~ToString(version));
+        context->SetRequestInfo("EpochId: %v, Version: %v",
+            epochId,
+            version);
 
         if (ControlState_ != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidState,
+                NHydra::EErrorCode::InvalidState,
                 "Cannot build snapshot while not following");
         }
 
@@ -604,9 +604,9 @@ private:
             Restart();
             context->Reply(TError(
                 NHydra::EErrorCode::InvalidVersion,
-                "Invalid logged version: expected %s, received %s",
-                ~ToString(DecoratedAutomaton_->GetLoggedVersion()),
-                ~ToString(version)));
+                "Invalid logged version: expected %v, received %v",
+                DecoratedAutomaton_->GetLoggedVersion(),
+                version));
             return;
         }
 
@@ -627,13 +627,13 @@ private:
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
 
-        context->SetRequestInfo("EpochId: %s, Version: %s",
-            ~ToString(epochId),
-            ~ToString(version));
+        context->SetRequestInfo("EpochId: %v, Version: %v",
+            epochId,
+            version);
 
         if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidState,
+                NHydra::EErrorCode::InvalidState,
                 "Cannot rotate changelog while not following");
         }
 
@@ -649,9 +649,9 @@ private:
                     Restart();
                     context->Reply(TError(
                         NHydra::EErrorCode::InvalidVersion,
-                        "Invalid logged version: expected %s, received %s",
-                        ~ToString(DecoratedAutomaton_->GetLoggedVersion()),
-                        ~ToString(version)));
+                        "Invalid logged version: expected %v, received %v",
+                        DecoratedAutomaton_->GetLoggedVersion(),
+                        version));
                     return;
                 }
 
@@ -721,8 +721,8 @@ private:
 
         RpcServer_->RegisterService(this);
 
-        LOG_INFO("Hydra instance started (SelfAddress: %s, SelfId: %d)",
-            ~CellManager_->GetSelfAddress(),
+        LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
+            CellManager_->GetSelfAddress(),
             CellManager_->GetSelfId());
 
         ControlState_ = EPeerState::Elections;
@@ -773,7 +773,7 @@ private:
                     // Let's pretend we have snapshot 0.
                     maxSnapshotId = 0;
                 } else {
-                    LOG_INFO("The latest snapshot is %d", maxSnapshotId);
+                    LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
                 auto maxChangelogIdOrError = WaitFor(ChangelogStore_->GetLatestChangelogId(maxSnapshotId));
@@ -784,7 +784,7 @@ private:
                     LOG_INFO("No changelogs found");
                     ReachableVersion_ = TVersion(maxSnapshotId, 0);
                 } else {
-                    LOG_INFO("The latest changelog is %d", maxChangelogId);
+                    LOG_INFO("The latest changelog is %v", maxChangelogId);
                     auto changelog = OpenChangelogOrThrow(maxChangelogId);
                     ReachableVersion_ = TVersion(maxChangelogId, changelog->GetRecordCount());
                 }
@@ -1132,9 +1132,9 @@ private:
         if (epochId != currentEpochId) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidEpoch,
-                "Invalid epoch: expected %s, received %s",
-                ~ToString(currentEpochId),
-                ~ToString(epochId));
+                "Invalid epoch: expected %v, received %v",
+                currentEpochId,
+                epochId);
         }
     }
 
