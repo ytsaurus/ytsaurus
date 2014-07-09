@@ -914,6 +914,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationStarted)
             .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec());
 
         // NB: Once we've registered the operation in Cypress we're free to complete
@@ -1575,6 +1576,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationCompleted)
             .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime());
@@ -1631,6 +1633,7 @@ private:
 
         LogEventFluently(logEventType)
             .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
