@@ -149,7 +149,9 @@ public:
         PingAncestors_ = options.PingAncestors;
         State_ = EState::Active;
 
-        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+        YCHECK(CellGuidToStartTransactionResult_.insert(std::make_pair(
+            Owner_->MasterCellGuid_,
+            MakePromise<TError>(TError()))).second);
     
         Register();
 
@@ -307,17 +309,25 @@ public:
         VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
 
+        TAsyncErrorPromise promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
+            
             if (State_ != EState::Active) {
                 return MakeFuture(TError("Transaction is not active"));
             }
+            
             if (!Error_.IsOK()) {
                 THROW_ERROR Error_;
             }
-            if (ParticipantGuids_.find(cellGuid) != ParticipantGuids_.end()) {
-                return OKFuture;
+
+            auto it = CellGuidToStartTransactionResult_.find(cellGuid);
+            if (it != CellGuidToStartTransactionResult_.end()) {
+                return it->second;
             }
+
+            promise = NewPromise<TError>();
+            YCHECK(CellGuidToStartTransactionResult_.insert(std::make_pair(cellGuid, promise)).second);
         }
 
         LOG_DEBUG("Adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
@@ -335,8 +345,10 @@ public:
             req->set_timeout(Timeout_->MilliSeconds());
         }
         
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellGuid));
+        req->Invoke().Subscribe(
+            BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellGuid, promise));
+
+        return promise;
     }
 
 
@@ -376,7 +388,7 @@ private:
     TSpinLock SpinLock_;
     EState State_;
     TPromise<void> Aborted_;
-    yhash_set<TCellGuid> ParticipantGuids_;
+    yhash_map<TCellGuid, TAsyncErrorPromise> CellGuidToStartTransactionResult_;
     TError Error_;
 
     TTimestamp StartTimestamp_;
@@ -505,7 +517,9 @@ private:
         YCHECK(rsp->object_ids_size() == 1);
         Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
         
-        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
+        YCHECK(CellGuidToStartTransactionResult_.insert(std::make_pair(
+            Owner_->MasterCellGuid_,
+            MakePromise<TError>(TError()))).second);
 
         LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
@@ -544,20 +558,16 @@ private:
         return OKFuture;
     }
 
-    TError OnTabletParticipantAdded(const TCellGuid& cellGuid, TTabletServiceProxy::TRspStartTransactionPtr rsp)
+    void OnTabletParticipantAdded(
+        const TCellGuid& cellGuid,
+        TAsyncErrorPromise promise,
+        TTabletServiceProxy::TRspStartTransactionPtr rsp)
     {
         if (rsp->IsOK()) {
             LOG_DEBUG("Transaction tablet participant added (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
                 ~ToString(cellGuid));
 
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                if (State_ == EState::Active) {
-                    // NB: Ignore duplicates.
-                    ParticipantGuids_.insert(cellGuid);
-                }
-            }
         } else {
             LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
                 ~ToString(Id_),
@@ -568,7 +578,8 @@ private:
                 ~ToString(Id_))
                 << *rsp);
         }
-        return rsp->GetError();
+
+        promise.Set(rsp->GetError());
     }
 
     TError OnTransactionCommitted(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)
@@ -846,9 +857,7 @@ private:
     std::vector<TCellGuid> GetParticipantGuids()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        return std::vector<TCellGuid>(
-                ParticipantGuids_.begin(),
-                ParticipantGuids_.end());
+        return GetKeys(CellGuidToStartTransactionResult_);
     }
 
 };
