@@ -78,6 +78,28 @@ std::vector<typename std::multimap<TKey, TValue>::const_iterator> GetSortedItera
     return GetSortedMapIterators(map);
 }
 
+template <class T>
+std::vector<typename T::key_type> GetKeys(const T& collection)
+{
+    std::vector<typename T::key_type> result;
+    result.reserve(collection.size());
+    for (const auto& pair : collection) {
+        result.push_back(pair.first);
+    }
+    return result;
+}
+
+template <class T>
+std::vector<typename T::value_type> GetValues(const T& collection)
+{
+    std::vector<typename T::value_type> result;
+    result.reserve(collection.size());
+    for (const auto& pair : collection) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
