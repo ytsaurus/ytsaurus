@@ -1,6 +1,7 @@
 import pytest
 import sys
 import time
+import __builtin__
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -17,7 +18,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         'scheduler' : {
             'enable_accounting': 'true',
             'event_log' : {
-                'flush_period' : 300
+                'flush_period' : 5000
             }
         }
     }
@@ -36,15 +37,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
         map(in_='//tmp/t1', out='//tmp/t2', command="cat; bash -c 'for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done' >/dev/null")
 
         # wait for scheduler to dump the event log
-        time.sleep(1)
+        time.sleep(6)
         res = read('//sys/scheduler/event_log')
+        event_types = __builtin__.set()
         for item in res:
+            event_types.add(item['event_type'])
             if item['event_type'] == 'job_completed':
                 stats = item['statistics']
                 for key in ['cpu', 'block_io']:
                     assert key in stats
-                # out job should burn enough cpu
+                # our job should burn enough cpu
                 assert int(stats['cpu']['user_time']) > 0
+        assert {"operation_started"}.issubset(event_types)
 
     @only_linux
     def test_one_chunk(self):

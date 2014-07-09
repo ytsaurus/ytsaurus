@@ -912,6 +912,10 @@ private:
             return wrappedError;
         }
 
+        LogEventFluently(ELogEventType::OperationStarted)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("spec").Value(operation->GetSpec());
+
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
