@@ -139,9 +139,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellGuids = FromProto<TCellGuid>(request->participant_cell_guids());
 
-        context->SetRequestInfo("TransactionId: %s, ParticipantCellGuids: [%s]",
-            ~ToString(transactionId),
-            ~JoinToString(participantCellGuids));
+        context->SetRequestInfo("TransactionId: %v, ParticipantCellGuids: [%v]",
+            transactionId,
+            JoinToString(participantCellGuids));
 
         auto prepareTimestamp = TimestampProvider->GetLatestTimestamp();
 
@@ -149,16 +149,16 @@ private:
             // Simple commit.
             auto* commit = FindCommit(transactionId);
             if (commit) {
-                LOG_DEBUG("Waiting for simple commit to complete (TransactionId: %s)",
-                    ~ToString(transactionId));
+                LOG_DEBUG("Waiting for simple commit to complete (TransactionId: %v)",
+                    transactionId);
                 ReplyWhenFinished(commit, context);
                 return;
             }
 
             auto keptResponse = HydraManager->FindKeptResponse(mutationId);
             if (keptResponse) {
-                LOG_DEBUG("Replying with kept response (TransactionId: %s)",
-                    ~ToString(transactionId));
+                LOG_DEBUG("Replying with kept response (TransactionId: %v)",
+                    transactionId);
                 context->Reply(keptResponse->Data);
                 return;
             }
@@ -179,14 +179,14 @@ private:
                     prepareTimestamp);
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                LOG_DEBUG(error, "Simple commit has failed to prepare (TransactionId: %s)",
-                    ~ToString(transactionId));
+                LOG_DEBUG(error, "Simple commit has failed to prepare (TransactionId: %v)",
+                    transactionId);
                 SetCommitFailed(commit, error);
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %s, PrepareTimestamp: %" PRIu64 ")",
-                ~ToString(transactionId),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %v, PrepareTimestamp: %" PRIu64 ")",
+                transactionId,
                 prepareTimestamp);
 
             RunCommit(commit);
@@ -210,8 +210,8 @@ private:
         auto mutationId = GetMutationId(context);
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %s",
-            ~ToString(transactionId));
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         TransactionManager->PrepareTransactionAbort(transactionId);
 
@@ -227,8 +227,8 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        context->SetRequestInfo("TransactionId: %s",
-            ~ToString(transactionId));
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         // Any exception thrown here is replied to the client.
         TransactionManager->PingTransaction(transactionId, *request);
@@ -246,8 +246,8 @@ private:
         // Any exception thrown here is replied to the client.
         TransactionManager->AbortTransaction(transactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
-            ~ToString(transactionId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
+            transactionId);
 
         return TRspAbortTransaction();
     }
@@ -264,8 +264,8 @@ private:
         auto* commit = DistributedCommitMap.Find(transactionId);
         if (commit) {
             if (context) {
-                LOG_DEBUG("Waiting for distributed commit to complete (TransactionId: %s)",
-                    ~ToString(transactionId));
+                LOG_DEBUG("Waiting for distributed commit to complete (TransactionId: %v)",
+                    transactionId);
                 ReplyWhenFinished(commit, context);
             }
             return;
@@ -284,10 +284,10 @@ private:
 
         const auto& coordinatorCellGuid = HiveManager->GetSelfCellGuid();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit first phase started (TransactionId: %s, ParticipantCellGuids: [%s], CoordinatorCellGuid: %s)",
-            ~ToString(transactionId),
-            ~JoinToString(participantCellGuids),
-            ~ToString(coordinatorCellGuid));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit first phase started (TransactionId: %v, ParticipantCellGuids: [%v], CoordinatorCellGuid: %v)",
+            transactionId,
+            JoinToString(participantCellGuids),
+            coordinatorCellGuid);
 
         // Prepare at coordinator.
         try {
@@ -343,23 +343,23 @@ private:
 
         auto* commit = DistributedCommitMap.Find(transactionId);
         if (!commit) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid or expired transaction has prepared, ignoring (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Invalid or expired transaction has prepared, ignoring (TransactionId: %v)",
+                transactionId);
             return;
         }
 
         if (request.has_error()) {
             auto error = FromProto<TError>(request.error());
-            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %s, ParticipantCellGuid: %s)",
-                ~ToString(transactionId),
-                ~ToString(participantCellGuid));
+            LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %v, ParticipantCellGuid: %v)",
+                transactionId,
+                participantCellGuid);
             SetCommitFailed(commit, error);
             return;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared (TransactionId: %s, ParticipantCellGuid: %s)",
-            ~ToString(transactionId),
-            ~ToString(participantCellGuid));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Participant has prepared (TransactionId: %v, ParticipantCellGuid: %v)",
+            transactionId,
+            participantCellGuid);
 
         YCHECK(commit->PreparedParticipantCellGuids().insert(participantCellGuid).second);
 
@@ -407,8 +407,8 @@ private:
 
         auto* commit = FindCommit(transactionId);
         if (!commit) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to finalize an invalid or expired transaction, ignoring (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to finalize an invalid or expired transaction, ignoring (TransactionId: %v)",
+                transactionId);
             return;
         }
 
@@ -473,9 +473,9 @@ private:
 
     void SetCommitCompleted(TCommit* commit, TTimestamp commitTimestamp)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "%s transaction commit completed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction commit completed (TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
             commit->IsDistributed() ? "Distributed" : "Simple",
-            ~ToString(commit->GetTransactionId()),
+            commit->GetTransactionId(),
             commitTimestamp);
 
         TRspCommitTransaction response;
@@ -545,8 +545,8 @@ private:
     {
         auto* commit = FindCommit(transactionId);
         if (!commit) {
-            LOG_DEBUG("Commit timestamp generated for an invalid or expired transaction, ignoring (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_DEBUG("Commit timestamp generated for an invalid or expired transaction, ignoring (TransactionId: %v)",
+                transactionId);
             return;
         }
 
@@ -590,17 +590,17 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to prepare distributed commit (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
-                ~ToString(transactionId),
-                ~ToString(coordinatorCellGuid),
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to prepare distributed commit (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %" PRIu64 ")",
+                transactionId,
+                coordinatorCellGuid,
                 prepareTimestamp);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distirbuted commit is prepared by %s (TransactionId: %s, CoordinatorCellGuid: %s, PrepareTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distirbuted commit is prepared by %v (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %" PRIu64 ")",
             isCoordinator ? "coordinator" : "participant",
-            ~ToString(transactionId),
-            ~ToString(coordinatorCellGuid),
+            transactionId,
+            coordinatorCellGuid,
             prepareTimestamp);
     }
 
@@ -617,10 +617,10 @@ private:
             LOG_FATAL(ex, "Error committing prepared transaction");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "%s transaction committed %s(TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction committed %v(TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
             isDistributed ? "Distributed" : "Simple",
             isDistributed ? (isCoordinator ? "by coordinator " : "by participant ") : "",
-            ~ToString(transactionId),
+            transactionId,
             commitTimestamp);
     }
 
@@ -629,11 +629,11 @@ private:
         try {
             // All exceptions thrown here are caught below and ignored.
             TransactionManager->AbortTransaction(transactionId);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Failed transaction aborted (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Failed transaction aborted (TransactionId: %v)",
+                transactionId);
         } catch (const std::exception) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Failed to abort failed transaction, ignoring (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Failed to abort failed transaction, ignoring (TransactionId: %v)",
+                transactionId);
         }
     }
 
@@ -650,8 +650,8 @@ private:
 
         const auto& transactionId = commit->GetTransactionId();
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit second phase started (TransactionId: %s)",
-            ~ToString(transactionId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit second phase started (TransactionId: %v)",
+            transactionId);
 
         RunCommit(commit);
     }
