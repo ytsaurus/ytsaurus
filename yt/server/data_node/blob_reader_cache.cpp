@@ -62,9 +62,9 @@ public:
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
-            LOG_DEBUG("Started opening blob chunk reader (LocationId: %s, ChunkId: %s)",
-                ~location->GetId(),
-                ~ToString(chunkId));
+            LOG_DEBUG("Started opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+                location->GetId(),
+                chunkId);
 
             PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
@@ -74,8 +74,8 @@ public:
                 } catch (const std::exception& ex) {
                     auto error = TError(
                         NChunkClient::EErrorCode::IOError,
-                        "Error opening blob chunk %s",
-                        ~ToString(chunkId))
+                        "Error opening blob chunk %v",
+                        chunkId)
                         << ex;
                     cookie.Cancel(error);
                     chunk->GetLocation()->Disable();
@@ -83,9 +83,9 @@ public:
                 }
             }
 
-            LOG_DEBUG("Finished opening blob chunk reader (LocationId: %s, ChunkId: %s)",
-                ~chunk->GetLocation()->GetId(),
-                ~ToString(chunkId));
+            LOG_DEBUG("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
+                chunk->GetLocation()->GetId(),
+                chunkId);
         }
 
         auto resultOrError = cookie.GetValue().Get();
@@ -95,7 +95,11 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        TCacheBase::Remove(chunk->GetId());
+        if (TCacheBase::Remove(chunk->GetId())) {
+            LOG_DEBUG("Block chunk reader evicted from cache (LocationId: %v, ChunkId: %v)",
+                chunk->GetLocation()->GetId(),
+                chunk->GetId());
+        }
     }
 
 };
