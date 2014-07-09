@@ -363,12 +363,12 @@ TEST_F(TStoreManagerTest, WriteAfterDeleteFailureWithRotation)
 {
     auto transaction = StartTransaction();
 
-    StoreManager->DeleteRow(transaction.get(), BuildKey("1").Get(), false, nullptr);
+    StoreManager->DeleteRow(transaction.get(), BuildKey("1").Get(), true, nullptr);
 
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), false, nullptr);
+        StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), true, nullptr);
     });
 }
 
@@ -377,12 +377,12 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation1)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
 
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
     });
 }
 
@@ -405,7 +405,7 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation2)
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
     });
 }
 
@@ -416,14 +416,14 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation3)
 
     auto store1 = Tablet->GetActiveStore();
 
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
 
     Rotate();
 
     StoreManager->RemoveStore(store1);
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
     });
 }
 

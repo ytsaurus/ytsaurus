@@ -103,7 +103,7 @@ private:
         TTransaction* transaction,
         TUnversionedRow key,
         ERowLockMode mode,
-        bool checkChunkStores);
+        bool prewrite);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 

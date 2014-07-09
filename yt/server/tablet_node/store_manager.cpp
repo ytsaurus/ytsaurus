@@ -291,7 +291,7 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
     TTransaction* transaction,
     TUnversionedRow key,
     ERowLockMode mode,
-    bool checkChunkStores)
+    bool prewrite)
 {
     // Check passive stores.
     for (const auto& store : PassiveStores_) {
@@ -304,19 +304,19 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
         }
     }
 
-    // Check locked stored (except for passive).
-    for (const auto& store : LockedStores_) {
-        if (store->GetState() == EStoreState::PassiveDynamic)
-            continue;
-        auto row = store->FindRowAndCheckLocks(
-            key,
-            transaction,
-            mode);
-        YASSERT(!row);
-    } 
+    if (prewrite) {
+        // Check locked stored (except for passive ones).
+        for (const auto& store : LockedStores_) {
+            if (store->GetState() == EStoreState::PassiveDynamic)
+                continue;
+            auto row = store->FindRowAndCheckLocks(
+                key,
+                transaction,
+                mode);
+            YASSERT(!row);
+        } 
 
-    // Check chunk stores.
-    if (checkChunkStores) {
+        // Check chunk stores.
         bool logged = false;
         auto startTimestamp = transaction->GetStartTimestamp();
         for (auto it = LatestTimestampToStore_.rbegin();
@@ -486,6 +486,7 @@ void TStoreManager::AddStore(IStorePtr store)
 
 void TStoreManager::RemoveStore(IStorePtr store)
 {
+    store->SetState(EStoreState::Removed);
     Tablet_->RemoveStore(store);
 
     if (store->GetType() == EStoreType::DynamicMemory) {

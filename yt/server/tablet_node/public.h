@@ -98,6 +98,7 @@ DECLARE_ENUM(EStoreState,
     (RemoveFailed)          // transient, waiting for back off to complete
 
     (Orphaned)              // belongs to a forcefully removed tablet
+    (Removed)               // removed by rotation but still locked
 );
 
 DECLARE_ENUM(EAutomatonThreadQueue,
