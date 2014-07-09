@@ -114,9 +114,9 @@ public:
             SendPing(mailbox);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()));
+        LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellGuid: %v, DstCellGuid: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid());
         return mailbox;
     }
     
@@ -133,8 +133,8 @@ public:
     {
         auto* mailbox = FindMailbox(cellGuid);
         if (!mailbox) {
-            THROW_ERROR_EXCEPTION("No such mailbox %s",
-                ~ToString(cellGuid));
+            THROW_ERROR_EXCEPTION("No such mailbox %v",
+                cellGuid);
         }
         return mailbox;
     }
@@ -142,9 +142,9 @@ public:
     void RemoveMailbox(const TCellGuid& cellGuid)
     {
         MailboxMap_.Remove(cellGuid);
-        LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(cellGuid));
+        LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellGuid: %v, DstCellGuid: %v)",
+            SelfCellGuid_,
+            cellGuid);
     }
 
     void PostMessage(TMailbox* mailbox, const TMessage& message)
@@ -158,9 +158,9 @@ public:
         auto serializedMessage = SerializeMessage(message);
         mailbox->OutcomingMessages().push_back(serializedMessage);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid(),
             messageId);
 
         MaybePostOutcomingMessages(mailbox);
@@ -213,16 +213,16 @@ private:
     {
         auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
 
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s",
-            ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid_));
+        context->SetRequestInfo("SrcCellGuid: %v, DstCellGuid: %v",
+            srcCellGuid,
+            SelfCellGuid_);
 
         auto* mailbox = FindMailbox(srcCellGuid);
         int lastIncomingMessageId = mailbox ? mailbox->GetLastIncomingMessageId() : -1;
 
         response->set_last_incoming_message_id(lastIncomingMessageId);
 
-        context->SetResponseInfo("LastIncomingMessageId: %d",
+        context->SetResponseInfo("LastIncomingMessageId: %v",
             lastIncomingMessageId);
 
         context->Reply();
@@ -233,9 +233,9 @@ private:
         auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
         int firstMessageId = request->first_message_id();
 
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d",
-            ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid_),
+        context->SetRequestInfo("SrcCellGuid: %v, DstCellGuid: %v, MessageIds: %v-%v",
+            srcCellGuid,
+            SelfCellGuid_,
             firstMessageId,
             firstMessageId + request->messages_size() - 1);
         
@@ -268,9 +268,9 @@ private:
         outcomingMessages.resize(outcomingMessages.size() - trimCount);
 
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + trimCount);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstOutcomingMessageId: %d)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %v, DstCellGuid: %v, FirstOutcomingMessageId: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid(),
             mailbox->GetFirstOutcomingMessageId());
 
         if (IsLeader()) {
@@ -289,7 +289,7 @@ private:
             auto* response = &context->Response();
             int lastIncomingMessageId = mailbox->GetLastIncomingMessageId();
             response->set_last_incoming_message_id(lastIncomingMessageId);
-            context->SetResponseInfo("LastIncomingMessageId: %d",
+            context->SetResponseInfo("LastIncomingMessageId: %v",
                 lastIncomingMessageId);
         }
     }
@@ -307,9 +307,9 @@ private:
             return;
 
         mailbox->SetConnected(true);
-        LOG_INFO("Mailbox connected (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()));
+        LOG_INFO("Mailbox connected (SrcCellGuid: %v, DstCellGuid: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid());
     }
 
     void SetMailboxDisconnected(TMailbox* mailbox)
@@ -319,9 +319,9 @@ private:
 
         mailbox->SetConnected(false);
         mailbox->SetInFlightMessageCount(0);
-        LOG_INFO("Mailbox disconnected (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()));
+        LOG_INFO("Mailbox disconnected (SrcCellGuid: %v, DstCellGuid: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid());
     }
 
 
@@ -355,9 +355,9 @@ private:
             return;
         }
 
-        LOG_DEBUG("Sending ping (SrcCellGuid: %s, DstCellGuid: %s)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()));
+        LOG_DEBUG("Sending ping (SrcCellGuid: %v, DstCellGuid: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid());
 
         THiveServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
@@ -376,17 +376,17 @@ private:
             return;
 
         if (!rsp->IsOK()) {
-            LOG_DEBUG(*rsp, "Ping failed (SrcCellGuid: %s, DstCellGuid: %s)",
-                ~ToString(SelfCellGuid_),
-                ~ToString(mailbox->GetCellGuid()));
+            LOG_DEBUG(*rsp, "Ping failed (SrcCellGuid: %v, DstCellGuid: %v)",
+                SelfCellGuid_,
+                mailbox->GetCellGuid());
             SchedulePing(mailbox);
             return;
         }
 
         int lastIncomingMessageId = rsp->last_incoming_message_id();
-        LOG_DEBUG("Ping succeeded (SrcCellGuid: %s, DstCellGuid: %s, LastReceivedMessagId: %d)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()),
+        LOG_DEBUG("Ping succeeded (SrcCellGuid: %v, DstCellGuid: %v, LastReceivedMessagId: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid(),
             lastIncomingMessageId);
 
         SetMailboxConnected(mailbox);
@@ -428,9 +428,9 @@ private:
 
         mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() + messageCount);
 
-        LOG_DEBUG("Posting outcoming messages (SrcCellGuid: %s, DstCellGuid: %s, MessageIds: %d-%d)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()),
+        LOG_DEBUG("Posting outcoming messages (SrcCellGuid: %v, DstCellGuid: %v, MessageIds: %v-%v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid(),
             firstMessageId,
             firstMessageId + messageCount - 1);
 
@@ -446,17 +446,17 @@ private:
             return;
 
         if (!rsp->IsOK()) {
-            LOG_DEBUG(*rsp, "Failed to post outcoming messages (SrcCellGuid: %s, DstCellGuid: %s)",
-                ~ToString(SelfCellGuid_),
-                ~ToString(mailbox->GetCellGuid()));
+            LOG_DEBUG(*rsp, "Failed to post outcoming messages (SrcCellGuid: %v, DstCellGuid: %v)",
+                SelfCellGuid_,
+                mailbox->GetCellGuid());
             SetMailboxDisconnected(mailbox);
             return;
         }
 
         int lastIncomingMessageId = rsp->last_incoming_message_id();
-        LOG_DEBUG("Outcoming messages posted successfully (SrcCellGuid: %s, DstCellGuid: %s, LastIncomingMessageId: %d)",
-            ~ToString(SelfCellGuid_),
-            ~ToString(mailbox->GetCellGuid()),
+        LOG_DEBUG("Outcoming messages posted successfully (SrcCellGuid: %v, DstCellGuid: %v, LastIncomingMessageId: %v)",
+            SelfCellGuid_,
+            mailbox->GetCellGuid(),
             lastIncomingMessageId);
 
         HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
@@ -503,9 +503,9 @@ private:
     void HandleIncomingMessage(TMailbox* mailbox, int messageId, const Stroka& serializedMessage)
     {
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
-                ~ToString(mailbox->GetCellGuid()),
-                ~ToString(SelfCellGuid_),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
+                mailbox->GetCellGuid(),
+                SelfCellGuid_,
                 messageId);
         } else {
             auto& incomingMessages = mailbox->IncomingMessages();
@@ -519,9 +519,9 @@ private:
                 if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
                     break;
 
-                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
-                    ~ToString(mailbox->GetCellGuid()),
-                    ~ToString(SelfCellGuid_),
+                LOG_DEBUG_UNLESS(IsRecovery(), "Consuming incoming message (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
+                    mailbox->GetCellGuid(),
+                    SelfCellGuid_,
                     frontMessageId);
 
                 auto request = DeserializeMessage(serializedFrontMessage);
@@ -534,9 +534,9 @@ private:
             }
 
             if (!consumed) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellGuid: %s, DstCellGuid: %s, MessageId: %d)",
-                    ~ToString(mailbox->GetCellGuid()),
-                    ~ToString(SelfCellGuid_),
+                LOG_DEBUG_UNLESS(IsRecovery(), "Keeping an out-of-order incoming message (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
+                    mailbox->GetCellGuid(),
+                    SelfCellGuid_,
                     messageId);
             }
         }
