@@ -34,7 +34,7 @@ struct TEpochContext
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
-    TChangelogRotationPtr ChangelogRotation;
+    TCheckpointerPtr Checkpointer;
     TLeaderRecoveryPtr LeaderRecovery;
     TFollowerRecoveryPtr FollowerRecovery;
     TLeaderCommitterPtr LeaderCommitter;

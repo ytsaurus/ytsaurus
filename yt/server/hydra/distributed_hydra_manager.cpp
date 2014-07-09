@@ -12,7 +12,7 @@
 #include "follower_tracker.h"
 #include "mutation_context.h"
 #include "mutation_committer.h"
-#include "changelog_rotation.h"
+#include "checkpointer.h"
 #include "snapshot_discovery.h"
 
 #include <core/concurrency/thread_affinity.h>
@@ -129,7 +129,7 @@ public:
         VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
         VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
-        Logger.AddTag(Sprintf("CellGuid: %s",
+        Logger.AddTag(Sprintf("CellGuid: %v",
             ~ToString(CellManager_->GetCellGuid())));
 
         auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
@@ -271,7 +271,7 @@ public:
         }
 
         return epochContext
-            ->ChangelogRotation
+            ->Checkpointer
             ->BuildSnapshot()
             .Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> errorOrParams) -> TErrorOr<int> {
                 if (!errorOrParams.IsOK()) {
@@ -817,15 +817,17 @@ private:
         YCHECK(GetAutomatonState() == EPeerState::Leading);
         YCHECK(epochContext->IsActiveLeader);
 
-        auto changelogRotation = epochContext->ChangelogRotation;
+        auto changelogRotation = epochContext->Checkpointer;
         TAsyncError result;
-        if (changelogRotation->IsSnapshotInProgress()) {
-            LOG_WARNING("Previous snapshot is still being built, skipping the current one");
-            result = changelogRotation->RotateChangelog();
-        } else {
+        if (changelogRotation->CanBuildSnapshot()) {
             result = changelogRotation->BuildSnapshot().Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> result) {
                 return TError(result);
             }));
+        } else if (changelogRotation->CanRotateChangelogs()) {
+            LOG_WARNING("Snapshot is still being built, just rotating changlogs");
+            result = changelogRotation->RotateChangelog();
+        } else {
+            LOG_WARNING("Cannot neither build a snapshot nor rotate changelogs");
         }
 
         result.Subscribe(BIND(&TDistributedHydraManager::OnCheckpointResult, MakeStrong(this))
@@ -858,7 +860,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return epochContext->ChangelogRotation->BuildSnapshot();
+        return epochContext->Checkpointer->BuildSnapshot();
     }
 
 
@@ -895,7 +897,7 @@ private:
         epochContext->LeaderCommitter->SubscribeCommitFailed(
             BIND(&TDistributedHydraManager::OnCommitFailed, MakeWeak(this)));
 
-        epochContext->ChangelogRotation = New<TChangelogRotation>(
+        epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
             CellManager_,
             DecoratedAutomaton_,
@@ -962,7 +964,7 @@ private:
 
             // Let's be neat and omit changelog rotation for the very first run.
             if (DecoratedAutomaton_->GetLoggedVersion() != TVersion()) {
-                auto rotateResult = WaitFor(epochContext->ChangelogRotation->RotateChangelog());
+                auto rotateResult = WaitFor(epochContext->Checkpointer->RotateChangelog());
                 VERIFY_THREAD_AFFINITY(AutomatonThread);
                 THROW_ERROR_EXCEPTION_IF_FAILED(rotateResult);
             }

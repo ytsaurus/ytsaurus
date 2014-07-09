@@ -22,7 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TFollowerRecovery)
 DECLARE_REFCOUNTED_CLASS(TFollowerTracker)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
 DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
-DECLARE_REFCOUNTED_CLASS(TChangelogRotation)
+DECLARE_REFCOUNTED_CLASS(TCheckpointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

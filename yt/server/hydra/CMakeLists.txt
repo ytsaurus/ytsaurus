@@ -23,7 +23,7 @@ set( SRCS
   ${BASE}/snapshot.cpp
   ${BASE}/distributed_hydra_manager.cpp
   ${BASE}/mutation_committer.cpp
-  ${BASE}/changelog_rotation.cpp
+  ${BASE}/checkpointer.cpp
   ${BASE}/composite_automaton.cpp
   ${BASE}/mutation.cpp
   ${BASE}/hydra_service.cpp
@@ -60,7 +60,7 @@ set( HDRS
   ${BASE}/hydra_manager.h
   ${BASE}/distributed_hydra_manager.h
   ${BASE}/mutation_committer.h
-  ${BASE}/changelog_rotation.h
+  ${BASE}/checkpointer.h
   ${BASE}/composite_automaton.h
   ${BASE}/composite_automaton-inl.h
   ${BASE}/mutation.h

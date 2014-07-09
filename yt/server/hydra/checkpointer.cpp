@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "changelog_rotation.h"
+#include "checkpointer.h"
 #include "config.h"
 #include "decorated_automaton.h"
 #include "mutation_committer.h"
@@ -11,6 +11,9 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hydra/version.h>
+#include <ytlib/hydra/hydra_service_proxy.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -19,12 +22,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogRotation::TSession
+class TCheckpointer::TSession
     : public TRefCounted
 {
 public:
     TSession(
-        TChangelogRotationPtr owner,
+        TCheckpointerPtr owner,
         bool buildSnapshot)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
@@ -36,6 +39,9 @@ public:
     void Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+
+        Owner_->RotatingChangelogs_ = true;
+        Owner_->BuildingSnapshot_ = BuildSnapshot_;
 
         Version_ = Owner_->DecoratedAutomaton_->GetLoggedVersion();
         Owner_->LeaderCommitter_->Flush();
@@ -59,11 +65,11 @@ public:
     }
 
 private:
-    TChangelogRotationPtr Owner_;
+    TCheckpointerPtr Owner_;
     bool BuildSnapshot_;
     
-    bool LocalSuccessFlag = false;
-    int RemoteSuccessCount_ = 0;
+    bool LocalRotationSuccessFlag = false;
+    int RemoteRotationSuccessCount_ = 0;
 
     TVersion Version_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_;
@@ -190,6 +196,11 @@ private:
         
         LOG_INFO("Distributed snapshot creation finished, %d peers succeeded",
             successCount);
+
+        auto owner = Owner_;
+        Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND([owner] () {
+            owner->BuildingSnapshot_ = false;
+        }));
     }
 
 
@@ -241,7 +252,7 @@ private:
         LOG_INFO("Remote changelog rotated by follower %d",
             id);
 
-        ++RemoteSuccessCount_;
+        ++RemoteRotationSuccessCount_;
         CheckRotationQuorum();
     }
 
@@ -256,8 +267,8 @@ private:
 
         LOG_INFO("Local changelog rotated");
 
-        YCHECK(!LocalSuccessFlag);
-        LocalSuccessFlag = true;
+        YCHECK(!LocalRotationSuccessFlag);
+        LocalRotationSuccessFlag = true;
         CheckRotationQuorum();
     }
 
@@ -267,7 +278,7 @@ private:
 
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
-        if (!LocalSuccessFlag || RemoteSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
+        if (!LocalRotationSuccessFlag || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
@@ -278,6 +289,9 @@ private:
 
     void OnRotationSucceded()
     {
+        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+
+        Owner_->RotatingChangelogs_ = false;
         Owner_->DecoratedAutomaton_->RotateAutomatonVersion(Version_.SegmentId + 1);
         Owner_->LeaderCommitter_->ResumeLogging();
     }
@@ -287,9 +301,9 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         // NB: Otherwise an error is already reported.
-        YCHECK(LocalSuccessFlag);
+        YCHECK(LocalRotationSuccessFlag);
         SetFailed(TError("Not enough successful changelog rotation replies: %v out of %v",
-            RemoteSuccessCount_ + 1,
+            RemoteRotationSuccessCount_ + 1,
             Owner_->CellManager_->GetPeerCount()));
     }
 
@@ -311,7 +325,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangelogRotation::TChangelogRotation(
+TCheckpointer::TCheckpointer(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
@@ -324,7 +338,6 @@ TChangelogRotation::TChangelogRotation(
     , LeaderCommitter_(leaderCommitter)
     , SnapshotStore_(snapshotStore)
     , EpochContext_(epochContext)
-    , SnapshotsInProgress_(0)
     , Logger(HydraLogger)
 {
     YCHECK(Config_);
@@ -340,37 +353,38 @@ TChangelogRotation::TChangelogRotation(
         ~ToString(CellManager_->GetCellGuid())));
 }
 
-TFuture<TError> TChangelogRotation::RotateChangelog()
+TFuture<TError> TCheckpointer::RotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(CanRotateChangelogs());
 
     auto session = New<TSession>(this, false);
     session->Run();
     return session->GetChangelogResult();
 }
 
-TFuture<TErrorOr<TRemoteSnapshotParams>> TChangelogRotation::BuildSnapshot()
+TFuture<TErrorOr<TRemoteSnapshotParams>> TCheckpointer::BuildSnapshot()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YCHECK(CanBuildSnapshot());
 
     auto session = New<TSession>(this, true);
     session->Run();
-    auto result = session->GetSnapshotResult();
-
-    ++SnapshotsInProgress_;
-    auto this_ = MakeStrong(this);
-    result.Finally().Subscribe(BIND([this, this_] () {
-        --SnapshotsInProgress_;
-    }));
-
-    return result;
+    return session->GetSnapshotResult();
 }
 
-bool TChangelogRotation::IsSnapshotInProgress() const
+bool TCheckpointer::CanBuildSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return SnapshotsInProgress_.load() > 0;
+    return !BuildingSnapshot_ && !RotatingChangelogs_;
+}
+
+bool TCheckpointer::CanRotateChangelogs() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return !RotatingChangelogs_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

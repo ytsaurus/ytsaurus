@@ -11,21 +11,16 @@
 
 #include <ytlib/election/public.h>
 
-#include <ytlib/hydra/version.h>
-#include <ytlib/hydra/hydra_service_proxy.h>
-
-#include <atomic>
-
 namespace NYT {
 namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangelogRotation
-    : public TExtrinsicRefCounted
+class TCheckpointer
+    : public TRefCounted
 {
 public:
-    TChangelogRotation(
+    TCheckpointer(
         TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
@@ -45,11 +40,17 @@ public:
      */
     TFuture<TErrorOr<TRemoteSnapshotParams>> BuildSnapshot();
 
-    //! Returns |true| iff a snapshot is currently being built.
+    //! Returns |true| iff a snapshot can be built.
     /*!
      *  \note Thread affinity: any
      */
-    bool IsSnapshotInProgress() const;
+    bool CanBuildSnapshot() const;
+
+    //! Returns |true| iff changelogs can be rotated.
+    /*!
+     *  \note Thread affinity: any
+     */
+    bool CanRotateChangelogs() const;
 
 private:
     TDistributedHydraManagerConfigPtr Config_;
@@ -59,7 +60,8 @@ private:
     ISnapshotStorePtr SnapshotStore_;
     TEpochContextPtr EpochContext_;
 
-    std::atomic<int> SnapshotsInProgress_;
+    bool BuildingSnapshot_ = false;
+    bool RotatingChangelogs_ = false;
 
     NLog::TTaggedLogger Logger;
 
@@ -70,7 +72,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TChangelogRotation)
+DEFINE_REFCOUNTED_TYPE(TCheckpointer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
