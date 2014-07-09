@@ -43,7 +43,8 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
     const TKeyColumns& keyColumns,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp)
-    : Timestamp_(timestamp)
+    : Data_(data)
+    , Timestamp_(timestamp)
     , KeyColumnCount_(keyColumns.size())
     , SchemaIdMapping_(schemaIdMapping)
     , Schema_(chunkSchema)

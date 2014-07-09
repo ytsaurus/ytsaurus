@@ -38,6 +38,8 @@ public:
 private:
     typedef TReadOnlyBitmap<ui64> TBitmap;
 
+    TSharedRef Data_;
+
     TTimestamp Timestamp_;
     const int KeyColumnCount_;
 
