@@ -149,7 +149,11 @@ public:
 
     void EvictChangelog(IChunkPtr chunk)
     {
-        TCacheBase::Remove(chunk->GetId());
+        if (TCacheBase::Remove(chunk->GetId())) {
+            LOG_DEBUG("Journal chunk evicted from cache (LocationId: %v, ChunkId: %v)",
+                chunk->GetLocation()->GetId(),
+                chunk->GetId());
+        }
     }
 
 private:
@@ -777,21 +781,19 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
     auto location = chunk->GetLocation();
 
     TInsertCookie cookie(chunkId);
-    if (BeginInsert(&cookie)) {
-        auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
-            .Guarded()
-            .AsyncVia(location->GetWriteInvoker())
-            .Run();
-        auto lazyChangelog = CreateLazyChangelog(futureChangelogOrError);
-        auto cachedChangelog = New<TCachedChangelog>(
-            this,
-            chunkId,
-            lazyChangelog,
-            enableMultiplexing);
-        cookie.EndInsert(cachedChangelog);
-    }
+    YCHECK(BeginInsert(&cookie));
 
-    auto cachedChangelog = cookie.GetValue().Get().Value();
+    auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
+        .Guarded()
+        .AsyncVia(location->GetWriteInvoker())
+        .Run();
+    auto lazyChangelog = CreateLazyChangelog(futureChangelogOrError);
+    auto cachedChangelog = New<TCachedChangelog>(
+        this,
+        chunkId,
+        lazyChangelog,
+        enableMultiplexing);
+    cookie.EndInsert(cachedChangelog);
 
     TMultiplexedRecord record;
     record.Header.Type = EMultiplexedRecordType::Create;
