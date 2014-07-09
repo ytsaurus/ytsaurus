@@ -1004,6 +1004,11 @@ private:
             return wrappedError;
         }
 
+        LogEventFluently(ELogEventType::OperationStarted)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
+            .Item("spec").Value(operation->GetSpec());
+
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
@@ -1678,6 +1683,7 @@ private:
 
         LogEventFluently(ELogEventType::OperationCompleted)
             .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
@@ -1735,6 +1741,7 @@ private:
 
         LogEventFluently(logEventType)
             .Item("operation_id").Value(operation->GetId())
+            .Item("operation_type").Value(operation->GetType())
             .Item("spec").Value(operation->GetSpec())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
