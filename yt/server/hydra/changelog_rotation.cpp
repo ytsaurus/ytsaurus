@@ -62,8 +62,8 @@ private:
     TChangelogRotationPtr Owner_;
     bool BuildSnapshot_;
     
-    bool LocalRotationFlag_ = false;
-    int RemoteRotationCount_ = 0;
+    bool LocalSuccessFlag = false;
+    int RemoteSuccessCount_ = 0;
 
     TVersion Version_;
     TPromise<TErrorOr<TRemoteSnapshotParams>> SnapshotPromise_;
@@ -86,8 +86,6 @@ private:
         if (BuildSnapshot_) {
             RequestSnapshotCreation();
         }
-
-        Owner_->DecoratedAutomaton_->CommitMutations(TVersion(Version_.SegmentId + 1, 0));
 
         RequestChangelogRotation();
     }
@@ -227,7 +225,7 @@ private:
             BIND(&TSession::OnLocalChangelogRotated, this_));
 
         awaiter->Complete(
-            BIND(&TSession::OnChangelogsComplete, this_));
+            BIND(&TSession::OnRotationFailed, this_));
     }
 
     void OnRemoteChangelogRotated(TPeerId id, THydraServiceProxy::TRspRotateChangelogPtr rsp)
@@ -243,7 +241,7 @@ private:
         LOG_INFO("Remote changelog rotated by follower %d",
             id);
 
-        ++RemoteRotationCount_;
+        ++RemoteSuccessCount_;
         CheckRotationQuorum();
     }
 
@@ -258,8 +256,8 @@ private:
 
         LOG_INFO("Local changelog rotated");
 
-        YCHECK(!LocalRotationFlag_);
-        LocalRotationFlag_ = true;
+        YCHECK(!LocalSuccessFlag);
+        LocalSuccessFlag = true;
         CheckRotationQuorum();
     }
 
@@ -269,20 +267,30 @@ private:
 
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
-        if (!LocalRotationFlag_ || RemoteRotationCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
+        if (!LocalSuccessFlag || RemoteSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
             return;
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
-            BIND(&TLeaderCommitter::ResumeLogging, Owner_->LeaderCommitter_));
+            BIND(&TSession::OnRotationSucceded, MakeStrong(this)));
 
         SetSucceded();
     }
 
-    void OnChangelogsComplete()
+    void OnRotationSucceded()
+    {
+        Owner_->DecoratedAutomaton_->RotateAutomatonVersion(Version_.SegmentId + 1);
+        Owner_->LeaderCommitter_->ResumeLogging();
+    }
+
+    void OnRotationFailed()
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        SetFailed(TError("Not enough successful replies"));
+        // NB: Otherwise an error is already reported.
+        YCHECK(LocalSuccessFlag);
+        SetFailed(TError("Not enough successful changelog rotation replies: %v out of %v",
+            RemoteSuccessCount_ + 1,
+            Owner_->CellManager_->GetPeerCount()));
     }
 
 
