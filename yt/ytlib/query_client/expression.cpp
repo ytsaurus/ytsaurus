@@ -266,6 +266,8 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
             break;
         }
 
+        default:
+            YUNREACHABLE();
     }
 
     YCHECK(result);
