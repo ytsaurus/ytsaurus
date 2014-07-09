@@ -359,6 +359,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     while (true) {
         if (Position == Buffer->Size()) {
             Position = 0;
+            swap(PreviousBuffer, *Buffer);
             Buffer->Clear();
             while (HasData && Buffer->Size() < InputBufferSize) {
                 HasData = TableProducer->ProduceRow();
@@ -375,9 +376,6 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         YASSERT(Position < Buffer->Size());
 
         auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->Size() - Position);
-        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
-            res,
-            JobDescriptor);
 
         if (res < 0)  {
             if (errno == EAGAIN) {
@@ -391,6 +389,9 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                     << TError::FromSystem();
             }
         }
+        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
+            res,
+            JobDescriptor);
 
         Position += res;
         YASSERT(Position <= Buffer->Size());
@@ -422,6 +423,14 @@ void TInputPipe::Finish()
             Pipe.WriteFd,
             JobDescriptor);
     }
+}
+
+TBlob TInputPipe::GetFailContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer.Blob()));
+    result.Append(TRef::FromBlob(Buffer->Blob()));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

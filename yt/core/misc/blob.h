@@ -129,6 +129,11 @@ public:
     //! Appends a chunk of memory to the end.
     void Append(const TRef& ref);
 
+    //! Swaps the current and other instances
+    void Swap(TBlob& other);
+
+    friend void swap(TBlob& left, TBlob& right);
+
 private:
     char* Begin_;
     size_t Size_;
@@ -137,6 +142,8 @@ private:
     void Reset();
 
 };
+
+void swap(TBlob& left, TBlob& right);
 
 ////////////////////////////////////////////////////////////////////////////////
 

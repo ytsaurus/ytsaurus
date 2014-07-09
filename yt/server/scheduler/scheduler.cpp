@@ -1423,18 +1423,27 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
+        std::vector<TChunkId> failContexts;
+        for (const auto& item : schedulerResultExt.fail_context_chunk_ids()) {
+            failContexts.push_back(FromProto<TGuid>(item));
+        }
+
         if (schedulerResultExt.has_stderr_chunk_id()) {
             auto operation = job->GetOperation();
             auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
 
             if (jobFailed || operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
-                MasterConnector_->CreateJobNode(job, stderrChunkId);
+                if (jobFailed) {
+                    MasterConnector_->CreateJobNode(job, stderrChunkId, failContexts);
+                } else {
+                    MasterConnector_->CreateJobNode(job, stderrChunkId, std::vector<TChunkId>());
+                }
                 operation->SetStdErrCount(operation->GetStdErrCount() + 1);
             } else {
                 ReleaseStdErrChunk(job, stderrChunkId);
             }
         } else if (jobFailed) {
-            MasterConnector_->CreateJobNode(job, NullChunkId);
+            MasterConnector_->CreateJobNode(job, NullChunkId, failContexts);
         }
     }
 

@@ -515,9 +515,25 @@ protected:
             Persist(context, Partition);
         }
 
+        virtual int GetPendingJobCount() const override
+        {
+            return IsActive() ? TTask::GetPendingJobCount() : 0;
+        }
+
+        virtual int GetTotalJobCount() const override
+        {
+            return IsActive() ? TTask::GetTotalJobCount() : 0;
+        }
+
+
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
+
+        virtual bool IsActive() const
+        {
+            return true;
+        }
 
     };
 
@@ -751,18 +767,6 @@ protected:
             return Sprintf("Sort(%d)", Partition->Index);
         }
 
-        virtual int GetPendingJobCount() const override
-        {
-            if (!Controller->SortStartThresholdReached) {
-                return 0;
-            }
-
-            if (Partition->Maniac) {
-                return 0;
-            }
-
-            return TTask::GetPendingJobCount();
-        }
 
         virtual TDuration GetLocalityTimeout() const override
         {
@@ -787,6 +791,10 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
 
+        virtual bool IsActive() const override
+        {
+            return Controller->SortStartThresholdReached && !Partition->Maniac;
+        }
 
         virtual bool HasInputLocality() const override
         {
@@ -891,19 +899,6 @@ protected:
             return Sprintf("SortedMerge(%d)", Partition->Index);
         }
 
-        virtual int GetPendingJobCount() const override
-        {
-            if (!Controller->MergeStartThresholdReached) {
-                return 0;
-            }
-
-            if (Partition->Maniac) {
-                return 0;
-            }
-
-            return TTask::GetPendingJobCount();
-        }
-
         virtual TDuration GetLocalityTimeout() const override
         {
             return
@@ -936,6 +931,11 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
         std::unique_ptr<IChunkPool> ChunkPool;
+
+        virtual bool IsActive() const override
+        {
+            return Controller->MergeStartThresholdReached && !Partition->Maniac;
+        }
 
         virtual bool IsMemoryReserveEnabled() const override
         {
@@ -1026,19 +1026,6 @@ protected:
             return Sprintf("UnorderedMerge(%d)", Partition->Index);
         }
 
-        virtual int GetPendingJobCount() const override
-        {
-            if (!Controller->MergeStartThresholdReached) {
-                return 0;
-            }
-
-            if (!Partition->Maniac) {
-                return 0;
-            }
-
-            return TTask::GetPendingJobCount();
-        }
-
         virtual i64 GetLocality(const Stroka& address) const override
         {
             // Locality is unimportant.
@@ -1070,6 +1057,10 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
+        virtual bool IsActive() const override
+        {
+             return Controller->MergeStartThresholdReached && Partition->Maniac;
+        }
 
         virtual bool IsMemoryReserveEnabled() const override
         {

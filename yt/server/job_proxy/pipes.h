@@ -128,12 +128,15 @@ public:
     void CloseHandles() override;
     void Finish() override;
 
+    TBlob GetFailContext() const;
+
 private:
     TPipe Pipe;
     int JobDescriptor;
 
     std::unique_ptr<NTableClient::TTableProducer> TableProducer;
     std::unique_ptr<TBlobOutput> Buffer;
+    TBlobOutput PreviousBuffer;
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
     int Position;
 
