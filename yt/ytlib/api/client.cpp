@@ -1051,6 +1051,11 @@ public:
     { }
 
 
+    virtual IClientPtr GetClient() const override
+    {
+        return Client_;
+    }
+
     virtual NTransactionClient::ETransactionType GetType() const override
     {
         return Transaction_->GetType();

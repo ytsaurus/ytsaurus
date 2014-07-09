@@ -24,6 +24,7 @@ namespace NApi {
 struct ITransaction
     : public IClientBase
 {
+    virtual IClientPtr GetClient() const = 0;
     virtual NTransactionClient::ETransactionType GetType() const = 0;
     virtual const NTransactionClient::TTransactionId& GetId() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
