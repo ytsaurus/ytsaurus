@@ -635,39 +635,39 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::ValuesIn(refineCasesForEqualOpcodeInFirstComponent));
 
 // NotEqual, First component.
-TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
-    {
-        ("1;1;1"), ("100;100;100"),
-        "k", EBinaryOp::NotEqual, 50,
-        false, ("1;1;1"), ("100;100;100")
-    },
-    {
-        ("1;1;1"), ("100;100;100"),
-        "k", EBinaryOp::NotEqual, 1,
-        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
-    },
-    {
-        ("1;1;1"), ("100;100;100"),
-        "k", EBinaryOp::NotEqual, 100,
-        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
-    },
-    {
-        ("1;1;1"), ("100;100;100"),
-        "k", EBinaryOp::NotEqual, 200,
-        false, ("1;1;1"), ("100;100;100")
-    },
-};
-INSTANTIATE_TEST_CASE_P(
-    NotEqualInFirstComponent,
-    TRefineKeyRangeTest,
-    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInFirstComponent));
+//TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
+//    {
+//        ("1;1;1"), ("100;100;100"),
+//        "k", EBinaryOp::NotEqual, 50,
+//        false, ("1;1;1"), ("100;100;100")
+//    },
+//    {
+//        ("1;1;1"), ("100;100;100"),
+//        "k", EBinaryOp::NotEqual, 1,
+//        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
+//    },
+//    {
+//        ("1;1;1"), ("100;100;100"),
+//        "k", EBinaryOp::NotEqual, 100,
+//        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
+//    },
+//    {
+//        ("1;1;1"), ("100;100;100"),
+//        "k", EBinaryOp::NotEqual, 200,
+//        false, ("1;1;1"), ("100;100;100")
+//    },
+//};
+//INSTANTIATE_TEST_CASE_P(
+//    NotEqualInFirstComponent,
+//    TRefineKeyRangeTest,
+//    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInFirstComponent));
 
 // Less, First component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Less, 50,
-        false, ("1;1;1"), ("50;" _MIN_ ";" _MIN_)
+        false, ("1;1;1"), ("49;" _MAX_ ";" _MAX_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -677,7 +677,7 @@ TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Less, 100,
-        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
+        false, ("1;1;1"), ("99;" _MAX_ ";" _MAX_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -820,32 +820,32 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::ValuesIn(refineCasesForEqualOpcodeInLastComponent));
 
 // NotEqual, Last component.
-TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
-    {
-        ("1;1;1"), ("1;1;100"),
-        "m", EBinaryOp::NotEqual, 50,
-        false, ("1;1;1"), ("1;1;100")
-    },
-    {
-        ("1;1;1"), ("1;1;100"),
-        "m", EBinaryOp::NotEqual, 1,
-        false, ("1;1;2"), ("1;1;100")
-    },
-    {
-        ("1;1;1"), ("1;1;100"),
-        "m", EBinaryOp::NotEqual, 100,
-        false, ("1;1;1"), ("1;1;100")
-    },
-    {
-        ("1;1;1"), ("1;1;100"),
-        "m", EBinaryOp::NotEqual, 200,
-        false, ("1;1;1"), ("1;1;100")
-    },
-};
-INSTANTIATE_TEST_CASE_P(
-    NotEqualInLastComponent,
-    TRefineKeyRangeTest,
-    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInLastComponent));
+//TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
+//    {
+//        ("1;1;1"), ("1;1;100"),
+//        "m", EBinaryOp::NotEqual, 50,
+//        false, ("1;1;1"), ("1;1;100")
+//    },
+//    {
+//        ("1;1;1"), ("1;1;100"),
+//        "m", EBinaryOp::NotEqual, 1,
+//        false, ("1;1;2"), ("1;1;100")
+//    },
+//    {
+//        ("1;1;1"), ("1;1;100"),
+//        "m", EBinaryOp::NotEqual, 100,
+//        false, ("1;1;1"), ("1;1;100")
+//    },
+//    {
+//        ("1;1;1"), ("1;1;100"),
+//        "m", EBinaryOp::NotEqual, 200,
+//        false, ("1;1;1"), ("1;1;100")
+//    },
+//};
+//INSTANTIATE_TEST_CASE_P(
+//    NotEqualInLastComponent,
+//    TRefineKeyRangeTest,
+//    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInLastComponent));
 
 // Less, Last component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInLastComponent[] = {
@@ -1044,7 +1044,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
         Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
 
     EXPECT_EQ(BuildKey("10;" _MIN_ ";" _MIN_), result.first);
-    EXPECT_EQ(BuildKey("90;" _MIN_ ";" _MIN_), result.second);
+    EXPECT_EQ(BuildKey("89;" _MAX_ ";" _MAX_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
@@ -1070,8 +1070,8 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
                 Make<TBinaryOpExpression>(EBinaryOp::And,
                     conj1, conj2), conj3), conj4));
 
-    EXPECT_EQ(BuildKey("50;10;" _MIN_), result.first);
-    EXPECT_EQ(BuildKey("50;90;" _MIN_), result.second);
+    EXPECT_EQ(BuildKey("50;10;50"), result.first);
+    EXPECT_EQ(BuildKey("50;89;51"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
@@ -1088,8 +1088,8 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
 
-    EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result.first);
-    EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
+    EXPECT_EQ(BuildKey("50;" _MIN_ ";50"), result.first);
+    EXPECT_EQ(BuildKey("50;" _MAX_ ";51"), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, NormalizeExtraMinToSuccessor)

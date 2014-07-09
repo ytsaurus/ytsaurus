@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "unversioned_row.h"
 
-#include <ytlib/table_client/private.h>
+#include <util/stream/str.h>
 
 #include <core/misc/varint.h>
 #include <core/misc/string.h>
@@ -11,7 +11,9 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <util/stream/str.h>
+#include <ytlib/table_client/private.h>
+
+#include <ytlib/new_table_client/row_buffer.h>
 
 #include <cmath>
 
@@ -282,8 +284,10 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 }
 
-void AdvanceToValueSuccessor(TUnversionedValue& value)
+TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer)
 {
+    auto unalignedPool = rowBuffer->GetUnalignedPool();
+
     switch (value.Type) {
         case EValueType::Integer: {
             auto& inner = value.Data.Integer;
@@ -307,15 +311,72 @@ void AdvanceToValueSuccessor(TUnversionedValue& value)
             break;
         }
 
-        case EValueType::String:
-            // TODO(sandello): A proper way to get a successor is to append
-            // zero byte. However, it requires us to mess with underlying
-            // memory storage. I do not want to deal with it right now.
-            YUNIMPLEMENTED();
+        case EValueType::String: {
+            char* newValue = unalignedPool->AllocateUnaligned(value.Length + 1);
+            memcpy(newValue, value.Data.String, value.Length);
+            newValue[value.Length] = 0;
+            value.Data.String = newValue;
+            break;
+        }
 
         default:
             YUNREACHABLE();
     }
+
+    return value;
+}
+
+TUnversionedValue GetPrevValue(TUnversionedValue value, TRowBuffer* rowBuffer)
+{
+    auto unalignedPool = rowBuffer->GetUnalignedPool();
+
+    switch (value.Type) {
+        case EValueType::Integer: {
+            auto& inner = value.Data.Integer;
+            const auto minimum = std::numeric_limits<i64>::min();
+            if (LIKELY(inner != minimum)) {
+                --inner;
+            } else {
+                value.Type = EValueType::Min;
+            }
+            break;
+        }
+
+        case EValueType::Double: {
+            auto& inner = value.Data.Double;
+            const auto minimum = std::numeric_limits<double>::min();
+            if (LIKELY(inner != minimum)) {
+                inner = std::nextafter(inner, minimum);
+            } else {
+                value.Type = EValueType::Min;
+            }
+            break;
+        }
+
+        case EValueType::String: {
+            if (LIKELY(value.Length > 0)) {
+                ui32 resultLength = value.Length;
+                if (value.Data.String[value.Length - 1] > 0) {
+                    char* newValue = unalignedPool->AllocateUnaligned(value.Length);
+                    memcpy(newValue, value.Data.String, value.Length);
+                    --newValue[value.Length - 1];
+                    value.Data.String = newValue;
+                } else {
+                    char* newValue = unalignedPool->AllocateUnaligned(value.Length - 1);
+                    memcpy(newValue, value.Data.String, value.Length - 1);
+                    value.Data.String = newValue;
+                }
+            } else {
+                value.Type = EValueType::Min;
+            }            
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+
+    return value;
 }
 
 bool IsValueSuccessor(

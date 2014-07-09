@@ -8,6 +8,7 @@
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/row_buffer.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -73,49 +74,12 @@ TKeyRange RefineKeyRange(
     const TKeyRange& keyRange,
     const TExpression* predicate)
 {
-    typedef std::tuple<size_t, EBinaryOp, TValue> TConstraint;
-    typedef SmallVector<TConstraint, 4> TConstraints;
+    typedef std::tuple<size_t, bool, TValue> TConstraint;
+    typedef std::vector<TConstraint> TConstraints;
 
-    TKeyRange result = keyRange;
     TConstraints constraints;
 
     const int keySize = static_cast<int>(keyColumns.size());
-
-    auto normalizeKey =
-    [&] (TKey& key) {
-        if (keySize == 0) {
-            return;
-        }
-        int lastMinIndex = key.GetCount();
-        while (lastMinIndex > 0) {
-            if (key[lastMinIndex - 1].Type != EValueType::Min) {
-                break;
-            }
-            --lastMinIndex;
-        }
-        YCHECK(lastMinIndex <= keySize);
-        YCHECK(key.GetCount() <= 1 + keySize);
-        TUnversionedOwningRowBuilder builder(keySize);
-        // Copy non-MIN components.
-        for (int index = 0; index < lastMinIndex; ++index) {
-            builder.AddValue(key[index]);
-        }
-        // Pad with MINs.
-        for (int index = lastMinIndex; index < keySize; ++index) {
-            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
-        }
-        // Absorb extra explicit MIN if any.
-        if (lastMinIndex != key.GetCount() && lastMinIndex == keySize && lastMinIndex > 0) {
-            AdvanceToValueSuccessor(key[lastMinIndex - 1]);
-        }
-        key = builder.GetRowAndReset();
-    };
-
-    normalizeKey(result.first);
-    normalizeKey(result.second);
-
-    YCHECK(result.first.GetCount() == keySize);
-    YCHECK(result.second.GetCount() == keySize);
 
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
@@ -127,6 +91,8 @@ TKeyRange RefineKeyRange(
         }
         return -1;
     };
+    
+    TRowBuffer rowBuffer;
 
     // Extract primitive constraints, like "A > 5" or "A = 5", or "5 = A".
     std::function<void(const TBinaryOpExpression*)> extractSingleConstraint =
@@ -162,10 +128,28 @@ TKeyRange RefineKeyRange(
         auto* constantExpr = rhs->IsConstant() ? rhs : nullptr;
 
         if (referenceExpr && constantExpr) {
-            constraints.push_back(std::make_tuple(
-                columnNameToKeyPartIndex(referenceExpr->GetColumnName()),
-                opcode,
-                constantExpr->GetConstantValue()));
+            int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
+            auto value = constantExpr->GetConstantValue();
+            switch (opcode) {
+                case EBinaryOp::Equal:
+                    constraints.emplace_back(keyPartIndex, false, value);
+                    constraints.emplace_back(keyPartIndex, true, value);
+                    break;
+                case EBinaryOp::Less:
+                    constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
+                    break;
+                case EBinaryOp::LessOrEqual:
+                    constraints.emplace_back(keyPartIndex, true, value);
+                    break;
+                case EBinaryOp::Greater:
+                    constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
+                    break;
+                case EBinaryOp::GreaterOrEqual:
+                    constraints.emplace_back(keyPartIndex, false, value);
+                    break;
+                default:
+                    break;
+            }            
         }
     };
 
@@ -194,125 +178,66 @@ TKeyRange RefineKeyRange(
     // Now, traverse expression tree and actually extract constraints.
     extractMultipleConstraints(predicate);
 
-    // Sort all constraints according to the key columns.
-    std::sort(
-        constraints.begin(),
-        constraints.end(),
-        [&] (const TConstraint& lhs, const TConstraint& rhs) -> bool {
-            return std::get<0>(lhs) < std::get<0>(rhs);
-        });
+    auto leftBound = TRow::Allocate(rowBuffer.GetAlignedPool(), keySize);
+    auto rightBound = TRow::Allocate(rowBuffer.GetAlignedPool(), keySize);
 
-    // Find a maximal equality prefix.
-    size_t keyPartIndex = 0;
-    size_t constraintIndex = 0;
-
-    auto extendToRightWithMin = [] (TKey& key, int index) {
-        for (++index; index < key.GetCount(); ++index) {
-            key[index].Type = EValueType::Min;
-        }
-    };
-
-    auto extendToRightWithMax = [] (TKey& key, int index) {
-        for (++index; index < key.GetCount(); ++index) {
-            key[index].Type = EValueType::Max;
-        }
-    };
-
-    while (keyPartIndex < keySize && constraintIndex < constraints.size()) {
-        const auto& constraint = constraints[constraintIndex];
-
-        auto& currentLeftBound = result.first[keyPartIndex];
-        auto& currentRightBound = result.second[keyPartIndex];
-
-        auto constraintOpcode = std::get<1>(constraint);
-        auto constraintBound = std::get<2>(constraint);
-
-        if (keyPartIndex < std::get<0>(constraint)) {
-            // Lexicographical order makes it meaningful to consider only
-            // key ranges (L1 ... Lk) -- (R1 ... Rk) that satisfy:
-            // L1 == R1 && ... && Li == Ri && L(i+1) < R(i+1)
-            // with all other components irrelevant.
-            if (CompareRowValues(currentLeftBound, currentRightBound) == 0) {
-                ++keyPartIndex;
-                continue;
-            } else {
-                break;
-            }
-        }
-
-        int leftTernaryCmp = CompareRowValues(currentLeftBound, constraintBound);
-        int rightTernaryCmp = CompareRowValues(currentRightBound, constraintBound);
-
-        switch (constraintOpcode) {
-
-            case EBinaryOp::Equal:
-                if (leftTernaryCmp < 0) {
-                    currentLeftBound = constraintBound;
-                    extendToRightWithMin(result.first, keyPartIndex);
-                }
-                if (rightTernaryCmp > 0) {
-                    currentRightBound = constraintBound;
-                    if (keyPartIndex + 1 < keySize) {
-                        extendToRightWithMax(result.second, keyPartIndex);
-                    } else {
-                        AdvanceToValueSuccessor(currentRightBound);
-                    }
-                }
-                break;
-
-            case EBinaryOp::NotEqual:
-                if (leftTernaryCmp == 0) {
-                    currentLeftBound = constraintBound;
-                    AdvanceToValueSuccessor(currentLeftBound);
-                    extendToRightWithMin(result.first, keyPartIndex);
-                }
-                if (rightTernaryCmp == 0) {
-                    extendToRightWithMin(result.second, keyPartIndex);
-                }
-                break;
-
-            case EBinaryOp::Less:
-                if (rightTernaryCmp >= 0) {
-                    currentRightBound = constraintBound;
-                    extendToRightWithMin(result.second, keyPartIndex);
-                }
-                break;
-
-            case EBinaryOp::LessOrEqual:
-                if (rightTernaryCmp > 0) {
-                    currentRightBound = constraintBound;
-                    if (keyPartIndex + 1 < keySize) {
-                        extendToRightWithMax(result.second, keyPartIndex);
-                    } else {
-                        AdvanceToValueSuccessor(currentRightBound);
-                    }
-                }
-                break;
-
-            case EBinaryOp::Greater:
-                if (leftTernaryCmp <= 0) {
-                    currentLeftBound = constraintBound;
-                    AdvanceToValueSuccessor(currentLeftBound);
-                    extendToRightWithMin(result.first, keyPartIndex);
-                }
-                break;
-
-            case EBinaryOp::GreaterOrEqual:
-                if (leftTernaryCmp < 0) {
-                    currentLeftBound = constraintBound;
-                    extendToRightWithMin(result.first, keyPartIndex);
-                }
-                break;
-
-            default:
-                YUNREACHABLE();
-
-        }
-
-        ++constraintIndex;
+    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
+        leftBound[keyPartIndex].Type = EValueType::Min;
+        rightBound[keyPartIndex].Type = EValueType::Max;
     }
 
-    return result;
+
+    for (int constraintIndex = 0; constraintIndex < constraints.size(); ++constraintIndex) {
+        const auto& constraint = constraints[constraintIndex];
+
+        auto keyPartIndex = std::get<0>(constraint);
+        auto constraintDirection = std::get<1>(constraint);
+        auto constraintBound = std::get<2>(constraint);
+
+        if (constraintDirection) {
+            if (CompareRowValues(rightBound[keyPartIndex], constraintBound) > 0) {
+                rightBound[keyPartIndex] = constraintBound;
+            }
+        } else {
+            if (CompareRowValues(leftBound[keyPartIndex], constraintBound) < 0) {
+                leftBound[keyPartIndex] = constraintBound;
+            }
+        }
+    }
+
+    if (rightBound[keySize - 1].Type != EValueType::Max) {
+        rightBound[keySize - 1] = GetNextValue(rightBound[keySize - 1], &rowBuffer);
+    }
+
+    // Increment rightBound
+    //{
+    //    int keyPartIndex = keySize - 1;
+
+    //    while (keyPartIndex >= 0 && rightBound[keyPartIndex].Type == EValueType::Max) {
+    //        rightBound[keyPartIndex].Type = EValueType::Min;
+    //        --keyPartIndex;
+    //    }
+
+    //    if (keyPartIndex >= 0) {
+    //        rightBound[keyPartIndex] = GetNextValue(rightBound[keyPartIndex], &rowBuffer);
+    //    }
+    //}
+
+    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
+        if (CompareRowValues(keyRange.first[keyPartIndex], leftBound[keyPartIndex]) < 0) {
+            break;
+        }
+        leftBound[keyPartIndex] = keyRange.first[keyPartIndex];        
+    }
+
+    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
+        if (CompareRowValues(keyRange.second[keyPartIndex], rightBound[keyPartIndex]) > 0) {
+            break;
+        }
+        rightBound[keyPartIndex] = keyRange.second[keyPartIndex];        
+    }
+
+    return TKeyRange(TKey(leftBound), TKey(rightBound));
 }
 
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)

@@ -113,8 +113,10 @@ Stroka ToString(const TUnversionedValue& value);
 //! Returns zero, positive or negative value depending on the outcome.
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Computes the value successor.
-void AdvanceToValueSuccessor(TUnversionedValue& value);
+//! Computes next and previous value.
+TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer);
+TUnversionedValue GetPrevValue(TUnversionedValue value, TRowBuffer* rowBuffer);
+
 
 //! Checks that two given values form a valid predecessor-successor pair.
 bool IsValueSuccessor(
