@@ -415,15 +415,9 @@ private:
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto transactionIds = ToObjectIds(transactionManager->Transactions().GetValues());
-
         auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
-
         for (const auto& transactionId : transactionIds) {
-            TReqAbortTransaction req;
-            ToProto(req.mutable_transaction_id(), transactionId);
-            transactionSupervisor
-                ->CreateAbortTransactionMutation(req)
-                ->Commit();
+            transactionSupervisor->AbortTransaction(transactionId);
         }
     }
 

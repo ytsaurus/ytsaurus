@@ -68,15 +68,15 @@ public:
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)
-        , Config(config)
-        , HiveManager(hiveManager)
-        , TransactionManager(transactionManager)
-        , TimestampProvider(timestampProvider)
+        , Config_(config)
+        , HiveManager_(hiveManager)
+        , TransactionManager_(transactionManager)
+        , TimestampProvider_(timestampProvider)
     {
-        YCHECK(Config);
-        YCHECK(HiveManager);
-        YCHECK(TransactionManager);
-        YCHECK(TimestampProvider);
+        YCHECK(Config_);
+        YCHECK(HiveManager_);
+        YCHECK(TransactionManager_);
+        YCHECK(TimestampProvider_);
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
@@ -114,19 +114,33 @@ public:
         return this;
     }
 
-    TMutationPtr CreateAbortTransactionMutation(const TReqAbortTransaction& request)
+    TAsyncError AbortTransactionImpl(
+        const TTransactionId& transactionId,
+        const TMutationId& mutationId)
     {
-        return CreateMutation(HydraManager, request);
+        try {
+            TransactionManager_->PrepareTransactionAbort(transactionId);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
+        }
+
+        TReqAbortTransaction request;
+        ToProto(request.mutable_transaction_id(), transactionId);
+        return CreateMutation(HydraManager, request)
+            ->SetId(mutationId)
+            ->Commit().Apply(BIND([] (TErrorOr<TMutationResponse> result) {
+                return TError(result);
+            }));
     }
 
 private:
-    TTransactionSupervisorConfigPtr Config;
-    THiveManagerPtr HiveManager;
-    ITransactionManagerPtr TransactionManager;
-    ITimestampProviderPtr TimestampProvider;
+    TTransactionSupervisorConfigPtr Config_;
+    THiveManagerPtr HiveManager_;
+    ITransactionManagerPtr TransactionManager_;
+    ITimestampProviderPtr TimestampProvider_;
 
-    TEntityMap<TTransactionId, TCommit> DistributedCommitMap;
-    TEntityMap<TTransactionId, TCommit> SimpleCommitMap;
+    TEntityMap<TTransactionId, TCommit> DistributedCommitMap_;
+    TEntityMap<TTransactionId, TCommit> SimpleCommitMap_;
 
 
     // RPC handlers.
@@ -143,7 +157,7 @@ private:
             transactionId,
             JoinToString(participantCellGuids));
 
-        auto prepareTimestamp = TimestampProvider->GetLatestTimestamp();
+        auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
 
         if (participantCellGuids.empty()) {
             // Simple commit.
@@ -168,12 +182,12 @@ private:
                 transactionId,
                 mutationId,
                 participantCellGuids);
-            SimpleCommitMap.Insert(transactionId, commit);
+            SimpleCommitMap_.Insert(transactionId, commit);
             ReplyWhenFinished(commit, context);
 
             try {
                 // Any exception thrown here is replied to the client.
-                TransactionManager->PrepareTransactionCommit(
+                TransactionManager_->PrepareTransactionCommit(
                     transactionId,
                     false,
                     prepareTimestamp);
@@ -213,12 +227,9 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        TransactionManager->PrepareTransactionAbort(transactionId);
-
-        CreateMutation(HydraManager, *request)
-            ->SetId(mutationId)
-            ->OnSuccess(CreateRpcSuccessHandler(context))
-            ->Commit();
+        AbortTransactionImpl(transactionId, mutationId).Subscribe(BIND([=] (TError error) {
+            context->Reply(error);
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)
@@ -231,7 +242,7 @@ private:
             transactionId);
 
         // Any exception thrown here is replied to the client.
-        TransactionManager->PingTransaction(transactionId, *request);
+        TransactionManager_->PingTransaction(transactionId, *request);
 
         context->Reply();
     }
@@ -239,17 +250,15 @@ private:
 
     // Hydra handlers.
 
-    TRspAbortTransaction HydraAbortTransaction(const TReqAbortTransaction& request)
+    void HydraAbortTransaction(const TReqAbortTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
 
-        // Any exception thrown here is replied to the client.
-        TransactionManager->AbortTransaction(transactionId);
+        // Does not throw.
+        TransactionManager_->AbortTransaction(transactionId);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
             transactionId);
-
-        return TRspAbortTransaction();
     }
 
     void HydraStartDistributedCommit(TCtxCommitTransactionPtr context, const TReqStartDistributedCommit& request)
@@ -259,9 +268,9 @@ private:
         auto participantCellGuids = FromProto<TCellGuid>(request.participant_cell_guids());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
 
-        YCHECK(!SimpleCommitMap.Find(transactionId));
+        YCHECK(!SimpleCommitMap_.Find(transactionId));
 
-        auto* commit = DistributedCommitMap.Find(transactionId);
+        auto* commit = DistributedCommitMap_.Find(transactionId);
         if (commit) {
             if (context) {
                 LOG_DEBUG("Waiting for distributed commit to complete (TransactionId: %v)",
@@ -276,13 +285,13 @@ private:
             transactionId,
             mutationId,
             participantCellGuids);
-        DistributedCommitMap.Insert(transactionId, commit);
+        DistributedCommitMap_.Insert(transactionId, commit);
 
         if (context) {
             ReplyWhenFinished(commit, context);
         }
 
-        const auto& coordinatorCellGuid = HiveManager->GetSelfCellGuid();
+        const auto& coordinatorCellGuid = HiveManager_->GetSelfCellGuid();
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Distributed commit first phase started (TransactionId: %v, ParticipantCellGuids: [%v], CoordinatorCellGuid: %v)",
             transactionId,
@@ -320,7 +329,7 @@ private:
 
         TReqOnTransactionCommitPrepared response;
         ToProto(response.mutable_transaction_id(), transactionId);
-        ToProto(response.mutable_participant_cell_guid(), HiveManager->GetSelfCellGuid());
+        ToProto(response.mutable_participant_cell_guid(), HiveManager_->GetSelfCellGuid());
 
         try {
             // Any exception thrown here is replied to the coordinator.
@@ -341,7 +350,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto participantCellGuid = FromProto<TCellGuid>(request.participant_cell_guid());
 
-        auto* commit = DistributedCommitMap.Find(transactionId);
+        auto* commit = DistributedCommitMap_.Find(transactionId);
         if (!commit) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Invalid or expired transaction has prepared, ignoring (TransactionId: %v)",
                 transactionId);
@@ -438,10 +447,10 @@ private:
     {
         TCommit* commit = nullptr;
         if (!commit) {
-            commit = DistributedCommitMap.Find(transactionId);
+            commit = DistributedCommitMap_.Find(transactionId);
         }
         if (!commit) {
-            commit = SimpleCommitMap.Find(transactionId);
+            commit = SimpleCommitMap_.Find(transactionId);
         }
         return commit;
     }
@@ -500,9 +509,9 @@ private:
     void RemoveCommit(TCommit* commit)
     {
         if (commit->IsDistributed()) {
-            DistributedCommitMap.Remove(commit->GetTransactionId());
+            DistributedCommitMap_.Remove(commit->GetTransactionId());
         } else {
-            SimpleCommitMap.Remove(commit->GetTransactionId());
+            SimpleCommitMap_.Remove(commit->GetTransactionId());
         }
     }
 
@@ -518,23 +527,23 @@ private:
     void PostToParticipants(TCommit* commit, const TMessage& message)
     {
         for (const auto& cellGuid : commit->ParticipantCellGuids()) {
-            auto* mailbox = HiveManager->GetOrCreateMailbox(cellGuid);
-            HiveManager->PostMessage(mailbox, message);
+            auto* mailbox = HiveManager_->GetOrCreateMailbox(cellGuid);
+            HiveManager_->PostMessage(mailbox, message);
         }
     }
 
     template <class TMessage>
     void PostToCoordinator(const TCellGuid& coordinatorCellGuid, const TMessage& message)
     {
-        auto* mailbox = HiveManager->GetOrCreateMailbox(coordinatorCellGuid);
-        HiveManager->PostMessage(mailbox, message);
+        auto* mailbox = HiveManager_->GetOrCreateMailbox(coordinatorCellGuid);
+        HiveManager_->PostMessage(mailbox, message);
     }
 
 
 
     void RunCommit(TCommit* commit)
     {
-        TimestampProvider->GenerateTimestamps()
+        TimestampProvider_->GenerateTimestamps()
             .Subscribe(BIND(&TImpl::OnCommitTimestampGenerated, MakeStrong(this), commit->GetTransactionId())
                 .Via(EpochAutomatonInvoker_));
     }
@@ -585,7 +594,7 @@ private:
     {
         // Any exception thrown here is propagated to the caller.
         try {
-            TransactionManager->PrepareTransactionCommit(
+            TransactionManager_->PrepareTransactionCommit(
                 transactionId,
                 true,
                 prepareTimestamp);
@@ -612,7 +621,7 @@ private:
     {
         try {
             // Any exception thrown here is caught below.
-            TransactionManager->CommitTransaction(transactionId, commitTimestamp);
+            TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error committing prepared transaction");
         }
@@ -628,7 +637,7 @@ private:
     {
         try {
             // All exceptions thrown here are caught below and ignored.
-            TransactionManager->AbortTransaction(transactionId);
+            TransactionManager_->AbortTransaction(transactionId);
             LOG_DEBUG_UNLESS(IsRecovery(), "Failed transaction aborted (TransactionId: %v)",
                 transactionId);
         } catch (const std::exception) {
@@ -670,7 +679,7 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        for (const auto& pair : DistributedCommitMap) {
+        for (const auto& pair : DistributedCommitMap_) {
             auto* commit = pair.second;
             CheckForSecondPhaseStart(commit);
         }
@@ -678,34 +687,34 @@ private:
 
     virtual void OnStopLeading() override
     {
-        SimpleCommitMap.Clear();
+        SimpleCommitMap_.Clear();
     }
 
 
     virtual void Clear() override
     {
-        DistributedCommitMap.Clear();
-        SimpleCommitMap.Clear();
+        DistributedCommitMap_.Clear();
+        SimpleCommitMap_.Clear();
     }
 
     void SaveKeys(TSaveContext& context) const
     {
-        DistributedCommitMap.SaveKeys(context);
+        DistributedCommitMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        DistributedCommitMap.SaveValues(context);
+        DistributedCommitMap_.SaveValues(context);
     }
 
     void LoadKeys(TLoadContext& context)
     {
-        DistributedCommitMap.LoadKeys(context);
+        DistributedCommitMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        DistributedCommitMap.LoadValues(context);
+        DistributedCommitMap_.LoadValues(context);
     }
 
 };
@@ -738,9 +747,11 @@ IServicePtr TTransactionSupervisor::GetRpcService()
     return Impl_->GetRpcService();
 }
 
-TMutationPtr TTransactionSupervisor::CreateAbortTransactionMutation(const TReqAbortTransaction& request)
+TAsyncError TTransactionSupervisor::AbortTransaction(
+    const TTransactionId& transactionId,
+    const TMutationId& mutationId)
 {
-    return Impl_->CreateAbortTransactionMutation(request);
+    return Impl_->AbortTransactionImpl(transactionId, mutationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -105,8 +105,8 @@ public:
         if (!transaction) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "No such transaction %s",
-                ~ToString(id));
+                "No such transaction %v",
+                id);
         }
         return transaction;
     }
@@ -152,9 +152,9 @@ public:
 
         TransactionPrepared_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %s, Presistent: %s, PrepareTimestamp: %" PRIu64 ")",
-            ~ToString(transactionId),
-            ~FormatBool(persistent),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Presistent: %v, PrepareTimestamp: %v)",
+            transactionId,
+            persistent,
             prepareTimestamp);
     }
 
@@ -169,8 +169,8 @@ public:
 
         transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-        LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
-            ~ToString(transactionId));
+        LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            transactionId);
     }
 
     void CommitTransaction(
@@ -199,8 +199,8 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s, CommitTimestamp: %" PRIu64 ")",
-            ~ToString(transactionId),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
+            transactionId,
             commitTimestamp);
     }
 
@@ -225,8 +225,8 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
-            ~ToString(transactionId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
+            transactionId);
     }
 
     void PingTransaction(
@@ -247,8 +247,8 @@ public:
 
         TLeaseManager::RenewLease(it->second, timeout);
 
-        LOG_DEBUG("Transaction pinged (TransactionId: %s, Timeout: %" PRIu64 ")",
-            ~ToString(transaction->GetId()),
+        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %" PRIu64 ")",
+            transaction->GetId(),
             timeout.MilliSeconds());
     }
 
@@ -293,17 +293,11 @@ private:
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %s)",
-            ~ToString(id));
+        LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
+            id);
 
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
-
-        NHive::NProto::TReqAbortTransaction req;
-        ToProto(req.mutable_transaction_id(), transaction->GetId());
-
-        transactionSupervisor
-            ->CreateAbortTransactionMutation(req)
-            ->Commit();
+        transactionSupervisor->AbortTransaction(id);
     }
 
     void FinishTransaction(TTransaction* transaction)
@@ -320,8 +314,8 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         if (TransactionMap_.Contains(transactionId)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already started, request ignored (TransactionId: %s)",
-                ~ToString(transactionId));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already started, request ignored (TransactionId: %v)",
+                transactionId);
             return;
         }
 
@@ -335,8 +329,8 @@ private:
         transaction->SetStartTimestamp(startTimestamp);
         transaction->SetState(ETransactionState::Active);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64 ")",
-            ~ToString(transactionId),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, Timeout: %v)",
+            transactionId,
             startTimestamp,
             timeout.MilliSeconds());
 

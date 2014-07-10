@@ -32,7 +32,9 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    NHydra::TMutationPtr CreateAbortTransactionMutation(const NProto::TReqAbortTransaction& request);
+    TAsyncError AbortTransaction(
+        const TTransactionId& transactionId,
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
 
 private:
     class TImpl;

@@ -115,7 +115,7 @@ private:
 
         if (key == "start_time") {
             BuildYsonFluently(consumer)
-                .Value(ToString(transaction->GetStartTime()));
+                .Value(transaction->GetStartTime());
             return true;
         }
 
@@ -235,8 +235,8 @@ private:
         ValidateActiveLeader();
 
         bool pingAncestors = request->ping_ancestors();
-        context->SetRequestInfo("PingAncestors: %s",
-            ~FormatBool(pingAncestors));
+        context->SetRequestInfo("PingAncestors: %v",
+            pingAncestors);
 
         auto* transaction = GetThisTypedImpl();
 
@@ -380,9 +380,9 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 
     TransactionStarted_.Fire(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s, Timeout: %" PRIu64 ")",
-        ~ToString(id),
-        ~ToString(GetObjectId(parent)),
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
+        id,
+        GetObjectId(parent),
         actualTimeout.MilliSeconds());
 
     return transaction;
@@ -412,8 +412,8 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)",
-        ~ToString(id));
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
+        id);
 }
 
 void TTransactionManager::AbortTransaction(TTransaction* transaction)
@@ -445,8 +445,8 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
-        ~ToString(id));
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
+        id);
 }
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)
@@ -514,8 +514,8 @@ void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 
     TLeaseManager::RenewLease(it->second, timeout);
 
-    LOG_DEBUG("Transaction pinged (TransactionId: %s, Timeout: %" PRIu64 ")",
-        ~ToString(transaction->GetId()),
+    LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
+        transaction->GetId(),
         timeout.MilliSeconds());
 }
 
@@ -527,8 +527,8 @@ TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& i
     if (!IsObjectAlive(transaction)) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "No such transaction %s",
-            ~ToString(id));
+            "No such transaction %v",
+            id);
     }
     return transaction;
 }
@@ -661,16 +661,10 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (transaction->GetState() != ETransactionState::Active)
         return;
 
-    LOG_INFO("Transaction lease expired (TransactionId: %s)", ~ToString(id));
+    LOG_INFO("Transaction lease expired (TransactionId: %v)", id);
 
     auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
-
-    NHive::NProto::TReqAbortTransaction req;
-    ToProto(req.mutable_transaction_id(), transaction->GetId());
-
-    transactionSupervisor
-        ->CreateAbortTransactionMutation(req)
-        ->Commit();
+    transactionSupervisor->AbortTransaction(id);
 }
 
 TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
@@ -738,18 +732,18 @@ void TTransactionManager::PrepareTransactionCommit(
     securityManager->ValidatePermission(transaction, EPermission::Write);
 
     if (!transaction->NestedTransactions().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot commit transaction %s since it has %d active nested transaction(s)",
-            ~ToString(transaction->GetId()),
-            static_cast<int>(transaction->NestedTransactions().size()));
+        THROW_ERROR_EXCEPTION("Cannot commit transaction %v since it has %v active nested transaction(s)",
+            transaction->GetId(),
+            transaction->NestedTransactions().size());
     }
 
     transaction->SetState(persistent
         ? ETransactionState::PersistentCommitPrepared
         : ETransactionState::TransientCommitPrepared);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %s, Presistent: %s)",
-        ~ToString(transactionId),
-        ~FormatBool(persistent));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Presistent: %v)",
+        transactionId,
+        persistent);
 }
 
 void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId)
@@ -763,8 +757,8 @@ void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transact
 
     transaction->SetState(ETransactionState::TransientAbortPrepared);
 
-    LOG_DEBUG("Transaction abort prepared (TransactionId: %s)",
-        ~ToString(transactionId));
+    LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+        transactionId);
 }
 
 void TTransactionManager::CommitTransaction(
