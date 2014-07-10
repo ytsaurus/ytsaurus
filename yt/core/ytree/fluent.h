@@ -291,7 +291,7 @@ public:
 
         template <class TFunc, class TCollection>
         TUnwrappedParent DoMapFor(const TCollection& collection, const TFunc& func)
-            {
+        {
             this->Consumer->OnBeginMap();
             for (const auto& item : collection) {
                 func(TMap<TFluentYsonVoid>(this->Consumer), item);
@@ -416,6 +416,12 @@ public:
         explicit TMap(NYson::IYsonConsumer* consumer, TParent parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
         { }
+
+        template <size_t Size>
+        TAny<TThis> Item(const char (&key)[Size])
+        {
+            return Item(TStringBuf(key, Size - 1));
+        }
 
         TAny<TThis> Item(const TStringBuf& key)
         {
