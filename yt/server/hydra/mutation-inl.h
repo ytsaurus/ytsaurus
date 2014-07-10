@@ -8,6 +8,8 @@
 
 #include <core/rpc/message.h>
 
+#include <server/hydra/hydra_manage.pb.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -25,8 +27,8 @@ struct TMutationActionTraits
 
         TSharedRefArray responseMessage;
         try {
-            TResponse response(handler.Run(request));
-            responseMessage = NRpc::CreateResponseMessage(std::move(response));
+            auto response = handler.Run(request);
+            responseMessage = NRpc::CreateResponseMessage(response);
         } catch (const std::exception& ex) {
             responseMessage = NRpc::CreateErrorResponseMessage(ex);
         }
@@ -45,11 +47,16 @@ struct TMutationActionTraits<TRequest, void>
         TRequest request;
         YCHECK(DeserializeFromProtoWithEnvelope(&request, context->Request().Data));
 
+        TSharedRefArray responseMessage;
         try {
             handler.Run(request);
+            static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
+            responseMessage = cachedResponseMessage;
         } catch (const std::exception& ex) {
-            context->Response().Data = NRpc::CreateErrorResponseMessage(ex);
+            responseMessage = NRpc::CreateErrorResponseMessage(ex);
         }
+
+        context->Response().Data = responseMessage;
     }
 };
 
@@ -62,8 +69,8 @@ struct TMutationActionTraits<void, TResponse>
     {
         TSharedRefArray responseMessage;
         try {
-            TResponse response(handler.Run());
-            responseMessage = NRpc::CreateResponseMessage(std::move(response));
+            auto response = handler.Run();
+            responseMessage = NRpc::CreateResponseMessage(response);
         } catch (const std::exception& ex) {
             responseMessage = NRpc::CreateErrorResponseMessage(ex);
         }
