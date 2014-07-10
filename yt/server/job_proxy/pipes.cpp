@@ -34,6 +34,8 @@ using NConcurrency::WaitFor;
 
 static auto& Logger = JobProxyLogger;
 
+static const i64 InputBufferSize = (i64) 1 * 1024 * 1024;
+
 static const i64 OutputBufferSize = (i64) 1 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
@@ -187,7 +189,7 @@ TOutputPipe::TOutputPipe(
     , IsFinished(false)
     , IsClosed(false)
     , Buffer(OutputBufferSize)
-    , Reader(Pipe.ReadFd)
+    , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
     YCHECK(JobDescriptor);
 }
@@ -224,35 +226,29 @@ TError TOutputPipe::DoAll()
 
 TError TOutputPipe::ReadAll()
 {
-    bool isClosed = false;
-
-    TBlob buffer;
-    while (!isClosed)
+    TBlob buffer(InputBufferSize, false);
+    while (true)
     {
-        TBlob data;
-        std::tie(data, isClosed) = Reader.Read(std::move(buffer));
+        auto result = WaitFor(Reader->Read(buffer.Begin(), buffer.Size()));
+        RETURN_IF_ERROR(result);
 
-        if (data.Size() > 0) {
-            try {
-                OutputStream->Write(data.Begin(), data.Size());
-            } catch (const std::exception& ex) {
-                return TError("Failed to write into output (Fd: %d)",
-                    JobDescriptor) << TError(ex);
-            }
-        } else {
-            if (!isClosed) {
-                auto error = WaitFor(Reader.GetReadyEvent());
-                RETURN_IF_ERROR(error);
-            }
+        if (result.Value() == 0) {
+            break;
         }
-        buffer = std::move(data);
+
+        try {
+            OutputStream->Write(buffer.Begin(), result.Value());
+        } catch (const std::exception& ex) {
+            return TError("Failed to write into output (Fd: %d)",
+                JobDescriptor) << TError(ex);
+        }
     }
     return TError();
 }
 
 TError TOutputPipe::Close()
 {
-    return Reader.Abort();
+    return Reader->Abort();
 }
 
 void TOutputPipe::Finish()
@@ -276,7 +272,7 @@ TInputPipe::TInputPipe(
     , Position(0)
     , HasData(true)
     , IsFinished(false)
-    , Writer(Pipe.WriteFd)
+    , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
 {
     YCHECK(TableProducer);
     YCHECK(Buffer);
@@ -316,23 +312,29 @@ TError TInputPipe::WriteAll()
 {
     while (HasData) {
         HasData = TableProducer->ProduceRow();
-        bool enough = Writer.Write(Buffer->Begin(), Buffer->Size());
-        Buffer->Clear();
 
-        if (enough) {
-            auto error = WaitFor(Writer.GetReadyEvent());
-            RETURN_IF_ERROR(error);
+        if (HasData && Buffer->Size() < OutputBufferSize) {
+            continue;
         }
+
+        if (Buffer->Size() == 0) {
+            YCHECK(!HasData);
+            continue;
+        }
+
+        auto error = WaitFor(Writer->Write(Buffer->Begin(), Buffer->Size()));
+        RETURN_IF_ERROR(error);
+
+        Buffer->Clear();
     }
-    {
-        auto error = WaitFor(Writer.AsyncClose());
-        return error;
-    }
+
+    auto error = WaitFor(Writer->Close());
+    return error;
 }
 
 TError TInputPipe::Close()
 {
-    return WaitFor(Writer.AsyncClose());
+    return WaitFor(Writer->Close());
 }
 
 void TInputPipe::Finish()

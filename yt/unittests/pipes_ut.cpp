@@ -21,7 +21,7 @@ using namespace NConcurrency;
 
 #ifndef _win_
 
-TEST(TIODispatcher, StartStop)
+TEST(TPipeIODispatcher, StartStop)
 {
     TIODispatcher dispatcher;
     dispatcher.Shutdown();
@@ -34,31 +34,16 @@ void SafeMakeNonblockingPipes(int fds[2])
     NJobProxy::SafeMakeNonblocking(fds[1]);
 }
 
-TEST(TNonblockingReader, BrandNew)
+TEST(TPipeNonblockingReader, BrandNew)
 {
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
 
     NDetail::TNonblockingReader reader(pipefds[0]);
-    EXPECT_TRUE(reader.IsBufferEmpty());
-
-    EXPECT_FALSE(reader.IsBufferFull());
-    EXPECT_FALSE(reader.IsReady());
-    EXPECT_FALSE(reader.InFailedState());
+    EXPECT_FALSE(reader.IsClosed());
 }
 
-TEST(TNonblockingReader, ReadNeverBlocks)
-{
-    int pipefds[2];
-    SafeMakeNonblockingPipes(pipefds);
-
-    NDetail::TNonblockingReader reader(pipefds[0]);
-    reader.ReadToBuffer();
-
-    EXPECT_FALSE(reader.IsReady());
-}
-
-TEST(TNonblockingReader, Failed)
+TEST(TPipeNonblockingReader, Failed)
 {
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
@@ -66,39 +51,41 @@ TEST(TNonblockingReader, Failed)
     NDetail::TNonblockingReader reader(pipefds[0]);
 
     ASSERT_TRUE(close(pipefds[0]) == 0);
-    reader.ReadToBuffer();
 
-    EXPECT_TRUE(reader.InFailedState());
+    char buffer[10];
+    EXPECT_FALSE(reader.Read(buffer, 10).IsOK());
 }
 
-TEST(TIOHolder, CanInstantiate)
+TEST(TPipeIOHolder, CanInstantiate)
 {
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
 
-    TAsyncReader readerHolder(pipefds[0]);
-    TAsyncWriter writerHolder(pipefds[1]);
+    auto readerHolder = New<TAsyncReader>(pipefds[0]);
+    auto writerHolder = New<TAsyncWriter>(pipefds[1]);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-TBlob ReadAll(TAsyncReader reader, bool useWaitFor)
+TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    bool isClosed = false;
-    TBlob data, whole;
+    TBlob buffer(1024 * 1024), whole;
 
-    while (!isClosed)
+    while (true)
     {
-        std::tie(data, isClosed) = reader.Read(TBlob());
-        whole.Append(data.Begin(), data.Size());
-
-        if ((!isClosed) && (data.Size() == 0)) {
-            if (useWaitFor) {
-                auto error = WaitFor(reader.GetReadyEvent());
-            } else {
-                auto error = reader.GetReadyEvent().Get();
-            }
+        TErrorOr<size_t> result;
+        auto future = reader->Read(buffer.Begin(), buffer.Size());
+        if (useWaitFor) {
+            result = WaitFor(future);
+        } else {
+            result = future.Get();
         }
+
+        if (result.Value() == 0) {
+            break;
+        }
+
+        whole.Append(buffer.Begin(), result.Value());
     }
     return whole;
 }
@@ -108,8 +95,8 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
     int pipefds[2];
     SafeMakeNonblockingPipes(pipefds);
 
-    TAsyncReader reader(pipefds[0]);
-    TAsyncWriter writer(pipefds[1]);
+    auto reader = New<TAsyncReader>(pipefds[0]);
+    auto writer = New<TAsyncWriter>(pipefds[1]);
 
     auto queue = New<NConcurrency::TActionQueue>();
     auto readFromPipe =
@@ -119,10 +106,9 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
 
 
     std::vector<char> buffer(200*1024, 'a');
-    ASSERT_TRUE(writer.Write(&buffer[0], buffer.size()));
-    ASSERT_TRUE(writer.GetReadyEvent().Get().IsOK());
+    ASSERT_TRUE(writer->Write(&buffer[0], buffer.size()).Get().IsOK());
 
-    auto error = writer.AsyncClose();
+    auto error = writer->Close();
     auto closeStatus = error.Get();
 
     ASSERT_EQ(-1, close(pipefds[1]));
@@ -130,7 +116,7 @@ TEST(TAsyncWriterTest, AsyncCloseFail)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-class TReadWriteTest
+class TPipeReadWriteTest
     : public ::testing::Test
 {
 protected:
@@ -139,93 +125,85 @@ protected:
         int pipefds[2];
         SafeMakeNonblockingPipes(pipefds);
 
-        Reader.reset(new TAsyncReader(pipefds[0]));
-        Writer.reset(new TAsyncWriter(pipefds[1]));
+        Reader = New<TAsyncReader>(pipefds[0]);
+        Writer = New<TAsyncWriter>(pipefds[1]);
     }
 
     virtual void TearDown() override
     { }
 
-    std::unique_ptr<TAsyncReader> Reader;
-    std::unique_ptr<TAsyncWriter> Writer;
+    TAsyncReaderPtr Reader;
+    TAsyncWriterPtr Writer;
 };
 
 
-TEST_F(TReadWriteTest, ReadSomethingSpin)
+TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
 {
     std::string message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size());
-    Writer->AsyncClose();
+    Writer->Write(message.c_str(), message.size()).Get();
+    Writer->Close();
 
-    bool isClosed = false;
-    TBlob data, whole;
+    TBlob data(1), whole;
 
-    while (!isClosed)
+    while (true)
     {
-        std::tie(data, isClosed) = Reader->Read(TBlob());
-        whole.Append(data.Begin(), data.Size());
+        auto result = Reader->Read(data.Begin(), data.Size()).Get();
+        if (result.Value() == 0) {
+            break;
+        }
+        whole.Append(data.Begin(), result.Value());
     }
 
     EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
-TEST_F(TReadWriteTest, ReadSomethingWait)
+TEST_F(TPipeReadWriteTest, ReadSomethingWait)
 {
     std::string message("Hello pipe!\n");
-    Writer->Write(message.c_str(), message.size());
-    Writer->AsyncClose();
+    Writer->Write(message.c_str(), message.size()).Get();
+    Writer->Close();
 
-    auto whole = ReadAll(*Reader, false);
+    auto whole = ReadAll(Reader, false);
 
     EXPECT_EQ(message, std::string(whole.Begin(), whole.End()));
 }
 
-TEST_F(TReadWriteTest, ReadWrite)
+TEST_F(TPipeReadWriteTest, ReadWrite)
 {
     const std::string text("Hello cruel world!\n");
-    Writer->Write(text.c_str(), text.size());
-    auto errorsOnClose = Writer->AsyncClose();
+    Writer->Write(text.c_str(), text.size()).Get();
+    auto errorsOnClose = Writer->Close();
 
-    auto textFromPipe = ReadAll(*Reader, false);
+    auto textFromPipe = ReadAll(Reader, false);
 
     auto error = errorsOnClose.Get();
     EXPECT_TRUE(error.IsOK()) << error.GetMessage();
     EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
 
-TError WriteAll(TAsyncWriter writer, const char* data, size_t size, size_t blockSize)
+TError WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)
 {
     while (size > 0) {
-        bool enough = false;
-        while (!enough) {
-            const size_t currentBlockSize = std::min(blockSize, size);
+        const size_t currentBlockSize = std::min(blockSize, size);
+        auto error = WaitFor(writer->Write(data, currentBlockSize));
+        RETURN_IF_ERROR(error);
 
-            if (currentBlockSize == 0) {
-                break;
-            }
-            enough = writer.Write(data, currentBlockSize);
-            size -= currentBlockSize;
-            data += currentBlockSize;
-        }
-        if (enough) {
-            auto error = WaitFor(writer.GetReadyEvent());
-            RETURN_IF_ERROR(error);
-        }
+        size -= currentBlockSize;
+        data += currentBlockSize;
     }
-    {
-        auto error = WaitFor(writer.AsyncClose());
-        return error;
-    }
+
+    auto error = WaitFor(writer->Close());
+    return error;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBigReadWriteTest
-    : public TReadWriteTest
+class TPipeBigReadWriteTest
+    : public TPipeReadWriteTest
     , public ::testing::WithParamInterface<std::pair<size_t, size_t>>
 { };
 
-TEST_P(TBigReadWriteTest, RealReadWrite)
+TEST_P(TPipeBigReadWriteTest, RealReadWrite)
 {
     size_t dataSize, blockSize;
     std::tie(dataSize, blockSize) = GetParam();
@@ -245,11 +223,11 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
         .AsyncVia(queue->GetInvoker()).Run();
 
     auto writeError =
-        BIND(&WriteAll, *Writer, data.data(), data.size(), blockSize)
+        BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
             .AsyncVia(queue->GetInvoker())
             .Run();
     auto readFromPipe =
-        BIND(&ReadAll, *Reader, true)
+        BIND(&ReadAll, Reader, true)
             .AsyncVia(queue->GetInvoker())
             .Run();
 
@@ -262,7 +240,7 @@ TEST_P(TBigReadWriteTest, RealReadWrite)
 
 INSTANTIATE_TEST_CASE_P(
     ValueParametrized,
-    TBigReadWriteTest,
+    TPipeBigReadWriteTest,
     ::testing::Values(
         std::make_pair(2000 * 4096, 4096),
         std::make_pair(100 * 4096, 10000),

@@ -20,29 +20,16 @@ public:
     void WriteFromBuffer();
     void Close();
 
-    void WriteToBuffer(const char* data, size_t size);
-
-    bool IsBufferEmpty() const;
-    bool IsBufferFull() const;
-
-    bool IsFailed() const;
-    int GetLastSystemError() const;
+    TErrorOr<size_t> Write(const char* data, size_t size);
 
     bool IsClosed() const;
 
 private:
     int FD_;
 
-    TBlob WriteBuffer_;
-    size_t BytesWrittenTotal_;
-
     bool Closed_;
-    int LastSystemError_;
 
     NLog::TTaggedLogger Logger;
-
-    size_t TryWrite(const char* data, size_t size);
-    void TryCleanBuffer();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -62,7 +62,7 @@ public:
         try {
             return MakeFuture<TErrorOr<size_t>>(InputStream_->Read(buf, len));
         } catch (const std::exception& ex) {
-            Result_ = MakeFuture<TErrorOr<size_t>>(TError("Failed reading from the stream") << ex);
+            Result_ = MakeFuture<TErrorOr<size_t>>(TError("Failed reading from stream") << ex);
             Failed_ = true;
             return Result_;
         }
@@ -126,7 +126,6 @@ class TOutputStreamAsyncWrapper
 public:
     explicit TOutputStreamAsyncWrapper(TOutputStream* inputStream)
         : OutputStream_(inputStream)
-        , Ok_(MakeFuture(TError()))
         , Failed_(false)
     { }
     
@@ -139,17 +138,16 @@ public:
         try {
             OutputStream_->Write(buf, len);
         } catch (const std::exception& ex) {
-            Result_ = MakeFuture(TError("Failed writing to the stream") << ex);
+            Result_ = MakeFuture(TError("Failed writing to stream") << ex);
             Failed_ = true;
             return Result_;
         }
-        return Ok_;
+        return OKFuture;
     }
 
 private:
     TOutputStream* OutputStream_;
 
-    TAsyncError Ok_;
     TAsyncError Result_;
     bool Failed_;
 };

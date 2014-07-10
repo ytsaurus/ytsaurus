@@ -4,12 +4,15 @@
 
 #include <core/misc/blob.h>
 
+#include <core/concurrency/async_stream.h>
+
 namespace NYT {
 namespace NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncReader
+    : public NConcurrency::IAsyncInputStream
 {
 public:
     // Owns this fd
@@ -17,11 +20,7 @@ public:
     TAsyncReader(const TAsyncReader& other);
     ~TAsyncReader();
 
-    // TODO(babenko): can't understand the meaning of this signature
-    // WTF is pair<blob, bool> anyway?
-    // need to change it or provide a comment at least
-    std::pair<TBlob, bool> Read(TBlob&& buffer);
-    TAsyncError GetReadyEvent();
+    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override;
 
     TError Abort();
 
@@ -30,6 +29,7 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TAsyncReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -98,7 +98,7 @@ private:
     bool IsClosed;
     TBlob Buffer;
 
-    NPipes::TAsyncReader Reader;
+    NPipes::TAsyncReaderPtr Reader;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -140,7 +140,7 @@ private:
     bool HasData;
     bool IsFinished;
 
-    NPipes::TAsyncWriter Writer;
+    NPipes::TAsyncWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////
