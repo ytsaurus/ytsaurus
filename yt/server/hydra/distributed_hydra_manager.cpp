@@ -129,7 +129,7 @@ public:
         VERIFY_INVOKER_AFFINITY(automatonInvoker, AutomatonThread);
         VERIFY_INVOKER_AFFINITY(GetHydraIOInvoker(), IOThread);
 
-        Logger.AddTag(Sprintf("CellGuid: %v",
+        Logger.AddTag(Sprintf("CellGuid: %s",
             ~ToString(CellManager_->GetCellGuid())));
 
         auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
