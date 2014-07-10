@@ -33,8 +33,6 @@ using testing::_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-
 class TElectionTest
     : public testing::Test
 {
@@ -96,9 +94,10 @@ public:
 
     void RunElections()
     {
-        ElectionManager->Participate();
+        ElectionManager->Start();
         Sleep(1);
-        ElectionManager.Reset();
+        ElectionManager->Stop();
+        Sleep(1);
     }
 
 protected:
@@ -300,7 +299,10 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
             .WillOnce(::testing::Invoke([&] {
                 ++startLeadingCounter;
             }));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading())
+            .WillOnce(::testing::Invoke([&] {
+                ElectionManager->Start();
+            }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading())
             .WillOnce(::testing::Invoke([&] {
                 ++startLeadingCounter;
@@ -344,7 +346,10 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading());
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading())
+            .WillOnce(::testing::Invoke([&] {
+                ElectionManager->Start();
+            }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading());
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
@@ -528,8 +533,6 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(
         TDuration::MilliSeconds(10),
         TDuration::MilliSeconds(60)));
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
