@@ -73,12 +73,13 @@ bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)
         Writer_.OnEndMap();
     }
 
-    return Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    Result_ = Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    return Result_.IsSet() && Result_.Get().IsOK();
 }
 
 TAsyncError TSchemafulYsonWriter::GetReadyEvent()
 {
-    return Stream_->GetReadyEvent();
+    return Result_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

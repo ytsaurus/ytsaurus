@@ -108,6 +108,7 @@ private:
     std::vector<int> ColumnIdMapping_;
     TBlob Buffer_;
 
+    TAsyncError Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

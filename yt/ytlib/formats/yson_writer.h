@@ -6,6 +6,8 @@
 
 #include <core/concurrency/public.h>
 
+#include <core/actions/future.h>
+
 #include <core/yson/writer.h>
 
 #include <ytlib/new_table_client/schemaful_writer.h>
@@ -41,6 +43,7 @@ private:
 
     NVersionedTableClient::TTableSchema Schema_;
 
+    TAsyncError Result_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

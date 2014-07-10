@@ -20,11 +20,9 @@ public:
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        if (!AsyncStream_->Read(buf, len)) {
-            auto result = WaitFor(AsyncStream_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-        return AsyncStream_->GetReadLength();
+        auto result = WaitFor(AsyncStream_->Read(buf, len));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        return result.Value();
     }
 
     virtual ~TSyncInputStream() throw()
@@ -52,43 +50,30 @@ class TInputStreamAsyncWrapper
 public:
     explicit TInputStreamAsyncWrapper(TInputStream* inputStream)
         : InputStream_(inputStream)
-        , Length_(0)
         , Failed_(false)
     { }
     
-    virtual bool Read(void* buf, size_t len) override
+    virtual TFuture<TErrorOr<size_t>> Read(void* buf, size_t len) override
     {
         if (Failed_) {
-            return false;
+            return Result_;
         }
 
         try {
-            Length_ = InputStream_->Read(buf, len);
-            return true;
+            return MakeFuture<TErrorOr<size_t>>(InputStream_->Read(buf, len));
         } catch (const std::exception& ex) {
-            Result_ = MakeFuture(TError("Failed reading from the stream") << ex);
+            Result_ = MakeFuture<TErrorOr<size_t>>(TError("Failed reading from the stream") << ex);
             Failed_ = true;
-            return false;
+            return Result_;
         }
     }
     
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return Result_;
-    }
-
-    virtual size_t GetReadLength() const override
-    {
-        return Length_;
-    }
     
 private:
     TInputStream* InputStream_;
-    
-    size_t Length_;
-    TAsyncError Result_;
-    bool Failed_;
 
+    TFuture<TErrorOr<size_t>> Result_;
+    bool Failed_;
 };
 
 } // namespace
@@ -112,10 +97,8 @@ public:
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
-        if (!AsyncStream_->Write(buf, len)) {
-            auto result = WaitFor(AsyncStream_->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        auto result = WaitFor(AsyncStream_->Write(buf, len));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
     
     virtual ~TSyncOutputStream() throw()
@@ -143,13 +126,14 @@ class TOutputStreamAsyncWrapper
 public:
     explicit TOutputStreamAsyncWrapper(TOutputStream* inputStream)
         : OutputStream_(inputStream)
+        , Ok_(MakeFuture(TError()))
         , Failed_(false)
     { }
     
-    virtual bool Write(const void* buf, size_t len) override
+    virtual TAsyncError Write(const void* buf, size_t len) override
     {
         if (Failed_) {
-            return false;
+            return Result_;
         }
 
         try {
@@ -157,22 +141,17 @@ public:
         } catch (const std::exception& ex) {
             Result_ = MakeFuture(TError("Failed writing to the stream") << ex);
             Failed_ = true;
-            return false;
+            return Result_;
         }
-        return true;
-    }
-    
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return Result_;
+        return Ok_;
     }
 
 private:
     TOutputStream* OutputStream_;
 
+    TAsyncError Ok_;
     TAsyncError Result_;
     bool Failed_;
-
 };
 
 } // anonymous namespace

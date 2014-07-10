@@ -110,10 +110,8 @@ void TReadCommand::DoExecute()
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
     auto flushBuffer = [&] () {
-        if (!output->Write(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(output->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        auto result = WaitFor(output->Write(buffer.Begin(), buffer.Size()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
         buffer.Clear();
     };
 
@@ -167,16 +165,13 @@ void TWriteCommand::DoExecute()
     auto input = Context_->Request().InputStream;
 
     while (true) {
-        if (!input->Read(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(input->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        auto bytesRead = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
 
-        size_t length = input->GetReadLength();
-        if (length == 0)
+        if (bytesRead.Value() == 0)
             break;
 
-        parser->Read(TStringBuf(buffer.Begin(), length));
+        parser->Read(TStringBuf(buffer.Begin(), bytesRead.Value()));
 
         if (!writer->IsReady()) {
             auto result = WaitFor(writer->GetReadyEvent());
@@ -300,16 +295,13 @@ void TInsertCommand::DoExecute()
     auto input = Context_->Request().InputStream;
 
     while (true) {
-        if (!input->Read(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(input->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        auto bytesRead = WaitFor(input->Read(buffer.Begin(), buffer.Size()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
 
-        size_t length = input->GetReadLength();
-        if (length == 0)
+        if (bytesRead.Value() == 0)
             break;
 
-        parser->Read(TStringBuf(buffer.Begin(), length));
+        parser->Read(TStringBuf(buffer.Begin(), bytesRead.Value()));
     }
 
     parser->Finish();

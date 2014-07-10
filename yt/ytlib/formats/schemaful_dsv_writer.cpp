@@ -257,12 +257,13 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
         WriteRaw('\n');
     }
 
-    return Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    Result_ = Stream_->Write(Buffer_.Begin(), Buffer_.Size());
+    return Result_.IsSet() && Result_.Get().IsOK();
 }
 
 TAsyncError TSchemafulDsvWriter::GetReadyEvent()
 {
-    return Stream_->GetReadyEvent();
+    return Result_;
 }
 
 static ui16 DigitPairs[100] = {
