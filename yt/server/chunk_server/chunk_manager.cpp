@@ -352,6 +352,14 @@ public:
         TChunkTree** childrenBegin,
         TChunkTree** childrenEnd)
     {
+        if (childrenBegin == childrenEnd)
+            return;
+
+        if (!chunkList->Statistics().Sealed) {
+            THROW_ERROR_EXCEPTION("Cannot attach children to an unsealed chunk list %v",
+                chunkList->GetId());
+        }
+
         auto objectManager = Bootstrap->GetObjectManager();
         NChunkServer::AttachToChunkList(
             chunkList,
@@ -425,8 +433,8 @@ public:
             return;
 
         PROFILE_TIMING ("/chunk_tree_rebalance_time") {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %s)",
-                ~ToString(chunkList->GetId()));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
+                chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
         }
@@ -454,9 +462,9 @@ public:
         for (auto replica : replicas) {
             auto* node = nodeTracker->FindNode(replica.GetNodeId());
             if (!node) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %d",
-                    ~ToString(id),
-                    ~replica.GetNodeId());
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
+                    id,
+                    replica.GetNodeId());
                 continue;
             }
 
@@ -465,10 +473,10 @@ public:
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at %s which has invalid state %s",
-                    ~ToString(id),
-                    ~node->GetAddress(),
-                    ~FormatEnum(node->GetState()).Quote());
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
+                    id,
+                    node->GetAddress(),
+                    node->GetState());
                 continue;
             }
 
@@ -495,7 +503,7 @@ public:
             ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~ToString(id));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)", id);
     }
 
 
@@ -561,7 +569,7 @@ public:
         chunkList->Children().clear();
         ResetChunkListStatistics(chunkList);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~ToString(chunkList->GetId()));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
     }
 
 
@@ -632,7 +640,7 @@ public:
     {
         auto* chunk = FindChunk(id);
         if (!IsObjectAlive(chunk)) {
-            THROW_ERROR_EXCEPTION("No such chunk %s", ~ToString(id));
+            THROW_ERROR_EXCEPTION("No such chunk %v", id);
         }
         return chunk;
     }
@@ -664,7 +672,7 @@ public:
     {
         auto* chunkTree = FindChunkTree(id);
         if (!IsObjectAlive(chunkTree)) {
-            THROW_ERROR_EXCEPTION("No such chunk tree %s", ~ToString(id));
+            THROW_ERROR_EXCEPTION("No such chunk tree %v", id);
         }
         return chunkTree;
     }
@@ -694,6 +702,7 @@ public:
 
         TChunkTreeStatistics statisticsDelta;
         statisticsDelta.RecordCount = recordCount - miscExt.record_count(); // the latter is usually 0
+        statisticsDelta.Sealed = true;
         
         chunk->Seal(recordCount);
 
@@ -847,9 +856,9 @@ private:
         const auto& config = node->GetConfig();
         if (config->Decommissioned != node->GetDecommissioned()) {
             if (config->Decommissioned) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (Address: %s)", ~node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (Address: %v)", node->GetAddress());
             } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (Address: %s)", ~node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (Address: %v)", node->GetAddress());
             }
 
             node->SetDecommissioned(config->Decommissioned);
@@ -922,7 +931,7 @@ private:
                 continue;
 
             if (chunk->IsStaged()) {
-                LOG_WARNING("Updating properties for staged chunk %s", ~ToString(chunkId));
+                LOG_WARNING("Updating properties for staged chunk %v", chunkId);
                 continue;
             }
 
@@ -1173,11 +1182,11 @@ private:
             LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
-                "Chunk replica added (ChunkId: %s, Cached: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkWithIndex),
-                ~FormatBool(cached),
+                "Chunk replica added (ChunkId: %v, Cached: %v, NodeId: %v, Address: %v)",
+                chunkWithIndex,
+                cached,
                 nodeId,
-                ~node->GetAddress());
+                node->GetAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1209,12 +1218,12 @@ private:
         TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkWithIndex),
-                ~FormatBool(cached),
-                ~ToString(reason),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
+                chunkWithIndex,
+                cached,
+                reason,
                 nodeId,
-                ~node->GetAddress());
+                node->GetAddress());
             return;
         }
 
@@ -1238,12 +1247,12 @@ private:
                 reason == ERemoveReplicaReason::NodeUnregistered ||
                 reason == ERemoveReplicaReason::ChunkIsDead
                 ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
-                "Chunk replica removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkWithIndex),
-                ~FormatBool(cached),
-                ~ToString(reason),
+                "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
+                chunkWithIndex,
+                cached,
+                reason,
                 nodeId,
-                ~node->GetAddress());
+                node->GetAddress());
         }
 
         if (ChunkReplicator_ && !cached) {
@@ -1272,11 +1281,11 @@ private:
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %d, Address: %s, ChunkId: %s, Cached: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v, Cached: %v)",
                 nodeId,
-                ~node->GetAddress(),
-                ~ToString(chunkIdWithIndex),
-                ~FormatBool(cached));
+                node->GetAddress(),
+                chunkIdWithIndex,
+                cached);
 
             if (ChunkReplicator_) {
                 ChunkReplicator_->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
@@ -1302,10 +1311,10 @@ private:
         TNodePtrWithIndex nodeWithIndex(node, replicaIndex);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %d, Address: %s, ChunkId: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
-                ~node->GetAddress(),
-                ~ToString(chunkWithIndex));
+                node->GetAddress(),
+                chunkWithIndex);
 
             node->ApproveReplica(chunkWithIndex);
             chunk->ApproveReplica(nodeWithIndex);
@@ -1329,10 +1338,10 @@ private:
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!IsObjectAlive(chunk)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
-                 ~ToString(chunkIdWithIndex),
-                 ~FormatBool(cached),
-                 ~node->GetAddress(),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
+                 chunkIdWithIndex,
+                 cached,
+                 node->GetAddress(),
                  nodeId);
             return;
         }
@@ -1376,23 +1385,20 @@ TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
 
 IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     TChunk* chunk,
-    TTransaction* transaction)
+    TTransaction* /*transaction*/)
 {
-    UNUSED(transaction);
-
     return CreateChunkProxy(Bootstrap, chunk);
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     TTransaction* transaction,
     TAccount* account,
-    IAttributeDictionary* attributes,
+    IAttributeDictionary* /*attributes*/,
     TReqCreateObjects* request,
     TRspCreateObjects* response)
 {
     YCHECK(transaction);
     YCHECK(account);
-    UNUSED(attributes);
 
     account->ValidateDiskSpaceLimit();
 
@@ -1456,23 +1462,23 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
             "Allocated nodes for new chunk "
-            "(ChunkId: %s, TransactionId: %s, Account: %s, Targets: [%s], "
-            "ForbiddenAddresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, "
-            "UploadReplicationFactor: %d, ReadQuorum: %d, WriteQuorum: %d, "
-            "ErasureCodec: %s, Movable: %s, Vital: %s)",
-            ~ToString(chunk->GetId()),
-            ~ToString(transaction->GetId()),
-            ~account->GetName(),
-            ~JoinToString(targets, TNodePtrAddressFormatter()),
-            ~JoinToString(forbiddenNodeList, TNodePtrAddressFormatter()),
-            ~ToString(preferredHostName),
+            "(ChunkId: %v, TransactionId: %v, Account: %v, Targets: [%v], "
+            "ForbiddenAddresses: [%v], PreferredHostName: %v, ReplicationFactor: %v, "
+            "UploadReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, "
+            "ErasureCodec: %v, Movable: %v, Vital: %v)",
+            chunk->GetId(),
+            transaction->GetId(),
+            account->GetName(),
+            JoinToString(targets, TNodePtrAddressFormatter()),
+            JoinToString(forbiddenNodeList, TNodePtrAddressFormatter()),
+            preferredHostName,
             chunk->GetReplicationFactor(),
             uploadReplicationFactor,
             chunk->GetReadQuorum(),
             chunk->GetWriteQuorum(),
-            ~ToString(erasureCodecId),
-            ~FormatBool(requestExt.movable()),
-            ~FormatBool(requestExt.vital()));
+            erasureCodecId,
+            requestExt.movable(),
+            requestExt.vital());
     }
 
     return chunk;
@@ -1499,24 +1505,18 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
 
 IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     TChunkList* chunkList,
-    TTransaction* transaction)
+    TTransaction* /*transaction*/)
 {
-    UNUSED(transaction);
-
     return CreateChunkListProxy(Bootstrap, chunkList);
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
-    IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    IAttributeDictionary* /*attributes*/,
+    TReqCreateObjects* /*request*/,
+    TRspCreateObjects* /*response*/)
 {
-    UNUSED(attributes);
-    UNUSED(request);
-    UNUSED(response);
-
     auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);
     chunkList->SetStagingAccount(account);

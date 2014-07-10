@@ -127,6 +127,7 @@ public:
     bool IsAvailable() const;
 
     //! Returns |true| iff this is a sealed journal chunk.
+    //! For blob chunks always returns |true|.
     bool IsSealed() const;
 
     //! Returns the number of records in a sealed chunk.

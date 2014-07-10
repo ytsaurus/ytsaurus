@@ -43,6 +43,9 @@ struct TChunkTreeStatistics
     //! Distance to leaves (chunks) in edges. Leaves have rank zero.
     int Rank = 0;
 
+    //! |false| indicates that there is an unsealed journal chunk at the end.
+    bool Sealed = true;
+
     void Accumulate(const TChunkTreeStatistics& other);
 
     void Save(NCellMaster::TSaveContext& context) const;

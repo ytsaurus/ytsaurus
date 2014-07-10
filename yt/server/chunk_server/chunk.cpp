@@ -83,6 +83,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
     result.ChunkCount = 1;
     result.Rank = 0;
+    result.Sealed = IsSealed();
 
     return result;
 }
@@ -352,6 +353,10 @@ bool TChunk::IsSealed() const
 {
     if (!IsConfirmed()) {
         return false;
+    }
+
+    if (!IsJournal()) {
+        return true;
     }
 
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());

@@ -25,6 +25,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     ChunkCount += other.ChunkCount;
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
+    Sealed = other.Sealed;
 }
 
 void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
@@ -40,6 +41,7 @@ void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkCount);
     Save(context, ChunkListCount);
     Save(context, Rank);
+    Save(context, Sealed);
 }
 
 void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
@@ -61,6 +63,11 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkCount);
     Load(context, ChunkListCount);
     Load(context, Rank);
+    if (context.GetVersion() >= 100) {
+        Load(context, Sealed);
+    } else {
+        Sealed = true;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +86,7 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("chunk_count").Value(statistics.ChunkCount)
             .Item("chunk_list_count").Value(statistics.ChunkListCount)
             .Item("rank").Value(statistics.Rank)
+            .Item("sealed").Value(statistics.Sealed)
         .EndMap();
 }
 

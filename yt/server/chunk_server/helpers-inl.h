@@ -80,6 +80,7 @@ void AttachToChunkList(
 
     chunkList->IncrementVersion();
 
+    // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
         auto* child = *it;
