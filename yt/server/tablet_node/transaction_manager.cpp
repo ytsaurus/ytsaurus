@@ -297,7 +297,12 @@ private:
             id);
 
         auto transactionSupervisor = Slot_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(id);
+        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (TError error) {
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                    id);
+            }
+        }));
     }
 
     void FinishTransaction(TTransaction* transaction)
