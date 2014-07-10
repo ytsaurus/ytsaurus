@@ -23,6 +23,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int InvalidFd = -1;
+static const pid_t InvalidProcessId = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError SafeAtomicCloseExecPipe(int pipefd[2])
 {
 #if defined(_linux_)
@@ -62,11 +67,8 @@ TError SafeAtomicCloseExecPipe(int pipefd[2])
 TProcess::TProcess(const Stroka& path)
     : Finished_(false)
     , Status_(0)
-    , ProcessId_(-1)
+    , ProcessId_(InvalidProcessId)
 {
-    Pipe_[0] = Pipe_[1] = -1;
-    ChildPipe_[0] = ChildPipe_[1] = -1;
-
     Path_.insert(Path_.end(), path.begin(), path.end());
     Path_.push_back(0);
 
@@ -75,21 +77,24 @@ TProcess::TProcess(const Stroka& path)
 
 TProcess::~TProcess()
 {
-    if (ProcessId_ != -1) {
+    if (ProcessId_ != InvalidProcessId) {
         YCHECK(Finished_);
     }
 
-    for (int index = 0; index < 2; ++index) {
-        if (Pipe_[index] != -1) {
-            ::close(Pipe_[index]);
-            Pipe_[index] = -1;
-        }
+    if (Pipe_.ReadFd != InvalidFd) {
+        ::close(Pipe_.ReadFd);
+        Pipe_.ReadFd = InvalidFd;
+    }
+
+    if (Pipe_.WriteFd != InvalidFd) {
+        ::close(Pipe_.WriteFd);
+        Pipe_.WriteFd = InvalidFd;
     }
 }
 
 void TProcess::AddArgument(TStringBuf arg)
 {
-    YCHECK(ProcessId_ == -1 && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Args_.push_back(Capture(arg));
 }
@@ -99,12 +104,14 @@ TError TProcess::Spawn()
 #ifdef _win_
     return TError("Windows is not supported");
 #else
-    YCHECK(ProcessId_ == -1 && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
-    auto error = SafeAtomicCloseExecPipe(Pipe_);
+    int pipe[2];
+    auto error = SafeAtomicCloseExecPipe(pipe);
     if (!error.IsOK()) {
         return error;
     }
+    Pipe_ = TPipe(pipe);
 
     // Prepare environment.
     char** envIt = environ;
@@ -116,9 +123,7 @@ TError TProcess::Spawn()
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 
-    for (int index = 0; index < 2; ++index) {
-        ChildPipe_[index] = Pipe_[index];
-    }
+    ChildPipe_ = Pipe_;
 
     int pid = vfork();
     if (pid == 0) {
@@ -131,12 +136,12 @@ TError TProcess::Spawn()
             << TError::FromSystem();
     }
 
-    YCHECK(::close(Pipe_[1]) == 0);
-    Pipe_[1] = -1;
+    YCHECK(::close(Pipe_.WriteFd) == 0);
+    Pipe_.WriteFd = InvalidFd;
 
     {
         int errCode;
-        if (::read(Pipe_[0], &errCode, sizeof(int)) == sizeof(int)) {
+        if (::read(Pipe_.ReadFd, &errCode, sizeof(int)) == sizeof(int)) {
             ::waitpid(pid, nullptr, 0);
             Finished_ = true;
             return TError("Error waiting for child process to finish: execve failed")
@@ -191,12 +196,12 @@ char* TProcess::Capture(TStringBuf arg)
 
 int TProcess::DoSpawn()
 {
-    YASSERT(ChildPipe_[1] != -1);
+    YASSERT(ChildPipe_.WriteFd != InvalidFd);
 
     ::execve(Path_.data(), Args_.data(), Env_.data());
 
     const int errorCode = errno;
-    while (::write(ChildPipe_[1], &errorCode, sizeof(int)) < 0);
+    while (::write(ChildPipe_.WriteFd, &errorCode, sizeof(int)) < 0);
 
     _exit(1);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "error.h"
+#include "pipe.h"
 
 #include <vector>
 
@@ -28,8 +29,8 @@ private:
     bool Finished_;
     int Status_;
     int ProcessId_;
-    int Pipe_[2];
-    int ChildPipe_[2];
+    TPipe Pipe_;
+    TPipe ChildPipe_;
     std::vector<char> Path_;
     std::vector<std::vector<char>> StringHolder_;
     std::vector<char*> Args_;

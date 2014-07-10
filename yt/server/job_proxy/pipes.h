@@ -2,6 +2,8 @@
 
 #include "private.h"
 #include <core/misc/blob_output.h>
+#include <core/misc/pipe.h>
+
 #include <ytlib/table_client/public.h>
 
 #include <ytlib/pipes/public.h>
