@@ -8,7 +8,7 @@
 
 #include <core/rpc/message.h>
 
-#include <server/ytlib/hydra_manager.pb.h>
+#include <ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {
 namespace NHydra {
