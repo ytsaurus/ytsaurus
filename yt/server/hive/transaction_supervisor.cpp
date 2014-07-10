@@ -641,7 +641,7 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Failed transaction aborted (TransactionId: %v)",
                 transactionId);
         } catch (const std::exception) {
-            LOG_DEBUG_UNLESS(ex, IsRecovery(), "Failed to abort failed transaction, ignoring (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to abort failed transaction, ignoring (TransactionId: %v)",
                 transactionId);
         }
     }
