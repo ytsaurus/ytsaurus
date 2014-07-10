@@ -64,8 +64,8 @@ void Remove(const Stroka& path)
     }
 #endif
     if (!ok) {
-        THROW_ERROR_EXCEPTION("Cannot remove %s",
-            ~path.Quote())
+        THROW_ERROR_EXCEPTION("Cannot remove %v",
+            path)
             << TError::FromSystem();
     }   
 }
@@ -84,9 +84,9 @@ void Rename(const Stroka& oldPath, const Stroka& newPath)
     ok = rename(~oldPath, ~newPath) == 0;
 #endif
     if (!ok) {
-        THROW_ERROR_EXCEPTION("Cannot rename %s into %s",
-            ~oldPath.Quote(),
-            ~newPath.Quote())
+        THROW_ERROR_EXCEPTION("Cannot rename %v to %v",
+            oldPath,
+            newPath)
             << TError::FromSystem();
     }
 }
@@ -134,13 +134,13 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s", ~path.Quote());
+    LOG_INFO("Cleaning temp files in %v", path);
 
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.has_suffix(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
-            LOG_INFO("Removing file %s", ~fileName.Quote());
+            LOG_INFO("Removing file %v", fileName);
             NFS::Remove(fileName);
         }
     }
@@ -193,8 +193,8 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 #endif
 
     if (!ok) {
-        THROW_ERROR_EXCEPTION("Failed to get disk space statistics for %s",
-            ~path.Quote())
+        THROW_ERROR_EXCEPTION("Failed to get disk space statistics for %v",
+            path)
             << TError::FromSystem();
     }
 
@@ -221,8 +221,8 @@ i64 GetFileSize(const Stroka& path)
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        THROW_ERROR_EXCEPTION("Failed to get the size of %s",
-            ~path.Quote())
+        THROW_ERROR_EXCEPTION("Failed to get the size of %v",
+            path)
             << TError::FromSystem();
     }
 
@@ -308,9 +308,9 @@ void SetExecutableMode(const Stroka& path, bool executable)
     bool ok = chmod(~path, mode) == 0;
     if (!ok) {
         THROW_ERROR_EXCEPTION(
-            "Failed to set mode %d for %s",
+            "Failed to set mode %v for %v",
             mode,
-            ~path.Quote())
+            path)
             << TError::FromSystem();
     }
 #endif
@@ -328,9 +328,9 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 
     if (!ok) {
         THROW_ERROR_EXCEPTION(
-            "Failed to link %s to %s",
-            ~filePath.Quote(),
-            ~linkPath.Quote())
+            "Failed to link %v to %v",
+            filePath,
+            linkPath)
             << TError::FromSystem();
     }
 }
@@ -342,8 +342,8 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
-                "Failed to check for identical inodes: stat failed for %s",
-                ~path.Quote())
+                "Failed to check for identical inodes: stat failed for %v",
+                path)
                 << TError::FromSystem();
         }
     };
