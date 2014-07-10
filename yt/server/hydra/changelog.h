@@ -44,12 +44,6 @@ struct IChangelog
      */
     virtual TAsyncError Flush() = 0;
 
-    //! Synchronously closes the changelog files.
-    /*!
-     *  Pending changes are not guaranteed to be flushed.
-     */
-    virtual void Close() = 0;
-
     //! Synchronously reads records from the changelog.
     //! The call may return less records than requested.
     //! This call throws on error.

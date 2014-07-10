@@ -59,11 +59,6 @@ public:
         return UnderlyingChangelog_->Flush();
     }
 
-    virtual void Close() override
-    {
-        UnderlyingChangelog_->Close();
-    }
-
     virtual std::vector<TSharedRef> Read(
         int firstRecordId,
         int maxRecords,

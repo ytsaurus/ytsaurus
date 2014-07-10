@@ -295,9 +295,6 @@ private:
             return FlushResult_;
         }
 
-        virtual void Close() override
-        { }
-
         virtual std::vector<TSharedRef> Read(
             int firstRecordId,
             int maxRecords,

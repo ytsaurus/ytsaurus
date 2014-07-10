@@ -608,11 +608,6 @@ public:
         , DataSize_(changelog->GetDataSize())
     { }
 
-    ~TFileChangelog()
-    {
-        Close();
-    }
-
     virtual int GetRecordCount() const override
     {
         return RecordCount_;
@@ -643,11 +638,6 @@ public:
     virtual TAsyncError Flush() override
     {
         return DispatcherImpl_->Flush(SyncChangelog_);
-    }
-
-    virtual void Close() override
-    {
-        return DispatcherImpl_->Close(SyncChangelog_);
     }
 
     virtual std::vector<TSharedRef> Read(

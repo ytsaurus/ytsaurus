@@ -77,11 +77,6 @@ public:
         }));
     }
 
-    virtual void Close() override
-    {
-        GetUnderlyingChangelog()->Close();
-    }
-
     virtual std::vector<TSharedRef> Read(
         int firstRecordId,
         int maxRecords,
