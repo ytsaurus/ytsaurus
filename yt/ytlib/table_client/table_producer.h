@@ -13,15 +13,20 @@ namespace NTableClient {
 class TTableProducer
 {
 public:
-    TTableProducer(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer, int tableIndex = -1);
+    TTableProducer(
+        ISyncReaderPtr reader,
+        NYson::IYsonConsumer* consumer,
+        bool enableTableSwitch = true,
+        int tableIndex = -1);
+
     bool ProduceRow();
 
 private:
     ISyncReaderPtr Reader;
     NYson::IYsonConsumer* Consumer;
 
+    bool EnableTableSwitch;
     int TableIndex;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

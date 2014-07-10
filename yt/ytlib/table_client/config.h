@@ -145,11 +145,14 @@ class TTableReaderConfig
 {
 public:
     bool SuppressAccessTracking;
+    bool EnableTableIndex;
 
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
             .Default(false);
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(true);
     }
 };
 

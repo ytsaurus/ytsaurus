@@ -59,7 +59,7 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     syncReader->Open();
 
-    return std::unique_ptr<NTableClient::TTableProducer>(new NTableClient::TTableProducer(syncReader, consumer));
+    return std::unique_ptr<NTableClient::TTableProducer>(new NTableClient::TTableProducer(syncReader, consumer, IOConfig->TableReader->EnableTableIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

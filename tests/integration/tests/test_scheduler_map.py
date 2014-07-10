@@ -510,7 +510,8 @@ print "tskv" + "\\t" + "hello=world"
             out='//tmp/t_out',
             command="python mapper.sh",
             file='//tmp/mapper.sh',
-            opt=['/spec/mapper/input_format=<format=text>yson',
+            opt=['/spec/mapper/enable_input_table_index=true',
+                 '/spec/mapper/input_format=<format=text>yson',
                  '/spec/mapper/output_format=<line_prefix=tskv>dsv'])
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
@@ -523,8 +524,6 @@ print "tskv" + "\\t" + "hello=world"
         mapper = \
 """
 import sys
-input = sys.stdin.readline().strip('\\n')
-assert input == '<"table_index"=0>#;'
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar"};'
 print "key\\tsubkey\\tvalue"

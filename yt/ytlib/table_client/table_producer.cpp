@@ -19,9 +19,11 @@ using namespace NYTree;
 TTableProducer::TTableProducer(
     ISyncReaderPtr reader,
     IYsonConsumer* consumer,
+    bool enableTableSwitch,
     int tableIndex)
     : Reader(reader)
     , Consumer(consumer)
+    , EnableTableSwitch(enableTableSwitch)
     , TableIndex(tableIndex)
 { }
 
@@ -36,7 +38,9 @@ bool TTableProducer::ProduceRow()
 
     if (tableIndex != TableIndex) {
         TableIndex = tableIndex;
-        NTableClient::ProduceTableSwitch(Consumer, TableIndex);
+        if (EnableTableSwitch) {
+            NTableClient::ProduceTableSwitch(Consumer, TableIndex);
+        }
     }
 
     NTableClient::ProduceRow(Consumer, *row);

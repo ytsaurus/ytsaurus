@@ -78,7 +78,7 @@ public:
 
         reader->Open();
 
-        return std::unique_ptr<NTableClient::TTableProducer>(new TTableProducer(reader, consumer));
+        return std::unique_ptr<NTableClient::TTableProducer>(new TTableProducer(reader, consumer, IOConfig->TableReader->EnableTableIndex));
     }
 
     virtual void PopulateResult(TJobResult* result) override

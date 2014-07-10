@@ -126,6 +126,8 @@ public:
     TNullable<NFormats::TFormat> InputFormat;
     TNullable<NFormats::TFormat> OutputFormat;
 
+    TNullable<bool> EnableInputTableIndex;
+
     yhash_map<Stroka, Stroka> Environment;
 
     int CpuLimit;
@@ -151,6 +153,8 @@ public:
             .Default();
         RegisterParameter("output_format", OutputFormat)
             .Default();
+        RegisterParameter("enable_input_table_index", EnableInputTableIndex)
+            .Default();
         RegisterParameter("environment", Environment)
             .Default();
         RegisterParameter("cpu_limit", CpuLimit)
@@ -171,6 +175,14 @@ public:
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
             .LessThanOrEqual((i64)1024 * 1024 * 1024);
+    }
+
+    void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)
+    {
+        if (!EnableInputTableIndex) {
+            EnableInputTableIndex = (inputTableCount != 1);
+        }
+        jobIOConfig->TableReader->EnableTableIndex = *EnableInputTableIndex;
     }
 };
 
@@ -219,6 +231,8 @@ public:
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
     }
 };
 
@@ -372,6 +386,8 @@ public:
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
     }
 };
 
@@ -601,6 +617,11 @@ public:
         }
 
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        if (Mapper) {
+            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), MapJobIO);
+        }
+        Reducer->InitEnableInputTableIndex(1, ReduceJobIO);
     }
 };
 
