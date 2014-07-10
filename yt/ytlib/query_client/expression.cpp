@@ -38,30 +38,6 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
     YUNREACHABLE();
 }
 
-EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode)
-{
-    switch (opcode) {
-        case EBinaryOp::Plus:
-        case EBinaryOp::Minus:
-        case EBinaryOp::Multiply:
-        case EBinaryOp::Divide:
-            return EBinaryOpKind::Arithmetical;
-        case EBinaryOp::Modulo:
-            return EBinaryOpKind::Integral;
-        case EBinaryOp::And:
-        case EBinaryOp::Or:
-            return EBinaryOpKind::Logical;
-        case EBinaryOp::Equal:
-        case EBinaryOp::NotEqual:
-        case EBinaryOp::Less:
-        case EBinaryOp::LessOrEqual:
-        case EBinaryOp::Greater:
-        case EBinaryOp::GreaterOrEqual:
-            return EBinaryOpKind::Relational;
-    }
-    YUNREACHABLE();
-}
-
 TExpression* TExpression::CloneImpl(TPlanContext* context) const
 {
     TExpression* result = nullptr;

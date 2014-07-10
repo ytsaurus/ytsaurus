@@ -190,6 +190,16 @@ TKeyColumns GetSampleKeyColumns()
     return keyColumns;
 }
 
+TKeyColumns GetSampleKeyColumns2()
+{
+    TKeyColumns keyColumns;
+    keyColumns.push_back("k");
+    keyColumns.push_back("l");
+    keyColumns.push_back("m");
+    keyColumns.push_back("s");
+    return keyColumns;
+}
+
 TTableSchema GetSampleTableSchema()
 {
     TTableSchema tableSchema;
@@ -634,34 +644,6 @@ INSTANTIATE_TEST_CASE_P(
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInFirstComponent));
 
-// NotEqual, First component.
-//TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
-//    {
-//        ("1;1;1"), ("100;100;100"),
-//        "k", EBinaryOp::NotEqual, 50,
-//        false, ("1;1;1"), ("100;100;100")
-//    },
-//    {
-//        ("1;1;1"), ("100;100;100"),
-//        "k", EBinaryOp::NotEqual, 1,
-//        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
-//    },
-//    {
-//        ("1;1;1"), ("100;100;100"),
-//        "k", EBinaryOp::NotEqual, 100,
-//        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
-//    },
-//    {
-//        ("1;1;1"), ("100;100;100"),
-//        "k", EBinaryOp::NotEqual, 200,
-//        false, ("1;1;1"), ("100;100;100")
-//    },
-//};
-//INSTANTIATE_TEST_CASE_P(
-//    NotEqualInFirstComponent,
-//    TRefineKeyRangeTest,
-//    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInFirstComponent));
-
 // Less, First component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
     {
@@ -818,34 +800,6 @@ INSTANTIATE_TEST_CASE_P(
     EqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInLastComponent));
-
-// NotEqual, Last component.
-//TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
-//    {
-//        ("1;1;1"), ("1;1;100"),
-//        "m", EBinaryOp::NotEqual, 50,
-//        false, ("1;1;1"), ("1;1;100")
-//    },
-//    {
-//        ("1;1;1"), ("1;1;100"),
-//        "m", EBinaryOp::NotEqual, 1,
-//        false, ("1;1;2"), ("1;1;100")
-//    },
-//    {
-//        ("1;1;1"), ("1;1;100"),
-//        "m", EBinaryOp::NotEqual, 100,
-//        false, ("1;1;1"), ("1;1;100")
-//    },
-//    {
-//        ("1;1;1"), ("1;1;100"),
-//        "m", EBinaryOp::NotEqual, 200,
-//        false, ("1;1;1"), ("1;1;100")
-//    },
-//};
-//INSTANTIATE_TEST_CASE_P(
-//    NotEqualInLastComponent,
-//    TRefineKeyRangeTest,
-//    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInLastComponent));
 
 // Less, Last component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInLastComponent[] = {
@@ -1138,6 +1092,32 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
     EXPECT_EQ(BuildKey("1;2;4"), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("m"),
+        Make<TLiteralExpression>(i64(50)));
+
+    auto conj4 = Make<TFunctionExpression>("is_prefix",
+        Make<TLiteralExpression>("abc"),
+        Make<TReferenceExpression>("s"));
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns2(),
+        std::make_pair(BuildKey("1;1;1;aaaa"), BuildKey("100;100;100;bbbbb")),
+        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, 
+            Make<TBinaryOpExpression>(EBinaryOp::And, conj2, 
+                Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4))));
+
+    EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
+    EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
@@ -1547,7 +1527,7 @@ TEST_F(TQueryEvaluateTest, HasPrefixStrings)
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("s=foobar", resultSplit, true));
 
-    Evaluate("s FROM [//t] where has_prefix(\"foo\", s)", source, result);
+    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", source, result);
 }
 
 TEST_F(TQueryEvaluateTest, Complex)

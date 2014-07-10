@@ -94,84 +94,104 @@ TKeyRange RefineKeyRange(
     
     TRowBuffer rowBuffer;
 
-    // Extract primitive constraints, like "A > 5" or "A = 5", or "5 = A".
-    std::function<void(const TBinaryOpExpression*)> extractSingleConstraint =
-    [&] (const TBinaryOpExpression* binaryOpExpr) {
-        auto opcode = binaryOpExpr->GetOpcode();
-        YCHECK(GetBinaryOpcodeKind(opcode) == EBinaryOpKind::Relational);
-
-        auto* lhs = binaryOpExpr->GetLhs();
-        auto* rhs = binaryOpExpr->GetRhs();
-
-        if (rhs->IsA<TReferenceExpression>()) {
-            // Ensure that references are on the left.
-            std::swap(lhs, rhs);
-            switch (opcode) {
-                case EBinaryOp::Equal:
-                    opcode = EBinaryOp::Equal;
-                case EBinaryOp::NotEqual:
-                    opcode = EBinaryOp::NotEqual;
-                case EBinaryOp::Less:
-                    opcode = EBinaryOp::Greater;
-                case EBinaryOp::LessOrEqual:
-                    opcode = EBinaryOp::GreaterOrEqual;
-                case EBinaryOp::Greater:
-                    opcode = EBinaryOp::Less;
-                case EBinaryOp::GreaterOrEqual:
-                    opcode = EBinaryOp::LessOrEqual;
-                default:
-                    YUNREACHABLE();
-            }
-        }
-
-        auto* referenceExpr = lhs->As<TReferenceExpression>();
-        auto* constantExpr = rhs->IsConstant() ? rhs : nullptr;
-
-        if (referenceExpr && constantExpr) {
-            int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
-            auto value = constantExpr->GetConstantValue();
-            switch (opcode) {
-                case EBinaryOp::Equal:
-                    constraints.emplace_back(keyPartIndex, false, value);
-                    constraints.emplace_back(keyPartIndex, true, value);
-                    break;
-                case EBinaryOp::Less:
-                    constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
-                    break;
-                case EBinaryOp::LessOrEqual:
-                    constraints.emplace_back(keyPartIndex, true, value);
-                    break;
-                case EBinaryOp::Greater:
-                    constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
-                    break;
-                case EBinaryOp::GreaterOrEqual:
-                    constraints.emplace_back(keyPartIndex, false, value);
-                    break;
-                default:
-                    break;
-            }            
-        }
-    };
-
     // Descend down to conjuncts and extract all constraints.
     std::function<void(const TExpression*)> extractMultipleConstraints =
     [&] (const TExpression* expr) {
-        auto* binaryOpExpr = expr->As<TBinaryOpExpression>();
-        if (!binaryOpExpr) {
-            return;
-        }
+        if (auto* binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+            auto opcode = binaryOpExpr->GetOpcode();
+            auto* lhsExpr = binaryOpExpr->GetLhs();
+            auto* rhsExpr = binaryOpExpr->GetRhs();
 
-        auto opcode = binaryOpExpr->GetOpcode();
+            if (opcode == EBinaryOp::And) {
+                extractMultipleConstraints(lhsExpr);
+                extractMultipleConstraints(rhsExpr);
+                return;
+            } else {
+                if (rhsExpr->IsA<TReferenceExpression>()) {
+                    // Ensure that references are on the left.
+                    std::swap(lhsExpr, rhsExpr);
+                    switch (opcode) {
+                        case EBinaryOp::Equal:
+                            opcode = EBinaryOp::Equal;
+                        case EBinaryOp::Less:
+                            opcode = EBinaryOp::Greater;
+                        case EBinaryOp::LessOrEqual:
+                            opcode = EBinaryOp::GreaterOrEqual;
+                        case EBinaryOp::Greater:
+                            opcode = EBinaryOp::Less;
+                        case EBinaryOp::GreaterOrEqual:
+                            opcode = EBinaryOp::LessOrEqual;
+                        default:
+                            break;
+                    }
+                }
 
-        if (opcode == EBinaryOp::And) {
-            extractMultipleConstraints(binaryOpExpr->GetLhs());
-            extractMultipleConstraints(binaryOpExpr->GetRhs());
-            return;
-        }
+                auto* referenceExpr = lhsExpr->As<TReferenceExpression>();
+                auto* constantExpr = rhsExpr->IsConstant() ? rhsExpr : nullptr;
 
-        if (GetBinaryOpcodeKind(opcode) == EBinaryOpKind::Relational) {
-            extractSingleConstraint(binaryOpExpr);
-            return;
+                if (referenceExpr && constantExpr) {
+                    int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
+                    auto value = constantExpr->GetConstantValue();
+                    switch (opcode) {
+                        case EBinaryOp::Equal:
+                            constraints.emplace_back(keyPartIndex, false, value);
+                            constraints.emplace_back(keyPartIndex, true, value);
+                            break;
+                        case EBinaryOp::Less:
+                            constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
+                            break;
+                        case EBinaryOp::LessOrEqual:
+                            constraints.emplace_back(keyPartIndex, true, value);
+                            break;
+                        case EBinaryOp::Greater:
+                            constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
+                            break;
+                        case EBinaryOp::GreaterOrEqual:
+                            constraints.emplace_back(keyPartIndex, false, value);
+                            break;
+                        default:
+                            break;
+                    }            
+                }
+            }
+        } else if (auto* functionExpr = expr->As<TFunctionExpression>()) {
+            Stroka functionName(functionExpr->GetFunctionName());
+            functionName.to_lower();
+
+            auto* lhsExpr = functionExpr->Arguments()[0];
+            auto* rhsExpr = functionExpr->Arguments()[1];
+
+            
+
+            auto* referenceExpr = rhsExpr->As<TReferenceExpression>();
+            auto* constantExpr = lhsExpr->IsConstant() ? lhsExpr : nullptr;
+
+            if (functionName == "is_prefix" && referenceExpr && constantExpr) {
+                int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
+                auto value = constantExpr->GetConstantValue();
+
+                YCHECK(value.Type == EValueType::String);
+
+                constraints.emplace_back(keyPartIndex, false, value);
+
+                ui32 length = value.Length;
+                while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
+                    --length;
+                }
+
+                if (length > 0) {
+                    char* newValue = rowBuffer.GetUnalignedPool()->AllocateUnaligned(length);
+                    memcpy(newValue, value.Data.String, length);
+                    ++newValue[length - 1];
+
+                    value.Length = length;
+                    value.Data.String = newValue;
+                } else {
+                    value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
+                }
+            
+                constraints.emplace_back(keyPartIndex, true, value);
+            }
         }
     };
 
@@ -288,16 +308,19 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
 
             if (functionName == "if") {
                 CHECK(typedExpr->GetArgumentCount() == 3);
+                const TExpression* conditionExpr = typedExpr->Arguments()[0];
                 const TExpression* thenExpr = typedExpr->Arguments()[1];
                 const TExpression* elseExpr = typedExpr->Arguments()[2];
 
+                EValueType conditionType = conditionExpr->GetType(sourceSchema);
                 EValueType thenType = thenExpr->GetType(sourceSchema);
                 EValueType elseType = elseExpr->GetType(sourceSchema);
 
+                YCHECK(conditionType == EValueType::Integer);
                 YCHECK(thenType == elseType);
                 
                 return thenType;
-            } else if (functionName == "has_prefix") {
+            } else if (functionName == "is_prefix") {
                 CHECK(typedExpr->GetArgumentCount() == 2);
                 const TExpression* lhsExpr = typedExpr->Arguments()[0];
                 const TExpression* rhsExpr = typedExpr->Arguments()[1];

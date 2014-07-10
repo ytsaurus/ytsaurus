@@ -20,13 +20,6 @@ DECLARE_ENUM(EExpressionKind,
     (BinaryOp)
 );
 
-DECLARE_ENUM(EBinaryOpKind,
-    (Arithmetical)
-    (Integral)
-    (Logical)
-    (Relational)
-);
-
 DECLARE_ENUM(EBinaryOp,
     // Arithmetical operations.
     (Plus)
@@ -48,7 +41,6 @@ DECLARE_ENUM(EBinaryOp,
 );
 
 const char* GetBinaryOpcodeLexeme(EBinaryOp opcode);
-EBinaryOpKind GetBinaryOpcodeKind(EBinaryOp opcode);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,12 +162,16 @@ class TFunctionExpression
 public:
     typedef SmallVector<const TExpression*, TypicalFunctionArity> TArguments;
 
+    template <class... TArgs>
     TFunctionExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
-        const TStringBuf& functionName)
+        const TStringBuf& functionName,
+        TArgs&&... args)
         : TExpression(context, EExpressionKind::Function, sourceLocation)
     {
+        std::initializer_list<const TExpression*> arguments = {args...};
+        Arguments_.assign(arguments.begin(), arguments.end());
         SetFunctionName(Stroka(functionName));
     }
 

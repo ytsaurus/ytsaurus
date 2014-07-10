@@ -628,7 +628,7 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 return CodegenExpr(builder, elseExpr, schema, row);
             }, type);
         }, type, nameTwine);
-    } else if (functionName == "has_prefix") {
+    } else if (functionName == "is_prefix") {
         YCHECK(expr->GetArgumentCount() == 2);
         const TExpression* lhsExpr = expr->Arguments()[0];
         const TExpression* rhsExpr = expr->Arguments()[1];
@@ -656,7 +656,7 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 Value* rhsLength = rhsValue.GetLength();
 
                 Value* result = builder.CreateCall4(
-                    Fragment_.GetRoutine("HasPrefix"),
+                    Fragment_.GetRoutine("IsPrefix"),
                     lhsData, lhsLength, rhsData, rhsLength);
 
                 return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);

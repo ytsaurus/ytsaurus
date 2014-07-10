@@ -202,7 +202,7 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 HasPrefix(
+i64 IsPrefix(
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,
@@ -257,7 +257,7 @@ void RegisterCGRoutinesImpl()
     REGISTER_ROUTINE(AllocateRow);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
-    REGISTER_ROUTINE(HasPrefix);
+    REGISTER_ROUTINE(IsPrefix);
     REGISTER_ROUTINE(Equal);
     REGISTER_ROUTINE(NotEqual);
     REGISTER_ROUTINE(LexicographicalCompare);
