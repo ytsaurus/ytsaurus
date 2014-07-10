@@ -857,7 +857,13 @@ private:
     std::vector<TCellGuid> GetParticipantGuids()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        return GetKeys(CellGuidToStartTransactionResult_);
+        std::vector<TCellGuid> result;
+        for (const auto& pair : CellGuidToStartTransactionResult_) {
+            if (pair.second.IsSet()) {
+                result.push_back(pair.first);
+            }
+        }
+        return result;
     }
 
 };
