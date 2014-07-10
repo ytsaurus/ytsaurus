@@ -553,7 +553,7 @@ private:
         // Start ping scheduling.
         // Participants will be added into it upon arrival.
         YCHECK(Ping_);
-        SendPing();
+        RunPeriodicPings();
 
         return OKFuture;
     }
