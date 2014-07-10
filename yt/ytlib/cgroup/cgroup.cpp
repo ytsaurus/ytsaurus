@@ -258,15 +258,25 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
 
 // This method SHOULD work fine in forked process
 // So we cannot use out logging|profiling framework
+void TNonOwningCGroup::AddTask(int pid)
+{
+    YCHECK(!IsNull());
+#ifdef _linux_
+    auto path = NFS::CombinePaths(FullPath_, "tasks");
+    TFileOutput output(TFile(path, OpenMode::ForAppend));
+    output << pid;
+#endif
+}
+
+
+// This method SHOULD work fine in forked process
+// So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask()
 {
     YCHECK(!IsNull());
 #ifdef _linux_
     auto pid = getpid();
-
-    auto path = NFS::CombinePaths(FullPath_, "tasks");
-    TFileOutput output(TFile(path, OpenMode::ForAppend));
-    output << pid;
+    AddTask(pid);
 #endif
 }
 

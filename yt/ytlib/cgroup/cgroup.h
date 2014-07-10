@@ -63,6 +63,7 @@ public:
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
 
+    void AddTask(int pid);
     void AddCurrentTask();
 
     void Set(const Stroka& name, const Stroka& value) const;

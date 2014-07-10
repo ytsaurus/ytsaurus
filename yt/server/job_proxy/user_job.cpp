@@ -17,6 +17,7 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/misc/proc.h>
+#include <core/misc/process.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/pattern_formatter.h>
 
@@ -127,6 +128,16 @@ public:
             OomEvent = Memory.GetOomEvent();
         }
 
+        {
+            int pipe[2];
+            auto error = SafeAtomicCloseExecPipe(pipe);
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to start the job: sync pipe creation failed")
+                    << error;
+            }
+            SyncPipe = TPipe(pipe);
+        }
+
         ProcessStartTime = TInstant::Now();
         ProcessId = fork();
         if (ProcessId < 0) {
@@ -140,6 +151,23 @@ public:
             // Child process.
             StartJob();
             YUNREACHABLE();
+        }
+
+        // Add process to cgroups here!
+        try {
+            if (UserJobSpec.enable_accounting()) {
+                CpuAccounting.AddTask(ProcessId);
+                BlockIO.AddTask(ProcessId);
+                Memory.AddTask(ProcessId);
+            }
+
+            {
+                int data = 0;
+                YCHECK(::write(SyncPipe.WriteFd, &data, sizeof(data)) == sizeof(data));
+            }
+        } catch (...) {
+            YCHECK(::close(SyncPipe.WriteFd) == 0);
+            throw;
         }
 
         LOG_INFO("Job process started");
@@ -423,6 +451,15 @@ private:
     // Called from the forked process.
     void StartJob()
     {
+        {
+            YCHECK(::close(SyncPipe.WriteFd) == 0);
+            int data;
+            if (::read(SyncPipe.ReadFd, &data, sizeof(data)) != sizeof(data)) {
+                fprintf(stderr, "Failed to wait for starting gun fire\n%s", strerror(errno));
+                _exit(EJobProxyExitCode::StartingGunFireMissing);
+            }
+        }
+
         auto host = Host.Lock();
         YCHECK(host);
 
@@ -480,12 +517,6 @@ private:
                     fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
                     _exit(EJobProxyExitCode::SetRLimitFailed);
                 }
-            }
-
-            if (UserJobSpec.enable_accounting()) {
-                CpuAccounting.AddCurrentTask();
-                BlockIO.AddCurrentTask();
-                Memory.AddCurrentTask();
             }
 
             if (config->UserId > 0) {
@@ -643,6 +674,7 @@ private:
 
     TInstant ProcessStartTime;
     int ProcessId;
+    TPipe SyncPipe;
 
     NCGroup::TCpuAccounting CpuAccounting;
     NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;

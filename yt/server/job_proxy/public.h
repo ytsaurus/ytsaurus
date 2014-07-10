@@ -33,6 +33,7 @@ DECLARE_ENUM(EJobProxyExitCode,
     ((ExecFailed)            (24))
     ((UncaughtException)     (25))
     ((RetreiveJobSpecFailed) (26))
+    ((StartingGunFireMissing) (27))
 );
 
 DECLARE_ENUM(EErrorCode,
