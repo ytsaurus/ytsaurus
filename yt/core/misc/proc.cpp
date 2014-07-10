@@ -50,17 +50,17 @@ i64 GetProcessRss(int pid)
 
 void RunCleaner(const Stroka& path)
 {
-    LOG_INFO("Clean %s", ~path);
+    LOG_INFO("Clean %Qs", path);
 
     TProcess process(GetExecPath());
-    process.AddArgument("--cleaner");
-    process.AddArgument("--dir-to-remove");
+    process.AddArgument(AsStringBuf("--cleaner"));
+    process.AddArgument(AsStringBuf("--dir-to-remove"));
     process.AddArgument(path);
 
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
-            "Failed to remove directory %s: %s",
-            ~path) << error;
+            "Failed to remove directory %Qs: %s",
+            path) << error;
     };
 
     auto error = process.Spawn();
@@ -80,8 +80,8 @@ void RemoveDirAsRoot(const Stroka& path)
     YCHECK(setuid(0) == 0);
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
-    THROW_ERROR_EXCEPTION("Failed to remove directory %s: execl failed",
-        ~path) << TError::FromSystem();
+    THROW_ERROR_EXCEPTION("Failed to remove directory %Qs: execl failed",
+        path) << TError::FromSystem();
 }
 
 TError StatusToError(int status)

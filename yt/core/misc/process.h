@@ -17,7 +17,7 @@ public:
     TProcess(const TProcess& other) = delete;
     TProcess(TProcess&& other) = delete;
 
-    void AddArgument(const Stroka& arg);
+    void AddArgument(TStringBuf arg);
 
     TError Spawn();
     TError Wait();
@@ -36,7 +36,7 @@ private:
     std::vector<char*> Env_;
 
     const char* GetPath() const;
-    char* Capture(const char* arg);
+    char* Capture(TStringBuf arg);
 
     int DoSpawn();
 

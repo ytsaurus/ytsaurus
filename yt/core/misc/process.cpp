@@ -87,11 +87,11 @@ TProcess::~TProcess()
     }
 }
 
-void TProcess::AddArgument(const Stroka& arg)
+void TProcess::AddArgument(TStringBuf arg)
 {
     YCHECK(ProcessId_ == -1 && !Finished_);
 
-    Args_.push_back(Capture(~arg));
+    Args_.push_back(Capture(arg));
 }
 
 TError TProcess::Spawn()
@@ -110,7 +110,7 @@ TError TProcess::Spawn()
     char** envIt = environ;
     while (*envIt) {
         const char* const item = *envIt;
-        Env_.push_back(Capture(item));
+        Env_.push_back(Capture(TStringBuf(item)));
         ++envIt;
     }
     Env_.push_back(nullptr);
@@ -179,11 +179,14 @@ int TProcess::GetProcessId() const
     return ProcessId_;
 }
 
-char* TProcess::Capture(const char* arg)
+char* TProcess::Capture(TStringBuf arg)
 {
-    size_t size = strlen(arg);
-    StringHolder_.push_back(std::vector<char>(arg, arg + size + 1));
-    return StringHolder_[StringHolder_.size() - 1].data();
+    std::vector<char> holder(arg.data(), arg.data() + arg.length());
+    if (holder.empty() || (holder.back() != '\0')) {
+        holder.push_back('\0');
+    }
+    StringHolder_.push_back(std::move(holder));
+    return StringHolder_.back().data();
 }
 
 int TProcess::DoSpawn()
