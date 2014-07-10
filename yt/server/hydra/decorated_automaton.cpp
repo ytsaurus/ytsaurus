@@ -502,9 +502,6 @@ void TDecoratedAutomaton::LogFollowerMutation(
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
 
-    LOG_DEBUG("Logging mutation at version %v",
-        LoggedVersion_);
-
     auto actualLogResult = Changelog_->Append(recordData);
     if (logResult) {
         *logResult = std::move(actualLogResult);
