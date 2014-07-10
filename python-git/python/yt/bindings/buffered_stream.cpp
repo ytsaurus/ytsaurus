@@ -70,7 +70,7 @@ void TBufferedStream::Finish(NDriver::TDriverResponse)
     State_ = EState::Finished;
 }
 
-bool TBufferedStream::Write(const void* buf, size_t len)
+TAsyncError TBufferedStream::Write(const void* buf, size_t len)
 {
     YCHECK(State_ != EState::Full);
 
@@ -103,15 +103,10 @@ bool TBufferedStream::Write(const void* buf, size_t len)
         AllowWrite_ = NewPromise<TError>();
         State_ = EState::Full;
 
-        return false;
+        return AllowWrite_;
     } else {
-        return true;
+        return OKFuture;
     }
-}
-
-TAsyncError TBufferedStream::GetReadyEvent()
-{
-    return AllowWrite_;
 }
 
 void TBufferedStream::Reallocate(size_t len)

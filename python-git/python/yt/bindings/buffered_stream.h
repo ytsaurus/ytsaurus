@@ -25,9 +25,7 @@ public:
 
     void Finish(NDriver::TDriverResponse);
 
-    virtual bool Write(const void* buf, size_t len) override;
-
-    virtual TAsyncError GetReadyEvent() override;
+    virtual TAsyncError Write(const void* buf, size_t len) override;
 
 private:
     size_t Size_;
