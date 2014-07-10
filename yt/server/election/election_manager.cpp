@@ -566,19 +566,19 @@ void TElectionManager::TImpl::Finalize()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ControlInvoker->Invoke(BIND(&TImpl::DoFinalize, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoFinalize, MakeStrong(this)));
 
     RpcServer->UnregisterService(this);
 }
 
 void TElectionManager::TImpl::Start()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeStrong(this)));
 }
 
 void TElectionManager::TImpl::Stop()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeStrong(this)));
 }
 
 TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
