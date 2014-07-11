@@ -239,16 +239,6 @@ void TServiceContextBase::SetResponseInfo(const Stroka& info)
     ResponseInfo_ = info;
 }
 
-void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
-{
-    if (!rhs.empty()) {
-        if (!lhs.empty()) {
-            lhs.append(", ");
-        }
-        lhs.append(rhs);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
