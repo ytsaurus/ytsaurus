@@ -308,9 +308,9 @@ public:
         // Once the first table is created, table is no longer sorted.
         table->SetSorted(false);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %s, TabletId: %s)",
-            ~ToString(table->GetId()),
-            ~ToString(tablet->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
+            table->GetId(),
+            tablet->GetId());
 
         return tablet;
     }
@@ -321,8 +321,8 @@ public:
 
         YCHECK(!tablet->GetCell());
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TabletId: %s)",
-            ~ToString(tablet->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet destroyed (TabletId: %v)",
+            tablet->GetId());
     }
 
 
@@ -346,8 +346,8 @@ public:
         for (int keyIndex = 0; keyIndex < static_cast<int>(keyColumns.size()); ++keyIndex) {
             auto* column = schema.FindColumn(keyColumns[keyIndex]);
             if (!column) {
-                THROW_ERROR_EXCEPTION("Schema does define a key column %s",
-                    ~keyColumns[keyIndex].Quote());
+                THROW_ERROR_EXCEPTION("Schema does define a key column %Qv",
+                    keyColumns[keyIndex]);
             }
             int schemaIndex = schema.GetColumnIndex(*column);
             if (schemaIndex != keyIndex) {
@@ -382,9 +382,9 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = tablets[index];
             if (tablet->GetState() == ETabletState::Unmounting) {
-                THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
-                    ~ToString(tablet->GetId()),
-                    ~FormatEnum(tablet->GetState()).Quote());
+                THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
+                    tablet->GetId(),
+                    tablet->GetState());
             }
         }
 
@@ -454,11 +454,11 @@ public:
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %s, TabletId: %s, CellId: %s, ChunkCount: %d)",
-                ~ToString(table->GetId()),
-                ~ToString(tablet->GetId()),
-                ~ToString(cell->GetId()),
-                static_cast<int>(chunks.size()));
+            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v)",
+                table->GetId(),
+                tablet->GetId(),
+                cell->GetId(),
+                chunks.size());
         }
     }
 
@@ -477,9 +477,9 @@ public:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* tablet = table->Tablets()[index];
                 if (tablet->GetState() == ETabletState::Mounting) {
-                    THROW_ERROR_EXCEPTION("Tablet %s is in %s state",
-                        ~ToString(tablet->GetId()),
-                        ~FormatEnum(tablet->GetState()).Quote());
+                    THROW_ERROR_EXCEPTION("Tablet %v is in %Qlv state",
+                        tablet->GetId(),
+                        tablet->GetState());
                 }
             }
         }
@@ -508,10 +508,10 @@ public:
             if (tablet->GetState() == ETabletState::Mounted ||
                 tablet->GetState() == ETabletState::Mounting)
             {
-                LOG_INFO_UNLESS(IsRecovery(), "Remounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
-                    ~ToString(table->GetId()),
-                    ~ToString(tablet->GetId()),
-                    ~ToString(cell->GetId()));
+                LOG_INFO_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId());
 
                 auto hiveManager = Bootstrap->GetHiveManager();
 
@@ -569,7 +569,7 @@ public:
         int newTabletCount = static_cast<int>(pivotKeys.size());
 
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
-            THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %d",
+            THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
         }
 
@@ -605,9 +605,9 @@ public:
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
             if (tablet->GetState() != ETabletState::Unmounted) {
-                THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %s is in %s state",
-                    ~ToString(tablet->GetId()),
-                    ~FormatEnum(tablet->GetState()).Quote());
+                THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %v is in %Qlv state",
+                    tablet->GetId(),
+                    tablet->GetState());
             }
         }
 
@@ -779,9 +779,9 @@ private:
         for (const auto& slot : node->TabletSlots()) {
             auto* cell = slot.Cell;
             if (cell) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %s, CellId: %s, PeerId: %d)",
-                    ~node->GetAddress(),
-                    ~ToString(cell->GetId()),
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
+                    node->GetAddress(),
+                    cell->GetId(),
                     slot.PeerId);
                 cell->DetachPeer(node);
             }
@@ -806,9 +806,9 @@ private:
             ToProto(protoInfo->mutable_cell_guid(), cell->GetId());
             protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %s, CellId: %s)",
-                ~node->GetAddress(),
-                ~ToString(cellId));
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v)",
+                node->GetAddress(),
+                cellId);
         };
 
         auto requestConfigureSlot = [&] (TTabletCell* cell) {
@@ -823,9 +823,9 @@ private:
             protoInfo->set_config(ConvertToYsonString(cell->GetConfig()).Data());
             protoInfo->set_peer_id(cell->GetPeerId(node));
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %s, CellId: %s, Version: %d)",
-                ~node->GetAddress(),
-                ~ToString(cellId),
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
+                node->GetAddress(),
+                cellId,
                 cell->GetConfigVersion());
         };
 
@@ -836,9 +836,9 @@ private:
             auto* protoInfo = response->add_tablet_slots_to_remove();
             ToProto(protoInfo->mutable_cell_guid(), cellId);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %s, CellId: %s)",
-                ~node->GetAddress(),
-                ~ToString(cellId));
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
+                node->GetAddress(),
+                cellId);
         };
 
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
@@ -869,28 +869,28 @@ private:
 
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %s, CellId: %s)",
-                    ~address,
-                    ~ToString(cellId));
+                LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
+                    address,
+                    cellId);
                 requestRemoveSlot(cellId);
                 continue;
             }
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %s, CellId: %s)",
-                    ~address,
-                    ~ToString(cellId));
+                LOG_INFO_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
+                    address,
+                    cellId);
                 requestRemoveSlot(cellId);
                 continue;
             }
 
             if (slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId)  {
-                LOG_INFO_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %d instead of %d (Address: %s, CellId: %s)",
+                LOG_INFO_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
-                    ~address,
-                    ~ToString(cellId));
+                    address,
+                    cellId);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -898,9 +898,9 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId, slotIndex);
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %s, CellId: %s, PeerId: %d)",
-                    ~address,
-                    ~ToString(cellId),
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                    address,
+                    cellId,
                     peerId);
             }
 
@@ -912,11 +912,11 @@ private:
             slot.PeerState = EPeerState(slotInfo.peer_state());
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %s, CellId: %s, PeerId: %d, State: %s, ConfigVersion: %d)",
-                ~address,
-                ~ToString(slot.Cell->GetId()),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
+                address,
+                slot.Cell->GetId(),
                 slot.PeerId,
-                ~ToString(slot.PeerState),
+                slot.PeerState,
                 slotInfo.config_version());
 
             // Request slot reconfiguration if states are appropriate and versions differ.
@@ -930,9 +930,9 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %s, Address: %s)",
-                    ~ToString(cell->GetId()),
-                    ~address);
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                    cell->GetId(),
+                    address);
                 cell->DetachPeer(node);
             }
         }
@@ -1047,9 +1047,9 @@ private:
             cell->AssignPeer(address, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationContext->GetTimestamp());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %s, Address: %s, PeerId: %d)",
-                ~ToString(cellId),
-                ~address,
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
+                cellId,
+                address,
                 peerId);
 
             ReconfigureCell(cell);
@@ -1069,10 +1069,10 @@ private:
         auto newState = ETabletCellState(request.state());
         cell->SetState(newState);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %s -> %s (CellId: %s)",
-            ~ToString(oldState),
-            ~ToString(newState),
-            ~ToString(cellId));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %v -> %v (CellId: %v)",
+            oldState,
+            newState,
+            cellId);
     }
 
     void HydraRevokePeer(const TReqRevokePeer& request)
@@ -1093,9 +1093,9 @@ private:
         RemoveFromAddressToCellMap(address, cell);
         cell->RevokePeer(peerId);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %s, Address: %s, PeerId: %d)",
-            ~ToString(cell->GetId()),
-            ~address,
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+            cell->GetId(),
+            address,
             peerId);
 
         ReconfigureCell(cell);
@@ -1109,19 +1109,19 @@ private:
             return;
 
         if (tablet->GetState() != ETabletState::Mounting) {
-            LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %s state, ignored (TabletId: %s)",
-                ~FormatEnum(tablet->GetState()).Quote(),
-                ~ToString(tabletId));
+            LOG_INFO_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                tablet->GetState(),
+                tabletId);
             return;
         }
         
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %s, TabletId: %s, CellId: %s)",
-            ~ToString(table->GetId()),
-            ~ToString(tablet->GetId()),
-            ~ToString(cell->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, CellId: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            cell->GetId());
 
         tablet->SetState(ETabletState::Mounted);
     }
@@ -1134,9 +1134,9 @@ private:
             return;
         
         if (tablet->GetState() != ETabletState::Unmounting) {
-            LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %s state, ignored (TabletId: %s)",
-                ~FormatEnum(tablet->GetState()).Quote(),
-                ~ToString(tabletId));
+            LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                tablet->GetState(),
+                tabletId);
             return;
         }
 
@@ -1148,10 +1148,10 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %s, TabletId: %s, CellId: %s)",
-            ~ToString(table->GetId()),
-            ~ToString(tablet->GetId()),
-            ~ToString(cell->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
+            table->GetId(),
+            tablet->GetId(),
+            cell->GetId());
 
         auto objectManager = Bootstrap->GetObjectManager();
         tablet->SetState(ETabletState::Unmounted);
@@ -1172,14 +1172,17 @@ private:
         if (tablet->GetState() != ETabletState::Mounted &&
             tablet->GetState() != ETabletState::Unmounting)
         {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %s state, ignored (TabletId: %s)",
-                ~FormatEnum(tablet->GetState()).Quote(),
-                ~ToString(tabletId));
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to update stoares for a tablet in %Qlv state, ignored (TabletId: %v)",
+                tablet->GetState(),
+                tabletId);
             return;
         }
 
         auto* cell = tablet->GetCell();
         auto* table = tablet->GetTable();
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
         response.mutable_tablet_id()->MergeFrom(request.tablet_id());
@@ -1231,17 +1234,17 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %s, AttachedChunkIds: [%s], DetachedChunkIds: [%s], "
-                "AttachedRowCount: %" PRId64 ", DetachedRowCount: %" PRId64 ")",
-                ~ToString(tabletId),
-                ~JoinToString(ToObjectIds(chunksToAttach)),
-                ~JoinToString(ToObjectIds(chunksToDetach)),
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
+                "AttachedRowCount: %v, DetachedRowCount: %v)",
+                tabletId,
+                JoinToString(ToObjectIds(chunksToAttach)),
+                JoinToString(ToObjectIds(chunksToDetach)),
                 attachedRowCount,
                 detachedRowCount);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %s)",
-                ~ToString(tabletId));
+            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
+                tabletId);
             ToProto(response.mutable_error(), error);
         }
 
@@ -1298,8 +1301,8 @@ private:
 
         UpdateCellDirectory(cell);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %s, Version: %d)",
-            ~ToString(cell->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
+            cell->GetId(),
             cell->GetConfigVersion());
     }
 
@@ -1362,10 +1365,10 @@ private:
             auto* cell = tablet->GetCell();
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %s, TabletId: %s, CellId: %s)",
-                    ~ToString(table->GetId()),
-                    ~ToString(tablet->GetId()),
-                    ~ToString(cell->GetId()));
+                LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    cell->GetId());
 
                 tablet->SetState(ETabletState::Unmounting);
 
@@ -1430,16 +1433,16 @@ private:
                 THROW_ERROR_EXCEPTION("Table has no tablets");
             }
             if (*first < 0 || *first >= tablets.size()) {
-                THROW_ERROR_EXCEPTION("First tablet index %d is out of range [%d, %d]",
+                THROW_ERROR_EXCEPTION("First tablet index %v is out of range [%v, %v]",
                     *first,
                     0,
-                    static_cast<int>(tablets.size()) - 1);
+                    tablets.size() - 1);
             }
             if (*last < 0 || *last >= tablets.size()) {
-                THROW_ERROR_EXCEPTION("Last tablet index %d is out of range [%d, %d]",
+                THROW_ERROR_EXCEPTION("Last tablet index %v is out of range [%v, %v]",
                     *last,
                     0,
-                    static_cast<int>(tablets.size()) - 1);
+                    tablets.size() - 1);
             }
             if (*first > *last) {
                 THROW_ERROR_EXCEPTION("First tablet index is greater than last tablet index");
@@ -1475,9 +1478,9 @@ private:
                     int snapshotId = FromString<int>(key);
                     snapshotIds.push_back(snapshotId);
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Unrecognized item %s in tablet snapshot store (CellId: %s)",
-                        ~key.Quote(),
-                        ~ToString(cellId));
+                    LOG_WARNING("Unrecognized item %Qv in tablet snapshot store (CellId: %v)",
+                        key,
+                        cellId);
                 }
             }
 
@@ -1494,19 +1497,19 @@ private:
                 try {
                     int snapshotId = FromString<int>(key);
                     if (snapshotId < thresholdId) {
-                        LOG_INFO("Removing tablet cell snapshot %d (CellId: %s)",
+                        LOG_INFO("Removing tablet cell snapshot %v (CellId: %v)",
                             snapshotId,
-                            ~ToString(cellId));
+                            cellId);
                         auto req = TYPathProxy::Remove(snapshotsPath + "/" + key);
                         ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
                             if (rsp->IsOK()) {
-                                LOG_INFO("Tablet cell snapshot %d removed successfully (CellId: %s)",
+                                LOG_INFO("Tablet cell snapshot %v removed successfully (CellId: %v)",
                                     snapshotId,
-                                    ~ToString(cellId));
+                                    cellId);
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell snapshot %d (CellId: %s)",
+                                LOG_INFO(*rsp, "Error removing tablet cell snapshot %v (CellId: %v)",
                                     snapshotId,
-                                    ~ToString(cellId));
+                                    cellId);
                             }
                         }));
                     }
@@ -1525,26 +1528,26 @@ private:
                 try {
                     int changelogId = FromString<int>(key);
                     if (changelogId < thresholdId) {
-                        LOG_INFO("Removing tablet cell changelog %d (CellId: %s)",
+                        LOG_INFO("Removing tablet cell changelog %v (CellId: %v)",
                             changelogId,
-                            ~ToString(cellId));
+                            cellId);
                         auto req = TYPathProxy::Remove(changelogsPath + "/" + key);
                         ExecuteVerb(rootService, req).Subscribe(BIND([=] (TYPathProxy::TRspRemovePtr rsp) {
                             if (rsp->IsOK()) {
-                                LOG_INFO("Tablet cell changelog %d removed successfully (CellId: %s)",
+                                LOG_INFO("Tablet cell changelog %v removed successfully (CellId: %v)",
                                     changelogId,
-                                    ~ToString(cellId));
+                                    cellId);
                             } else {
-                                LOG_INFO(*rsp, "Error removing tablet cell changelog %d (CellId: %s)",
+                                LOG_INFO(*rsp, "Error removing tablet cell changelog %v (CellId: %v)",
                                     changelogId,
-                                    ~ToString(cellId));
+                                    cellId);
                             }
                         }));;
                     }
                 } catch (const std::exception& ex) {
-                    LOG_WARNING("Unrecognized item %s in tablet changelog store (CellId: %s)",
-                        ~key.Quote(),
-                        ~ToString(cellId));
+                    LOG_WARNING("Unrecognized item %Qv in tablet changelog store (CellId: %v)",
+                        key,
+                        cellId);
                 }
             }
         }
