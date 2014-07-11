@@ -182,7 +182,7 @@ void AppendIndent(TStringBuilder* builer, int indent)
 void AppendAttribute(TStringBuilder* builder, const Stroka& key, const Stroka& value, int indent)
 {
     AppendIndent(builder, indent + 4);
-    Format(builder, "%-15s %s", key, value);
+    builder->AppendFormat("%-15s %s", key, value);
     builder->AppendChar('\n');
 }
 

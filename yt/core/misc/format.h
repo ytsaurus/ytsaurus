@@ -55,15 +55,10 @@ namespace NYT {
  */
 
 template <class... TArgs>
-void Format(
-    TStringBuilder* builder,
-    const char* format,
-    const TArgs&... args);
+void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
 
 template <class... TArgs>
-Stroka Format(
-    const char* format,
-    const TArgs&... args);
+Stroka Format(const char* format, const TArgs&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -126,7 +126,7 @@ struct TValueFormatter<
         int rawValue = static_cast<int>(value);
         auto* literal = TEnum::GetLiteralByValue(rawValue);
         if (!literal) {
-            Format(builder, "%v(%v)", TEnum::GetTypeName(), rawValue);
+            builder->AppendFormat("%v(%v)", TEnum::GetTypeName(), rawValue);
             return;
         }
 

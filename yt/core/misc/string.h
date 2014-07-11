@@ -6,6 +6,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Forward declaration, avoid including format.h directly here.
+template <class... TArgs>
+void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
+
 //! A simple helper for constructing strings by a sequence of appends.
 class TStringBuilder
     : private TNonCopyable
@@ -62,6 +66,12 @@ public:
     void AppendString(const char* str)
     {
         AppendString(TStringBuf(str));
+    }
+
+    template <class... TArgs>
+    void AppendFormat(const char* format, const TArgs&... args)
+    {
+        Format(this, format, args...);
     }
 
     Stroka Flush()
