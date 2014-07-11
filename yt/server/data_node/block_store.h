@@ -98,7 +98,7 @@ public:
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
-    //! Acquires a lock for a given number of bytes to be read.
+    //! Acquires a lock for the given number of bytes to be read.
     TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
 
     //! Returns a caching adapter.

@@ -103,15 +103,15 @@ public:
         TBase::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("replication_factor")) {
-            attributes->Set("replication_factor", TChunkOwnerBase::DefaultReplicationFactor);
+            attributes->Set("replication_factor", DefaultReplicationFactor);
         }
 
         if (!attributes->Contains("read_quorum")) {
-            attributes->Set("read_quorum", TJournalNode::DefaultReadQuorum);
+            attributes->Set("read_quorum", DefaultReadQuorum);
         }
 
         if (!attributes->Contains("write_quorum")) {
-            attributes->Set("write_quorum", TJournalNode::DefaultWriteQuorum);
+            attributes->Set("write_quorum", DefaultWriteQuorum);
         }
     }
 
