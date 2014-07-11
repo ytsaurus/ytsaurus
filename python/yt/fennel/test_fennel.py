@@ -40,7 +40,7 @@ def test_on_save_ack_next(fake_state):
 def test_on_save_ack_not_next(fake_state):
     assert fake_state._last_seqno == 0
     fake_state.on_save_ack(2)
-    assert fake_state._last_seqno == 0
+    assert fake_state._last_seqno == 2
 
 
 def test_on_save_ack_reordered(fake_state):
