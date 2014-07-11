@@ -55,7 +55,7 @@ private:
     void DoReadBlocks(
         int firstBlockIndex,
         int blockCount,
-        i64 pendingSize,
+        TPendingReadSizeGuard pendingReadSizeGuard,
         TPromise<TErrorOr<std::vector<TSharedRef>>> promise);
 
 

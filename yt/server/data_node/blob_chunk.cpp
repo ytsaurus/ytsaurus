@@ -100,9 +100,10 @@ IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
     i64 pendingSize;
     AdjustReadRange(firstBlockIndex, &blockCount, &pendingSize);
 
+    TPendingReadSizeGuard pendingReadSizeGuard;
     if (pendingSize >= 0) {
         auto blockStore = Bootstrap_->GetBlockStore();
-        blockStore->UpdatePendingReadSize(+pendingSize);
+        pendingReadSizeGuard = blockStore->IncreasePendingReadSize(pendingSize);
     }
 
     auto promise = NewPromise<TReadBlocksResult>();
@@ -112,7 +113,7 @@ IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
         MakeStrong(this),
         firstBlockIndex,
         blockCount,
-        pendingSize,
+        Passed(std::move(pendingReadSizeGuard)),
         promise);
 
     Location_
@@ -125,7 +126,7 @@ IChunk::TAsyncReadBlocksResult TBlobChunkBase::ReadBlocks(
 void TBlobChunkBase::DoReadBlocks(
     int firstBlockIndex,
     int blockCount,
-    i64 pendingSize,
+    TPendingReadSizeGuard pendingReadSizeGuard,
     TPromise<TReadBlocksResult> promise)
 {
     auto blockStore = Bootstrap_->GetBlockStore();
@@ -134,10 +135,14 @@ void TBlobChunkBase::DoReadBlocks(
     try {
         auto reader = readerCache->GetReader(this);
 
-        if (pendingSize < 0) {
+        if (!pendingReadSizeGuard) {
             InitializeCachedMeta(reader->GetMeta());
+            
+            i64 pendingSize;
             AdjustReadRange(firstBlockIndex, &blockCount, &pendingSize);
             YCHECK(pendingSize >= 0);
+
+            pendingReadSizeGuard = blockStore->IncreasePendingReadSize(pendingSize);
         }
 
         std::vector<TSharedRef> blocks;
@@ -171,19 +176,14 @@ void TBlobChunkBase::DoReadBlocks(
         }
 
         auto& locationProfiler = Location_->Profiler();
+        i64 pendingSize = pendingReadSizeGuard.GetSize();
         locationProfiler.Enqueue("/blob_block_read_size", pendingSize);
         locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());
         locationProfiler.Enqueue("/blob_block_read_throughput", pendingSize * 1000000 / (1 + readTime.MicroSeconds()));
         DataNodeProfiler.Increment(DiskBlobReadThroughputCounter, pendingSize);
 
-        YCHECK(pendingSize >= 0);
-        blockStore->UpdatePendingReadSize(-pendingSize);
-
         promise.Set(blocksOrError.Value());
     } catch (const std::exception& ex) {
-        if (pendingSize >= 0) {
-            blockStore->UpdatePendingReadSize(-pendingSize);
-        }
         promise.Set(ex);
     }
 }

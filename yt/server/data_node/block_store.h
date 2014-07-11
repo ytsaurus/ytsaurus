@@ -98,8 +98,8 @@ public:
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;
 
-    //! Updates (increments or decrements) pending read size.
-    void UpdatePendingReadSize(i64 delta);
+    //! Acquires a lock for a given number of bytes to be read.
+    TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
 
     //! Returns a caching adapter.
     NChunkClient::IBlockCachePtr GetBlockCache();
@@ -109,12 +109,40 @@ private:
     class TCacheImpl;
     class TGetBlocksSession;
 
+    friend class TPendingReadSizeGuard;
+
     TIntrusivePtr<TStoreImpl> StoreImpl_;
     TIntrusivePtr<TCacheImpl> CacheImpl_;
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPendingReadSizeGuard
+{
+public:
+    TPendingReadSizeGuard() = default;
+    TPendingReadSizeGuard(TPendingReadSizeGuard&& other) = default;
+    ~TPendingReadSizeGuard();
+
+    TPendingReadSizeGuard& operator = (TPendingReadSizeGuard&& other);
+
+    explicit operator bool() const;
+    i64 GetSize() const;
+
+private:
+    friend TBlockStore;
+
+    TPendingReadSizeGuard(i64 size, TBlockStorePtr owner);
+        
+    void Destroy();
+
+    i64 Size_ = 0;
+    TBlockStorePtr Owner_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

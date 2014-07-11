@@ -23,6 +23,8 @@ using NNodeTrackerClient::TNodeId;
 struct TChunkDescriptor;
 struct TSessionOptions;
 
+class TPendingReadSizeGuard;
+
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)

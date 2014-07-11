@@ -214,15 +214,19 @@ public:
 
     i64 GetPendingReadSize() const
     {
-        return PendingReadSize_;
+        return PendingReadSize_.load();
     }
 
-    void UpdatePendingReadSize(i64 delta)
+    TPendingReadSizeGuard IncreasePendingReadSize(i64 delta)
     {
-        i64 result = (PendingReadSize_ += delta);
-        LOG_DEBUG("Pending read size updated (PendingReadSize: %v, Delta: %v)",
-            result,
-            delta);
+        YASSERT(delta >= 0);
+        UpdatePendingReadSize(delta);
+        return TPendingReadSizeGuard(delta, Bootstrap_->GetBlockStore());
+    }
+
+    void DecreasePendingReadSize(i64 delta)
+    {
+        UpdatePendingReadSize(-delta);
     }
 
 private:
@@ -244,6 +248,14 @@ private:
         Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
         LOG_DEBUG("Block cache hit (BlockId: %v)",
             block->GetKey());
+    }
+
+    void UpdatePendingReadSize(i64 delta)
+    {
+        i64 result = (PendingReadSize_ += delta);
+        LOG_DEBUG("Pending read size updated (PendingReadSize: %v, Delta: %v)",
+            result,
+            delta);
     }
 
 };
@@ -333,9 +345,9 @@ i64 TBlockStore::GetPendingReadSize() const
     return StoreImpl_->GetPendingReadSize();
 }
 
-void TBlockStore::UpdatePendingReadSize(i64 delta)
+TPendingReadSizeGuard TBlockStore::IncreasePendingReadSize(i64 delta)
 {
-    StoreImpl_->UpdatePendingReadSize(delta);
+    return StoreImpl_->IncreasePendingReadSize(delta);
 }
 
 IBlockCachePtr TBlockStore::GetBlockCache()
@@ -346,6 +358,48 @@ IBlockCachePtr TBlockStore::GetBlockCache()
 std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
 {
     return StoreImpl_->GetAll();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPendingReadSizeGuard::TPendingReadSizeGuard(
+    i64 size,
+    TBlockStorePtr owner)
+    : Size_(size)
+    , Owner_(owner)
+{ }
+
+TPendingReadSizeGuard& TPendingReadSizeGuard::operator=(TPendingReadSizeGuard&& other)
+{
+    if (this != &other) {
+        Destroy();
+        Owner_ = std::move(other.Owner_);
+        Size_ = other.Size_;
+        other.Size_ = 0;
+    }
+    return *this;
+}
+
+TPendingReadSizeGuard::~TPendingReadSizeGuard()
+{
+    Destroy();
+}
+
+TPendingReadSizeGuard::operator bool() const
+{
+    return Owner_ != nullptr;
+}
+
+i64 TPendingReadSizeGuard::GetSize() const
+{
+    return Size_;
+}
+
+void TPendingReadSizeGuard::Destroy()
+{
+    if (Owner_) {
+        Owner_->StoreImpl_->DecreasePendingReadSize(Size_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
