@@ -88,7 +88,14 @@ protected:
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
 
-    static void AppendInfo(Stroka& lhs, const Stroka& rhs);
+    template <class... TArgs>
+    static void AppendInfo(TStringBuilder* builder, const char* format, const TArgs&... args)
+    {
+        if (builder->GetLength() > 0) {
+            builder->AppendString(STRINGBUF(", "));
+        }
+        builder->AppendFormat(format, args);
+    }
 
 private:
     mutable TSharedRefArray ResponseMessage_; // cached

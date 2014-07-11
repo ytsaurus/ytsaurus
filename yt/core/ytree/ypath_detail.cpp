@@ -981,25 +981,29 @@ protected:
 
     virtual void LogRequest() override
     {
-        Stroka str;
-        AppendInfo(str, RequestInfo_);
-        LOG_DEBUG("%s:%s %s <- %s",
-            ~GetService(),
-            ~GetMethod(),
-            ~GetRequestYPath(this),
-            ~str);
+        TStringBuilder builder;
+
+        AppendInfo(&builder, "%v", RequestInfo_);
+
+        LOG_DEBUG("%v:%v %v <- %v",
+            GetService(),
+            GetMethod(),
+            GetRequestYPath(this),
+            builder.Flush());
     }
 
     virtual void LogResponse(const TError& error) override
     {
-        Stroka str;
-        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
-        AppendInfo(str, ResponseInfo_);
-        LOG_DEBUG("%s:%s %s -> %s",
-            ~GetService(),
-            ~GetMethod(),
-            ~GetRequestYPath(this),
-            ~str);
+        TStringBuilder builder;
+
+        AppendInfo(&builder, "Error: %v", error);
+        AppendInfo(&builder, "%v", ResponseInfo_);
+
+        LOG_DEBUG("%v:%v %v -> %v",
+            GetService(),
+            GetMethod(),
+            GetRequestYPath(this),
+            builder.Flush());
     }
 
 };

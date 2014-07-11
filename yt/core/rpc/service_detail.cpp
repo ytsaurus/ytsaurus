@@ -126,27 +126,26 @@ private:
         if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
             return;
 
-        Stroka str;
-        str.reserve(1024); // should be enough for a typical request message
+        TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
+            AppendInfo(&builder, "RequestId: %v", RequestId_);
         }
 
         if (RealmId_ != NullRealmId) {
-            AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId_)));
+            AppendInfo(&builder, "RealmId: %v", RealmId_);
         }
 
         auto user = FindAuthenticatedUser(*RequestHeader_);
         if (user) {
-            AppendInfo(str, Sprintf("User: %s", ~*user));
+            AppendInfo(&builder, "User: %v", *user);
         }
 
-        AppendInfo(str, RequestInfo_);
+        AppendInfo(&builder, "%v", RequestInfo_);
 
-        LOG_DEBUG("%s <- %s",
-            ~GetMethod(),
-            ~str);
+        LOG_DEBUG("%v <- %v",
+            GetMethod(),
+            builder.Flush());
     }
 
     virtual void LogResponse(const TError& error) override
@@ -154,20 +153,19 @@ private:
         if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
             return;
 
-        Stroka str;
-        str.reserve(1024); // should be enough for typical response message
+        TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
-            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId_)));
+            AppendInfo(&builder, "RequestId: %v", RequestId_);
         }
 
-        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
+        AppendInfo(&builder, "Error: %v", error);
 
-        AppendInfo(str, ResponseInfo_);
+        AppendInfo(&builder, "%v", ResponseInfo_);
 
-        LOG_DEBUG("%s -> %s",
-            ~GetMethod(),
-            ~str);
+        LOG_DEBUG("%v -> %v",
+            GetMethod(),
+            builder.Flush());
     }
 
 };
