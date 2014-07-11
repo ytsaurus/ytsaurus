@@ -108,7 +108,7 @@ private:
         if (key == "read_quorum") {
             int readQuorum = NYTree::ConvertTo<int>(value);
             if (readQuorum < 1) {
-                THROW_ERROR_EXCEPTION("Value must be positive");
+                THROW_ERROR_EXCEPTION("\"read_quorum\" must be positive");
             }
 
             ValidateNoTransaction();
@@ -126,7 +126,7 @@ private:
         if (key == "write_quorum") {
             int writeQuorum = NYTree::ConvertTo<int>(value);
             if (writeQuorum < 1) {
-                THROW_ERROR_EXCEPTION("Value must be positive");
+                THROW_ERROR_EXCEPTION("\"write_quorum\" must be positive");
             }
 
             ValidateNoTransaction();

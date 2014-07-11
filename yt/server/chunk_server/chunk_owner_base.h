@@ -19,12 +19,19 @@ namespace NChunkServer {
 class TChunkOwnerBase
     : public NCypressServer::TCypressNodeBase
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode);
+
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
 
 public:
+    static const int DefaultReplicationFactor = 3;
+    static const int MinReplicationFactor = 1;
+    static const int MaxReplicationFactor = 10;
+
     explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;

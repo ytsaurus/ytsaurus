@@ -19,6 +19,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, WriteQuorum);
 
 public:
+    static const int DefaultReadQuorum = 2;
+    static const int DefaultWriteQuorum = 2;
+
     explicit TJournalNode(const NCypressServer::TVersionedNodeId& id);
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;

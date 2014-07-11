@@ -96,6 +96,25 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual void SetDefaultAttributes(
+        IAttributeDictionary* attributes,
+        TTransaction* transaction) override
+    {
+        TBase::SetDefaultAttributes(attributes, transaction);
+
+        if (!attributes->Contains("replication_factor")) {
+            attributes->Set("replication_factor", TChunkOwnerBase::DefaultReplicationFactor);
+        }
+
+        if (!attributes->Contains("read_quorum")) {
+            attributes->Set("read_quorum", TJournalNode::DefaultReadQuorum);
+        }
+
+        if (!attributes->Contains("write_quorum")) {
+            attributes->Set("write_quorum", TJournalNode::DefaultWriteQuorum);
+        }
+    }
+
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TJournalNode* trunkNode,
@@ -135,16 +154,6 @@ protected:
         int replicationFactor = node->GetReplicationFactor();
         int readQuorum = node->GetReadQuorum();
         int writeQuorum = node->GetWriteQuorum();
-
-        if (replicationFactor == 0) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" must be specified");
-        }
-        if (readQuorum == 0) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" must be specified");
-        }
-        if (writeQuorum == 0) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" must be specified");
-        }
 
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");

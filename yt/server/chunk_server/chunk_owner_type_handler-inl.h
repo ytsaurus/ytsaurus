@@ -32,7 +32,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
     TBase::SetDefaultAttributes(attributes, transaction);
 
     if (!attributes->Contains("replication_factor")) {
-        attributes->Set("replication_factor", 3);
+        attributes->Set("replication_factor", TChunkOwnerBase::DefaultReplicationFactor);
     }
 
     if (!attributes->Contains("erasure_codec")) {
@@ -41,6 +41,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
             NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None)));
     }
 }
+
 template <class TChunkOwner>
 NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
 {

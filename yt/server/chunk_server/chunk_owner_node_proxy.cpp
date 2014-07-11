@@ -650,12 +650,12 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     if (key == "replication_factor") {
         ValidateNoTransaction();
         int replicationFactor = NYTree::ConvertTo<int>(value);
-        const int MinReplicationFactor = 1;
-        const int MaxReplicationFactor = 10;
-        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
-                MinReplicationFactor,
-                MaxReplicationFactor);
+        if (replicationFactor < TChunkOwnerBase::MinReplicationFactor ||
+            replicationFactor > TChunkOwnerBase::MaxReplicationFactor)
+        {
+            THROW_ERROR_EXCEPTION("\"replication_factor\" must be in range [%d,%d]",
+                TChunkOwnerBase::MinReplicationFactor,
+                TChunkOwnerBase::MaxReplicationFactor);
         }
 
         auto* node = GetThisTypedImpl<TChunkOwnerBase>();
