@@ -400,15 +400,15 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 {
     State_ = EStoreState::ActiveDynamic;
 
-    LOG_DEBUG("Dynamic memory store created (TabletId: %s, StoreId: %s)",
-        ~ToString(Tablet_->GetId()),
-        ~ToString(Id_));
+    LOG_DEBUG("Dynamic memory store created (TabletId: %v, StoreId: %v)",
+        Tablet_->GetId(),
+        Id_);
 }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
-    LOG_DEBUG("Dynamic memory store destroyed (StoreId: %s)",
-        ~ToString(Id_));
+    LOG_DEBUG("Dynamic memory store destroyed (StoreId: %v)",
+        Id_);
 
     MemoryUsageUpdated_.Fire(-MemoryUsage_);
     MemoryUsage_ = 0;
@@ -422,8 +422,8 @@ int TDynamicMemoryStore::GetLockCount() const
 int TDynamicMemoryStore::Lock()
 {
     int result = ++LockCount_;
-    LOG_TRACE("Store locked (StoreId: %s, Count: %d)",
-        ~ToString(Id_),
+    LOG_TRACE("Store locked (StoreId: %v, Count: %v)",
+        Id_,
         result);
     return result;
 }
@@ -432,8 +432,8 @@ int TDynamicMemoryStore::Unlock()
 {
     YASSERT(LockCount_ > 0);
     int result = --LockCount_;
-    LOG_TRACE("Store unlocked (StoreId: %s, Count: %d)",
-        ~ToString(Id_),
+    LOG_TRACE("Store unlocked (StoreId: %v, Count: %v)",
+        Id_,
         result);
     return result;
 }
@@ -720,18 +720,18 @@ void TDynamicMemoryStore::CheckRowLock(
     if (existingTransaction) {
         if (existingTransaction == transaction) {
             if (row.GetLockMode() != mode) {
-                THROW_ERROR_EXCEPTION("Cannot change row lock mode from %s to %s",
-                    ~FormatEnum(row.GetLockMode()).Quote(),
-                    ~FormatEnum(mode).Quote());
+                THROW_ERROR_EXCEPTION("Cannot change row lock mode from %Qlv to %Qlv",
+                    row.GetLockMode(),
+                    mode);
             }
         } else {
-            THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %s",
-                ~ToString(existingTransaction->GetId()));
+            THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %v",
+                existingTransaction->GetId());
         }
     }
 
     if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
-        THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
+        THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %v",
             row.GetLastCommitTimestamp());
     }
 }
