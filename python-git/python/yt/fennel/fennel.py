@@ -45,7 +45,6 @@ class State(object):
         self._ack_queue_length = ack_queue_length
         self._last_saved_seqno = 0
         self._last_seqno = 0
-        self._acked_seqno = set()
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._event_log = event_log
@@ -98,35 +97,18 @@ class State(object):
     def on_skip(self, seqno):
         self.log.debug("Skip seqno=%d", seqno)
         if seqno > self._last_seqno:
-            last_seqno = seqno
-            for i in self._acked_seqno:
-                if i > seqno:
-                    if i == last_seqno + 1:
-                        last_seqno += 1
-                    else:
-                        break
-            self.update_last_seqno(last_seqno)
+            self.update_last_seqno(seqno)
 
     def on_save_ack(self, seqno):
         self.log.debug("Ack seqno=%d", seqno)
-        self._acked_seqno.add(seqno)
-        last_seqno = self._last_seqno
-        for seqno in self._acked_seqno:
-            if seqno == last_seqno + 1:
-                last_seqno += 1
-            else:
-                break
-        if last_seqno > self._last_seqno:
-            self.update_last_seqno(last_seqno)
+        if seqno > self._last_seqno:
+            self.update_last_seqno(seqno)
 
     def update_last_seqno(self, new_last_seqno):
         self.log.debug("Update last seqno: %d", new_last_seqno)
 
         self._last_seqno = new_last_seqno
         self.log.info("Last acked seqno is %d", self._last_seqno)
-        for seqno in list(self._acked_seqno):
-            if seqno <= self._last_seqno:
-                self._acked_seqno.remove(seqno)
 
         if self._update_state_handle is None:
             self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=5), self._update_state)
