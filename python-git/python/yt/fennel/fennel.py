@@ -39,65 +39,65 @@ class State(object):
                  ack_queue_length=DEFAULT_ACK_QUEUE_LENGTH,
                  IOStreamClass=None,
                  **options):
-        self.chunk_size_ = chunk_size
-        self.ack_queue_length_ = ack_queue_length
-        self.last_saved_seqno_ = 0
-        self.last_seqno_ = 0
-        self.acked_seqno_ = set()
+        self._chunk_size = chunk_size
+        self._ack_queue_length = ack_queue_length
+        self._last_saved_seqno = 0
+        self._last_seqno = 0
+        self._acked_seqno = set()
 
-        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.event_log_ = event_log
-        self.log_broker_ = LogBroker(self, self.io_loop_, IOStreamClass, **options)
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self._event_log = event_log
+        self._log_broker = LogBroker(self, self._io_loop, IOStreamClass, **options)
 
-        self.save_chunk_handle_ = None
-        self.update_state_handle_ = None
+        self._save_chunk_handle = None
+        self._update_state_handle = None
 
     def start(self):
         self._initialize()
-        self.log_broker_.start()
+        self._log_broker.start()
 
     def abort(self):
-        self.log_broker.abort()
+        self._log_broker.abort()
 
     def _initialize(self):
-        self.last_saved_seqno_ = self._from_line_index(self.event_log_.get_next_line_to_save())
-        self.last_seqno_ = self.last_saved_seqno_
-        self.log.info("Last acked seqno is %d", self.last_seqno_)
+        self._last_saved_seqno = self._from_line_index(self._event_log.get_next_line_to_save())
+        self._last_seqno = self._last_saved_seqno
+        self.log.info("Last acked seqno is %d", self._last_seqno)
 
     def maybe_save_another_chunk(self):
-        if self.save_chunk_handle_ is not None:
+        if self._save_chunk_handle is not None:
             # wait for callback
             return
-        if self.last_saved_seqno_ - self.last_seqno_ < self.ack_queue_length_:
+        if self._last_saved_seqno - self._last_seqno < self._ack_queue_length:
             self._save_chunk()
 
     def _save_chunk(self):
         self.log.debug("Schedule chunk save")
-        self.save_chunk_handle_ = None
+        self._save_chunk_handle = None
         try:
-            seqno = self.last_saved_seqno_ + 1
-            data = self.event_log_.get_data(self._to_line_index(seqno), self.chunk_size_)
-            self.log_broker_.save_chunk(seqno, data)
-            self.last_saved_seqno_ = seqno
+            seqno = self._last_saved_seqno + 1
+            data = self._event_log.get_data(self._to_line_index(seqno), self._chunk_size)
+            self._log_broker.save_chunk(seqno, data)
+            self._last_saved_seqno = seqno
         except yt.YtError:
             self.log.error("Unable to schedule chunk save", exc_info=True)
-            self.save_chunk_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self._save_chunk)
+            self._save_chunk_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=1), self._save_chunk)
         except EventLog.NotEnoughDataError:
-            self.log.warning("Unable to get {0} rows from event log".format(self.chunk_size_), exc_info=True)
-            self.io_loop_.add_timeout(datetime.timedelta(seconds=120), self.maybe_save_another_chunk)
+            self.log.warning("Unable to get {0} rows from event log".format(self._chunk_size), exc_info=True)
+            self._io_loop.add_timeout(datetime.timedelta(seconds=120), self.maybe_save_another_chunk)
         else:
-            self.io_loop_.add_callback(self.maybe_save_another_chunk)
+            self._io_loop.add_callback(self.maybe_save_another_chunk)
 
     def on_session_changed(self):
-        self.last_saved_seqno_ = self.last_seqno_
-        self.log.info("Last acked seqno is %d", self.last_seqno_)
+        self._last_saved_seqno = self._last_seqno
+        self.log.info("Last acked seqno is %d", self._last_seqno)
         self.maybe_save_another_chunk()
 
     def on_skip(self, seqno):
         self.log.debug("Skip seqno=%d", seqno)
-        if seqno > self.last_seqno_:
+        if seqno > self._last_seqno:
             last_seqno = seqno
-            for i in self.acked_seqno_:
+            for i in self._acked_seqno:
                 if i > seqno:
                     if i == last_seqno + 1:
                         last_seqno += 1
@@ -107,44 +107,44 @@ class State(object):
 
     def on_save_ack(self, seqno):
         self.log.debug("Ack seqno=%d", seqno)
-        self.acked_seqno_.add(seqno)
-        last_seqno = self.last_seqno_
-        for seqno in self.acked_seqno_:
+        self._acked_seqno.add(seqno)
+        last_seqno = self._last_seqno
+        for seqno in self._acked_seqno:
             if seqno == last_seqno + 1:
                 last_seqno += 1
             else:
                 break
-        if last_seqno > self.last_seqno_:
+        if last_seqno > self._last_seqno:
             self.update_last_seqno(last_seqno)
 
     def update_last_seqno(self, new_last_seqno):
         self.log.debug("Update last seqno: %d", new_last_seqno)
 
-        self.last_seqno_ = new_last_seqno
-        self.log.info("Last acked seqno is %d", self.last_seqno_)
-        for seqno in list(self.acked_seqno_):
-            if seqno <= self.last_seqno_:
-                self.acked_seqno_.remove(seqno)
+        self._last_seqno = new_last_seqno
+        self.log.info("Last acked seqno is %d", self._last_seqno)
+        for seqno in list(self._acked_seqno):
+            if seqno <= self._last_seqno:
+                self._acked_seqno.remove(seqno)
 
-        if self.update_state_handle_ is None:
-            self.update_state_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=5), self._update_state)
+        if self._update_state_handle is None:
+            self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=5), self._update_state)
 
         self.maybe_save_another_chunk()
 
     def _update_state(self):
-        self.log.debug("Update state. Last acked seqno: %d", self.last_seqno_)
-        self.update_state_handle_ = None
+        self.log.debug("Update state. Last acked seqno: %d", self._last_seqno)
+        self._update_state_handle = None
         try:
-            self.event_log_.set_next_line_to_save(self._to_line_index(self.last_seqno_))
+            self._event_log.set_next_line_to_save(self._to_line_index(self._last_seqno))
         except yt.YtError:
             self.log.error("Unable to update next line to save", exc_info=True)
-            self.update_state_handle_ = self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self._update_state)
+            self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=1), self._update_state)
 
     def _to_line_index(self, reqno):
-        return reqno * self.chunk_size_
+        return reqno * self._chunk_size
 
     def _from_line_index(self, line_index):
-        return line_index / self.chunk_size_
+        return line_index / self._chunk_size
 
 
 class EventLog(object):
@@ -153,18 +153,18 @@ class EventLog(object):
 
     def __init__(self, yt, table_name=None):
         self.yt = yt
-        self.table_name_ = table_name or "//tmp/event_log"
-        self.index_of_first_line_attr_ = "{0}/@index_of_first_line".format(self.table_name_)
-        self.lines_to_save_attr_ = "{0}/@lines_to_save".format(self.table_name_)
+        self._table_name = table_name or "//tmp/event_log"
+        self._index_of_first_line_attr = "{0}/@index_of_first_line".format(self._table_name)
+        self._linex_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
 
     def get_data(self, begin, count):
         result = None
         with self.yt.Transaction():
-            lines_removed = int(self.yt.get(self.index_of_first_line_attr_))
+            lines_removed = int(self.yt.get(self._index_of_first_line_attr))
             begin -= lines_removed
             assert begin >= 0
             result = [item for item in self.yt.read_table(yt.TablePath(
-                self.table_name_,
+                self._table_name,
                 start_index=begin,
                 end_index=begin + count), format="json", raw=False)]
         if len(result) != count:
@@ -173,26 +173,26 @@ class EventLog(object):
 
     def truncate(self, count):
         with self.yt.Transaction():
-            index_of_first_line = int(self.yt.get(self.index_of_first_line_attr_))
+            index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
             index_of_first_line += count
-            self.yt.set(self.index_of_first_line_attr_, index_of_first_line)
+            self.yt.set(self._index_of_first_line_attr, index_of_first_line)
             self.yt.run_erase(yt.TablePath(
-                self.table_name_,
+                self._table_name,
                 start_index=0,
                 end_index=count))
 
     def set_next_line_to_save(self, line_index):
-        self.yt.set(self.lines_to_save_attr_, line_index)
+        self.yt.set(self._linex_to_save_attr, line_index)
 
     def get_next_line_to_save(self):
-        return self.yt.get(self.lines_to_save_attr_)
+        return self.yt.get(self._linex_to_save_attr)
 
     def initialize(self):
         with self.yt.Transaction():
-            if not self.yt.exists(self.lines_to_save_attr_):
-                self.yt.set(self.lines_to_save_attr_, 0)
-            if not self.yt.exists(self.index_of_first_line_attr_):
-                self.yt.set(self.index_of_first_line_attr_, 0)
+            if not self.yt.exists(self._linex_to_save_attr):
+                self.yt.set(self._linex_to_save_attr, 0)
+            if not self.yt.exists(self._index_of_first_line_attr):
+                self.yt.set(self._index_of_first_line_attr, 0)
 
 
 def serialize_chunk(chunk_id, seqno, lines, data):
@@ -227,82 +227,82 @@ class LogBroker(object):
     log = logging.getLogger("log_broker")
 
     def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None, **options):
-        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
-        self.host_ = self.endpoint_[0]
-        self.state_ = state
-        self.starting_ = False
-        self.chunk_id_ = 0
-        self.lines_ = 0
-        self.push_channel_ = None
-        self.session_ = None
-        self.session_options_ = options
-        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
+        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self._host = self._endpoint[0]
+        self._state = state
+        self._starting = False
+        self._chunk_id = 0
+        self._lines = 0
+        self._push_channel = None
+        self._session = None
+        self._session_options = options
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def start(self):
-        if not self.starting_:
-            self.starting_ = True
+        if not self._starting:
+            self._starting = True
             self.log.info("Start a log broker")
-            self.session_ = Session(self.state_, self, self.io_loop_, self.IOStreamClass, endpoint=self.endpoint_, **self.session_options_)
-            self.session_.connect()
+            self._session = Session(self._state, self, self._io_loop, self.IOStreamClass, endpoint=self._endpoint, **self._session_options)
+            self._session.connect()
 
     def abort(self):
-        self.push_channel_.abort()
-        self.session_.abort()
+        self._push_channel.abort()
+        self._session.abort()
 
     def save_chunk(self, seqno, data):
-        if self.push_channel_ is not None:
-            serialized_data = serialize_chunk(self.chunk_id_, seqno, self.lines_, data)
-            self.chunk_id_ += 1
-            self.lines_ += 1
+        if self._push_channel is not None:
+            serialized_data = serialize_chunk(self._chunk_id, seqno, self._lines, data)
+            self._chunk_id += 1
+            self._lines += 1
 
             self.log.debug("Save chunk [%d]", seqno)
             data_to_write = "{size:X}\r\n{data}\r\n".format(size=len(serialized_data), data=serialized_data)
-            self.push_channel_.write(data_to_write)
+            self._push_channel.write(data_to_write)
         else:
             assert False
 
     def on_session_changed(self, id_):
-        self.starting_ = False
-        if self.push_channel_ is not None:
-            self.push_channel_.abort()
+        self._starting = False
+        if self._push_channel is not None:
+            self._push_channel.abort()
 
-        self.chunk_id_ = 0
-        self.lines_ = 0
+        self._chunk_id = 0
+        self._lines = 0
 
-        self.push_channel_ = PushChannel(self.state_, id_,
-            io_loop=self.io_loop_,
+        self._push_channel = PushChannel(self._state, id_,
+            io_loop=self._io_loop,
             IOStreamClass=self.IOStreamClass,
-            endpoint=self.endpoint_)
-        self.push_channel_.connect()
+            endpoint=self._endpoint)
+        self._push_channel.connect()
 
 
 class PushChannel(object):
     log = logging.getLogger("push_channel")
 
     def __init__(self, state, session_id, io_loop=None, IOStreamClass=None, endpoint=None):
-        self.state_ = state
-        self.session_id_ = session_id
-        self.aborted_ = False
+        self._state = state
+        self._session_id = session_id
+        self._aborted = False
 
-        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
-        self.host_ = self.endpoint_[0]
+        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self._host = self._endpoint[0]
 
-        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.iostream_ = None
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self._iostream = None
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def connect(self):
         self.log.info("Create a push channel")
-        if self.aborted_:
+        if self._aborted:
             self.log.error("Unable to connect: channel is aborted")
             return
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
-        self.iostream_.set_close_callback(self.on_close)
-        self.iostream_.connect(self.endpoint_, callback=self.on_connect)
+        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
+        self._iostream.set_close_callback(self.on_close)
+        self._iostream.connect(self._endpoint, callback=self.on_connect)
         self.log.info("Send request")
-        self.iostream_.write(
+        self._iostream.write(
             "PUT /rt/store HTTP/1.1\r\n"
             "Host: {host}\r\n"
             "Content-Type: text/plain\r\n"
@@ -311,26 +311,26 @@ class PushChannel(object):
             "RTSTreamFormat: v2le\r\n"
             "Session: {session_id}\r\n"
             "\r\n".format(
-                host=self.host_,
-                session_id=self.session_id_)
+                host=self._host,
+                session_id=self._session_id)
         )
 
     def write(self, data):
-        if self.aborted_:
+        if self._aborted:
             self.log.error("Unable to write: channel is aborted")
             return
-        self.iostream_.write(data)
+        self._iostream.write(data)
 
     def abort(self):
         self.log.info("Abort the push channel")
-        self.aborted_ = True
-        if self.iostream_ is not None:
-            self.iostream_.close()
+        self._aborted = True
+        if self._iostream is not None:
+            self._iostream.close()
 
     def on_connect(self):
         self.log.info("The push channel has been created")
-        self.state_.on_session_changed()
-        self.iostream_.read_until_close(self.on_response_end, self.on_response)
+        self._state.on_session_changed()
+        self._iostream.read_until_close(self.on_response_end, self.on_response)
 
     def on_response(self, data):
         self.log.debug(data)
@@ -340,9 +340,9 @@ class PushChannel(object):
 
     def on_close(self):
         self.log.info("The push channel has been closed")
-        self.iostream_ = None
-        if not self.aborted_:
-            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
+        self._iostream = None
+        if not self._aborted:
+            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
 
 class Session(object):
@@ -357,30 +357,30 @@ class Session(object):
             endpoint=None,
             service_id=None,
             source_id=None):
-        self.endpoint_ = endpoint or DEFAULT_KAFKA_ENDPOINT
-        self.host_ = self.endpoint_[0]
-        self.service_id_ = service_id or DEFAULT_SERVICE_ID
-        self.source_id_ = source_id or DEFAULT_SOURCE_ID
-        self.id_ = None
-        self.aborted_ = False
-        self.state_ = state
-        self.log_broker_ = log_broker
-        self.io_loop_ = io_loop or ioloop.IOLoop.instance()
-        self.iostream_ = None
+        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self._host = self._endpoint[0]
+        self._service_id = service_id or DEFAULT_SERVICE_ID
+        self._source_id = source_id or DEFAULT_SOURCE_ID
+        self._id = None
+        self._aborted = False
+        self._state = state
+        self._log_broker = log_broker
+        self._io_loop = io_loop or ioloop.IOLoop.instance()
+        self._iostream = None
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def connect(self):
-        assert self.iostream_ is None
-        if self.aborted_:
+        assert self._iostream is None
+        if self._aborted:
             return
         self.log.info("Connect to kafka")
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        self.iostream_ = self.IOStreamClass(s, io_loop=self.io_loop_)
-        self.iostream_.set_close_callback(self.on_close)
-        self.iostream_.connect(self.endpoint_, callback=self.on_connect)
+        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
+        self._iostream.set_close_callback(self.on_close)
+        self._iostream.connect(self._endpoint, callback=self.on_connect)
         self.log.info("Send request")
-        self.iostream_.write(
+        self._iostream.write(
             "GET /rt/session?"
             "ident={ident}&"
             "sourceid={source_id}&"
@@ -389,42 +389,42 @@ class Session(object):
             "Host: {host}\r\n"
             "Accept: */*\r\n\r\n".format(
                 ident="yt",
-                source_id=self.source_id_,
-                host=self.host_)
+                source_id=self._source_id,
+                host=self._host)
         )
 
     @gen.coroutine
     def on_connect(self):
         self.log.info("The session channel has been created")
-        metadata_raw = yield gen.Task(self.iostream_.read_until, "\r\n\r\n")
+        metadata_raw = yield gen.Task(self._iostream.read_until, "\r\n\r\n")
 
         self.log.debug("Parse response %s", metadata_raw)
         result = self.read_metadata(metadata_raw[:-4])
         if not result:
             self.log.error("Unable to find Session header in the response")
-            self.iostream_.close()
+            self._iostream.close()
             return
 
         try:
             while True:
-                headers_raw = yield gen.Task(self.iostream_.read_until, "\r\n")
+                headers_raw = yield gen.Task(self._iostream.read_until, "\r\n")
                 try:
                     body_size = int(headers_raw, 16)
                 except ValueError:
                     self.log.error("Bad HTTP chunk header format")
-                    self.iostream_.close()
+                    self._iostream.close()
                     return
                 if body_size == 0:
                     self.log.error("HTTP response is finished")
-                    self.iostream_.close()
+                    self._iostream.close()
                     return
-                data = yield gen.Task(self.iostream_.read_bytes, body_size + 2)
+                data = yield gen.Task(self._iostream.read_bytes, body_size + 2)
 
                 self.log.debug("Process status: %s", data.strip())
                 self.process_data(data.strip())
         except Exception:
             self.log.error("Unhandled exception. Close the push channel", exc_info=True)
-            self.iostream_.close()
+            self._iostream.close()
             raise
 
     def read_metadata(self, data):
@@ -432,31 +432,31 @@ class Session(object):
             if index > 0:
                 key, value = line.split(":", 1)
                 if key.strip() == "Session":
-                    self.id_ = value.strip()
-                    self.log.info("Session id: %s", self.id_)
-                    self.log_broker_.on_session_changed(self.id_)
+                    self._id = value.strip()
+                    self.log.info("Session id: %s", self._id)
+                    self._log_broker.on_session_changed(self._id)
                     return True
         return False
 
     def abort(self):
         self.log.info("Abort the session channel")
-        self.aborted_ = True
+        self._aborted = True
         if self.iostream is not None:
-            self.iostream_.close()
+            self._iostream.close()
 
     def on_close(self):
         self.log.error("The session channel has been closed")
-        self.iostream_ = None
-        if not self.aborted_:
-            self.io_loop_.add_timeout(datetime.timedelta(seconds=1), self.connect)
+        self._iostream = None
+        if not self._aborted:
+            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
 
     def process_data(self, data):
         if data.startswith("skip"):
             line = data[len("skip") + 1:]
-            handler = self.state_.on_skip
+            handler = self._state.on_skip
         else:
             line = data
-            handler = self.state_.on_save_ack
+            handler = self._state.on_save_ack
 
         attributes = self._parse(line)
         try:
