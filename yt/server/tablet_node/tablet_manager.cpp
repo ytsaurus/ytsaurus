@@ -131,8 +131,8 @@ public:
 
         auto* tablet = FindTablet(id);
         if (!tablet) {
-            THROW_ERROR_EXCEPTION("No such tablet %s",
-                ~ToString(id));
+            THROW_ERROR_EXCEPTION("No such tablet %v",
+                id);
         }
         return tablet;
     }
@@ -142,8 +142,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (tablet->GetState() != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %s is not in \"mounted\" state",
-                ~ToString(tablet->GetId()));
+            THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
+                tablet->GetId());
         }
     }
 
@@ -221,9 +221,9 @@ public:
 
         int rowCount = static_cast<int>(PooledRowRefs_.size());
 
-        LOG_DEBUG("Rows prewritten (TransactionId: %s, TabletId: %s, RowCount: %d, CommandsSucceded: %d)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
+        LOG_DEBUG("Rows prewritten (TransactionId: %v, TabletId: %v, RowCount: %v, CommandsSucceded: %v)",
+            transaction->GetId(),
+            tablet->GetId(),
             rowCount,
             commandsSucceded);
 
@@ -276,8 +276,8 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         PostTabletMutation(request);
 
-        LOG_DEBUG("Store rotation scheduled (TabletId: %s)",
-            ~ToString(tablet->GetId()));
+        LOG_DEBUG("Store rotation scheduled (TabletId: %v)",
+            tablet->GetId());
     }
 
 
@@ -320,7 +320,7 @@ private:
         if (timestamp != LastCommittedTimestamp &&
             (timestamp < MinTimestamp || timestamp > MaxTimestamp))
         {
-            THROW_ERROR_EXCEPTION("Invalid timestamp %" PRIu64, timestamp);
+            THROW_ERROR_EXCEPTION("Invalid timestamp %v", timestamp);
         }
     }
 
@@ -490,11 +490,11 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %s, StoreCount: %d, Keys: %s .. %s)",
-            ~ToString(tabletId),
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, StoreCount: %v, Keys: %v .. %v)",
+            tabletId,
             request.chunk_stores_size(),
-            ~ToString(pivotKey),
-            ~ToString(nextPivotKey));
+            pivotKey,
+            nextPivotKey);
     }
 
     void HydraUnmountTablet(const TReqUnmountTablet& request)
@@ -505,8 +505,8 @@ private:
             return;
 
         if (request.force()) {
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %s)",
-                ~ToString(tabletId));
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %v)",
+                tabletId);
 
             // Just a formality.
             tablet->SetState(ETabletState::Unmounted);
@@ -530,14 +530,14 @@ private:
         }
 
         if (tablet->GetState() != ETabletState::Mounted) {
-            LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %s state, ignored (TabletId: %s)",
-                ~FormatEnum(tablet->GetState()).Quote(),
-                ~ToString(tabletId));
+            LOG_INFO_UNLESS(IsRecovery(), "Requested to unmount a tablet in %Qlv state, ignored (TabletId: %v)",
+                tablet->GetState(),
+                tabletId);
             return;
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %s)",
-            ~ToString(tabletId));
+        LOG_INFO_UNLESS(IsRecovery(), "Unmounting tablet (TabletId: %v)",
+            tabletId);
 
         // Just a formality.
         YCHECK(tablet->GetState() == ETabletState::Mounted);
@@ -545,8 +545,8 @@ private:
 
         YCHECK(UnmountingTablets_.insert(tablet).second);
 
-        LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %s)",
-            ~ToString(tabletId));
+        LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (TabletId: %v)",
+            tabletId);
 
         if (IsLeader()) {
             CheckIfFullyUnlocked(tablet);
@@ -570,8 +570,8 @@ private:
             partition->SetSamplingNeeded(true);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %s)",
-            ~ToString(tabletId));
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet remounted (TabletId: %v)",
+            tabletId);
     }
 
     void HydraSetTabletState(const TReqSetTabletState& request)
@@ -590,8 +590,8 @@ private:
                 // NB: Flush requests for all other stores must already be on their way.
                 RotateStores(tablet, false);
 
-                LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %s)",
-                    ~ToString(tabletId));
+                LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (TabletId: %v)",
+                    tabletId);
 
                 if (IsLeader()) {
                     CheckIfAllStoresFlushed(tablet);
@@ -602,8 +602,8 @@ private:
             case ETabletState::Unmounted: {
                 tablet->SetState(ETabletState::Unmounted);
 
-                LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %s)",
-                    ~ToString(tabletId));
+                LOG_INFO_UNLESS(IsRecovery(), "Tablet unmounted (TabletId: %v)",
+                    tabletId);
 
                 if (!IsRecovery()) {
                     StopTabletEpoch(tablet);
@@ -636,7 +636,7 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %d)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (RowCount: %v)",
             rowCount);
     }
 
@@ -670,9 +670,9 @@ private:
             LOG_FATAL(ex, "Error executing writes");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %s, TabletId: %s, CommandsSucceded: %d)",
-            ~ToString(transaction->GetId()),
-            ~ToString(tablet->GetId()),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, CommandsSucceded: %v)",
+            transaction->GetId(),
+            tablet->GetId(),
             commandsSucceded);
     }
 
@@ -709,10 +709,10 @@ private:
             store->SetState(EStoreState::RemoveCommitting);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %s, StoreIdsToAdd: [%s], StoreIdsToRemove: [%s])",
-            ~ToString(tabletId),
-            ~JoinToString(storeIdsToAdd),
-            ~JoinToString(storeIdsToRemove));
+        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+            tabletId,
+            JoinToString(storeIdsToAdd),
+            JoinToString(storeIdsToRemove));
 
         TReqUpdateTabletStores updateRequest;
         ToProto(updateRequest.mutable_tablet_id(), tabletId);
@@ -733,8 +733,8 @@ private:
 
         if (response.has_error()) {
             auto error = FromProto<TError>(response.error());
-            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %s)",
-                ~ToString(tabletId));
+            LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
+                tabletId);
 
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
@@ -763,10 +763,10 @@ private:
                 storeManager->RemoveStore(store);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %s, AddedStoreIds: [%s], RemovedStoreIds: [%s])",
-                ~ToString(tabletId),
-                ~JoinToString(addedStoreIds),
-                ~JoinToString(removedStoreIds));
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+                tabletId,
+                JoinToString(addedStoreIds),
+                JoinToString(removedStoreIds));
 
             if (IsLeader()) {
                 CheckIfAllStoresFlushed(tablet);
@@ -788,11 +788,11 @@ private:
         auto* partition = tablet->GetPartitionByPivotKey(pivotKeys[0]);
         int partitionIndex = partition->GetIndex();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %s, PartitionIndex: %d, DataSize: %" PRId64 ", Keys: %s)",
-            ~ToString(tablet->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, PartitionIndex: %v, DataSize: %v, Keys: %v)",
+            tablet->GetId(),
             partitionIndex,
             partition->GetTotalDataSize(),
-            ~JoinToString(pivotKeys, Stroka(" .. ")));
+            JoinToString(pivotKeys, Stroka(" .. ")));
 
         tablet->SplitPartition(partitionIndex, pivotKeys);
 
@@ -814,12 +814,12 @@ private:
         int firstPartitionIndex = partition->GetIndex();
         int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %s, PartitionIndexes: %d .. %d, Keys: %s .. %s)",
-            ~ToString(tablet->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, PartitionIndexes: %v .. %v, Keys: %v .. %v)",
+            tablet->GetId(),
             firstPartitionIndex,
             lastPartitionIndex,
-            ~ToString(tablet->Partitions()[firstPartitionIndex]->GetPivotKey()),
-            ~ToString(tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey()));
+            tablet->Partitions()[firstPartitionIndex]->GetPivotKey(),
+            tablet->Partitions()[lastPartitionIndex]->GetNextPivotKey());
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
 
@@ -841,8 +841,8 @@ private:
         if (!partition)
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Updating partition sample keys (TabletId: %s, PartitionIndex: %d, SampleKeyCount: %d)",
-            ~ToString(tablet->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Updating partition sample keys (TabletId: %v, PartitionIndex: %v, SampleKeyCount: %v)",
+            tablet->GetId(),
             partition->GetIndex(),
             request.sample_keys_size());
 
@@ -865,8 +865,8 @@ private:
                 }
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %s, RowCount: %" PRISZT ")",
-                ~ToString(transaction->GetId()),
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
                 transaction->LockedRows().size());
         }
     }
@@ -882,8 +882,8 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %s, RowCount: %" PRISZT ")",
-            ~ToString(transaction->GetId()),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
+            transaction->GetId(),
             transaction->LockedRows().size());
 
         OnTransactionFinished(transaction);
@@ -900,8 +900,8 @@ private:
             }
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %s, RowCount: %" PRISZT ")",
-            ~ToString(transaction->GetId()),
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
+            transaction->GetId(),
             transaction->LockedRows().size());
 
         OnTransactionFinished(transaction);
@@ -930,9 +930,9 @@ private:
         int lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
-            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %s, TabletId: %s, LockCount: %d)",
-                ~ToString(store->GetId()),
-                ~ToString(store->GetTablet()->GetId()),
+            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
+                store->GetId(),
+                store->GetTablet()->GetId(),
                 lockCount);
         }
     }
@@ -946,8 +946,8 @@ private:
 
         int lockCount = store->Unlock();
         if (lockCount == 0) {
-            LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %s)",
-                ~ToString(store->GetId()));
+            LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
+                store->GetId());
             YCHECK(OrphanedStores_.erase(store) == 1);
         }
         return false;
@@ -976,8 +976,8 @@ private:
                 break;
 
             default:
-                THROW_ERROR_EXCEPTION("Unknown read command %s",
-                    ~ToString(command));
+                THROW_ERROR_EXCEPTION("Unknown read command %v",
+                    command);
         }
 
         return true;
@@ -1019,8 +1019,8 @@ private:
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Unknown write command %s",
-                    ~ToString(command));
+                THROW_ERROR_EXCEPTION("Unknown write command %v",
+                    command);
         }
 
         return true;
@@ -1035,8 +1035,8 @@ private:
         if (tablet->GetStoreManager()->HasActiveLocks())
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %s)",
-            ~ToString(tablet->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
+            tablet->GetId());
 
         tablet->SetState(ETabletState::FlushPending);
 
@@ -1054,8 +1054,8 @@ private:
         if (tablet->GetStoreManager()->HasUnflushedStores())
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %s)",
-            ~ToString(tablet->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
+            tablet->GetId());
 
         tablet->SetState(ETabletState::UnmountPending);
 
