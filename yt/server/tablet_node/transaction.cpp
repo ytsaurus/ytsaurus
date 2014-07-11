@@ -43,16 +43,21 @@ void TTransaction::Save(TSaveContext& context) const
 
     Save(context, LockedRows_.size());
     for (const auto& rowRef : LockedRows_) {
-        auto* tablet = rowRef.Store->GetTablet();
+        auto* store = rowRef.Store;
+        if (store->GetState() == EStoreState::Orphaned)
+            continue;
+
+        auto row = rowRef.Row;
+        auto* tablet = store->GetTablet();
 
         // Tablet
         Save(context, tablet->GetId());
 
         // Lock mode
-        Save(context, rowRef.Row.GetLockMode());
+        Save(context, row.GetLockMode());
 
         // Keys
-        auto* keyBegin = rowRef.Row.GetKeys();
+        auto* keyBegin = row.GetKeys();
         auto* keyEnd = keyBegin + tablet->GetKeyColumnCount();
         for (auto* it = keyBegin; it != keyEnd; ++it) {
             NVersionedTableClient::Save(context, *it);
