@@ -61,7 +61,9 @@ public:
      *  Fetching an already-cached block is cheap (i.e. requires no context switch).
      *  Fetching an uncached block enqueues a disk-read action to the appropriate IO queue.
      * 
-     *  If the requested block is missing then null is returned.
+     *  If the requested block does not exist then an error is returned.
+     *  However, if the requested chunk is missing then cache lookup is performed.
+     *  In the latter case null may be returned for non-existing blocks.
      */
     TAsyncGetBlockResult GetBlock(
         const TChunkId& chunkId,
@@ -72,7 +74,7 @@ public:
     //! Asynchronously retrieves a range of blocks from the store.
     /*!
      *  The resulting list may contain less blocks than requested.
-     *  An empty list indicates that the requested blocks are out of range.
+     *  An empty list indicates that the requested blocks are all out of range.
      */
     TAsyncGetBlocksResult GetBlocks(
         const TChunkId& chunkId,

@@ -47,7 +47,7 @@ TCachedBlock::TCachedBlock(
 
 TCachedBlock::~TCachedBlock()
 {
-    LOG_DEBUG("Cached block purged (BlockId: %s)", ~ToString(GetKey()));
+    LOG_DEBUG("Cached block purged (BlockId: %v)", GetKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,10 +84,10 @@ public:
                 auto block = New<TCachedBlock>(blockId, data, source);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache (BlockId: %s, Size: %" PRISZT ", SourceAddress: %s)",
-                    ~ToString(blockId),
+                LOG_DEBUG("Block is put into cache (BlockId: %v, Size: %v, SourceAddress: %v)",
+                    blockId,
                     data.Size(),
-                    ~ToString(source));
+                    source);
                 return;
             }
 
@@ -105,12 +105,12 @@ public:
             auto block = result.Value();
 
             if (!TRef::AreBitwiseEqual(data, block->GetData())) {
-                LOG_FATAL("Trying to cache block %s for which a different cached copy already exists",
-                    ~ToString(blockId));
+                LOG_FATAL("Trying to cache block %v for which a different cached copy already exists",
+                    blockId);
             }
 
-            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)",
-                ~ToString(blockId));
+            LOG_DEBUG("Block is resurrected in cache (BlockId: %v)",
+                blockId);
             return;
         }
     }
@@ -154,8 +154,8 @@ public:
 
         if (!chunk->TryAcquireReadLock()) {
             return MakeFuture<TGetBlockResult>(TError(
-                "Cannot read chunk %s since it is scheduled for removal",
-                ~ToString(chunkId)));
+                "Cannot read chunk %v since it is scheduled for removal",
+                chunkId));
         }
 
         return chunk
@@ -165,10 +165,12 @@ public:
                 if (!result.IsOK()) {
                     return TError(result);
                 }
+                
                 const auto& blocks = result.Value();
                 if (blocks.empty()) {
-                    return TSharedRef();
+                    return TError("No such block %v:%v", chunkId, blockIndex);
                 }
+
                 return blocks[0];
             }));
     }
@@ -189,8 +191,8 @@ public:
 
         if (!chunk->TryAcquireReadLock()) {
             return MakeFuture<TGetBlocksResult>(TError(
-                "Cannot read chunk %s since it is scheduled for removal",
-                ~ToString(chunkId)));
+                "Cannot read chunk %v since it is scheduled for removal",
+                chunkId));
         }
 
         return chunk
@@ -218,7 +220,7 @@ public:
     void UpdatePendingReadSize(i64 delta)
     {
         i64 result = (PendingReadSize_ += delta);
-        LOG_DEBUG("Pending read size updated (PendingReadSize: %" PRId64 ", Delta: %" PRId64")",
+        LOG_DEBUG("Pending read size updated (PendingReadSize: %v, Delta: %v)",
             result,
             delta);
     }
@@ -240,8 +242,8 @@ private:
     void LogCacheHit(TCachedBlockPtr block)
     {
         Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
-        LOG_DEBUG("Block cache hit (BlockId: %s)",
-            ~ToString(block->GetKey()));
+        LOG_DEBUG("Block cache hit (BlockId: %v)",
+            block->GetKey());
     }
 
 };
