@@ -81,6 +81,10 @@ TKeyRange RefineKeyRange(
 
     const int keySize = static_cast<int>(keyColumns.size());
 
+    if (keySize <= 0) {
+        return keyRange;
+    }
+
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
     [&] (const Stroka& columnName) -> size_t {
@@ -228,20 +232,6 @@ TKeyRange RefineKeyRange(
     if (rightBound[keySize - 1].Type != EValueType::Max) {
         rightBound[keySize - 1] = GetNextValue(rightBound[keySize - 1], &rowBuffer);
     }
-
-    // Increment rightBound
-    //{
-    //    int keyPartIndex = keySize - 1;
-
-    //    while (keyPartIndex >= 0 && rightBound[keyPartIndex].Type == EValueType::Max) {
-    //        rightBound[keyPartIndex].Type = EValueType::Min;
-    //        --keyPartIndex;
-    //    }
-
-    //    if (keyPartIndex >= 0) {
-    //        rightBound[keyPartIndex] = GetNextValue(rightBound[keyPartIndex], &rowBuffer);
-    //    }
-    //}
 
     YCHECK(keyRange.first.GetCount() <= keySize);
     YCHECK(keyRange.second.GetCount() <= keySize);
