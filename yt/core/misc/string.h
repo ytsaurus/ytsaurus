@@ -28,6 +28,11 @@ public:
         return Current_;
     }
 
+    size_t GetLength() const
+    {
+        return FlushedLength_ + (Current_ - Begin_);
+    }
+
     void Advance(size_t size)
     {
         Current_ += size;
