@@ -16,57 +16,57 @@ import json
 @pytest.fixture
 def fake_state():
     state = fennel.State(event_log=mock.Mock(name="event_log"))
-    state.log_broker_ = mock.Mock(name="log_broker")
+    state._log_broker = mock.Mock(name="log_broker")
     return state
 
 
 def test_on_skip_new(fake_state):
     fake_state.on_skip(10);
-    assert fake_state.last_seqno_ == 10
+    assert fake_state._last_seqno == 10
 
 
 def test_on_skip_old(fake_state):
-    fake_state.last_seqno_ = 20
+    fake_state._last_seqno = 20
     fake_state.on_skip(10);
-    assert fake_state.last_seqno_ == 20
+    assert fake_state._last_seqno == 20
 
 
 def test_on_save_ack_next(fake_state):
-    assert fake_state.last_seqno_ == 0
+    assert fake_state._last_seqno == 0
     fake_state.on_save_ack(1)
-    assert fake_state.last_seqno_ == 1
+    assert fake_state._last_seqno == 1
 
 
 def test_on_save_ack_not_next(fake_state):
-    assert fake_state.last_seqno_ == 0
+    assert fake_state._last_seqno == 0
     fake_state.on_save_ack(2)
-    assert fake_state.last_seqno_ == 0
+    assert fake_state._last_seqno == 0
 
 
 def test_on_save_ack_reordered(fake_state):
-    assert fake_state.last_seqno_ == 0
+    assert fake_state._last_seqno == 0
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(1)
-    assert fake_state.last_seqno_ == 2
+    assert fake_state._last_seqno == 2
 
 
 def test_on_skip_removes_old_acks(fake_state):
     fake_state.on_save_ack(2)
     fake_state.on_save_ack(11)
     fake_state.on_skip(10)
-    assert fake_state.last_seqno_ == 11
+    assert fake_state._last_seqno == 11
 
 
 def test_do_not_save(fake_state):
-    fake_state.last_saved_seqno_ = 1
+    fake_state._last_saved_seqno = 1
     fake_state.maybe_save_another_chunk()
-    assert fake_state.last_saved_seqno_ == 1
+    assert fake_state._last_saved_seqno == 1
 
 
 def test_save(fake_state):
-    fake_state.last_saved_seqno_ = 0
+    fake_state._last_saved_seqno = 0
     fake_state.maybe_save_another_chunk()
-    assert fake_state.last_saved_seqno_ == 1
+    assert fake_state._last_saved_seqno == 1
 
 
 @pytest.fixture
@@ -80,31 +80,31 @@ def fake_session():
 
 def test_session_process_data_skip(fake_session):
     fake_session.process_data("skip    chunk=16        offset=256      seqno=256")
-    assert not fake_session.state_.on_save_ack.called
-    fake_session.state_.on_skip.assert_called_with(256)
+    assert not fake_session._state.on_save_ack.called
+    fake_session._state.on_skip.assert_called_with(256)
 
 
 def test_session_process_data_ack(fake_session):
     fake_session.process_data("chunk=19        offset=304      seqno=304       part_offset=111")
-    assert not fake_session.state_.on_skip.called
-    fake_session.state_.on_save_ack.assert_called_with(304)
+    assert not fake_session._state.on_skip.called
+    fake_session._state.on_save_ack.assert_called_with(304)
 
 
 def test_session_process_data_no_seqno(fake_session):
     fake_session.process_data("offset=304      part_offset=111")
-    assert not fake_session.state_.on_save_ack.called
-    assert not fake_session.state_.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
 
 
 def test_session_process_data_seqno_is_nan(fake_session):
     fake_session.process_data("offset=304      seqno=xxx      part_offset=111")
-    assert not fake_session.state_.on_save_ack.called
-    assert not fake_session.state_.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
 
 def test_session_process_data_bad_record(fake_session):
     fake_session.process_data("offset=304      seqno      part_offset=111")
-    assert not fake_session.state_.on_save_ack.called
-    assert not fake_session.state_.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
+    assert not fake_session._state.on_save_ack.called
 
 
 def test_session_read_good_id(fake_session):
@@ -122,58 +122,58 @@ PartOffset: 396
 Topic: rt3.fol--other
 Partition: 0"""
     fake_session.read_metadata(data)
-    assert fake_session.id_ == "00291e7c-eedf-42cd-99cc-f18331b9db77"
+    assert fake_session._id == "00291e7c-eedf-42cd-99cc-f18331b9db77"
 
 
 class StreamToKafka(object):
     def __init__(self, session_data, store_data, io_loop, stream_holder=None, counters=None):
-        self.session_data_ = session_data
-        self.store_data_ = store_data
-        self.data_ = None
-        self.index_ = 0
-        self.io_loop_ = io_loop
-        self.output_data_ = []
-        self.close_callback_ = None
-        self.stream_holder_ = stream_holder
-        self.counters_ = counters or 0
+        self._session_data = session_data
+        self._store_data = store_data
+        self._data = None
+        self._index = 0
+        self._io_loop = io_loop
+        self._output_data = []
+        self._close_callback = None
+        self._stream_holder = stream_holder
+        self._counters = counters or 0
 
     def write(self, data):
-        if len(self.output_data_) == 0:
+        if len(self._output_data) == 0:
             name = None
             if data.startswith("GET /rt/session"):
                 name = "session"
-                self.data_ = self.session_data_
+                self._data = self._session_data
             else:
                 name = "store"
-                self.data_ = self.store_data_
+                self._data = self._store_data
 
-            if name is not None and self.stream_holder_ is not None:
-                self.stream_holder_[name] = self
+            if name is not None and self._stream_holder is not None:
+                self._stream_holder[name] = self
 
-        self.output_data_.append(data)
+        self._output_data.append(data)
 
     def connect(self, endpoint, callback):
-        if self.counters_.fail_connections_ > 0:
-            self.counters_.fail_connections_ -= 1
-            if self.close_callback_:
-                self.io_loop_.add_callback(self.close_callback_)
+        if self._counters._fail_connections > 0:
+            self._counters._fail_connections -= 1
+            if self._close_callback:
+                self._io_loop.add_callback(self._close_callback)
         else:
-            self.io_loop_.add_callback(callback)
+            self._io_loop.add_callback(callback)
 
     def read_until(self, delimiter, callback):
-        index = self.data_.find(delimiter, self.index_)
+        index = self._data.find(delimiter, self._index)
         if index != -1:
             index += len(delimiter)
-            self.io_loop_.add_callback(callback, self.data_[self.index_:index])
-            self.index_ = index
+            self._io_loop.add_callback(callback, self._data[self._index:index])
+            self._index = index
         else:
-            self.io_loop_.stop()
+            self._io_loop.stop()
 
     def read_until_close(self, callback, streaming_callback):
         pass
 
     def set_close_callback(self, callback):
-        self.close_callback_ = callback
+        self._close_callback = callback
 
 
 session_data = """HTTP/1.1 200 OK
@@ -199,7 +199,7 @@ class IOLoopedTestCase(unittest.TestCase):
         self.force_stop = False
         self.io_loop = ioloop.IOLoop()
         self.io_loop.add_timeout(datetime.timedelta(seconds=self.get_second_to_stop()), self.stop)
-        self.fail_connections_ = 0
+        self._fail_connections = 0
 
     def tearDown(self):
         pass
@@ -235,13 +235,13 @@ class TestSession(IOLoopedTestCase):
             self.stream_factory)
         s.connect()
         self.start()
-        assert s.id_ is not None
+        assert s._id is not None
         assert not self.force_stop
 
 
 class TestSessionReconanect(IOLoopedTestCase):
     def test_basic(self):
-        self.fail_connections_ = 1
+        self._fail_connections = 1
         s = fennel.Session(
             mock.Mock(name="state"),
             mock.Mock(name="log_broker"),
@@ -249,7 +249,7 @@ class TestSessionReconanect(IOLoopedTestCase):
             self.stream_factory)
         s.connect()
         self.start()
-        assert s.id_ is not None
+        assert s._id is not None
         assert not self.force_stop
 
     def get_second_to_stop(self):
@@ -278,7 +278,7 @@ class TestSaveChunk(IOLoopedTestCase):
         assert "session" in self.stream_holder
         assert "store" in self.stream_holder
 
-        chunks = [fennel.parse_chunk(x) for x in self.stream_holder["store"].output_data_[1:]]
+        chunks = [fennel.parse_chunk(x) for x in self.stream_holder["store"]._output_data[1:]]
         assert len(chunks) == 3
         assert chunks[0][0]["key0"] == "value0"
         assert chunks[1][0]["key1"] == "value1"
@@ -297,4 +297,4 @@ def xtest_session_integration():
     s = fennel.Session(mock.Mock(), mock.Mock(), io_loop, iostream.IOStream, source_id="WHt4FAA")
     s.connect()
     io_loop.start()
-    assert s.id_ is not None
+    assert s._id is not None
