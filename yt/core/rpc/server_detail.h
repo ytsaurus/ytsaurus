@@ -94,7 +94,7 @@ protected:
         if (builder->GetLength() > 0) {
             builder->AppendString(STRINGBUF(", "));
         }
-        builder->AppendFormat(format, args);
+        builder->AppendFormat(format, args...);
     }
 
 private:
