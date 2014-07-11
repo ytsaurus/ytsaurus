@@ -355,7 +355,6 @@ TUnversionedValue GetPrevValue(TUnversionedValue value, TRowBuffer* rowBuffer)
 
         case EValueType::String: {
             if (LIKELY(value.Length > 0)) {
-                ui32 resultLength = value.Length;
                 if (value.Data.String[value.Length - 1] > 0) {
                     char* newValue = unalignedPool->AllocateUnaligned(value.Length);
                     memcpy(newValue, value.Data.String, value.Length);

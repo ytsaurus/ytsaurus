@@ -243,14 +243,17 @@ TKeyRange RefineKeyRange(
     //    }
     //}
 
-    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
+    YCHECK(keyRange.first.GetCount() <= keySize);
+    YCHECK(keyRange.second.GetCount() <= keySize);
+
+    for (int keyPartIndex = 0; keyPartIndex < keyRange.first.GetCount(); ++keyPartIndex) {
         if (CompareRowValues(keyRange.first[keyPartIndex], leftBound[keyPartIndex]) < 0) {
             break;
         }
         leftBound[keyPartIndex] = keyRange.first[keyPartIndex];        
     }
 
-    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
+    for (int keyPartIndex = 0; keyPartIndex < keyRange.second.GetCount(); ++keyPartIndex) {
         if (CompareRowValues(keyRange.second[keyPartIndex], rightBound[keyPartIndex]) > 0) {
             break;
         }
