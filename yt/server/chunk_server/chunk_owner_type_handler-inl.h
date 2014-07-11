@@ -32,7 +32,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
     TBase::SetDefaultAttributes(attributes, transaction);
 
     if (!attributes->Contains("replication_factor")) {
-        attributes->Set("replication_factor", TChunkOwnerBase::DefaultReplicationFactor);
+        attributes->Set("replication_factor", DefaultReplicationFactor);
     }
 
     if (!attributes->Contains("erasure_codec")) {
