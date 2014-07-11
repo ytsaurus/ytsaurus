@@ -79,11 +79,11 @@ TKeyRange RefineKeyRange(
 
     TConstraints constraints;
 
-    const int keySize = static_cast<int>(keyColumns.size());
-
-    if (keySize <= 0) {
-        return keyRange;
-    }
+    const int keySize = std::max({
+        static_cast<int>(keyColumns.size()),
+        keyRange.first.GetCount(),
+        keyRange.second.GetCount()
+    });
 
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
@@ -135,27 +135,29 @@ TKeyRange RefineKeyRange(
 
                 if (referenceExpr && constantExpr) {
                     int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
-                    auto value = constantExpr->GetConstantValue();
-                    switch (opcode) {
-                        case EBinaryOp::Equal:
-                            constraints.emplace_back(keyPartIndex, false, value);
-                            constraints.emplace_back(keyPartIndex, true, value);
-                            break;
-                        case EBinaryOp::Less:
-                            constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
-                            break;
-                        case EBinaryOp::LessOrEqual:
-                            constraints.emplace_back(keyPartIndex, true, value);
-                            break;
-                        case EBinaryOp::Greater:
-                            constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
-                            break;
-                        case EBinaryOp::GreaterOrEqual:
-                            constraints.emplace_back(keyPartIndex, false, value);
-                            break;
-                        default:
-                            break;
-                    }            
+                    if (keyPartIndex >= 0) {
+                        auto value = constantExpr->GetConstantValue();
+                        switch (opcode) {
+                            case EBinaryOp::Equal:
+                                constraints.emplace_back(keyPartIndex, false, value);
+                                constraints.emplace_back(keyPartIndex, true, value);
+                                break;
+                            case EBinaryOp::Less:
+                                constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
+                                break;
+                            case EBinaryOp::LessOrEqual:
+                                constraints.emplace_back(keyPartIndex, true, value);
+                                break;
+                            case EBinaryOp::Greater:
+                                constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
+                                break;
+                            case EBinaryOp::GreaterOrEqual:
+                                constraints.emplace_back(keyPartIndex, false, value);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
                 }
             }
         } else if (auto* functionExpr = expr->As<TFunctionExpression>()) {
@@ -165,36 +167,36 @@ TKeyRange RefineKeyRange(
             auto* lhsExpr = functionExpr->Arguments()[0];
             auto* rhsExpr = functionExpr->Arguments()[1];
 
-            
-
             auto* referenceExpr = rhsExpr->As<TReferenceExpression>();
             auto* constantExpr = lhsExpr->IsConstant() ? lhsExpr : nullptr;
 
             if (functionName == "is_prefix" && referenceExpr && constantExpr) {
                 int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
-                auto value = constantExpr->GetConstantValue();
+                if (keyPartIndex >= 0) {
+                    auto value = constantExpr->GetConstantValue();
 
-                YCHECK(value.Type == EValueType::String);
+                    YCHECK(value.Type == EValueType::String);
 
-                constraints.emplace_back(keyPartIndex, false, value);
+                    constraints.emplace_back(keyPartIndex, false, value);
 
-                ui32 length = value.Length;
-                while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
-                    --length;
-                }
+                    ui32 length = value.Length;
+                    while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
+                        --length;
+                    }
 
-                if (length > 0) {
-                    char* newValue = rowBuffer.GetUnalignedPool()->AllocateUnaligned(length);
-                    memcpy(newValue, value.Data.String, length);
-                    ++newValue[length - 1];
+                    if (length > 0) {
+                        char* newValue = rowBuffer.GetUnalignedPool()->AllocateUnaligned(length);
+                        memcpy(newValue, value.Data.String, length);
+                        ++newValue[length - 1];
 
-                    value.Length = length;
-                    value.Data.String = newValue;
-                } else {
-                    value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
-                }
+                        value.Length = length;
+                        value.Data.String = newValue;
+                    } else {
+                        value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
+                    }
             
-                constraints.emplace_back(keyPartIndex, true, value);
+                    constraints.emplace_back(keyPartIndex, true, value);
+                }
             }
         }
     };
@@ -232,9 +234,6 @@ TKeyRange RefineKeyRange(
     if (rightBound[keySize - 1].Type != EValueType::Max) {
         rightBound[keySize - 1] = GetNextValue(rightBound[keySize - 1], &rowBuffer);
     }
-
-    YCHECK(keyRange.first.GetCount() <= keySize);
-    YCHECK(keyRange.second.GetCount() <= keySize);
 
     for (int keyPartIndex = 0; keyPartIndex < keyRange.first.GetCount(); ++keyPartIndex) {
         if (CompareRowValues(keyRange.first[keyPartIndex], leftBound[keyPartIndex]) < 0) {
