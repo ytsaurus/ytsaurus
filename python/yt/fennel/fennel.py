@@ -270,7 +270,7 @@ class LogBroker(object):
         else:
             assert False
 
-    def on_session_changed(self, id_, endpoint):
+    def on_session_changed(self, id_, host):
         self._starting = False
         if self._push_channel is not None:
             self._push_channel.abort()
@@ -281,7 +281,7 @@ class LogBroker(object):
         self._push_channel = PushChannel(self._state, id_,
             io_loop=self._io_loop,
             IOStreamClass=self.IOStreamClass,
-            endpoint=endpoint)
+            endpoint=(host, 9000))
         self._push_channel.connect()
 
     def get_endpoint(self):
@@ -350,7 +350,7 @@ class PushChannel(object):
         self.log.debug(data)
 
     def on_response_end(self, data):
-        pass
+        self.log.debug(data)
 
     def on_close(self):
         self.log.info("The push channel has been closed")
@@ -395,7 +395,10 @@ class Session(object):
         self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
         self._iostream.set_close_callback(self.on_close)
         self._iostream.connect(self._endpoint, callback=self.on_connect)
-        self.log.info("Send request. Endpoint: %s", self._endpoint)
+        self.log.info("Send request. Ident: %s. SourceId: %s. Endpoint: %s",
+            self._service_id,
+            self._source_id,
+            self._endpoint)
         self._iostream.write(
             "GET /rt/session?"
             "ident={ident}&"
@@ -404,7 +407,7 @@ class Session(object):
             "HTTP/1.1\r\n"
             "Host: {host}\r\n"
             "Accept: */*\r\n\r\n".format(
-                ident="yt",
+                ident=self._service_id,
                 source_id=self._source_id,
                 host=self._host)
         )
@@ -450,7 +453,7 @@ class Session(object):
                 if key.strip() == "Session":
                     self._id = value.strip()
                     self.log.info("Session id: %s", self._id)
-                    self._log_broker.on_session_changed(self._id, self._endpoint)
+                    self._log_broker.on_session_changed(self._id, self._host)
                     return True
         return False
 
