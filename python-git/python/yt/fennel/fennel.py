@@ -7,6 +7,8 @@ from tornado import iostream
 from tornado import gen
 from tornado import options
 
+import requests
+
 import sys
 import os
 import atexit
@@ -19,7 +21,7 @@ import zlib
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
-DEFAULT_KAFKA_ENDPOINT = ("kafka02gt.stat.yandex.net", 9000)
+DEFAULT_ADVICER_URL = "http://cellar-t.stat.yandex.net/advise"
 DEFAULT_CHUNK_SIZE = 4000
 DEFAULT_ACK_QUEUE_LENGTH = 1
 DEFAULT_SERVICE_ID = "yt"
@@ -38,7 +40,7 @@ class State(object):
                  chunk_size=DEFAULT_CHUNK_SIZE,
                  ack_queue_length=DEFAULT_ACK_QUEUE_LENGTH,
                  IOStreamClass=None,
-                 **options):
+                 **log_broker_options):
         self._chunk_size = chunk_size
         self._ack_queue_length = ack_queue_length
         self._last_saved_seqno = 0
@@ -47,7 +49,7 @@ class State(object):
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self._event_log = event_log
-        self._log_broker = LogBroker(self, self._io_loop, IOStreamClass, **options)
+        self._log_broker = LogBroker(self, self._io_loop, IOStreamClass, **log_broker_options)
 
         self._save_chunk_handle = None
         self._update_state_handle = None
@@ -60,7 +62,7 @@ class State(object):
         self._log_broker.abort()
 
     def _initialize(self):
-        self._last_saved_seqno = self._from_line_index(self._event_log.get_next_line_to_save())
+        self._last_saved_seqno = self._from_line_index(self._event_log.get_next_line_to_save()) - 1
         self._last_seqno = self._last_saved_seqno
         self.log.info("Last acked seqno is %d", self._last_seqno)
 
@@ -148,6 +150,8 @@ class State(object):
 
 
 class EventLog(object):
+    log = logging.getLogger("EventLog")
+
     class NotEnoughDataError(RuntimeError):
         pass
 
@@ -155,7 +159,7 @@ class EventLog(object):
         self.yt = yt
         self._table_name = table_name or "//tmp/event_log"
         self._index_of_first_line_attr = "{0}/@index_of_first_line".format(self._table_name)
-        self._linex_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
+        self._line_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
 
     def get_data(self, begin, count):
         result = None
@@ -163,10 +167,15 @@ class EventLog(object):
             lines_removed = int(self.yt.get(self._index_of_first_line_attr))
             begin -= lines_removed
             assert begin >= 0
+            self.log.debug("Reading %s event log. Begin: %d, count: %d",
+                self._table_name,
+                begin,
+                count)
             result = [item for item in self.yt.read_table(yt.TablePath(
                 self._table_name,
                 start_index=begin,
                 end_index=begin + count), format="json", raw=False)]
+            self.log.debug("Reading is finished")
         if len(result) != count:
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
         return result
@@ -182,15 +191,15 @@ class EventLog(object):
                 end_index=count))
 
     def set_next_line_to_save(self, line_index):
-        self.yt.set(self._linex_to_save_attr, line_index)
+        self.yt.set(self._line_to_save_attr, line_index)
 
     def get_next_line_to_save(self):
-        return self.yt.get(self._linex_to_save_attr)
+        return self.yt.get(self._line_to_save_attr)
 
     def initialize(self):
         with self.yt.Transaction():
-            if not self.yt.exists(self._linex_to_save_attr):
-                self.yt.set(self._linex_to_save_attr, 0)
+            if not self.yt.exists(self._line_to_save_attr):
+                self.yt.set(self._line_to_save_attr, 0)
             if not self.yt.exists(self._index_of_first_line_attr):
                 self.yt.set(self._index_of_first_line_attr, 0)
 
@@ -226,16 +235,15 @@ def parse_chunk(serialized_data):
 class LogBroker(object):
     log = logging.getLogger("log_broker")
 
-    def __init__(self, state, io_loop=None, IOStreamClass=None, endpoint=None, **options):
-        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
-        self._host = self._endpoint[0]
+    def __init__(self, state, io_loop=None, IOStreamClass=None, advicer_url=None, **session_options):
+        self._advicer_url = advicer_url
         self._state = state
         self._starting = False
         self._chunk_id = 0
         self._lines = 0
         self._push_channel = None
         self._session = None
-        self._session_options = options
+        self._session_options = session_options
         self._io_loop = io_loop or ioloop.IOLoop.instance()
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
@@ -243,7 +251,7 @@ class LogBroker(object):
         if not self._starting:
             self._starting = True
             self.log.info("Start a log broker")
-            self._session = Session(self._state, self, self._io_loop, self.IOStreamClass, endpoint=self._endpoint, **self._session_options)
+            self._session = Session(self._state, self, self._io_loop, self.IOStreamClass, **self._session_options)
             self._session.connect()
 
     def abort(self):
@@ -262,7 +270,7 @@ class LogBroker(object):
         else:
             assert False
 
-    def on_session_changed(self, id_):
+    def on_session_changed(self, id_, endpoint):
         self._starting = False
         if self._push_channel is not None:
             self._push_channel.abort()
@@ -273,8 +281,14 @@ class LogBroker(object):
         self._push_channel = PushChannel(self._state, id_,
             io_loop=self._io_loop,
             IOStreamClass=self.IOStreamClass,
-            endpoint=self._endpoint)
+            endpoint=endpoint)
         self._push_channel.connect()
+
+    def get_endpoint(self):
+        self.log.info("Getting adviced logbroker endpoint...")
+        host = requests.get(self._advicer_url).text.strip()
+        self.log.info("Adviced endpoint: %s", host)
+        return (host, 80)
 
 
 class PushChannel(object):
@@ -285,7 +299,7 @@ class PushChannel(object):
         self._session_id = session_id
         self._aborted = False
 
-        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
+        self._endpoint = endpoint
         self._host = self._endpoint[0]
 
         self._io_loop = io_loop or ioloop.IOLoop.instance()
@@ -293,7 +307,7 @@ class PushChannel(object):
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def connect(self):
-        self.log.info("Create a push channel")
+        self.log.info("Create a push channel. Endpoint: %s", self._endpoint)
         if self._aborted:
             self.log.error("Unable to connect: channel is aborted")
             return
@@ -354,11 +368,10 @@ class Session(object):
             log_broker,
             io_loop=None,
             IOStreamClass=None,
-            endpoint=None,
             service_id=None,
             source_id=None):
-        self._endpoint = endpoint or DEFAULT_KAFKA_ENDPOINT
-        self._host = self._endpoint[0]
+        self._endpoint = None
+        self._host = None
         self._service_id = service_id or DEFAULT_SERVICE_ID
         self._source_id = source_id or DEFAULT_SOURCE_ID
         self._id = None
@@ -375,11 +388,14 @@ class Session(object):
             return
         self.log.info("Connect to kafka")
 
+        self._endpoint = self._log_broker.get_endpoint()
+        self._host = self._endpoint[0]
+
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
         self._iostream.set_close_callback(self.on_close)
         self._iostream.connect(self._endpoint, callback=self.on_connect)
-        self.log.info("Send request")
+        self.log.info("Send request. Endpoint: %s", self._endpoint)
         self._iostream.write(
             "GET /rt/session?"
             "ident={ident}&"
@@ -434,7 +450,7 @@ class Session(object):
                 if key.strip() == "Session":
                     self._id = value.strip()
                     self.log.info("Session id: %s", self._id)
-                    self._log_broker.on_session_changed(self._id)
+                    self._log_broker.on_session_changed(self._id, self._endpoint)
                     return True
         return False
 
@@ -478,7 +494,7 @@ class Session(object):
         return attributes
 
 
-def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, **kwargs):
+def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_length, advicer_url, **kwargs):
     io_loop = ioloop.IOLoop.instance()
 
     yt.config.set_proxy(proxy_path)
@@ -487,7 +503,7 @@ def main(table_name, proxy_path, service_id, source_id, chunk_size, ack_queue_le
         event_log=event_log,
         io_loop=io_loop,
         chunk_size=chunk_size, ack_queue_length=ack_queue_length,
-        service_id=service_id, source_id=source_id)
+        service_id=service_id, source_id=source_id, advicer_url = advicer_url)
     state.start()
     io_loop.start()
 
@@ -513,6 +529,7 @@ def run():
     options.define("chunk_size", default=DEFAULT_CHUNK_SIZE, help="size of chunk in rows")
     options.define("ack_queue_length", default=DEFAULT_ACK_QUEUE_LENGTH, help="number of concurrent chunks to save")
 
+    options.define("advicer_url", default=DEFAULT_ADVICER_URL, help="[logbroker] url to get adviced kafka endpoint")
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 

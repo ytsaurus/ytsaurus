@@ -230,7 +230,7 @@ class TestSession(IOLoopedTestCase):
     def test_connect(self):
         s = fennel.Session(
             mock.Mock(name="state"),
-            mock.Mock(name="log_broker"),
+            mock.Mock(name="log_broker", get_endpoint=lambda: (u'kafka01ft.stat.yandex.net', 80)),
             self.io_loop,
             self.stream_factory)
         s.connect()
@@ -239,12 +239,12 @@ class TestSession(IOLoopedTestCase):
         assert not self.force_stop
 
 
-class TestSessionReconanect(IOLoopedTestCase):
+class TestSessionReconnect(IOLoopedTestCase):
     def test_basic(self):
         self._fail_connections = 1
         s = fennel.Session(
             mock.Mock(name="state"),
-            mock.Mock(name="log_broker"),
+            mock.Mock(name="log_broker", get_endpoint=lambda: (u'kafka01ft.stat.yandex.net', 80)),
             self.io_loop,
             self.stream_factory)
         s.connect()
@@ -263,6 +263,7 @@ class TestSaveChunk(IOLoopedTestCase):
             state,
             io_loop=self.io_loop,
             IOStreamClass = self.stream_factory)
+        l.get_endpoint = lambda: (u'kafka01ft.stat.yandex.net', 80)
         l.start()
 
         def save_all():
