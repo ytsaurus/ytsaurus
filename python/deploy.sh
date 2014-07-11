@@ -23,7 +23,11 @@ make deb_without_test
 if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
     REPO="precise"
 else
-    REPO="common"
+    if [ "$PACKAGE" = "yandex-yt-python-fennel" ]; then
+        REPO="yt-common"
+    else
+        REPO="common"
+    fi
 fi
 dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 
