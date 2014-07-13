@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/guid.h>
+#include <core/misc/string.h>
 
 namespace NYT {
 namespace NObjectClient {
@@ -165,6 +166,9 @@ struct TVersionedObjectId
 
     static TVersionedObjectId FromString(const TStringBuf& str);
 };
+
+//! Formats id into a string (for debugging and logging purposes mainly).
+void FormatValue(TStringBuilder* builder, const TVersionedObjectId& id);
 
 //! Converts id into a string (for debugging and logging purposes mainly).
 Stroka ToString(const TVersionedObjectId& id);
