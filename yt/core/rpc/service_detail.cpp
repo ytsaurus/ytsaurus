@@ -299,7 +299,11 @@ void TServiceBase::OnRequest(
     }
 
     auto traceContext = GetTraceContext(*header);
-    TRACE_ANNOTATION(traceContext, "server_host", TAddressResolver::Get()->GetLocalHostName());
+
+    TRACE_ANNOTATION(
+        traceContext,
+        "server_host",
+        TAddressResolver::Get()->GetLocalHostName());
 
     NTracing::TTraceContextGuard traceContextGuard(traceContext);
 
@@ -309,7 +313,7 @@ void TServiceBase::OnRequest(
         runtimeInfo,
         traceContext);
 
-    NTracing::TraceEvent(
+    TRACE_ANNOTATION(
         traceContext,
         ServiceId_.ServiceName,
         method,
@@ -415,7 +419,7 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray m
 
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
 
-    NTracing::TraceEvent(
+    TRACE_ANNOTATION(
         activeRequest->TraceContext,
         ServiceId_.ServiceName,
         runtimeInfo->Descriptor.Method,
