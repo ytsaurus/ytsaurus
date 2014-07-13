@@ -588,20 +588,6 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
     Attributes.LoadValues(context);
     GarbageCollector->Load(context);
-
-       // COMPAT(psushin)
-    if (context.GetVersion() < 21) {
-        for (const auto& pair : Attributes) {
-            auto type = TypeFromId(pair.first.ObjectId);
-            if ((type == EObjectType::Table || type == EObjectType::File) && pair.first.TransactionId == NullTransactionId) {
-                auto& attributes = pair.second->Attributes();
-                if (attributes.find("erasure_codec") == attributes.end()) {
-                    auto value = NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None));
-                    YCHECK(attributes.insert(std::make_pair("erasure_codec", MakeNullable(value))).second);
-                }
-            }
-        }
-    }
 }
 
 void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)

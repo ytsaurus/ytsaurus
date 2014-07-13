@@ -555,10 +555,6 @@ void TTransactionManager::LoadKeys(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TransactionMap.LoadKeys(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 24) {
-        YCHECK(TransactionMap.GetSize() == 0);
-    }
 }
 
 void TTransactionManager::LoadValues(NCellMaster::TLoadContext& context)

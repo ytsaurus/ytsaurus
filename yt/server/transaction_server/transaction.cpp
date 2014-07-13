@@ -59,10 +59,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StartTime_);
     Load(context, StagedObjects_);
     Load(context, LockedNodes_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 24) {
-        Load(context, Locks_);
-    }
+    Load(context, Locks_);
     Load(context, BranchedNodes_);
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);

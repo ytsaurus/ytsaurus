@@ -35,13 +35,10 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     TSubject::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 26) {
-        Load(context, Banned_);
-        Load(context, RequestRateLimit_);
-        Load(context, RequestCounter_);
-        Load(context, AccessTime_);
-    }
+    Load(context, Banned_);
+    Load(context, RequestRateLimit_);
+    Load(context, RequestCounter_);
+    Load(context, AccessTime_);
 }
 
 void TUser::ResetRequestRate()

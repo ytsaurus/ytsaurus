@@ -56,17 +56,13 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, CompressedDataSize);
     Load(context, DataWeight);
     Load(context, RegularDiskSpace);
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 20) {
-        Load(context, ErasureDiskSpace);
-    }
+    Load(context, ErasureDiskSpace);
     Load(context, ChunkCount);
     Load(context, ChunkListCount);
     Load(context, Rank);
+    // COMPAT(babenko)
     if (context.GetVersion() >= 100) {
         Load(context, Sealed);
-    } else {
-        Sealed = true;
     }
 }
 

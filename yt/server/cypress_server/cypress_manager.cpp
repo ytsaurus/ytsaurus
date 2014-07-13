@@ -1222,14 +1222,7 @@ void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NodeMap.LoadKeys(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 24) {
-        LockMap.LoadKeys(context);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() < 25) {
-        YCHECK(LockMap.GetSize() == 0);
-    }
+    LockMap.LoadKeys(context);
 }
 
 void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
@@ -1237,10 +1230,7 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NodeMap.LoadValues(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 24) {
-        LockMap.LoadValues(context);
-    }
+    LockMap.LoadValues(context);
 
     // COMPAT(babenko)
     RecomputeKeyColumns = (context.GetVersion() < 100);

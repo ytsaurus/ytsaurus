@@ -62,10 +62,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 11) {
-        Load(context, DataSizeSums_);
-    }
+    Load(context, DataSizeSums_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 100) {
         Load(context, RecordCountSums_);

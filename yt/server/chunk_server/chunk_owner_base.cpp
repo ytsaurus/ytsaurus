@@ -43,10 +43,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkList_);
     Load(context, UpdateMode_);
     Load(context, ReplicationFactor_);
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 20) {
-        Load(context, Vital_);
-    }
+    Load(context, Vital_);
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const

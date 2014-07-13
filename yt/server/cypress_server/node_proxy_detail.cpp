@@ -1105,7 +1105,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     }
 
     // COMPAT(babenko)
-    return "(unknown)";
+    return "?";
 }
 
 bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)

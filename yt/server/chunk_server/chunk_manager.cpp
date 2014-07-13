@@ -971,17 +971,6 @@ private:
     {
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() < 20) {
-            size_t nodeCount = TSizeSerializer::Load(context);
-            YCHECK(nodeCount == 0);
-
-            size_t jobCount = TSizeSerializer::Load(context);
-            YCHECK(jobCount == 0);
-
-            size_t jobListCount = TSizeSerializer::Load(context);
-            YCHECK(jobListCount == 0);
-        }
         // COMPAT(babenko): required to properly initialize partial sums for chunk lists.
         if (context.GetVersion() < 100) {
             ScheduleRecomputeStatistics();
@@ -990,11 +979,6 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(psushin)
-        if (context.GetVersion() < 20) {
-            // Skip NodeIdGenerator.
-            context.GetInput()->Skip(8);
-        }
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
     }

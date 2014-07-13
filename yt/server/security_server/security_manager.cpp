@@ -1145,11 +1145,6 @@ private:
         AccountMap.LoadValues(context);
         UserMap.LoadValues(context);
         GroupMap.LoadValues(context);
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < 22) {
-            RecomputeResources = true;
-        }
     }
 
     virtual void OnAfterSnapshotLoaded() override

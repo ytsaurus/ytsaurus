@@ -101,20 +101,12 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     TNodeDescriptor::TAddressMap addresses;
-    // COMPAT(ignat)
-    if (context.GetVersion() >= 41) {
-        Load(context, addresses);
-    } else {
-        Load(context, addresses[NNodeTrackerClient::DefaultNetworkName]);
-    }
+    Load(context, addresses);
     Descriptor_ = TNodeDescriptor(addresses);
 
     Load(context, State_);
     Load(context, Statistics_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 27) {
-        Load(context, Alerts_);
-    }
+    Load(context, Alerts_);
     Load(context, Transaction_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);

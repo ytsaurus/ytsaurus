@@ -97,32 +97,18 @@ void TCypressNodeBase::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, LockStateMap_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 24) {
-        Load(context, AcquiredLocks_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 25) {
-        Load(context, PendingLocks_);
-    }
+    Load(context, AcquiredLocks_);
+    Load(context, PendingLocks_);
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 22) {
-        Load(context, Revision_);
-    }
+    Load(context, Revision_);
     Load(context, Account_);
     Load(context, CachedResourceUsage_);
     Load(context, Acd_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 23) {
-        Load(context, AccessTime_);
-        Load(context, AccessCounter_);
-    } else {
-        AccessTime_ = ModificationTime_;
-    }
+    Load(context, AccessTime_);
+    Load(context, AccessCounter_);
 
     // Reconstruct TrunkNode and Transaction.
     if (TransactionId == NullTransactionId) {
