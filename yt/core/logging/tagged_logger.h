@@ -20,12 +20,12 @@ public:
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event);
 
-    void AddTag(const Stroka& tag);
+    void AddRawTag(const Stroka& tag);
 
     template <class... TArgs>
     void AddTag(const char* format, const TArgs&... args)
     {
-        AddTag(Format(format, args...));
+        AddRawTag(Format(format, args...));
     }
 
 private:

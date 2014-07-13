@@ -41,7 +41,7 @@ void TTaggedLogger::Write(TLogEvent&& event)
     InnerLogger->Write(std::move(eventCopy));
 }
 
-void TTaggedLogger::AddTag(const Stroka& tag)
+void TTaggedLogger::AddRawTag(const Stroka& tag)
 {
     if (Tags.empty()) {
         Tags = tag;
