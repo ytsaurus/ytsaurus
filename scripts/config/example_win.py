@@ -140,6 +140,7 @@ class Holder(WinNode, Server):
                 }
             },
             'tablet_node' : {
+                'slots' : 1,
                 'snapshots' : {
                     'temp_path' : r'%(work_dir)s\snapshots'
                 },
