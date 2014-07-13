@@ -424,7 +424,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         TInstant(header.timestamp()),
         header.random_seed());
 
-    DoApplyMutation(&context);
+    DoApplyMutation(&context, true);
 }
 
 void TDecoratedAutomaton::LogLeaderMutation(
@@ -458,8 +458,10 @@ void TDecoratedAutomaton::LogLeaderMutation(
     
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
-    LOG_DEBUG("Logging mutation at version %v",
-        LoggedVersion_);
+    LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v, MutationId: %v)",
+        LoggedVersion_,
+        request.Type,
+        request.Id);
 
     *logResult = Changelog_->Append(*recordData);
     
@@ -592,9 +594,6 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
             if (pendingMutation.Version >= version)
                 break;
 
-            LOG_DEBUG("Applying mutation at version %v",
-                pendingMutation.Version);
-
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
             TMutationContext context(
@@ -603,7 +602,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
-            DoApplyMutation(&context);
+            DoApplyMutation(&context, false);
 
             if (pendingMutation.CommitPromise) {
                 pendingMutation.CommitPromise.Set(context.Response());
@@ -627,7 +626,7 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
+void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recovery)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -635,12 +634,31 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     MutationContext_ = context;
 
     const auto& request = context->Request();
-    const auto& response = context->Response();
+    auto& response = context->Response();
 
-    if (request.Action) {
-        request.Action.Run(context);
-    } else {
-        Automaton_->ApplyMutation(context);
+    if (request.Id != NullMutationId) {
+        auto keptData = ResponseKeeper_->FindResponse(request.Id);
+        if (keptData) {
+            LOG_DEBUG_UNLESS(recovery, "Suppressing duplicate mutation (Version: %v, MutationId: %v)",
+                AutomatonVersion_,
+                request.Id);
+            response.Data = std::move(keptData);
+            response.IsKept = true;
+            context->SuppressMutation();
+        }
+    }
+
+    if (!context->IsMutationSuppressed()) {
+        LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
+            AutomatonVersion_,
+            request.Type,
+            request.Id);
+
+        if (request.Action) {
+            request.Action.Run(context);
+        } else {
+            Automaton_->ApplyMutation(context);
+        }
     }
 
     {
@@ -648,13 +666,12 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         AutomatonVersion_.Advance();
     }
 
-    if (context->Request().Id == NullMutationId || context->IsMutationSuppressed()) {
-        ResponseKeeper_->RemoveExpiredResponses(context->GetTimestamp());
-    } else {
-        ResponseKeeper_->RegisterResponse(
-            request.Id,
-            response.Data,
-            context->GetTimestamp());
+    if (!context->IsMutationSuppressed()) {
+        auto timestamp = context->GetTimestamp();
+        if (context->Request().Id != NullMutationId) {
+            ResponseKeeper_->RegisterResponse(request.Id, response.Data, timestamp);
+        }
+        ResponseKeeper_->RemoveExpiredResponses(timestamp);
     }
 
     MutationContext_ = nullptr;

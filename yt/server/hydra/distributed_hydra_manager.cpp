@@ -335,6 +335,7 @@ public:
         }
 
         if (request.Id != NullMutationId) {
+            LOG_DEBUG("Returning kept response (MutationId: %v)", request.Id);
             auto keptResponse = DecoratedAutomaton_->FindKeptResponse(request.Id);
             if (keptResponse) {
                 return MakeFuture(TErrorOr<TMutationResponse>(*keptResponse));

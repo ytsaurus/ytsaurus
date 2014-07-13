@@ -171,7 +171,7 @@ private:
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    void DoApplyMutation(TMutationContext* context);
+    void DoApplyMutation(TMutationContext* context, bool recovery);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();

@@ -56,14 +56,14 @@ public:
         ResponseQueue_.push_back(item);
 
         UpdateCounters(data, +1);
-
-        RemoveExpiredResponses(now);
+        OnProfiling();
     }
 
     void RemoveExpiredResponses(TInstant now)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
+        bool changed = false;
         auto deadline = now - Config_->ExpirationTime;
         while (!ResponseQueue_.empty()) {
             const auto& item = ResponseQueue_.front();
@@ -74,8 +74,12 @@ public:
             UpdateCounters(item.Iterator->second, -1);
             ResponseMap_.erase(item.Iterator);
             ResponseQueue_.pop_front();
+            changed = true;
         }
-        OnProfiling();
+
+        if (changed) {
+            OnProfiling();
+        }
     }
 
     void Clear()
