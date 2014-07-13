@@ -13,6 +13,8 @@
 #include <server/hydra/public.h>
 #include <server/hydra/entity_map.h>
 
+#include <server/hive/hive_manager.pb.h>
+
 namespace NYT {
 namespace NHive {
 
@@ -43,7 +45,7 @@ public:
     TMailbox* GetMailboxOrThrow(const TCellGuid& cellGuid);
     void RemoveMailbox(const TCellGuid& cellGuid);
 
-    void PostMessage(TMailbox* mailbox, const TMessage& message);
+    void PostMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message);
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);

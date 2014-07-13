@@ -5,12 +5,18 @@
 #include "mailbox.h"
 #include "private.h"
 
+#include <core/misc/address.h>
+
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
 
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/ytree/fluent.h>
+
+#include <core/tracing/trace_context.h>
+
+#include <core/rpc/rpc.pb.h>
 
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
@@ -26,22 +32,25 @@
 #include <server/hydra/hydra_service.h>
 #include <server/hydra/rpc_helpers.h>
 
-#include <server/hive/hive_manager.pb.h>    
-
 namespace NYT {
 namespace NHive {
 
 using namespace NRpc;
+using namespace NRpc::NProto;
 using namespace NHydra;
 using namespace NHydra::NProto;
 using namespace NConcurrency;
 using namespace NHive::NProto;
 using namespace NYson;
 using namespace NYTree;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = HiveLogger;
+
+static auto HiveTracingService = Stroka("HiveManager");
+static auto ClientHostAnnotation = Stroka("client_host");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +156,7 @@ public:
             cellGuid);
     }
 
-    void PostMessage(TMailbox* mailbox, const TMessage& message)
+    void PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
         // A typical mistake is to try sending a Hive message outside of a mutation.
         YCHECK(HydraManager->IsMutating());
@@ -155,8 +164,27 @@ public:
         int messageId =
             mailbox->GetFirstOutcomingMessageId() +
             static_cast<int>(mailbox->OutcomingMessages().size());
-        auto serializedMessage = SerializeMessage(message);
-        mailbox->OutcomingMessages().push_back(serializedMessage);
+
+        auto tracedMessage = message;
+        auto traceContext = CreateChildTraceContext();
+        if (traceContext.IsEnabled()) {
+            TRACE_ANNOTATION(
+                traceContext,
+                HiveTracingService,
+                message.type(),
+                ClientSendAnnotation);
+
+            TRACE_ANNOTATION(
+                traceContext,
+                ClientHostAnnotation,
+                TAddressResolver::Get()->GetLocalHostName());
+
+            tracedMessage.set_trace_id(traceContext.GetTraceId());
+            tracedMessage.set_span_id(traceContext.GetSpanId());
+            tracedMessage.set_parent_span_id(traceContext.GetParentSpanId());
+        }
+
+        mailbox->OutcomingMessages().push_back(tracedMessage);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Outcoming message added (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
             SelfCellGuid_,
@@ -168,10 +196,14 @@ public:
 
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message)
     {
-        TMessage serializedMessage;
-        serializedMessage.Type = message.GetTypeName();
-        YCHECK(SerializeToProtoWithEnvelope(message, &serializedMessage.Data));
-        PostMessage(mailbox, serializedMessage);
+        TEncapsulatedMessage encapsulatedMessage;
+        encapsulatedMessage.set_type(message.GetTypeName());
+
+        TSharedRef serializedMessage;
+        YCHECK(SerializeToProtoWithEnvelope(message, &serializedMessage));
+        encapsulatedMessage.set_data(ToString(serializedMessage));
+
+        PostMessage(mailbox, encapsulatedMessage);
     }
 
     void BuildOrchidYson(IYsonConsumer* consumer)
@@ -423,7 +455,7 @@ private:
              it != mailbox->OutcomingMessages().end();
              ++it)
         {
-            req->add_messages(*it);
+            *req->add_messages() = *it;
         }
 
         mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() + messageCount);
@@ -500,7 +532,7 @@ private:
         }
     }
 
-    void HandleIncomingMessage(TMailbox* mailbox, int messageId, const Stroka& serializedMessage)
+    void HandleIncomingMessage(TMailbox* mailbox, int messageId, const TEncapsulatedMessage& message)
     {
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Dropping an obsolete incoming message (SrcCellGuid: %v, DstCellGuid: %v, MessageId: %v)",
@@ -509,13 +541,13 @@ private:
                 messageId);
         } else {
             auto& incomingMessages = mailbox->IncomingMessages();
-            YCHECK(incomingMessages.insert(std::make_pair(messageId, serializedMessage)).second);
+            YCHECK(incomingMessages.insert(std::make_pair(messageId, message)).second);
 
             bool consumed = false;
             while (!incomingMessages.empty()) {
                 const auto& frontPair = *incomingMessages.begin();
                 int frontMessageId = frontPair.first;
-                const auto& serializedFrontMessage = frontPair.second;
+                const auto& frontMessage = frontPair.second;
                 if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
                     break;
 
@@ -524,13 +556,31 @@ private:
                     SelfCellGuid_,
                     frontMessageId);
 
-                auto request = DeserializeMessage(serializedFrontMessage);
+                TMutationRequest request;
+                request.Type = frontMessage.type();
+                request.Data = TSharedRef::FromString(frontMessage.data());
+
+                auto traceContext = GetTraceContext(message);
+                TTraceContextGuard traceContextGuard(traceContext);
+
+                TRACE_ANNOTATION(
+                    traceContext,
+                    HiveTracingService,
+                    request.Type,
+                    ServerReceiveAnnotation);
+
                 YCHECK(incomingMessages.erase(frontMessageId) == 1);
                 mailbox->SetLastIncomingMessageId(frontMessageId);
                 consumed = true;
 
                 TMutationContext context(HydraManager->GetMutationContext(), request);
                 static_cast<IAutomaton*>(Automaton)->ApplyMutation(&context);
+
+                TRACE_ANNOTATION(
+                    traceContext,
+                    HiveTracingService,
+                    request.Type,
+                    ServerSendAnnotation);
             }
 
             if (!consumed) {
@@ -543,24 +593,16 @@ private:
     }
 
 
-    static Stroka SerializeMessage(const TMessage& message)
+    static TTraceContext GetTraceContext(const TEncapsulatedMessage& message)
     {
-        Stroka serializedMessage;
-        TStringOutput output(serializedMessage);
-        NYT::TStreamSaveContext context(&output);
-        Save(context, message.Type);
-        Save(context, message.Data);
-        return serializedMessage;
-    }
+        if (!message.has_trace_id()) {
+            return TTraceContext();
+        }
 
-    static TMutationRequest DeserializeMessage(const Stroka& serializedMessage)
-    {
-        TMutationRequest request;
-        TStringInput input(serializedMessage);
-        NYT::TStreamLoadContext context(&input);
-        Load(context, request.Type);
-        Load(context, request.Data);
-        return request;
+        return TTraceContext(
+            message.trace_id(),
+            message.span_id(),
+            message.parent_span_id());
     }
 
 
@@ -674,7 +716,7 @@ void THiveManager::RemoveMailbox(const TCellGuid& cellGuid)
     Impl_->RemoveMailbox(cellGuid);
 }
 
-void THiveManager::PostMessage(TMailbox* mailbox, const TMessage& message)
+void THiveManager::PostMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
 {
     Impl_->PostMessage(mailbox, message);
 }

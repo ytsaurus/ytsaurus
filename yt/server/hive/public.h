@@ -12,7 +12,6 @@ namespace NHive {
 
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 
-struct TMessage;
 class TMailbox;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)

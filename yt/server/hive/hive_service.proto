@@ -1,6 +1,7 @@
 package NYT.NHive.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/server/hive/hive_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +21,7 @@ message TReqPostMessages
 {
     required NYT.NProto.TGuid src_cell_guid = 1;
     required int32 first_message_id = 2;
-    repeated bytes messages = 3;
+    repeated TEncapsulatedMessage messages = 3;
 }
 
 message TRspPostMessages

@@ -4,6 +4,18 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TEncapsulatedMessage
+{
+    required string type = 1;
+    required bytes data = 2;
+
+    optional fixed64 trace_id = 3;
+    optional fixed64 span_id = 4;
+    optional fixed64 parent_span_id = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqAcknowledgeMessages
 {
     required NYT.NProto.TGuid cell_guid = 1;
