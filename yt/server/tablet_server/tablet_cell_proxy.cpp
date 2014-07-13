@@ -66,7 +66,6 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("size");
-        attributes->push_back("state");
         attributes->push_back("health");
         attributes->push_back("peers");
         attributes->push_back("tablet_ids");
@@ -82,12 +81,6 @@ private:
         if (key == "size") {
             BuildYsonFluently(consumer)
                 .Value(cell->GetSize());
-            return true;
-        }
-
-        if (key == "state") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetState());
             return true;
         }
 

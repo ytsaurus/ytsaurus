@@ -28,7 +28,6 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 
 TTabletCell::TTabletCell(const TTabletCellId& id)
     : TNonversionedObjectBase(id)
-    , State_(ETabletCellState::Starting)
     , Size_(-1)
     , ConfigVersion_(0)
     , Config_(New<TTabletCellConfig>())
@@ -40,7 +39,6 @@ void TTabletCell::Save(TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
-    Save(context, State_);
     Save(context, Size_);
     Save(context, Peers_);
     Save(context, ConfigVersion_);
@@ -54,7 +52,6 @@ void TTabletCell::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-    Load(context, State_);
     Load(context, Size_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);

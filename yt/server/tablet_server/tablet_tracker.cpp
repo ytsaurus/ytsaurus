@@ -115,28 +115,9 @@ void TTabletTracker::ScanCells()
         if (!IsObjectAlive(cell))
             continue;
 
-        ScheduleStateChange(cell);
         SchedulePeerStart(cell, &pool);
         SchedulePeerFailover(cell);
     }
-}
-
-void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
-{
-    if (cell->GetState() != ETabletCellState::Starting)
-        return;
-
-    if (cell->GetOnlinePeerCount() < cell->GetSize())
-        return;
-
-    // All peers online, change state to running.
-    TReqSetCellState request;
-    ToProto(request.mutable_cell_id(), cell->GetId());
-    request.set_state(ETabletCellState::Running);
-
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    CreateMutation(hydraManager, request)
-        ->Commit();
 }
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)

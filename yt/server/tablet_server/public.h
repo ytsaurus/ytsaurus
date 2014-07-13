@@ -12,11 +12,6 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETabletCellState,
-    ((Starting)   (0))
-    ((Running)    (1))
-);
-
 DECLARE_ENUM(ETabletCellHealth,
     ((Initializing)(0))
     ((Good)        (1))

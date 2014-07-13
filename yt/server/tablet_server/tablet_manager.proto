@@ -11,12 +11,6 @@ message TReqAssignPeers
     repeated int32 node_ids = 2;
 }
 
-message TReqSetCellState
-{
-    required NYT.NProto.TGuid cell_id = 1;
-    required int32 state = 2;
-}
-
 message TReqRevokePeer
 {
     required NYT.NProto.TGuid cell_id = 1;

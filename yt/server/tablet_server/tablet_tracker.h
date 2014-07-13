@@ -41,7 +41,6 @@ private:
 
     void ScanCells();
 
-    void ScheduleStateChange(TTabletCell* cell);
     void SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool);
     void SchedulePeerFailover(TTabletCell* cell);
 

@@ -25,7 +25,6 @@ class TTabletCell
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(ETabletCellState, State);
     DEFINE_BYVAL_RW_PROPERTY(int, Size);
 
     struct TPeer

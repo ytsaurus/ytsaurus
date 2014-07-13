@@ -196,7 +196,6 @@ public:
             BIND(&TImpl::SaveValues, MakeStrong(this)));
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetCellState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
@@ -920,7 +919,7 @@ private:
                 slotInfo.config_version());
 
             // Request slot reconfiguration if states are appropriate and versions differ.
-            if (slot.Cell->GetState() == ETabletCellState::Running &&
+            if (/*slot.Cell->GetState() == ETabletCellState::Running &&*/
                 slotInfo.config_version() != slot.Cell->GetConfigVersion())
             {
                 requestConfigureSlot(slot.Cell);
@@ -1054,25 +1053,6 @@ private:
 
             ReconfigureCell(cell);
         }
-    }
-
-    void HydraSetCellState(const TReqSetCellState& request)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);       
-
-        auto cellId = FromProto<TTabletCellId>(request.cell_id());
-        auto* cell = FindTabletCell(cellId);
-        if (!IsObjectAlive(cell))
-            return;
-
-        auto oldState = cell->GetState();
-        auto newState = ETabletCellState(request.state());
-        cell->SetState(newState);
-
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell state changed: %v -> %v (CellId: %v)",
-            oldState,
-            newState,
-            cellId);
     }
 
     void HydraRevokePeer(const TReqRevokePeer& request)
