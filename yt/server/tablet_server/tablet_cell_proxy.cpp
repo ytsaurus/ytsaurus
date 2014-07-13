@@ -70,6 +70,7 @@ private:
         attributes->push_back("health");
         attributes->push_back("peers");
         attributes->push_back("tablet_ids");
+        attributes->push_back("config_version");
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -128,6 +129,12 @@ private:
                     fluent
                         .Item().Value(tablet->GetId());
                 });
+            return true;
+        }
+
+        if (key == "config_version") {
+            BuildYsonFluently(consumer)
+                .Value(cell->GetConfigVersion());
             return true;
         }
 
