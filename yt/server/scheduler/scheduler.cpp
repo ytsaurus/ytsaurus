@@ -1731,9 +1731,9 @@ private:
         const auto& jobAddress = node->GetAddress();
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
-        Logger.AddTag(Format("Address: %v, JobId: %v",
+        Logger.AddTag("Address: %v, JobId: %v",
             jobAddress,
-            jobId));
+            jobId);
 
         auto job = FindJob(jobId);
         if (!job) {
@@ -1775,10 +1775,10 @@ private:
 
         auto operation = job->GetOperation();
 
-        Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
-            ~ToString(job->GetType()),
-            ~ToString(state),
-            ~ToString(operation->GetId())));
+        Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
+            job->GetType(),
+            state,
+            operation->GetId());
 
         // Check if the job is running on a proper node.
         const auto& expectedAddress = job->GetNode()->GetAddress();

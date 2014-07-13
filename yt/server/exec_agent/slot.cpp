@@ -26,20 +26,20 @@ Stroka GetSlotProcessGroup(int slotId)
 TSlot::TSlot(
     TSlotManagerConfigPtr config,
     const Stroka& path,
-    int slotId,
+    int slotIndex,
     int userId)
     : IsFree_(true)
     , IsClean(true)
     , Path(path)
-    , SlotId(slotId)
+    , SlotIndex(slotIndex)
     , UserId(userId)
-    , SlotThread(New<TActionQueue>(Format("ExecSlot:%v", slotId)))
-    , ProcessGroup("freezer", GetSlotProcessGroup(slotId))
+    , SlotThread(New<TActionQueue>(Format("ExecSlot:%v", slotIndex)))
+    , ProcessGroup("freezer", GetSlotProcessGroup(slotIndex))
     , NullCGroup()
     , Logger(ExecAgentLogger)
     , Config(config)
 {
-    Logger.AddTag(Sprintf("SlotId: %d", SlotId));
+    Logger.AddTag("Slot: %v", SlotIndex);
 }
 
 void TSlot::Initialize()
@@ -107,7 +107,7 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     std::vector<Stroka> result;
 
     if (Config->EnableCGroup) {
-        auto subgroupName = GetSlotProcessGroup(SlotId);
+        auto subgroupName = GetSlotProcessGroup(SlotIndex);
 
         for (const auto& type : NCGroup::GetSupportedCGroups()) {
             NCGroup::TNonOwningCGroup group(type, subgroupName);
@@ -146,7 +146,7 @@ void TSlot::DoCleanProcessGroups()
         }
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %d",
-            SlotId) << ex;
+            SlotIndex) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
     }

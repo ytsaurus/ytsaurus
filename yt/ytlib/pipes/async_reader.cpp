@@ -62,7 +62,7 @@ TAsyncReader::TImpl::TImpl(int fd)
     , ReadyPromise_()
     , Logger(PipesLogger)
 {
-    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+    Logger.AddTag("FD: %v", fd);
 
     FDWatcher_.set(fd, ev::READ);
 }

@@ -64,7 +64,7 @@ TStoreManager::TStoreManager(
     VersionedPooledRows_.reserve(MaxRowsPerRead);
 
     if (Tablet_->GetSlot()) {
-        Logger.AddTag(Sprintf("CellId: %s", ~ToString(Tablet_->GetSlot()->GetCellGuid())));
+        Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
     }
 }
 

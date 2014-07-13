@@ -66,9 +66,7 @@ TCoordinator::TCoordinator(
     , Fragment_(fragment)
     , Logger(QueryClientLogger)
 {
-    Logger.AddTag(Sprintf(
-        "FragmendId: %s",
-        ~ToString(Fragment_.Id())));
+    Logger.AddTag("FragmendId: %v", Fragment_.Id());
 }
 
 TCoordinator::~TCoordinator()

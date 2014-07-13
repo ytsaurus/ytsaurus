@@ -39,8 +39,7 @@ public:
         YCHECK(CellManager_);
         YCHECK(FileStore_);
 
-        Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager_->GetCellGuid())));
+        Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
     }
 
     TAsyncError Run(int snapshotId)

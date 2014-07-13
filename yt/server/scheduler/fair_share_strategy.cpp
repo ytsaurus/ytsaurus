@@ -1215,7 +1215,7 @@ private:
             return;
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
-        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetId())));
+        Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {
             if (ReconfigureYsonSerializable(element->GetRuntimeParams(), update)) {

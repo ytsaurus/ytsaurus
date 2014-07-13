@@ -55,7 +55,7 @@ public:
         , MasterClient_(masterClient)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s", ~RemotePath_));
+        Logger.AddTag("Path: %v", RemotePath_);
     }
 
     virtual TFuture<TErrorOr<ISnapshotReaderPtr>> CreateReader(int snapshotId) override
@@ -359,7 +359,7 @@ private:
 
     TYPath GetRemotePath(int snapshotId)
     {
-        return Format("%s/%09d", RemotePath_, snapshotId);
+        return Format("%v/%09v", RemotePath_, snapshotId);
     }
 
 };

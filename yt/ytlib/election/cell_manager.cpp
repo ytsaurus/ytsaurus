@@ -40,8 +40,7 @@ TCellManager::TCellManager(
         }
     }
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(Config->CellGuid)));
+    Logger.AddTag("CellGuid: %v", Config->CellGuid);
 
     LOG_INFO("Cell initialized (SelfId: %d, PeerAddresses: [%s])",
         SelfId,

@@ -113,7 +113,7 @@ public:
         EmptyBuffers_.push(Buffers_);
         EmptyBuffers_.push(Buffers_ + 1);
         
-        Logger.AddTag(Sprintf("Path: %s", ~Path_));
+        Logger.AddTag("Path: %v", Path_);
     }
 
     virtual void Open() override

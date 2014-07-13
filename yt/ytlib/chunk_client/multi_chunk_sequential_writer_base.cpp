@@ -67,7 +67,7 @@ TMultiChunkSequentialWriterBase::TMultiChunkSequentialWriterBase(
     YCHECK(Config_);
     YCHECK(MasterChannel_);
 
-    Logger.AddTag(Sprintf("TransactionId: %s", ~ToString(TransactionId_)));
+    Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
 TAsyncError TMultiChunkSequentialWriterBase::Open()

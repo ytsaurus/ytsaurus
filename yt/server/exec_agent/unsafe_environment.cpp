@@ -81,7 +81,7 @@ public:
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     {
-        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
+        Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual TAsyncError Run() override
@@ -228,7 +228,7 @@ public:
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     {
-        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
+        Logger.AddTag("JobId: %v", jobId);
     }
 
     TAsyncError Run()

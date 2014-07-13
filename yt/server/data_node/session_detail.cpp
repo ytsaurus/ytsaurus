@@ -43,9 +43,9 @@ TSessionBase::TSessionBase(
     YCHECK(bootstrap);
     YCHECK(location);
 
-    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
-        ~Location_->GetId(),
-        ~ToString(ChunkId_)));
+    Logger.AddTag("LocationId: %v, ChunkId: %v",
+        Location_->GetId(),
+        ChunkId_);
 
     Location_->UpdateSessionCount(+1);
 }

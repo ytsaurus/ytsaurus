@@ -31,8 +31,7 @@ TFollowerTracker::TFollowerTracker(
     YCHECK(EpochContext_);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager_->GetCellGuid())));
+    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 
     for (TPeerId id = 0; id < CellManager_->GetPeerCount(); ++id) {
         if (id == CellManager_->GetSelfId()) {

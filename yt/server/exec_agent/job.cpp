@@ -114,7 +114,7 @@ public:
 
         NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
 
-        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
+        Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual void Start() override

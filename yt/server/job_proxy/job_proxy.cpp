@@ -77,7 +77,7 @@ TJobProxy::TJobProxy(
     , JobThread(New<TActionQueue>("JobMain"))
     , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
 {
-    Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
+    Logger.AddTag("JobId: %v", JobId);
 }
 
 void TJobProxy::SendHeartbeat()

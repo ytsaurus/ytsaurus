@@ -269,9 +269,9 @@ private:
         YCHECK(store->GetState() == EStoreState::Flushing);
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
-        Logger.AddTag(Sprintf("TabletId: %s, StoreId: %s",
-            ~ToString(tabletId),
-            ~ToString(store->GetId())));
+        Logger.AddTag("TabletId: %v, StoreId: %v",
+            tabletId,
+            store->GetId());
 
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         auto poolInvoker = ThreadPool_->GetInvoker();

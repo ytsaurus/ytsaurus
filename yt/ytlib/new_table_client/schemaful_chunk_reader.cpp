@@ -145,7 +145,7 @@ TAsyncError TChunkReader::Open(
     Schema = schema;
     IncludeAllColumns = includeAllColumns;
 
-    Logger.AddTag(Sprintf("Reader: %p", this));
+    Logger.AddTag("Reader: %v", this);
     State.StartOperation();
     TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
         &TChunkReader::DoOpen,

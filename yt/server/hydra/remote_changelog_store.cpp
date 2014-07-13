@@ -49,7 +49,7 @@ public:
         , MasterClient_(masterClient)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s", ~RemotePath_));
+        Logger.AddTag("Path: %v", RemotePath_);
     }
 
     virtual TFuture<TErrorOr<IChangelogPtr>> CreateChangelog(int id, const TSharedRef& meta) override

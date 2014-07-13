@@ -180,7 +180,7 @@ public:
         auto chunkReader = TableReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
+        Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -642,7 +642,7 @@ public:
         auto chunkReader = TableReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
+        Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
         std::vector<int> tags;
         tags.reserve(10);

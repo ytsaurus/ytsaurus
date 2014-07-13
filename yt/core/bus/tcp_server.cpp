@@ -281,7 +281,7 @@ public:
             std::move(dispatcherThread),
             std::move(handler))
     {
-        Logger.AddTag(Sprintf("Port: %d", Config->Port));
+        Logger.AddTag("Port: %v", Config->Port);
     }
 
 
@@ -371,7 +371,7 @@ public:
             std::move(dispatcherThread),
             std::move(handler))
     {
-        Logger.AddTag(Format("LocalPort: %v", Config->Port));
+        Logger.AddTag("LocalPort: %v", Config->Port);
     }
 
 

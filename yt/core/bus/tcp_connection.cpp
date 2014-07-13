@@ -82,9 +82,9 @@ TTcpConnection::TTcpConnection(
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
 
-    Logger.AddTag(Sprintf("ConnectionId: %s, Address: %s",
-        ~ToString(id),
-        ~Address_));
+    Logger.AddTag("ConnectionId: %v, Address: %v",
+        id,
+        Address_);
 
     auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
     Profiler.TagIds().push_back(tagId);

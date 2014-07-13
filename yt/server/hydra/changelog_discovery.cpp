@@ -50,8 +50,7 @@ public:
         YCHECK(Config);
         YCHECK(CellManager);
 
-        Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager->GetCellGuid())));
+        Logger.AddTag("CellGuid: %v", CellManager->GetCellGuid());
 
         ChangelogInfo.ChangelogId = changelogId;
     }

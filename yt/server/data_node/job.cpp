@@ -92,7 +92,7 @@ public:
     {
         JobSpec_.Swap(&jobSpec);
 
-        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
+        Logger.AddTag("JobId: %v", jobId);
     }
 
     virtual void Start() override
@@ -206,7 +206,7 @@ protected:
         const auto& chunkSpecExt = JobSpec_.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
         ChunkId_ = FromProto<TChunkId>(chunkSpecExt.chunk_id());
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
+        Logger.AddTag("ChunkId: %v", ChunkId_);
     }
 
     virtual void DoRun() = 0;

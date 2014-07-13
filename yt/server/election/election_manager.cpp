@@ -286,9 +286,9 @@ public:
         , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
         , Logger(Owner->Logger)
     {
-        Logger.AddTag(Sprintf("RoundId: %s, VoteEpochId: %s",
-            ~ToString(TGuid::Create()),
-            ~ToString(Owner->VoteEpochId)));
+        Logger.AddTag("RoundId: %v, VoteEpochId: %v",
+            TGuid::Create(),
+            Owner->VoteEpochId);
     }
 
     void Run()
@@ -541,9 +541,9 @@ TElectionManager::TImpl::TImpl(
     YCHECK(RpcServer);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s, SelfId: %s",
-        ~ToString(CellManager->GetCellGuid()),
-        ~ToString(CellManager->GetSelfId())));
+    Logger.AddTag("CellGuid: %v, SelfId: %v",
+        CellManager->GetCellGuid(),
+        CellManager->GetSelfId());
 
     Reset();
 

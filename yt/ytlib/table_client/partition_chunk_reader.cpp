@@ -56,7 +56,7 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
+    Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
     std::vector<int> extensionTags;
     extensionTags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);

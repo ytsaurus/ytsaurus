@@ -40,7 +40,7 @@ public:
         , ChannelFactory_(channelFactory)
         , Logger(RpcClientLogger)
     {
-        Logger.AddTag(Sprintf("Channel: %p", this));
+        Logger.AddTag("Channel: %v", this);
 
         AddPeers(Config_->Addresses);
     }
@@ -78,7 +78,7 @@ private:
             , Promise_(NewPromise<TErrorOr<IChannelPtr>>())
             , Logger(Owner_->Logger)
         {
-            Logger.AddTag(Sprintf("Service: %s", ~Request_->GetService()));
+            Logger.AddTag("Service: %v", Request_->GetService());
         }
 
         TFuture<TErrorOr<IChannelPtr>> Run()

@@ -25,7 +25,7 @@ public:
     TSlot(
         TSlotManagerConfigPtr config,
         const Stroka& path,
-        int slotId,
+        int slotIndex,
         int userId);
 
     void Initialize();
@@ -63,7 +63,7 @@ private:
     bool IsClean;
 
     Stroka Path;
-    int SlotId;
+    int SlotIndex;
     int UserId;
 
     Stroka SandboxPath;

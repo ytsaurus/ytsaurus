@@ -65,9 +65,9 @@ public:
             ListenTransaction(Transaction_);
         }
 
-        Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-            ~Path_,
-            ~ToString(Options_.TransactionId)));
+        Logger.AddTag("Path: %v, TransactionId: %v",
+            Path_,
+            Options_.TransactionId);
     }
 
     virtual TAsyncError Open() override

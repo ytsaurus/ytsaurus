@@ -80,7 +80,7 @@ public:
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId_)));
+        Logger.AddTag("ChunkId: %v", ChunkId_);
     }
 
     void Initialize()
@@ -290,7 +290,7 @@ protected:
         , StartTime_(TInstant::Now())
         , Logger(ChunkClientLogger)
     {
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId_)));
+        Logger.AddTag("ChunkId: %v", reader->ChunkId_);
     }
 
     void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor)
@@ -543,7 +543,7 @@ public:
         , Promise_(NewPromise<TReadBlocksResult>())
         , BlockIndexes_(blockIndexes)
     {
-        Logger.AddTag(Sprintf("Session: %p", this));
+        Logger.AddTag("Session: %v", this);
     }
 
     ~TReadBlockSetSession()
@@ -863,7 +863,7 @@ public:
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
-        Logger.AddTag(Sprintf("Session: %p", this));
+        Logger.AddTag("Session: %v", this);
     }
 
     ~TReadBlockRangeSession()
@@ -1091,7 +1091,7 @@ public:
             AllExtensionTags_ = true;
         }
 
-        Logger.AddTag(Sprintf("Session: %p", this));
+        Logger.AddTag("Session: %v", this);
     }
 
     ~TGetMetaSession()

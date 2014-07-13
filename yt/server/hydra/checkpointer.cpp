@@ -349,8 +349,7 @@ TCheckpointer::TCheckpointer(
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager_->GetCellGuid())));
+    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 }
 
 TFuture<TError> TCheckpointer::RotateChangelog()

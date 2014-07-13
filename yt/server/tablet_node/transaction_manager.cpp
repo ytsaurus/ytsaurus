@@ -53,7 +53,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
-        Logger.AddTag(Sprintf("CellId: %s", ~ToString(Slot_->GetCellGuid())));
+        Logger.AddTag("CellId: %v", Slot_->GetCellGuid());
 
         Slot_->GetAutomaton()->RegisterPart(this);
 

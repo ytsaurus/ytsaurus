@@ -32,7 +32,7 @@ TSequentialReader::TSequentialReader(
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
+    Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
     YCHECK(ChunkReader);
 

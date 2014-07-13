@@ -289,8 +289,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     VERIFY_INVOKER_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_AFFINITY(ControlInvoker_, ControlThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager_->GetCellGuid())));
+    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,

@@ -139,8 +139,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
 
     NLog::TTaggedLogger Logger(this->Logger);
-    Logger.AddTag(Sprintf("OperationId: %s",
-        ~ToString(job.Operation->GetId())));
+    Logger.AddTag("OperationId: %v",
+        job.Operation->GetId());
 
     if (!NFS::Exists(job.FileName)) {
         LOG_WARNING("Snapshot file is missing");

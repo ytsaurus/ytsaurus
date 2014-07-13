@@ -199,7 +199,7 @@ TSyncFileChangelog::TImpl::TImpl(
     , LastFlushed_(TInstant::Now())
     , Logger(HydraLogger)
 {
-    Logger.AddTag(Sprintf("Path: %s", ~path));
+    Logger.AddTag("Path: %v", path);
 }
 
 TFileChangelogConfigPtr TSyncFileChangelog::TImpl::GetConfig() const

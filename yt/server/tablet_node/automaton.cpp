@@ -46,8 +46,7 @@ TTabletAutomaton::TTabletAutomaton(
     TTabletSlot* slot)
     : Slot_(slot)
 {
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(Slot_->GetCellGuid())));
+    Logger.AddTag("CellGuid: %v", Slot_->GetCellGuid());
 
     LoadContext_.SetSlot(Slot_);
 }

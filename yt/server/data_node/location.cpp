@@ -69,7 +69,7 @@ TLocation::TLocation(
     , WriteInvoker_(WriteQueue_->GetInvoker())
     , Logger(DataNodeLogger)
 {
-    Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
+    Logger.AddTag("Path: %v", Config_->Path);
 }
 
 TLocation::~TLocation()

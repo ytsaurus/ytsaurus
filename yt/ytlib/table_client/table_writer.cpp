@@ -130,9 +130,9 @@ TAsyncTableWriter::TAsyncTableWriter(
 
     Options->KeyColumns = keyColumns;
 
-    Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        ~richPath.GetPath(),
-        ~ToString(TransactionId)));
+    Logger.AddTag("Path: %v, TransactionId: %v",
+        richPath.GetPath(),
+        TransactionId);
 }
 
 void TAsyncTableWriter::Open()

@@ -58,7 +58,7 @@ TOldMultiChunkSequentialWriter<TProvider>::TOldMultiChunkSequentialWriter(
     YCHECK(config);
     YCHECK(masterChannel);
 
-    Logger.AddTag(Sprintf("TransactionId: %s", ~ToString(TransactionId)));
+    Logger.AddTag("TransactionId: %v", TransactionId);
 }
 
 template <class TProvider>

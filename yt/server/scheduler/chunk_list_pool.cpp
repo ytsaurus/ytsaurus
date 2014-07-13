@@ -40,7 +40,7 @@ TChunkListPool::TChunkListPool(
     YCHECK(masterChannel);
     YCHECK(controlInvoker);
 
-    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operationId)));
+    Logger.AddTag("OperationId: %v", operationId);
 
     AllocateMore();
 }

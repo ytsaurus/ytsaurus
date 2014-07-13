@@ -382,7 +382,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
 void TOperationControllerBase::TTask::Initialize()
 {
     Logger = Controller->Logger;
-    Logger.AddTag(Sprintf("Task: %s", ~GetId()));
+    Logger.AddTag("Task: %v", GetId());
 }
 
 int TOperationControllerBase::TTask::GetPendingJobCount() const
@@ -971,7 +971,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
 {
-    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetId())));
+    Logger.AddTag("OperationId: %v", operation->GetId());
 }
 
 void TOperationControllerBase::Initialize()

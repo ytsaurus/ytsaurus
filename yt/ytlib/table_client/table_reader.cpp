@@ -53,9 +53,9 @@ TAsyncTableReader::TAsyncTableReader(
 {
     YCHECK(masterChannel);
 
-    Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
-        ~RichPath.GetPath(),
-        ~ToString(TransactionId)));
+    Logger.AddTag("Path: %v, TransactihonId: %v",
+        RichPath.GetPath(),
+        TransactionId);
 }
 
 void TAsyncTableReader::Open()

@@ -234,8 +234,7 @@ private:
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
-        Logger.AddTag(Sprintf("TabletId: %s",
-            ~ToString(tabletId)));
+        Logger.AddTag("TabletId: %v", tabletId);
 
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
@@ -464,10 +463,10 @@ private:
         auto schema = tablet->Schema();
 
         NLog::TTaggedLogger Logger(TabletNodeLogger);
-        Logger.AddTag(Sprintf("TabletId: %s, PartitionRange: %s .. %s",
-            ~ToString(tabletId),
-            ~ToString(partition->GetPivotKey()),
-            ~ToString(partition->GetNextPivotKey())));
+        Logger.AddTag("TabletId: %v, PartitionRange: %v .. %v",
+            tabletId,
+            partition->GetPivotKey(),
+            partition->GetNextPivotKey());
 
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();

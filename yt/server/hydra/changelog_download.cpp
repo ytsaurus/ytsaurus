@@ -40,8 +40,7 @@ public:
         YCHECK(CellManager);
         YCHECK(ChangelogStore);
 
-        Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager->GetCellGuid())));
+        Logger.AddTag("CellGuid: %v", CellManager->GetCellGuid());
     }
 
     TAsyncError Run(int changelogId, int recordCount)

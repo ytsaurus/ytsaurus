@@ -3,6 +3,7 @@
 #include "log.h"
 
 #include <core/misc/property.h>
+#include <core/misc/format.h>
 
 namespace NYT {
 namespace NLog {
@@ -20,6 +21,12 @@ public:
     void Write(TLogEvent&& event);
 
     void AddTag(const Stroka& tag);
+
+    template <class... TArgs>
+    void AddTag(const char* format, const TArgs&... args)
+    {
+        AddTag(Format(format, args...));
+    }
 
 private:
     Stroka GetTaggedMessage(const Stroka& originalMessage) const;

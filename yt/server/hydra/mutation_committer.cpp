@@ -49,8 +49,7 @@ TCommitter::TCommitter(
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 
-    Logger.AddTag(Sprintf("CellGuid: %s",
-        ~ToString(CellManager_->GetCellGuid())));
+    Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 }
 
 TCommitter::~TCommitter()
@@ -69,7 +68,7 @@ public:
         , StartVersion_(startVersion)
         , Logger(Owner_->Logger)
     {
-        Logger.AddTag(Sprintf("StartVersion: %s", ~ToString(StartVersion_)));
+        Logger.AddTag("StartVersion: %v", StartVersion_);
     }
 
     void AddMutation(const TSharedRef& recordData, TAsyncError localFlushResult)
@@ -92,7 +91,7 @@ public:
     void Flush()
     {
         int mutationCount = static_cast<int>(BatchedRecordsData_.size());
-        Logger.AddTag(Sprintf("MutationCount: %d", mutationCount));
+        Logger.AddTag("MutationCount: %v", mutationCount);
         CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
 
         Owner_->Profiler.Enqueue("/commit_batch_size", mutationCount);

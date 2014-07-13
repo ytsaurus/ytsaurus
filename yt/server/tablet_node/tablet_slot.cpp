@@ -429,9 +429,9 @@ private:
     void InitLogger()
     {
         Logger = NLog::TTaggedLogger(TabletNodeLogger);
-        Logger.AddTag(Sprintf("Slot: %d", SlotIndex_));
+        Logger.AddTag("Slot: %v", SlotIndex_);
         if (CellGuid_ != NullCellGuid) {
-            Logger.AddTag(Sprintf("CellGuid: %s", ~ToString(CellGuid_)));
+            Logger.AddTag("CellGuid: %v", CellGuid_);
         }
     }
 

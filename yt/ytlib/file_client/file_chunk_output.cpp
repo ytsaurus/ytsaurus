@@ -70,7 +70,7 @@ void TFileChunkOutput::Open()
     auto rsp = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
     OnChunkCreated(rsp, Config, Options, &ChunkId, &Replicas, nodeDirectory);
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+    Logger.AddTag("ChunkId: %v", ChunkId);
 
     LOG_INFO("Chunk created");
 

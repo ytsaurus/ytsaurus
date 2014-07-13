@@ -189,7 +189,7 @@ private:
     void DoDownloadChunk(const TChunkId& chunkId, TInsertCookie cookie)
     {
         NLog::TTaggedLogger Logger(DataNodeLogger);
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
+        Logger.AddTag("ChunkId: %v", chunkId);
 
         try {
             auto nodeDirectory = New<TNodeDirectory>();

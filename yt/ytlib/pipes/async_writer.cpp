@@ -75,7 +75,7 @@ TAsyncWriter::TImpl::TImpl(int fd)
     , NeedToClose(false)
     , Logger(PipesLogger)
 {
-    Logger.AddTag(Sprintf("FD: %s", ~ToString(fd)));
+    Logger.AddTag("FD: %v", fd);
 
     FDWatcher.set(fd, ev::WRITE);
 }

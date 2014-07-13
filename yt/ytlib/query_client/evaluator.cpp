@@ -444,7 +444,7 @@ private:
     static NLog::TTaggedLogger BuildLogger(const TPlanFragment& fragment)
     {
         NLog::TTaggedLogger result(QueryClientLogger);
-        result.AddTag(Sprintf("FragmentId: %s", ~ToString(fragment.Id())));
+        result.AddTag("FragmentId: %v", fragment.Id());
         return result;
     }
 

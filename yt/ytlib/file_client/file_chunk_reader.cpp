@@ -38,7 +38,7 @@ TAsyncError TFileChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkReader->GetChunkId())));
+    Logger.AddTag("ChunkId: %v", ChunkReader->GetChunkId());
 
     LOG_INFO("Requesting chunk meta");
     ChunkReader->GetMeta().Subscribe(

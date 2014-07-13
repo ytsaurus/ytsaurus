@@ -44,8 +44,7 @@ public:
         YCHECK(Config_);
         YCHECK(CellManager_);
 
-        Logger.AddTag(Sprintf("CellGuid: %s",
-            ~ToString(CellManager_->GetCellGuid())));
+        Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
     }
 
     TFuture<TRemoteSnapshotParams> Run(int maxSnapshotId, bool exactId)

@@ -91,8 +91,7 @@ public:
         , Logger(HydraLogger)
         , FacadeInput_(nullptr)
     {
-        Logger.AddTag(Sprintf("FileName: %s",
-            ~FileName_));
+        Logger.AddTag("FileName: %v", FileName_);
     }
 
     void Open(i64 offset)
@@ -338,7 +337,7 @@ public:
         : Config_(config)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
+        Logger.AddTag("Path: %v", Config_->Path);
     }
 
     void Initialize()

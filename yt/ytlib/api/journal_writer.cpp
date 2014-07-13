@@ -121,9 +121,9 @@ private:
                 Transaction_ = transactionManager->Attach(attachOptions);
             }
 
-            Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-                ~Path_,
-                ~ToString(Options_.TransactionId)));
+            Logger.AddTag("Path: %v, TransactionId: %v",
+                Path_,
+                Options_.TransactionId);
 
             // Spawn the actor.
             BIND(&TImpl::ActorMain, MakeStrong(this))

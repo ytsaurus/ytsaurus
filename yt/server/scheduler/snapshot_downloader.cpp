@@ -32,8 +32,7 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(bootstrap);
     YCHECK(operation);
 
-    Logger.AddTag(Sprintf("OperationId: %s",
-        ~ToString(operation->GetId())));
+    Logger.AddTag("OperationId: %v", operation->GetId());
 }
 
 void TSnapshotDownloader::Run()

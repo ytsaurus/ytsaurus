@@ -95,7 +95,7 @@ public:
         , Config_(config)
         , Logger(HydraLogger)
     {
-        Logger.AddTag(Sprintf("Path: %s", ~Config_->Path));
+        Logger.AddTag("Path: %v", Config_->Path);
     }
 
     void Start()
