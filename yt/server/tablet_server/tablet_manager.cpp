@@ -624,7 +624,7 @@ public:
             newTablets.push_back(tablet);
         }
 
-        tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + lastTabletIndex + 1);
+        tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
 
         // Update all indexes.
