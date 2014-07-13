@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cell_master )
 set( SRCS
   ${BASE}/bootstrap.cpp
   ${BASE}/automaton.cpp
-  ${BASE}/meta_state_facade.cpp
+  ${BASE}/hydra_facade.cpp
   ${BASE}/world_initializer.cpp
   ${BASE}/hydra_service.cpp
   ${BASE}/serialize.cpp
@@ -12,7 +12,7 @@ set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/automaton.h
   ${BASE}/config.h
-  ${BASE}/meta_state_facade.h
+  ${BASE}/hydra_facade.h
   ${BASE}/world_initializer.h
   ${BASE}/hydra_service.h
   ${BASE}/public.h

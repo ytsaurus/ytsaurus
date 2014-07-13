@@ -11,7 +11,7 @@
 #include <server/cypress_server/node_proxy_detail.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -57,7 +57,7 @@ public:
     {
         UNUSED(context);
 
-        Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+        Bootstrap->GetHydraFacade()->ValidateActiveLeader();
     }
 
     virtual NLog::TLogger GetLogger() const override
@@ -91,7 +91,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         if (!hydraManager->IsActiveLeader()) {
             return TResolveResult::There(
                 New<TFailedLeaderValidationWrapper>(Bootstrap),
@@ -102,7 +102,7 @@ public:
 
     virtual void Invoke(IServiceContextPtr context) override
     {
-        Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+        Bootstrap->GetHydraFacade()->ValidateActiveLeader();
         UnderlyingService->Invoke(context);
     }
 
@@ -212,12 +212,12 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto hydraManager = metaStateFacade->GetManager();
+        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraManager = hydraFacade->GetHydraManager();
 
         // NB: IsMutating() check is needed to prevent leader fallback for propagated mutations.
         if ((Options & EVirtualNodeOptions::RequireLeader) && !hydraManager->IsMutating()) {
-            metaStateFacade->ValidateActiveLeader();
+            hydraFacade->ValidateActiveLeader();
         }
 
         return TBase::DoInvoke(context);

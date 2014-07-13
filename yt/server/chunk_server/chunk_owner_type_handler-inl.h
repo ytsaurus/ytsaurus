@@ -11,7 +11,7 @@
 
 #include <server/chunk_server/chunk_manager.h>
 
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -144,7 +144,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::MergeChunkLists(
     TChunkOwner* originatingNode,
     TChunkOwner* branchedNode)
 {
-    auto hydraManager = TBase::Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = TBase::Bootstrap->GetHydraFacade()->GetHydraManager();
     auto chunkManager = TBase::Bootstrap->GetChunkManager();
     auto objectManager = TBase::Bootstrap->GetObjectManager();
 

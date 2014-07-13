@@ -30,34 +30,34 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetaStateFacade
+class THydraFacade
     : public TRefCounted
 {
 public:
-    TMetaStateFacade(
+    THydraFacade(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap);
-    ~TMetaStateFacade();
+    ~THydraFacade();
 
     void Start();
 
     TMasterAutomatonPtr GetAutomaton() const;
-    NHydra::IHydraManagerPtr GetManager() const;
+    NHydra::IHydraManagerPtr GetHydraManager() const;
 
-    IInvokerPtr GetInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetEpochInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
-    IInvokerPtr GetGuardedInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     //! Same as #IsActiveLeader but throws on failure.
     void ValidateActiveLeader();
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TMetaStateFacade)
+DEFINE_REFCOUNTED_TYPE(THydraFacade)
 
 ////////////////////////////////////////////////////////////////////////////////
 

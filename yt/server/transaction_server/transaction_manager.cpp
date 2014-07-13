@@ -24,7 +24,7 @@
 #include <server/cell_master/serialize.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
@@ -317,7 +317,7 @@ TTransactionManager::TTransactionManager(
     : TMasterAutomatonPart(bootstrap)
     , Config(config)
 {
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
     RegisterLoader(
         "TransactionManager.Keys",
@@ -373,8 +373,8 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
     transaction->SetState(ETransactionState::Active);
 
     auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
+        ->GetHydraFacade()
+        ->GetHydraManager()
         ->GetMutationContext();
     transaction->SetStartTime(mutationContext->GetTimestamp());
 
@@ -635,11 +635,11 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
 {
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto hydraFacade = Bootstrap->GetHydraFacade();
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-            .Via(metaStateFacade->GetEpochInvoker()));
+            .Via(hydraFacade->GetEpochAutomatonInvoker()));
     YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
 }
 

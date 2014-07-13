@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "meta_state_facade.h"
+#include "hydra_facade.h"
 #include "automaton.h"
 #include "config.h"
 
@@ -75,84 +75,84 @@ static const auto CleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMetaStateFacade::TImpl
+class THydraFacade::TImpl
     : public TRefCounted
 {
 public:
     TImpl(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
     {
-        YCHECK(Config);
-        YCHECK(Bootstrap);
+        YCHECK(Config_);
+        YCHECK(Bootstrap_);
 
-        AutomatonQueue = New<TFairShareActionQueue>("Automaton", EAutomatonThreadQueue::GetDomainNames());
-        Automaton = New<TMasterAutomaton>(Bootstrap);
+        AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", EAutomatonThreadQueue::GetDomainNames());
+        Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
-        HydraManager = CreateDistributedHydraManager(
-            Config->HydraManager,
-            Bootstrap->GetControlInvoker(),
-            AutomatonQueue->GetInvoker(EAutomatonThreadQueue::Default),
-            Automaton,
-            Bootstrap->GetRpcServer(),
-            Bootstrap->GetCellManager(),
-            Bootstrap->GetChangelogStore(),
-            Bootstrap->GetSnapshotStore());
+        HydraManager_ = CreateDistributedHydraManager(
+            Config_->HydraManager,
+            Bootstrap_->GetControlInvoker(),
+            AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default),
+            Automaton_,
+            Bootstrap_->GetRpcServer(),
+            Bootstrap_->GetCellManager(),
+            Bootstrap_->GetChangelogStore(),
+            Bootstrap_->GetSnapshotStore());
 
-        HydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
 
-        HydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-        HydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            auto unguardedInvoker = AutomatonQueue->GetInvoker(index);
-            GuardedInvokers.push_back(HydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker));
+            auto unguardedInvoker = AutomatonQueue_->GetInvoker(index);
+            GuardedInvokers_.push_back(HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker));
         }
 
     }
 
     void Start()
     {
-        HydraManager->Start();
+        HydraManager_->Start();
 
-        CleanupExecutor = New<TPeriodicExecutor>(
+        CleanupExecutor_ = New<TPeriodicExecutor>(
             GetHydraIOInvoker(),
             BIND(&TImpl::OnCleanup, MakeWeak(this)),
             CleanupPeriod);
-        CleanupExecutor->Start();
+        CleanupExecutor_->Start();
     }
 
     TMasterAutomatonPtr GetAutomaton() const
     {
-        return Automaton;
+        return Automaton_;
     }
 
-    IHydraManagerPtr GetManager() const
+    IHydraManagerPtr GetHydraManager() const
     {
-        return HydraManager;
+        return HydraManager_;
     }
 
-    IInvokerPtr GetInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return AutomatonQueue->GetInvoker(queue);
+        return AutomatonQueue_->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return EpochInvokers[queue];
+        return EpochInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return GuardedInvokers[queue];
+        return GuardedInvokers_[queue];
     }
 
     void ValidateActiveLeader()
     {
-        if (!HydraManager->IsActiveLeader()) {
+        if (!HydraManager_->IsActiveLeader()) {
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
@@ -160,39 +160,39 @@ public:
     }
 
 private:
-    TCellMasterConfigPtr Config;
-    TBootstrap* Bootstrap;
+    TCellMasterConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
-    TFairShareActionQueuePtr AutomatonQueue;
-    TMasterAutomatonPtr Automaton;
-    IHydraManagerPtr HydraManager;
-    std::vector<IInvokerPtr> GuardedInvokers;
-    std::vector<IInvokerPtr> EpochInvokers;
+    TFairShareActionQueuePtr AutomatonQueue_;
+    TMasterAutomatonPtr Automaton_;
+    IHydraManagerPtr HydraManager_;
+    std::vector<IInvokerPtr> GuardedInvokers_;
+    std::vector<IInvokerPtr> EpochInvokers_;
 
-    TPeriodicExecutorPtr CleanupExecutor;
+    TPeriodicExecutorPtr CleanupExecutor_;
 
 
     void OnStartEpoch()
     {
-        YCHECK(EpochInvokers.empty());
+        YCHECK(EpochInvokers_.empty());
 
-        auto cancelableContext = HydraManager
+        auto cancelableContext = HydraManager_
             ->GetAutomatonEpochContext()
             ->CancelableContext;
         for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
-            EpochInvokers.push_back(cancelableContext->CreateInvoker(AutomatonQueue->GetInvoker(index)));
+            EpochInvokers_.push_back(cancelableContext->CreateInvoker(AutomatonQueue_->GetInvoker(index)));
         }
     }
 
     void OnStopEpoch()
     {
-        EpochInvokers.clear();
+        EpochInvokers_.clear();
     }
 
 
     void OnCleanup()
     {
-        auto snapshotsPath = Config->Snapshots->Path;
+        auto snapshotsPath = Config_->Snapshots->Path;
 
         std::vector<int> snapshotIds;
         auto snapshotFileNames = NFS::EnumerateFiles(snapshotsPath);
@@ -208,11 +208,11 @@ private:
             }
         }
 
-        if (snapshotIds.size() <= Config->HydraManager->MaxSnapshotsToKeep)
+        if (snapshotIds.size() <= Config_->HydraManager->MaxSnapshotsToKeep)
             return;
 
         std::sort(snapshotIds.begin(), snapshotIds.end());
-        int thresholdId = snapshotIds[snapshotIds.size() - Config->HydraManager->MaxSnapshotsToKeep];
+        int thresholdId = snapshotIds[snapshotIds.size() - Config_->HydraManager->MaxSnapshotsToKeep];
 
         for (const auto& fileName : snapshotFileNames) {
             if (NFS::GetFileExtension(fileName) != SnapshotExtension)
@@ -232,7 +232,7 @@ private:
             }
         }
 
-        auto changelogsPath = Config->Changelogs->Path;
+        auto changelogsPath = Config_->Changelogs->Path;
         auto changelogFileNames = NFS::EnumerateFiles(changelogsPath);
         for (const auto& fileName : changelogFileNames) {
             if (NFS::GetFileExtension(fileName) != ChangelogExtension)
@@ -256,48 +256,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMetaStateFacade::TMetaStateFacade(
+THydraFacade::THydraFacade(
     TCellMasterConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TMetaStateFacade::~TMetaStateFacade()
+THydraFacade::~THydraFacade()
 { }
 
-TMasterAutomatonPtr TMetaStateFacade::GetAutomaton() const
+void THydraFacade::Start()
 {
-    return Impl->GetAutomaton();
+    Impl_->Start();
 }
 
-IHydraManagerPtr TMetaStateFacade::GetManager() const
+TMasterAutomatonPtr THydraFacade::GetAutomaton() const
 {
-    return Impl->GetManager();
+    return Impl_->GetAutomaton();
 }
 
-IInvokerPtr TMetaStateFacade::GetInvoker(EAutomatonThreadQueue queue) const
+IHydraManagerPtr THydraFacade::GetHydraManager() const
 {
-    return Impl->GetInvoker(queue);
+    return Impl_->GetHydraManager();
 }
 
-IInvokerPtr TMetaStateFacade::GetEpochInvoker(EAutomatonThreadQueue queue) const
+IInvokerPtr THydraFacade::GetAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    return Impl->GetEpochInvoker(queue);
+    return Impl_->GetAutomatonInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EAutomatonThreadQueue queue) const
+IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    return Impl->GetGuardedInvoker(queue);
+    return Impl_->GetEpochAutomatonInvoker(queue);
 }
 
-void TMetaStateFacade::Start()
+IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
-    Impl->Start();
+    return Impl_->GetGuardedAutomatonInvoker(queue);
 }
 
-void TMetaStateFacade::ValidateActiveLeader()
+void THydraFacade::ValidateActiveLeader()
 {
-    return Impl->ValidateActiveLeader();
+    return Impl_->ValidateActiveLeader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

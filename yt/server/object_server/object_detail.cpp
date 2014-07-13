@@ -29,7 +29,7 @@
 #include <server/election/election_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/config.h>
 #include <server/cell_master/serialize.h>
 
@@ -732,13 +732,13 @@ TObjectBase* TObjectProxyBase::GetThisSchema()
 
 void TObjectProxyBase::DeclareMutating()
 {
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     YCHECK(hydraManager->IsMutating());
 }
 
 void TObjectProxyBase::DeclareNonMutating()
 {
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     if (hydraManager->IsMutating()) {
         auto* mutationContext = hydraManager->GetMutationContext();
         mutationContext->SuppressMutation();
@@ -775,22 +775,22 @@ void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permi
 
 bool TObjectProxyBase::IsRecovery() const
 {
-    return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
+    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
 bool TObjectProxyBase::IsLeader() const
 {
-    return Bootstrap->GetMetaStateFacade()->GetManager()->IsLeader();
+    return Bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader();
 }
 
 void TObjectProxyBase::ValidateActiveLeader() const
 {
-    Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+    Bootstrap->GetHydraFacade()->ValidateActiveLeader();
 }
 
 void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
 {
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     auto epochContext = hydraManager->GetAutomatonEpochContext();
 
     LOG_DEBUG("Forwarding request to leader");

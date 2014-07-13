@@ -22,7 +22,7 @@
 #include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_proxy.h>
@@ -78,7 +78,7 @@ public:
 
     void Invoke(IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         
         // Prevent regarding the request as a mutating one.
         if (hydraManager->IsMutating()) {

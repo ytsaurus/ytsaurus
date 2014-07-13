@@ -38,7 +38,7 @@
 #include <server/chunk_server/chunk_list.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
@@ -82,7 +82,7 @@ public:
         const TYPath& path,
         IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (headerExt.mutating() && !hydraManager->IsMutating() && !hydraManager->IsRecovery()) {
             return TResolveResult::Here(path);
@@ -338,7 +338,7 @@ TObjectManager::TObjectManager(
 void TObjectManager::Initialize()
 {
     ProfilingExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetInvoker(),
+        Bootstrap->GetHydraFacade()->GetAutomatonInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingExecutor->Start();
@@ -462,8 +462,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
+        ->GetHydraFacade()
+        ->GetHydraManager()
         ->GetMutationContext();
 
     const auto& version = mutationContext->GetVersion();
@@ -805,7 +805,7 @@ void TObjectManager::MergeAttributes(
 TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
 {
     return CreateMutation(
-        Bootstrap->GetMetaStateFacade()->GetManager(),
+        Bootstrap->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TObjectManager::HydraExecute);
@@ -814,7 +814,7 @@ TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& re
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return CreateMutation(
-        Bootstrap->GetMetaStateFacade()->GetManager(),
+        Bootstrap->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TObjectManager::HydraDestroyObjects);
@@ -948,7 +948,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YCHECK(!headerExt.mutating() ||
            hydraManager->IsMutating() ||
@@ -989,7 +989,7 @@ void TObjectManager::ExecuteMutatingRequest(
         context->Reply(ex);
     }
 
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     auto* mutationContext = hydraManager->GetMutationContext();
     if (mutationContext && !mutationContext->IsMutationSuppressed()) {
         mutationContext->Response().Data = context->GetResponseMessage();

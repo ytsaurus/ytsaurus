@@ -5,7 +5,7 @@
 #include "object_manager.h"
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
 
 #include <server/object_server/object_manager.pb.h>
@@ -38,7 +38,7 @@ void TGarbageCollector::StartSweep()
 {
     YCHECK(!SweepExecutor);
     SweepExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
+        Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config->GCSweepPeriod,
         EPeriodicExecutorMode::Manual);
@@ -158,7 +158,7 @@ void TGarbageCollector::CheckEmpty()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies.empty() && LockedZombies.empty()) {
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "GC queue is empty");
         CollectPromise.Set();
     }
@@ -178,8 +178,8 @@ void TGarbageCollector::OnSweep()
         Zombies.swap(newZombies);
     }
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto hydraManager = metaStateFacade->GetManager();
+    auto hydraFacade = Bootstrap->GetHydraFacade();
+    auto hydraManager = hydraFacade->GetHydraManager();
     if (Zombies.empty() || !hydraManager->IsActiveLeader()) {
         SweepExecutor->ScheduleNext();
         return;
@@ -199,7 +199,7 @@ void TGarbageCollector::OnSweep()
         request.object_ids_size());
 
     auto this_ = MakeStrong(this);
-    auto invoker = metaStateFacade->GetEpochInvoker();
+    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)

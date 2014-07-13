@@ -8,7 +8,7 @@
 #include <core/profiling/timing.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/object_server/object_manager.h>
 
@@ -37,7 +37,7 @@ void TRequestTracker::StartFlush()
 
     YCHECK(!FlushExecutor);
     FlushExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
+        Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
@@ -99,8 +99,8 @@ void TRequestTracker::OnFlush()
     LOG_DEBUG("Starting request statistics commit for %d users",
         UpdateRequestStatisticsRequest.updates_size());
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto invoker = metaStateFacade->GetEpochInvoker();
+    auto hydraFacade = Bootstrap->GetHydraFacade();
+    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     auto this_ = MakeStrong(this);
     Bootstrap
         ->GetSecurityManager()

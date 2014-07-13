@@ -29,7 +29,7 @@
 #include <server/object_server/attribute_set.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
 
 namespace NYT {
@@ -102,7 +102,7 @@ public:
         const TReqRegisterNode& request)
     {
         return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
+            Bootstrap->GetHydraFacade()->GetHydraManager(),
             request);
     }
 
@@ -110,14 +110,14 @@ public:
         const TReqUnregisterNode& request)
     {
         return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
+            Bootstrap->GetHydraFacade()->GetHydraManager(),
             request);
     }
 
     TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+        return CreateMutation(Bootstrap->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraFullHeartbeat,
@@ -129,7 +129,7 @@ public:
     TMutationPtr CreateIncrementalHeartbeatMutation(
         TCtxIncrementalHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap->GetMetaStateFacade()->GetManager())
+        return CreateMutation(Bootstrap->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraIncrementalHeartbeat,
@@ -573,9 +573,9 @@ private:
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn node registration and Cypress update into a single
         // logged change, which is undesirable.
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+        auto hydraFacade = Bootstrap->GetHydraFacade();
         BIND(&TImpl::DoRegisterNodeInCypress, MakeStrong(this), node->GetId())
-            .Via(metaStateFacade->GetEpochInvoker())
+            .Via(hydraFacade->GetEpochAutomatonInvoker())
             .Run();
     }
 
@@ -736,7 +736,7 @@ private:
         message.set_node_id(nodeId);
 
         auto mutation = CreateUnregisterNodeMutation(message);
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
+        auto invoker = Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker();
         invoker->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
     }
 

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "bootstrap.h"
-#include "meta_state_facade.h"
+#include "hydra_facade.h"
 #include "world_initializer.h"
 #include "config.h"
 
@@ -186,9 +186,9 @@ TCypressManagerPtr TBootstrap::GetCypressManager() const
     return CypressManager;
 }
 
-TMetaStateFacadePtr TBootstrap::GetMetaStateFacade() const
+THydraFacadePtr TBootstrap::GetHydraFacade() const
 {
-    return MetaStateFacade;
+    return HydraManager;
 }
 
 TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
@@ -283,7 +283,7 @@ void TBootstrap::Run()
         CellManager,
         fileSnapshotStore);
 
-    MetaStateFacade = New<TMetaStateFacade>(Config, this);
+    HydraManager = New<THydraFacade>(Config, this);
 
     WorldInitializer = New<TWorldInitializer>(Config, this);
     
@@ -296,9 +296,9 @@ void TBootstrap::Run()
         GetCellGuid(),
         Config->HiveManager,
         CellDirectory,
-        MetaStateFacade->GetInvoker(),
-        MetaStateFacade->GetManager(),
-        MetaStateFacade->GetAutomaton());
+        HydraManager->GetAutomatonInvoker(),
+        HydraManager->GetHydraManager(),
+        HydraManager->GetAutomaton());
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
@@ -318,9 +318,9 @@ void TBootstrap::Run()
     
     auto timestampManager = New<TTimestampManager>(
         Config->TimestampManager,
-        MetaStateFacade->GetInvoker(),
-        MetaStateFacade->GetManager(),
-        MetaStateFacade->GetAutomaton());
+        HydraManager->GetAutomatonInvoker(),
+        HydraManager->GetHydraManager(),
+        HydraManager->GetAutomaton());
     
     auto timestampProvider = CreateRemoteTimestampProvider(
         Config->TimestampProvider,
@@ -328,9 +328,9 @@ void TBootstrap::Run()
     
     TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,
-        MetaStateFacade->GetInvoker(),
-        MetaStateFacade->GetManager(),
-        MetaStateFacade->GetAutomaton(),
+        HydraManager->GetAutomatonInvoker(),
+        HydraManager->GetHydraManager(),
+        HydraManager->GetAutomaton(),
         HiveManager,
         TransactionManager,
         timestampProvider);
@@ -350,7 +350,7 @@ void TBootstrap::Run()
         TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Register(
         "/hydra",
-        MetaStateFacade->GetManager()->GetMonitoringProducer());
+        HydraManager->GetHydraManager()->GetMonitoringProducer());
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -403,7 +403,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager->RegisterHandler(CreateTabletMapTypeHandler(this));
 
-    MetaStateFacade->Start();
+    HydraManager->Start();
 
     monitoringManager->Start();
 

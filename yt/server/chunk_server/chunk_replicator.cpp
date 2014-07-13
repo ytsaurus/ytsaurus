@@ -26,7 +26,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/chunk_server/chunk_manager.h>
 
@@ -94,13 +94,13 @@ TChunkReplicator::TChunkReplicator(
 void TChunkReplicator::Initialize()
 {
     RefreshExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetMetaStateFacade()->GetEpochInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config_->ChunkRefreshPeriod);
     RefreshExecutor_->Start();
 
     PropertiesUpdateExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetMetaStateFacade()->GetEpochInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
         Config_->ChunkPropertiesUpdatePeriod,
         EPeriodicExecutorMode::Manual);
@@ -1258,7 +1258,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 void TChunkReplicator::OnPropertiesUpdate()
 {
     if (PropertiesUpdateList_.empty() ||
-        !Bootstrap_->GetMetaStateFacade()->GetManager()->IsActiveLeader())
+        !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader())
     {
         PropertiesUpdateExecutor_->ScheduleNext();
         return;
@@ -1308,7 +1308,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     LOG_DEBUG("Starting properties update for %d chunks", request.updates_size());
 
     auto this_ = MakeStrong(this);
-    auto invoker = Bootstrap_->GetMetaStateFacade()->GetEpochInvoker();
+    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
         ->Commit()

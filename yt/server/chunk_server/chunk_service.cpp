@@ -11,7 +11,7 @@
 #include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cell_master/hydra_service.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -35,7 +35,7 @@ public:
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(LocateChunks)
-                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EAutomatonThreadQueue::ChunkMaintenance)));
+                .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance)));
     }
 
 private:

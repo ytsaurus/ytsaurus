@@ -431,5 +431,5 @@ TEST_F(TSyncFileChangelogTest, SealEmptyChangelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NMetaState
+} // namespace NHydra
 } // namespace NYT

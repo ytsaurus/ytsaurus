@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "world_initializer.h"
-#include "meta_state_facade.h"
+#include "hydra_facade.h"
 #include "config.h"
 
 #include <core/ytree/ypath_proxy.h>
@@ -70,7 +70,7 @@ public:
         YCHECK(Config);
         YCHECK(Bootstrap);
 
-        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
     }
 
@@ -99,7 +99,7 @@ private:
     {
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
-        // We'll post an initialization callback to the state invoker instead.
+        // We'll post an initialization callback to the automaton invoker instead.
         ScheduleInitialize();
     }
 
@@ -114,7 +114,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::InitializeIfNeeded, MakeStrong(this))
-                .Via(Bootstrap->GetMetaStateFacade()->GetEpochInvoker()),
+                .Via(Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker()),
             delay);
     }
 

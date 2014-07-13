@@ -8,7 +8,7 @@
 #include <core/profiling/timing.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/object_server/object_manager.h>
 
@@ -39,7 +39,7 @@ void TAccessTracker::StartFlush()
 
     YCHECK(!FlushExecutor);
     FlushExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
+        Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
@@ -73,8 +73,8 @@ void TAccessTracker::OnModify(
     auto* node = cypressManager->GetNode(versionedId);
 
     auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
+        ->GetHydraFacade()
+        ->GetHydraManager()
         ->GetMutationContext();
 
     node->SetModificationTime(mutationContext->GetTimestamp());
@@ -129,7 +129,7 @@ void TAccessTracker::OnFlush()
         UpdateAccessStatisticsRequest.updates_size());
 
     auto this_ = MakeStrong(this);
-    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
+    auto invoker = Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker();
     Bootstrap
         ->GetCypressManager()
         ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest)

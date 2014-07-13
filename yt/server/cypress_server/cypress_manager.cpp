@@ -19,7 +19,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/object_server/type_handler_detail.h>
 #include <server/object_server/object_detail.h>
@@ -419,7 +419,7 @@ TCypressManager::TCypressManager(
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
     , RecomputeKeyColumns(false)
 {
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
     auto cellId = Bootstrap->GetCellId();
     RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
@@ -511,7 +511,7 @@ TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
     const NProto::TReqUpdateAccessStatistics& request)
 {
    return CreateMutation(
-        Bootstrap->GetMetaStateFacade()->GetManager(),
+        Bootstrap->GetHydraFacade()->GetHydraManager(),
         request,
         this,
         &TCypressManager::UpdateAccessStatistics);
@@ -1345,8 +1345,8 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
+        ->GetHydraFacade()
+        ->GetHydraManager()
         ->GetMutationContext();
 
     node->SetCreationTime(mutationContext->GetTimestamp());

@@ -138,12 +138,12 @@ TEST_F(TLoggingTest, Rule)
             writers = [ some_writer ];
         })")));
 
-    EXPECT_TRUE(rule->IsApplicable("meta_state"));
+    EXPECT_TRUE(rule->IsApplicable("some_service"));
     EXPECT_FALSE(rule->IsApplicable("bus"));
     EXPECT_FALSE(rule->IsApplicable("bus", ELogLevel::Debug));
-    EXPECT_FALSE(rule->IsApplicable("meta_state", ELogLevel::Debug));
-    EXPECT_TRUE(rule->IsApplicable("meta_state", ELogLevel::Warning));
-    EXPECT_TRUE(rule->IsApplicable("meta_state", ELogLevel::Info));
+    EXPECT_FALSE(rule->IsApplicable("some_service", ELogLevel::Debug));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Warning));
+    EXPECT_TRUE(rule->IsApplicable("some_service", ELogLevel::Info));
 }
 
 TEST_F(TLoggingTest, LogManager)

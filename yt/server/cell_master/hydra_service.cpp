@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "hydra_service.h"
-#include "meta_state_facade.h"
+#include "hydra_facade.h"
 #include "world_initializer.h"
 #include "bootstrap.h"
 
@@ -14,8 +14,8 @@ THydraServiceBase::THydraServiceBase(
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : NHydra::THydraServiceBase(
-        bootstrap->GetMetaStateFacade()->GetManager(),
-        bootstrap->GetMetaStateFacade()->GetGuardedInvoker(),
+        bootstrap->GetHydraFacade()->GetHydraManager(),
+        bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
         serviceName,
         loggingCategory)
     , Bootstrap(bootstrap)

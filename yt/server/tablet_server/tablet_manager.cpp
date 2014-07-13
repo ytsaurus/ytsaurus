@@ -51,7 +51,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
 
 #include <util/random/random.h>
@@ -177,7 +177,7 @@ public:
         , Config_(config)
         , TabletTracker_(New<TTabletTracker>(Config_, Bootstrap))
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Bootstrap->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -841,8 +841,8 @@ private:
                 cellId);
         };
 
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto hydraManager = metaStateFacade->GetManager();
+        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
         const auto& address = node->GetAddress();
 
@@ -1024,8 +1024,8 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto hydraManager = metaStateFacade->GetManager();
+        auto hydraFacade = Bootstrap->GetHydraFacade();
+        auto hydraManager = hydraFacade->GetHydraManager();
         auto* mutationContext = hydraManager->GetMutationContext();
         auto nodeTracker = Bootstrap->GetNodeTracker();
 
@@ -1269,7 +1269,7 @@ private:
         }
 
         CleanupExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
+            Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnCleanup, MakeWeak(this)),
             CleanupPeriod);
         CleanupExecutor_->Start();
@@ -1348,7 +1348,7 @@ private:
                 return lhs->GetId() < rhs->GetId();
             });
 
-        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         int index = mutationContext->RandomGenerator().Generate<size_t>() % cells.size();
         return cells[index];
     }

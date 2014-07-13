@@ -11,7 +11,7 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -535,7 +535,7 @@ public:
 
     virtual IInvokerPtr GetInvoker() const override
     {
-        return Bootstrap_->GetMetaStateFacade()->GetGuardedInvoker();
+        return Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker();
     }
 
     virtual void OnPop(TChunkTree* node) override

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "automaton.h"
 #include "serialize.h"
-#include "meta_state_facade.h"
+#include "hydra_facade.h"
 #include "bootstrap.h"
 
 namespace NYT {
@@ -28,8 +28,8 @@ TLoadContext& TMasterAutomaton::LoadContext()
 
 TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
     : TCompositeAutomatonPart(
-        bootstrap->GetMetaStateFacade()->GetManager(),
-        bootstrap->GetMetaStateFacade()->GetAutomaton())
+        bootstrap->GetHydraFacade()->GetHydraManager(),
+        bootstrap->GetHydraFacade()->GetAutomaton())
     , Bootstrap(bootstrap)
 { }
 
@@ -52,7 +52,7 @@ void TMasterAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND([=] () {
-            auto& context = Bootstrap->GetMetaStateFacade()->GetAutomaton()->SaveContext();
+            auto& context = Bootstrap->GetHydraFacade()->GetAutomaton()->SaveContext();
             saver.Run(context);
         }));
 }
@@ -64,7 +64,7 @@ void TMasterAutomatonPart::RegisterLoader(
     TCompositeAutomatonPart::RegisterLoader(
         name,
         BIND([=] () {
-            auto& context = Bootstrap->GetMetaStateFacade()->GetAutomaton()->LoadContext();
+            auto& context = Bootstrap->GetHydraFacade()->GetAutomaton()->LoadContext();
             loader.Run(context);
         }));
 }

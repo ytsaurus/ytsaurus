@@ -47,7 +47,7 @@
 
 #include <server/cell_master/serialize.h>
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>
@@ -296,7 +296,7 @@ public:
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap->GetMetaStateFacade()->GetInvoker(),
+            Bootstrap->GetHydraFacade()->GetAutomatonInvoker(),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
@@ -307,7 +307,7 @@ public:
         const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
+            Bootstrap->GetHydraFacade()->GetHydraManager(),
             request,
             this,
             &TImpl::UpdateChunkProperties);
@@ -456,7 +456,7 @@ public:
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
 
-        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         for (auto replica : replicas) {
@@ -896,7 +896,7 @@ private:
             ProcessRemovedChunk(node, chunkInfo);
         }
 
-        auto* mutationContext = Bootstrap->GetMetaStateFacade()->GetManager()->GetMutationContext();
+        auto* mutationContext = Bootstrap->GetHydraFacade()->GetHydraManager()->GetMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         auto& unapprovedReplicas = node->UnapprovedReplicas();

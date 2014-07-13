@@ -22,7 +22,7 @@
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/hydra_service.h>
 
 #include <server/security_server/security_manager.h>
@@ -155,7 +155,7 @@ private:
             auto objectManager = Bootstrap->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+            auto hydraFacade = Bootstrap->GetHydraFacade();
 
             auto startTime = TInstant::Now();
             auto& request = Context->Request();
@@ -170,7 +170,7 @@ private:
             while (CurrentRequestIndex < request.part_counts_size()) {
                 // Don't allow the thread to be blocked for too long by a single batch.
                 if (TInstant::Now() > startTime + Config->YieldTimeout) {
-                    metaStateFacade->GetEpochInvoker()->Invoke(
+                    hydraFacade->GetEpochAutomatonInvoker()->Invoke(
                         BIND(&TExecuteSession::Continue, MakeStrong(this)));
                     return;
                 }
@@ -211,7 +211,7 @@ private:
                 if (!mutating && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
                         BIND(&TExecuteSession::Continue, MakeStrong(this))
-                            .Via(metaStateFacade->GetEpochInvoker()));
+                            .Via(hydraFacade->GetEpochAutomatonInvoker()));
                     return;
                 }
 
@@ -444,7 +444,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
     context->SetRequestInfo("SetReadOnly: %s",
         ~FormatBool(setReadOnly));
 
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
 
     if (setReadOnly) {
         hydraManager->SetReadOnly(true);

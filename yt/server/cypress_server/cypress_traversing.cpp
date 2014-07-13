@@ -4,7 +4,7 @@
 #include <core/ytree/public.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>
@@ -118,8 +118,8 @@ private:
 
             // Schedule continuation.
             Bootstrap
-                ->GetMetaStateFacade()
-                ->GetGuardedInvoker()
+                ->GetHydraFacade()
+                ->GetGuardedAutomatonInvoker()
                 ->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
         } catch (const std::exception& ex) {
             Visitor->OnError(ex);

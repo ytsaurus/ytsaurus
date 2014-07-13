@@ -25,7 +25,7 @@
 #include <server/transaction_server/transaction.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction.h>
@@ -286,7 +286,7 @@ public:
         const NProto::TReqUpdateRequestStatistics& request)
     {
         return CreateMutation(
-            Bootstrap->GetMetaStateFacade()->GetManager(),
+            Bootstrap->GetHydraFacade()->GetHydraManager(),
             request,
             this,
             &TImpl::UpdateRequestStatistics);

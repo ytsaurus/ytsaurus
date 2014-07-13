@@ -12,7 +12,7 @@
 #include <server/table_server/table_node.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -77,7 +77,7 @@ TTabletTracker::TTabletTracker(
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 }
 
 void TTabletTracker::Start()
@@ -88,7 +88,7 @@ void TTabletTracker::Start()
 
     YCHECK(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetMetaStateFacade()->GetEpochInvoker(),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
         CellsScanPeriod);
     PeriodicExecutor_->Start();
@@ -134,7 +134,7 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_state(ETabletCellState::Running);
 
-    auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->Commit();
 }
@@ -171,7 +171,7 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
     }
 
     if (assigned) {
-        auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
             ->Commit();
     }
@@ -192,7 +192,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
             ToProto(request.mutable_cell_id(), cellId);
             request.set_peer_id(peerId);
 
-            auto hydraManager = Bootstrap_->GetMetaStateFacade()->GetManager();
+            auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             CreateMutation(hydraManager, request)
                 ->Commit();
         }

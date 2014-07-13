@@ -14,7 +14,7 @@
 #include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -42,7 +42,7 @@ TNodeTrackerService::TNodeTrackerService(
     FullHeartbeatMethodInfo = RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
-            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EAutomatonThreadQueue::Heartbeat)));
+            .SetInvoker(bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Heartbeat)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetRequestHeavy(true));

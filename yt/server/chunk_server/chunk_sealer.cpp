@@ -26,7 +26,7 @@
 #include <server/node_tracker_server/node.h>
 
 #include <server/cell_master/automaton.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/bootstrap.h>
 
 #include <deque>
@@ -70,9 +70,9 @@ public:
             }
         }
 
-        auto metaStateFacade = Bootstrap_->GetMetaStateFacade();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
         RefreshExecutor_ = New<TPeriodicExecutor>(
-            metaStateFacade->GetEpochInvoker(),
+            hydraFacade->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnRefresh, MakeWeak(this)),
             Config_->ChunkRefreshPeriod);
         RefreshExecutor_->Start();
