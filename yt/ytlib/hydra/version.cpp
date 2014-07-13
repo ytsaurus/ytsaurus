@@ -72,9 +72,16 @@ void TVersion::Rotate()
     RecordId = 0;
 }
 
+void FormatValue(TStringBuilder* builder, TVersion version)
+{
+    builder->AppendFormat("%v:%v", version.SegmentId, version.RecordId);
+}
+
 Stroka ToString(TVersion version)
 {
-    return Format("%v:%v", version.SegmentId, version.RecordId);
+    TStringBuilder builder;
+    FormatValue(&builder, version);
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

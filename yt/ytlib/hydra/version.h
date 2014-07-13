@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/string.h>
+
 #include <util/generic/typetraits.h>
 
 namespace NYT {
@@ -32,6 +34,7 @@ struct TVersion
 
 };
 
+void FormatValue(TStringBuilder* builder, TVersion version);
 Stroka ToString(TVersion version);
 
 ////////////////////////////////////////////////////////////////////////////////
