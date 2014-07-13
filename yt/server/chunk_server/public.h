@@ -80,12 +80,6 @@ const int TypicalChunkParentCount = 2;
  */
 const int ReplicationPriorityCount = 3;
 
-const int DefaultReplicationFactor = 3;
-const int MinReplicationFactor = 1;
-const int MaxReplicationFactor = 10;
-const int DefaultReadQuorum = 2;
-const int DefaultWriteQuorum = 2;
-
 DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((Underreplicated)   (0x0001))
     ((Overreplicated)    (0x0002))

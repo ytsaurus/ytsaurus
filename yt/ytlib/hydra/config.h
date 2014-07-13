@@ -6,6 +6,8 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/chunk_client/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -38,6 +40,7 @@ public:
     {
         RegisterParameter("snapshot_replication_factor", SnapshotReplicationFactor)
             .GreaterThan(0)
+            .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(3);
     }
 };
@@ -56,13 +59,22 @@ public:
     {
         RegisterParameter("changelog_replication_factor", ChangelogReplicationFactor)
             .GreaterThan(0)
+            .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(3);
         RegisterParameter("changelog_read_quorum", ChangelogReadQuorum)
             .GreaterThan(0)
+            .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(2);
         RegisterParameter("changelog_write_quorum", ChangelogWriteQuorum)
             .GreaterThan(0)
+            .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(2);
+
+        RegisterValidator([&] () {
+            if (ChangelogReadQuorum + ChangelogWriteQuorum < ChangelogReplicationFactor + 1) {
+                THROW_ERROR_EXCEPTION("Read/write quorums are not safe: changelog_read_quorum + changelog_write_quorum < changelog_replication_factor + 1");
+            }
+        });
     }
 };
 

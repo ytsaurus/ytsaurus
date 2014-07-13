@@ -30,6 +30,12 @@ extern TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
+const int DefaultReplicationFactor = 3;
+const int MinReplicationFactor = 1;
+const int MaxReplicationFactor = 10;
+const int DefaultReadQuorum = 2;
+const int DefaultWriteQuorum = 2;
+
 //! Used as an expected upper bound in SmallVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).
