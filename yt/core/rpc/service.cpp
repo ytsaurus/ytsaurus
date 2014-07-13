@@ -8,12 +8,12 @@ namespace NRpc {
 
 void IServiceContext::SetRequestInfo()
 {
-    SetRequestInfo("");
+    SetRawRequestInfo("");
 }
 
 void IServiceContext::SetResponseInfo()
 {
-    SetResponseInfo("");
+    SetRawResponseInfo("");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

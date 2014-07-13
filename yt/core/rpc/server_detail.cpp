@@ -225,13 +225,13 @@ TRequestHeader& TServiceContextBase::RequestHeader()
     return *RequestHeader_;
 }
 
-void TServiceContextBase::SetRequestInfo(const Stroka& info)
+void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
 {
     RequestInfo_ = info;
     LogRequest();
 }
 
-void TServiceContextBase::SetResponseInfo(const Stroka& info)
+void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
 {
     YASSERT(!Replied_);
     YASSERT(!IsOneWay());
@@ -350,14 +350,14 @@ NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
     return UnderlyingContext->RequestHeader();
 }
 
-void TServiceContextWrapper::SetRequestInfo(const Stroka& info)
+void TServiceContextWrapper::SetRawRequestInfo(const Stroka& info)
 {
-    UnderlyingContext->SetRequestInfo(info);
+    UnderlyingContext->SetRawRequestInfo(info);
 }
 
-void TServiceContextWrapper::SetResponseInfo(const Stroka& info)
+void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
 {
-    UnderlyingContext->SetResponseInfo(info);
+    UnderlyingContext->SetRawResponseInfo(info);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

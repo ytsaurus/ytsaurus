@@ -13,13 +13,13 @@ namespace NRpc {
 template <class... TArgs>
 void IServiceContext::SetRequestInfo(const char* format, const TArgs&... args)
 {
-    SetRequestInfo(Format(format, args...));
+    SetRawRequestInfo(Format(format, args...));
 }
 
 template <class... TArgs>
 void IServiceContext::SetResponseInfo(const char* format, const TArgs&... args)
 {
-    SetResponseInfo(Format(format, args...));
+    SetRawResponseInfo(Format(format, args...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
