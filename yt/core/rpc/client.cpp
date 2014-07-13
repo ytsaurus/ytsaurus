@@ -18,6 +18,9 @@ using namespace NYTree;
 
 static auto& Logger = RpcClientLogger;
 
+static auto ClientHostAnnotation = Stroka("client_host");
+static auto RequestIdAnnotation = Stroka("request_id");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
@@ -115,12 +118,12 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
         TRACE_ANNOTATION(
             traceContext,
-            "request_id",
+            RequestIdAnnotation,
             GetRequestId());
 
         TRACE_ANNOTATION(
             traceContext,
-            "client_host",
+            ClientHostAnnotation,
             TAddressResolver::Get()->GetLocalHostName());
     }
 
