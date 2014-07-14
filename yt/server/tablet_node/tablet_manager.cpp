@@ -858,52 +858,49 @@ private:
 
     void OnTransactionPrepared(TTransaction* transaction)
     {
-        if (transaction->LockedRows().empty())
-            return;
-        
-        for (const auto& rowRef : transaction->LockedRows()) {
-            if (ValidateRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
+        if (transaction->LockedRows().empty()) {
+            for (const auto& rowRef : transaction->LockedRows()) {
+                if (ValidateRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
+                }
             }
-        }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            transaction->LockedRows().size());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                transaction->LockedRows().size());
+        }
     }
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        if (transaction->LockedRows().empty())
-            return;
-
-        for (const auto& rowRef : transaction->LockedRows()) {
-            if (ValidateRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
+        if (!transaction->LockedRows().empty()) {
+            for (const auto& rowRef : transaction->LockedRows()) {
+                if (ValidateRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
+                }
             }
-        }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            transaction->LockedRows().size());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                transaction->LockedRows().size());
+        }
 
         OnTransactionFinished(transaction);
     }
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        if (transaction->LockedRows().empty())
-            return;
-
-        for (const auto& rowRef : transaction->LockedRows()) {
-            if (ValidateRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+        if (!transaction->LockedRows().empty()) {
+            for (const auto& rowRef : transaction->LockedRows()) {
+                if (ValidateRowRef(rowRef)) {
+                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+                }
             }
-        }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            transaction->LockedRows().size());
+            LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
+                transaction->GetId(),
+                transaction->LockedRows().size());
+        }
 
         OnTransactionFinished(transaction);
     }
