@@ -1465,7 +1465,7 @@ private:
             }
 
             if (snapshotIds.size() <= Config_->MaxSnapshotsToKeep)
-                return;
+                continue;
 
             std::sort(snapshotIds.begin(), snapshotIds.end());
             int thresholdId = snapshotIds[snapshotIds.size() - Config_->MaxSnapshotsToKeep];
