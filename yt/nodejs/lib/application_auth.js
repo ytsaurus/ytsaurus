@@ -1,5 +1,5 @@
 var url = require("url");
-var qs = require("querystring");
+var querystring = require("querystring");
 var fs = require("fs");
 var mustache = require("mustache");
 var Q = require("q");
@@ -38,13 +38,17 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
     var self = this;
     self.logger.debug("Auth call on '" + req.url + "'");
 
-    return Q.try(function() {
+    return Q
+    .when(self._captureBody(req, rsp))
+    .then(function(body) {
         switch (url.parse(req.url).pathname) {
             case "/":
             case "/index":
-                return self._dispatchIndex(req, rsp);
+                return self._dispatchIndex(req, rsp, body);
+            case "/login":
+                return self._dispatchLogin(req, rsp, body);
             case "/new":
-                return self._dispatchNew(req, rsp);
+                return self._dispatchNew(req, rsp, body);
             // There are only static routes below.
             case "/style":
                 return utils.dispatchAs(rsp, _STATIC_STYLE, "text/css");
@@ -71,21 +75,27 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
         });
     }
 
-    try {
-        if (error.attributes.stack) {
-            description = JSON.parse(error.attributes.stack);
-        } else {
-            description = JSON.stringify(JSON.parse(error.toJson()), null, 2);
+    if (req.url.indexOf("/login") === 0) {
+        if (error.code !== 0) {
+            rsp.statusCode = 400;
         }
-    } catch (err) {
+        return utils.dispatchAs(rsp, error.toJson(), "application/json");
+    } else {
+        try {
+            if (error.attributes.stack) {
+                description = JSON.parse(error.attributes.stack);
+            } else {
+                description = JSON.stringify(JSON.parse(error.toJson()), null, 2);
+            }
+        } catch (err) {
+        }
+
+        var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_ERROR({
+            message: message,
+            description: description
+        })});
+        return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
     }
-
-    var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_ERROR({
-        message: message,
-        description: description
-    })});
-
-    return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
 };
 
 YtApplicationAuth.prototype._dispatchIndex = function(req, rsp)
@@ -98,11 +108,41 @@ YtApplicationAuth.prototype._dispatchIndex = function(req, rsp)
     }
 };
 
+YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
+{
+    "use strict";
+
+    var self = this;
+    var logger = req.logger || self.logger;
+    var origin = req.origin || req.connection.remoteAddress;
+
+    if (req.method !== "POST") {
+        throw new YtError("Expected POST request");
+    }
+
+    if (typeof(body) !== "object" || typeof(body.token) !== "string") {
+        throw new YtError("Expected body to have a `token` field");
+    }
+
+    return Q
+    .when(self.authority.authenticate(logger, origin, body.token))
+    .then(function(result) {
+        return utils.dispatchJson(rsp, {
+            login: result.login,
+            realm: result.realm
+        });
+    })
+    .fail(function(err) {
+        return Q.reject(YtError.ensureWrapped(
+            err, "Failed to authenticate by token"));
+    });
+};
+
 YtApplicationAuth.prototype._dispatchNew = function(req, rsp)
 {
     "use strict";
 
-    var params = qs.parse(url.parse(req.url).query);
+    var params = querystring.parse(url.parse(req.url).query);
     if (params.code && params.state) {
         return this._dispatchNewCallback(req, rsp, params);
     } else {
@@ -139,7 +179,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
             var realm = result.realm;
 
             target = url.parse(target);
-            target.query = qs.decode(target.query);
+            target.query = querystring.decode(target.query);
             target.query.token = token;
             target.query.login = login;
             target.search = null;
@@ -178,6 +218,27 @@ YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
         state);
 
     return utils.redirectTo(rsp, target, 303);
+};
+
+YtApplicationAuth.prototype._captureBody = function(req, rsp)
+{
+    "use strict";
+
+    var deferred = Q.defer();
+    var chunks = [];
+
+    req.on("data", function(chunk) { chunks.push(chunk); });
+    req.on("end", function() {
+        try {
+            var body = buffertools.concat.apply(undefined, chunks);
+            var result = querystring.parse(body.toString("utf-8"));
+            deferred.resolve(result);
+        } catch (err) {
+            deferred.reject(err);
+        }
+    });
+
+    return deferred.promise;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
