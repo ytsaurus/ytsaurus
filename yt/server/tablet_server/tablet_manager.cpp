@@ -1160,6 +1160,8 @@ private:
 
         auto* cell = tablet->GetCell();
         auto* table = tablet->GetTable();
+        if (!IsObjectAlive(table))
+            return;
 
         auto cypressManager = Bootstrap->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
@@ -1445,6 +1447,9 @@ private:
         auto resolver = cypressManager->CreateResolver();
         for (const auto& pair : TabletCellMap_) {
             const auto& cellId = pair.first;
+            const auto* cell = pair.second;
+            if (!IsObjectAlive(cell))
+                continue;
 
             auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
             auto snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
