@@ -334,11 +334,13 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/stored_chunks",
-        CreateVirtualNode(CreateStoredChunkMapService(ChunkStore)));
+        CreateVirtualNode(CreateStoredChunkMapService(ChunkStore)
+            ->Via(GetControlInvoker())));
     SetNodeByYPath(
         OrchidRoot,
         "/cached_chunks",
-        CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)));
+        CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)
+            ->Via(GetControlInvoker())));
     SetNodeByYPath(
         OrchidRoot,
         "/tablet_slots",
