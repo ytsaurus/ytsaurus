@@ -370,18 +370,12 @@ struct TCheckFirstArgument<TRunnable, TFirstParam, TOtherParams...>
 template <class T>
 struct TIsRawPtrToRefCountedType
 {
-#if defined(_win_)
-    enum {
-        Value = 0
-    };
-#else
     enum {
         Value = (NMpl::TIsPointer<T>::Value && (
             NMpl::TIsConvertible<T, TIntrinsicRefCounted*>::Value ||
             NMpl::TIsConvertible<T, TExtrinsicRefCounted*>::Value
         ))
     };
-#endif
 };
 
 template <class T>
