@@ -15,7 +15,7 @@ namespace NDataNode {
 
 //! Manages chunk uploads.
 /*!
- *  Thread affinity: Control
+ *  Thread affinity: ControlThread
  */
 class TSessionManager
     : public TRefCounted
