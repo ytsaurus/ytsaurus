@@ -106,17 +106,23 @@ private:
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             i64 priority = 0;
             for (int index = 0; index < static_cast<int>(blockIndexes.size()); ++index) {
+                auto asyncResult = BIND(
+                    &TBlockStore::GetBlock,
+                    blockStore,
+                    Owner_->Chunk_->GetId(),
+                    blockIndexes[index],
+                    priority,
+                    false);
+                auto handler = BIND(
+                    &TReadSession::OnBlockFetched,
+                    MakeStrong(this),
+                    index,
+                    blockIndexes[index]);
                 awaiter->Await(
-                    blockStore->GetBlock(
-                        Owner_->Chunk_->GetId(),
-                        blockIndexes[index],
-                        priority,
-                        false),
-                    BIND(
-                        &TReadSession::OnBlockFetched,
-                        MakeStrong(this),
-                        index,
-                        blockIndexes[index]));
+                    asyncResult
+                        .AsyncVia(Owner_->Bootstrap_->GetControlInvoker())
+                        .Run(),
+                    handler);
                 // Assign decreasing priorities to block requests to take advantage of sequential read.
                 --priority;
             }
@@ -137,6 +143,8 @@ private:
 
         void OnBlockFetched(int index, int blockIndex, TBlockStore::TGetBlockResult result)
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             if (!result.IsOK()) {
                 Promise_.TrySet(TError("Error reading local chunk block %v:%v",
                     Owner_->Chunk_->GetId(),
@@ -158,6 +166,8 @@ private:
 
         void OnCompleted()
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             TraceSpanGuard_.Release();
             Promise_.TrySet(Blocks_);
         }
