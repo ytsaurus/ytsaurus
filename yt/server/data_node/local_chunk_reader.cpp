@@ -27,11 +27,6 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int FetchPriority = 0;
-static const bool EnableCaching = true;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TLocalChunkReader;
 typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
@@ -76,7 +71,7 @@ public:
             "LocalChunkReader",
             "GetChunkMeta");
         return Chunk_
-            ->GetMeta(FetchPriority, extensionTags)
+            ->GetMeta(0, extensionTags)
             .Apply(BIND(
                 &TLocalChunkReader::OnGotChunkMeta,
                 partitionTag,
@@ -109,14 +104,21 @@ private:
 
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
             auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+            i64 priority = 0;
             for (int index = 0; index < static_cast<int>(blockIndexes.size()); ++index) {
                 awaiter->Await(
                     blockStore->GetBlock(
                         Owner_->Chunk_->GetId(),
                         blockIndexes[index],
-                        FetchPriority,
-                        EnableCaching),
-                    BIND(&TReadSession::OnBlockFetched, MakeStrong(this), index));
+                        priority,
+                        false),
+                    BIND(
+                        &TReadSession::OnBlockFetched,
+                        MakeStrong(this),
+                        index,
+                        blockIndexes[index]));
+                // Assign decreasing priorities to block requests to take advantage of sequential read.
+                --priority;
             }
     
             awaiter->Complete(BIND(&TReadSession::OnCompleted, MakeStrong(this)));
@@ -133,14 +135,25 @@ private:
         std::vector<TSharedRef> Blocks_;
 
 
-        void OnBlockFetched(int index, TBlockStore::TGetBlockResult result)
+        void OnBlockFetched(int index, int blockIndex, TBlockStore::TGetBlockResult result)
         {
-            if (result.IsOK()) {
-                Blocks_[index] = result.Value();
-            } else {
-                Promise_.TrySet(TError("Error reading local chunk")
+            if (!result.IsOK()) {
+                Promise_.TrySet(TError("Error reading local chunk block %v:%v",
+                    Owner_->Chunk_->GetId(),
+                    blockIndex)
+                    << result);
+                return;
+            }
+
+            const auto& block = result.Value();
+            if (!block) {
+                Promise_.TrySet(TError("Local chunk block %v:%v is no longer available",
+                    Owner_->Chunk_->GetId(),
+                    blockIndex)
                     << result);
             }
+
+            Blocks_[index] = block;
         }
 
         void OnCompleted()
