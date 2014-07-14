@@ -149,11 +149,7 @@ public:
 
     void EvictChangelog(IChunkPtr chunk)
     {
-        if (TCacheBase::Remove(chunk->GetId())) {
-            LOG_DEBUG("Journal chunk evicted from cache (LocationId: %v, ChunkId: %v)",
-                chunk->GetLocation()->GetId(),
-                chunk->GetId());
-        }
+        TCacheBase::Remove(chunk->GetId());
     }
 
 private:
@@ -372,6 +368,10 @@ private:
             LOG_ERROR(ex, "Error cleaning up multiplexed changelogs");
         }
     }
+
+
+    virtual void OnAdded(TCachedChangelog* changelog) override;
+    virtual void OnRemoved(TCachedChangelog* changelog) override;
 
 };
 
@@ -862,6 +862,18 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     }
 
     return appendResult;
+}
+
+void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
+{
+    LOG_DEBUG("Journal chunk added to cache (ChunkId: %v)",
+        changelog->GetKey());
+}
+
+void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
+{
+    LOG_DEBUG("Journal chunk evicted from cache (ChunkId: %v)",
+        changelog->GetKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

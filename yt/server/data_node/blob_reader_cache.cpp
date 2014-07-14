@@ -95,11 +95,20 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        if (TCacheBase::Remove(chunk->GetId())) {
-            LOG_DEBUG("Block chunk reader evicted from cache (LocationId: %v, ChunkId: %v)",
-                chunk->GetLocation()->GetId(),
-                chunk->GetId());
-        }
+        TCacheBase::Remove(chunk->GetId());
+    }
+
+private:
+    virtual void OnAdded(TCachedReader* reader) override
+    {
+        LOG_DEBUG("Block chunk reader added to cache (ChunkId: %v)",
+            reader->GetKey());
+    }
+
+    virtual void OnRemoved(TCachedReader* reader) override
+    {
+        LOG_DEBUG("Block chunk reader evicted from cache (ChunkId: %v)",
+            reader->GetKey());
     }
 
 };
