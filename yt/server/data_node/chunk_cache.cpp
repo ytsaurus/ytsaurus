@@ -175,14 +175,14 @@ private:
 
     virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return chunk->GetInfo().disk_space();
     }
 
     virtual void OnAdded(TCachedBlobChunk* value) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TWeightLimitedCache::OnAdded(value);
         ChunkAdded_.Fire(value);
@@ -190,7 +190,7 @@ private:
 
     virtual void OnRemoved(TCachedBlobChunk* value) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TWeightLimitedCache::OnRemoved(value);
         ChunkRemoved_.Fire(value);
