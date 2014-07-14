@@ -88,7 +88,7 @@ TKeyRange RefineKeyRange(
     // Computes key index for a given column name.
     auto columnNameToKeyPartIndex =
     [&] (const Stroka& columnName) -> size_t {
-        for (size_t index = 0; index < keySize; ++index) {
+        for (size_t index = 0; index < keyColumns.size(); ++index) {
             if (keyColumns[index] == columnName) {
                 return index;
             }
