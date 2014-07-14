@@ -87,13 +87,13 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     VERIFY_SPINLOCK_AFFINITY(SpinLock);
     TDelayedExecutor::CancelAndClear(Cookie);
     Cookie = TDelayedExecutor::Submit(
-        BIND(&TPeriodicExecutor::PostCallback, MakeStrong(this)),
+        BIND(&TPeriodicExecutor::PostCallback, MakeWeak(this)),
         delay);
 }
 
 void TPeriodicExecutor::PostCallback()
 {
-    auto this_ = MakeStrong(this);
+    auto this_ = MakeWeak(this);
     GuardedInvoke(
         Invoker,
         BIND(&TPeriodicExecutor::OnCallbackSuccess, this_),
