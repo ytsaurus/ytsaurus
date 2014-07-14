@@ -624,6 +624,7 @@ public:
             newTablets.push_back(tablet);
         }
 
+        // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
 
