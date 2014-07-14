@@ -120,8 +120,8 @@ public:
 
     TAsyncDownloadResult Download(const TChunkId& chunkId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
+        VERIFY_THREAD_AFFINITY_ANY();
+        
         LOG_INFO("Getting chunk from cache (ChunkId: %s)",
             ~ToString(chunkId));
 

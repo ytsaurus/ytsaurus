@@ -48,6 +48,8 @@ public:
     /*!
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
+     *
+     *  Thread affinity: any
      */
     TAsyncDownloadResult DownloadChunk(const TChunkId& chunkId);
 
