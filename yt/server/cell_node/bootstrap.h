@@ -85,7 +85,6 @@ private:
     TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;
-    IInvokerPtr ControlInvoker;
 
     NConcurrency::TThreadPoolPtr QueryWorkerPool;
     IInvokerPtr QueryWorkerInvoker;
@@ -120,6 +119,9 @@ private:
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;
+
+
+    void DoRun();
 
 };
 

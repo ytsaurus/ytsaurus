@@ -54,6 +54,9 @@ private:
     Stroka LocalAddress;
     NScheduler::TSchedulerPtr Scheduler;
     NHive::TClusterDirectoryPtr ClusterDirectory;
+
+    void DoRun();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

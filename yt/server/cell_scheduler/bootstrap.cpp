@@ -90,6 +90,22 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
+    srand(time(nullptr));
+
+    ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
+
+    auto result = BIND(&TBootstrap::DoRun, this)
+        .Guarded()
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+    Sleep(TDuration::Max());
+}
+
+void TBootstrap::DoRun()
+{
     LocalAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
         Config->RpcPort);
@@ -100,8 +116,6 @@ void TBootstrap::Run()
 
     auto connection = CreateConnection(Config->ClusterConnection);
     MasterClient = connection->CreateClient();
-
-    ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
@@ -161,8 +175,6 @@ void TBootstrap::Run()
     rpcServer->Start();
 
     Scheduler->Initialize();
-
-    Sleep(TDuration::Max());
 }
 
 TCellSchedulerConfigPtr TBootstrap::GetConfig() const

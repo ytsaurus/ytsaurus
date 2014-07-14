@@ -129,6 +129,20 @@ void TBootstrap::Run()
 {
     srand(time(nullptr));
 
+    ControlQueue = New<TActionQueue>("Control");
+
+    auto result = BIND(&TBootstrap::DoRun, this)
+        .Guarded()
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+    Sleep(TDuration::Max());
+}
+
+void TBootstrap::DoRun()
+{
     {
         auto addresses = Config->Addresses;
         if (addresses.find(NNodeTrackerClient::DefaultNetworkName) == addresses.end()) {
@@ -156,9 +170,6 @@ void TBootstrap::Run()
 
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
     MasterClient = clusterConnection->CreateClient();
-
-    ControlQueue = New<TActionQueue>("Control");
-    ControlInvoker = ControlQueue->GetInvoker();
 
     QueryWorkerPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -368,8 +379,6 @@ void TBootstrap::Run()
 
     RpcServer->Start();
     httpServer.Start();
-
-    Sleep(TDuration::Max());
 }
 
 TCellNodeConfigPtr TBootstrap::GetConfig() const
@@ -379,7 +388,7 @@ TCellNodeConfigPtr TBootstrap::GetConfig() const
 
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlInvoker;
+    return ControlQueue->GetInvoker();
 }
 
 IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const

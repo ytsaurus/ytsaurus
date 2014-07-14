@@ -233,6 +233,22 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 
 void TBootstrap::Run()
 {
+    srand(time(nullptr));
+
+    ControlQueue = New<TActionQueue>("Control");
+
+    auto result = BIND(&TBootstrap::DoRun, this)
+        .Guarded()
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+    Sleep(TDuration::Max());
+}
+
+void TBootstrap::DoRun()
+{
     LOG_INFO("Starting cell master (CellGuid: %s, CellId: %d)",
         ~ToString(GetCellGuid()),
         static_cast<int>(GetCellId()));
@@ -243,8 +259,6 @@ void TBootstrap::Run()
     if (GetCellId() == 0) {
         LOG_ERROR("No custom cell ID is set, cluster can only be used for testing purposes");
     }
-
-    ControlQueue = New<TActionQueue>("Control");
 
     auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
@@ -418,8 +432,6 @@ void TBootstrap::Run()
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
     RpcServer->Start();
-
-    Sleep(TDuration::Max());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

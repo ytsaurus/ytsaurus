@@ -87,6 +87,8 @@ private:
     NHive::TCellDirectoryPtr CellDirectory;
     NConcurrency::TActionQueuePtr ControlQueue;
 
+    void DoRun();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
