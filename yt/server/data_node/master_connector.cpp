@@ -80,11 +80,12 @@ void TMasterConnector::Start()
 {
     YCHECK(!Started_);
 
-    // Chunk store callbacks are always called in Control thread.
     Bootstrap_->GetChunkStore()->SubscribeChunkAdded(
-        BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
+        BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
+            .Via(ControlInvoker_));
     Bootstrap_->GetChunkStore()->SubscribeChunkRemoved(
-        BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this)));
+        BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
+            .Via(ControlInvoker_));
 
     Bootstrap_->GetChunkCache()->SubscribeChunkAdded(
         BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
