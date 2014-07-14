@@ -5,7 +5,9 @@
 #include <core/misc/cache.h>
 #include <core/misc/property.h>
 
+#include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue.h>
+
 #include <core/actions/signal.h>
 
 #include <ytlib/chunk_client/file_reader.h>
@@ -18,6 +20,10 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages stored chunks.
+/*!
+ *  \note
+ *  Thread affinity: ControlThread
+ */
 class TChunkStore
     : public TRefCounted
 {
@@ -99,6 +105,8 @@ private:
 
     static TChunkEntry BuildEntry(IChunkPtr chunk);
     IChunkPtr CreateFromDescriptor(TLocationPtr location, const TChunkDescriptor& descriptor);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 };
 

@@ -14,6 +14,8 @@
 #include <core/misc/string.h>
 #include <core/misc/fs.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <core/logging/tagged_logger.h>
 
 #include <ytlib/hydra/peer_channel.h>
@@ -54,10 +56,14 @@ public:
         : TWeightLimitedCache(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max()))
         , Config_(config)
         , Bootstrap_(bootstrap)
-    { }
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+    }
 
     void Initialize()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LOG_INFO("Chunk cache scan started");
 
         Location_ = New<TLocation>(
@@ -67,7 +73,8 @@ public:
             Bootstrap_);
 
         Location_->SubscribeDisabled(
-            BIND(&TImpl::OnLocationDisabled, Unretained(this)));
+            BIND(&TImpl::OnLocationDisabled, Unretained(this))
+                .Via(Bootstrap_->GetControlInvoker()));
 
         auto descriptors = Location_->Initialize();
         for (const auto& descriptor : descriptors) {
@@ -85,6 +92,8 @@ public:
 
     void Register(TCachedBlobChunkPtr chunk)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(+1);
         location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
@@ -92,6 +101,8 @@ public:
 
     void Unregister(TCachedBlobChunkPtr chunk)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
@@ -99,6 +110,8 @@ public:
 
     void Put(TCachedBlobChunkPtr chunk)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TInsertCookie cookie(chunk->GetId());
         YCHECK(BeginInsert(&cookie));
         cookie.EndInsert(chunk);
@@ -107,6 +120,8 @@ public:
 
     TAsyncDownloadResult Download(const TChunkId& chunkId)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LOG_INFO("Getting chunk from cache (ChunkId: %s)",
             ~ToString(chunkId));
 
@@ -123,26 +138,26 @@ public:
                 MakeStrong(this),
                 chunkId,
                 Passed(std::move(cookie))));
-        } else {
+        } else {    
             LOG_INFO("Chunk is already cached (ChunkId: %s)",
                 ~ToString(chunkId));
         }
 
-        return cookieValue.Apply(BIND([] (TErrorOr<TCachedBlobChunkPtr> result) -> TDownloadResult {
-            if (!result.IsOK()) {
-                return TError(result);
-            }
-            return TDownloadResult(result.Value());
-        }));
+        return cookieValue.Apply(BIND(&TImpl::OnChunkDownloaded, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetControlInvoker()));
     }
 
     bool IsEnabled() const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return Location_->IsEnabled();
     }
 
     std::vector<IChunkPtr> GetChunks()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto chunks = GetAll();
         return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
     }
@@ -155,26 +170,36 @@ private:
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 
     virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return chunk->GetInfo().disk_space();
     }
 
     virtual void OnAdded(TCachedBlobChunk* value) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TWeightLimitedCache::OnAdded(value);
         ChunkAdded_.Fire(value);
     }
 
     virtual void OnRemoved(TCachedBlobChunk* value) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         TWeightLimitedCache::OnRemoved(value);
         ChunkRemoved_.Fire(value);
     }
 
     void OnLocationDisabled()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LOG_WARNING("Chunk cache disabled");
         Clear();
 
@@ -265,7 +290,6 @@ private:
                 chunkWriter->GetChunkInfo(),
                 &chunkMeta);
             cookie.EndInsert(chunk);
-            Register(chunk);
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %s into cache",
                 ~ToString(chunkId))
@@ -275,6 +299,16 @@ private:
         }
     }
 
+    TDownloadResult OnChunkDownloaded(TErrorOr<TCachedBlobChunkPtr> result)
+    {
+        if (!result.IsOK()) {
+            return TError(result);
+        }
+
+        auto chunk = result.Value();
+        Register(chunk);
+        return TDownloadResult(chunk);
+    }
 
 };
 

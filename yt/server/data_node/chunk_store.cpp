@@ -37,10 +37,14 @@ static auto& Logger = DataNodeLogger;
 TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-{ }
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+}
 
 void TChunkStore::Initialize()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Chunk store scan started");
 
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
@@ -53,7 +57,8 @@ void TChunkStore::Initialize()
             Bootstrap_);
 
         location->SubscribeDisabled(
-            BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
+            BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
+                .Via(Bootstrap_->GetControlInvoker()));
             
         auto descriptors = location->Initialize();
         for (const auto& descriptor : descriptors) {
@@ -70,6 +75,8 @@ void TChunkStore::Initialize()
 
 void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto location = chunk->GetLocation();
     if (!location->IsEnabled())
         return;
@@ -88,6 +95,7 @@ void TChunkStore::RegisterNewChunk(IChunkPtr chunk)
 
 void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(chunk->GetLocation()->IsEnabled());
 
     auto entry = BuildEntry(chunk);
@@ -125,6 +133,8 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
 
 void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto chunk = entry.Chunk;
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
@@ -155,6 +165,8 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
 
 void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto location = chunk->GetLocation();
     if (!location->IsEnabled())
         return;
@@ -189,6 +201,8 @@ void TChunkStore::UpdateExistingChunk(IChunkPtr chunk)
 
 void TChunkStore::UnregisterChunk(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto location = chunk->GetLocation();
     if (!location->IsEnabled())
         return;
@@ -221,12 +235,16 @@ TChunkStore::TChunkEntry TChunkStore::BuildEntry(IChunkPtr chunk)
 
 IChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto it = ChunkMap_.find(chunkId);
     return it == ChunkMap_.end() ? nullptr : it->second.Chunk;
 }
 
 TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return chunk->ScheduleRemove().Apply(
         BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk)
             .Via(Bootstrap_->GetControlInvoker()));
@@ -234,6 +252,7 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 
 TLocationPtr TChunkStore::GetNewChunkLocation()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!Locations_.empty());
 
     std::vector<TLocationPtr> candidates;
@@ -265,6 +284,8 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 
 TChunkStore::TChunks TChunkStore::GetChunks() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TChunks result;
     result.reserve(ChunkMap_.size());
     for (const auto& pair : ChunkMap_) {
@@ -275,11 +296,15 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 
 int TChunkStore::GetChunkCount() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return static_cast<int>(ChunkMap_.size());
 }
 
 void TChunkStore::OnLocationDisabled(TLocationPtr location)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     // Scan through all chunks and remove those residing on this dead location.
     LOG_INFO("Started cleaning up chunk map");
     int count = 0;

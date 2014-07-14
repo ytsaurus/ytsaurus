@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
 #include <core/misc/error.h>
 
 #include <core/actions/signal.h>
@@ -17,11 +16,7 @@ namespace NDataNode {
 //! Manages cached chunks.
 /*!
  *  \note
- *  Thread affinity: any.
- *
- *  Since methods may be called from arbitrary threads some of their results
- *  may only be regarded as a transient snapshot
- *  (applies to #GetChunks, #FindChunk, #GetChunkCount);
+ *  Thread affinity: ControlThread
  */
 class TChunkCache
     : public TRefCounted
@@ -35,7 +30,7 @@ public:
 
     ~TChunkCache();
 
-    //! Finds chunk by id. Returns NULL if no chunk exists.
+    //! Finds chunk by id. Returns |nullptr| if no chunk exists.
     IChunkPtr FindChunk(const TChunkId& chunkId);
 
     //! Returns the list of all registered chunks.
