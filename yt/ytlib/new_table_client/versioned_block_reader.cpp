@@ -37,7 +37,8 @@ int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
 
 } // namespace
 
-TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(const TSharedRef& data,
+TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
+    const TSharedRef& data,
     const TBlockMeta& meta,
     const TTableSchema& chunkSchema,
     const TKeyColumns& keyColumns,
