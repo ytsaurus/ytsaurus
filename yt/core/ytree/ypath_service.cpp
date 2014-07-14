@@ -150,8 +150,7 @@ public:
     
     void Initialize()
     {
-        auto tree = ConvertToNode(AsyncGetData().Get());
-        UpdateCache(tree);
+        UpdateCache(ConvertToNode(TYsonString("#")));
     }
 
     virtual TResolveResult Resolve(
@@ -211,16 +210,15 @@ private:
 
     TFuture<TYsonString> AsyncGetData()
     {
-        return
-            AsyncYPathGet(
-                UnderlyingService,
-                "",
-                TAttributeFilter::All,
-                true)
-                .Apply(BIND([] (TErrorOr<TYsonString> result) -> TYsonString {
-                    YCHECK(result.IsOK());
-                    return result.Value();
-                }));
+        return AsyncYPathGet(
+            UnderlyingService,
+            "",
+            TAttributeFilter::All,
+            true)
+            .Apply(BIND([] (TErrorOr<TYsonString> result) -> TYsonString {
+                YCHECK(result.IsOK());
+                return result.Value();
+            }));
     }
 
     void UpdateCache(INodePtr tree)
