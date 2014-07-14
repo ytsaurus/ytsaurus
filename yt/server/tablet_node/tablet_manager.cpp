@@ -89,19 +89,19 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TImpl::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TImpl::LoadValues, MakeStrong(this)));
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TImpl::SaveKeys, MakeStrong(this)));
+            BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TImpl::SaveValues, MakeStrong(this)));
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));

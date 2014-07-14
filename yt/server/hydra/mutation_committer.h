@@ -31,7 +31,7 @@ public:
     TCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContextPtr epochContext,
+        TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TCommitter();
@@ -42,7 +42,8 @@ protected:
 
     NElection::TCellManagerPtr CellManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
-    TEpochContextPtr EpochContext_;
+    TEpochContext* EpochContext_;
+
     NProfiling::TRateCounter CommitCounter_;
     NProfiling::TRateCounter BatchFlushCounter_;
 
@@ -64,7 +65,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
-        TEpochContextPtr epochContext,
+        TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TLeaderCommitter();
@@ -165,7 +166,7 @@ public:
     TFollowerCommitter(
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContextPtr epochContext,
+        TEpochContext* epochContext,
         const NProfiling::TProfiler& profiler);
 
     ~TFollowerCommitter();

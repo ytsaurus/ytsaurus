@@ -34,7 +34,7 @@ static const auto AutoCheckpointCheckPeriod = TDuration::Seconds(15);
 TCommitter::TCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContextPtr epochContext,
+    TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
     : CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
@@ -274,7 +274,7 @@ TLeaderCommitter::TLeaderCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
-    TEpochContextPtr epochContext,
+    TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
     : TCommitter(
         cellManager,
@@ -488,7 +488,7 @@ void TLeaderCommitter::FireCommitFailed(const TError& error)
 TFollowerCommitter::TFollowerCommitter(
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContextPtr epochContext,
+    TEpochContext* epochContext,
     const NProfiling::TProfiler& profiler)
     : TCommitter(
         cellManager,

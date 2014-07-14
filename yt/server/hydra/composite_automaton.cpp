@@ -158,7 +158,7 @@ TCompositeAutomaton::TSaverInfo::TSaverInfo(
     int priority,
     const Stroka& name,
     TClosure saver,
-    TCompositeAutomatonPartPtr part)
+    TCompositeAutomatonPart* part)
     : Priority(priority)
     , Name(name)
     , Saver(saver)
@@ -168,7 +168,7 @@ TCompositeAutomaton::TSaverInfo::TSaverInfo(
 TCompositeAutomaton::TLoaderInfo::TLoaderInfo(
     const Stroka& name,
     TClosure loader,
-    TCompositeAutomatonPartPtr part)
+    TCompositeAutomatonPart* part)
     : Name(name)
     , Loader(loader)
     , Part(part)
@@ -180,7 +180,7 @@ TCompositeAutomaton::TCompositeAutomaton()
     : Logger(HydraLogger)
 { }
 
-void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
+void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
 {
     YCHECK(part);
 

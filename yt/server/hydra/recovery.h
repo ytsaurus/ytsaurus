@@ -26,7 +26,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        TEpochContextPtr epochContext);
+        TEpochContext* epochContext);
 
 protected:
     //! Must be derived the the inheritors to control the recovery behavior.
@@ -42,7 +42,7 @@ protected:
     TDecoratedAutomatonPtr DecoratedAutomaton_;
     IChangelogStorePtr ChangelogStore_;
     ISnapshotStorePtr SnapshotStore_;
-    TEpochContextPtr EpochContext_;
+    TEpochContext* EpochContext_;
 
     TVersion SyncVersion_;
 
@@ -77,7 +77,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        TEpochContextPtr epochContext);
+        TEpochContext* epochContext);
 
     //! Performs leader recovery up to a given version.
     TAsyncError Run(TVersion targetVersion);
@@ -104,7 +104,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
-        TEpochContextPtr epochContext,
+        TEpochContext* epochContext,
         TVersion syncVersion);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.

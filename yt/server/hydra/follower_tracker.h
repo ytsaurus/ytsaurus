@@ -22,7 +22,7 @@ public:
         TFollowerTrackerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContextPtr epochContext);
+        TEpochContext* epochContext);
 
     void Start();
 
@@ -36,7 +36,7 @@ private:
     TFollowerTrackerConfigPtr Config_;
     NElection::TCellManagerPtr CellManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
-    TEpochContextPtr EpochContext_;
+    TEpochContext* EpochContext_;
 
     std::vector<EPeerState> PeerStates_;
     int ActivePeerCount_ = 0;

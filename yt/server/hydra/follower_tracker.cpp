@@ -18,7 +18,7 @@ TFollowerTracker::TFollowerTracker(
     TFollowerTrackerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContextPtr epochContext)
+    TEpochContext* epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)

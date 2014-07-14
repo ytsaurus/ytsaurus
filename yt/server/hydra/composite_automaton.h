@@ -108,7 +108,7 @@ class TCompositeAutomaton
     : public IAutomaton
 {
 public:
-    void RegisterPart(TCompositeAutomatonPartPtr part);
+    void RegisterPart(TCompositeAutomatonPart* part);
 
 protected:
     NLog::TTaggedLogger Logger;
@@ -127,30 +127,30 @@ private:
         int Priority;
         Stroka Name;
         TClosure Saver;
-        TCompositeAutomatonPartPtr Part;
+        TCompositeAutomatonPart* Part;
 
         TSaverInfo(
             int priority,
             const Stroka& name,
             TClosure saver,
-            TCompositeAutomatonPartPtr part);
+            TCompositeAutomatonPart* part);
     };
 
     struct TLoaderInfo
     {
         Stroka Name;
         TClosure Loader;
-        TCompositeAutomatonPartPtr Part;
+        TCompositeAutomatonPart* Part;
 
         TLoaderInfo(
             const Stroka& name,
             TClosure loader,
-            TCompositeAutomatonPartPtr part);
+            TCompositeAutomatonPart* part);
     };
 
     yhash_map<Stroka, TCallback<void(TMutationContext* context)>> Methods;
 
-    std::vector<TCompositeAutomatonPartPtr> Parts;
+    std::vector<TCompositeAutomatonPart*> Parts;
 
     yhash_map<Stroka, TLoaderInfo> Loaders;
     yhash_map<Stroka, TSaverInfo>  Savers;

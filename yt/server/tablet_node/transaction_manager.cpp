@@ -59,19 +59,19 @@ public:
 
         RegisterLoader(
             "TransactionManager.Keys",
-            BIND(&TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TImpl::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionManager.Values",
-            BIND(&TImpl::LoadValues, MakeStrong(this)));
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESerializationPriority::Keys,
             "TransactionManager.Keys",
-            BIND(&TImpl::SaveKeys, MakeStrong(this)));
+            BIND(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESerializationPriority::Values,
             "TransactionManager.Values",
-            BIND(&TImpl::SaveValues, MakeStrong(this)));
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
     }

@@ -26,7 +26,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderCommitterPtr leaderCommitter,
         ISnapshotStorePtr snapshotStore,
-        TEpochContextPtr epochContext);
+        TEpochContext* epochContext);
 
     //! Starts a distributed changelog rotation.
     /*!
@@ -58,7 +58,7 @@ private:
     TDecoratedAutomatonPtr DecoratedAutomaton_;
     TLeaderCommitterPtr LeaderCommitter_;
     ISnapshotStorePtr SnapshotStore_;
-    TEpochContextPtr EpochContext_;
+    TEpochContext* EpochContext_;
 
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;

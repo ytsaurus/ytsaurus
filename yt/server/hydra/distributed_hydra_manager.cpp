@@ -47,6 +47,9 @@ using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TDistributedHydraManager;
+typedef TIntrusivePtr<TDistributedHydraManager> TDistributedHydraManagerPtr;
+
 class TDistributedHydraManager
     : public TServiceBase
     , public IHydraManager
@@ -56,32 +59,32 @@ public:
         : public IElectionCallbacks
     {
     public:
-        explicit TElectionCallbacks(TDistributedHydraManager* owner)
+        explicit TElectionCallbacks(TDistributedHydraManagerPtr owner)
             : Owner_(owner)
         { }
 
         virtual void OnStartLeading() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartLeading, MakeStrong(Owner_)));
+                BIND(&TDistributedHydraManager::OnElectionStartLeading, Owner_));
         }
 
         virtual void OnStopLeading() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopLeading, MakeStrong(Owner_)));
+                BIND(&TDistributedHydraManager::OnElectionStopLeading, Owner_));
         }
 
         virtual void OnStartFollowing() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStartFollowing, MakeStrong(Owner_)));
+                BIND(&TDistributedHydraManager::OnElectionStartFollowing, Owner_));
         }
 
         virtual void OnStopFollowing() override
         {
             Owner_->ControlInvoker_->Invoke(
-                BIND(&TDistributedHydraManager::OnElectionStopFollowing, MakeStrong(Owner_)));
+                BIND(&TDistributedHydraManager::OnElectionStopFollowing, Owner_));
         }
 
         virtual TPeerPriority GetPriority() override
@@ -96,7 +99,7 @@ public:
         }
 
     private:
-        TDistributedHydraManager* Owner_;
+        TDistributedHydraManagerPtr Owner_;
 
     };
 
@@ -393,6 +396,7 @@ private:
 
     TVersion ReachableVersion_;
 
+    // NB: Cyclic references: this -> ElectionManager -> Callbacks -> this
     TElectionManagerPtr ElectionManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -538,7 +542,7 @@ private:
         }
 
         ValidateEpoch(epochId);
-        auto epochContext = EpochContext_;
+        auto* epochContext = EpochContext_.Get();
 
         switch (ControlState_) {
             case EPeerState::Following:
@@ -737,9 +741,12 @@ private:
         if (ControlState_ == EPeerState::Stopped)
             return;
 
+        DecoratedAutomaton_.Reset();
+
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
         }
+
         ElectionManager_.Reset();
 
         ControlState_ = EPeerState::Stopped;
@@ -877,7 +884,7 @@ private:
         ControlState_ = EPeerState::LeaderRecovery;
 
         StartEpoch();
-        auto epochContext = EpochContext_;
+        auto* epochContext = EpochContext_.Get();
 
         epochContext->FollowerTracker = New<TFollowerTracker>(
             Config_->FollowerTracker,
@@ -925,7 +932,7 @@ private:
         try {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            auto epochContext = EpochContext_;
+            auto* epochContext = EpochContext_.Get();
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
                 Config_,
                 CellManager_,
@@ -1025,7 +1032,7 @@ private:
         ControlState_ = EPeerState::FollowerRecovery;
 
         StartEpoch();
-        auto epochContext = EpochContext_;
+        auto* epochContext = EpochContext_.Get();
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             CellManager_,

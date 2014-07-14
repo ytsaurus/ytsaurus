@@ -331,7 +331,7 @@ TCheckpointer::TCheckpointer(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderCommitterPtr leaderCommitter,
     ISnapshotStorePtr snapshotStore,
-    TEpochContextPtr epochContext)
+    TEpochContext* epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)

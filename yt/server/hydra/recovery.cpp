@@ -27,7 +27,7 @@ TRecovery::TRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TEpochContextPtr epochContext)
+    TEpochContext* epochContext)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
@@ -269,7 +269,7 @@ TLeaderRecovery::TLeaderRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TEpochContextPtr epochContext)
+    TEpochContext* epochContext)
     : TRecovery(
         config,
         cellManager,
@@ -312,7 +312,7 @@ TFollowerRecovery::TFollowerRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
-    TEpochContextPtr epochContext,
+    TEpochContext* epochContext,
     TVersion syncVersion)
     : TRecovery(
         config,
