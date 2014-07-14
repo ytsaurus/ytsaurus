@@ -28,6 +28,7 @@ namespace NChunkClient {
 class TSequentialReader
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, UncompressedDataSize);
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, CompressedDataSize);
 
@@ -50,7 +51,7 @@ public:
 
     TSequentialReader(
         TSequentialReaderConfigPtr config,
-        std::vector<TBlockInfo> blocks,
+        std::vector<TBlockInfo> blockInfos,
         IReaderPtr chunkReader,
         NCompression::ECodec codecId);
 
@@ -80,29 +81,29 @@ private:
     void RequestBlocks(
         int firstIndex,
         const std::vector<int>& blockIndexes,
-        int groupSize);
+        i64 groupSize);
 
     void DecompressBlocks(
         int blockIndex,
         const IReader::TReadBlocksResult& readResult);
 
-    const std::vector<TBlockInfo> BlockSequence;
+    const std::vector<TBlockInfo> BlockInfos_;
 
-    TSequentialReaderConfigPtr Config;
-    IReaderPtr ChunkReader;
+    TSequentialReaderConfigPtr Config_;
+    IReaderPtr ChunkReader_;
 
     std::vector< TPromise<TSharedRef> > BlockWindow;
 
-    NConcurrency::TAsyncSemaphore AsyncSemaphore;
+    NConcurrency::TAsyncSemaphore AsyncSemaphore_;
 
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
-    volatile int NextSequenceIndex;
-    int NextUnfetchedIndex;
-
-    TPromise<void> FetchingCompleteEvent;
+    volatile int NextSequenceIndex = 0;
+    int NextUnfetchedIndex = 0;
+ 
+    TPromise<void> FetchingCompleteEvent = NewPromise();
 
     TAsyncStreamState State;
-    NCompression::ICodec* Codec;
+    NCompression::ICodec* Codec_;
 
     NLog::TTaggedLogger Logger;
 
