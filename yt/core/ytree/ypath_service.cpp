@@ -151,7 +151,7 @@ public:
     void Initialize()
     {
         UpdateCache(ConvertToNode(TYsonString("#")));
-        GetCachedTree();
+        GetCachedTree(true);
     }
 
     virtual TResolveResult Resolve(
@@ -163,7 +163,7 @@ public:
             return TResolveResult::There(UnderlyingService, path);
         }
 
-        return TResolveResult::There(GetCachedTree(), path);
+        return TResolveResult::There(GetCachedTree(false), path);
     }
 
 private:
@@ -181,14 +181,14 @@ private:
     }
 
 
-    INodePtr GetCachedTree()
+    INodePtr GetCachedTree(bool forceUpdate)
     {
         bool needsUpdate = false;
         INodePtr cachedTree;
         {
             TGuard<TSpinLock> guard(SpinLock);
             cachedTree = CachedTree;
-            if (TInstant::Now() > LastUpdateTime + ExpirationPeriod && !Updating) {
+            if ((forceUpdate || TInstant::Now() > LastUpdateTime + ExpirationPeriod) && !Updating) {
                 needsUpdate = true;
                 Updating = true;
             }
