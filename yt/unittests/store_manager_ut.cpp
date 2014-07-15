@@ -36,10 +36,10 @@ protected:
     {
         auto transaction = StartTransaction();
 
-        StoreManager->WriteRow(transaction.get(), row.Get(), false, nullptr);
+        StoreManager->WriteRow(transaction.get(), row.Get(), false);
 
         EXPECT_EQ(1, transaction->LockedRows().size());
-        const auto& rowRef = transaction->LockedRows()[0];
+        auto rowRef = transaction->LockedRows()[0];
 
         PrepareTransaction(transaction.get());
         StoreManager->PrepareRow(rowRef);
@@ -52,10 +52,10 @@ protected:
     {
         auto transaction = StartTransaction();
 
-        StoreManager->DeleteRow(transaction.get(), key.Get(), false, nullptr);
+        StoreManager->DeleteRow(transaction.get(), key.Get(), false);
 
         EXPECT_EQ(1, transaction->LockedRows().size());
-        const auto& rowRef = transaction->LockedRows()[0];
+        auto rowRef = transaction->LockedRows()[0];
 
         PrepareTransaction(transaction.get());
         StoreManager->PrepareRow(rowRef);
@@ -108,13 +108,10 @@ TEST_F(TStoreManagerTest, PrewriteRow)
 
     auto transaction = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs;
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRowRefs);
+    auto rowRef = StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true);
 
-    EXPECT_EQ(1, lockedRowRefs.size());
     EXPECT_EQ(1, store->GetLockCount());
     EXPECT_EQ(0, transaction->LockedRows().size());
-    const auto& rowRef = lockedRowRefs[0];
     EXPECT_EQ(store, rowRef.Store);
 
     StoreManager->ConfirmRow(rowRef);
@@ -130,12 +127,12 @@ TEST_F(TStoreManagerTest, AbortRow)
 
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
 
     EXPECT_EQ(1, transaction->LockedRows().size());
     EXPECT_EQ(1, store->GetLockCount());
 
-    const auto& rowRef = transaction->LockedRows()[0];
+    auto rowRef = transaction->LockedRows()[0];
 
     AbortTransaction(transaction.get());
     StoreManager->AbortRow(rowRef);
@@ -150,13 +147,9 @@ TEST_F(TStoreManagerTest, CommitRow)
 
     auto transaction = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs;
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, &lockedRowRefs);
+    auto rowRef = StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
 
-    EXPECT_EQ(1, lockedRowRefs.size());
     EXPECT_EQ(1, store->GetLockCount());
-
-    const auto& rowRef = lockedRowRefs[0];
     EXPECT_EQ(store, rowRef.Store);
 
     PrepareTransaction(transaction.get());
@@ -174,11 +167,8 @@ TEST_F(TStoreManagerTest, ConfirmRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs;
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRowRefs);
-    EXPECT_EQ(1, lockedRowRefs.size());
+    auto rowRef1 = StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true);
     EXPECT_EQ(0, transaction->LockedRows().size());
-    const auto& rowRef1 = lockedRowRefs[0];
     EXPECT_EQ(store1, rowRef1.Store);
 
     Rotate();
@@ -193,7 +183,7 @@ TEST_F(TStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    const auto& rowRef2 = transaction->LockedRows()[0];
+    auto rowRef2 = transaction->LockedRows()[0];
     EXPECT_TRUE(rowRef2.Store == store1);
 
     PrepareTransaction(transaction.get());
@@ -216,7 +206,7 @@ TEST_F(TStoreManagerTest, PrepareRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
@@ -226,7 +216,7 @@ TEST_F(TStoreManagerTest, PrepareRowWithRotation)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    const auto& rowRef = transaction->LockedRows()[0];
+    auto rowRef = transaction->LockedRows()[0];
     EXPECT_TRUE(rowRef.Store == store1);
 
     PrepareTransaction(transaction.get());
@@ -253,7 +243,7 @@ TEST_F(TStoreManagerTest, MigrateRowOnCommit)
 
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     auto& rowRef = transaction->LockedRows()[0];
@@ -286,10 +276,10 @@ TEST_F(TStoreManagerTest, OverwriteRowWithRotation1)
 
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
-    const auto& rowRef = transaction->LockedRows()[0];
+    auto rowRef = transaction->LockedRows()[0];
     EXPECT_TRUE(rowRef.Store == store1);
 
     Rotate();
@@ -299,7 +289,7 @@ TEST_F(TStoreManagerTest, OverwriteRowWithRotation1)
     EXPECT_EQ(1, store1->GetLockCount());
     EXPECT_EQ(0, store2->GetLockCount());
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     EXPECT_TRUE(rowRef.Store == store1);
@@ -326,20 +316,15 @@ TEST_F(TStoreManagerTest, OverwriteRowWithRotation2)
 
     auto transaction = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs1;
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRowRefs1);
+    auto rowRef = StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true);
     EXPECT_EQ(0, transaction->LockedRows().size());
-    EXPECT_EQ(1, lockedRowRefs1.size());
-    const auto& rowRef = lockedRowRefs1[0];
     EXPECT_EQ(store1, rowRef.Store);
 
     Rotate();
     auto store2 = Tablet->GetActiveStore();
 
-    std::vector<TDynamicRowRef> lockedRowRefs2;
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true, &lockedRowRefs2);
+    EXPECT_FALSE(StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true));
     EXPECT_EQ(0, transaction->LockedRows().size());
-    EXPECT_EQ(0, lockedRowRefs2.size());
 
     StoreManager->ConfirmRow(rowRef);
     EXPECT_EQ(1, transaction->LockedRows().size());
@@ -363,12 +348,12 @@ TEST_F(TStoreManagerTest, WriteAfterDeleteFailureWithRotation)
 {
     auto transaction = StartTransaction();
 
-    StoreManager->DeleteRow(transaction.get(), BuildKey("1").Get(), true, nullptr);
+    StoreManager->DeleteRow(transaction.get(), BuildKey("1").Get(), true);
 
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), true, nullptr);
+        StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), true);
     });
 }
 
@@ -377,12 +362,12 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation1)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true);
 
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
     });
 }
 
@@ -391,10 +376,10 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation2)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false);
     
     EXPECT_EQ(1, transaction1->LockedRows().size());
-    const auto& rowRef1 = transaction1->LockedRows()[0];
+    auto rowRef1 = transaction1->LockedRows()[0];
 
     PrepareTransaction(transaction1.get());
     StoreManager->PrepareRow(rowRef1);
@@ -405,7 +390,7 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation2)
     Rotate();
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
     });
 }
 
@@ -416,14 +401,14 @@ TEST_F(TStoreManagerTest, WriteWriteConflictWithRotation3)
 
     auto store1 = Tablet->GetActiveStore();
 
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
+    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), true);
 
     Rotate();
 
     StoreManager->RemoveStore(store1);
 
     ASSERT_ANY_THROW({
-        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true, nullptr);
+        StoreManager->WriteRow(transaction2.get(), BuildRow("key=1;a=1").Get(), true);
     });
 }
 
@@ -433,7 +418,7 @@ TEST_F(TStoreManagerTest, AbortRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
@@ -499,9 +484,9 @@ TEST_F(TStoreManagerTest, UnlockStoreOnCommit)
     auto store = Tablet->GetActiveStore();
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
-    const auto& rowRef = transaction->LockedRows()[0];
+    auto rowRef = transaction->LockedRows()[0];
 
     Rotate();
 
@@ -520,9 +505,9 @@ TEST_F(TStoreManagerTest, UnlockStoreOnAbort)
     auto store = Tablet->GetActiveStore();
     auto transaction = StartTransaction();
 
-    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false, nullptr);
+    StoreManager->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(1, transaction->LockedRows().size());
-    const auto& rowRef = transaction->LockedRows()[0];
+    auto rowRef = transaction->LockedRows()[0];
 
     Rotate();
 
@@ -542,16 +527,10 @@ TEST_F(TStoreManagerTest, WriteRotateWrite)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs1;
-    StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false, &lockedRowRefs1);
-    EXPECT_EQ(1, lockedRowRefs1.size());
-    const auto& rowRef1 = lockedRowRefs1[0];
+    auto rowRef1 = StoreManager->WriteRow(transaction1.get(), BuildRow("key=1;a=1").Get(), false);
     EXPECT_EQ(store1, rowRef1.Store);
 
-    std::vector<TDynamicRowRef> lockedRowRefs2;
-    StoreManager->WriteRow(transaction2.get(), BuildRow("key=2;a=2").Get(), false, &lockedRowRefs2);
-    EXPECT_EQ(1, lockedRowRefs2.size());
-    const auto& rowRef2 = lockedRowRefs2[0];
+    auto rowRef2 = StoreManager->WriteRow(transaction2.get(), BuildRow("key=2;a=2").Get(), false);
     EXPECT_EQ(store1, rowRef2.Store);
 
     EXPECT_EQ(2, store1->GetLockCount());
@@ -572,10 +551,7 @@ TEST_F(TStoreManagerTest, WriteRotateWrite)
 
     auto transaction3 = StartTransaction();
 
-    std::vector<TDynamicRowRef> lockedRowRefs3;
-    StoreManager->WriteRow(transaction3.get(), BuildRow("key=2;a=3").Get(), false, &lockedRowRefs3);
-    EXPECT_EQ(1, lockedRowRefs3.size());
-    const auto& rowRef3 = lockedRowRefs3[0];
+    auto rowRef3 = StoreManager->WriteRow(transaction3.get(), BuildRow("key=2;a=3").Get(), false);
     EXPECT_EQ(store2, rowRef3.Store);
 
     EXPECT_EQ(1, store1->GetLockCount());
