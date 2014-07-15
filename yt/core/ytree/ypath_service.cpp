@@ -150,8 +150,10 @@ public:
     
     void Initialize()
     {
-        UpdateCache(ConvertToNode(TYsonString("#")));
-        GetCachedTree(true);
+        if (ExpirationPeriod != TDuration::Zero()) {
+            UpdateCache(ConvertToNode(TYsonString("#")));
+            GetCachedTree(true);
+        }
     }
 
     virtual TResolveResult Resolve(
