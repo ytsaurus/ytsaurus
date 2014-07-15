@@ -201,11 +201,11 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        TWireProtocolReader reader(requestData);
-
-        PooledRowRefs_.clear();
         int commandsSucceded = 0;
+        TError error;
         try {
+            PooledRowRefs_.clear();
+            TWireProtocolReader reader(requestData);
             while (ExecuteSingleWrite(
                 tablet,
                 transaction,
@@ -215,8 +215,8 @@ public:
             {
                 ++commandsSucceded;
             }
-        } catch (const std::exception& /*ex*/) {
-            // Just break.
+        } catch (const std::exception& ex) {
+            error = ex;
         }
 
         int rowCount = static_cast<int>(PooledRowRefs_.size());
@@ -242,6 +242,10 @@ public:
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
             ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
             ->Commit();
+
+        if (!error.IsOK()) {
+            THROW_ERROR error;
+        }
     }
 
 
