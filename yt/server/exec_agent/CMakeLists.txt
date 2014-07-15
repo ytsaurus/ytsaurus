@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/environment_manager.cpp
   ${BASE}/job.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/scheduler_connector.cpp
   ${BASE}/slot.cpp
   ${BASE}/slot_manager.cpp

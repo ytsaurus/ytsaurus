@@ -20,6 +20,8 @@ DECLARE_ENUM(EErrorCode,
     ((ResourceOverdraft)     (1102))
 );
 
+extern const Stroka ProxyConfigFileName;
+
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
 

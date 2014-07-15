@@ -10,6 +10,10 @@
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 
+namespace TCLAP {
+    class ValueLike;
+}
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -23,6 +27,23 @@ void ChmodJobDescriptor(int fd);
 
 // Ensures that descriptor is open and CLOEXEC flag is not set.
 void CheckJobDescriptor(int fd);
+
+////////////////////////////////////////////////////////////////////
+
+struct TJobPipe
+{
+    int JobDescriptor;
+    int ReadFd;
+    int WriteFd;
+
+    typedef TCLAP::ValueLike ValueCategory;
+};
+
+Stroka ToString(const TJobPipe& obj);
+std::istream& operator>>(std::istream& is, TJobPipe& obj);
+
+void PrepareReadJobDescriptors(TJobPipe jobPipe);
+void PrepareWriteJobDescriptors(TJobPipe jobPipe);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -46,6 +67,8 @@ struct IDataPipe
     virtual TError Close() = 0;
 
     virtual void Finish() = 0;
+
+    virtual TJobPipe GetJobPipe() const = 0;
 };
 
 typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
@@ -71,6 +94,7 @@ public:
     virtual TError Close() override;
     virtual void Finish() override;
 
+    virtual TJobPipe GetJobPipe() const override;
 private:
     TOutputStream* OutputStream;
     int JobDescriptor;
@@ -110,6 +134,7 @@ public:
     virtual TError Close() override;
     virtual void Finish() override;
 
+    virtual TJobPipe GetJobPipe() const override;
 private:
     TPipe Pipe;
     int JobDescriptor;

@@ -179,6 +179,62 @@ void ChmodJobDescriptor(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
+int readInteger(std::istream& is)
+{
+    Stroka s;
+    s.read_to_delim(is, ',');
+    return FromString<int>(s);
+}
+
+std::istream& operator>>(std::istream& is, TJobPipe& obj)
+{
+    obj.JobDescriptor = readInteger(is);
+    obj.ReadFd = readInteger(is);
+    obj.WriteFd = readInteger(is);
+    return is;
+}
+
+Stroka ToString(const TJobPipe& obj)
+{
+    return ::ToString(obj.JobDescriptor)
+        + ','
+        + ::ToString(obj.ReadFd)
+        + ','
+        + ::ToString(obj.WriteFd);
+}
+
+void PrepareReadJobDescriptors(TJobPipe jobPipe)
+{
+    SafeClose(jobPipe.WriteFd);
+
+    // Always try to close target descriptor before calling dup2.
+    SafeClose(jobPipe.JobDescriptor, true);
+
+    SafeDup2(jobPipe.ReadFd, jobPipe.JobDescriptor);
+    SafeClose(jobPipe.ReadFd);
+
+    ChmodJobDescriptor(jobPipe.JobDescriptor);
+
+    CheckJobDescriptor(jobPipe.JobDescriptor);
+}
+
+void PrepareWriteJobDescriptors(TJobPipe jobPipe)
+{
+    SafeClose(jobPipe.ReadFd);
+
+    // Always try to close target descriptor before calling dup2.
+    SafeClose(jobPipe.JobDescriptor, true);
+
+    SafeDup2(jobPipe.WriteFd, jobPipe.JobDescriptor);
+    SafeClose(jobPipe.WriteFd);
+
+    ChmodJobDescriptor(jobPipe.JobDescriptor);
+
+    CheckJobDescriptor(jobPipe.JobDescriptor);
+}
+
+////////////////////////////////////////////////////////////////////
+
 TOutputPipe::TOutputPipe(
     int fd[2],
     TOutputStream* output,
@@ -254,6 +310,11 @@ TError TOutputPipe::Close()
 void TOutputPipe::Finish()
 {
     OutputStream->Finish();
+}
+
+TJobPipe TOutputPipe::GetJobPipe() const
+{
+    return TJobPipe{JobDescriptor, Pipe.ReadFd, Pipe.WriteFd};
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -354,6 +415,11 @@ void TInputPipe::Finish()
             Pipe.WriteFd,
             JobDescriptor);
     }
+}
+
+TJobPipe TInputPipe::GetJobPipe() const
+{
+    return TJobPipe{JobDescriptor, Pipe.ReadFd, Pipe.WriteFd};
 }
 
 ////////////////////////////////////////////////////////////////////

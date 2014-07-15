@@ -12,13 +12,14 @@ namespace NYT {
 class TProcess
 {
 public:
-    explicit TProcess(const Stroka& path);
+    explicit TProcess(const Stroka& path, bool copyEnv = true);
     ~TProcess();
 
     TProcess(const TProcess& other) = delete;
     TProcess(TProcess&& other) = delete;
 
     void AddArgument(TStringBuf arg);
+    void AddEnvVar(TStringBuf var);
 
     TError Spawn();
     TError Wait();

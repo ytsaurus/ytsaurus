@@ -3,10 +3,9 @@
 #include "process.h"
 #include "proc.h"
 
+#include <core/logging/log.h>
 #include <core/misc/error.h>
 #include <core/misc/fs.h>
-
-#include <string.h>
 
 #ifndef _win_
   #include <unistd.h>
@@ -22,6 +21,8 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger Logger("Process");
 
 static const int InvalidFd = -1;
 static const pid_t InvalidProcessId = -1;
@@ -64,7 +65,7 @@ TError SafeAtomicCloseExecPipe(int pipefd[2])
 #endif
 }
 
-TProcess::TProcess(const Stroka& path)
+TProcess::TProcess(const Stroka& path, bool copyEnv)
     : Finished_(false)
     , Status_(0)
     , ProcessId_(InvalidProcessId)
@@ -73,6 +74,15 @@ TProcess::TProcess(const Stroka& path)
     Path_.push_back(0);
 
     AddArgument(NFS::GetFileName(path));
+
+    if (copyEnv) {
+        char** envIt = environ;
+        while (*envIt) {
+            const char* const item = *envIt;
+            Env_.push_back(Capture(TStringBuf(item)));
+            ++envIt;
+        }
+    }
 }
 
 TProcess::~TProcess()
@@ -99,6 +109,13 @@ void TProcess::AddArgument(TStringBuf arg)
     Args_.push_back(Capture(arg));
 }
 
+void TProcess::AddEnvVar(TStringBuf var)
+{
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+
+    Env_.push_back(Capture(var));
+}
+
 TError TProcess::Spawn()
 {
 #ifdef _win_
@@ -113,13 +130,9 @@ TError TProcess::Spawn()
     }
     Pipe_ = TPipe(pipe);
 
-    // Prepare environment.
-    char** envIt = environ;
-    while (*envIt) {
-        const char* const item = *envIt;
-        Env_.push_back(Capture(TStringBuf(item)));
-        ++envIt;
-    }
+    LOG_DEBUG("Process arguments: %v", JoinToString(Args_));
+    LOG_DEBUG("Process environment: %v", JoinToString(Env_));
+
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
 

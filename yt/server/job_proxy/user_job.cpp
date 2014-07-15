@@ -8,6 +8,8 @@
 #include "table_output.h"
 #include "pipes.h"
 
+#include <server/exec_agent/public.h>
+
 #include <core/yson/writer.h>
 
 #include <core/ytree/convert.h>
@@ -16,6 +18,7 @@
 
 #include <core/actions/invoker_util.h>
 
+#include <core/misc/fs.h>
 #include <core/misc/proc.h>
 #include <core/misc/process.h>
 #include <core/misc/protobuf_helpers.h>
@@ -43,10 +46,9 @@
 #include <errno.h>
 
 #include <util/folder/dirut.h>
+#include <util/system/execpath.h>
 
 #ifdef _linux_
-    #include <core/misc/ioprio.h>
-
     #include <unistd.h>
     #include <signal.h>
     #include <fcntl.h>
@@ -97,7 +99,7 @@ public:
         , JobId(jobId)
         , InitCompleted(false)
         , MemoryUsage(UserJobSpec.memory_reserve())
-        , ProcessId(-1)
+        , Process(GetExecPath(), false)
         , CpuAccounting(CGroupPrefix + ToString(jobId))
         , BlockIO(CGroupPrefix + ToString(jobId))
         , Memory(CGroupPrefix + ToString(jobId))
@@ -128,47 +130,80 @@ public:
             OomEvent = Memory.GetOomEvent();
         }
 
-        {
-            int pipe[2];
-            auto error = SafeAtomicCloseExecPipe(pipe);
-            if (!error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to start the job: sync pipe creation failed")
-                    << error;
-            }
-            SyncPipe = TPipe(pipe);
+        ProcessStartTime = TInstant::Now();
+
+        auto host = Host.Lock();
+        Process.AddArgument("--executor");
+        for (auto& pipe : InputPipes) {
+            Process.AddArgument("--prepare-read-pipe");
+            Process.AddArgument(ToString(pipe->GetJobPipe()));
         }
 
-        ProcessStartTime = TInstant::Now();
-        ProcessId = fork();
-        if (ProcessId < 0) {
-            THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
-                << TError::FromSystem();
+        for (auto& pipe : OutputPipes) {
+            Process.AddArgument("--prepare-write-pipe");
+            Process.AddArgument(ToString(pipe->GetJobPipe()));
+        }
+
+        if (UserJobSpec.enable_accounting()) {
+            Process.AddArgument("--cgroup");
+            Process.AddArgument(CpuAccounting.GetFullPath());
+
+            Process.AddArgument("--cgroup");
+            Process.AddArgument(BlockIO.GetFullPath());
+
+            Process.AddArgument("--cgroup");
+            Process.AddArgument(Memory.GetFullPath());
+        }
+
+        if (UserJobSpec.use_yamr_descriptors()) {
+            // This hack is to work around the fact that output pipe accepts single job descriptor,
+            // whilst yamr convention requires fds 1 and 3 to be the same.
+            Process.AddArgument("--enable-yamr-descriptors");
+        }
+
+        auto config = host->GetConfig();
+        Process.AddArgument("--config");
+        Process.AddArgument(NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName));
+        Process.AddArgument("--working-dir");
+        Process.AddArgument(config->SandboxName);
+
+        if (UserJobSpec.enable_vm_limit()) {
+            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
+            memoryLimit += MemoryLimitBoost;
+            Process.AddArgument("--vm-limit");
+            Process.AddArgument(::ToString(memoryLimit));
+        }
+
+        if (!UserJobSpec.enable_core_dump()) {
+            Process.AddArgument("--enable-core-dumps");
+        }
+
+        if (config->UserId > 0) {
+            Process.AddArgument("--uid");
+            Process.AddArgument(::ToString(config->UserId));
+
+            if (UserJobSpec.enable_io_prio()) {
+                Process.AddArgument("--enable-io-prio");
+            }
+        }
+
+        Process.AddArgument("--command");
+        Process.AddArgument(UserJobSpec.shell_command());
+
+        TPatternFormatter formatter;
+        formatter.AddProperty("SandboxPath", GetCwd());
+
+        for (int i = 0; i < UserJobSpec.environment_size(); ++i) {
+            Process.AddEnvVar(formatter.Format(UserJobSpec.environment(i)));
+        }
+
+        auto error = Process.Spawn();
+        if (!error.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to spawn the job")
+                << error;
         }
 
         NJobTrackerClient::NProto::TJobResult result;
-
-        if (ProcessId == 0) {
-            // Child process.
-            StartJob();
-            YUNREACHABLE();
-        }
-
-        // Add process to cgroups here!
-        try {
-            if (UserJobSpec.enable_accounting()) {
-                CpuAccounting.AddTask(ProcessId);
-                BlockIO.AddTask(ProcessId);
-                Memory.AddTask(ProcessId);
-            }
-
-            {
-                int data = 0;
-                YCHECK(::write(SyncPipe.WriteFd, &data, sizeof(data)) == sizeof(data));
-            }
-        } catch (...) {
-            YCHECK(::close(SyncPipe.WriteFd) == 0);
-            throw;
-        }
 
         LOG_INFO("Job process started");
 
@@ -399,12 +434,9 @@ private:
 
         LOG_DEBUG("Done processing job outputs");
 
-        int status = 0;
-        int waitpidResult = waitpid(ProcessId, &status, 0);
-        if (waitpidResult < 0) {
-            SetError(TError("waitpid failed") << TError::FromSystem());
-        } else {
-            SetError(StatusToError(status));
+        auto error = Process.Wait();
+        if (!error.IsOK()) {
+            SetError(error);
         }
 
         LOG_DEBUG("Child process has finished");
@@ -446,110 +478,6 @@ private:
         }
 
         LOG_DEBUG("Done processing job inputs");
-    }
-
-    // Called from the forked process.
-    void StartJob()
-    {
-        {
-            YCHECK(::close(SyncPipe.WriteFd) == 0);
-            int data;
-            if (::read(SyncPipe.ReadFd, &data, sizeof(data)) != sizeof(data)) {
-                fprintf(stderr, "Failed to wait for starting gun fire\n%s", strerror(errno));
-                _exit(EJobProxyExitCode::StartingGunFireMissing);
-            }
-        }
-
-        auto host = Host.Lock();
-        YCHECK(host);
-
-        try {
-            for (auto& pipe : InputPipes) {
-                pipe->PrepareJobDescriptors();
-            }
-
-            for (auto& pipe : OutputPipes) {
-                pipe->PrepareJobDescriptors();
-            }
-
-            if (UserJobSpec.use_yamr_descriptors()) {
-                // This hack is to work around the fact that output pipe accepts single job descriptor,
-                // whilst yamr convention requires fds 1 and 3 to be the same.
-                SafeDup2(3, 1);
-            }
-
-            // ToDo(psushin): handle errors.
-            auto config = host->GetConfig();
-            ChDir(config->SandboxName);
-
-            TPatternFormatter formatter;
-            formatter.AddProperty("SandboxPath", GetCwd());
-
-            std::vector<Stroka> envHolders;
-            envHolders.reserve(UserJobSpec.environment_size());
-
-            std::vector<const char*> envp(UserJobSpec.environment_size() + 1);
-            for (int i = 0; i < UserJobSpec.environment_size(); ++i) {
-                envHolders.push_back(formatter.Format(UserJobSpec.environment(i)));
-                envp[i] = ~envHolders.back();
-            }
-            envp[UserJobSpec.environment_size()] = NULL;
-
-            if (UserJobSpec.enable_vm_limit()) {
-                auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
-                memoryLimit += MemoryLimitBoost;
-                struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
-
-                auto res = setrlimit(RLIMIT_AS, &rlimit);
-                if (res) {
-                    fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                        rlimit.rlim_max,
-                        strerror(errno));
-                    _exit(EJobProxyExitCode::SetRLimitFailed);
-                }
-            }
-
-            if (!UserJobSpec.enable_core_dump()) {
-                struct rlimit rlimit = {0, 0};
-
-                auto res = setrlimit(RLIMIT_CORE, &rlimit);
-                if (res) {
-                    fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
-                    _exit(EJobProxyExitCode::SetRLimitFailed);
-                }
-            }
-
-            if (config->UserId > 0) {
-                // Set unprivileged uid and gid for user process.
-                YCHECK(setuid(0) == 0);
-
-                YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
-                YCHECK(setuid(config->UserId) == 0);
-                
-                if (UserJobSpec.enable_io_prio()) {
-                    YCHECK(ioprio_set(IOPRIO_WHO_USER, config->UserId, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 7)) == 0);
-                }
-            }
-
-            Stroka cmd = UserJobSpec.shell_command();
-            // do not search the PATH, inherit environment
-            execle("/bin/sh",
-                "/bin/sh",
-                "-c",
-                ~cmd,
-                (void*)NULL,
-                envp.data());
-
-            int _errno = errno;
-
-            fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
-                ~cmd,
-                strerror(_errno));
-            _exit(EJobProxyExitCode::ExecFailed);
-        } catch (const std::exception& ex) {
-            fprintf(stderr, "%s", ex.what());
-            _exit(EJobProxyExitCode::UncaughtException);
-        }
     }
 
     void CheckMemoryUsage()
@@ -673,8 +601,8 @@ private:
     std::vector< std::unique_ptr<TOutputStream> > TableOutput;
 
     TInstant ProcessStartTime;
-    int ProcessId;
-    TPipe SyncPipe;
+
+    TProcess Process;
 
     NCGroup::TCpuAccounting CpuAccounting;
     NCGroup::TCpuAccounting::TStatistics CpuAccountingStats;
