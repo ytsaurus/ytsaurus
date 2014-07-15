@@ -441,7 +441,7 @@ int TDynamicMemoryStore::Unlock()
 TDynamicRow TDynamicMemoryStore::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prewrite)
+    bool prelock)
 {
     TDynamicRow result;
 
@@ -456,7 +456,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         // Acquire the lock.
         YASSERT(State_ == EStoreState::ActiveDynamic);
         auto dynamicRow = result = AllocateRow();
-        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite));
+        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prelock));
 
         // Add timestamp.
         AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp);
@@ -476,7 +476,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        if (LockRow(dynamicRow, transaction, ERowLockMode::Write, prewrite)) {
+        if (LockRow(dynamicRow, transaction, ERowLockMode::Write, prelock)) {
             result = dynamicRow;
         }
 
@@ -500,7 +500,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 TDynamicRow TDynamicMemoryStore::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
-    bool prewrite)
+    bool prelock)
 {
     YASSERT(State_ == EStoreState::ActiveDynamic);
 
@@ -509,7 +509,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Delete, prewrite));
+        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Delete, prelock));
 
         // Add tombstone.
         AddUncommittedTimestamp(dynamicRow, UncommittedTimestamp | TombstoneTimestampMask);
@@ -527,7 +527,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
         // Check for lock conflicts and acquire the lock.
-        if (LockRow(dynamicRow, transaction, ERowLockMode::Delete, prewrite)) {
+        if (LockRow(dynamicRow, transaction, ERowLockMode::Delete, prelock)) {
             result = dynamicRow;
         }
 
@@ -740,7 +740,7 @@ bool TDynamicMemoryStore::LockRow(
     TDynamicRow row,
     TTransaction* transaction,
     ERowLockMode mode,
-    bool prewrite)
+    bool prelock)
 {
     CheckRowLock(row, transaction, mode);
 
@@ -750,7 +750,7 @@ bool TDynamicMemoryStore::LockRow(
     }
 
     int lockIndex = TDynamicRow::InvalidLockIndex;
-    if (!prewrite) {
+    if (!prelock) {
         lockIndex = static_cast<int>(transaction->LockedRows().size());
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }

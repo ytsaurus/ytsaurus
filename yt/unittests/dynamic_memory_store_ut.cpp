@@ -49,9 +49,9 @@ protected:
     TDynamicRow WriteRow(
         TTransaction* transaction,
         const TUnversionedOwningRow& row,
-        bool prewrite)
+        bool prelock)
     {
-        return Store->WriteRow(transaction, row.Get(), prewrite);
+        return Store->WriteRow(transaction, row.Get(), prelock);
     }
 
     TTimestamp WriteRow(const TUnversionedOwningRow& row)
@@ -68,9 +68,9 @@ protected:
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         const TOwningKey& key,
-        bool prewrite)
+        bool prelock)
     {
-        return Store->DeleteRow(transaction, key.Get(), prewrite);
+        return Store->DeleteRow(transaction, key.Get(), prelock);
     }
 
     TTimestamp DeleteRow(const TOwningKey& key)
@@ -104,7 +104,7 @@ TEST_F(TDynamicMemoryStoreTest, Empty)
     CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, PrewriteAndCommit)
+TEST_F(TDynamicMemoryStoreTest, PrelockAndCommit)
 {
     auto transaction = StartTransaction();
 
@@ -144,7 +144,7 @@ TEST_F(TDynamicMemoryStoreTest, PrewriteAndCommit)
     CompareRows(LookupRow(key, transaction->GetCommitTimestamp() - 1), Null);
 }
 
-TEST_F(TDynamicMemoryStoreTest, PrewriteManyAndCommit)
+TEST_F(TDynamicMemoryStoreTest, PrelockManyAndCommit)
 {
     auto key = BuildKey("1");
 

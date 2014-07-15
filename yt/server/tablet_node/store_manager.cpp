@@ -213,7 +213,7 @@ void TStoreManager::LookupRows(
 TDynamicRowRef TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prewrite)
+    bool prelock)
 {
     ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
 
@@ -221,12 +221,12 @@ TDynamicRowRef TStoreManager::WriteRow(
         transaction,
         row,
         ERowLockMode::Write,
-        prewrite);
+        prelock);
 
     auto updatedRow = store->WriteRow(
         transaction,
         row,
-        prewrite);
+        prelock);
 
     return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
 }
@@ -234,7 +234,7 @@ TDynamicRowRef TStoreManager::WriteRow(
 TDynamicRowRef TStoreManager::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
-    bool prewrite)
+    bool prelock)
 {
     ValidateServerKey(key, Tablet_->GetKeyColumnCount());
 
@@ -242,12 +242,12 @@ TDynamicRowRef TStoreManager::DeleteRow(
         transaction,
         key,
         ERowLockMode::Delete,
-        prewrite);
+        prelock);
 
     auto updatedRow = store->DeleteRow(
         transaction,
         key,
-        prewrite);
+        prelock);
 
     return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
 }
@@ -292,7 +292,7 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
     TTransaction* transaction,
     TUnversionedRow key,
     ERowLockMode mode,
-    bool prewrite)
+    bool prelock)
 {
     // Check locked stored.
     for (const auto& store : LockedStores_) {
@@ -305,7 +305,7 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
         }
     } 
 
-    if (prewrite) {
+    if (prelock) {
         // Check passive stores.
         for (const auto& store : PassiveStores_) {
             // Skip locked stores (already checked, see above).

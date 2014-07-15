@@ -47,12 +47,12 @@ public:
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prewrite);
+        bool prelock);
 
     TDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TKey key,
-        bool prewrite);
+        bool prelock);
 
     void ConfirmRow(const TDynamicRowRef& rowRef);
     void PrepareRow(const TDynamicRowRef& rowRef);
@@ -101,7 +101,7 @@ private:
         TTransaction* transaction,
         TUnversionedRow key,
         ERowLockMode mode,
-        bool prewrite);
+        bool prelock);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 

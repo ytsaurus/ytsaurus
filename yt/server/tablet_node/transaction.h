@@ -5,6 +5,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/ref_tracked.h>
+#include <core/misc/ring_queue.h>
 
 #include <core/actions/future.h>
 
@@ -27,6 +28,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TDynamicRowRef>, LockedRows);
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TDynamicRowRef>, PrelockedRows);
 
 public:
     explicit TTransaction(const TTransactionId& id);

@@ -101,7 +101,7 @@ protected:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TStoreManagerTest, PrewriteRow)
+TEST_F(TStoreManagerTest, PrelockRow)
 {
     auto store = Tablet->GetActiveStore();
     EXPECT_EQ(0, store->GetLockCount());

@@ -37,12 +37,12 @@ public:
     TDynamicRow WriteRow(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow row,
-        bool prewrite);
+        bool prelock);
 
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         TKey key,
-        bool prewrite);
+        bool prelock);
 
     TDynamicRow MigrateRow(const TDynamicRowRef& rowRef);
 
@@ -120,7 +120,7 @@ private:
         TDynamicRow row,
         TTransaction* transaction,
         ERowLockMode mode,
-        bool prewrite);
+        bool prelock);
 
     void DropUncommittedValues(TDynamicRow row);
 
