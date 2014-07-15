@@ -254,7 +254,7 @@ void TStoreManager::DeleteRow(
         prewrite);
 
     if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store.Get(), updatedRow));
+        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
     }
 }
 
