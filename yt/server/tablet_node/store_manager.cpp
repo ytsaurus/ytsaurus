@@ -66,6 +66,13 @@ TStoreManager::TStoreManager(
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
     }
+
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        if (store->GetType() == EStoreType::DynamicMemory && store != Tablet_->GetActiveStore()) {
+            YCHECK(PassiveStores_.insert(store->AsDynamicMemory()).second);
+        }
+    }
 }
 
 TStoreManager::~TStoreManager()
@@ -496,11 +503,10 @@ void TStoreManager::RemoveStore(IStorePtr store)
     Tablet_->RemoveStore(store);
 
     if (store->GetType() == EStoreType::DynamicMemory) {
-        if (PassiveStores_.erase(store->AsDynamicMemory()) == 1) {
-            LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %s, StoreId: %s)",
-                ~ToString(Tablet_->GetId()),
-                ~ToString(store->GetId()));
-        }
+        YCHECK(PassiveStores_.erase(store->AsDynamicMemory()) == 1);
+        LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %s, StoreId: %s)",
+            ~ToString(Tablet_->GetId()),
+            ~ToString(store->GetId()));
     }
 
     auto latestTimestamp = store->GetMaxTimestamp();
