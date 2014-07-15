@@ -6,6 +6,8 @@
 
 #include <core/rpc/public.h>
 
+#include <ytlib/monitoring/http_server.h>
+
 #include <ytlib/election/public.h>
 
 #include <server/hydra/public.h>
@@ -70,6 +72,7 @@ private:
     TCellMasterConfigPtr Config;
 
     NRpc::IServerPtr RpcServer;
+    std::unique_ptr<NHttp::TServer> HttpServer;
     NElection::TCellManagerPtr CellManager;
     NHydra::IChangelogStorePtr ChangelogStore;
     NHydra::ISnapshotStorePtr SnapshotStore;

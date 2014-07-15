@@ -8,6 +8,8 @@
 
 #include <core/rpc/public.h>
 
+#include <ytlib/monitoring/http_server.h>
+
 #include <ytlib/api/public.h>
 
 #include <ytlib/hive/public.h>
@@ -50,6 +52,8 @@ private:
 
     NConcurrency::TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
+    NRpc::IServerPtr RpcServer;
+    std::unique_ptr<NHttp::TServer> HttpServer;
     NApi::IClientPtr MasterClient;
     Stroka LocalAddress;
     NScheduler::TSchedulerPtr Scheduler;

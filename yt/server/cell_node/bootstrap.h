@@ -11,6 +11,8 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/monitoring/http_server.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -92,6 +94,7 @@ private:
     NBus::IBusServerPtr BusServer;
     NApi::IClientPtr MasterClient;
     NRpc::IServerPtr RpcServer;
+    std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;

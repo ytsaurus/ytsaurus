@@ -182,6 +182,8 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
+    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -350,8 +352,7 @@ void TBootstrap::DoRun()
             ->Cached(Config->OrchidCacheExpirationPeriod)));
     SetBuildAttributes(OrchidRoot, "node");
 
-    NHttp::TServer httpServer(Config->MonitoringPort);
-    httpServer.Register(
+    HttpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
@@ -380,7 +381,7 @@ void TBootstrap::DoRun()
     StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
 
     RpcServer->Start();
-    httpServer.Start();
+    HttpServer->Start();
 }
 
 TCellNodeConfigPtr TBootstrap::GetConfig() const

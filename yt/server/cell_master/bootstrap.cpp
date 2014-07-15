@@ -265,6 +265,8 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(busServer);
 
+    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+
     auto selfAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
         Config->RpcPort);
@@ -421,13 +423,12 @@ void TBootstrap::DoRun()
 
     monitoringManager->Start();
 
-    NHttp::TServer httpServer(Config->MonitoringPort);
-    httpServer.Register(
+    HttpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer.Start();
+    HttpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);

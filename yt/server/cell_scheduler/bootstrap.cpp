@@ -119,7 +119,9 @@ void TBootstrap::DoRun()
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
-    auto rpcServer = CreateBusServer(BusServer);
+    RpcServer = CreateBusServer(BusServer);
+
+    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 
     ClusterDirectory = New<NHive::TClusterDirectory>(MasterClient->GetConnection());
 
@@ -155,24 +157,23 @@ void TBootstrap::DoRun()
     
     SetBuildAttributes(orchidRoot, "scheduler");
 
-    rpcServer->RegisterService(CreateOrchidService(
+    RpcServer->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker()));
 
-    NHttp::TServer httpServer(Config->MonitoringPort);
-    httpServer.Register(
+    HttpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot));
 
-    rpcServer->RegisterService(CreateSchedulerService(this));
-    rpcServer->RegisterService(CreateJobTrackerService(this));
+    RpcServer->RegisterService(CreateSchedulerService(this));
+    RpcServer->RegisterService(CreateJobTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer.Start();
+    HttpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
-    rpcServer->Configure(Config->RpcServer);
-    rpcServer->Start();
+    RpcServer->Configure(Config->RpcServer);
+    RpcServer->Start();
 
     Scheduler->Initialize();
 }
