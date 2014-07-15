@@ -151,6 +151,7 @@ public:
     void Initialize()
     {
         UpdateCache(ConvertToNode(TYsonString("#")));
+        GetCachedTree();
     }
 
     virtual TResolveResult Resolve(
