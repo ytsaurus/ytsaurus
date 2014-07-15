@@ -898,7 +898,6 @@ private:
             for (const auto& rowRef : transaction->LockedRows()) {
                 handleRow(rowRef);
             }
-            transaction->LockedRows().clear();
 
             YCHECK(transaction->PrelockedRows().empty());
 
@@ -922,7 +921,6 @@ private:
             for (const auto& rowRef : transaction->LockedRows()) {
                 handleRow(rowRef);
             }
-            transaction->LockedRows().clear();
 
             YCHECK(transaction->PrelockedRows().empty());
 
