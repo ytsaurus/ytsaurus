@@ -211,7 +211,7 @@ void TStoreManager::WriteRow(
 {
     ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
 
-    auto store = FindRelevantStoreAndCheckLocks(
+    auto* store = FindRelevantStoreAndCheckLocks(
         transaction,
         row,
         ERowLockMode::Write,
@@ -223,7 +223,7 @@ void TStoreManager::WriteRow(
         prewrite);
 
     if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store.Get(), updatedRow));
+        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
     }
 }
 
@@ -235,7 +235,7 @@ void TStoreManager::DeleteRow(
 {
     ValidateServerKey(key, Tablet_->GetKeyColumnCount());
 
-    auto store = FindRelevantStoreAndCheckLocks(
+    auto* store = FindRelevantStoreAndCheckLocks(
         transaction,
         key,
         ERowLockMode::Delete,
@@ -287,34 +287,40 @@ TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
     return migratedRow;
 }
 
-TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
+TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
     TTransaction* transaction,
     TUnversionedRow key,
     ERowLockMode mode,
     bool prewrite)
 {
-    // Check passive stores.
-    for (const auto& store : PassiveStores_) {
-        auto row  = store->FindRowAndCheckLocks(
+    // Check locked stored.
+    for (const auto& store : LockedStores_) {
+        if (store->GetState() == EStoreState::PassiveDynamic)
+            continue;
+        auto row = store->FindRowAndCheckLocks(
             key,
             transaction,
             mode);
         if (row) {
-            return store;
+            return store.Get();
         }
-    }
+    } 
 
     if (prewrite) {
-        // Check locked stored (except for passive ones).
-        for (const auto& store : LockedStores_) {
-            if (store->GetState() == EStoreState::PassiveDynamic)
+        // Check passive stores.
+        for (const auto& store : PassiveStores_) {
+            // Skip locked stores (already checked, see above).
+            if (store->GetLockCount() > 0)
                 continue;
+            
             auto row = store->FindRowAndCheckLocks(
                 key,
                 transaction,
                 mode);
-            YASSERT(!row);
-        } 
+
+            // Only active or locked stores can be relevant.
+            YCHECK(!row);
+        }
 
         // Check chunk stores.
         bool logged = false;
@@ -341,7 +347,7 @@ TDynamicMemoryStorePtr TStoreManager::FindRelevantStoreAndCheckLocks(
         }
     }
 
-    return Tablet_->GetActiveStore();
+    return Tablet_->GetActiveStore().Get();
 }
 
 void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
