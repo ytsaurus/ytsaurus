@@ -296,8 +296,6 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
 {
     // Check locked stored.
     for (const auto& store : LockedStores_) {
-        if (store->GetState() == EStoreState::PassiveDynamic)
-            continue;
         auto row = store->FindRowAndCheckLocks(
             key,
             transaction,
@@ -372,7 +370,7 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     const auto& config = Tablet_->GetConfig();
     return
         store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
-        store->GetValueCount() >= config->MaxMemoryStoreValueCount||
+        store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
         store->GetAlignedPoolCapacity() >= config->MaxMemoryStoreAlignedPoolSize ||
         store->GetUnalignedPoolCapacity() >= config->MaxMemoryStoreUnalignedPoolSize;
 }
