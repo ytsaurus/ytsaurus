@@ -17,10 +17,9 @@ public:
     explicit TNonblockingWriter(int fd);
     ~TNonblockingWriter();
 
-    void WriteFromBuffer();
-    void Close();
-
     TErrorOr<size_t> Write(const char* data, size_t size);
+
+    TError Close();
 
     bool IsClosed() const;
 

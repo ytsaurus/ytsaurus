@@ -118,7 +118,10 @@ void TAsyncWriter::TImpl::DoStop()
     FDWatcher_.stop();
     StartWatcher_.stop();
 
-    Writer_->Close();
+    auto error = Writer_->Close();
+    if (!error.IsOK()) {
+        SetPromises(error);
+    }
 }
 
 void TAsyncWriter::TImpl::OnStart(ev::async&, int eventType)
@@ -149,7 +152,9 @@ void TAsyncWriter::TImpl::OnWrite(ev::io&, int eventType)
         YCHECK(!WritePromise_ || WritePromise_.IsSet());
 
         Stop();
-        ClosePromise_.Set(TError());
+        if (!ClosePromise_.IsSet()) {
+            ClosePromise_.Set(TError());
+        }
 
         return;
     }

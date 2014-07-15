@@ -24,20 +24,20 @@ TNonblockingWriter::TNonblockingWriter(int fd)
 TNonblockingWriter::~TNonblockingWriter()
 { }
 
-void TNonblockingWriter::Close()
+TError TNonblockingWriter::Close()
 {
     if (!Closed_) {
         int errCode = ::close(FD_);
+        Closed_ = true;
         if (errCode == -1 && errno != EAGAIN) {
             // please, read
             // http://lkml.indiana.edu/hypermail/linux/kernel/0509.1/0877.html and
             // http://rb.yandex-team.ru/arc/r/44030/
             // before editing
-            LOG_DEBUG(TError::FromSystem(), "Failed to close");
+            return TError("Failed to close") << TError::FromSystem();
         }
-
-        Closed_ = true;
     }
+    return TError();
 }
 
 TErrorOr<size_t> TNonblockingWriter::Write(const char* data, size_t size)
@@ -49,9 +49,7 @@ TErrorOr<size_t> TNonblockingWriter::Write(const char* data, size_t size)
 
     if (errCode == -1) {
         if (errno != EWOULDBLOCK && errno != EAGAIN) {
-            auto error = TError("Failed to write to pipe") << TError::FromSystem();
-            LOG_DEBUG(error);
-            return error;
+            return TError("Failed to write to pipe") << TError::FromSystem();
         }
         return 0;
     } else {
