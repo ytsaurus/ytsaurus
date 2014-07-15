@@ -44,17 +44,15 @@ public:
         NTabletClient::TWireProtocolReader* reader,
         NTabletClient::TWireProtocolWriter* writer);
 
-    void WriteRow(
+    TDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prewrite,
-        std::vector<TDynamicRowRef>* lockedRowRefs);
+        bool prewrite);
 
-    void DeleteRow(
+    TDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TKey key,
-        bool prewrite,
-        std::vector<TDynamicRowRef>* lockedRowRefs);
+        bool prewrite);
 
     void ConfirmRow(const TDynamicRowRef& rowRef);
     void PrepareRow(const TDynamicRowRef& rowRef);

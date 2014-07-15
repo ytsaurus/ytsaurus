@@ -210,11 +210,10 @@ void TStoreManager::LookupRows(
     writer->WriteUnversionedRowset(UnversionedPooledRows_);
 }
 
-void TStoreManager::WriteRow(
+TDynamicRowRef TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prewrite,
-    std::vector<TDynamicRowRef>* lockedRowRefs)
+    bool prewrite)
 {
     ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
 
@@ -229,16 +228,13 @@ void TStoreManager::WriteRow(
         row,
         prewrite);
 
-    if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
-    }
+    return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
 }
 
-void TStoreManager::DeleteRow(
+TDynamicRowRef TStoreManager::DeleteRow(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
-    bool prewrite,
-    std::vector<TDynamicRowRef>* lockedRowRefs)
+    bool prewrite)
 {
     ValidateServerKey(key, Tablet_->GetKeyColumnCount());
 
@@ -253,9 +249,7 @@ void TStoreManager::DeleteRow(
         key,
         prewrite);
 
-    if (lockedRowRefs && updatedRow) {
-        lockedRowRefs->push_back(TDynamicRowRef(store, updatedRow));
-    }
+    return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
 }
 
 void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)

@@ -202,34 +202,25 @@ public:
         }
 
         int commandsSucceded = 0;
+        int prewrittenRowCountBefore = PrewrittenRows_.size();
         TError error;
         try {
-            PooledRowRefs_.clear();
             TWireProtocolReader reader(requestData);
-            while (ExecuteSingleWrite(
-                tablet,
-                transaction,
-                &reader,
-                true,
-                &PooledRowRefs_))
-            {
+            while (ExecuteSingleWrite(tablet,  transaction, &reader, true)) {
                 ++commandsSucceded;
             }
         } catch (const std::exception& ex) {
             error = ex;
         }
 
-        int rowCount = static_cast<int>(PooledRowRefs_.size());
+        int prewrittenRowCountAfter = PrewrittenRows_.size();
+        int prewrittenRowCountDelta = prewrittenRowCountAfter - prewrittenRowCountBefore;
 
         LOG_DEBUG("Rows prewritten (TransactionId: %v, TabletId: %v, RowCount: %v, CommandsSucceded: %v)",
             transaction->GetId(),
             tablet->GetId(),
-            rowCount,
+            prewrittenRowCountDelta,
             commandsSucceded);
-
-        for (const auto& rowRef : PooledRowRefs_) {
-            PrewrittenRows_.push(rowRef);
-        }
 
         auto compressedRequestData = ChangelogCodec_->Compress(requestData);
 
@@ -240,7 +231,7 @@ public:
         hydraRequest.set_codec(ChangelogCodec_->GetId());
         hydraRequest.set_compressed_data(ToString(compressedRequestData));
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), rowCount))
+            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prewrittenRowCountDelta))
             ->Commit();
 
         if (!error.IsOK()) {
@@ -309,7 +300,6 @@ private:
     NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    std::vector<TDynamicRowRef> PooledRowRefs_;
     TRingQueue<TDynamicRowRef> PrewrittenRows_;
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
@@ -663,12 +653,7 @@ private:
 
         try {
             for (int index = 0; index < commandsSucceded; ++index) {
-                YCHECK(ExecuteSingleWrite(
-                    tablet,
-                    transaction,
-                    &reader,
-                    false,
-                    nullptr));
+                YCHECK(ExecuteSingleWrite(tablet, transaction, &reader, false));
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error executing writes");
@@ -989,8 +974,7 @@ private:
         TTablet* tablet,
         TTransaction* transaction,
         TWireProtocolReader* reader,
-        bool prewrite,
-        std::vector<TDynamicRowRef>* lockedRowRefs)
+        bool prewrite)
     {
         auto command = reader->ReadCommand();
         if (command == EWireProtocolCommand::End) {
@@ -998,31 +982,27 @@ private:
         }
             
         const auto& storeManager = tablet->GetStoreManager();
-
+        TDynamicRowRef rowRef;
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
                 auto row = reader->ReadUnversionedRow();
-                storeManager->WriteRow(
-                    transaction,
-                    row,
-                    prewrite,
-                    lockedRowRefs);
+                rowRef = storeManager->WriteRow(transaction, row, prewrite);
                 break;
             }
 
             case EWireProtocolCommand::DeleteRow: {
                 auto key = reader->ReadUnversionedRow();
-                storeManager->DeleteRow(
-                    transaction,
-                    key,
-                    prewrite,
-                    lockedRowRefs);
+                rowRef = storeManager->DeleteRow(transaction, key, prewrite);
                 break;
             }
 
             default:
                 THROW_ERROR_EXCEPTION("Unknown write command %v",
                     command);
+        }
+
+        if (prewrite && rowRef) {
+            PrewrittenRows_.push(rowRef);
         }
 
         return true;
