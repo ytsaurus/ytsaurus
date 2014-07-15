@@ -899,11 +899,12 @@ private:
                 handleRow(rowRef);
             }
 
-            YCHECK(transaction->PrelockedRows().empty());
-
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 transaction->LockedRows().size());
+
+            YCHECK(transaction->PrelockedRows().empty());
+            transaction->LockedRows().clear();
         }
 
         OnTransactionFinished(transaction);
@@ -922,11 +923,12 @@ private:
                 handleRow(rowRef);
             }
 
-            YCHECK(transaction->PrelockedRows().empty());
-
             LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 transaction->LockedRows().size());
+
+            YCHECK(transaction->PrelockedRows().empty());
+            transaction->LockedRows().clear();
         }
 
         OnTransactionFinished(transaction);
