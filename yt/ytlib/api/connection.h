@@ -50,6 +50,8 @@ struct IConnection
 
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
 
+    virtual void ClearMetadataCaches() = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

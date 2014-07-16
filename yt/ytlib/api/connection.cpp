@@ -263,6 +263,11 @@ public:
         return NApi::CreateClient(this, options);
     }
 
+    virtual void ClearMetadataCaches() override
+    {
+        TableMountCache_->Clear();
+    }
+
 
     // IPrepareCallbacks implementation.
 
