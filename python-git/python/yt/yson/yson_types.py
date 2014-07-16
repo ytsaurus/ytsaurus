@@ -48,6 +48,16 @@ class YsonDouble(float, YsonType):
     def __repr__(self):
         return self.repr(float)
 
+class YsonBoolean(int, YsonType):
+    def __eq__(self, other):
+        return (int(self) == 0) == (int(other) == 0) and YsonType.__eq__(self, other)
+
+    def __hash__(self):
+        return self.base_hash(bool)
+
+    def __repr__(self):
+        return self.repr(bool)
+
 class YsonList(list, YsonType):
     def __init__(self, *kargs, **kwargs):
         YsonType.__init__(self, *kargs, **kwargs)

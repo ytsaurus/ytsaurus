@@ -83,7 +83,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
         }
         consumer->OnEndList();
     } else if (obj.isBoolean()) {
-        consumer->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
+        consumer->OnBooleanScalar(Py::Boolean(obj));
     } else if (obj.isInteger()) {
         consumer->OnInt64Scalar(Py::Int(obj).asLongLong());
     } else if (obj.isFloat()) {
@@ -105,6 +105,7 @@ TPythonObjectBuilder::TPythonObjectBuilder()
     , YsonString(GetYsonType("YsonString"))
     , YsonInt64(GetYsonType("YsonInt64"))
     , YsonDouble(GetYsonType("YsonDouble"))
+    , YsonBoolean(GetYsonType("YsonBoolean"))
     , YsonEntity(GetYsonType("YsonEntity"))
 { }
 
@@ -121,6 +122,11 @@ void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 void TPythonObjectBuilder::OnDoubleScalar(double value)
 {
     AddObject(Py::Float(value), YsonDouble);
+}
+
+void TPythonObjectBuilder::OnBooleanScalar(bool value)
+{
+    AddObject(Py::Boolean(value), YsonBoolean);
 }
 
 void TPythonObjectBuilder::OnEntity()
