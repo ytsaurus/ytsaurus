@@ -44,8 +44,10 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, LockedRows_.size());
     for (const auto& rowRef : LockedRows_) {
         auto* store = rowRef.Store;
-        if (store->GetState() == EStoreState::Orphaned)
+        if (store->GetState() == EStoreState::Orphaned) {
+            Save(context, NullTabletId);
             continue;
+        }
 
         auto row = rowRef.Row;
         auto* tablet = store->GetTablet();
@@ -101,8 +103,11 @@ void TTransaction::Load(TLoadContext& context)
     for (size_t rowIndex = 0; rowIndex < lockedRowCount; ++rowIndex) {
         // Tablet
         auto tabletId = Load<TTabletId>(context);
-        auto* tablet = tabletManager->GetTablet(tabletId);
+        if (tabletId == NullTabletId) {
+            continue;
+        }
 
+        auto* tablet = tabletManager->GetTablet(tabletId);
         const auto& store = tablet->GetActiveStore();
         YCHECK(store);
 
