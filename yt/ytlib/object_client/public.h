@@ -40,7 +40,8 @@ DECLARE_ENUM(EObjectType,
     // Does not represent any actual type.
     ((Null)                       (0))
 
-    // The following are non-versioned objects.
+    // The following represent non-versioned objects.
+    // These must be created by calling TMasterYPathProxy::CreateObjects.
 
     // Transaction Manager stuff
     ((Transaction)                (1))
@@ -68,9 +69,9 @@ DECLARE_ENUM(EObjectType,
     ((ErasureChunkPart_15)        (118))
     ((JournalChunk)               (119))
 
-    // The following are versioned objects AKA Cypress nodes.
+    // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.
-    // NB: When adding a new type, don't forget to update IsVersioned.
+    // NB: When adding a new type, don't forget to update IsVersionedType.
 
     // Auxiliary
     ((Lock)                       (200))
