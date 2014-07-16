@@ -21,21 +21,26 @@ Common operations parameters
 
 * **spec** : (dict) universal method to set operation parameters
 
-* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy` or `yt.wrapper.operation_commands.AsyncStrategy`)\
+* **strategy** : (`yt.wrapper.operation_commands.WaitStrategy` or \
+`yt.wrapper.operation_commands.AsyncStrategy`)\
 strategy of waiting result, `yt.wrapper.config.DEFAULT_STRATEGY` by default
 
 * **replication_factor** : (integer) number of output data replicas
 
-* **compression_codec** : (one of "none" (default for files), "lz4" (default for tables), "snappy", \
-"gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression algorithm for output data
+* **compression_codec** : (one of "none" (default for files), "lz4" (default for tables), "snappy",\
+ "gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression \
+algorithm for output data
 
 * **job_count** : (integer) recommendation how many jobs should run
 
-* **table_writer** : (dict) spec of `"write" operation <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
+* **table_writer** : (dict) spec of `"write" operation \
+<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
 
-* **table_reader** : (dict) spec of `"read" operation <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
+* **table_reader** : (dict) spec of `"read" operation \
+<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
 
-* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output data of operation
+* **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
+data of operation
 
 * **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
 
@@ -74,20 +79,20 @@ from cStringIO import StringIO
 
 # Auxiliary methods
 
-def _filter_empty_tables(tables, client=None):
-    filtered = []
-    for table in tables:
-        if not exists(table.name, client=client):
-            logger.warning("Warning: input table '%s' does not exist", table.name)
-        else:
-            filtered.append(table)
-    return filtered
+DEFAULT_EMPTY_TABLE = "//sys/empty_table"
 
 def _prepare_source_tables(tables, client=None):
-    tables = map(lambda table: to_table(table, client=client), flatten(tables))
+    result = [to_table(table, client=client) for table in flatten(tables)]
     if config.TREAT_UNEXISTING_AS_EMPTY:
-        tables = _filter_empty_tables(tables, client=client)
-    return tables
+        def get_empty_table(table):
+            logger.warning("Warning: input table '%s' does not exist", table.name)
+            return TablePath(DEFAULT_EMPTY_TABLE)
+        return [table if exists(table.name, client=client) else get_empty_table(table)
+                  for table in result]
+    return result
+
+def _are_default_empty_table(tables):
+    return all(table.name == DEFAULT_EMPTY_TABLE for table in tables)
 
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
@@ -156,9 +161,11 @@ def _prepare_format(format):
             YtError("You should specify format"))
     return format
 
-def _prepare_binary(binary, operation_type, input_format=None, output_format=None, reduce_by=None, client=None):
+def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
+                    reduce_by=None, client=None):
     if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
-        binary, binary_file, files = py_wrapper.wrap(binary, operation_type, input_format, output_format, reduce_by)
+        binary, binary_file, files = py_wrapper.wrap(binary, operation_type,
+                                                     input_format, output_format, reduce_by)
         uploaded_files = _prepare_files([binary_file] + files, client=client)
         if config.REMOVE_TEMP_FILES:
             for file in files:
@@ -175,14 +182,18 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
     tables = map(to_table, flatten(tables))
     for table in tables:
         if exists(table.name, client=client):
-            compression_codec_ok = (compression_codec is None) or (compression_codec == get_attribute(table.name, "compression_codec"))
-            replication_factor_ok = (replication_factor is None) or (replication_factor == get_attribute(table.name, "replication_factor"))
+            compression_codec_ok = (compression_codec is None) or \
+                                   (compression_codec == get_attribute(table.name,
+                                                                       "compression_codec"))
+            replication_factor_ok = (replication_factor is None) or \
+                                    (replication_factor == get_attribute(table.name,
+                                                                         "replication_factor"))
             require(compression_codec_ok and replication_factor_ok,
                     YtError("Cannot append to table %s and set replication factor "
                             "or compression codec" % table))
         else:
-            create_table(table.name, ignore_existing=True,
-                         replication_factor=replication_factor, compression_codec=compression_codec, client=client)
+            create_table(table.name, ignore_existing=True, replication_factor=replication_factor,
+                         compression_codec=compression_codec, client=client)
     return tables
 
 def _remove_locks(table, client=None):
@@ -198,7 +209,9 @@ def _remove_tables(tables, client=None):
                 _remove_locks(table, client=client)
             remove(table, client=client)
 
-def _add_user_command_spec(op_type, binary, format, input_format, output_format, files, file_paths, local_files, yt_files, memory_limit, reduce_by, spec, client=None):
+def _add_user_command_spec(op_type, binary, format, input_format, output_format,
+                           files, file_paths, local_files, yt_files,
+                           memory_limit, reduce_by, spec, client=None):
     if binary is None:
         return spec, []
 
@@ -212,7 +225,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     files = _prepare_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
-    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by, client=client)
+    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
+                                               reduce_by, client=client)
     spec = update(
         {
             op_type: {
@@ -260,13 +274,16 @@ def _add_table_writer_spec(job_types, table_writer, spec):
             spec = update({job_type: {"table_writer": table_writer}}, spec)
     return spec
 
-def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False, client=None):
-    def _run_operation(finalizer):
-        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose, client=client)
-        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer, client=client)
+def _make_operation_request(command_name, spec, strategy,
+                            finalizer=None, verbose=False, client=None):
+    def _manage_operation(finalizer):
+        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
+                                                          verbose=verbose, client=client)
+        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation,
+                                                                       finalizer, client=client)
 
     if config.DETACHED:
-        _run_operation(finalizer)
+        _manage_operation(finalizer)
     else:
         transaction = PingableTransaction(
             config.OPERATION_TRANSACTION_TIMEOUT,
@@ -278,17 +295,19 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
         with KeyboardInterruptsCatcher(finish_transaction):
             with transaction:
-                _run_operation(finalizer)
+                _manage_operation(finalizer)
 
 """ Common table methods """
 
-def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None, client=None):
+def create_table(path, recursive=None, ignore_existing=False,
+                 replication_factor=None, compression_codec=None, attributes=None, client=None):
     """Create empty table.
 
     Shortcut for `create("table", ...)`.
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
     :param recursive: (bool) create the path automatically, `config.CREATE_RECURSIVE` by default
-    :param ignore_existing: (bool) if it sets to `False` and table exists, Python Wrapper raises `YtResponseError`.
+    :param ignore_existing: (bool) if it sets to `False` and table exists, \
+                            Python Wrapper raises `YtResponseError`.
     :param replication_factor: (int) number of data replicas
     :param attributes: (dict)
     """
@@ -299,12 +318,14 @@ def create_table(path, recursive=None, ignore_existing=False, replication_factor
         attributes["replication_factor"] = replication_factor
     if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
-    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing, attributes=attributes, client=client)
+    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing,
+           attributes=attributes, client=client)
 
 def create_temp_table(path=None, prefix=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
-    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, by default `config.TEMP_TABLES_STORAGE`
+    :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
+                 by default `config.TEMP_TABLES_STORAGE`
     :param prefix: (string) prefix of table name
     :return: (string) name of result table
     """
@@ -323,22 +344,24 @@ def create_temp_table(path=None, prefix=None, client=None):
     create_table(name, client=client)
     return name
 
-def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None, compression_codec=None, client=None):
+def write_table(table, input_stream, format=None, table_writer=None,
+                replication_factor=None, compression_codec=None, client=None):
     """
     Write rows from input_stream to table.
 
-    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify `TablePath` attributes \
-    for append mode or something like this. Table can not exist.
+    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
+                `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
     :param compression_codec: (string) standard operation parameter
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
-    Set `yt.wrapper.config.USE_RETRIES_DURING_WRITE` to ``False`` for writing without splitting and retries.
+    Set `yt.wrapper.config.USE_RETRIES_DURING_WRITE` to ``False`` for writing \
+    without splitting and retries.
 
     Writing is executed under self-pinged transaction.
     """
@@ -361,10 +384,11 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     def prepare_table(path):
         if exists(path):
             require(replication_factor is None and compression_codec is None,
-                    YtError("Cannot write to existing path %s with set replication factor or compression codec" % path))
+                    YtError("Cannot write to existing path %s "
+                            "with set replication factor or compression codec" % path))
         else:
-            create_table(path, ignore_existing=True,
-                         replication_factor=replication_factor, compression_codec=compression_codec, client=client)
+            create_table(path, ignore_existing=True, replication_factor=replication_factor,
+                         compression_codec=compression_codec, client=client)
 
     can_split_input = True
     if isinstance(input_stream, types.ListType):
@@ -402,10 +426,11 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
     :param table_reader: (dict) spec of "read" operation
-    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", "raw", "string"]
+    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", \
+                          "raw", "string"]
     :param raw: (bool) don't parse response to rows
-    :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,
-    else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
+    :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
+             else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
 
     If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
@@ -512,7 +537,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             raise
 
 def _are_nodes(source_tables, destination_table):
-    return len(source_tables) == 1 and not source_tables[0].has_delimiters() and not destination_table.append
+    return len(source_tables) == 1 and \
+           not source_tables[0].has_delimiters() and \
+           not destination_table.append
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """
@@ -522,7 +549,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     :param destination_table: string or `TablePath`
     :param replace: (bool) override `destination_table`
 
-    .. note:: param `replace` is overridden by setted `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    .. note:: param `replace` is overridden by setted \
+              `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
     If `source_table` is a list of tables, tables would be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
@@ -531,7 +559,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         return
     destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
-        if replace and exists(destination_table.name, client=client) and to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
+        if replace and exists(destination_table.name, client=client) and \
+           to_name(source_tables[0], client=client) != to_name(destination_table, client=client):
             # in copy destination should be absent
             remove(destination_table.name, client=client)
         dirname = os.path.dirname(destination_table.name)
@@ -540,7 +569,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         copy(source_tables[0].name, destination_table.name, client=client)
     else:
         source_names = [table.name for table in source_tables]
-        mode = "sorted" if (all(map(is_sorted, source_names)) and not destination_table.append) else "ordered"
+        mode = "sorted" if (all(map(is_sorted, source_names)) and not destination_table.append) \
+               else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
 def move_table(source_table, destination_table, replace=True, client=None):
@@ -552,6 +582,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
     :param replace: (bool) override `destination_table`
 
     .. note:: param `replace` is overridden by `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+
     If `source_table` is a list of tables, tables would be merged.
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
@@ -612,7 +643,8 @@ def is_sorted(table, client=None):
     if config.USE_YAMR_SORT_REDUCE_COLUMNS:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return parse_bool(get_attribute(to_name(table, client=client), "sorted", default="false", client=client))
+        return parse_bool(get_attribute(to_name(table, client=client),
+                          "sorted", default="false", client=client))
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
     """
@@ -672,13 +704,15 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
 def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
     """
-    Execute a SQL-like query in accordance with the `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+    Execute a SQL-like query in accordance with the \
+    `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
-    :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] [where <predicate> \
-    [group by <columns> [as <alias>], ...]]\"
+    :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] \
+                  [where <predicate> [group by <columns> [as <alias>], ...]]\"
     :param timestamp: (string) TODO(veronikaiv): verify
     :param format: (string or descendant of `Format`) output format
-    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", "raw", "string"]
+    :param response_type: output type, line generator by default. ["iter_lines", "iter_content", \
+                          "raw", "string"]
     :param raw: (bool) don't parse response to rows
     """
     format = _prepare_format(format)
@@ -728,8 +762,8 @@ def run_merge(source_table, destination_table, mode=None,
 
     :param source_table: list of string or `TablePath`, list tables names to merge
     :param destination_table: string or `TablePath`, path to result table
-    :param mode: ['unordered' (default), 'ordered', or 'sorted']. Mode `sorted` keeps sortedness of output tables,\
-    mode `ordered` is about chunk magic, not for ordinary users.
+    :param mode: ['unordered' (default), 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
+                 of output tables, mode `ordered` is about chunk magic, not for ordinary users.
     :param strategy: standard operation parameter
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
@@ -741,9 +775,10 @@ def run_merge(source_table, destination_table, mode=None,
     .. seealso::  :ref:`operation_parameters`.
     """
     source_table = _prepare_source_tables(source_table, client=client)
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
+                                                           compression_codec, client=client))
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables([destination_table], client=client)
         return
 
@@ -785,9 +820,10 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
         destination_table = source_table[0]
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
+                                                           compression_codec, client=client))
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables([destination_table], client=client)
         return
 
@@ -803,7 +839,8 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
 class Finalizer(object):
     """
-    Entity for operation finalizing: checking size of result chunks, deleting of empty output tables and uploaded files.
+    Entity for operation finalizing: checking size of result chunks, deleting of \
+    empty output tables and uploaded files.
     """
     def __init__(self, files, output_tables, client=None):
         self.files = files if files is not None else []
@@ -832,15 +869,16 @@ class Finalizer(object):
         if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
             return
 
-        data_size_per_job = min(
-                16 * 1024 * config.MB,
-                int(500 * config.MB / float(get_attribute(table, "compression_ratio", client=self.client))))
+        compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
+        data_size_per_job = min(16 * 1024 * config.MB,
+                                int(500 * config.MB / float(compression_ratio)))
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if config.MERGE_INSTEAD_WARNING:
             run_merge(src=table, dst=table, mode=mode,
-                      spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job}, client=self.client)
+                      spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job},
+                      client=self.client)
         else:
             logger.info("Chunks of output table {0} are too small. "
                         "This may cause suboptimal system performance. "
@@ -871,14 +909,15 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_memory_limit=None,
                    client=None):
     """
-    Apply `mapper` to `source_table`, sort result by `sort_by` and apply `reducer` and `reduce_combiner`.
+    Apply `mapper` to `source_table`, sort result by `sort_by` and apply `reducer` and \
+    `reduce_combiner`.
 
     :param mapper: (python generator, callable object-generator or string (with bash commands)).
     :param reducer: (python generator, callable object-generator or string (with bash commands)).
     :param source_table: (string, `TablePath` or list of them) input tables
     :param destination_table: (string, `TablePath` or list of them) output tables
-    :param format: (string of descendant of `yt.wrapper.format.Format`) common format of input, intermediate \
-    and output data. More specific formats will override it.
+    :param format: (string of descendant of `yt.wrapper.format.Format`) common format of input, \
+                    intermediate and output data. More specific formats will override it.
     :param map_input_format: (string of descendant of `yt.wrapper.format.Format`)
     :param map_output_format: (string of descendant of `yt.wrapper.format.Format`)
     :param reduce_input_format: (string of descendant of `yt.wrapper.format.Format`)
@@ -898,15 +937,19 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_yt_files: (string or list of string) paths to reduce scripts in Cypress.
     :param mapper_memory_limit: (integer) in Mb, map **job** memory limit.
     :param reducer_memory_limit: (integer) in Mb, reduce **job** memory limit.
-    :param sort_by: (list of strings, string) list of columns for sorting by, equals to `reduce_by` by default
+    :param sort_by: (list of strings, string) list of columns for sorting by, \
+                    equals to `reduce_by` by default
     :param reduce_by: (list of strings, string) list of columns for grouping by
-    :param reduce_combiner: (python generator, callable object-generator or string (with bash commands)).
+    :param reduce_combiner: (python generator, callable object-generator or string \
+                            (with bash commands)).
     :param reduce_combiner_input_format: (string of descendant of `yt.wrapper.format.Format`)
     :param reduce_combiner_output_format: (string of descendant of `yt.wrapper.format.Format`)
     :param reduce_combiner_files: Deprecated!
     :param reduce_combiner_file_paths: Deprecated!
-    :param reduce_combiner_local_files: (string or list  of string) paths to reduce combiner scripts on local machine.
-    :param reduce_combiner_yt_files: (string or list  of string) paths to reduce combiner scripts in Cypress.
+    :param reduce_combiner_local_files: (string or list  of string) \
+                                        paths to reduce combiner scripts on local machine.
+    :param reduce_combiner_yt_files: (string or list  of string) \
+                                     paths to reduce combiner scripts in Cypress.
     :param reduce_combiner_memory_limit: (integer) in Mb
 
 
@@ -919,9 +962,10 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         return spec
 
     source_table = _prepare_source_tables(source_table, client=client)
-    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor,
+                                                    compression_codec, client=client)
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
         return
 
@@ -933,7 +977,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     spec = compose(
         _configure_spec,
-        lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
+        lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
+                                         table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
         lambda _: memorize_files(*_add_user_command_spec("mapper", mapper,
@@ -954,9 +999,12 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("map_reduce", spec, strategy, Finalizer(run_map_reduce.files_to_remove, destination_table, client=client), client=client)
+    _make_operation_request("map_reduce", spec, strategy,
+                            Finalizer(run_map_reduce.files_to_remove,
+                                      destination_table, client=client),
+                            client=client)
 
-def run_operation(binary, source_table, destination_table,
+def _run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
                   local_files=None, yt_files=None,
                   format=None, input_format=None, output_format=None,
@@ -978,15 +1026,15 @@ def run_operation(binary, source_table, destination_table,
     :param file_paths: Deprecated!
     :param local_files: (string or list  of string) paths to scripts on local machine.
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
-    :param op_name: (string) operation name
+    :param op_name: (one of "map" (default), "reduce", ...) TODO(veronikaiv): list it!
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
-    run_operation.files = []
+    _run_operation.files = []
     def memorize_files(spec, files):
-        run_operation.files += files
+        _run_operation.files += files
         return spec
-
+    op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
     if op_name == "reduce":
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
@@ -1019,9 +1067,10 @@ def run_operation(binary, source_table, destination_table,
     if op_name == "reduce":
         reduce_by = _prepare_reduce_by(reduce_by)
 
-    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec, client=client)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor,
+                                                    compression_codec, client=client)
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
         return
 
@@ -1043,21 +1092,23 @@ def run_operation(binary, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table, client=client), client=client)
+    _make_operation_request(op_name, spec, strategy,
+                            Finalizer(_run_operation.files, destination_table, client=client),
+                            client=client)
 
 def run_map(binary, source_table, destination_table, **kwargs):
     """
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "map"
-    run_operation(binary, source_table, destination_table, **kwargs)
+    _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
     """
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
-    run_operation(binary, source_table, destination_table, **kwargs)
+    _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
                     network_name=None, spec=None, copy_attributes=False, strategy=None, client=None):
@@ -1071,7 +1122,8 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     :param copy_attributes: (bool) copy attributes source_table to destination_table
     :param strategy: standard operation parameter
 
-    .. note:: For atomicity you should specify just one item in `source_table` in case attributes copying.
+    .. note:: For atomicity you should specify just one item in `source_table` \
+    in case attributes copying.
 
     .. seealso::  :ref:`operation_parameters`.
     """
@@ -1082,7 +1134,8 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     if isinstance(source_table, basestring):
         source_table = [source_table]
 
-    destination_table = unlist(_prepare_destination_tables(destination_table, None, None, client=client))
+    destination_table = unlist(_prepare_destination_tables(destination_table, None, None,
+                                                           client=client))
 
     # TODO(ignat): provide atomicity of attribute copying
     if copy_attributes:
@@ -1096,7 +1149,8 @@ def run_remote_copy(source_table, destination_table, cluster_name,
         src_attributes = get(source_table[0] + "/@")
 
         config.set_proxy(current_proxy)
-        attributes = src_attributes.get("user_attribute_keys", []) + ["compression_codec", "erasure_codec", "replication_factor"]
+        attributes = src_attributes.get("user_attribute_keys", []) + \
+                     ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:
             set_attribute(destination_table, attribute, src_attributes[attribute], client=client)
 

@@ -101,7 +101,7 @@ def writelines_silently(lines):
     except:
         raise
 
-def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexisting_tables=False):
+def get_smart_format(tables, smart_format_flag, has_subkey, lenval, sentinel_for_unexisting=None):
     def extract_format(table):
         if table is None:
             return None
@@ -114,10 +114,9 @@ def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexi
             return None
     if not (smart_format_flag or "YT_SMART_FORMAT" in os.environ):
         return None
-    if ignore_unexisting_tables:
-        tables = filter(lambda x: yt.exists(yt.to_name(x)), filter(None, flatten(tables)))
-    else:
-        tables = map(lambda x: x if yt.exists(yt.to_name(x)) else None, filter(None, flatten(tables)))
+    tables = [table if yt.exists(yt.to_name(table)) else sentinel_for_unexisting
+                                                        for table in filter(None, flatten(tables))]
+
     formats = map(extract_format, tables)
     if formats and any(format != formats[0] for format in formats):
         die("Tables have different attribute _format: " + repr(formats))
@@ -420,7 +419,8 @@ Examples:
         [args.format,
          args.inputformat,
          args.dsv,
-         lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval, ignore_unexisting_tables=True),
+         lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval,
+                                  sentinel_for_unexisting=yt.TablePath("//sys/empty_table")),
          config.DEFAULT_FORMAT]))
     outputformat = first_not_none(imap(calculate_if_function,
         [args.format,

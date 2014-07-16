@@ -461,4 +461,3 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         table = self.create_temp_table()
         yt.write_table(table, [])
         self.assertFalse(yt.exists(table))
-
