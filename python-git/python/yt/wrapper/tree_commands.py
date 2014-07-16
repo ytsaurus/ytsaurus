@@ -154,7 +154,8 @@ def remove(path, recursive=False, force=False, client=None):
     """Remove Cypress node.
 
     :param path: (string or `TablePath`)
-    :recursive, force: (bool)
+    :param recursive: (bool)
+    :param force: (bool)
     .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#remove>`_
     """
     _make_transactional_request(
