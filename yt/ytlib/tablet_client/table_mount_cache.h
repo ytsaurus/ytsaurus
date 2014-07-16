@@ -87,6 +87,8 @@ public:
     ~TTableMountCache();
 
     TFuture<TErrorOr<TTableMountInfoPtr>> GetTableInfo(const NYPath::TYPath& path);
+    
+    void Clear();
 
 private:
     class TImpl;

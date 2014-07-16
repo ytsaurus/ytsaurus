@@ -94,11 +94,11 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        auto it = PathToEntry.find(path);
-        if (it == PathToEntry.end()) {
+        auto it = PathToEntry_.find(path);
+        if (it == PathToEntry_.end()) {
             TTableEntry entry;
             auto promise = entry.Promise = NewPromise<TErrorOr<TTableMountInfoPtr>>();
-            YCHECK(PathToEntry.insert(std::make_pair(path, entry)).second);
+            YCHECK(PathToEntry_.insert(std::make_pair(path, entry)).second);
             guard.Release();
             RequestTableMountInfo(path);
             return promise;
@@ -116,12 +116,21 @@ public:
             : Config_->FailureExpirationTime;
         if (entry.Timestamp < TInstant::Now() - timeout) {
             // Evict and retry.
-            PathToEntry.erase(it);
+            PathToEntry_.erase(it);
             guard.Release();
             return GetTableInfo(path);
         }
 
         return promise;
+    }
+
+    void Clear()
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            PathToEntry_.clear();
+        }
+        LOG_DEBUG("Table mount info cache cleared");
     }
 
 private:
@@ -139,13 +148,13 @@ private:
     };
 
     TSpinLock SpinLock_;
-    yhash<TYPath, TTableEntry> PathToEntry;
+    yhash<TYPath, TTableEntry> PathToEntry_;
 
 
     void RequestTableMountInfo(const TYPath& path)
     {
-        LOG_DEBUG("Requesting table mount info for %s",
-            ~path);
+        LOG_DEBUG("Requesting table mount info for %v",
+            path);
 
         auto req = TTableYPathProxy::GetMountInfo(path);
         auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
@@ -159,8 +168,8 @@ private:
     void OnTableMountInfoResponse(const TYPath& path, TTableYPathProxy::TRspGetMountInfoPtr rsp)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        auto it = PathToEntry.find(path);
-        if (it == PathToEntry.end())
+        auto it = PathToEntry_.find(path);
+        if (it == PathToEntry_.end())
             return;
 
         auto& entry = it->second;
@@ -175,8 +184,8 @@ private:
         };
 
         if (!rsp->IsOK()) {
-            auto error = TError("Error getting mount info for %s",
-                ~path)
+            auto error = TError("Error getting mount info for %v",
+                path)
                 << *rsp;
             setResult(error);
             LOG_WARNING(error);
@@ -216,11 +225,11 @@ private:
 
         setResult(tableInfo);
 
-        LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletCount: %d, Sorted: %s)",
-            ~path,
-            ~ToString(tableInfo->TableId),
-            static_cast<int>(tableInfo->Tablets.size()),
-            ~FormatBool(tableInfo->Sorted));
+        LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
+            path,
+            tableInfo->TableId,
+            tableInfo->Tablets.size(),
+            tableInfo->Sorted);
     }
 
 };
@@ -243,6 +252,11 @@ TTableMountCache::~TTableMountCache()
 TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::GetTableInfo(const TYPath& path)
 {
     return Impl_->GetTableInfo(path);
+}
+
+void TTableMountCache::Clear()
+{
+    Impl_->Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
