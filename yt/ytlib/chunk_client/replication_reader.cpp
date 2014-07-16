@@ -15,7 +15,7 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -130,7 +130,7 @@ private:
     Stroka NetworkName_;
     EReadSessionType SessionType_;
     IThroughputThrottlerPtr Throttler_;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TObjectServiceProxy ObjectServiceProxy_;
     TChunkServiceProxy ChunkServiceProxy_;
@@ -277,7 +277,7 @@ protected:
     //! The instant this session has started.
     TInstant StartTime_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     explicit TSessionBase(TReplicationReader* reader)

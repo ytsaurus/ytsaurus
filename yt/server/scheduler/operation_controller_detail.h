@@ -14,9 +14,9 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/actions/cancelable_context.h>
+
+#include <core/logging/log.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -116,7 +116,7 @@ protected:
     NApi::IClientPtr AuthenticatedInputMasterClient;
     NApi::IClientPtr AuthenticatedOutputMasterClient;
 
-    mutable NLog::TTaggedLogger Logger;
+    mutable NLog::TLogger Logger;
     mutable TFluentEventLogger EventLogger;
 
     TCancelableContextPtr CancelableContext;
@@ -466,7 +466,7 @@ protected:
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     protected:
-        NLog::TTaggedLogger Logger;
+        NLog::TLogger Logger;
 
         virtual NNodeTrackerClient::NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
@@ -848,7 +848,7 @@ private:
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
-        NLog::TTaggedLogger& Logger;
+        NLog::TLogger& Logger;
 
     };
 

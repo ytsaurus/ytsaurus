@@ -26,11 +26,21 @@ public:
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
+    void AddRawTag(const Stroka& tag);
+
+    template <class... TArgs>
+    void AddTag(const char* format, const TArgs&... args)
+    {
+        AddRawTag(Format(format, args...));
+    }
+
 private:
     TLogManager* GetLogManager() const;
     void Update();
+    static Stroka GetMessageWithContext(const Stroka& originalMessage, const Stroka& context);
 
     Stroka Category_;
+    Stroka Context_;
     int Version_ = -1;
     mutable TLogManager* LogManager_ = nullptr;
     ELogLevel MinLevel_;

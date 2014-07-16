@@ -9,6 +9,12 @@
 #include <core/misc/sync.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/yson/tokenizer.h>
+
+#include <core/actions/invoker.h>
+
+#include <core/logging/log.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/reader.h>
@@ -18,12 +24,6 @@
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <core/yson/tokenizer.h>
-
-#include <core/actions/invoker.h>
-
-#include <core/logging/tagged_logger.h>
 
 #include <algorithm>
 #include <limits>
@@ -617,7 +617,7 @@ private:
     std::vector<i64> StartRows;
     bool HasRangeRequest;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 };
 
@@ -729,7 +729,7 @@ public:
     TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IReaderPtr ChunkReader;
     TWeakPtr<TTableChunkReader> TableReader;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

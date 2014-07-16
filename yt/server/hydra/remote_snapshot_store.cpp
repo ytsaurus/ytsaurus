@@ -15,7 +15,7 @@
 
 #include <core/ypath/token.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/api/config.h>
 #include <ytlib/api/client.h>
@@ -108,7 +108,7 @@ private:
     TYPath RemotePath_;
     IClientPtr MasterClient_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     class TReaderStream

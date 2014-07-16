@@ -7,7 +7,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/public.h>
 
@@ -63,7 +63,7 @@ private:
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     class TSession;
 

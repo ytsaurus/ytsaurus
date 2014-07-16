@@ -15,7 +15,7 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <llvm/IR/Module.h>
 

@@ -5,7 +5,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -39,7 +39,7 @@ private:
     TOperationId OperationId;
     NTransactionClient::TTransactionId TransactionId;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     bool RequestInProgress;
     int LastSuccessCount;
     std::vector<NChunkClient::TChunkListId> Ids;

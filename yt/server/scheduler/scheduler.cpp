@@ -27,7 +27,7 @@
 
 #include <core/rpc/dispatcher.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
@@ -1730,7 +1730,7 @@ private:
         auto state = EJobState(jobStatus->state());
         const auto& jobAddress = node->GetAddress();
 
-        NLog::TTaggedLogger Logger(SchedulerLogger);
+        NLog::TLogger Logger(SchedulerLogger);
         Logger.AddTag("Address: %v, JobId: %v",
             jobAddress,
             jobId);

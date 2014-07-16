@@ -15,7 +15,7 @@
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/ytree/attribute_helpers.h>
 
@@ -233,7 +233,7 @@ private:
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
-        NLog::TTaggedLogger Logger(TabletNodeLogger);
+        NLog::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v", tabletId);
 
         auto automatonInvoker = GetCurrentInvoker();
@@ -462,7 +462,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
 
-        NLog::TTaggedLogger Logger(TabletNodeLogger);
+        NLog::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, PartitionRange: %v .. %v",
             tabletId,
             partition->GetPivotKey(),

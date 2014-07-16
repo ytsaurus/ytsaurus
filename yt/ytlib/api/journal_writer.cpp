@@ -15,7 +15,7 @@
 
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -183,7 +183,7 @@ private:
         IInvokerPtr Invoker_;
         TObjectServiceProxy Proxy_;
 
-        NLog::TTaggedLogger Logger;
+        NLog::TLogger Logger;
 
         struct TBatch
             : public TIntrinsicRefCounted

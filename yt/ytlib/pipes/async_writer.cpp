@@ -7,8 +7,10 @@
 #include "private.h"
 
 #include <core/misc/blob.h>
-#include <core/logging/tagged_logger.h>
+
 #include <core/concurrency/thread_affinity.h>
+
+#include <core/logging/log.h>
 
 #include <util/system/spinlock.h>
 
@@ -54,7 +56,7 @@ private:
 
     TSpinLock Lock_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void SetPromises(TError error);

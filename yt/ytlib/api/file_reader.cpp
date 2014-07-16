@@ -8,7 +8,7 @@
 
 #include <core/ytree/ypath_proxy.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -104,7 +104,7 @@ private:
     typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
     TIntrusivePtr<TReader> Reader_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void DoOpen()

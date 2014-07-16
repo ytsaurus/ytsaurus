@@ -18,7 +18,7 @@
 
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -268,7 +268,7 @@ private:
 
         YCHECK(store->GetState() == EStoreState::Flushing);
 
-        NLog::TTaggedLogger Logger(TabletNodeLogger);
+        NLog::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tabletId,
             store->GetId());

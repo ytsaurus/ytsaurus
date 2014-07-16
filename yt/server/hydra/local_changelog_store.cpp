@@ -8,7 +8,7 @@
 #include <core/misc/fs.h>
 #include <core/misc/cache.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NHydra {
@@ -134,7 +134,7 @@ private:
     TFileChangelogDispatcherPtr Dispatcher_;
     TFileChangelogStoreConfigPtr Config_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     Stroka GetChangelogPath(int id)

@@ -5,13 +5,13 @@
 #include "client.h"
 #include "private.h"
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/string.h>
 
 #include <core/ytree/convert.h>
+
+#include <core/logging/log.h>
 
 #include <util/random/random.h>
 
@@ -63,7 +63,7 @@ private:
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     class TSession
@@ -97,7 +97,7 @@ private:
         Stroka CurrentAddress_;
         IChannelPtr CurrentChannel_;
 
-        NLog::TTaggedLogger Logger;
+        NLog::TLogger Logger;
 
 
         void DoRun()

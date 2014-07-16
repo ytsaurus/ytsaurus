@@ -6,7 +6,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -106,7 +106,7 @@ private:
     typedef TOldMultiChunkSequentialWriter<TFileChunkWriterProvider> TWriter;
     TIntrusivePtr<TWriter> Writer_;
     
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void DoOpen()

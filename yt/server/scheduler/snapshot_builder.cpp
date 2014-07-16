@@ -9,7 +9,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
@@ -138,7 +138,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
     auto operation = job.Operation;
 
 
-    NLog::TTaggedLogger Logger(this->Logger);
+    NLog::TLogger Logger(this->Logger);
     Logger.AddTag("OperationId: %v",
         job.Operation->GetId());
 

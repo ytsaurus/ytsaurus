@@ -20,7 +20,7 @@
 
 #include <core/actions/cancelable_context.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -187,7 +187,7 @@ protected:
     TDataNodeConfigPtr Config_;
     TBootstrap* Bootstrap_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     EJobState JobState_;
     EJobPhase JobPhase_;

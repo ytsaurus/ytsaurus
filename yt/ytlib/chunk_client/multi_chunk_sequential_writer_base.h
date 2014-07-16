@@ -10,12 +10,11 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/concurrency/parallel_awaiter.h>
 
 #include <core/rpc/public.h>
 
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -104,7 +103,7 @@ protected:
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     TError DoOpen();

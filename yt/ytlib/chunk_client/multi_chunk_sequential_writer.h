@@ -9,6 +9,8 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
+#include <core/logging/log.h>
+
 #include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -16,8 +18,6 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/transaction_client/public.h>
-
-#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -142,7 +142,7 @@ protected:
     TSpinLock WrittenChunksGuard;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 };
 

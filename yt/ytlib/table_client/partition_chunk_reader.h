@@ -12,7 +12,7 @@
 
 #include <core/compression/public.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -91,7 +91,7 @@ private:
     TMemoryInput DataBuffer;
     TMemoryInput SizeBuffer;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);
     void OnNextBlock(TError error);

@@ -19,7 +19,7 @@
 
 #include <core/misc/cache.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/tracing/trace_context.h>
 
@@ -441,9 +441,9 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
-    static NLog::TTaggedLogger BuildLogger(const TPlanFragment& fragment)
+    static NLog::TLogger BuildLogger(const TPlanFragment& fragment)
     {
-        NLog::TTaggedLogger result(QueryClientLogger);
+        NLog::TLogger result(QueryClientLogger);
         result.AddTag("FragmentId: %v", fragment.Id());
         return result;
     }

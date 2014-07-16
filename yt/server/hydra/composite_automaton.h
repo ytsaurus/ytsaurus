@@ -3,7 +3,7 @@
 #include "public.h"
 #include "automaton.h"
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NHydra {
@@ -111,7 +111,7 @@ public:
     void RegisterPart(TCompositeAutomatonPart* part);
 
 protected:
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     TCompositeAutomaton();

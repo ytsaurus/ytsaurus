@@ -4,7 +4,7 @@
 #include "callbacks.h"
 #include "plan_fragment.h"
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -93,7 +93,7 @@ private:
 
     TQueryStatistics QueryStat;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

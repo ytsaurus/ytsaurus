@@ -8,7 +8,7 @@
 
 #include <core/rpc/public.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/public.h>
 
@@ -55,7 +55,7 @@ private:
     NProfiling::TTagIdList AllPeersTags;
     NProfiling::TTagIdList PeerQuorumTags;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
          
 
     void BuildTags();

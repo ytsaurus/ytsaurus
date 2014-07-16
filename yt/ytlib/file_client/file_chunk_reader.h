@@ -10,7 +10,7 @@
 #include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -102,7 +102,7 @@ private:
 
     TAsyncStreamState State;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     void OnNextBlock(TError error);
     void OnGotMeta(NChunkClient::IReader::TGetMetaResult result);

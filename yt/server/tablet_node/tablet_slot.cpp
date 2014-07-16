@@ -16,7 +16,7 @@
 
 #include <core/rpc/server.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/config.h>
 #include <ytlib/election/cell_manager.h>
@@ -417,7 +417,7 @@ private:
     std::vector<IInvokerPtr> EpochAutomatonInvokers_;
     std::vector<IInvokerPtr> GuardedAutomatonInvokers_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void SetCellGuid(const TCellGuid& cellGuid)
@@ -428,7 +428,7 @@ private:
 
     void InitLogger()
     {
-        Logger = NLog::TTaggedLogger(TabletNodeLogger);
+        Logger = NLog::TLogger(TabletNodeLogger);
         Logger.AddTag("Slot: %v", SlotIndex_);
         if (CellGuid_ != NullCellGuid) {
             Logger.AddTag("CellGuid: %v", CellGuid_);

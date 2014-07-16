@@ -4,7 +4,7 @@
 #include "connection.h"
 #include "private.h"
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -102,7 +102,7 @@ private:
     int CurrentRecordIndex_ = -1;
     int EndRecordIndex_ = -1; // exclusive
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void DoOpen()

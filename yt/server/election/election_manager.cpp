@@ -13,7 +13,7 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_service_proxy.h>
@@ -90,7 +90,7 @@ private:
     NConcurrency::TDelayedExecutor::TCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     // Corresponds to #ControlInvoker.
@@ -160,7 +160,7 @@ private:
     
     TParallelAwaiterPtr Awaiter;
 
-    NLog::TTaggedLogger& Logger;
+    NLog::TLogger& Logger;
 
 
     void SendPing(TPeerId peerId)
@@ -359,7 +359,7 @@ private:
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void ProcessVote(TPeerId id, const TStatus& status)

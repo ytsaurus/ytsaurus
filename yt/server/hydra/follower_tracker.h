@@ -5,7 +5,7 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/hydra/hydra_service_proxy.h>
 
@@ -42,7 +42,7 @@ private:
     int ActivePeerCount_ = 0;
     TPromise<void> ActiveQuorumPromise_ = NewPromise();
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void SendPing(TPeerId followerId);

@@ -4,11 +4,11 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/misc/error.h>
 
 #include <core/rpc/public.h>
+
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -23,7 +23,7 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const NLog::TTaggedLogger& logger);
+        const NLog::TLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
     virtual TAsyncError Fetch();
@@ -36,7 +36,7 @@ protected:
     //! All chunks for which info is to be fetched.
     std::vector<TRefCountedChunkSpecPtr> Chunks_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     virtual TFuture<void> FetchFromNode(

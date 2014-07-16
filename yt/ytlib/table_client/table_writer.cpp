@@ -12,6 +12,8 @@
 
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/logging/log.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/helpers.h>
 
@@ -91,7 +93,7 @@ private:
     bool IsOpen;
     bool IsClosed;
     NObjectClient::TObjectServiceProxy ObjectProxy;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TTransactionPtr UploadTransaction;
 

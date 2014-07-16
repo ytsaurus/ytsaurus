@@ -41,7 +41,7 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    NLog::TTaggedLogger& logger)
+    NLog::TLogger& logger)
     : TFetcherBase(config, nodeDirectory, invoker, logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)

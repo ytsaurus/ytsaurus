@@ -9,9 +9,9 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/ytree/attribute_helpers.h>
+
+#include <core/logging/log.h>
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/journal_reader.h>
@@ -82,7 +82,7 @@ private:
     TYPath RemotePath_;
     IClientPtr MasterClient_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TSharedRef& metaBlob)

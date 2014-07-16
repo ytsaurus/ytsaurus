@@ -7,7 +7,7 @@
 #include <core/misc/serialize.h>
 #include <core/misc/checksum.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <util/system/mutex.h>
 
@@ -242,7 +242,7 @@ private:
     //! Auxiliary data.
     //! Protects file resources.
     TMutex Mutex_;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 };
 

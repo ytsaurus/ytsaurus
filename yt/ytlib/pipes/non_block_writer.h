@@ -2,7 +2,7 @@
 
 #include <core/misc/blob.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NPipes {
@@ -28,7 +28,7 @@ private:
 
     bool Closed_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

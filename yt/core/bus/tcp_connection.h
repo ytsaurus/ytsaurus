@@ -13,7 +13,7 @@
 
 #include <core/actions/future.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <contrib/libev/ev++.h>
 
@@ -135,7 +135,7 @@ private:
 #endif
     IMessageHandlerPtr Handler_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
     
     // Only used by client sockets.

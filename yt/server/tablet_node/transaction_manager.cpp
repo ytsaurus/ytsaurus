@@ -12,7 +12,7 @@
 
 #include <core/ytree/fluent.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
@@ -257,7 +257,7 @@ private:
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

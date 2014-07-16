@@ -16,7 +16,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/hydra/peer_channel.h>
 
@@ -213,7 +213,7 @@ private:
 
     void DoDownloadChunk(const TChunkId& chunkId, TInsertCookie cookie)
     {
-        NLog::TTaggedLogger Logger(DataNodeLogger);
+        NLog::TLogger Logger(DataNodeLogger);
         Logger.AddTag("ChunkId: %v", chunkId);
 
         try {

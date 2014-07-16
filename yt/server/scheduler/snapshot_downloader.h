@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <server/cell_scheduler/public.h>
 
@@ -27,7 +27,7 @@ private:
     NCellScheduler::TBootstrap* Bootstrap;
     TOperationPtr Operation;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 };
 

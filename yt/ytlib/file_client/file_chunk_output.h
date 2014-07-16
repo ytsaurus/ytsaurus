@@ -14,9 +14,9 @@
 
 #include <core/compression/codec.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/rpc/public.h>
+
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -71,7 +71,7 @@ private:
 
     NChunkClient::IWriterPtr ChunkWriter;
     TFileChunkWriterPtr Writer;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,7 @@
 
 #include <core/concurrency/parallel_awaiter.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -66,7 +66,7 @@ private:
 
     TAsyncErrorPromise Promise_ = NewPromise<TError>();
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void DoRun()
@@ -175,7 +175,7 @@ private:
 
     TPromise<TErrorOr<int>> Promise_ = NewPromise<TErrorOr<int>>();
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void DoRun()

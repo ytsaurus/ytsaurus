@@ -8,7 +8,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -75,7 +75,7 @@ private:
 
     TAsyncStreamState State;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     void OnFinalBlocksWritten(TError error);
     void FlushBlock();

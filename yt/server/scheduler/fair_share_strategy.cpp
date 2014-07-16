@@ -15,7 +15,6 @@
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <core/logging/log.h>
-#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -1214,7 +1213,7 @@ private:
         if (!element)
             return;
 
-        NLog::TTaggedLogger Logger(SchedulerLogger);
+        NLog::TLogger Logger(SchedulerLogger);
         Logger.AddTag("OperationId: %v", operation->GetId());
 
         try {

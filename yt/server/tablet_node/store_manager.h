@@ -5,7 +5,7 @@
 
 #include <core/misc/chunked_memory_pool.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -92,7 +92,7 @@ private:
     std::vector<TUnversionedRow> UnversionedPooledRows_;
     std::vector<TVersionedRow> VersionedPooledRows_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);

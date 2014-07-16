@@ -4,7 +4,7 @@
 #include "sync_reader.h"
 #include "async_reader.h"
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -65,7 +65,7 @@ private:
     bool IsOpen;
     bool IsReadStarted_;
     NObjectClient::TObjectServiceProxy ObjectProxy;
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;
 };

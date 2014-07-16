@@ -9,7 +9,7 @@
 
 #include <core/misc/serialize.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -55,7 +55,7 @@ private:
     TCellManagerPtr CellManager;
     IChangelogStorePtr ChangelogStore;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     TError DoRun(int changelogId, int recordCount)

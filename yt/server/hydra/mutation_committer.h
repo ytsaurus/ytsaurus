@@ -9,7 +9,7 @@
 
 #include <core/actions/signal.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 
@@ -47,7 +47,7 @@ protected:
     NProfiling::TRateCounter CommitCounter_;
     NProfiling::TRateCounter BatchFlushCounter_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
  };

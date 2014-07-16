@@ -8,7 +8,7 @@
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 

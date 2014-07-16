@@ -8,7 +8,7 @@
 
 #include <core/actions/invoker_util.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -91,7 +91,7 @@ private:
     TSpinLock SpinLock_;
     TRemoteSnapshotParams Params_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void OnResponse(

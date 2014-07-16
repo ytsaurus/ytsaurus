@@ -18,6 +18,8 @@
 
 #include <core/rpc/channel.h>
 
+#include <core/logging/log.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -34,7 +36,7 @@ TSamplesFetcher::TSamplesFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    const NLog::TTaggedLogger& logger)
+    const NLog::TLogger& logger)
     : TFetcherBase(config, nodeDirectory, invoker, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)

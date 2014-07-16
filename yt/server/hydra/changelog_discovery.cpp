@@ -8,7 +8,7 @@
 
 #include <core/actions/invoker_util.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -98,7 +98,7 @@ private:
     TPromise<TChangelogInfo> Promise;
     TChangelogInfo ChangelogInfo;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     bool AcquireLock()

@@ -15,6 +15,8 @@
 
 #include <core/ytree/serialize.h>
 
+#include <core/logging/log.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
@@ -282,7 +284,7 @@ private:
     TSpinLock ResourcesLock;
     TNodeResources ResourceUsage;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TSlotPtr Slot;
 

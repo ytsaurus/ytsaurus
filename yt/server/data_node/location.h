@@ -6,7 +6,7 @@
 
 #include <core/actions/signal.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 
@@ -144,7 +144,7 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    mutable NLog::TTaggedLogger Logger;
+    mutable NLog::TLogger Logger;
 
 
     std::vector<TChunkDescriptor> DoInitialize();

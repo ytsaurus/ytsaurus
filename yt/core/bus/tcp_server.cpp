@@ -10,9 +10,9 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/rpc/public.h>
+
+#include <core/logging/log.h>
 
 #include <errno.h>
 
@@ -98,7 +98,7 @@ protected:
     TTcpDispatcherThreadPtr DispatcherThread;
     IMessageHandlerPtr Handler;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     std::unique_ptr<ev::io> AcceptWatcher;
 

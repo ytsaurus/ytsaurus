@@ -10,6 +10,8 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/logging/log.h>
+
 #include <core/profiling/profiler.h>
 #include <core/profiling/timing.h>
 
@@ -261,7 +263,7 @@ private:
     std::vector<TSharedRef> BatchedRecordsData_;
     TVersion CommittedVersion_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     
     NProfiling::TTimer Timer_;
 

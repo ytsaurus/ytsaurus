@@ -25,7 +25,7 @@
 
 #include <core/rpc/response_keeper.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 #include <core/profiling/profiling_manager.h>
@@ -403,7 +403,7 @@ private:
     TEpochContextPtr EpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

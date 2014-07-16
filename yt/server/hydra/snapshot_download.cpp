@@ -8,7 +8,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -54,7 +54,7 @@ private:
     TCellManagerPtr CellManager_;
     TFileSnapshotStorePtr FileStore_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     TError DoRun(int snapshotId)

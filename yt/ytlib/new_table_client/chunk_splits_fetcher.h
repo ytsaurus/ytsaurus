@@ -24,7 +24,7 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NLog::TTaggedLogger& logger);
+        NLog::TLogger& logger);
 
 
     virtual TAsyncError Fetch() override;

@@ -7,7 +7,7 @@
 
 #include <core/concurrency/public.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <server/job_agent/public.h>
 
@@ -40,7 +40,7 @@ private:
     TJobProxyConfigPtr Config;
     NJobAgent::TJobId JobId;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
 

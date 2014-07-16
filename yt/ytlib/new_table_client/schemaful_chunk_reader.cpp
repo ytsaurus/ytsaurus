@@ -24,6 +24,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/logging/log.h>
+
 // TableChunkReaderAdapter stuff
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/config.h>
@@ -94,7 +96,7 @@ private:
 
     TAsyncStreamState State;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     // ToDo (psushin): refactor it.
     TAsyncError Open(

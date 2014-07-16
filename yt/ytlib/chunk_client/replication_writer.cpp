@@ -15,10 +15,10 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
-
 #include <core/misc/async_stream_state.h>
 #include <core/misc/nullable.h>
+
+#include <core/logging/log.h>
 
 #include <deque>
 #include <atomic>
@@ -97,7 +97,7 @@ private:
 
     TWeakPtr<TReplicationWriter> Writer_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     void PutGroup(TReplicationWriterPtr writer);
     void SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode);
@@ -174,7 +174,7 @@ private:
     //! Returned from node on Finish.
     TChunkInfo ChunkInfo_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     void DoClose();
 

@@ -2,15 +2,16 @@
 
 #include "public.h"
 
-#include <ytlib/cgroup/cgroup.h>
+#include <core/misc/fs.h>
 
 #include <core/concurrency/action_queue.h>
 
+#include <core/logging/log.h>
+
+#include <ytlib/cgroup/cgroup.h>
+
 #include <ytlib/formats/format.h>
 
-#include <core/logging/tagged_logger.h>
-
-#include <core/misc/fs.h>
 #include <util/stream/file.h>
 
 namespace NYT {
@@ -73,7 +74,7 @@ private:
     NCGroup::TNonOwningCGroup ProcessGroup;
     NCGroup::TNonOwningCGroup NullCGroup;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     TSlotManagerConfigPtr Config;
 
     void DoCleanSandbox();

@@ -25,11 +25,6 @@ const Stroka& TLogger::GetCategory() const
     return Category_;
 }
 
-void TLogger::Write(TLogEvent&& event) const
-{
-    GetLogManager()->Enqueue(std::move(event));
-}
-
 bool TLogger::IsEnabled(ELogLevel level) const
 {
     if (Category_.empty()) {
@@ -41,6 +36,23 @@ bool TLogger::IsEnabled(ELogLevel level) const
     }
 
     return level >= MinLevel_;
+}
+
+
+void TLogger::Write(TLogEvent&& event) const
+{
+    if (!Context_.empty()) {
+        event.Message = GetMessageWithContext(event.Message, Context_);
+    }
+    GetLogManager()->Enqueue(std::move(event));
+}
+
+void TLogger::AddRawTag(const Stroka& tag)
+{
+    if (!Context_.empty()) {
+        Context_ += ", ";
+    }
+    Context_ += tag;
 }
 
 void TLogger::Update()
@@ -55,6 +67,25 @@ TLogManager* TLogger::GetLogManager() const
         LogManager_ = TLogManager::Get();
     }
     return LogManager_;
+}
+
+Stroka TLogger::GetMessageWithContext(const Stroka& originalMessage, const Stroka& context)
+{
+    auto endIndex = originalMessage.find('\n');
+    if (endIndex == Stroka::npos) {
+        endIndex = originalMessage.length();
+    }
+    if (endIndex > 0 && originalMessage[endIndex - 1] == ')') {
+        return
+            originalMessage.substr(0, endIndex - 1) +
+            ", " + context +
+            originalMessage.substr(endIndex - 1);
+    } else {
+        return
+            originalMessage.substr(0, endIndex) +
+            " (" + context + ")" +
+            originalMessage.substr(endIndex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

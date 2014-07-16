@@ -5,7 +5,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 
@@ -69,7 +69,7 @@ protected:
     bool Active_ = false;
     TLeaseManager::TLease Lease_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

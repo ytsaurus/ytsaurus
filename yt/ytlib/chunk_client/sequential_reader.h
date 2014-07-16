@@ -14,9 +14,9 @@
 
 #include <core/compression/public.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <core/logging/log.h>
 
-#include <core/logging/tagged_logger.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -105,7 +105,7 @@ private:
     TAsyncStreamState State;
     NCompression::ICodec* Codec_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 

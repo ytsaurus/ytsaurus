@@ -9,7 +9,7 @@
 #include <core/misc/serialize.h>
 #include <core/misc/checksum.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <util/stream/lz.h>
 
@@ -168,7 +168,7 @@ private:
     int SnapshotId_;
     bool IsRaw_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TBufferedFileInput> RawInput_;
@@ -448,7 +448,7 @@ public:
 private:
     TLocalSnapshotStoreConfigPtr Config_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TSpinLock SpinLock_;
     std::map<int, TSnapshotParams> SnapshotMap_;

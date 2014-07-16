@@ -12,7 +12,7 @@
 
 #include <core/rpc/public.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
 
@@ -166,7 +166,7 @@ private:
 
     TInstant LastSnapshotTime_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 

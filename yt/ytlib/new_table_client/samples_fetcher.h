@@ -3,6 +3,8 @@
 #include "public.h"
 #include "unversioned_row.h"
 
+#include <core/logging/log.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/fetcher_base.h>
 
@@ -25,7 +27,7 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        const NLog::TTaggedLogger& logger);
+        const NLog::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
     virtual TAsyncError Fetch() override;

@@ -13,7 +13,7 @@
 
 #include <core/rpc/channel.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 
@@ -194,7 +194,7 @@ private:
     // Only accessed in writer thread.
     int FlushedBufferCount_;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
 
     void OnPeriodicFlush()

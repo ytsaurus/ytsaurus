@@ -12,7 +12,7 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -353,9 +353,9 @@ private:
     }
 
 
-    static NLog::TTaggedLogger BuildLogger(TPartition* partition)
+    static NLog::TLogger BuildLogger(TPartition* partition)
     {
-        NLog::TTaggedLogger logger(TabletNodeLogger);
+        NLog::TLogger logger(TabletNodeLogger);
         logger.AddTag("TabletId: %v, PartitionKeys: %v .. %v",
             partition->GetTablet()->GetId(),
             partition->GetPivotKey(),

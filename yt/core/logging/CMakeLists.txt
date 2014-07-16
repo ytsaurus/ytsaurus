@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/log_manager.cpp
   ${BASE}/pattern.cpp
   ${BASE}/private.cpp
-  ${BASE}/tagged_logger.cpp
   ${BASE}/writer.cpp
 )
 set( HDRS
@@ -18,7 +17,6 @@ set( HDRS
   ${BASE}/pattern.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/tagged_logger.h
   ${BASE}/writer.h
 )
 

@@ -9,7 +9,7 @@
 
 #include <core/misc/process.h>
 
-#include <core/logging/tagged_logger.h>
+#include <core/logging/log.h>
 
 #include <server/job_proxy/public.h>
 
@@ -200,7 +200,7 @@ private:
     const TJobId JobId;
     const TSlot& Slot;
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
 
     TProcess Process;
     bool Waited;
@@ -265,7 +265,7 @@ private:
         OnExit.Set(TError("Jobs are not supported under Windows"));
     }
 
-    NLog::TTaggedLogger Logger;
+    NLog::TLogger Logger;
     TPromise<TError> OnExit;
     TThread ControllerThread;
 };
