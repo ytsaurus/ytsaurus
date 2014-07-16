@@ -383,7 +383,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
     LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
         id,
         GetObjectId(parent),
-        actualTimeout.MilliSeconds());
+        actualTimeout);
 
     return transaction;
 }
@@ -516,7 +516,7 @@ void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 
     LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
         transaction->GetId(),
-        timeout.MilliSeconds());
+        timeout);
 }
 
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)

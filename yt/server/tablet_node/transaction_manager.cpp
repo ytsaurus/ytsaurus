@@ -243,9 +243,9 @@ public:
 
         TLeaseManager::RenewLease(it->second, timeout);
 
-        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %" PRIu64 ")",
+        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
             transaction->GetId(),
-            timeout.MilliSeconds());
+            timeout);
     }
 
 
@@ -333,7 +333,7 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %v, Timeout: %v)",
             transactionId,
             startTimestamp,
-            timeout.MilliSeconds());
+            timeout);
 
         if (IsLeader()) {
             CreateLease(transaction, timeout);

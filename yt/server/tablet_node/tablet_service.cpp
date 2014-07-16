@@ -75,10 +75,10 @@ private:
         auto actualTimeout = transactionManager->GetActualTimeout(timeout);
         request->set_timeout(actualTimeout.MilliSeconds());
 
-        context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRIu64 ", Timeout: %" PRIu64,
-            ~ToString(transactionId),
+        context->SetRequestInfo("TransactionId: %v, StartTimestamp: %v, Timeout: %v",
+            transactionId,
             startTimestamp,
-            actualTimeout.MilliSeconds());
+            actualTimeout);
 
         transactionManager
             ->CreateStartTransactionMutation(*request)
@@ -92,8 +92,8 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto timestamp = TTimestamp(request->timestamp());
-        context->SetRequestInfo("TabletId: %s, Timestamp: %" PRIu64,
-            ~ToString(tabletId),
+        context->SetRequestInfo("TabletId: %v, Timestamp: %v",
+            tabletId,
             timestamp);
 
         auto tabletManager = Slot_->GetTabletManager();
@@ -118,9 +118,9 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        context->SetRequestInfo("TransactionId: %s, TabletId: %s",
-            ~ToString(transactionId),
-            ~ToString(tabletId));
+        context->SetRequestInfo("TransactionId: %v, TabletId: %v",
+            transactionId,
+            tabletId);
 
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
