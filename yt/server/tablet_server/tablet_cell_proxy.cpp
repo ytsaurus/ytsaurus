@@ -65,7 +65,6 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        attributes->push_back("size");
         attributes->push_back("health");
         attributes->push_back("peers");
         attributes->push_back("tablet_ids");
@@ -77,12 +76,6 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         auto* cell = GetThisTypedImpl();
-
-        if (key == "size") {
-            BuildYsonFluently(consumer)
-                .Value(cell->GetSize());
-            return true;
-        }
 
         if (key == "health") {
             BuildYsonFluently(consumer)
