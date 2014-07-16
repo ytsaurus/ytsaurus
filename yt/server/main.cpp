@@ -250,6 +250,20 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OK;
     }
 
+    if (isExecutor) {
+        for (auto readPipe : parser.PrepareReadPipes.getValue()) {
+            PrepareReadJobDescriptors(readPipe);
+        }
+        for (auto writePipe : parser.PrepareWritePipes.getValue()) {
+            PrepareWriteJobDescriptors(writePipe);
+        }
+        if (parser.EnableYamrDescriptors.getValue()) {
+            // This hack is to work around the fact that output pipe accepts single job descriptor,
+            // whilst yamr convention requires fds 1 and 3 to be the same.
+            SafeDup2(3, 1);
+        }
+    }
+
     INodePtr configNode;
 
     if (!printConfigTemplate) {
@@ -286,19 +300,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isExecutor) {
-        for (auto readPipe : parser.PrepareReadPipes.getValue()) {
-            PrepareReadJobDescriptors(readPipe);
-        }
-        for (auto writePipe : parser.PrepareWritePipes.getValue()) {
-            PrepareWriteJobDescriptors(writePipe);
-        }
-
-        if (parser.EnableYamrDescriptors.getValue()) {
-            // This hack is to work around the fact that output pipe accepts single job descriptor,
-            // whilst yamr convention requires fds 1 and 3 to be the same.
-            SafeDup2(3, 1);
-        }
-
         auto vmLimit = parser.VMLimit.getValue();
         if (vmLimit > 0) {
             struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
