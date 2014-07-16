@@ -1,5 +1,6 @@
 from driver import make_request
 from format import YsonFormat
+from http import make_request_with_retries, get_proxy_url
 
 from yt.common import update
 from yt.yson import loads, YsonString
@@ -15,4 +16,15 @@ def parse_ypath(path, client=None):
     result.attributes = update(attributes, result.attributes)
 
     return result
+
+def get_user_name(proxy, token, client=None):
+    proxy = get_proxy_url(proxy, client)
+    response = make_request_with_retries(
+        "post",
+        "http://{0}/auth/login".format(proxy),
+        data="token=" + token)
+    login = response.json()["login"]
+    if not login:
+        return None
+    return login
 
