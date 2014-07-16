@@ -5,7 +5,7 @@ export YT_PROXY=barney.yt.yandex.net
 ./tabletize.py --input //home/hans/report_Multiproject_Totals_Totals_daily --output //tmp/test \
     --schema '[{name=project;type=string};
                {name=region_sname;type=string};
-               {name=fielddate;type=string};
+               {name=fielddate;type=date};
                {name=visitors_per_host;type=double};
                {name=hosts;type=integer};
                {name=puids;type=integer};
