@@ -82,6 +82,8 @@ public:
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
             .SetInvoker(TimestampInvoker_));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTimestamp)
+            .SetInvoker(TimestampInvoker_));
 
         RegisterLoader(
             "TimestampManager",
@@ -136,23 +138,49 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
     {
+        VERIFY_THREAD_AFFINITY(TimestampThread);
+
         if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-            context->SetRequestInfo("Count: %d", request->count());
+            context->SetRequestInfo("Count: %v", request->count());
         }
 
-        DoGenerateTimestamps(std::move(context));
+        DoGenerateTimestamps(context);
     }
 
-    void DoGenerateTimestamps(TCtxGenerateTimestampsPtr context)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GetTimestamp)
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
+        context->SetRequestInfo();
+
+        if (!CheckActive(context))
+            return;
+
+        context->SetRequestInfo("Timestamp: %v", CurrentTimestamp_);
+
+        response->set_timestamp(CurrentTimestamp_);
+        context->Reply();
+    }
+
+
+    bool CheckActive(const IServiceContextPtr& context)
+    {
         if (!Active_) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Timestamp provider is not active"));
-            return;
+            return false;
         }
+
+        return true;
+    }
+
+    void DoGenerateTimestamps(const TCtxGenerateTimestampsPtr& context)
+    {
+        VERIFY_THREAD_AFFINITY(TimestampThread);
+
+        if (!CheckActive(context))
+            return;
 
         int count = context->Request().count();
         YCHECK(count >= 0);
@@ -167,7 +195,7 @@ private:
             // Backoff and retry.
             LOG_WARNING("Not enough spare timestamps, backing off");
             TDelayedExecutor::Submit(
-                BIND(&TImpl::DoGenerateTimestamps, MakeStrong(this), std::move(context))
+                BIND(&TImpl::DoGenerateTimestamps, MakeStrong(this), context)
                     .Via(TimestampInvoker_),
                 Config_->RequestBackoffTime);
             return;
@@ -180,7 +208,7 @@ private:
         CurrentTimestamp_ += count;
 
         if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-            context->SetRequestInfo("Timestamp: %" PRId64, result);
+            context->SetRequestInfo("Timestamp: %v", result);
         }
 
         context->Response().set_timestamp(result);
@@ -233,7 +261,7 @@ private:
 
         CommittedTimestamp_ = timestamp;
 
-        LOG_DEBUG("Timestamp committed (Timestamp: %" PRId64 ")",
+        LOG_DEBUG("Timestamp committed (Timestamp: %v)",
             CommittedTimestamp_);
     }
 

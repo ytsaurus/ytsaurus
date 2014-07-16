@@ -15,7 +15,7 @@ class TTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! An internal between successive transaction pings.
+    //! Internal between consecutive transaction pings.
     TDuration PingPeriod;
 
     TTransactionManagerConfig()
@@ -34,11 +34,16 @@ class TRemoteTimestampProviderConfig
 {
 public:
     //! Timeout for RPC requests to timestamp provider.
-    TNullable<TDuration> RpcTimeout;
+    TDuration RpcTimeout;
+
+    //! Interval between consecutive current timestamp updates. 
+    TDuration UpdatePeriod;
 
     TRemoteTimestampProviderConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(3));
     }
 };

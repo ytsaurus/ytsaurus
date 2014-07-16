@@ -5,6 +5,7 @@
 #include "config.h"
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/rpc/balancing_channel.h>
 
@@ -12,6 +13,7 @@ namespace NYT {
 namespace NTransactionClient {
 
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +25,19 @@ public:
         TRemoteTimestampProviderConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(config)
-        , RequestInProgress_(false)
+        , GenerateInProgress_(false)
         , LatestTimestamp_(MinTimestamp)
     {
         auto channel = CreateBalancingChannel(config, channelFactory);
-        channel->SetDefaultTimeout(Config_->RpcTimeout);
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
+        Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
+
+        LatestTimestampExecutor_ = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TRemoteTimestampProvider::SendGetRequest, MakeWeak(this)),
+            Config_->UpdatePeriod,
+            EPeriodicExecutorMode::Manual);
+        LatestTimestampExecutor_->Start();
     }
 
     virtual TFuture<TErrorOr<TTimestamp>> GenerateTimestamps(int count) override
@@ -43,9 +52,9 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock_);
             PendingRequests_.push_back(request);
-            if (!RequestInProgress_) {
+            if (!GenerateInProgress_) {
                 YCHECK(PendingRequests_.size() == 1);
-                SendRequest(guard);
+                SendGenerateRequest(guard);
             }
         }
 
@@ -65,6 +74,8 @@ private:
 
     std::unique_ptr<TTimestampServiceProxy> Proxy_;
 
+    TPeriodicExecutorPtr LatestTimestampExecutor_;
+
     struct TRequest
     {
         int Count;
@@ -72,15 +83,15 @@ private:
     };
 
     TSpinLock SpinLock_;
-    bool RequestInProgress_;
-    volatile TTimestamp LatestTimestamp_;
+    bool GenerateInProgress_;
+    TTimestamp LatestTimestamp_;
     std::vector<TRequest> PendingRequests_;
 
 
-    void SendRequest(TGuard<TSpinLock>& guard)
+    void SendGenerateRequest(TGuard<TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-        YCHECK(!RequestInProgress_);
+        YCHECK(!GenerateInProgress_);
 
         std::vector<TRequest> requests;
         requests.swap(PendingRequests_);
@@ -93,29 +104,32 @@ private:
         auto req = Proxy_->GenerateTimestamps();
         req->set_count(count);
 
-        RequestInProgress_ = true;
+        GenerateInProgress_ = true;
         guard.Release();
 
         req->Invoke().Subscribe(BIND(
-            &TRemoteTimestampProvider::OnResponse,
+            &TRemoteTimestampProvider::OnGenerateResponse,
             MakeStrong(this),
             Passed(std::move(requests))));
     }
 
-    void OnResponse(
+    void OnGenerateResponse(
         std::vector<TRequest> requests,
         TTimestampServiceProxy::TRspGenerateTimestampsPtr rsp)
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        RequestInProgress_ = false;
+        GenerateInProgress_ = false;
 
         if (rsp->IsOK()) {
-            auto timestamp = TTimestamp(rsp->timestamp());
+            auto latestTimestamp = LatestTimestamp_;
+            auto currentTimestamp = TTimestamp(rsp->timestamp());
             for (auto& request : requests) {
-                request.Promise.Set(TErrorOr<TTimestamp>(timestamp));
-                timestamp += request.Count;
+                request.Promise.Set(TErrorOr<TTimestamp>(currentTimestamp));
+                currentTimestamp += request.Count;
+                latestTimestamp = std::max(latestTimestamp, currentTimestamp - 1);
             }
+            LatestTimestamp_ = latestTimestamp;
         } else {
             for (auto& request : requests) {
                 request.Promise.Set(rsp->GetError());
@@ -123,8 +137,28 @@ private:
         }
 
         if (!PendingRequests_.empty()) {
-            SendRequest(guard);
+            SendGenerateRequest(guard);
         }
+    }
+
+
+    void SendGetRequest()
+    {
+        auto req = Proxy_->GetTimestamp();
+        req->Invoke().Subscribe(BIND(
+            &TRemoteTimestampProvider::OnGetResponse,
+            MakeStrong(this)));
+    }
+
+    void OnGetResponse(TTimestampServiceProxy::TRspGetTimestampPtr rsp)
+    {
+        if (rsp->IsOK()) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            auto timestamp = TTimestamp(rsp->timestamp());
+            LatestTimestamp_ = std::max(LatestTimestamp_, timestamp);
+        }
+
+        LatestTimestampExecutor_->ScheduleNext();
     }
 
 };
