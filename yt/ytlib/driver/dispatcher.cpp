@@ -52,10 +52,12 @@ void TDispatcher::Shutdown()
 {
     if (DriverThread.HasValue()) {
         DriverThread->Shutdown();
+        DriverThread.Reset();
     }
 
     if (HeavyThreadPool.HasValue()) {
         HeavyThreadPool->Shutdown();
+        HeavyThreadPool.Reset();
     }
 }
 

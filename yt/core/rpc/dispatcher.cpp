@@ -28,7 +28,10 @@ IInvokerPtr TDispatcher::GetPoolInvoker()
 
 void TDispatcher::Shutdown()
 {
-    ThreadPool->Shutdown();
+    if (ThreadPool) {
+        ThreadPool->Shutdown();
+        ThreadPool.Reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

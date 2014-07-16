@@ -151,6 +151,7 @@ void ShutdownUnwindThread()
 {
     if (UnwindThread.HasValue()) {
         UnwindThread->Shutdown();
+        UnwindThread.Reset();
     }
 }
 

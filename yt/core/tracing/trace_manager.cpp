@@ -303,7 +303,10 @@ TTraceManager* TTraceManager::Get()
 
 void TTraceManager::Shutdown()
 {
-    Impl_->Shutdown();
+    if (Impl_) {
+        Impl_->Shutdown();
+        Impl_.reset();
+    }
 }
 
 void TTraceManager::Enqueue(

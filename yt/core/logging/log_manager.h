@@ -19,6 +19,10 @@ public:
     void Configure(NYTree::INodePtr node);
     void Configure(const Stroka& fileName, const NYPath::TYPath& path);
 
+    void AfterFork();
+
+    void Initialize() const;
+
     void Shutdown();
 
     int GetVersion() const;
@@ -30,7 +34,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    mutable TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

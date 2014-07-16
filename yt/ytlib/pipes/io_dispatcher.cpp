@@ -35,7 +35,10 @@ TAsyncError TIODispatcher::AsyncUnregister(IFDWatcherPtr watcher)
 
 void TIODispatcher::Shutdown()
 {
-    return Impl_->Shutdown();
+    if (Impl_) {
+        Impl_->Shutdown();
+        Impl_.Reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

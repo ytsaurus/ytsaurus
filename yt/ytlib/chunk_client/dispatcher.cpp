@@ -73,18 +73,22 @@ void TDispatcher::Shutdown()
 {
     if (ReaderThread.HasValue()) {
         ReaderThread->Shutdown();
+        ReaderThread.Reset();
     }
 
     if (WriterThread.HasValue()) {
         WriterThread->Shutdown();
+        WriterThread.Reset();
     }
 
     if (CompressionThreadPool.HasValue()) {
         CompressionThreadPool->Shutdown();
+        CompressionThreadPool.Reset();
     }
 
     if (ErasureThreadPool.HasValue()) {
         ErasureThreadPool->Shutdown();
+        ErasureThreadPool.Reset();
     }
 }
 
