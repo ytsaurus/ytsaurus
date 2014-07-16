@@ -86,7 +86,7 @@ using NTabletNode::TTableMountConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TabletServerLogger;
+static const auto& Logger = TabletServerLogger;
 
 static const auto CleanupPeriod = TDuration::Seconds(10);
 

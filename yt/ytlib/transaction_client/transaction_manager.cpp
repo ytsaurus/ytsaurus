@@ -38,7 +38,7 @@ using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TransactionClientLogger;
+static const auto& Logger = TransactionClientLogger;
 static std::atomic<ui32> TabletTransactionCounter; // used as a part of transaction id
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,7 +15,7 @@ namespace NFileClient {
 
 using namespace NChunkClient;
 
-static auto& Logger = FileClientLogger;
+static const auto& Logger = FileClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

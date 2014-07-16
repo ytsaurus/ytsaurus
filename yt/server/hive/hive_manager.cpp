@@ -47,7 +47,7 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = HiveLogger;
+static const auto& Logger = HiveLogger;
 
 static auto HiveTracingService = Stroka("HiveManager");
 static auto ClientHostAnnotation = Stroka("client_host");

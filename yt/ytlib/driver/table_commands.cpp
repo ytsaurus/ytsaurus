@@ -63,7 +63,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DriverLogger;
+static const auto& Logger = DriverLogger;
 
 void TReadCommand::DoExecute()
 {

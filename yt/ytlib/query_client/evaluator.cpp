@@ -35,7 +35,7 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 
-static auto& Logger = QueryClientLogger;
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

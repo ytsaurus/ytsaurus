@@ -31,7 +31,7 @@ using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = JobProxyLogger;
+static const auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 typedef TOldMultiChunkSequentialWriter<TTableChunkWriterProvider> TWriter;

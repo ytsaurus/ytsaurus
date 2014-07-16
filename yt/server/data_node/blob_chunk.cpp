@@ -24,7 +24,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
 static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_throughput");

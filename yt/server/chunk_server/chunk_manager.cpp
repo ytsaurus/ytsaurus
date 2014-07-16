@@ -83,7 +83,7 @@ using namespace NJournalClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = ChunkServerLogger;
+static const auto& Logger = ChunkServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 // NB: Changing this value will invalidate all changelogs!
 static TDuration UnapprovedReplicaGracePeriod = TDuration::Seconds(15);

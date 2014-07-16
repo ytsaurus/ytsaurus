@@ -24,7 +24,7 @@ namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = CGroupLogger;
+static const auto& Logger = CGroupLogger;
 static const char* CGroupRootPath = "/sys/fs/cgroup";
 static const int InvalidFd = -1;
 

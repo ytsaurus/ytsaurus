@@ -41,7 +41,7 @@ using NTableClient::TTableWriterOptionsPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = JobProxyLogger;
+static const auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 typedef TOldMultiChunkParallelReader<TPartitionChunkReader> TReader;

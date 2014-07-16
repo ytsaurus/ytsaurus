@@ -29,7 +29,7 @@ using namespace NYPath;
 using namespace NConcurrency;
 using namespace NVersionedTableClient;
 
-static auto& Logger = QueryClientLogger;
+static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

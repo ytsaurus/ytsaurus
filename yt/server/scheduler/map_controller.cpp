@@ -36,7 +36,7 @@ using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static auto& Logger = OperationLogger;
+static const auto& Logger = OperationLogger;
 static NProfiling::TProfiler Profiler("/operations/map");
 
 ////////////////////////////////////////////////////////////////////

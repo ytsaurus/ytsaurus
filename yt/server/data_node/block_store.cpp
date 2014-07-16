@@ -29,7 +29,7 @@ using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
 static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");

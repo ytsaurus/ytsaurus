@@ -31,7 +31,7 @@ using NVersionedTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = TableClientLogger;
+static const auto& Logger = TableClientLogger;
 
 static const int RangeColumnIndex = -1;
 

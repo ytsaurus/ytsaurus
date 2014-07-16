@@ -31,7 +31,7 @@
 namespace NYT {
 namespace NQueryClient {
 
-static auto& Logger = QueryClientLogger;
+static const auto& Logger = QueryClientLogger;
 
 // XXX(sandello): Due to http://llvm.org/bugs/show_bug.cgi?id=15750
 // we have to serialize all MCJIT operations through a single thread.

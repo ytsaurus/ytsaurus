@@ -66,7 +66,7 @@ using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 

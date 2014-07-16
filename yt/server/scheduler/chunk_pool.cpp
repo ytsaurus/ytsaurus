@@ -19,7 +19,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
-static auto& Logger = OperationLogger;
+static const auto& Logger = OperationLogger;
 
 ////////////////////////////////////////////////////////////////////
 

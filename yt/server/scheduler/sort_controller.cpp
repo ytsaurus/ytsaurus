@@ -56,7 +56,7 @@ using NTableClient::TTableWriterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////
 
-static auto& Logger = OperationLogger;
+static const auto& Logger = OperationLogger;
 static NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition progress aggregation.

@@ -24,7 +24,7 @@ public:
 
     const Stroka& GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
-    void Write(TLogEvent&& event);
+    void Write(TLogEvent&& event) const;
 
 private:
     TLogManager* GetLogManager() const;

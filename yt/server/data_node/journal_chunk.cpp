@@ -29,7 +29,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
 static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_read_throughput");

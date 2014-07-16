@@ -25,7 +25,7 @@ const Stroka& TLogger::GetCategory() const
     return Category_;
 }
 
-void TLogger::Write(TLogEvent&& event)
+void TLogger::Write(TLogEvent&& event) const
 {
     GetLogManager()->Enqueue(std::move(event));
 }

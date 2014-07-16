@@ -32,7 +32,7 @@ using NConcurrency::WaitFor;
 
 ////////////////////////////////////////////////////////////////////
 
-static auto& Logger = JobProxyLogger;
+static const auto& Logger = JobProxyLogger;
 
 static const i64 InputBufferSize = (i64) 1 * 1024 * 1024;
 

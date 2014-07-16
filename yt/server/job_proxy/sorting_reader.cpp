@@ -39,7 +39,7 @@ using NVersionedTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = JobProxyLogger;
+static const auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 static const int SortBucketSize = 10000;

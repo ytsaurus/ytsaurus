@@ -32,7 +32,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 
 static const auto CleanExtension = Stroka("clean");
 static const auto CleanupPeriod = TDuration::Seconds(10);

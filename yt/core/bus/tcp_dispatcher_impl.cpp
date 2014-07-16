@@ -17,7 +17,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = BusLogger;
+static const auto& Logger = BusLogger;
 static auto& Profiler = BusProfiler;
 static const int ThreadCount = 8;
 
