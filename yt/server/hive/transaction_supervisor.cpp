@@ -126,6 +126,7 @@ public:
 
         TReqAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
+
         return CreateMutation(HydraManager, request)
             ->SetId(mutationId)
             ->Commit().Apply(BIND([] (TErrorOr<TMutationResponse> result) {
@@ -227,9 +228,10 @@ private:
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
-        AbortTransactionImpl(transactionId, mutationId).Subscribe(BIND([=] (TError error) {
-            context->Reply(error);
-        }));
+        AbortTransactionImpl(transactionId, mutationId)
+            .Subscribe(BIND([=] (TError error) {
+                context->Reply(error);
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)
@@ -255,7 +257,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
 
         // Does not throw.
-        TransactionManager_->AbortTransaction(transactionId);
+        TransactionManager_->AbortTransaction(transactionId, false);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
             transactionId);
@@ -637,11 +639,11 @@ private:
     {
         try {
             // All exceptions thrown here are caught below and ignored.
-            TransactionManager_->AbortTransaction(transactionId);
+            TransactionManager_->AbortTransaction(transactionId, true);
             LOG_DEBUG_UNLESS(IsRecovery(), "Failed transaction aborted (TransactionId: %v)",
                 transactionId);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to abort failed transaction, ignoring (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting failed transaction, ignoring (TransactionId: %v)",
                 transactionId);
         }
     }
@@ -751,7 +753,9 @@ TAsyncError TTransactionSupervisor::AbortTransaction(
     const TTransactionId& transactionId,
     const TMutationId& mutationId)
 {
-    return Impl_->AbortTransactionImpl(transactionId, mutationId);
+    return Impl_->AbortTransactionImpl(
+        transactionId,
+        mutationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

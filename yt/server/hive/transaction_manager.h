@@ -32,7 +32,8 @@ struct ITransactionManager
         TTimestamp commitTimestamp) = 0;
 
     virtual void AbortTransaction(
-        const TTransactionId& transactionId) = 0;
+        const TTransactionId& transactionId,
+        bool force) = 0;
 
     virtual void PingTransaction(
         const TTransactionId& transactionId,

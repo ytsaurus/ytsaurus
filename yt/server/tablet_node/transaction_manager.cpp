@@ -28,6 +28,7 @@ using namespace NTransactionClient;
 using namespace NHydra;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
+using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,9 +174,7 @@ public:
             transactionId);
     }
 
-    void CommitTransaction(
-        const TTransactionId& transactionId,
-        TTimestamp commitTimestamp)
+    void CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -204,14 +203,13 @@ public:
             commitTimestamp);
     }
 
-    void AbortTransaction(
-        const TTransactionId& transactionId)
+    void AbortTransaction(const TTransactionId& transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+        if (transaction->GetState() == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
 
@@ -229,9 +227,7 @@ public:
             transactionId);
     }
 
-    void PingTransaction(
-        const TTransactionId& transactionId,
-        const NHive::NProto::TReqPingTransaction& request)
+    void PingTransaction(const TTransactionId& transactionId, const TReqPingTransaction& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -473,28 +469,22 @@ void TTransactionManager::PrepareTransactionCommit(
         prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(
-    const TTransactionId& transactionId)
+void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId)
 {
     Impl_->PrepareTransactionAbort(transactionId);    
 }
 
-void TTransactionManager::CommitTransaction(
-    const TTransactionId& transactionId,
-    TTimestamp commitTimestamp)
+void TTransactionManager::CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(
-    const TTransactionId& transactionId)
+void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, bool force)
 {
-    Impl_->AbortTransaction(transactionId);
+    Impl_->AbortTransaction(transactionId, force);
 }
 
-void TTransactionManager::PingTransaction(
-    const TTransactionId& transactionId,
-    const NHive::NProto::TReqPingTransaction& request)
+void TTransactionManager::PingTransaction(const TTransactionId& transactionId, const TReqPingTransaction& request)
 {
     Impl_->PingTransaction(transactionId, request);
 }

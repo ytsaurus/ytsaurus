@@ -222,7 +222,7 @@ private:
         auto* transaction = GetThisTypedImpl();
 
         auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->AbortTransaction(transaction);
+        transactionManager->AbortTransaction(transaction, false);
 
         context->Reply();
     }
@@ -380,7 +380,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 
     TransactionStarted_.Fire(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
         id,
         GetObjectId(parent),
         actualTimeout.MilliSeconds());
@@ -412,15 +412,15 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
         id);
 }
 
-void TTransactionManager::AbortTransaction(TTransaction* transaction)
+void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+    if (transaction->GetState() == ETransactionState::PersistentCommitPrepared && !force) {
         transaction->ThrowInvalidState();
     }
 
@@ -431,7 +431,7 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
     auto nestedTransactions = transaction->NestedTransactions();
     for (auto* nestedTransaction : nestedTransactions) {
-        AbortTransaction(nestedTransaction);
+        AbortTransaction(nestedTransaction, force);
     }
     YCHECK(transaction->NestedTransactions().empty());
 
@@ -657,7 +657,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (transaction->GetState() != ETransactionState::Active)
         return;
 
-    LOG_INFO("Transaction lease expired (TransactionId: %v)", id);
+    LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
 
     auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
     transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (TError error) {
@@ -773,13 +773,15 @@ void TTransactionManager::CommitTransaction(
     CommitTransaction(transaction);
 }
 
-void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
+void TTransactionManager::AbortTransaction(
+    const TTransactionId& transactionId,
+    bool force)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
 
-    AbortTransaction(transaction);
+    AbortTransaction(transaction, force);
 }
 
 void TTransactionManager::PingTransaction(

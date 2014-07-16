@@ -695,7 +695,7 @@ private:
             
             if (transaction && transaction->GetState() == ETransactionState::Active) {
                 auto transactionManager = Bootstrap->GetTransactionManager();
-                transactionManager->AbortTransaction(transaction);
+                transactionManager->AbortTransaction(transaction, false);
             }
 
             const auto& address = node->GetAddress();

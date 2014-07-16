@@ -72,7 +72,8 @@ private:
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) override;
     virtual void AbortTransaction(
-        const TTransactionId& transactionId) override;
+        const TTransactionId& transactionId,
+        bool force) override;
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         const NHive::NProto::TReqPingTransaction& request) override;

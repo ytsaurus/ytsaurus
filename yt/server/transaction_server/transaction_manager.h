@@ -51,7 +51,7 @@ public:
 
     TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
     void CommitTransaction(TTransaction* transaction);
-    void AbortTransaction(TTransaction* transaction);
+    void AbortTransaction(TTransaction* transaction, bool force);
     void PingTransaction(const TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
@@ -123,7 +123,9 @@ private:
     virtual void CommitTransaction(
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) override;
-    virtual void AbortTransaction(const TTransactionId& transactionId) override;
+    virtual void AbortTransaction(
+        const TTransactionId& transactionId,
+        bool force) override;
     virtual void PingTransaction(
         const TTransactionId& transactionId,
         const NHive::NProto::TReqPingTransaction& request) override;
