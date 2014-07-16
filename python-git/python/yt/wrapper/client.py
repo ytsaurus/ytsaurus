@@ -9,6 +9,7 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
+from etc_commands import get_user_name
 from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 
@@ -29,6 +30,9 @@ class Yt(object):
     
     def _pop_transaction(self):
         self._transaction_stack.pop()
+
+    def get_user_name(self, *args, **kwargs):
+        return get_user_name(*args, client=self, **kwargs)
 
     def set(self, *args, **kwargs):
         return set(*args, client=self, **kwargs)

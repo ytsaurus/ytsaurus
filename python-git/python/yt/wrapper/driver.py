@@ -5,7 +5,7 @@ from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value
 from errors import YtError, YtResponseError
 from version import VERSION
-from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, check_proxy, get_session, get_api
+from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url
 from command import parse_commands
 
 from yt.yson.convert import json_to_yson
@@ -37,7 +37,7 @@ def escape_utf8(obj):
 class ResponseStream(object):
     """Iterator over response"""
     def __init__(self, response, iter_type):
-        self.response = response
+        self.response = response.raw_response
         self.iter_type = iter_type
         self._buffer = ""
         self._pos = 0
@@ -103,9 +103,9 @@ class ResponseStream(object):
 def read_content(response, raw, format, response_type):
     if raw:
         if response_type == "string":
-            return response.text
+            return response.raw_response.text
         elif response_type == "raw":
-            return response
+            return response.raw_response
         else:
             return ResponseStream(response, response_type)
     else:
@@ -113,12 +113,7 @@ def read_content(response, raw, format, response_type):
 
 
 def get_hosts(client=None):
-    client = get_value(client, config.CLIENT)
-    if client is not None:
-        proxy = client.proxy
-    else:
-        proxy = config.http.PROXY
-    check_proxy(proxy)
+    proxy = get_proxy_url(None, client)
     return make_get_request_with_retries("http://{0}/{1}".format(proxy, config.HOSTS))
 
 def get_host_for_heavy_operation(client=None):
@@ -135,12 +130,10 @@ def get_host_for_heavy_operation(client=None):
 
 def make_request(command_name, params,
                  data=None, proxy=None,
-                 return_raw_response=False, verbose=False,
+                 return_content=True, verbose=False,
                  retry_unavailable_proxy=True, client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
-    Option return_raw_response forces returning response of requests library
-    without extracting data field.
     """
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
@@ -151,13 +144,7 @@ def make_request(command_name, params,
         logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
-    client = get_value(client, config.CLIENT)
-    if proxy is None:
-        if client is None:
-            proxy = config.http.PROXY
-        else:
-            proxy = client.proxy
-    check_proxy(proxy)
+    proxy = get_proxy_url(proxy, client)
 
     if client is None:
         client_provider = config
@@ -228,40 +215,33 @@ def make_request(command_name, params,
 
     stream = (command.output_type in ["binary", "tabular"])
 
-    def request():
-        try:
-            rsp = get_session().request(
-                url=url,
-                method=command.http_method(),
-                headers=headers,
-                data=data,
-                stream=stream)
-        except requests.ConnectionError as error:
-            print >>sys.stderr, type(error)
-            if hasattr(error, "response"):
-                rsp = error.response
-            else:
-                raise
-        return Response(rsp)
-
-    response = make_request_with_retries(
-        request,
-        allow_retries,
-        retry_unavailable_proxy=retry_unavailable_proxy,
-        description=url,
-        return_raw_response=return_raw_response)
+    try:
+        response = make_request_with_retries(
+            command.http_method(),
+            url,
+            make_retries=allow_retries,
+            retry_unavailable_proxy=retry_unavailable_proxy,
+            headers=headers,
+            data=data,
+            stream=stream)
+    except requests.ConnectionError as error:
+        if hasattr(error, "response"):
+            # Reponse has trailing, it is ususally error response from yt in case of heavy request.
+            response = error.response
+        else:
+            raise
 
     # Hide token for security reasons
     if "Authorization" in headers:
         headers["Authorization"] = "x" * 32
-    print_info("Response header %r", response.http_response.headers)
+    print_info("Response header %r", response.headers())
 
     # Determine type of response data and return it
     if response.is_ok():
-        if return_raw_response:
-            return response.http_response
-        else:
+        if return_content:
             return response.content()
+        else:
+            return response
     else:
         raise YtResponseError(url, headers, response.error())
 
