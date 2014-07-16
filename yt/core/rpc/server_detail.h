@@ -7,6 +7,8 @@
 
 #include <core/rpc/rpc.pb.h>
 
+#include <core/logging/log.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -53,6 +55,8 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
+    virtual NLog::TLogger& GetLogger() override;
+
 protected:
     std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     TSharedRefArray RequestMessage_;
@@ -72,13 +76,17 @@ protected:
     Stroka RequestInfo_;
     Stroka ResponseInfo_;
 
+    NLog::TLogger Logger;
+
 
     TServiceContextBase(
         std::unique_ptr<NProto::TRequestHeader> header,
-        TSharedRefArray requestMessage);
+        TSharedRefArray requestMessage,
+        NLog::TLogger logger);
 
-    explicit TServiceContextBase(
-        TSharedRefArray requestMessage);
+    TServiceContextBase(
+        TSharedRefArray requestMessage,
+        NLog::TLogger logger);
 
     virtual void DoReply() = 0;
 
@@ -146,8 +154,10 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
+    virtual NLog::TLogger& GetLogger() override;
+
 protected:
-    IServiceContextPtr UnderlyingContext;
+    IServiceContextPtr UnderlyingContext_;
 
 };
 
@@ -165,7 +175,7 @@ public:
     virtual void Reply(TSharedRefArray responseMessage) override;
 
 private:
-    TClosure OnReply;
+    TClosure OnReply_;
 
 };
 

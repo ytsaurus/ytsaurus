@@ -43,20 +43,16 @@ class TTypedServiceRequest
 public:
     typedef TRequestMessage TMessage;
 
-    TTypedServiceRequest()
-        : Context(nullptr)
-    { }
-
     std::vector<TSharedRef>& Attachments()
     {
-        return Context->RequestAttachments();
+        return Context_->RequestAttachments();
     }
 
 private:
     template <class TRequestMessage_>
     friend class TTypedServiceContextBase;
 
-    IServiceContext* Context;
+    IServiceContext* Context_ = nullptr;
 
 };
 
@@ -69,20 +65,16 @@ class TTypedServiceResponse
 public:
     typedef TResponseMessage TMessage;
 
-    TTypedServiceResponse()
-        : Context(nullptr)
-    { }
-
     std::vector<TSharedRef>& Attachments()
     {
-        return Context->ResponseAttachments();
+        return Context_->ResponseAttachments();
     }
 
 private:
     template <class TRequestMessage_, class TResponseMessage_>
     friend class TTypedServiceContext;
 
-    IServiceContext* Context;
+    IServiceContext* Context_ = nullptr;
 
 };
 
@@ -91,20 +83,14 @@ private:
 //! Describes request handling options.
 struct THandlerInvocationOptions
 {
-    THandlerInvocationOptions()
-        : HeavyRequest(false)
-        , HeavyResponse(false)
-        , ResponseCodec(NCompression::ECodec::None)
-    { }
-
     //! Should we be deserializing the request in a separate thread?
-    bool HeavyRequest;
+    bool HeavyRequest = false;
 
     //! Should we be serializing the response in a separate thread?
-    bool HeavyResponse;
+    bool HeavyResponse = false;
 
     //! The codec to compress response body.
-    NCompression::ECodec ResponseCodec;
+    NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
 
 };
 
@@ -126,17 +112,17 @@ public:
         const THandlerInvocationOptions& options)
         : TServiceContextWrapper(std::move(context))
         , Logger(RpcServerLogger)
-        , Options(options)
+        , Options_(options)
     { }
 
     bool DeserializeRequest()
     {
         Request_ = ObjectPool<TTypedRequest>().Allocate();
-        Request_->Context = UnderlyingContext.Get();
+        Request_->Context_ = UnderlyingContext_.Get();
 
-        if (!DeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext->GetRequestBody())) {
-            UnderlyingContext->Reply(TError(
-                EErrorCode::ProtocolError,
+        if (!DeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext_->GetRequestBody())) {
+            UnderlyingContext_->Reply(TError(
+                NRpc::EErrorCode::ProtocolError,
                 "Error deserializing request body"));
             return false;
         }
@@ -156,7 +142,7 @@ public:
 
 protected:
     NLog::TLogger& Logger;
-    THandlerInvocationOptions Options;
+    THandlerInvocationOptions Options_;
 
     typename TObjectPool<TTypedRequest>::TValuePtr Request_;
 
@@ -183,7 +169,7 @@ public:
         : TBase(std::move(context), options)
     {
         Response_ = ObjectPool<TTypedResponse>().Allocate();
-        Response_->Context = this->UnderlyingContext.Get();
+        Response_->Context_ = this->UnderlyingContext_.Get();
     }
 
     const TTypedResponse& Response() const
@@ -206,11 +192,11 @@ public:
     virtual void Reply(const TError& error) override
     {
         if (!error.IsOK()) {
-            this->UnderlyingContext->Reply(error);
+            this->UnderlyingContext_->Reply(error);
             return;
         }
 
-        if (this->Options.HeavyResponse) {
+        if (this->Options_.HeavyResponse) {
             TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
                 &TThis::SerializeResponseAndReply,
                 MakeStrong(this)));
@@ -223,9 +209,9 @@ private:
     void SerializeResponseAndReply()
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options.ResponseCodec));
-        this->UnderlyingContext->SetResponseBody(std::move(data));
-        this->UnderlyingContext->Reply(TError());
+        YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options_.ResponseCodec));
+        this->UnderlyingContext_->SetResponseBody(std::move(data));
+        this->UnderlyingContext_->Reply(TError());
     }
 
     typename TObjectPool<TTypedResponse>::TValuePtr Response_;

@@ -20,17 +20,21 @@ static auto& Logger = RpcServerLogger;
 
 TServiceContextBase::TServiceContextBase(
     std::unique_ptr<TRequestHeader> header,
-    TSharedRefArray requestMessage)
+    TSharedRefArray requestMessage,
+    NLog::TLogger logger)
     : RequestHeader_(std::move(header))
     , RequestMessage_(std::move(requestMessage))
+    , Logger(std::move(logger))
 {
     Initialize();
 }
 
 TServiceContextBase::TServiceContextBase(
-    TSharedRefArray requestMessage)
+    TSharedRefArray requestMessage,
+    NLog::TLogger logger)
     : RequestHeader_(new TRequestHeader())
     , RequestMessage_(std::move(requestMessage))
+    , Logger(std::move(logger))
 {
     YCHECK(ParseRequestHeader(RequestMessage_, RequestHeader_.get()));
     Initialize();
@@ -69,7 +73,9 @@ void TServiceContextBase::Reply(const TError& error)
         DoReply();
     }
 
-    LogResponse(error);
+    if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+        LogResponse(error);
+    }
 }
 
 void TServiceContextBase::Reply(TSharedRefArray responseMessage)
@@ -228,7 +234,9 @@ TRequestHeader& TServiceContextBase::RequestHeader()
 void TServiceContextBase::SetRawRequestInfo(const Stroka& info)
 {
     RequestInfo_ = info;
-    LogRequest();
+    if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
+        LogRequest();
+    }
 }
 
 void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
@@ -239,125 +247,135 @@ void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
     ResponseInfo_ = info;
 }
 
+NLog::TLogger& TServiceContextBase::GetLogger()
+{
+    return Logger;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
-    : UnderlyingContext(std::move(underlyingContext))
+    : UnderlyingContext_(std::move(underlyingContext))
 { }
 
 TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 {
-    return UnderlyingContext->GetRequestMessage();
+    return UnderlyingContext_->GetRequestMessage();
 }
 
 TRequestId TServiceContextWrapper::GetRequestId() const
 {
-    return UnderlyingContext->GetRequestId();
+    return UnderlyingContext_->GetRequestId();
 }
 
 TNullable<TInstant> TServiceContextWrapper::GetRequestStartTime() const
 {
-    return UnderlyingContext->GetRequestStartTime();
+    return UnderlyingContext_->GetRequestStartTime();
 }
 
 TNullable<TInstant> TServiceContextWrapper::GetRetryStartTime() const
 {
-    return UnderlyingContext->GetRetryStartTime();
+    return UnderlyingContext_->GetRetryStartTime();
 }
 
 i64 TServiceContextWrapper::GetPriority() const
 {
-    return UnderlyingContext->GetPriority();
+    return UnderlyingContext_->GetPriority();
 }
 
 const Stroka& TServiceContextWrapper::GetService() const
 {
-    return UnderlyingContext->GetService();
+    return UnderlyingContext_->GetService();
 }
 
 const Stroka& TServiceContextWrapper::GetMethod() const
 {
-    return UnderlyingContext->GetMethod();
+    return UnderlyingContext_->GetMethod();
 }
 
 const TRealmId& TServiceContextWrapper::GetRealmId() const 
 {
-    return UnderlyingContext->GetRealmId();
+    return UnderlyingContext_->GetRealmId();
 }
 
 bool TServiceContextWrapper::IsOneWay() const
 {
-    return UnderlyingContext->IsOneWay();
+    return UnderlyingContext_->IsOneWay();
 }
 
 bool TServiceContextWrapper::IsReplied() const
 {
-    return UnderlyingContext->IsReplied();
+    return UnderlyingContext_->IsReplied();
 }
 
 void TServiceContextWrapper::Reply(const TError& error)
 {
-    UnderlyingContext->Reply(error);
+    UnderlyingContext_->Reply(error);
 }
 
 void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
-    UnderlyingContext->Reply(responseMessage);
+    UnderlyingContext_->Reply(responseMessage);
 }
 
 TSharedRefArray TServiceContextWrapper::GetResponseMessage() const
 {
-    return UnderlyingContext->GetResponseMessage();
+    return UnderlyingContext_->GetResponseMessage();
 }
 
 const TError& TServiceContextWrapper::GetError() const
 {
-    return UnderlyingContext->GetError();
+    return UnderlyingContext_->GetError();
 }
 
 TSharedRef TServiceContextWrapper::GetRequestBody() const
 {
-    return UnderlyingContext->GetRequestBody();
+    return UnderlyingContext_->GetRequestBody();
 }
 
 TSharedRef TServiceContextWrapper::GetResponseBody()
 {
-    return UnderlyingContext->GetResponseBody();
+    return UnderlyingContext_->GetResponseBody();
 }
 
 void TServiceContextWrapper::SetResponseBody(const TSharedRef& responseBody)
 {
-    UnderlyingContext->SetResponseBody(responseBody);
+    UnderlyingContext_->SetResponseBody(responseBody);
 }
 
 std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
 {
-    return UnderlyingContext->RequestAttachments();
+    return UnderlyingContext_->RequestAttachments();
 }
 
 std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
 {
-    return UnderlyingContext->ResponseAttachments();
+    return UnderlyingContext_->ResponseAttachments();
 }
 
 const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 
 {
-    return UnderlyingContext->RequestHeader();
+    return UnderlyingContext_->RequestHeader();
 }
 
 NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
 {
-    return UnderlyingContext->RequestHeader();
+    return UnderlyingContext_->RequestHeader();
 }
 
 void TServiceContextWrapper::SetRawRequestInfo(const Stroka& info)
 {
-    UnderlyingContext->SetRawRequestInfo(info);
+    UnderlyingContext_->SetRawRequestInfo(info);
 }
 
 void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
 {
-    UnderlyingContext->SetRawResponseInfo(info);
+    UnderlyingContext_->SetRawResponseInfo(info);
+}
+
+NLog::TLogger& TServiceContextWrapper::GetLogger()
+{
+    return UnderlyingContext_->GetLogger();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,19 +384,19 @@ TReplyInterceptorContext::TReplyInterceptorContext(
     IServiceContextPtr underlyingContext,
     TClosure onReply)
     : TServiceContextWrapper(std::move(underlyingContext))
-    , OnReply(std::move(onReply))
+    , OnReply_(std::move(onReply))
 { }
 
 void TReplyInterceptorContext::Reply(const TError& error)
 {
     TServiceContextWrapper::Reply(error);
-    OnReply.Run();
+    OnReply_.Run();
 }
 
 void TReplyInterceptorContext::Reply(TSharedRefArray responseMessage)
 {
     TServiceContextWrapper::Reply(std::move(responseMessage));
-    OnReply.Run();
+    OnReply_.Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,9 +416,9 @@ void TServerBase::RegisterService(IServicePtr service)
         YCHECK(ServiceMap_.insert(std::make_pair(serviceId, service)).second);
     }
 
-    LOG_INFO("RPC service registered (ServiceName: %s, RealmId: %s)",
-        ~serviceId.ServiceName,
-        ~ToString(serviceId.RealmId));
+    LOG_INFO("RPC service registered (ServiceName: %v, RealmId: %v)",
+        serviceId.ServiceName,
+        serviceId.RealmId);
 }
 
 void TServerBase::UnregisterService(IServicePtr service)
@@ -414,9 +432,9 @@ void TServerBase::UnregisterService(IServicePtr service)
         YCHECK(ServiceMap_.erase(serviceId) == 1);
     }
 
-    LOG_INFO("RPC service unregistered (ServiceName: %s, RealmId: %s)",
-        ~serviceId.ServiceName,
-        ~ToString(serviceId.RealmId));
+    LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
+        serviceId.ServiceName,
+        serviceId.RealmId);
 }
 
 NYT::NRpc::IServicePtr TServerBase::FindService(const TServiceId& serviceId)

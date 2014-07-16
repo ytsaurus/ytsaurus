@@ -140,9 +140,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
-        if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-            context->SetRequestInfo("Count: %v", request->count());
-        }
+        context->SetRequestInfo("Count: %v", request->count());
 
         DoGenerateTimestamps(context);
     }
@@ -207,9 +205,7 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
-        if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-            context->SetRequestInfo("Timestamp: %v", result);
-        }
+        context->SetRequestInfo("Timestamp: %v", result);
 
         context->Response().set_timestamp(result);
         context->Reply();

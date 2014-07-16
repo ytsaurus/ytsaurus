@@ -951,9 +951,10 @@ public:
         TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
         NLog::TLogger logger)
-        : TServiceContextBase(std::move(requestMessage))
-        , ResponseHandler(std::move(responseHandler))
-        , Logger(std::move(logger))
+        : TServiceContextBase(
+            std::move(requestMessage),
+            std::move(logger))
+        , ResponseHandler_(std::move(responseHandler))
     { }
 
     TYPathServiceContext(
@@ -963,19 +964,19 @@ public:
         NLog::TLogger logger)
         : TServiceContextBase(
             std::move(requestHeader),
-            std::move(requestMessage))
-        , ResponseHandler(std::move(responseHandler))
-        , Logger(std::move(logger))
+            std::move(requestMessage),
+            std::move(logger))
+        , ResponseHandler_(std::move(responseHandler))
     { }
 
 protected:
-    TYPathResponseHandler ResponseHandler;
-    NLog::TLogger Logger;
+    TYPathResponseHandler ResponseHandler_;
+
 
     virtual void DoReply() override
     {
-        if (ResponseHandler) {
-            ResponseHandler.Run(GetResponseMessage());
+        if (ResponseHandler_) {
+            ResponseHandler_.Run(GetResponseMessage());
         }
     }
 
@@ -983,7 +984,9 @@ protected:
     {
         TStringBuilder builder;
 
-        AppendInfo(&builder, "%v", RequestInfo_);
+        if (!RequestInfo_.empty()) {
+            AppendInfo(&builder, "%v", RequestInfo_);
+        }
 
         LOG_DEBUG("%v:%v %v <- %v",
             GetService(),
@@ -997,7 +1000,10 @@ protected:
         TStringBuilder builder;
 
         AppendInfo(&builder, "Error: %v", error);
-        AppendInfo(&builder, "%v", ResponseInfo_);
+
+        if (!ResponseInfo_.empty()) {
+            AppendInfo(&builder, "%v", ResponseInfo_);
+        }
 
         LOG_DEBUG("%v:%v %v -> %v",
             GetService(),
@@ -1043,7 +1049,7 @@ class TRootService
 {
 public:
     explicit TRootService(IYPathServicePtr underlyingService)
-        : UnderlyingService(underlyingService)
+        : UnderlyingService_(underlyingService)
     { }
 
     virtual void Invoke(IServiceContextPtr /*context*/) override
@@ -1060,12 +1066,12 @@ public:
             THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
-        return TResolveResult::There(UnderlyingService, tokenizer.GetSuffix());
+        return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
     }
 
     virtual NLog::TLogger GetLogger() const override
     {
-        return UnderlyingService->GetLogger();
+        return UnderlyingService_->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -1074,11 +1080,11 @@ public:
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        UnderlyingService->SerializeAttributes(consumer, filter, sortKeys);
+        UnderlyingService_->SerializeAttributes(consumer, filter, sortKeys);
     }
 
 private:
-    IYPathServicePtr UnderlyingService;
+    IYPathServicePtr UnderlyingService_;
 
 };
 

@@ -91,15 +91,15 @@ public:
         const Stroka& loggingCategory)
         : TServiceContextBase(
             std::move(header),
-            std::move(requestMessage))
-        , Service(std::move(service))
-        , ActiveRequest(std::move(activeRequest))
-        , ReplyBus(std::move(replyBus))
-        , Logger(loggingCategory)
+            std::move(requestMessage),
+            NLog::TLogger(loggingCategory))
+        , Service_(std::move(service))
+        , ActiveRequest_(std::move(activeRequest))
+        , ReplyBus_(std::move(replyBus))
     {
         YASSERT(RequestMessage_);
-        YASSERT(ReplyBus);
-        YASSERT(Service);
+        YASSERT(ReplyBus_);
+        YASSERT(Service_);
     }
 
     ~TServiceContext()
@@ -110,22 +110,18 @@ public:
     }
 
 private:
-    TServiceBasePtr Service;
-    TActiveRequestPtr ActiveRequest;
-    IBusPtr ReplyBus;
-    NLog::TLogger Logger;
+    TServiceBasePtr Service_;
+    TActiveRequestPtr ActiveRequest_;
+    IBusPtr ReplyBus_;
 
 
     virtual void DoReply() override
     {
-        Service->OnResponse(ActiveRequest, GetResponseMessage());
+        Service_->OnResponse(ActiveRequest_, GetResponseMessage());
     }
 
     virtual void LogRequest() override
     {
-        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
-            return;
-
         TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
@@ -150,9 +146,6 @@ private:
 
     virtual void LogResponse(const TError& error) override
     {
-        if (!Logger.IsEnabled(NLog::ELogLevel::Debug))
-            return;
-
         TStringBuilder builder;
 
         if (RequestId_ != NullRequestId) {
