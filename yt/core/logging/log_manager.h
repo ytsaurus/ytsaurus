@@ -34,7 +34,7 @@ public:
 
 private:
     class TImpl;
-    mutable TIntrusivePtr<TImpl> Impl;
+    mutable TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -53,7 +53,7 @@ private:
     friend class TTcpBusServerProxy;
 
     class TImpl;
-    std::unique_ptr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 

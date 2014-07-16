@@ -706,13 +706,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl(New<TImpl>())
+    : Impl_(New<TImpl>())
 {
+#ifndef _win_
     auto afterFork = [] () {
         TLogManager::Get()->AfterFork();
     };
 
     YCHECK(pthread_atfork(nullptr, afterFork, afterFork) == 0);
+#endif
 }
 
 TLogManager* TLogManager::Get()
@@ -722,72 +724,72 @@ TLogManager* TLogManager::Get()
 
 void TLogManager::AfterFork()
 {
-    if (!Impl) {
-        Impl = New<TImpl>();
+    if (!Impl_) {
+        Impl_ = New<TImpl>();
     }
 }
 
 void TLogManager::Initialize() const
 {
-    if (!Impl) {
-        Impl = New<TImpl>();
+    if (!Impl_) {
+        Impl_ = New<TImpl>();
     }
 }
 
 void TLogManager::Configure(INodePtr node)
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    Impl->Configure(node);
+    Impl_->Configure(node);
 }
 
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    Impl->Configure(fileName, path);
+    Impl_->Configure(fileName, path);
 }
 
 void TLogManager::Shutdown()
 {
-    if (Impl) {
-        Impl->Shutdown();
-        Impl.Reset();
+    if (Impl_) {
+        Impl_->Shutdown();
+        Impl_.Reset();
     }
 }
 
 int TLogManager::GetVersion() const
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    return Impl->GetVersion();
+    return Impl_->GetVersion();
 }
 
 ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    return Impl->GetMinLevel(category);
+    return Impl_->GetMinLevel(category);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    Impl->Enqueue(std::move(event));
+    Impl_->Enqueue(std::move(event));
 }
 
 void TLogManager::Reopen()
 {
-    if (UNLIKELY(!Impl)) {
+    if (UNLIKELY(!Impl_)) {
         Initialize();
     }
-    Impl->Reopen();
+    Impl_->Reopen();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
