@@ -205,6 +205,7 @@ config = {
         minor: 5,
         patch: 0,
     },
+    redirect: [],
     static: [],
 };
 
