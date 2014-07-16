@@ -214,6 +214,11 @@ private:
                         .Item("value").BeginMap()
                         .EndMap()
                     .EndMap());
+            
+            CreateNode(
+                "//sys/empty_table",
+                transactionId,
+                EObjectType::Table);
 
             CreateNode(
                 "//sys/scheduler/instances",
