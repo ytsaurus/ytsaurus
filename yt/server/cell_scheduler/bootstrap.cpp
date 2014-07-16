@@ -153,7 +153,7 @@ void TBootstrap::DoRun()
         CreateVirtualNode(Scheduler
             ->GetOrchidService()
             ->Via(GetControlInvoker())
-            ->Cached(Config->OrchidCacheExpirationPeriod)));
+            ->Cached(Config->OrchidCacheExpirationTime)));
     
     SetBuildAttributes(orchidRoot, "scheduler");
 

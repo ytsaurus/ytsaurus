@@ -24,7 +24,7 @@ class TFromProducerYPathService
 {
 public:
     explicit TFromProducerYPathService(TYsonProducer producer)
-        : Producer(producer)
+        : Producer_(producer)
     { }
 
     virtual TResolveResult Resolve(
@@ -41,7 +41,7 @@ public:
     }
 
 private:
-    TYsonProducer Producer;
+    TYsonProducer Producer_;
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -63,7 +63,7 @@ private:
         Stroka result;
         TStringOutput stream(result);
         TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
-        Producer.Run(&writer);
+        Producer_.Run(&writer);
 
         response->set_value(result);
         context->Reply();
@@ -82,7 +82,7 @@ private:
 
     INodePtr BuildNodeFromProducer()
     {
-        return ConvertTo<INodePtr>(Producer);
+        return ConvertTo<INodePtr>(Producer_);
     }
 
 };
@@ -101,8 +101,8 @@ public:
     TViaYPathService(
         IYPathServicePtr underlyingService,
         IInvokerPtr invoker)
-        : UnderlyingService(underlyingService)
-        , Invoker(invoker)
+        : UnderlyingService_(underlyingService)
+        , Invoker_(invoker)
     { }
 
     virtual TResolveResult Resolve(
@@ -113,15 +113,15 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService;
-    IInvokerPtr Invoker;
+    IYPathServicePtr UnderlyingService_;
+    IInvokerPtr Invoker_;
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
         auto this_ = MakeStrong(this);
-        Invoker->Invoke(BIND([this, this_, context] () {
+        Invoker_->Invoke(BIND([this, this_, context] () {
             try {
-                ExecuteVerb(UnderlyingService, context);
+                ExecuteVerb(UnderlyingService_, context);
             } catch (const std::exception& ex) {
                 context->Reply(ex);
             }
@@ -143,102 +143,75 @@ class TCachedYPathService
 public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
-        TDuration expirationPeriod)
-        : UnderlyingService(underlyingService)
-        , ExpirationPeriod(expirationPeriod)
+        TDuration expirationTime)
+        : UnderlyingService_(underlyingService)
+        , ExpirationTime_(expirationTime)
     { }
     
-    void Initialize()
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
-        if (ExpirationPeriod != TDuration::Zero()) {
-            UpdateCache(ConvertToNode(TYsonString("#")));
-            GetCachedTree(true);
+        if (ExpirationTime_ == TDuration::Zero()) {
+            return TResolveResult::There(UnderlyingService_, path);
+        } else {
+            return TResolveResult::Here(path);
         }
-    }
-
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr /*context*/) override
-    {
-        if (ExpirationPeriod == TDuration::Zero()) {
-            // Cache disabled.
-            return TResolveResult::There(UnderlyingService, path);
-        }
-
-        return TResolveResult::There(GetCachedTree(false), path);
     }
 
 private:
-    IYPathServicePtr UnderlyingService;
-    TDuration ExpirationPeriod;
+    IYPathServicePtr UnderlyingService_;
+    TDuration ExpirationTime_;
 
-    TSpinLock SpinLock;
-    INodePtr CachedTree;
-    TInstant LastUpdateTime;
-    bool Updating = false;
+    TSpinLock SpinLock_;
+    TFuture<INodePtr> CachedTree_;
+    TInstant LastUpdateTime_;
+    bool Updating_ = false;
 
-    virtual bool DoInvoke(IServiceContextPtr /*context*/) override
+
+    virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        YUNREACHABLE();
-    }
-
-
-    INodePtr GetCachedTree(bool forceUpdate)
-    {
-        bool needsUpdate = false;
-        INodePtr cachedTree;
+        TGuard<TSpinLock> guard(SpinLock_);
+        
+        if (!CachedTree_ || 
+            (CachedTree_.IsSet() && LastUpdateTime_ + ExpirationTime_ < TInstant::Now()))
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            cachedTree = CachedTree;
-            if ((forceUpdate || TInstant::Now() > LastUpdateTime + ExpirationPeriod) && !Updating) {
-                needsUpdate = true;
-                Updating = true;
-            }
-        }
+            auto promise = NewPromise<INodePtr>();
+            CachedTree_ = promise;
+            guard.Release();
 
-        if (needsUpdate) {
-            AsyncGetData()
-                .Apply(
-                    BIND([] (TYsonString result) {
-                        return ConvertToNode(result);
-                    })
+            AsyncYPathGet(
+                UnderlyingService_,
+                "",
+                TAttributeFilter::All,
+                true)
+                .Subscribe(BIND(&TCachedYPathService::OnGotTree, MakeStrong(this), promise)
                     // Nothing to be proud of, but we do need some large pool.
-                    .AsyncVia(NRpc::TDispatcher::Get()->GetPoolInvoker()))
-                .Subscribe(
-                    BIND(&TCachedYPathService::UpdateCache, MakeStrong(this)));
+                    .Via(NRpc::TDispatcher::Get()->GetPoolInvoker()));
         }
 
-        return cachedTree;
+        CachedTree_.Subscribe(BIND([=] (INodePtr root) {
+            root->Invoke(context);
+        }));
+
+        return true;
     }
 
-    TFuture<TYsonString> AsyncGetData()
+    void OnGotTree(TPromise<INodePtr> promise, TErrorOr<TYsonString> result)
     {
-        return AsyncYPathGet(
-            UnderlyingService,
-            "",
-            TAttributeFilter::All,
-            true)
-            .Apply(BIND([] (TErrorOr<TYsonString> result) -> TYsonString {
-                YCHECK(result.IsOK());
-                return result.Value();
-            }));
-    }
+        YCHECK(result.IsOK());
 
-    void UpdateCache(INodePtr tree)
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        CachedTree = tree;
-        LastUpdateTime = TInstant::Now();
-        Updating = false;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            LastUpdateTime_ = TInstant::Now();
+        }
+
+        promise.Set(ConvertToNode(result.Value()));
     }
 
 };
 
-IYPathServicePtr IYPathService::Cached(TDuration expirationPeriod)
+IYPathServicePtr IYPathService::Cached(TDuration expirationTime)
 {
-    auto result = New<TCachedYPathService>(this, expirationPeriod);
-    result->Initialize();
-    return result;
+    return New<TCachedYPathService>(this, expirationTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

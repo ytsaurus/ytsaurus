@@ -24,7 +24,7 @@ class TCellNodeConfig
 {
 public:
     //! Orchid cache expiration timeout.
-    TDuration OrchidCacheExpirationPeriod;
+    TDuration OrchidCacheExpirationTime;
 
     //! RPC interface port number.
     int RpcPort;
@@ -55,7 +55,7 @@ public:
 
     TCellNodeConfig()
     {
-        RegisterParameter("orchid_cache_expiration_period", OrchidCacheExpirationPeriod)
+        RegisterParameter("orchid_cache_expiration_time", OrchidCacheExpirationTime)
             .Default(TDuration::Seconds(5));
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);

@@ -18,7 +18,7 @@ class TCellSchedulerConfig
 {
 public:
     //! Orchid cache expiration timeout.
-    TDuration OrchidCacheExpirationPeriod;
+    TDuration OrchidCacheExpirationTime;
 
     //! RPC interface port number.
     int RpcPort;
@@ -33,7 +33,7 @@ public:
 
     TCellSchedulerConfig()
     {
-        RegisterParameter("orchid_cache_expiration_period", OrchidCacheExpirationPeriod)
+        RegisterParameter("orchid_cache_expiration_time", OrchidCacheExpirationTime)
             .Default(TDuration::Seconds(1));
         RegisterParameter("rpc_port", RpcPort)
             .Default(9001);

@@ -349,7 +349,7 @@ void TBootstrap::DoRun()
         CreateVirtualNode(
             TabletSlotManager->GetOrchidService()
             ->Via(GetControlInvoker())
-            ->Cached(Config->OrchidCacheExpirationPeriod)));
+            ->Cached(Config->OrchidCacheExpirationTime)));
     SetBuildAttributes(OrchidRoot, "node");
 
     HttpServer->Register(
