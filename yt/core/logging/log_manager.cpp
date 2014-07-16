@@ -756,7 +756,8 @@ void TLogManager::Shutdown()
 {
     if (Impl_) {
         Impl_->Shutdown();
-        Impl_.Reset();
+        // XXX(babenko): shutdown fiasco
+        //Impl_.Reset();
     }
 }
 
