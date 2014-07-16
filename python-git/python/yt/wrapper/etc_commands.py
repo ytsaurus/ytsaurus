@@ -17,7 +17,7 @@ def parse_ypath(path, client=None):
 
     return result
 
-def get_user_name(proxy, token, client=None):
+def get_user_name(token, proxy=None, client=None):
     proxy = get_proxy_url(proxy, client)
     response = make_request_with_retries(
         "post",
