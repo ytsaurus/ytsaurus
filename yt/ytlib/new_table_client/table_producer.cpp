@@ -29,6 +29,9 @@ void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row, TNameTableP
             case EValueType::Double:
                 consumer->OnDoubleScalar(value.Data.Double);
                 break;
+            case EValueType::Boolean:
+                consumer->OnBooleanScalar(value.Data.Boolean);
+                break;
             case EValueType::String:
                 consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                 break;

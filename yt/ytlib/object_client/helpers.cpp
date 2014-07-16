@@ -22,6 +22,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||
         type == EObjectType::DoubleNode ||
+        type == EObjectType::BooleanNode ||
         type == EObjectType::MapNode ||
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
@@ -60,6 +61,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||
         type == EObjectType::DoubleNode ||
+        type == EObjectType::BooleanNode ||
         type == EObjectType::MapNode ||
         type == EObjectType::ListNode ||
         type == EObjectType::File ||

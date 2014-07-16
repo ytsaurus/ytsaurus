@@ -82,9 +82,9 @@ bool ParseBool(const Stroka& value)
     }
 }
 
-Stroka FormatBool(bool value)
+TStringBuf FormatBool(bool value)
 {
-    return value ? "true" : "false";
+    return value ? STRINGBUF("true") : STRINGBUF("false");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,13 +15,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonTest
-    : public ::testing::Test
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonTest, ConvertToNode)
+TEST(TYsonTest, ConvertToNode)
 {
     Stroka yson = "{key=value; other_key=10}";
     auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
@@ -49,7 +45,7 @@ TEST_F(TYsonTest, ConvertToNode)
     }
 }
 
-TEST_F(TYsonTest, ListFragment)
+TEST(TYsonTest, ListFragment)
 {
     Stroka yson = "{a=b};{c=d}";
     NYT::NYTree::INodePtr node;
@@ -60,7 +56,7 @@ TEST_F(TYsonTest, ListFragment)
               ConvertToYsonString(node, EYsonFormat::Text).Data());
 }
 
-TEST_F(TYsonTest, ConvertFromStream)
+TEST(TYsonTest, ConvertFromStream)
 {
     Stroka yson = "{key=value}";
     TStringInput ysonStream(yson);
@@ -71,7 +67,7 @@ TEST_F(TYsonTest, ConvertFromStream)
               ConvertToYsonString(node, EYsonFormat::Text).Data());
 }
 
-TEST_F(TYsonTest, ConvertToProducerNode)
+TEST(TYsonTest, ConvertToProducerNode)
 {
     // Make consumer
     TStringStream output;
@@ -86,7 +82,7 @@ TEST_F(TYsonTest, ConvertToProducerNode)
     EXPECT_EQ("{\"key\"=\"value\"}", output.Str());
 }
 
-TEST_F(TYsonTest, ConvertToProducerListFragment)
+TEST(TYsonTest, ConvertToProducerListFragment)
 {
     {
         auto producer = ConvertToProducer(TYsonString("{a=b}; {c=d}", EYsonType::ListFragment));
@@ -101,7 +97,7 @@ TEST_F(TYsonTest, ConvertToProducerListFragment)
     }
 }
 
-TEST_F(TYsonTest, ConvertToForPODTypes)
+TEST(TYsonTest, ConvertToForPodTypes)
 {
     {
         auto node = ConvertToNode(42);
@@ -118,7 +114,7 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
     {
         auto node = ConvertToNode(0.1);
         EXPECT_EQ(0.1, ConvertTo<double>(node));
-        
+
         auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
         EXPECT_EQ("0.1", ysonStr.Data());
         EXPECT_EQ(0.1, ConvertTo<double>(ysonStr));
@@ -132,15 +128,30 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
         auto converted = ConvertTo< std::vector<i32> >(node);
         EXPECT_EQ(numbers, converted);
         auto yson = ConvertToYsonString(node, EYsonFormat::Text);
-        EXPECT_EQ("[1;2]", yson.Data());
         EXPECT_EQ(EYsonType::Node, yson.GetType());
         EXPECT_EQ("[1;2]", yson.Data());
     }
+
+    {
+        bool boolean = true;
+        auto node = ConvertToNode(boolean);
+        auto converted = ConvertTo<bool>(node);
+        EXPECT_EQ(boolean, converted);
+        auto yson = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ(EYsonType::Node, yson.GetType());
+        EXPECT_EQ("%true", yson.Data());
+    }
+
+    EXPECT_EQ(ConvertTo<bool>("false"), false);
+    EXPECT_EQ(ConvertTo<bool>(TYsonString("%false")), false);
+
+    EXPECT_EQ(ConvertTo<bool>("true"), true);
+    EXPECT_EQ(ConvertTo<bool>(TYsonString("%true")), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonTest, UpdateNodes)
+TEST(TYsonTest, UpdateNodes)
 {
     auto base = BuildYsonNodeFluently()
         .BeginMap()

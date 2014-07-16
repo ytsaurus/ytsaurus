@@ -318,6 +318,7 @@ private:
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
 DECLARE_SCALAR_TYPE(Double, double)
+DECLARE_SCALAR_TYPE(Boolean, bool)
 
 #undef DECLARE_SCALAR_TYPE
 

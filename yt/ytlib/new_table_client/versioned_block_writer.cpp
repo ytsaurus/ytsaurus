@@ -135,6 +135,11 @@ void TSimpleVersionedBlockWriter::WriteValue(
             nullFlags.Append(false);
             break;
 
+        case EValueType::Boolean:
+            WritePod(stream, value.Data.Boolean);
+            nullFlags.Append(false);
+            break;
+
         case EValueType::String:
         case EValueType::Any:
             WritePod(stream, static_cast<ui32>(StringData_.GetSize()));

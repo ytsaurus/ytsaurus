@@ -70,6 +70,20 @@ void TBlockWriter::WriteDouble(const TUnversionedValue& value, int index)
     }
 }
 
+void TBlockWriter::WriteBoolean(const TUnversionedValue& value, int index)
+{
+    YASSERT(index < FixedColumns.size());
+    auto& column = FixedColumns[index];
+    YASSERT(column.ValueSize == 8);
+    if (value.Type == EValueType::Null) {
+        column.NullBitmap.Push(false);
+        column.Stream.DoWrite("\x00", 1);
+    } else {
+        column.NullBitmap.Push(true);
+        column.Stream.DoWrite(value.Data.Boolean ? "\x01" : "\x00", 1);
+    }
+}
+
 void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
@@ -139,6 +153,9 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
                 break;
             case EValueType::Double:
                 writer.OnDoubleScalar(value.Data.Double);
+                break;
+            case EValueType::Boolean:
+                writer.OnDoubleScalar(value.Data.Boolean);
                 break;
             case EValueType::String:
                 writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));

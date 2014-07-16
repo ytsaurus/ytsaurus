@@ -4,7 +4,6 @@ from yt.common import YtError, flatten, update
 
 import pytest
 
-import os
 import sys
 
 import time
@@ -149,25 +148,25 @@ def exists(path, **kwargs):
     res = command('exists', kwargs)
     return yson.loads(res) == 'true'
 
-def read(path, **kwargs):
-    kwargs["path"] = path
+def execute_command_with_output_format(command_name, kwargs):
     has_output_format = "output_format" in kwargs
     if not has_output_format:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
-    command('read', kwargs, output_stream=output)
+    command(command_name, kwargs, output_stream=output)
     if not has_output_format:
         return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
     else:
         return output.getvalue()
 
+
+def read(path, **kwargs):
+    kwargs["path"] = path
+    return execute_command_with_output_format("read", kwargs)
+
 def select(query, **kwargs):
     kwargs["query"] = query
-    if "output_format" not in kwargs:
-        kwargs["output_format"] = yson.loads("<format=text>yson")
-    output = StringIO()
-    command('select', kwargs, output_stream=output)
-    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
+    return execute_command_with_output_format("select", kwargs)
 
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)

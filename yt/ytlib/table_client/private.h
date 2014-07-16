@@ -33,6 +33,8 @@ DECLARE_ENUM(EKeyPartType,
     ((String)(3))
     // Any structured value.
     ((Composite)(4))
+    // Boolean value.
+    ((Boolean)(5))
 
     // A special sentinel used by #GetKeyPrefixSuccessor.
     ((MaxSentinel)(100))

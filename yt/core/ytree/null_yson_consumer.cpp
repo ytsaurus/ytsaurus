@@ -14,48 +14,53 @@ using namespace NYson;
 class TNullYsonConsumer
     : public IYsonConsumer
 {
-    virtual void OnStringScalar(const TStringBuf& value)
+    virtual void OnStringScalar(const TStringBuf& value) override
     {
         UNUSED(value);
     }
 
-    virtual void OnInt64Scalar(i64 value)
+    virtual void OnInt64Scalar(i64 value) override
     {
         UNUSED(value);
     }
 
-    virtual void OnDoubleScalar(double value)
+    virtual void OnDoubleScalar(double value) override
     {
         UNUSED(value);
     }
 
-    virtual void OnEntity()
+    virtual void OnBooleanScalar(bool value) override
+    {
+        UNUSED(value);
+    }
+
+    virtual void OnEntity() override
     { }
 
-    virtual void OnBeginList()
+    virtual void OnBeginList() override
     { }
 
-    virtual void OnListItem()
+    virtual void OnListItem() override
     { }
 
-    virtual void OnEndList()
+    virtual void OnEndList() override
     { }
 
-    virtual void OnBeginMap()
+    virtual void OnBeginMap() override
     { }
 
-    virtual void OnKeyedItem(const TStringBuf& name)
+    virtual void OnKeyedItem(const TStringBuf& name) override
     {
         UNUSED(name);
     }
 
-    virtual void OnEndMap()
+    virtual void OnEndMap() override
     { }
 
-    virtual void OnBeginAttributes()
+    virtual void OnBeginAttributes() override
     { }
 
-    virtual void OnEndAttributes()
+    virtual void OnEndAttributes() override
     { }
 
     virtual void OnRaw(const TStringBuf& yson, EYsonType type)

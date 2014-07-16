@@ -22,6 +22,7 @@ message TKeyPart
     optional bytes str_value = 2;
     optional int64 int64_value = 3;
     optional double double_value = 4;
+    optional bool boolean_value = 5;
 }
 
 message TKey

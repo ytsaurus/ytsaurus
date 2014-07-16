@@ -35,11 +35,27 @@ TSchemafulDsvConsumer::TSchemafulDsvConsumer(
 void TSchemafulDsvConsumer::OnDoubleScalar(double value)
 {
     if (State_ == EState::None) {
-        return;         
+        return;
     }
 
     if (State_ == EState::ExpectValue) {
         ValueHolder_.push_back(::ToString(value));
+        Values_[CurrentKey_] = ValueHolder_.back();
+        State_ = EState::None;
+        ValueCount_ += 1;
+    } else {
+        YCHECK(State_ == EState::None);
+    }
+}
+
+void TSchemafulDsvConsumer::OnBooleanScalar(bool value)
+{
+    if (State_ == EState::None) {
+        return;
+    }
+
+    if (State_ == EState::ExpectValue) {
+        ValueHolder_.push_back(Stroka(FormatBool(value)));
         Values_[CurrentKey_] = ValueHolder_.back();
         State_ = EState::None;
         ValueCount_ += 1;
@@ -100,7 +116,7 @@ void TSchemafulDsvConsumer::OnEntity()
 void TSchemafulDsvConsumer::OnInt64Scalar(i64 value)
 {
     if (State_ == EState::None) {
-        return;         
+        return;
     }
 
     if (State_ == EState::ExpectValue) {
@@ -316,13 +332,13 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
     switch (value.Type) {
         case EValueType::Null:
             break;
-            
+
         case EValueType::Int64: {
             char buf[64];
             char* begin = buf;
             char* end = WriteIntegerReversed(begin, value.Data.Int64);
             size_t length = end - begin;
-            
+
             Buffer_.Resize(Buffer_.Size() + length, false);
             char* src = begin;
             char* dst = Buffer_.End() - 1;
@@ -338,6 +354,11 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
             Buffer_.Resize(Buffer_.Size() + maxSize);
             int size = sprintf(Buffer_.End() - maxSize, "%lf", value.Data.Double);
             Buffer_.Resize(Buffer_.Size() - maxSize + size);
+            break;
+        }
+
+        case EValueType::Boolean: {
+            WriteRaw(FormatBool(value.Data.Boolean));
             break;
         }
 

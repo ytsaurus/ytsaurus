@@ -46,6 +46,14 @@ void TJsonCallbacks::OnDoubleScalar(double value)
     OnItemFinished();
 }
 
+void TJsonCallbacks::OnBooleanScalar(bool value)
+{
+    AccountMemory(sizeof(value));
+    OnItemStarted();
+    TreeBuilder_->OnBooleanScalar(value);
+    OnItemFinished();
+}
+
 void TJsonCallbacks::OnEntity()
 {
     AccountMemory(0);

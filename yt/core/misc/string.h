@@ -224,7 +224,7 @@ Stroka CamelCaseToUnderscoreCase(const TStringBuf& str);
 Stroka TrimLeadingWhitespaces(const Stroka& str);
 
 bool ParseBool(const Stroka& value);
-Stroka FormatBool(bool value);
+TStringBuf FormatBool(bool value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

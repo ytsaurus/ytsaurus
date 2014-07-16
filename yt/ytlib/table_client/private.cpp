@@ -25,6 +25,9 @@ TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& le
         case NYson::ETokenType::Double:
             return MakeUnversionedDoubleValue(token.GetDoubleValue());
 
+        case NYson::ETokenType::Boolean:
+            return MakeUnversionedBooleanValue(token.GetBooleanValue());
+
         case NYson::ETokenType::String:
             return MakeUnversionedStringValue(token.GetStringValue());
 
@@ -113,6 +116,11 @@ void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnver
             case NVersionedTableClient::EValueType::Double:
                 keyPart->set_type(EKeyPartType::Double);
                 keyPart->set_double_value(row[i].Data.Double);
+                break;
+
+            case NVersionedTableClient::EValueType::Boolean:
+                keyPart->set_type(EKeyPartType::Boolean);
+                keyPart->set_boolean_value(row[i].Data.Boolean);
                 break;
 
             case NVersionedTableClient::EValueType::String:

@@ -85,6 +85,17 @@ void TTableConsumer::OnDoubleScalar(double value)
     }
 }
 
+void TTableConsumer::OnBooleanScalar(bool value)
+{
+    YCHECK(ControlState == EControlState::None);
+
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnBooleanScalar(value);
+    }
+}
+
 void TTableConsumer::OnEntity()
 {
     switch (ControlState) {
@@ -427,6 +438,17 @@ void TTableConsumerBase::OnDoubleScalar(double value)
         ThrowMapExpected();
     } else {
         WriteValue(MakeDoubleValue<TUnversionedValue>(value, ColumnIndex_));
+    }
+}
+
+void TTableConsumerBase::OnBooleanScalar(bool value)
+{
+    YASSERT(ControlState_ == EControlState::None);
+
+    if (Depth_ == 0) {
+        ThrowMapExpected();
+    } else {
+        WriteValue(MakeBooleanValue<TUnversionedValue>(value, ColumnIndex_));
     }
 }
 

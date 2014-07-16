@@ -130,7 +130,7 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
                 builder);
         }
     } else if (value->IsBoolean()) {
-        builder->OnStringScalar(value->BooleanValue() ? "true" : "false");
+        builder->OnBooleanScalar(value->BooleanValue());
     } else {
         String::AsciiValue asciiValue(value);
         THROW_ERROR_EXCEPTION(
@@ -157,6 +157,9 @@ Handle<Value> ProduceV8(const INodePtr& node)
         }
         case ENodeType::Double: {
             return Number::New(node->GetValue<double>());
+        }
+        case ENodeType::Boolean: {
+            return Boolean::New(node->GetValue<bool>());
         }
         case ENodeType::Map: {
             auto children = node->AsMap()->GetChildren();

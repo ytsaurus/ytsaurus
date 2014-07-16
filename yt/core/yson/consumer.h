@@ -34,6 +34,12 @@ struct IYsonConsumer
      */
     virtual void OnDoubleScalar(double value) = 0;
 
+    //! The current item is an boolean scalar (IBooleanNode).
+    /*!
+     *  \param value A scalar value.
+     */
+    virtual void OnBooleanScalar(bool value) = 0;
+
     //! The current item is an entity (IEntityNode).
     virtual void OnEntity() = 0;
 

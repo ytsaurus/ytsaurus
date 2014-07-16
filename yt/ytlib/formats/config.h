@@ -15,11 +15,14 @@ class TYsonFormatConfig
 {
 public:
     NYson::EYsonFormat Format;
+    bool BooleanAsString;
 
     TYsonFormatConfig()
     {
         RegisterParameter("format", Format)
             .Default(NYson::EYsonFormat::Binary);
+        RegisterParameter("boolean_as_string", BooleanAsString)
+            .Default(true);
     }
 };
 
@@ -94,6 +97,8 @@ public:
 
     TNullable<int> StringLengthLimit;
 
+    bool BooleanAsString;
+
     TJsonFormatConfig()
     {
         RegisterParameter("format", Format)
@@ -104,7 +109,8 @@ public:
             .Default(true);
         RegisterParameter("string_length_limit", StringLengthLimit)
             .Default(Null);
-
+        RegisterParameter("boolean_as_string", BooleanAsString)
+            .Default(true);
 
         MemoryLimit = NTableClient::MaxRowWeightLimit;
     }

@@ -60,6 +60,9 @@ bool TSchemafulYsonWriter::Write(const std::vector<TUnversionedRow>& rows)
                 case EValueType::Double:
                     Writer_.OnDoubleScalar(value.Data.Double);
                     break;
+                case EValueType::Boolean:
+                    Writer_.OnBooleanScalar(value.Data.Boolean);
+                    break;
                 case EValueType::String:
                     Writer_.OnStringScalar(TStringBuf(value.Data.String, value.Length));
                     break;

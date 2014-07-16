@@ -59,10 +59,11 @@ DECLARE_ENUM(EValueType,
     ((Min)         (0))
     ((TheBottom)   (1))
     ((Null)        (2))
-    ((Int64)     (3))
+    ((Int64)       (3))
     ((Double)      (4))
     ((String)      (5))
     ((Any)         (6))
+    ((Boolean)     (7))
     ((Max)        (64))
 );
 

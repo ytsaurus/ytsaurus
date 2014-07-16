@@ -48,6 +48,16 @@ TValue MakeDoubleValue(double value, int id = 0)
 }
 
 template <class TValue>
+TValue MakeBooleanValue(bool value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Boolean;
+    result.Data.Boolean = value;
+    return result;
+}
+
+template <class TValue>
 TValue MakeStringValue(const TStringBuf& value, int id = 0)
 {
     TValue result;

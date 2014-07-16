@@ -29,6 +29,8 @@ union TUnversionedValueData
     i64 Int64;
     //! Floating-point value.
     double Double;
+    //! Boolean value.
+    bool Boolean;
     //! String value for |String| type or YSON-encoded value for |Any| type.
     const char* String;
 };
@@ -68,6 +70,11 @@ inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0)
 inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0)
 {
     return MakeDoubleValue<TUnversionedValue>(value, id);
+}
+
+inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0)
+{
+    return MakeBooleanValue<TUnversionedValue>(value, id);
 }
 
 inline TUnversionedValue MakeUnversionedStringValue(const TStringBuf& value, int id = 0)

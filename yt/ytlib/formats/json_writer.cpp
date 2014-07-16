@@ -31,6 +31,7 @@ public:
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
 
     virtual void OnEntity() override;
 
@@ -199,6 +200,19 @@ void TJsonConsumerImpl::OnDoubleScalar(double value)
         EnterNode();
         JsonWriter->Write(value);
         LeaveNode();
+    }
+}
+
+void TJsonConsumerImpl::OnBooleanScalar(bool value)
+{
+    if (IsWriteAllowed()) {
+        if (Config->BooleanAsString) {
+            OnStringScalar(FormatBool(value));
+        } else {
+            EnterNode();
+            JsonWriter->Write(value);
+            LeaveNode();
+        }
     }
 }
 

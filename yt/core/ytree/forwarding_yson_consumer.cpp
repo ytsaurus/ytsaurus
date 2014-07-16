@@ -85,6 +85,16 @@ void TForwardingYsonConsumer::OnDoubleScalar(double value)
     }
 }
 
+void TForwardingYsonConsumer::OnBooleanScalar(bool value)
+{
+    if (!CheckForwarding()) {
+        OnMyBooleanScalar(value);
+    } else {
+        ForwardingConsumer->OnBooleanScalar(value);
+        UpdateDepth(0);
+    }
+}
+
 void TForwardingYsonConsumer::OnEntity()
 {
     if (!CheckForwarding()) {
@@ -200,6 +210,13 @@ void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value)
 }
 
 void TForwardingYsonConsumer::OnMyDoubleScalar(double value)
+{
+    UNUSED(value);
+
+    YUNREACHABLE();
+}
+
+void TForwardingYsonConsumer::OnMyBooleanScalar(bool value)
 {
     UNUSED(value);
 

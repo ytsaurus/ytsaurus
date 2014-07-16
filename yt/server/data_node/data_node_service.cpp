@@ -994,6 +994,9 @@ private:
                         case EKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
+                        case EKeyPartType::Boolean:
+                            keyPart = MakeUnversionedBooleanValue(it->key_part().boolean_value());
+                            break;
                         case EKeyPartType::String: {
                             auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
                             auto value = TStringBuf(it->key_part().str_value().begin(), partSize);

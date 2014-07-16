@@ -84,9 +84,7 @@ public:
 TEST_F(TStatelessLexerTest, StringValues)
 {
     TestToken("abc_123.-%", ETokenType::String, "abc_123.-%");
-    TestToken("%0-0-0-0", ETokenType::String, "%0-0-0-0"); // guids
     TestToken("_", ETokenType::String, "_");
-    TestToken("%", ETokenType::String, "%");
 
     TestToken("\"abc_123\"", ETokenType::String, "abc_123");
     TestToken("\" abc_123\\t\\\\\\\"\"", ETokenType::String, " abc_123\t\\\"");

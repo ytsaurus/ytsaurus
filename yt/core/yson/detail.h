@@ -53,6 +53,9 @@ const char StringMarker = '\x01';
 const char Int64Marker = '\x02';
 //! Marks the beginning of a binary double literal.
 const char DoubleMarker = '\x03';
+//! Marks true and false values of boolean.
+const char FalseMarker = '\x04';
+const char TrueMarker = '\x05';
 
 template <bool EnableLinePositionInfo>
 class TPositionInfo;
@@ -66,7 +69,7 @@ private:
     int Column;
 
 public:
-    TPositionInfo() 
+    TPositionInfo()
         : Offset(0)
         , Line(1)
         , Column(1)
@@ -74,7 +77,7 @@ public:
 
     void OnRangeConsumed(const char* begin, const char* end)
     {
-        Offset += end - begin; 
+        Offset += end - begin;
         for (auto current = begin; current != end; ++current) {
             ++Column;
             if (*current == '\n') { //TODO: memchr
@@ -100,7 +103,7 @@ private:
     int Offset;
 
 public:
-    TPositionInfo() 
+    TPositionInfo()
         : Offset(0)
     { }
 
@@ -117,7 +120,7 @@ public:
 };
 
 template <class TBlockStream, class TPositionBase>
-class TCharStream 
+class TCharStream
     : public TBlockStream
     , public TPositionBase
 {
@@ -147,7 +150,7 @@ public:
     {
         return Refresh<false>();
     }
-        
+
     template <bool AllowFinish>
     char GetChar()
     {
@@ -165,7 +168,7 @@ public:
         TPositionBase::OnRangeConsumed(TBlockStream::Begin(), TBlockStream::Begin() + amount);
         TBlockStream::Advance(amount);
     }
-    
+
     size_t Length() const
     {
         return TBlockStream::End() - TBlockStream::Begin();
@@ -207,11 +210,11 @@ private:
 
         // If the input is larger than 32 bits, we still need to read it all
         // and discard the high-order bits.
-        
+
         for (int i = 0; i < MaxVarintBytes - MaxVarint32Bytes; i++) {
             b = *(ptr++); if (!(b & 0x80)) goto done;
         }
-        
+
         // We have overrun the maximum size of a Varint (10 bytes).  Assume
         // the data is corrupt.
         return false;
@@ -222,7 +225,7 @@ private:
         return true;
     }
 
-    bool ReadVarint32Fallback(ui32* value) 
+    bool ReadVarint32Fallback(ui32* value)
     {
         if (BeginByte() + MaxVarint32Bytes <= EndByte() ||
             // Optimization:  If the Varint ends at exactly the end of the buffer,
@@ -264,7 +267,7 @@ private:
             if (count == MaxVarintBytes) {
                 return false;
             }
-            while (BeginByte() == EndByte()) { 
+            while (BeginByte() == EndByte()) {
                 TBaseStream::Refresh();
             }
             b = *BeginByte();
@@ -368,13 +371,13 @@ private:
     }
 
 public:
-    TLexerBase(const TBlockStream& blockStream, TNullable<i64> memoryLimit) 
+    TLexerBase(const TBlockStream& blockStream, TNullable<i64> memoryLimit)
         : TBaseStream(blockStream)
         , MemoryLimit_(memoryLimit)
     { }
-    
+
 protected:
-    /// Lexer routines 
+    /// Lexer routines
 
     // Returns true if double, false if integer
     template <bool AllowFinish>
@@ -428,7 +431,7 @@ protected:
                 } else {
                     Buffer_.push_back(ch);
                 }
-            }            
+            }
             CheckMemoryLimit();
         }
 
@@ -499,7 +502,47 @@ protected:
             *value = TStringBuf(Buffer_.data(), Buffer_.size());
         }
     }
-    
+
+    template <bool AllowFinish>
+    bool ReadBoolean()
+    {
+        Buffer_.clear();
+
+        static auto trueString = STRINGBUF("true");
+        static auto falseString = STRINGBUF("false");
+
+        auto throwIncorrectBoolean = [&] () {
+            THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv",
+                TStringBuf(Buffer_.data(), Buffer_.size()));
+        };
+
+        Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+        TBaseStream::Advance(1);
+        if (Buffer_[0] == trueString[0]) {
+            for (int i = 1; i < trueString.Size(); ++i) {
+                Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+                TBaseStream::Advance(1);
+                if (Buffer_.back() != trueString[i]) {
+                    throwIncorrectBoolean();
+                }
+            }
+            return true;
+        } else if (Buffer_[0] == falseString[0]) {
+            for (int i = 1; i < falseString.Size(); ++i) {
+                Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+                TBaseStream::Advance(1);
+                if (Buffer_.back() != falseString[i]) {
+                    throwIncorrectBoolean();
+                }
+            }
+            return false;
+        } else {
+            throwIncorrectBoolean();
+        }
+
+        YUNREACHABLE();
+    }
+
     void ReadBinaryInt64(i64* result)
     {
         ui64 uvalue;
@@ -509,7 +552,7 @@ protected:
         }
         *result = ZigZagDecode64(uvalue);
     }
-    
+
     void ReadBinaryDouble(double* value)
     {
         size_t needToRead = sizeof(double);
@@ -533,7 +576,17 @@ protected:
             TBaseStream::Advance(chunkSize);
         }
     }
-    
+
+    void ReadBinaryBoolean(bool* value)
+    {
+        TBaseStream::Advance(1);
+        if (TBaseStream::IsEmpty()) {
+            TBaseStream::Refresh();
+        }
+        *value = *TBaseStream::Begin();
+        TBaseStream::Advance(1);
+    }
+
     /// Helpers
     void SkipCharToken(char symbol)
     {
@@ -544,29 +597,29 @@ protected:
                 ~Stroka(ch).Quote())
                 << *this;
         }
-        
+
         TBaseStream::Advance(1);
     }
 
     static bool IsSpaceFast(char ch)
     {
-        static const ui8 lookupTable[] = 
+        static const ui8 lookupTable[] =
         {
             0,0,0,0,0,0,0,0, 0,1,1,1,1,1,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-                         
+
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-                         
+
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
-                         
+
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
             0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
@@ -609,7 +662,7 @@ protected:
             TBaseStream::Advance(1);
         }
         return TBaseStream::template GetChar<AllowFinish>();
-    }    
+    }
 };
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
@@ -653,7 +706,7 @@ public:
     {
         BeginPtr += amount;
     }
-    
+
     bool IsFinished() const
     {
         return true;
@@ -709,7 +762,7 @@ public:
     {
         BeginPtr += amount;
     }
-    
+
     bool IsFinished() const
     {
         return FinishFlag;

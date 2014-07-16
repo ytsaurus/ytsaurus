@@ -662,3 +662,9 @@ class TestCypressCommands(YTEnvSetup):
         
         create('file', '//tmp/file')
         assert get('//tmp/file/@user_attribute_keys') == []
+
+    def test_boolean(self):
+        yson_format = yson.loads("<boolean_as_string=false>yson")
+        set("//tmp/boolean", "%true", is_raw=True)
+        assert get("//tmp/boolean/@type") == "boolean_node"
+        assert get("//tmp/boolean", output_format=yson_format) == True

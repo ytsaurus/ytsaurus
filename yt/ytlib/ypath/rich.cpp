@@ -247,6 +247,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Boolean: {
+            value = MakeUnversionedBooleanValue(tokenizer.CurrentToken().GetBooleanValue());
+            break;
+        }
+
         default:
             ThrowUnexpectedToken(tokenizer.CurrentToken());
             break;

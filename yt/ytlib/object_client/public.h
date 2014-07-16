@@ -82,6 +82,7 @@ DECLARE_ENUM(EObjectType,
     ((DoubleNode)                 (302))
     ((MapNode)                    (303))
     ((ListNode)                   (304))
+    ((BooleanNode)                (305))
 
     // Dynamic nodes
     ((File)                       (400))

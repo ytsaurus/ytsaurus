@@ -295,6 +295,11 @@ void TObjectProxyBase::SerializeAttributes(
             UnderlyingConsumer->OnDoubleScalar(value);
         }
 
+        virtual void OnBooleanScalar(bool value) override
+        {
+            UnderlyingConsumer->OnBooleanScalar(value);
+        }
+
         virtual void OnEntity() override
         {
             UnderlyingConsumer->OnEntity();
@@ -381,6 +386,12 @@ void TObjectProxyBase::SerializeAttributes(
         {
             ProduceKeyIfNeeded();
             UnderlyingConsumer->OnDoubleScalar(value);
+        }
+
+        virtual void OnBooleanScalar(bool value) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnBooleanScalar(value);
         }
 
         virtual void OnEntity() override

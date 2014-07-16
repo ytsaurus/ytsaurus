@@ -72,6 +72,11 @@ void TYamredDsvConsumer::OnDoubleScalar(double value)
     THROW_ERROR_EXCEPTION("Double values are not supported by YAMRed DSV");
 }
 
+void TYamredDsvConsumer::OnBooleanScalar(bool value)
+{
+    THROW_ERROR_EXCEPTION("Boolean values are not supported by YAMRed DSV");
+}
+
 void TYamredDsvConsumer::OnStringScalar(const TStringBuf& value)
 {
     YCHECK(State != EState::ExpectAttributeValue);

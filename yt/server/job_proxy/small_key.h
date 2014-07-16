@@ -20,6 +20,7 @@ struct TSmallKeyPart
     union {
         i64 Int64;
         double Double;
+        bool Boolean;
         const char* Str;
     } Value;
 

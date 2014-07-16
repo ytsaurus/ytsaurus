@@ -251,6 +251,13 @@ struct TCypressScalarTypeTraits<double>
     static const NObjectClient::EObjectType::EDomain ObjectType;
 };
 
+template <>
+struct TCypressScalarTypeTraits<bool>
+    : NYTree::NDetail::TScalarTypeTraits<bool>
+{
+    static const NObjectClient::EObjectType::EDomain ObjectType;
+};
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +294,7 @@ public:
 typedef TScalarNode<Stroka> TStringNode;
 typedef TScalarNode<i64>    TInt64Node;
 typedef TScalarNode<double> TDoubleNode;
+typedef TScalarNode<bool>   TBooleanNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -349,6 +357,7 @@ protected:
 typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
 typedef TScalarNodeTypeHandler<i64>    TInt64NodeTypeHandler;
 typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
+typedef TScalarNodeTypeHandler<bool>   TBooleanNodeTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

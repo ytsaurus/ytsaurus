@@ -87,19 +87,27 @@ void TDsvTabularConsumer::OnDoubleScalar(double value)
             State = EState::ExpectColumnName;
             break;
 
-        case EState::ExpectAttributeValue:
-            State = EState::ExpectAttributeName;
-            break;
-
         case EState::None:
         case EState::ExpectAttributeName:
         case EState::ExpectFirstColumnName:
         case EState::ExpectColumnName:
         case EState::ExpectEntity:
+        case EState::ExpectAttributeValue:
         default:
             YUNREACHABLE();
 
     };
+}
+
+void TDsvTabularConsumer::OnBooleanScalar(bool value)
+{
+    if (State == EState::ExpectColumnValue) {
+        Stream->Write(FormatBool(value));
+        State = EState::ExpectColumnName;
+        return;
+    }
+
+    YUNREACHABLE();
 }
 
 void TDsvTabularConsumer::OnEntity()
@@ -289,6 +297,11 @@ void TDsvNodeConsumer::OnInt64Scalar(i64 value)
 void TDsvNodeConsumer::OnDoubleScalar(double value)
 {
     Stream->Write(::ToString(value));
+}
+
+void TDsvNodeConsumer::OnBooleanScalar(bool value)
+{
+    Stream->Write(FormatBool(value));
 }
 
 void TDsvNodeConsumer::OnEntity()

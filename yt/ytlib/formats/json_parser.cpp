@@ -18,52 +18,62 @@ using namespace NYTree;
 
 namespace {
 
-static int OnNull(void* ctx) {
+static int OnNull(void* ctx)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnEntity();
     return 1;
 }
 
-static int OnBoolean(void *ctx, int boolean) {
-    THROW_ERROR_EXCEPTION("Json parser does not support boolean values");
+static int OnBoolean(void *ctx, int boolean)
+{
+    static_cast<TJsonCallbacks*>(ctx)->OnBooleanScalar(boolean);
     return 1;
 }
 
-static int OnInteger(void *ctx, long long value) {
+static int OnInteger(void *ctx, long long value)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnInt64Scalar(value);
     return 1;
 }
 
-static int OnDouble(void *ctx, double value) {
+static int OnDouble(void *ctx, double value)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnDoubleScalar(value);
     return 1;
 }
 
-static int OnString(void *ctx, const unsigned char *val, size_t len) {
+static int OnString(void *ctx, const unsigned char *val, size_t len)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnStringScalar(TStringBuf((const char *)val, len));
     return 1;
 }
 
-static int OnStartMap(void *ctx) {
+static int OnStartMap(void *ctx)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnBeginMap();
     return 1;
 }
 
-static int OnMapKey(void *ctx, const unsigned char *val, size_t len) {
+static int OnMapKey(void *ctx, const unsigned char *val, size_t len)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnKeyedItem(TStringBuf((const char *)val, len));
     return 1;
 }
 
-static int OnEndMap(void *ctx) {
+static int OnEndMap(void *ctx)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnEndMap();
     return 1;
 }
 
-static int OnStartArray(void *ctx) {
+static int OnStartArray(void *ctx)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnBeginList();
     return 1;
 }
 
-static int OnEndArray(void *ctx) {
+static int OnEndArray(void *ctx)
+{
     static_cast<TJsonCallbacks*>(ctx)->OnEndList();
     return 1;
 }
@@ -198,6 +208,9 @@ void TJsonParser::TImpl::ConsumeNode(INodePtr node)
             break;
         case ENodeType::Double:
             Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());
+            break;
+        case ENodeType::Boolean:
+            Consumer_->OnBooleanScalar(node->AsBoolean()->GetValue());
             break;
         case ENodeType::Entity:
             Consumer_->OnEntity();

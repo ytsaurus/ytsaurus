@@ -14,6 +14,7 @@ void ValidateDataValueType(EValueType type)
 	// TODO(babenko): handle any
  	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
+ 	    type != EValueType::Boolean &&
  	    type != EValueType::String &&
  	    type != EValueType::Null)
     {
@@ -26,6 +27,7 @@ void ValidateKeyValueType(EValueType type)
 	// TODO(babenko): handle any
  	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
+ 	    type != EValueType::Boolean &&
  	    type != EValueType::String &&
  	    type != EValueType::Null &&
  	    type != EValueType::Min &&
@@ -40,6 +42,7 @@ void ValidateSchemaValueType(EValueType type)
 	// TODO(babenko): handle any
  	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
+ 	    type != EValueType::Boolean &&
  	    type != EValueType::String)
     {
     	THROW_ERROR_EXCEPTION("Invalid schema value type %s", ~FormatEnum(type).Quote());

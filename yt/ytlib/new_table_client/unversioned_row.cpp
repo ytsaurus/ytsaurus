@@ -46,6 +46,10 @@ int GetByteSize(const TUnversionedValue& value)
             result += sizeof(double);
             break;
 
+        case EValueType::Boolean:
+            result += 1;
+            break;
+
         case EValueType::String:
         case EValueType::Any:
             result += MaxVarUInt32Size + value.Length;
@@ -72,6 +76,9 @@ int GetDataWeight(const TUnversionedValue& value)
 
         case EValueType::Double:
             return sizeof(double);
+
+        case EValueType::Boolean:
+            return 1;
 
         case EValueType::String:
         case EValueType::Any:
@@ -103,6 +110,10 @@ int WriteValue(char* output, const TUnversionedValue& value)
         case EValueType::Double:
             ::memcpy(current, &value.Data.Double, sizeof (double));
             current += sizeof (double);
+            break;
+
+        case EValueType::Boolean:
+            *current++ = value.Data.Boolean ? '\x01' : '\x00';
             break;
 
         case EValueType::String:
@@ -147,6 +158,11 @@ int ReadValue(const char* input, TUnversionedValue* value)
             current += sizeof (double);
             break;
 
+        case EValueType::Boolean:
+            value->Data.Boolean = (*current) == 1;
+            current += 1;
+            break;
+
         case EValueType::String:
         case EValueType::Any:
             current += ReadVarUInt32(current, &value->Length);
@@ -180,7 +196,7 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
 {
     auto* input = context.GetInput();
     const size_t fixedSize = sizeof (ui16) + sizeof (ui16) + sizeof (ui32); // Id, Type, Length
-    YCHECK(input->Load(&value, fixedSize) == fixedSize); 
+    YCHECK(input->Load(&value, fixedSize) == fixedSize);
     if (value.Type == EValueType::String || value.Type == EValueType::Any) {
         if (value.Length != 0) {
             value.Data.String = pool->Allocate(value.Length);
@@ -209,6 +225,9 @@ Stroka ToString(const TUnversionedValue& value)
 
         case EValueType::Double:
             return Format("%v", value.Data.Double);
+
+        case EValueType::Boolean:
+            return Format("%v", value.Data.Boolean);
 
         case EValueType::String:
         case EValueType::Any:
@@ -242,6 +261,18 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         case EValueType::Double: {
             double lhsValue = lhs.Data.Double;
             double rhsValue = rhs.Data.Double;
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+        }
+
+        case EValueType::Boolean: {
+            bool lhsValue = lhs.Data.Boolean;
+            bool rhsValue = rhs.Data.Boolean;
             if (lhsValue < rhsValue) {
                 return -1;
             } else if (lhsValue > rhsValue) {
@@ -341,6 +372,16 @@ TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuff
             break;
         }
 
+        case EValueType::Boolean: {
+            auto& inner = value.Data.Boolean;
+            if (inner) {
+                value.Type = EValueType::Max;
+            } else {
+                value.Data.Boolean = true;
+            }
+            break;
+        }
+
         case EValueType::String: {
             char* newValue = unalignedPool->AllocateUnaligned(value.Length + 1);
             memcpy(newValue, value.Data.String, value.Length);
@@ -385,6 +426,15 @@ bool IsValueSuccessor(
             } else {
                 return
                     successor.Type == EValueType::Max;
+            }
+        }
+
+        case EValueType::Boolean: {
+            const auto& inner = value.Data.Boolean;
+            if (inner) {
+                return successor.Type == EValueType::Max;
+            } else {
+                return successor.Type == EValueType::Boolean && successor.Data.Boolean;
             }
         }
 
@@ -520,6 +570,9 @@ size_t GetHash(const TUnversionedValue& value)
             // Int64 and Double are aliased.
             return (value.Data.Int64 & 0xffff) + 17 * (value.Data.Int64 >> 32);
 
+        case EValueType::Boolean:
+            return value.Data.Boolean;
+
         default:
             // No idea how to hash other types.
             return 0;
@@ -574,7 +627,7 @@ static void ValidateValueLength(const TUnversionedValue& value)
                 static_cast<i64>(value.Length),
                 MaxStringValueLength);
         }
-    }   
+    }
 }
 
 void ValidateDataValue(const TUnversionedValue& value)
@@ -930,6 +983,10 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
                 rowBuilder.AddValue(MakeUnversionedDoubleValue(keyPart.double_value(), id));
                 break;
 
+            case EKeyPartType::Boolean:
+                rowBuilder.AddValue(MakeUnversionedBooleanValue(keyPart.boolean_value(), id));
+                break;
+
             case EKeyPartType::String:
                 rowBuilder.AddValue(MakeUnversionedStringValue(keyPart.str_value(), id));
                 break;
@@ -960,6 +1017,10 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
 
             case EValueType::Double:
                 consumer->OnDoubleScalar(value.Data.Double);
+                break;
+
+            case EValueType::Boolean:
+                consumer->OnBooleanScalar(value.Data.Boolean);
                 break;
 
             case EValueType::String:
@@ -1000,15 +1061,19 @@ void Deserialize(TOwningKey& key, INodePtr node)
             case ENodeType::Int64:
                 builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
                 break;
-            
+
             case ENodeType::Double:
                 builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
                 break;
-            
+
+            case ENodeType::Boolean:
+                builder.AddValue(MakeUnversionedBooleanValue(item->GetValue<bool>(), id));
+                break;
+
             case ENodeType::String:
                 builder.AddValue(MakeUnversionedStringValue(item->GetValue<Stroka>(), id));
                 break;
-            
+
             case ENodeType::Entity: {
                 auto valueType = item->Attributes().Get<EValueType>("type");
                 builder.AddValue(MakeUnversionedSentinelValue(valueType, id));
@@ -1065,7 +1130,7 @@ TUnversionedRow TUnversionedRowBuilder::GetRow()
 void TUnversionedRowBuilder::Reset()
 {
     auto* header = GetHeader();
-    header->Count = 0;   
+    header->Count = 0;
 }
 
 TUnversionedRowHeader* TUnversionedRowBuilder::GetHeader()
@@ -1143,7 +1208,7 @@ void TUnversionedOwningRowBuilder::Reset()
     RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
 
     auto* header = GetHeader();
-    header->Count = 0;   
+    header->Count = 0;
 }
 
 TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()

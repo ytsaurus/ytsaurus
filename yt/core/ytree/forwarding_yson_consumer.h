@@ -17,6 +17,7 @@ public:
     virtual void OnStringScalar(const TStringBuf& value);
     virtual void OnInt64Scalar(i64 value);
     virtual void OnDoubleScalar(double value);
+    virtual void OnBooleanScalar(bool value);
     virtual void OnEntity();
 
     virtual void OnBeginList();
@@ -43,6 +44,7 @@ protected:
     virtual void OnMyStringScalar(const TStringBuf& value);
     virtual void OnMyInt64Scalar(i64 value);
     virtual void OnMyDoubleScalar(double value);
+    virtual void OnMyBooleanScalar(bool value);
     virtual void OnMyEntity();
 
     virtual void OnMyBeginList();

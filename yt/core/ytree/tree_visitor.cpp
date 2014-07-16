@@ -61,6 +61,7 @@ private:
             case ENodeType::String:
             case ENodeType::Int64:
             case ENodeType::Double:
+            case ENodeType::Boolean:
                 VisitScalar(node);
                 break;
 
@@ -94,6 +95,10 @@ private:
 
             case ENodeType::Double:
                 Consumer->OnDoubleScalar(node->GetValue<double>());
+                break;
+
+            case ENodeType::Boolean:
+                Consumer->OnBooleanScalar(node->GetValue<bool>());
                 break;
 
             default:

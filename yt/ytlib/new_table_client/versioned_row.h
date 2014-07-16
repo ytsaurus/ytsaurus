@@ -51,6 +51,13 @@ inline TVersionedValue MakeVersionedDoubleValue(double value, TTimestamp timesta
     return result;
 }
 
+inline TVersionedValue MakeVersionedBooleanValue(bool value, TTimestamp timestamp, int id = 0)
+{
+    auto result = MakeBooleanValue<TVersionedValue>(value, id);
+    result.Timestamp = timestamp;
+    return result;
+}
+
 inline TVersionedValue MakeVersionedStringValue(const TStringBuf& value, TTimestamp timestamp, int id = 0)
 {
     auto result = MakeStringValue<TVersionedValue>(value, id);

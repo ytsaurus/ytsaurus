@@ -72,6 +72,7 @@ private:
         union {
             i64 Int64;
             double Double;
+            bool Boolean;
             struct {
                 const char* String;
                 size_t Length;
@@ -261,6 +262,17 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
                     IsNewKey = true;
                 }
                 columnDescriptor.PreviousValue.Double = value.Data.Double;
+            }
+            break;
+        
+        case EValueType::Boolean:
+            YASSERT(value.Type == EValueType::Boolean || value.Type == EValueType::Null);
+            CurrentBlock->WriteBoolean(value, columnDescriptor.IndexInBlock);
+            if (columnDescriptor.IsKeyPart) {
+                if (value.Data.Boolean != columnDescriptor.PreviousValue.Boolean) {
+                    IsNewKey = true;
+                }
+                columnDescriptor.PreviousValue.Boolean = value.Data.Boolean;
             }
             break;
 

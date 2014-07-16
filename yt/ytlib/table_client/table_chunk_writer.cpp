@@ -469,6 +469,14 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 break;
             }
 
+            case ETokenType::Boolean: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Boolean);
+                keyPart->set_boolean_value(token.GetBooleanValue());
+                size += 1;
+                break;
+            }
+
             default: {
                 auto* keyPart = part->mutable_key_part();
                 keyPart->set_type(EKeyPartType::Composite);
@@ -530,7 +538,7 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
 TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IWriterPtr chunkWriter)
 {
     YCHECK(FinishedWriterCount == CreatedWriterCount);
-    
+
     auto lastKey = CurrentWriter
         ? CurrentWriter->GetLastKey()
         : TOwningKey(EmptyKey());

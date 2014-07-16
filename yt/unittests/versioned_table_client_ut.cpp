@@ -56,6 +56,11 @@ protected:
         ChunkWriter->WriteValue(MakeDoubleValue<TUnversionedValue>(value, id));
     }
 
+    void WriteBoolean(bool value, int id)
+    {
+        ChunkWriter->WriteValue(MakeBooleanValue<TUnversionedValue>(value, id));
+    }
+
     void WriteString(const Stroka& value, int id)
     {
         ChunkWriter->WriteValue(MakeStringValue<TUnversionedValue>(value, id));

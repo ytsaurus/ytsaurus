@@ -134,6 +134,16 @@ public:
                 Consumer->OnDoubleScalar(value);
                 break;
             }
+            case FalseMarker: {
+                TBase::Advance(1);
+                Consumer->OnBooleanScalar(false);
+                break;
+            }
+            case TrueMarker: {
+                TBase::Advance(1);
+                Consumer->OnBooleanScalar(true);
+                break;
+            }
             case EntitySymbol:
                 TBase::Advance(1);
                 Consumer->OnEntity();
@@ -142,10 +152,13 @@ public:
             default: {
                 if (isdigit(ch) || ch == '-' || ch == '+') { // case of '+' is handled in AfterPlus state
                     ReadNumeric<AllowFinish>();
-                } else if (isalpha(ch) || ch == '_' || ch == '%') {
+                } else if (isalpha(ch) || ch == '_') {
                     TStringBuf value;
                     TBase::template ReadUnquotedString<AllowFinish>(&value);
                     Consumer->OnStringScalar(value);
+                } else if (ch == '%') {
+                    TBase::Advance(1);
+                    Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %s while parsing node",
                         ~Stroka(ch).Quote())
@@ -178,7 +191,7 @@ public:
                 break;
             }
             default: {
-                if (isalpha(ch) || ch == '_' || ch == '%') {
+                if (isalpha(ch) || ch == '_') {
                     TStringBuf value;
                     TBase::ReadUnquotedString(&value);
                     Consumer->OnKeyedItem(value);

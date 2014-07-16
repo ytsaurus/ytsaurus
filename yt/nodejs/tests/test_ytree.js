@@ -28,6 +28,14 @@ process.on("exit", binding.ShutdownSingletons);
             toYson({ $value : 1.25 }).should.eql("1.25");
         });
 
+        it("should properly translate numbers", function() {
+            toYson(true).should.eql("%true");
+            toYson(false).should.eql("%false");
+
+            toYson({ $value : true }).should.eql("%true");
+            toYson({ $value : false }).should.eql("%false");
+        });
+
         it("should properly translate strings", function() {
             toYson("hello").should.eql('"hello"');
             toYson("world").should.eql('"world"');
@@ -97,6 +105,15 @@ describe("yson conversion specifics", function() {
             binding.CreateV8Node("json"));
         node.Traverse("/a").Get().should.eql("hello");
         node.Traverse("/b").Get().should.eql("world");
+    });
+
+    it("should properly pass booleans back and forth", function() {
+        var node = new binding.TNodeWrap(
+            "{\"a\":true,\"b\":false}",
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Traverse("/a").Get().should.eql(true);
+        node.Traverse("/b").Get().should.eql(false);
     });
 
     it("should properly pass integers back and forth", function() {

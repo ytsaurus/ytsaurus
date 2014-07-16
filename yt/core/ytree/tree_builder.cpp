@@ -66,6 +66,13 @@ public:
         AddNode(node, false);
     }
 
+    virtual void OnMyBooleanScalar(bool value) override
+    {
+        auto node = Factory->CreateBoolean();
+        node->SetValue(value);
+        AddNode(node, false);
+    }
+
     virtual void OnMyEntity() override
     {
         AddNode(Factory->CreateEntity(), false);

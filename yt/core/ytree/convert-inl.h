@@ -162,6 +162,8 @@ inline double ConvertTo(const TYsonString& str)
             return token.GetInt64Value();
         case NYson::ETokenType::Double:
             return token.GetDoubleValue();
+        case NYson::ETokenType::Boolean:
+            return token.GetBooleanValue();
         default:
             THROW_ERROR_EXCEPTION("Cannot parse number from %s",
                 ~str.Data().Quote());

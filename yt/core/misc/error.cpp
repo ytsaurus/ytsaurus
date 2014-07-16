@@ -254,6 +254,9 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
             case ETokenType::Double:
                 AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetDoubleValue()), indent);
                 break;
+            case ETokenType::Boolean:
+                AppendAttribute(builder, key, Stroka(FormatBool(tokenizer.CurrentToken().GetBooleanValue())), indent);
+                break;
             default:
                 AppendAttribute(builder, key, ConvertToYsonString(value, EYsonFormat::Text).Data(), indent);
                 break;

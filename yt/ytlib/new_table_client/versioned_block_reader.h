@@ -82,6 +82,7 @@ private:
     
     void ReadInteger(TUnversionedValue* value, char* ptr);
     void ReadDouble(TUnversionedValue* value, char* ptr);
+    void ReadBoolean(TUnversionedValue* value, char* ptr);
     void ReadStringLike(TUnversionedValue* value, char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;

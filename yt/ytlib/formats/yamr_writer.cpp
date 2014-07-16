@@ -76,6 +76,17 @@ void TYamrConsumer::OnDoubleScalar(double value)
     THROW_ERROR_EXCEPTION("Double attributes are not supported by YAMR");
 }
 
+void TYamrConsumer::OnBooleanScalar(bool value)
+{
+    YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
+    if (State == EState::ExpectValue) {
+        StringStorage_.push_back(Stroka(FormatBool(value)));
+        OnStringScalar(StringStorage_.back());
+        return;
+    }
+    THROW_ERROR_EXCEPTION("Boolean attributes are not supported by YAMR");
+}
+
 void TYamrConsumer::OnStringScalar(const TStringBuf& value)
 {
     YCHECK(State != EState::ExpectAttributeValue);

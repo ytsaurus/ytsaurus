@@ -25,12 +25,14 @@ public:
         EYsonFormat format = EYsonFormat::Binary,
         EYsonType type = EYsonType::Node,
         bool enableRaw = false,
+        bool booleanAsString = false,
         int indent = 4);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
     virtual void OnInt64Scalar(i64 value);
     virtual void OnDoubleScalar(double value);
+    virtual void OnBooleanScalar(bool value);
     virtual void OnEntity();
 
     virtual void OnBeginList();
@@ -55,6 +57,7 @@ protected:
     int Depth;
     bool BeforeFirstItem;
 
+    bool BooleanAsString;
     const int IndentSize;
 
     void WriteIndent();

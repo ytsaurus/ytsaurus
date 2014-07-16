@@ -15,6 +15,7 @@ DECLARE_ENUM(ETokenType,
     (String)
     (Int64)
     (Double)
+    (Boolean)
 
     // Special values:
     // YSON
@@ -57,6 +58,7 @@ public:
     explicit TToken(const TStringBuf& stringValue); // for strings
     explicit TToken(i64 int64Value); // for integers
     explicit TToken(double doubleValue); // for doubles
+    explicit TToken(bool booleanValue); // for booleans
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
@@ -64,6 +66,7 @@ public:
     const TStringBuf& GetStringValue() const;
     i64 GetInt64Value() const;
     double GetDoubleValue() const;
+    bool GetBooleanValue() const;
 
     void CheckType(ETokenType expectedType) const;
     void CheckType(const std::vector<ETokenType>& expectedTypes) const;
@@ -75,7 +78,7 @@ private:
     TStringBuf StringValue;
     i64 Int64Value;
     double DoubleValue;
-
+    bool BooleanValue;
 };
 
 Stroka ToString(const TToken& token);

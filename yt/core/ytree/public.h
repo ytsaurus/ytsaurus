@@ -30,6 +30,9 @@ typedef TIntrusivePtr<IInt64Node> IInt64NodePtr;
 struct IDoubleNode;
 typedef TIntrusivePtr<IDoubleNode> IDoubleNodePtr;
 
+struct IBooleanNode;
+typedef TIntrusivePtr<IBooleanNode> IBooleanNodePtr;
+
 struct IListNode;
 typedef TIntrusivePtr<IListNode> IListNodePtr;
 
@@ -83,6 +86,8 @@ DECLARE_ENUM(ENodeType,
     (Int64)
     // Node contains an FP number (double).
     (Double)
+    // Node contains an boolean (bool).
+    (Boolean)
     // Node contains a map from strings to other nodes.
     (Map)
     // Node contains a list (vector) of other nodes.

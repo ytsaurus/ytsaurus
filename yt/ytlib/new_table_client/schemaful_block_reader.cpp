@@ -147,6 +147,9 @@ TUnversionedValue TBlockReader::Read(int index) const
             case EValueType::Double:
                 value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);
                 break;
+            case EValueType::Boolean:
+                value.Data.Boolean = *reinterpret_cast<const char*>(column.Begin + 1 * RowIndex) == 1;
+                break;
             case EValueType::String:
             case EValueType::Any: {
                 ui32 offset = *reinterpret_cast<const ui32*>(column.Begin + sizeof(ui32) * RowIndex);

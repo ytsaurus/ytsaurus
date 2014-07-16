@@ -69,7 +69,7 @@ void Serialize(const char* value, NYson::IYsonConsumer* consumer)
 // bool
 void Serialize(bool value, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnStringScalar(FormatBool(value));
+    consumer->OnBooleanScalar(value);
 }
 
 // char
@@ -142,8 +142,12 @@ void Deserialize(Stroka& value, INodePtr node)
 // bool
 void Deserialize(bool& value, INodePtr node)
 {
-    Stroka stringValue = node->AsString()->GetValue();
-    value = ParseBool(stringValue);
+    if (node->GetType() == ENodeType::Boolean) {
+        value = node->GetValue<bool>();
+    } else {
+        auto stringValue = node->AsString()->GetValue();
+        value = ParseBool(stringValue);
+    }
 }
 
 // char

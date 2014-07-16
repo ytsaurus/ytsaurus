@@ -122,6 +122,17 @@ TEST_F(TYsonParserTest, BinaryDouble)
     }
 }
 
+TEST_F(TYsonParserTest, BinaryBoolean)
+{
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnBooleanScalar(false));
+    Run(Stroka("\x04", 1));
+
+    EXPECT_CALL(Mock, OnBooleanScalar(true));
+    Run(Stroka("\x05", 1));
+}
+
 
 TEST_F(TYsonParserTest, InvalidBinaryDouble)
 {
@@ -212,6 +223,9 @@ TEST_F(TYsonParserTest, SeveralElementsList)
     EXPECT_CALL(Mock, OnStringScalar("nosy_111"));
 
     EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBooleanScalar(false));
+
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnStringScalar("nosy is the best format ever!"));
 
     EXPECT_CALL(Mock, OnListItem());
@@ -220,7 +234,7 @@ TEST_F(TYsonParserTest, SeveralElementsList)
 
     EXPECT_CALL(Mock, OnEndList());
 
-    Run("  [  42    ; 1e3   ; nosy_111 ; \"nosy is the best format ever!\"; { } ; ]   ");
+    Run("  [  42    ; 1e3   ; nosy_111 ; %false; \"nosy is the best format ever!\"; { } ; ]   ");
 }
 
 TEST_F(TYsonParserTest, MapWithAttributes)

@@ -64,17 +64,20 @@ TToken::TToken()
     : Type_(ETokenType::EndOfStream)
     , Int64Value(0)
     , DoubleValue(0.0)
+    , BooleanValue(false)
 { }
 
 TToken::TToken(ETokenType type)
     : Type_(type)
     , Int64Value(0)
     , DoubleValue(0.0)
+    , BooleanValue(false)
 {
     switch (type) {
         case ETokenType::String:
         case ETokenType::Int64:
         case ETokenType::Double:
+        case ETokenType::Boolean:
             YUNREACHABLE();
         default:
             break;
@@ -86,18 +89,28 @@ TToken::TToken(const TStringBuf& stringValue)
     , StringValue(stringValue)
     , Int64Value(0)
     , DoubleValue(0.0)
+    , BooleanValue(false)
 { }
 
 TToken::TToken(i64 int64Value)
     : Type_(ETokenType::Int64)
     , Int64Value(int64Value)
     , DoubleValue(0.0)
+    , BooleanValue(false)
 { }
 
 TToken::TToken(double doubleValue)
     : Type_(ETokenType::Double)
     , Int64Value(0)
     , DoubleValue(doubleValue)
+    , BooleanValue(false)
+{ }
+
+TToken::TToken(bool booleanValue)
+    : Type_(ETokenType::Boolean)
+    , Int64Value(0)
+    , DoubleValue(0.0)
+    , BooleanValue(booleanValue)
 { }
 
 bool TToken::IsEmpty() const
@@ -121,6 +134,12 @@ double TToken::GetDoubleValue() const
 {
     CheckType(ETokenType::Double);
     return DoubleValue;
+}
+
+bool TToken::GetBooleanValue() const
+{
+    CheckType(ETokenType::Boolean);
+    return BooleanValue;
 }
 
 void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
@@ -162,6 +181,7 @@ void TToken::Reset()
     Int64Value = 0;
     DoubleValue = 0.0;
     StringValue = TStringBuf();
+    BooleanValue = false;
 }
 
 Stroka ToString(const TToken& token)
@@ -178,6 +198,9 @@ Stroka ToString(const TToken& token)
 
         case ETokenType::Double:
             return ::ToString(token.GetDoubleValue());
+
+        case ETokenType::Boolean:
+            return Stroka(FormatBool(token.GetBooleanValue()));
 
         default:
             return TokenTypeToString(token.GetType());

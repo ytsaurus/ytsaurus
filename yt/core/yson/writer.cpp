@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "writer.h"
 #include "format.h"
+#include "detail.h"
 
 #include <core/misc/varint.h>
 
@@ -115,6 +116,7 @@ TYsonWriter::TYsonWriter(
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
+    bool booleanAsString,
     int indent)
     : Stream(stream)
     , Format(format)
@@ -122,6 +124,7 @@ TYsonWriter::TYsonWriter(
     , EnableRaw(enableRaw)
     , Depth(0)
     , BeforeFirstItem(true)
+    , BooleanAsString(booleanAsString)
     , IndentSize(indent)
 {
     YASSERT(stream);
@@ -194,7 +197,7 @@ void TYsonWriter::EndCollection(ETokenType endToken)
 void TYsonWriter::WriteStringScalar(const TStringBuf& value)
 {
     if (Format == EYsonFormat::Binary) {
-        Stream->Write(StringMarker);
+        Stream->Write(NDetail::StringMarker);
         WriteVarInt32(Stream, static_cast<i32>(value.length()));
         Stream->Write(value.begin(), value.length());
     } else {
@@ -213,7 +216,7 @@ void TYsonWriter::OnStringScalar(const TStringBuf& value)
 void TYsonWriter::OnInt64Scalar(i64 value)
 {
     if (Format == EYsonFormat::Binary) {
-        Stream->Write(Int64Marker);
+        Stream->Write(NDetail::Int64Marker);
         WriteVarInt64(Stream, value);
     } else {
         Stream->Write(::ToString(value));
@@ -224,12 +227,26 @@ void TYsonWriter::OnInt64Scalar(i64 value)
 void TYsonWriter::OnDoubleScalar(double value)
 {
     if (Format == EYsonFormat::Binary) {
-        Stream->Write(DoubleMarker);
+        Stream->Write(NDetail::DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
         Stream->Write(::ToString(value));
     }
     EndNode();
+}
+
+void TYsonWriter::OnBooleanScalar(bool value)
+{
+    if (BooleanAsString) {
+        OnStringScalar(FormatBool(value));
+    } else {
+        if (Format == EYsonFormat::Binary) {
+            Stream->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
+        } else {
+            Stream->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
+        }
+        EndNode();
+    }
 }
 
 void TYsonWriter::OnEntity()

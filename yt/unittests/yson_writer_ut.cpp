@@ -63,6 +63,20 @@ TEST_F(TYsonWriterTest, BinaryInt64)
     Run();
 }
 
+TEST_F(TYsonWriterTest, BinaryBoolean)
+{
+    bool value = true;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBooleanScalar(value));
+
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
+
+    writer.OnBooleanScalar(value);
+
+    Run();
+}
+
 TEST_F(TYsonWriterTest, EmptyMap)
 {
 

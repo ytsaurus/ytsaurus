@@ -115,15 +115,15 @@ TEST(TJsonParserTest, EscapedUnicodeSymbols)
     ParseJson(&stream, &Mock);
 }
 
-TEST(TJsonParserTest, UnsupportedValue)
+TEST(TJsonParserTest, Boolean)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     Stroka input = "true";
 
+    EXPECT_CALL(Mock, OnBooleanScalar(true));
+
     TStringInput stream(input);
-    EXPECT_ANY_THROW(
-        ParseJson(&stream, &Mock)
-    );
+    ParseJson(&stream, &Mock);
 }
 
 TEST(TJsonParserTest, InvalidJson)

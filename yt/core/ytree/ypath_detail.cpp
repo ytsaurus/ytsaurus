@@ -910,6 +910,11 @@ void TNodeSetterBase::OnMyDoubleScalar(double /*value*/)
     ThrowInvalidType(ENodeType::Double);
 }
 
+void TNodeSetterBase::OnMyBooleanScalar(bool /*value*/)
+{
+    ThrowInvalidType(ENodeType::Boolean);
+}
+
 void TNodeSetterBase::OnMyEntity()
 {
     ThrowInvalidType(ENodeType::Entity);

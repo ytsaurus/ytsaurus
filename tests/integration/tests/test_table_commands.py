@@ -566,3 +566,9 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/t')
         write('//tmp/t', '{"x":"0"}\n{"x":"1"}', input_format="json", is_raw=True)
         assert '{"x":"0"}\n{"x":"1"}\n' == read('//tmp/t', output_format="json")
+
+    def test_boolean(self):
+        create('table', '//tmp/t')
+        format = yson.loads("<boolean_as_string=false;format=text>yson")
+        write('//tmp/t', '{x=%false};{x=%true};{x=false};', input_format=format, is_raw=True)
+        assert '{"x"=%false};\n{"x"=%true};\n{"x"="false"};\n' == read('//tmp/t', output_format=format)

@@ -47,6 +47,9 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
                     case EValueType::Double:
                         Consumer_->OnDoubleScalar(value.Data.Double);
                         break;
+                    case EValueType::Boolean:
+                        Consumer_->OnBooleanScalar(value.Data.Boolean);
+                        break;
                     case EValueType::String:
                         Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                         break;

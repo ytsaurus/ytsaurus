@@ -30,6 +30,8 @@ def json_to_yson(json_tree):
         result = YsonString(str(bytearray(value, 'utf-8')))
     elif isinstance(value, str):
         result = YsonString(value)
+    elif value is False or value is True:
+        result = YsonBoolean(value)
     elif isinstance(value, int):
         result = YsonInt64(value)
     elif isinstance(value, float):

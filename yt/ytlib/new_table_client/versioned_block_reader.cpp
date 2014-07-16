@@ -219,10 +219,10 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         1);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-    
+
     auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
     auto timestampValue = timestamp & TimestampValueMask;
-    
+
     auto* beginTimestamps = row.BeginTimestamps();
     beginTimestamps[0] = timestamp;
 
@@ -289,6 +289,10 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
             ReadDouble(value, ptr);
             break;
 
+        case EValueType::Boolean:
+            ReadBoolean(value, ptr);
+            break;
+
         case EValueType::String:
         case EValueType::Any:
             ReadStringLike(value, ptr);
@@ -326,6 +330,10 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
             ReadDouble(value, ptr);
             break;
 
+        case EValueType::Boolean:
+            ReadBoolean(value, ptr);
+            break;
+
         case EValueType::String:
         case EValueType::Any:
             ReadStringLike(value, ptr);
@@ -344,6 +352,11 @@ void TSimpleVersionedBlockReader::ReadInteger(TUnversionedValue* value, char* pt
 void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, char* ptr)
 {
     value->Data.Double = *reinterpret_cast<double*>(ptr);
+}
+
+void TSimpleVersionedBlockReader::ReadBoolean(TUnversionedValue* value, char* ptr)
+{
+    value->Data.Boolean = (*ptr) == 1;
 }
 
 void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, char* ptr)

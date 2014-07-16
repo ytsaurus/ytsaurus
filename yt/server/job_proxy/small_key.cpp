@@ -29,6 +29,11 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TSta
         keyPart.Value.Double = token.GetDoubleValue();
         break;
 
+    case NYson::ETokenType::Boolean:
+        keyPart.Type = EValueType::Boolean;
+        keyPart.Value.Boolean = token.GetBooleanValue();
+        break;
+
     case NYson::ETokenType::String: {
         keyPart.Type = EValueType::String;
         auto& value = token.GetStringValue();
@@ -64,6 +69,13 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
             return -1;
         return 0;
 
+    case EValueType::Boolean:
+        if (lhs.Value.Boolean > rhs.Value.Boolean)
+            return 1;
+        if (lhs.Value.Boolean < rhs.Value.Boolean)
+            return -1;
+        return 0;
+
     case EValueType::String:
         return lhs.GetString().compare(rhs.GetString());
 
@@ -86,6 +98,9 @@ TUnversionedValue MakeKeyPart(const TSmallKeyPart& keyPart)
 
     case EValueType::Double:
         return MakeUnversionedDoubleValue(keyPart.Value.Double);
+
+    case EValueType::Boolean:
+        return MakeUnversionedBooleanValue(keyPart.Value.Boolean);
 
     case EValueType::String:
         return MakeUnversionedStringValue(keyPart.GetString());

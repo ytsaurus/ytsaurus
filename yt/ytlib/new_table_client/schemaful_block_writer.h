@@ -28,6 +28,7 @@ public:
 
     void WriteInteger(const TUnversionedValue& value, int index);
     void WriteDouble(const TUnversionedValue& value, int index);
+    void WriteBoolean(const TUnversionedValue& value, int index);
     void WriteString(const TUnversionedValue& value, int index);
     void WriteAny(const TUnversionedValue& value, int index);
 

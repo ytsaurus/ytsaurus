@@ -95,6 +95,11 @@ public:
         return CreateNode(EObjectType::DoubleNode)->AsDouble();
     }
 
+    virtual IBooleanNodePtr CreateBoolean() override
+    {
+        return CreateNode(EObjectType::BooleanNode)->AsBoolean();
+    }
+
     virtual IMapNodePtr CreateMap() override
     {
         return CreateNode(EObjectType::MapNode)->AsMap();
@@ -174,8 +179,8 @@ public:
                             ThrowCannotSetBuiltinAttribute(key);
                         }
                     }
-                }        
-            }        
+                }
+            }
         }
 
         handler->ValidateCreated(trunkNode);
@@ -427,6 +432,7 @@ TCypressManager::TCypressManager(
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
@@ -762,7 +768,7 @@ TError TCypressManager::CheckLock(
     // If we're outside of a transaction then the lock is not needed.
     if (!transaction) {
         *isMandatory = false;
-    }   
+    }
 
     // Check pending locks.
     if (request.Mode != ELockMode::Snapshot && checkPending && !trunkNode->PendingLocks().empty()) {
@@ -784,7 +790,7 @@ bool TCypressManager::IsRedundantLockRequest(
     if (state.Mode == ELockMode::Snapshot && request.Mode == ELockMode::Snapshot) {
         return true;
     }
-    
+
     if (state.Mode > request.Mode && request.Mode != ELockMode::Snapshot) {
         return true;
     }
@@ -967,7 +973,7 @@ TLock* TCypressManager::DoCreateLock(
 
     YCHECK(transaction->Locks().insert(lock).second);
     objectManager->RefObject(lock);
-     
+
     LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %s, Mode: %s, NodeId: %s)",
         ~ToString(id),
         ~ToString(request.Mode),
@@ -1008,11 +1014,11 @@ TCypressNodeBase* TCypressManager::LockNode(
             request,
             true,
             &isChildMandatory);
-        
+
         if (!error.IsOK()) {
             THROW_ERROR error;
         }
-        
+
         isMandatory |= isChildMandatory;
     }
 
@@ -1070,7 +1076,7 @@ TLock* TCypressManager::CreateLock(
         if (!isMandatory) {
             return nullptr;
         }
-        
+
         auto* lock = DoCreateLock(trunkNode, transaction, request);
         DoAcquireLock(lock);
         return lock;

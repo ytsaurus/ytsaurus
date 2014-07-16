@@ -361,13 +361,13 @@ TEST(TYsonSerializableTest, Save)
     auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
 
     Stroka subconfigYson =
-        "{\"my_bool\"=\"false\";"
+        "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=200;"
         "\"my_string_list\"=[]}";
 
     Stroka subconfigYsonOrigin =
-        "{\"my_bool\"=\"false\";"
+        "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=100;"
         "\"my_string_list\"=[]}";

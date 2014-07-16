@@ -94,7 +94,7 @@ void TYPathRequest::SetStartTime(TInstant /*value*/)
     YUNREACHABLE();
 }
 
-const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const 
+const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const
 {
     return Header_;
 }
@@ -265,7 +265,7 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
     SetRequestYPath(&requestHeader, suffixPath);
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-    
+
     auto asyncResponseMessage = NewPromise<TSharedRefArray>();
 
     auto invokeContext = CreateYPathContext(
@@ -523,7 +523,7 @@ void ForceYPath(INodePtr root, const TYPath& path)
     nextSegment();
 
     auto factory = root->CreateFactory();
-    
+
     while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         INodePtr child;
         switch (currentNode->GetType()) {
@@ -645,7 +645,7 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
     if (lhsAttributes != rhsAttributes) {
         return false;
     }
-    
+
     // Check content.
     switch (lhsType) {
         case ENodeType::Map: {
@@ -704,6 +704,9 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
 
         case ENodeType::Double:
             return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
+
+        case ENodeType::Boolean:
+            return lhs->GetValue<bool>() == rhs->GetValue<bool>();
 
         case ENodeType::Entity:
             return true;

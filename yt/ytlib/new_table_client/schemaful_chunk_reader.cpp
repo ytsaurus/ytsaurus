@@ -447,6 +447,13 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
                         value.Data.Double = token.GetDoubleValue();
                         break;
 
+                    case EValueType::Boolean:
+                        if (token.GetType() != ETokenType::Boolean) {
+                            ThrowIncompatibleType(schemaColumn);
+                        }
+                        value.Data.Boolean = token.GetBooleanValue();
+                        break;
+
                     case EValueType::String:
                         if (token.GetType() != ETokenType::String) {
                             ThrowIncompatibleType(schemaColumn);

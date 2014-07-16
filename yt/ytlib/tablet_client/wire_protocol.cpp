@@ -233,9 +233,10 @@ private:
         switch (value.Type) {
             case EValueType::Int64:
             case EValueType::Double:
+            case EValueType::Boolean:
                 UnsafeWriteInt64(rawValue[1]);
                 break;
-            
+
             case EValueType::String:
             case EValueType::Any:
                 UnsafeWriteRaw(value.Data.String, value.Length);
@@ -530,9 +531,10 @@ private:
         switch (value->Type) {
             case EValueType::Int64:
             case EValueType::Double:
+            case EValueType::Boolean:
                 rawValue[1] = ReadInt64();
                 break;
-            
+
             case EValueType::String:
             case EValueType::Any:
                 if (value->Length > MaxStringValueLength) {

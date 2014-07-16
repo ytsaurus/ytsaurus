@@ -61,6 +61,12 @@ void TAttributeConsumer::OnMyDoubleScalar(double value)
     ThrowMapExpected();
 }
 
+void TAttributeConsumer::OnMyBooleanScalar(bool value)
+{
+    UNUSED(value);
+    ThrowMapExpected();
+}
+
 void TAttributeConsumer::OnMyEntity()
 {
     ThrowMapExpected();

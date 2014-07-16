@@ -32,14 +32,6 @@ const ETokenType::EDomain KeyValueSeparatorToken = ETokenType::Equals;
 //! Indicates an entity.
 const ETokenType::EDomain EntityToken = ETokenType::Hash;
 
-// TODO(roizner): move somewhere
-//! Marks the beginning of a binary string literal.
-const char StringMarker = char(1);
-//! Marks the beginning of a binary i64 literal.
-const char Int64Marker = char(2);
-//! Marks the beginning of a binary double literal.
-const char DoubleMarker = char(3);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson
