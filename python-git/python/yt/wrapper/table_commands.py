@@ -426,8 +426,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         response = _make_transactional_request(
             "read",
             params,
+            return_content=False,
             proxy=get_host_for_heavy_operation(),
-            return_raw_response=True,
             client=client)
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
@@ -481,10 +481,10 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             response = _make_transactional_request(
                 "read",
                 params,
+                return_content=False,
                 proxy=get_host_for_heavy_operation(),
-                return_raw_response=True,
                 client=client)
-            rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
+            rsp_params = json.loads(response.headers()["X-YT-Response-Parameters"])
             return rsp_params.get("start_row_index", None)
 
 
@@ -494,8 +494,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             response = _make_transactional_request(
                 "read",
                 params,
-                proxy=get_host_for_heavy_operation(client=client),
-                return_raw_response=True)
+                return_content=False,
+                proxy=get_host_for_heavy_operation(client=client))
             for record in read_content(response, raw, format, get_value(response_type, "iter_lines")):
                 yield record
                 index.increment()
@@ -691,8 +691,8 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
     response = _make_transactional_request(
         "select",
         params,
+        return_content=False,
         proxy=get_host_for_heavy_operation(),
-        return_raw_response=True,
         client=client)
 
     return read_content(response, raw, format, get_value(response_type, "iter_lines"))
