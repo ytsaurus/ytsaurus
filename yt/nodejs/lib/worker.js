@@ -241,6 +241,15 @@ application = connect()
         next();
     });
 
+config.redirect.forEach(function(site) {
+    var web_path = site[0].replace(/\/+$/, "");
+    var real_path = site[1].replace(/\/+$/, "");
+    application.use(web_path, function(req, rsp, next) {
+        "use strict";
+        return void yt.utils.redirectTo(rsp, real_path + req.url, 301);
+    });
+});
+
 config.static.forEach(function(site) {
     var web_path = site[0].replace(/\/+$/, "");
     var real_path = site[1];
