@@ -342,9 +342,19 @@ void TTcpConnection::CloseSocket()
 {
     if (Fd_ != INVALID_SOCKET) {
         close(Fd_);
+#ifdef _linux_
+        YCHECK(Fd_ == Socket_);
+#endif
+        Socket_ = INVALID_SOCKET;
+        Fd_ = INVALID_SOCKET;
     }
-    Socket_ = INVALID_SOCKET;
-    Fd_ = INVALID_SOCKET;
+#ifdef _linux_
+    if (Socket_ != INVALID_SOCKET) {
+        // XXX(sandello): Avoid leaking sockets.
+        // Need to debug this later.
+        close(Socket_);
+    }
+#endif
 }
 
 void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)

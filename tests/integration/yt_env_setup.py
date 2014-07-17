@@ -3,6 +3,7 @@ import yt_commands
 from yt.environment import YTEnv
 import yt.bindings.driver
 
+import gc
 import os
 import logging
 import shutil
@@ -61,6 +62,7 @@ class YTEnvSetup(YTEnv):
     @classmethod
     def teardown_class(cls):
         cls.Env.clear_environment()
+        gc.collect()
 
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
