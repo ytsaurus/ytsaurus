@@ -150,7 +150,14 @@ TError TProcess::Spawn()
 
     ChildPipe_ = Pipe_;
 
-    int pid = vfork();
+    int pid = -1;
+    if (FileActions_.empty()) {
+        // one does not allowed to call close and dup2 after vfork
+        pid = vfork();
+    } else {
+        pid = fork();
+    }
+
     if (pid == 0) {
         DoSpawn();
     }
