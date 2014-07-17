@@ -252,10 +252,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isExecutor) {
         for (auto readPipe : parser.PrepareReadPipes.getValue()) {
-            PrepareReadJobDescriptors(readPipe);
+            PrepareReadJobPipe(readPipe);
         }
         for (auto writePipe : parser.PrepareWritePipes.getValue()) {
-            PrepareWriteJobDescriptors(writePipe);
+            PrepareWriteJobPipe(writePipe);
         }
         if (parser.EnableYamrDescriptors.getValue()) {
             // This hack is to work around the fact that output pipe accepts single job descriptor,

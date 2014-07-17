@@ -32,7 +32,7 @@ void CheckJobDescriptor(int fd);
 
 struct TJobPipe
 {
-    int JobDescriptor;
+    int PipeIndex;
     int ReadFd;
     int WriteFd;
 
@@ -42,20 +42,18 @@ struct TJobPipe
 Stroka ToString(const TJobPipe& obj);
 std::istream& operator>>(std::istream& is, TJobPipe& obj);
 
-void PrepareReadJobDescriptors(TJobPipe jobPipe);
-void PrepareWriteJobDescriptors(TJobPipe jobPipe);
+/*!
+ *  Called from job process after fork and before exec.
+ *  Closes unused fds, remaps other to a proper number.
+*/
+void PrepareReadJobPipe(TJobPipe jobPipe);
+void PrepareWriteJobPipe(TJobPipe jobPipe);
 
 ////////////////////////////////////////////////////////////////////
 
 struct IDataPipe
     : public virtual TRefCounted
 {
-    /*!
-     *  Called from job process after fork and before exec.
-     *  Closes unused fds, remaps other to a proper number.
-     */
-    virtual void PrepareJobDescriptors() = 0;
-
     /*!
      *  Called from proxy process after fork.
      *  E.g. makes required pipes non-blocking.
@@ -84,7 +82,6 @@ public:
         TOutputStream* output,
         int jobDescriptor);
 
-    virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
     virtual TError DoAll() override;
@@ -124,7 +121,6 @@ public:
         std::unique_ptr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
-    virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
     virtual TError DoAll() override;

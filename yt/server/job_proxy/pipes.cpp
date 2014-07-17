@@ -179,7 +179,7 @@ void ChmodJobDescriptor(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
-int readInteger(std::istream& is)
+int ReadInteger(std::istream& is)
 {
     Stroka s;
     s.read_to_delim(is, ',');
@@ -188,49 +188,44 @@ int readInteger(std::istream& is)
 
 std::istream& operator>>(std::istream& is, TJobPipe& obj)
 {
-    obj.JobDescriptor = readInteger(is);
-    obj.ReadFd = readInteger(is);
-    obj.WriteFd = readInteger(is);
+    obj.PipeIndex = ReadInteger(is);
+    obj.ReadFd = ReadInteger(is);
+    obj.WriteFd = ReadInteger(is);
     return is;
 }
 
 Stroka ToString(const TJobPipe& obj)
 {
-    return ::ToString(obj.JobDescriptor)
+    return ::ToString(obj.PipeIndex)
         + ','
         + ::ToString(obj.ReadFd)
         + ','
         + ::ToString(obj.WriteFd);
 }
 
-void PrepareReadJobDescriptors(TJobPipe jobPipe)
+void PrepareFileDescriptor(int currentFd, int shouldBeFd)
 {
-    SafeClose(jobPipe.WriteFd);
-
     // Always try to close target descriptor before calling dup2.
-    SafeClose(jobPipe.JobDescriptor, true);
+    SafeClose(shouldBeFd, true);
 
-    SafeDup2(jobPipe.ReadFd, jobPipe.JobDescriptor);
-    SafeClose(jobPipe.ReadFd);
+    SafeDup2(currentFd, shouldBeFd);
+    SafeClose(currentFd);
 
-    ChmodJobDescriptor(jobPipe.JobDescriptor);
+    ChmodJobDescriptor(shouldBeFd);
 
-    CheckJobDescriptor(jobPipe.JobDescriptor);
+    CheckJobDescriptor(shouldBeFd);
 }
 
-void PrepareWriteJobDescriptors(TJobPipe jobPipe)
+void PrepareReadJobPipe(TJobPipe jobPipe)
+{
+    SafeClose(jobPipe.WriteFd);
+    PrepareFileDescriptor(jobPipe.ReadFd, jobPipe.PipeIndex);
+}
+
+void PrepareWriteJobPipe(TJobPipe jobPipe)
 {
     SafeClose(jobPipe.ReadFd);
-
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(jobPipe.JobDescriptor, true);
-
-    SafeDup2(jobPipe.WriteFd, jobPipe.JobDescriptor);
-    SafeClose(jobPipe.WriteFd);
-
-    ChmodJobDescriptor(jobPipe.JobDescriptor);
-
-    CheckJobDescriptor(jobPipe.JobDescriptor);
+    PrepareFileDescriptor(jobPipe.WriteFd, jobPipe.PipeIndex);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -248,23 +243,6 @@ TOutputPipe::TOutputPipe(
     , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
     YCHECK(JobDescriptor);
-}
-
-void TOutputPipe::PrepareJobDescriptors()
-{
-    YASSERT(!IsFinished);
-
-    SafeClose(Pipe.ReadFd);
-
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(JobDescriptor, true);
-
-    SafeDup2(Pipe.WriteFd, JobDescriptor);
-    SafeClose(Pipe.WriteFd);
-
-    ChmodJobDescriptor(JobDescriptor);
-
-    CheckJobDescriptor(JobDescriptor);
 }
 
 void TOutputPipe::PrepareProxyDescriptors()
@@ -338,23 +316,6 @@ TInputPipe::TInputPipe(
     YCHECK(TableProducer);
     YCHECK(Buffer);
     YCHECK(Consumer);
-}
-
-void TInputPipe::PrepareJobDescriptors()
-{
-    YASSERT(!IsFinished);
-
-    SafeClose(Pipe.WriteFd);
-
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(JobDescriptor, true);
-
-    SafeDup2(Pipe.ReadFd, JobDescriptor);
-    SafeClose(Pipe.ReadFd);
-
-    ChmodJobDescriptor(JobDescriptor);
-
-    CheckJobDescriptor(JobDescriptor);
 }
 
 void TInputPipe::PrepareProxyDescriptors()
