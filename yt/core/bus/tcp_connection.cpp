@@ -148,6 +148,7 @@ void TTcpConnection::SyncInitialize()
 
         case EConnectionType::Server:
             InitFd();
+            InitWatcher();
             SyncOpen();
             break;
 
@@ -273,7 +274,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
         return;
     }
 
-    InitFd();
+    InitWatcher();
 
     State_.store(EState::Opening);
 }
@@ -332,7 +333,10 @@ void TTcpConnection::InitFd()
 #else
     Fd_ = Socket_;
 #endif
+}
 
+void TTcpConnection::InitWatcher()
+{
     SocketWatcher_.reset(new ev::io(DispatcherThread_->GetEventLoop()));
     SocketWatcher_->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
     SocketWatcher_->start(Fd_, ev::READ|ev::WRITE);
@@ -342,19 +346,9 @@ void TTcpConnection::CloseSocket()
 {
     if (Fd_ != INVALID_SOCKET) {
         close(Fd_);
-#ifdef _linux_
-        YCHECK(Fd_ == Socket_);
-#endif
         Socket_ = INVALID_SOCKET;
         Fd_ = INVALID_SOCKET;
     }
-#ifdef _linux_
-    if (Socket_ != INVALID_SOCKET) {
-        // XXX(sandello): Avoid leaking sockets.
-        // Need to debug this later.
-        close(Socket_);
-    }
-#endif
 }
 
 void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
@@ -372,6 +366,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         THROW_ERROR_EXCEPTION("Failed to create client socket")
             << TError::FromSystem();
     }
+
+    InitFd();
 
     if (family == AF_INET6) {
         int value = 0;

@@ -183,6 +183,8 @@ private:
     void SyncClose(const TError& error);
 
     void InitFd();
+    void InitWatcher();
+    
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
