@@ -56,11 +56,13 @@ def write_with_flush(data):
 
 def get_open_port():
     for _ in xrange(GEN_PORT_ATTEMPTS):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(("",0))
-        s.listen(1)
-        port = s.getsockname()[1]
-        s.close()
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("",0))
+            sock.listen(1)
+            port = s.getsockname()[1]
+        finally:
+            sock.close()
 
         if port in get_open_port.busy_ports:
             continue
@@ -540,13 +542,15 @@ class YTEnv(object):
                    timeout=3.0)
 
         def started():
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
-                s.connect(('127.0.0.1', self._ports[proxy_name][0]))
-                s.shutdown(2)
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect(('127.0.0.1', self._ports[proxy_name][0]))
+                sock.shutdown(2)
                 return True
             except:
                 return False
+            finally:
+                sock.close()
 
         self._wait_for(started, name="proxy", max_wait_time=20)
 
