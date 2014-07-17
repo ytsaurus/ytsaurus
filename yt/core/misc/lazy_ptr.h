@@ -52,16 +52,6 @@ public:
         return Value;
     }
 
-    void Reset() const throw()
-    {
-        if (Value) {
-            TGuard<TLock> guard(Lock);
-            if (Value) {
-                Value.Reset();
-            }
-        }
-    }
-
 private:
     TLock Lock;
     TFactory Factory;
@@ -108,16 +98,6 @@ public:
     bool HasValue() const throw()
     {
         return Value;
-    }
-
-    void Reset() const throw()
-    {
-        if (Value) {
-            TGuard<TLock> guard(Lock);
-            if (Value) {
-                Value.reset();
-            }
-        }
     }
 
 private:

@@ -36,11 +36,9 @@ class TTcpDispatcher
 public:
     static TTcpDispatcher* Get();
 
-    void AfterFork();
-
     void Shutdown();
 
-    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
+    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
 
 private:
     TTcpDispatcher();

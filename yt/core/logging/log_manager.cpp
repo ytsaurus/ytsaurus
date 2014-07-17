@@ -706,87 +706,46 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogManager::TLogManager()
-    : Impl(New<TImpl>())
-{
-    auto afterFork = [] () {
-        TLogManager::Get()->AfterFork();
-    };
-
-    YCHECK(pthread_atfork(nullptr, afterFork, afterFork) == 0);
-}
+    : Impl(new TImpl())
+{ }
 
 TLogManager* TLogManager::Get()
 {
     return Singleton<TLogManager>();
 }
 
-void TLogManager::AfterFork()
-{
-    if (!Impl) {
-        Impl = New<TImpl>();
-    }
-}
-
-void TLogManager::Initialize() const
-{
-    if (!Impl) {
-        Impl = New<TImpl>();
-    }
-}
-
 void TLogManager::Configure(INodePtr node)
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     Impl->Configure(node);
 }
 
 void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     Impl->Configure(fileName, path);
 }
 
 void TLogManager::Shutdown()
 {
-    if (Impl) {
-        Impl->Shutdown();
-        Impl.Reset();
-    }
+    Impl->Shutdown();
 }
 
 int TLogManager::GetVersion() const
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     return Impl->GetVersion();
 }
 
 ELogLevel TLogManager::GetMinLevel(const Stroka& category) const
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     return Impl->GetMinLevel(category);
 }
 
 void TLogManager::Enqueue(TLogEvent&& event)
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     Impl->Enqueue(std::move(event));
 }
 
 void TLogManager::Reopen()
 {
-    if (UNLIKELY(!Impl)) {
-        Initialize();
-    }
     Impl->Reopen();
 }
 

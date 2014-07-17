@@ -42,7 +42,6 @@ void ShutdownLlvm()
 {
     if (McjitThread.HasValue()) {
         McjitThread->Shutdown();
-        McjitThread.Reset();
     }
 }
 
