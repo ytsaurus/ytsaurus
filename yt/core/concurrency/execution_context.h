@@ -15,6 +15,11 @@ namespace NConcurrency {
 #   ifdef HAVE_CXXABI_H
 #       include <cxxabi.h>
 #   endif
+#   ifdef _GLIBCXX_NOTHROW
+#       define CXXABIv1_NOTHROW _GLIBCXX_NOTHROW
+#   else
+#       define CXXABIv1_NOTHROW throw()
+#   endif
 namespace __cxxabiv1 {
     // We do not care about actual type here, so erase it.
     typedef void __untyped_cxa_exception;
@@ -22,8 +27,8 @@ namespace __cxxabiv1 {
         __untyped_cxa_exception* caughtExceptions;
         unsigned int uncaughtExceptions;
     };
-    extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
-    extern "C" __cxa_eh_globals* __cxa_get_globals_fast() throw();
+    extern "C" __cxa_eh_globals* __cxa_get_globals() CXXABIv1_NOTHROW;
+    extern "C" __cxa_eh_globals* __cxa_get_globals_fast() CXXABIv1_NOTHROW;
 } // namespace __cxxabiv1
 #endif
 
