@@ -251,7 +251,7 @@ private:
         auto* addressResolver = TAddressResolver::Get();
         auto addressOrError = addressResolver->Resolve(addressResolver->GetLocalHostName()).Get();
         if (!addressOrError.IsOK()) {
-            LOG_FATAL("Error determining local endpoint address");
+            LOG_FATAL(addressOrError, "Error determining local endpoint address");
         }
 
         NProto::TEndpoint endpoint;
