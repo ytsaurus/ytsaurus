@@ -65,6 +65,8 @@ TError SafeAtomicCloseExecPipe(int pipefd[2])
 #endif
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TProcess::TProcess(const Stroka& path, bool copyEnv)
     : Finished_(false)
     , Status_(0)
@@ -116,6 +118,16 @@ void TProcess::AddEnvVar(TStringBuf var)
     Env_.push_back(Capture(var));
 }
 
+void TProcess::AddCloseFileAction(int fd)
+{
+    FileActions_.push_back(NDetail::TSpawnFileAction{NDetail::EFileAction::Close, fd, -1});
+}
+
+void TProcess::AddDup2FileAction(int oldFd, int newFd)
+{
+    FileActions_.push_back(NDetail::TSpawnFileAction{NDetail::EFileAction::Dup2, oldFd, newFd});
+}
+
 TError TProcess::Spawn()
 {
 #ifdef _win_
@@ -153,12 +165,19 @@ TError TProcess::Spawn()
     Pipe_.WriteFd = InvalidFd;
 
     {
-        int errCode;
-        if (::read(Pipe_.ReadFd, &errCode, sizeof(int)) == sizeof(int)) {
+        int data[2];
+        if (::read(Pipe_.ReadFd, &data, 2 * sizeof(int)) == 2 * sizeof(int)) {
             ::waitpid(pid, nullptr, 0);
             Finished_ = true;
-            return TError("Error waiting for child process to finish: execve failed")
-                << TError::FromSystem(errCode);
+            auto errorType = data[0];
+            auto errCode = data[1];
+            if (errorType == -1) {
+                return TError("Error waiting for child process to finish: execve failed")
+                    << TError::FromSystem(errCode);
+            } else {
+                return TError("Error waiting for child process to finish: %v file action failed", errorType)
+                    << TError::FromSystem(errCode);
+            }
         }
     }
 
@@ -207,14 +226,58 @@ char* TProcess::Capture(TStringBuf arg)
     return StringHolder_.back().data();
 }
 
-int TProcess::DoSpawn()
+void TProcess::DoSpawn()
 {
     YASSERT(ChildPipe_.WriteFd != InvalidFd);
 
-    ::execve(Path_.data(), Args_.data(), Env_.data());
+    int index = 0;
+    for (const auto& action: FileActions_) {
+        if (action.Type == NDetail::EFileAction::Close) {
+            while (true) {
+                auto res = ::close(action.Param1);
+                if (res == -1) {
+                    if (errno == EINTR) {
+                        continue;
+                    } else if (errno == EBADF) {
+                        break;
+                    } else {
+                        ChildErrorHandler(index);
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else if (action.Type == NDetail::EFileAction::Dup2) {
+            while (true) {
+                auto res = ::dup2(action.Param1, action.Param2);
+                if (res == -1) {
+                    if (errno == EINTR || errno == EBUSY) {
+                        continue;
+                    } else {
+                        ChildErrorHandler(index);
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else {
+            YUNREACHABLE();
+        }
+        ++index;
+    }
 
-    const int errorCode = errno;
-    while (::write(ChildPipe_.WriteFd, &errorCode, sizeof(int)) < 0);
+    ::execve(Path_.data(), Args_.data(), Env_.data());
+    ChildErrorHandler(-1);
+}
+
+void TProcess::ChildErrorHandler(int errorType)
+{
+    int data[] = {
+        errorType,
+        errno
+    };
+
+    while (::write(ChildPipe_.WriteFd, &data, 2 * sizeof(int)) < 0);
 
     _exit(1);
 }

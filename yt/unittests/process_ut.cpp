@@ -26,6 +26,37 @@ TEST(TProcessTest, InvalidPath)
     ASSERT_FALSE(error.IsOK());
 }
 
+TEST(TProcessTest, BadDup)
+{
+    TProcess p("/bin/true");
+    p.AddDup2FileAction(1000, 1);
+    auto error = p.Spawn();
+    ASSERT_FALSE(error.IsOK());
+}
+
+TEST(TProcessTest, GoodDup)
+{
+    TProcess p("/bin/true");
+    p.AddDup2FileAction(2, 3);
+    auto error = p.Spawn();
+    ASSERT_TRUE(error.IsOK());
+
+    error = p.Wait();
+    ASSERT_TRUE(error.IsOK()) << ToString(error);
+}
+
+TEST(TProcess, IngnoreCloseInvalidFd)
+{
+    TProcess p("/bin/true");
+    p.AddCloseFileAction(74);
+
+    auto error = p.Spawn();
+    ASSERT_TRUE(error.IsOK()) << ToString(error);
+
+    error = p.Wait();
+    ASSERT_TRUE(error.IsOK()) << ToString(error);
+}
+
 TEST(TProcessTest, ProcessReturnCode0)
 {
     TProcess p("/bin/true");
