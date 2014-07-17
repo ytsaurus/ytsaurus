@@ -95,7 +95,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
-        PYCXX_ADD_KEYWORDS_METHOD(clear_meta_data_caches, ClearMetadataCaches, "Clear meta data caches");
+        PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clear meta data caches");
 
         behaviors().readyType();
     }
