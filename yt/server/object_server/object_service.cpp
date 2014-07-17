@@ -136,8 +136,6 @@ private:
     TObjectManagerConfigPtr Config;
     TCtxExecutePtr Context;
 
-    const NLog::TLogger& Logger;
-
     TFuture<void> LastMutationCommitted;
     std::atomic<bool> Replied;
     std::atomic<int> ResponseCount;
@@ -147,6 +145,7 @@ private:
     int CurrentRequestPartIndex;
     TNullable<Stroka> UserName;
 
+    const NLog::TLogger& Logger;
 
     void Continue()
     {
