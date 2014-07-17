@@ -42,15 +42,13 @@ TTcpDispatcherStatistics& operator += (
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TTcpDispatcher()
-    : Impl_(new TImpl())
+    : Impl(new TImpl())
 {
-#ifndef _win_
     auto afterFork = [] () {
         TTcpDispatcher::Get()->AfterFork();
     };
 
     YCHECK(pthread_atfork(nullptr, afterFork, afterFork) == 0);
-#endif
 }
 
 TTcpDispatcher* TTcpDispatcher::Get()
@@ -60,22 +58,22 @@ TTcpDispatcher* TTcpDispatcher::Get()
 
 void TTcpDispatcher::AfterFork()
 {
-    if (!Impl_) {
-        Impl_.reset(new TImpl());
+    if (!Impl) {
+        Impl.reset(new TImpl());
     }
 }
 
 void TTcpDispatcher::Shutdown()
 {
-    if (Impl_) {
-        Impl_->Shutdown();
-        Impl_.reset();
+    if (Impl) {
+        Impl->Shutdown();
+        Impl.reset();
     }
 }
 
 TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType) const
 {
-    return Impl_->GetStatistics(interfaceType);
+    return Impl->GetStatistics(interfaceType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
