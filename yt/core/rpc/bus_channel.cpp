@@ -407,8 +407,11 @@ private:
                 // Don't need the guard anymore.
                 guard.Release();
 
-                auto error = TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed");
-                NotifyError(activeRequest, error);
+                auto detailedError = TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Request acknowledgment failed") <<
+                    error;
+                NotifyError(activeRequest, detailedError);
             }
         }
 
