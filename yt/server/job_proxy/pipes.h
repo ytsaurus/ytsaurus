@@ -78,6 +78,7 @@ public:
     virtual void Finish() override;
 
     virtual TJobPipe GetJobPipe() const override;
+
 private:
     TOutputStream* OutputStream;
     int JobDescriptor;
@@ -117,6 +118,7 @@ public:
     virtual void Finish() override;
 
     virtual TJobPipe GetJobPipe() const override;
+
 private:
     TPipe Pipe;
     int JobDescriptor;
