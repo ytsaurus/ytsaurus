@@ -96,12 +96,12 @@ public:
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
         , Executor("", "executor", "start a user job")
-        , PreparePipes("", "prepare-pipe", "prepare pipe descriptor", false, "FD")
+        , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
         , VMLimit("", "vm-limit", "vm limit", false, -1, "NUM")
-        , Uid("", "uid", "set uid", false, -1, "NUM")
-        , EnableIOPrio("", "enable-io-prio", "set low io prio")
-        , Command("", "command", "command", false, "", "COMMAND")
+        , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
+        , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
+        , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
     {
         CmdLine.add(CellNode);
         CmdLine.add(CellMaster);
