@@ -60,7 +60,7 @@ def get_open_port():
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(("",0))
             sock.listen(1)
-            port = s.getsockname()[1]
+            port = sock.getsockname()[1]
         finally:
             sock.close()
 
