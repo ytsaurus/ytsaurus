@@ -157,7 +157,7 @@ def get_node_config():
     return yson.loads(
 """
 {
-    orchid_cache_expiration_period = 0;
+    orchid_cache_expiration_time = 0;
 
     cluster_connection = {
         master = {
