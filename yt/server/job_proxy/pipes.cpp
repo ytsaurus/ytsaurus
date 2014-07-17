@@ -179,53 +179,10 @@ void ChmodJobDescriptor(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
-int ReadInteger(std::istream& is)
+void PrepareUserJobPipe(int fd)
 {
-    Stroka s;
-    s.read_to_delim(is, ',');
-    return FromString<int>(s);
-}
-
-std::istream& operator>>(std::istream& is, TJobPipe& obj)
-{
-    obj.PipeIndex = ReadInteger(is);
-    obj.ReadFd = ReadInteger(is);
-    obj.WriteFd = ReadInteger(is);
-    return is;
-}
-
-Stroka ToString(const TJobPipe& obj)
-{
-    return ::ToString(obj.PipeIndex)
-        + ','
-        + ::ToString(obj.ReadFd)
-        + ','
-        + ::ToString(obj.WriteFd);
-}
-
-void PrepareFileDescriptor(int currentFd, int shouldBeFd)
-{
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(shouldBeFd, true);
-
-    SafeDup2(currentFd, shouldBeFd);
-    SafeClose(currentFd);
-
-    ChmodJobDescriptor(shouldBeFd);
-
-    CheckJobDescriptor(shouldBeFd);
-}
-
-void PrepareReadJobPipe(TJobPipe jobPipe)
-{
-    SafeClose(jobPipe.WriteFd);
-    PrepareFileDescriptor(jobPipe.ReadFd, jobPipe.PipeIndex);
-}
-
-void PrepareWriteJobPipe(TJobPipe jobPipe)
-{
-    SafeClose(jobPipe.ReadFd);
-    PrepareFileDescriptor(jobPipe.WriteFd, jobPipe.PipeIndex);
+    ChmodJobDescriptor(fd);
+    CheckJobDescriptor(fd);
 }
 
 ////////////////////////////////////////////////////////////////////

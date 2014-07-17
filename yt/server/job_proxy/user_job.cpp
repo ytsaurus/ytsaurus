@@ -135,13 +135,25 @@ public:
         auto host = Host.Lock();
         Process.AddArgument("--executor");
         for (auto& pipe : InputPipes) {
-            Process.AddArgument("--prepare-read-pipe");
-            Process.AddArgument(ToString(pipe->GetJobPipe()));
+            auto jobPipe = pipe->GetJobPipe();
+            Process.AddCloseFileAction(jobPipe.WriteFd);
+            Process.AddCloseFileAction(jobPipe.PipeIndex);
+            Process.AddDup2FileAction(jobPipe.ReadFd, jobPipe.PipeIndex);
+            Process.AddCloseFileAction(jobPipe.ReadFd);
+
+            Process.AddArgument("--prepare-pipe");
+            Process.AddArgument(::ToString(jobPipe.PipeIndex));
         }
 
         for (auto& pipe : OutputPipes) {
-            Process.AddArgument("--prepare-write-pipe");
-            Process.AddArgument(ToString(pipe->GetJobPipe()));
+            auto jobPipe = pipe->GetJobPipe();
+            Process.AddCloseFileAction(jobPipe.ReadFd);
+            Process.AddCloseFileAction(jobPipe.PipeIndex);
+            Process.AddDup2FileAction(jobPipe.WriteFd, jobPipe.PipeIndex);
+            Process.AddCloseFileAction(jobPipe.WriteFd);
+
+            Process.AddArgument("--prepare-pipe");
+            Process.AddArgument(::ToString(jobPipe.PipeIndex));
         }
 
         if (UserJobSpec.enable_accounting()) {
@@ -158,7 +170,7 @@ public:
         if (UserJobSpec.use_yamr_descriptors()) {
             // This hack is to work around the fact that output pipe accepts single job descriptor,
             // whilst yamr convention requires fds 1 and 3 to be the same.
-            Process.AddArgument("--enable-yamr-descriptors");
+            Process.AddDup2FileAction(3, 1);
         }
 
         auto config = host->GetConfig();

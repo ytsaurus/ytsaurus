@@ -96,9 +96,7 @@ public:
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
         , Executor("", "executor", "start a user job")
-        , PrepareReadPipes("", "prepare-read-pipe", "prepare read pipe", false, "JobPipe")
-        , PrepareWritePipes("", "prepare-write-pipe", "prepare write pipe", false, "JobPipe")
-        , EnableYamrDescriptors("", "enable-yamr-descriptors", "enable yamr descriptors")
+        , PreparePipes("", "prepare-pipe", "prepare pipe descriptor", false, "FD")
         , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
         , VMLimit("", "vm-limit", "vm limit", false, -1, "NUM")
         , Uid("", "uid", "set uid", false, -1, "NUM")
@@ -120,9 +118,7 @@ public:
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
         CmdLine.add(Executor);
-        CmdLine.add(PrepareReadPipes);
-        CmdLine.add(PrepareWritePipes);
-        CmdLine.add(EnableYamrDescriptors);
+        CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDumps);
         CmdLine.add(VMLimit);
         CmdLine.add(Uid);
@@ -149,9 +145,7 @@ public:
     TCLAP::SwitchArg ConfigTemplate;
 
     TCLAP::SwitchArg Executor;
-    TCLAP::MultiArg<NJobProxy::TJobPipe> PrepareReadPipes;
-    TCLAP::MultiArg<NJobProxy::TJobPipe> PrepareWritePipes;
-    TCLAP::SwitchArg EnableYamrDescriptors;
+    TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDumps;
     TCLAP::ValueArg<i64> VMLimit;
     TCLAP::ValueArg<int> Uid;
@@ -250,20 +244,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OK;
     }
 
-    if (isExecutor) {
-        for (auto readPipe : parser.PrepareReadPipes.getValue()) {
-            PrepareReadJobPipe(readPipe);
-        }
-        for (auto writePipe : parser.PrepareWritePipes.getValue()) {
-            PrepareWriteJobPipe(writePipe);
-        }
-        if (parser.EnableYamrDescriptors.getValue()) {
-            // This hack is to work around the fact that output pipe accepts single job descriptor,
-            // whilst yamr convention requires fds 1 and 3 to be the same.
-            SafeDup2(3, 1);
-        }
-    }
-
     INodePtr configNode;
 
     if (!printConfigTemplate) {
@@ -299,28 +279,32 @@ EExitCode GuardedMain(int argc, const char* argv[])
         cgroup.AddCurrentTask();
     }
 
-    if (isExecutor) {
-        auto vmLimit = parser.VMLimit.getValue();
-        if (vmLimit > 0) {
-            struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
+    auto vmLimit = parser.VMLimit.getValue();
+    if (vmLimit > 0) {
+        struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
 
-            auto res = setrlimit(RLIMIT_AS, &rlimit);
-            if (res) {
-                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                        rlimit.rlim_max,
-                        strerror(errno));
-                return EExitCode::ExecutorError;
-            }
+        auto res = setrlimit(RLIMIT_AS, &rlimit);
+        if (res) {
+            fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
+                    rlimit.rlim_max,
+                    strerror(errno));
+            return EExitCode::ExecutorError;
         }
+    }
 
-        if (parser.EnableCoreDumps.getValue()) {
-            struct rlimit rlimit = {0, 0};
+    if (parser.EnableCoreDumps.getValue()) {
+        struct rlimit rlimit = {0, 0};
 
-            auto res = setrlimit(RLIMIT_CORE, &rlimit);
-            if (res) {
-                fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
-                return EExitCode::ExecutorError;
-            }
+        auto res = setrlimit(RLIMIT_CORE, &rlimit);
+        if (res) {
+            fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+            return EExitCode::ExecutorError;
+        }
+    }
+
+    if (isExecutor) {
+        for (auto fd : parser.PreparePipes.getValue()) {
+            PrepareUserJobPipe(fd);
         }
 
         auto uid = parser.Uid.getValue();

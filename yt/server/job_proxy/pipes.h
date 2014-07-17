@@ -10,10 +10,6 @@
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
 
-namespace TCLAP {
-    class ValueLike;
-}
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -35,19 +31,9 @@ struct TJobPipe
     int PipeIndex;
     int ReadFd;
     int WriteFd;
-
-    typedef TCLAP::ValueLike ValueCategory;
 };
 
-Stroka ToString(const TJobPipe& obj);
-std::istream& operator>>(std::istream& is, TJobPipe& obj);
-
-/*!
- *  Called from job process after fork and before exec.
- *  Closes unused fds, remaps other to a proper number.
-*/
-void PrepareReadJobPipe(TJobPipe jobPipe);
-void PrepareWriteJobPipe(TJobPipe jobPipe);
+void PrepareUserJobPipe(int fd);
 
 ////////////////////////////////////////////////////////////////////
 
