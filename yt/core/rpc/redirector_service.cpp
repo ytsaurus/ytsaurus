@@ -30,13 +30,13 @@ public:
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message)
         : Header_(std::move(header))
-        , Message(std::move(message))
-        , RequestId(FromProto<TRequestId>(Header_->request_id()))
+        , Message_(std::move(message))
+        , RequestId_(FromProto<TRequestId>(Header_->request_id()))
     { }
 
     virtual TSharedRefArray Serialize() const override
     {
-        return Message;
+        return Message_;
     }
 
     virtual bool IsOneWay() const override
@@ -56,7 +56,7 @@ public:
 
     virtual TRequestId GetRequestId() const override
     {
-        return RequestId;
+        return RequestId_;
     }
 
     virtual const Stroka& GetService() const override
@@ -91,9 +91,9 @@ public:
 
 private:
     std::unique_ptr<NProto::TRequestHeader> Header_;
-    TSharedRefArray Message;
+    TSharedRefArray Message_;
 
-    TRequestId RequestId;
+    TRequestId RequestId_;
 
 };
 
@@ -108,36 +108,36 @@ public:
     TRedirectedResponseHandler(
         IClientRequestPtr request,
         TResponseMessageHandler responseMessageHandler)
-        : Request(request)
-        , ResponseMessageHandler(responseMessageHandler)
+        : Request_(request)
+        , ResponseMessageHandler_(responseMessageHandler)
     { }
 
     virtual void OnAcknowledgement() override
     {
-        LOG_DEBUG("Redirected request acknowledged (RequestId: %s)",
-            ~ToString(Request->GetRequestId()));
+        LOG_DEBUG("Redirected request acknowledged (RequestId: %v)",
+            Request_->GetRequestId());
     }
 
     virtual void OnResponse(TSharedRefArray message) override
     {
-        LOG_DEBUG("Response for redirected request received (RequestId: %s)",
-            ~ToString(Request->GetRequestId()));
+        LOG_DEBUG("Response for redirected request received (RequestId: %v)",
+            Request_->GetRequestId());
 
-        ResponseMessageHandler.Run(std::move(message));
+        ResponseMessageHandler_.Run(std::move(message));
     }
 
     virtual void OnError(const TError& error) override
     {
-        LOG_DEBUG(error, "Redirected request failed (RequestId: %s)",
-            ~ToString(Request->GetRequestId()));
+        LOG_DEBUG(error, "Redirected request failed (RequestId: %v)",
+            Request_->GetRequestId());
 
-        auto message = CreateErrorResponseMessage(Request->GetRequestId(), error);
-        ResponseMessageHandler.Run(std::move(message));
+        auto message = CreateErrorResponseMessage(Request_->GetRequestId(), error);
+        ResponseMessageHandler_.Run(std::move(message));
     }
 
 private:
-    IClientRequestPtr Request;
-    TResponseMessageHandler ResponseMessageHandler;
+    IClientRequestPtr Request_;
+    TResponseMessageHandler ResponseMessageHandler_;
 
 };
 
@@ -151,10 +151,10 @@ void DoRedirectServiceRequest(
         std::move(requestHeader),
         std::move(requestMessage));
 
-    LOG_DEBUG("Redirected request sent (RequestId: %s, Method: %s:%s)",
-            ~ToString(request->GetRequestId()),
-            ~request->GetService(),
-            ~request->GetMethod());
+    LOG_DEBUG("Redirected request sent (RequestId: %v, Method: %v:%v)",
+        request->GetRequestId(),
+        request->GetService(),
+        request->GetMethod());
 
     auto responseHandler = New<TRedirectedResponseHandler>(
         request,
@@ -178,8 +178,8 @@ public:
     TRedirectorService(
         const TServiceId& serviceId,
         IChannelPtr sinkChannel)
-        : ServiceId(serviceId)
-        , SinkChannel(sinkChannel)
+        : ServiceId_(serviceId)
+        , SinkChannel_(sinkChannel)
     { }
 
     virtual void OnRequest(
@@ -195,12 +195,12 @@ public:
             std::move(header),
             std::move(message),
             std::move(responseMessageHandler),
-            SinkChannel);
+            SinkChannel_);
     }
 
     virtual TServiceId GetServiceId() const override
     {
-        return ServiceId;
+        return ServiceId_;
     }
 
     virtual void Configure(NYTree::INodePtr config) override
@@ -209,9 +209,8 @@ public:
     }
 
 private:
-    TServiceId ServiceId;
-    Stroka LoggingCategory;
-    IChannelPtr SinkChannel;
+    TServiceId ServiceId_;
+    IChannelPtr SinkChannel_;
 
 };
 

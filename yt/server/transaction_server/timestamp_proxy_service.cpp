@@ -17,10 +17,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTimestampProxyService
     : public TServiceBase
 {
@@ -29,7 +25,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetPoolInvoker(),
             TTimestampServiceProxy::GetServiceName(),
-            TransactionServerLogger.GetCategory())
+            TransactionServerLogger)
         , Provider_(provider)
     {
         YCHECK(Provider_);

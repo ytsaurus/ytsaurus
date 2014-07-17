@@ -532,19 +532,19 @@ protected:
      *  \param serviceName
      *  A name of the service.
      *
-     *  \param loggingCategory
-     *  A category that will be used to log various debugging information
+     *  \param logger
+     *  A logger that will be used to log various debugging information
      *  regarding service activity.
      */
     TServiceBase(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const Stroka& loggingCategory = "");
+        const NLog::TLogger& logger);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const Stroka& loggingCategory = "");
+        const NLog::TLogger& logger);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -581,12 +581,14 @@ protected:
      */ 
     virtual std::vector<Stroka> SuggestAddresses() const;
 
+protected:
+    NLog::TLogger Logger;
+
 private:
     class TServiceContext;
 
     IPrioritizedInvokerPtr DefaultInvoker_;
     TServiceId ServiceId_;
-    Stroka LoggingCategory_;
 
     NProfiling::TTagId ServiceTagId_;
     NProfiling::TRateCounter RequestCounter_;
@@ -598,7 +600,7 @@ private:
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const Stroka& loggingCategory);
+        const NLog::TLogger& logger);
 
     virtual TServiceId GetServiceId() const override;
 

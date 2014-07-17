@@ -35,7 +35,7 @@ TNodeTrackerService::TNodeTrackerService(
     : THydraServiceBase(
         bootstrap,
         TNodeTrackerServiceProxy::GetServiceName(),
-        NodeTrackerServerLogger.GetCategory())
+        NodeTrackerServerLogger)
     , Config(config)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));

@@ -23,8 +23,8 @@ TLocalSnapshotService::TLocalSnapshotService(
     : TServiceBase(
         GetHydraIOInvoker(),
         TServiceId(TSnapshotServiceProxy::GetServiceName(), cellGuid),
-        HydraLogger.GetCategory())
-        , FileStore_(fileStore)
+        HydraLogger)
+    , FileStore_(fileStore)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -35,9 +35,9 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     int maxSnapshotId = request->max_snapshot_id();
     bool exactId = request->exact_id();
 
-    context->SetRequestInfo("MaxSnapshotId: %d, ExactId: %s",
+    context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %v",
         maxSnapshotId,
-        ~FormatBool(exactId));
+        exactId);
 
     int snapshotId;
     if (exactId) {
@@ -53,7 +53,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
 
     auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
     if (!maybeParams) {
-        THROW_ERROR_EXCEPTION("No such snapshot %d", snapshotId);
+        THROW_ERROR_EXCEPTION("No such snapshot %v", snapshotId);
     }
 
     response->set_snapshot_id(snapshotId);
@@ -62,8 +62,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     response->set_uncompressed_length(maybeParams->UncompressedLength);
     response->set_checksum(maybeParams->Checksum);
     
-    context->SetResponseInfo("SnapshotId: %d",
-        snapshotId);
+    context->SetResponseInfo("SnapshotId: %v", snapshotId);
     context->Reply();
 }
 
@@ -75,7 +74,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
     i64 offset = request->offset();
     i64 length = request->length();
 
-    context->SetRequestInfo("SnapshotId: %d, Offset: %" PRId64 ", Length: %" PRId64,
+    context->SetRequestInfo("SnapshotId: %v, Offset: %v, Length: %v",
         snapshotId,
         offset,
         length);
@@ -91,7 +90,7 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, ReadSnapshot)
     auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
     context->Response().Attachments().push_back(data);
 
-    context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
+    context->SetResponseInfo("BytesRead: %v", bytesRead);
     context->Reply();
 }
 

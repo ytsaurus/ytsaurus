@@ -17,7 +17,7 @@ protected:
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker,
         const NRpc::TServiceId& serviceId,
-        const Stroka& loggingCategory);
+        const NLog::TLogger& logger);
 
     IInvokerPtr AutomatonInvoker_;
     IInvokerPtr EpochAutomatonInvoker_;

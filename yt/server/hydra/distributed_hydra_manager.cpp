@@ -115,7 +115,7 @@ public:
         : TServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
-            HydraLogger.GetCategory())
+            HydraLogger)
         , Config_(config)
         , RpcServer_(rpcServer)
         , CellManager_(cellManager)
@@ -125,7 +125,6 @@ public:
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
         , ControlState_(EPeerState::None)
-        , Logger(HydraLogger)
         , Profiler(HydraProfiler)
     {
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
@@ -403,7 +402,6 @@ private:
     TEpochContextPtr EpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
 
@@ -413,8 +411,7 @@ private:
 
         int changelogId = request->changelog_id();
 
-        context->SetRequestInfo("ChangelogId: %v",
-            changelogId);
+        context->SetRequestInfo("ChangelogId: %v", changelogId);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
         int recordCount = changelog->GetRecordCount();

@@ -44,7 +44,7 @@ public:
             slot->GetHydraManager(),
             slot->GetAutomatonInvoker(EAutomatonThreadQueue::Write),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellGuid()),
-            TabletNodeLogger.GetCategory())
+            TabletNodeLogger)
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {

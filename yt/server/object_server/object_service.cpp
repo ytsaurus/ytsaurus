@@ -50,10 +50,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TObjectService
     : public NCellMaster::THydraServiceBase
 {
@@ -64,7 +60,7 @@ public:
         : THydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
-            ObjectServerLogger.GetCategory())
+            ObjectServerLogger)
         , Config(config)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
@@ -110,6 +106,7 @@ public:
         , ResponseCount(0)
         , CurrentRequestIndex(0)
         , CurrentRequestPartIndex(0)
+        , Logger(ObjectServerLogger)
     { }
 
     void Run()
@@ -138,6 +135,8 @@ private:
     TBootstrap* Bootstrap;
     TObjectManagerConfigPtr Config;
     TCtxExecutePtr Context;
+
+    const NLog::TLogger& Logger;
 
     TFuture<void> LastMutationCommitted;
     std::atomic<bool> Replied;

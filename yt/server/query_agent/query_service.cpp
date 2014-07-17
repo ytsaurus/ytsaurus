@@ -43,7 +43,7 @@ public:
         : TServiceBase(
             CreatePrioritizedInvoker(invoker),
             TQueryServiceProxy::GetServiceName(),
-            QueryAgentLogger.GetCategory())
+            QueryAgentLogger)
         , Config_(config)
         , Executor_(executor)
     {
@@ -63,7 +63,7 @@ private:
         auto planFragment = FromProto(request->plan_fragment());
         planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
-        context->SetRequestInfo("FragmentId: %s", ~ToString(planFragment.Id()));
+        context->SetRequestInfo("FragmentId: %v", planFragment.Id());
         
         TWireProtocolWriter protocolWriter;
         auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();

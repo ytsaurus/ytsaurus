@@ -61,9 +61,11 @@ public:
 
 private:
     class TVotingRound;
+    friend class TVotingRound;
     typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;
 
     class TFollowerPinger;
+    friend class TFollowerPinger;
     typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
 
@@ -89,8 +91,6 @@ private:
 
     NConcurrency::TDelayedExecutor::TCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
-
-    NLog::TLogger Logger;
 
 
     // Corresponds to #ControlInvoker.
@@ -524,7 +524,7 @@ TElectionManager::TImpl::TImpl(
     : TServiceBase(
         controlInvoker,
         NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
-        ElectionLogger.GetCategory())
+        ElectionLogger)
     , Config(config)
     , CellManager(cellManager)
     , ControlInvoker(controlInvoker)
@@ -532,7 +532,6 @@ TElectionManager::TImpl::TImpl(
     , RpcServer(rpcServer)
     , State(EPeerState::Stopped)
     , VoteId(InvalidPeerId)
-    , Logger(ElectionLogger)
 {
     YCHECK(Config);
     YCHECK(CellManager);

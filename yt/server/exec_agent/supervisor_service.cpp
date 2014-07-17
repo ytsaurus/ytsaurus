@@ -24,7 +24,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),
         TSupervisorServiceProxy::GetServiceName(),
-        ExecAgentLogger.GetCategory())
+        ExecAgentLogger)
     , Bootstrap(bootstrap)
 {
     RegisterMethod(

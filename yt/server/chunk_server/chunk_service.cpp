@@ -31,7 +31,7 @@ public:
         : THydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
-            ChunkServerLogger.GetCategory())
+            ChunkServerLogger)
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(LocateChunks)
@@ -41,7 +41,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        context->SetRequestInfo("ChunkCount: %d",
+        context->SetRequestInfo("ChunkCount: %v",
             request->chunk_ids_size());
 
         auto chunkManager = Bootstrap->GetChunkManager();
@@ -67,7 +67,7 @@ private:
             }
         }
 
-        context->SetResponseInfo("ChunkCount: %d",
+        context->SetResponseInfo("ChunkCount: %v",
             response->chunks_size());
         context->Reply();
     }

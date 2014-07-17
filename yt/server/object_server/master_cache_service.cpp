@@ -35,10 +35,6 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMasterCacheService
     : public TServiceBase
 {
@@ -49,7 +45,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetPoolInvoker(),
             TObjectServiceProxy::GetServiceName(),
-            ObjectServerLogger.GetCategory())
+            ObjectServerLogger)
         , Config_(config)
         , MasterChannel_(CreateThrottlingChannel(
             config,
@@ -134,6 +130,7 @@ private:
         explicit TCache(TMasterCacheService* owner)
             : TWeightLimitedCache(owner->Config_->MaxSpace)
             , Owner_(owner)
+            , Logger(ObjectServerLogger)
         { }
 
         TFuture<TErrorOr<TSharedRefArray>> Lookup(
@@ -194,6 +191,8 @@ private:
 
     private:
         TMasterCacheService* Owner_;
+
+        const NLog::TLogger& Logger;
 
 
         virtual void OnAdded(TEntry* entry) override
@@ -277,6 +276,7 @@ private:
             TCtxExecutePtr context)
             : Context_(std::move(context))
             , Proxy_(std::move(channel))
+            , Logger(ObjectServerLogger)
         {
             Request_ = Proxy_.Execute();
             Request_->mutable_prerequisite_transactions()->MergeFrom(Context_->Request().prerequisite_transactions());
@@ -311,6 +311,7 @@ private:
         TObjectServiceProxy::TReqExecutePtr Request_;
         std::vector<TPromise<TErrorOr<TSharedRefArray>>> Promises_;
 
+        const NLog::TLogger& Logger;
 
         void OnResponse(TObjectServiceProxy::TRspExecutePtr rsp)
         {

@@ -93,7 +93,7 @@ class TMyService
 {
 public:
     TMyService(IInvokerPtr invoker, Event* event)
-        : TServiceBase(invoker, TMyProxy::ServiceName_, "Main")
+        : TServiceBase(invoker, TMyProxy::ServiceName_, NLog::TLogger("Main"))
         , Event_(event)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));

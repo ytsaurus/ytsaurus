@@ -88,11 +88,11 @@ public:
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray requestMessage,
         IBusPtr replyBus,
-        const Stroka& loggingCategory)
+        const NLog::TLogger& logger)
         : TServiceContextBase(
             std::move(header),
             std::move(requestMessage),
-            NLog::TLogger(loggingCategory))
+            logger)
         , Service_(std::move(service))
         , ActiveRequest_(std::move(activeRequest))
         , ReplyBus_(std::move(replyBus))
@@ -168,35 +168,35 @@ private:
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const Stroka& loggingCategory)
+    const NLog::TLogger& logger)
 {
     Init(
         defaultInvoker,
         serviceId,
-        loggingCategory);
+        logger);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const Stroka& loggingCategory)
+    const NLog::TLogger& logger)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
-        loggingCategory);
+        logger);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const Stroka& loggingCategory)
+    const NLog::TLogger& logger)
 {
     YCHECK(defaultInvoker);
 
     DefaultInvoker_ = defaultInvoker;
     ServiceId_ = serviceId;
-    LoggingCategory_ = loggingCategory;
+    Logger = logger;
 
     ServiceTagId_ = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
@@ -318,7 +318,7 @@ void TServiceBase::OnRequest(
         std::move(header),
         message,
         replyBus,
-        LoggingCategory_);
+        Logger);
 
     if (!oneWay) {
         Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);

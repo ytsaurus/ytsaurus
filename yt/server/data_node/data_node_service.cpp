@@ -66,11 +66,10 @@ using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
-const size_t MaxSampleSize = 4 * 1024;
+static const size_t MaxSampleSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +83,7 @@ public:
         : TServiceBase(
             CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
             TDataNodeServiceProxy::GetServiceName(),
-            DataNodeLogger.GetCategory())
+            DataNodeLogger)
         , Config_(config)
         , WorkerThread_(New<TActionQueue>("DataNodeWorker"))
         , Bootstrap_(bootstrap)
@@ -321,9 +320,12 @@ private:
         typedef NRpc::TTypedServiceContext<TReqGetBlockSet, TRspGetBlockSet> TCtxGetBlockSet;
         typedef TIntrusivePtr<TCtxGetBlockSet> TCtxGetBlockSetPtr;
 
-        TGetBlockSetSession(TIntrusivePtr<TDataNodeService> owner, TCtxGetBlockSetPtr context)
+        TGetBlockSetSession(
+            TIntrusivePtr<TDataNodeService> owner,
+            TCtxGetBlockSetPtr context)
             : Owner_(std::move(owner))
             , Context_(std::move(context))
+            , Logger(DataNodeLogger)
             , Awaiter_(New<TParallelAwaiter>(Owner_->Bootstrap_->GetControlInvoker()))
             , BlocksWithData_(0)
             , BlocksSize_(0)
@@ -403,6 +405,7 @@ private:
     private:
         TIntrusivePtr<TDataNodeService> Owner_;
         TCtxGetBlockSetPtr Context_;
+        NLog::TLogger Logger;
 
         TParallelAwaiterPtr Awaiter_;
 

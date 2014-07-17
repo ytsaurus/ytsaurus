@@ -12,12 +12,12 @@ namespace NCellMaster {
 THydraServiceBase::THydraServiceBase(
     TBootstrap* bootstrap,
     const Stroka& serviceName,
-    const Stroka& loggingCategory)
+    const NLog::TLogger& logger)
     : NHydra::THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
         serviceName,
-        loggingCategory)
+        logger)
     , Bootstrap(bootstrap)
 {
     YCHECK(Bootstrap);

@@ -18,7 +18,7 @@ protected:
     THydraServiceBase(
         TBootstrap* bootstrap,
         const Stroka& serviceName,
-        const Stroka& loggingCategory);
+        const NLog::TLogger& logger);
 
 private:
     virtual void BeforeInvoke() override;

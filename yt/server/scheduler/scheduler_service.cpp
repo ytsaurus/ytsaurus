@@ -34,7 +34,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TSchedulerServiceProxy::GetServiceName(),
-            SchedulerLogger.GetCategory())
+            SchedulerLogger)
         , Bootstrap(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));

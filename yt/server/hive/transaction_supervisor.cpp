@@ -43,10 +43,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HiveLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionSupervisor::TImpl
     : public THydraServiceBase
     , public TCompositeAutomatonPart
@@ -64,7 +60,7 @@ public:
             hydraManager,
             automatonInvoker,
             TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellGuid()),
-            HiveLogger.GetCategory())
+            HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)

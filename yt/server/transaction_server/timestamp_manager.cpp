@@ -34,10 +34,6 @@ using namespace NTransactionServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTimestampManager::TImpl
     : public TServiceBase
     , public TCompositeAutomatonPart
@@ -51,7 +47,7 @@ public:
         : TServiceBase(
             GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
-            TransactionServerLogger.GetCategory())
+            TransactionServerLogger)
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)

@@ -18,38 +18,29 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = OrchidLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOrchidService
     : public TServiceBase
 {
 public:
     TOrchidService(
-        NYTree::INodePtr root,
+        INodePtr root,
         IInvokerPtr invoker)
         : TServiceBase(
             invoker,
             TOrchidServiceProxy::GetServiceName(),
-            OrchidLogger.GetCategory())
+            OrchidLogger)
     {
         YCHECK(root);
 
-        RootService = CreateRootService(root);
+        RootService_ = CreateRootService(root);
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     }
 
 private:
-    typedef TOrchidService TThis;
-
-    NYTree::IYPathServicePtr RootService;
+    IYPathServicePtr RootService_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute)
     {
-        UNUSED(request);
-        UNUSED(response);
-
         auto requestMessage = TSharedRefArray(request->Attachments());
 
         TRequestHeader requestHeader;
@@ -60,18 +51,18 @@ private:
         auto path = GetRequestYPath(context);
         const auto& method = requestHeader.method();
 
-        context->SetRequestInfo("Path: %s, Method: %s",
-            ~path,
-            ~method);
+        context->SetRequestInfo("Path: %v, Method: %v",
+            path,
+            method);
 
-        ExecuteVerb(RootService, requestMessage)
+        ExecuteVerb(RootService_, requestMessage)
             .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
                 TResponseHeader responseHeader;
                 YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
                 auto error = FromProto<TError>(responseHeader.error());
 
-                context->SetResponseInfo("InnerError: %s", ~ToString(error));
+                context->SetResponseInfo("InnerError: %v", error);
 
                 response->Attachments() = responseMessage.ToVector();
                 context->Reply();

@@ -15,11 +15,11 @@ THydraServiceBase::THydraServiceBase(
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker,
     const TServiceId& serviceId,
-    const Stroka& loggingCategory)
+    const NLog::TLogger& logger)
     : TServiceBase(
         hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
         serviceId,
-        loggingCategory)
+        logger)
     , AutomatonInvoker_(automatonInvoker)
     , ServiceHydraManager_(hydraManager)
 {

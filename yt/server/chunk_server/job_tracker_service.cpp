@@ -36,10 +36,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobTrackerService
     : public NCellMaster::THydraServiceBase
 {
@@ -48,7 +44,7 @@ public:
         : THydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
-            ChunkServerLogger.GetCategory())
+            ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }

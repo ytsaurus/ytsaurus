@@ -29,7 +29,7 @@ public:
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(),
             TJobTrackerServiceProxy::GetServiceName(),
-            SchedulerLogger.GetCategory())
+            SchedulerLogger)
         , Bootstrap(bootstrap)
     {
         RegisterMethod(

@@ -18,7 +18,8 @@ public:
     explicit TElectionServiceMock(IInvokerPtr defaultInvoker)
         : TServiceBase(
             defaultInvoker,
-            TElectionServiceProxy::GetServiceName())
+            TElectionServiceProxy::GetServiceName(),
+            NLog::TLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
