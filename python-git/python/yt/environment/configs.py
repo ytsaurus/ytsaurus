@@ -50,6 +50,8 @@ def get_master_config():
 
     timestamp_provider = {
         addresses = [ ];
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
     };
 
     changelogs = {
@@ -114,6 +116,8 @@ def get_scheduler_config():
 
         timestamp_provider = {
             addresses = [ ];
+            soft_backoff_time = 100;
+            hard_backoff_time = 100;
         };
 
         transaction_manager = {
@@ -163,6 +167,8 @@ def get_node_config():
 
         timestamp_provider = {
             addresses = [ ];
+            soft_backoff_time = 100;
+            hard_backoff_time = 100;
         };
     };
 
@@ -272,10 +278,14 @@ def get_driver_config():
 
     timestamp_provider = {
         addresses = [ ];
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
     };
 
     master_cache = {
         addresses = [ ];
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
         rpc_timeout = 30000;
     };
 
