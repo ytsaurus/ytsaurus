@@ -95,6 +95,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force master to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
+        PYCXX_ADD_KEYWORDS_METHOD(clear_meta_data_caches, ClearMetadataCaches, "Clear meta data caches");
 
         behaviors().readyType();
     }
@@ -250,6 +251,22 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
+    Py::Object ClearMetadataCaches(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        if (args.length() > 0 || kwargs.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+
+        try {
+            DriverInstance_->GetConnection()->ClearMetadataCaches();
+        } catch (const std::exception& error) {
+            throw CreateYtError(error.what());
+        }
+
+        return Py::None();
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
+
 private:
     IDriverPtr DriverInstance_;
 };
@@ -315,7 +332,7 @@ public:
 
         return Py::None();
     }
- 
+
     virtual ~driver_module()
     { }
 };
