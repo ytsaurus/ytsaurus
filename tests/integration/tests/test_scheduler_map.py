@@ -9,7 +9,7 @@ from yt_commands import *
 
 ##################################################################
 
-class TestSchedulerMapCommands(YTEnvSetup):
+class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -22,13 +22,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             }
         }
     }
-
-    def test_empty_table(self):
-        create('table', '//tmp/t1')
-        create('table', '//tmp/t2')
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
-
-        assert read('//tmp/t2') == []
 
     def test_scheduler_event_log(self):
         create('table', '//tmp/t1')
@@ -49,6 +42,19 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 # our job should burn enough cpu
                 assert int(stats['cpu']['user_time']) > 0
         assert {"operation_started"}.issubset(event_types)
+
+
+class TestSchedulerMapCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    def test_empty_table(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
+
+        assert read('//tmp/t2') == []
 
     @only_linux
     def test_one_chunk(self):
