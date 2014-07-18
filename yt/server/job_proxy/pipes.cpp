@@ -179,6 +179,14 @@ void ChmodJobDescriptor(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
+void PrepareUserJobPipe(int fd)
+{
+    ChmodJobDescriptor(fd);
+    CheckJobDescriptor(fd);
+}
+
+////////////////////////////////////////////////////////////////////
+
 TOutputPipe::TOutputPipe(
     int fd[2],
     TOutputStream* output,
@@ -192,23 +200,6 @@ TOutputPipe::TOutputPipe(
     , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
     YCHECK(JobDescriptor);
-}
-
-void TOutputPipe::PrepareJobDescriptors()
-{
-    YASSERT(!IsFinished);
-
-    SafeClose(Pipe.ReadFd);
-
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(JobDescriptor, true);
-
-    SafeDup2(Pipe.WriteFd, JobDescriptor);
-    SafeClose(Pipe.WriteFd);
-
-    ChmodJobDescriptor(JobDescriptor);
-
-    CheckJobDescriptor(JobDescriptor);
 }
 
 void TOutputPipe::PrepareProxyDescriptors()
@@ -256,6 +247,11 @@ void TOutputPipe::Finish()
     OutputStream->Finish();
 }
 
+TJobPipe TOutputPipe::GetJobPipe() const
+{
+    return TJobPipe{JobDescriptor, Pipe.ReadFd, Pipe.WriteFd};
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TInputPipe::TInputPipe(
@@ -277,23 +273,6 @@ TInputPipe::TInputPipe(
     YCHECK(TableProducer);
     YCHECK(Buffer);
     YCHECK(Consumer);
-}
-
-void TInputPipe::PrepareJobDescriptors()
-{
-    YASSERT(!IsFinished);
-
-    SafeClose(Pipe.WriteFd);
-
-    // Always try to close target descriptor before calling dup2.
-    SafeClose(JobDescriptor, true);
-
-    SafeDup2(Pipe.ReadFd, JobDescriptor);
-    SafeClose(Pipe.ReadFd);
-
-    ChmodJobDescriptor(JobDescriptor);
-
-    CheckJobDescriptor(JobDescriptor);
 }
 
 void TInputPipe::PrepareProxyDescriptors()
@@ -354,6 +333,11 @@ void TInputPipe::Finish()
             Pipe.WriteFd,
             JobDescriptor);
     }
+}
+
+TJobPipe TInputPipe::GetJobPipe() const
+{
+    return TJobPipe{JobDescriptor, Pipe.ReadFd, Pipe.WriteFd};
 }
 
 ////////////////////////////////////////////////////////////////////

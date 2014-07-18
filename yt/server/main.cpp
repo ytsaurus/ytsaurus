@@ -39,6 +39,7 @@
 
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
+#include <server/job_proxy/pipes.h>
 
 #include <tclap/CmdLine.h>
 
@@ -47,6 +48,10 @@
 #include <util/folder/dirut.h>
 
 #include <contrib/tclap/tclap/CmdLine.h>
+
+#ifdef _linux_
+    #include <core/misc/ioprio.h>
+#endif
 
 namespace NYT {
 
@@ -66,6 +71,7 @@ DECLARE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
+    ((ExecutorError)(3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +95,13 @@ public:
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
+        , Executor("", "executor", "start a user job")
+        , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
+        , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
+        , VMLimit("", "vm-limit", "vm limit", false, -1, "NUM")
+        , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
+        , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
+        , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
     {
         CmdLine.add(CellNode);
         CmdLine.add(CellMaster);
@@ -104,6 +117,13 @@ public:
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
+        CmdLine.add(Executor);
+        CmdLine.add(PreparePipes);
+        CmdLine.add(EnableCoreDumps);
+        CmdLine.add(VMLimit);
+        CmdLine.add(Uid);
+        CmdLine.add(EnableIOPrio);
+        CmdLine.add(Command);
     }
 
     TCLAP::CmdLine CmdLine;
@@ -123,6 +143,14 @@ public:
     TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
+
+    TCLAP::SwitchArg Executor;
+    TCLAP::MultiArg<int> PreparePipes;
+    TCLAP::SwitchArg EnableCoreDumps;
+    TCLAP::ValueArg<i64> VMLimit;
+    TCLAP::ValueArg<int> Uid;
+    TCLAP::SwitchArg EnableIOPrio;
+    TCLAP::ValueArg<Stroka> Command;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,6 +170,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isJobProxy = parser.JobProxy.getValue();
     bool isCleaner = parser.Cleaner.getValue();
     bool isKiller = parser.Killer.getValue();
+    bool isExecutor = parser.Executor.getValue();
 
     bool doCloseAllFds = parser.CloseAllFds.getValue();
 
@@ -164,12 +193,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isJobProxy) {
         ++modeCount;
     }
-
     if (isCleaner) {
         ++modeCount;
     }
-
     if (isKiller) {
+        ++modeCount;
+    }
+    if (isExecutor) {
         ++modeCount;
     }
 
@@ -247,6 +277,56 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NCGroup::TNonOwningCGroup cgroup(path);
         cgroup.EnsureExistance();
         cgroup.AddCurrentTask();
+    }
+
+    auto vmLimit = parser.VMLimit.getValue();
+    if (vmLimit > 0) {
+        struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
+
+        auto res = setrlimit(RLIMIT_AS, &rlimit);
+        if (res) {
+            fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
+                    rlimit.rlim_max,
+                    strerror(errno));
+            return EExitCode::ExecutorError;
+        }
+    }
+
+    if (parser.EnableCoreDumps.getValue()) {
+        struct rlimit rlimit = {0, 0};
+
+        auto res = setrlimit(RLIMIT_CORE, &rlimit);
+        if (res) {
+            fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+            return EExitCode::ExecutorError;
+        }
+    }
+
+    if (isExecutor) {
+        for (auto fd : parser.PreparePipes.getValue()) {
+            PrepareUserJobPipe(fd);
+        }
+
+        auto uid = parser.Uid.getValue();
+        if (uid > 0) {
+            // Set unprivileged uid and gid for user process.
+            YCHECK(setuid(0) == 0);
+
+            YCHECK(setresgid(uid, uid, uid) == 0);
+            YCHECK(setuid(uid) == 0);
+
+            if (parser.EnableIOPrio.getValue()) {
+                YCHECK(ioprio_set(IOPRIO_WHO_USER, uid, IOPRIO_PRIO_VALUE(IOPRIO_CLASS_BE, 7)) == 0);
+            }
+        }
+
+        auto command = parser.Command.getValue();
+        execl("/bin/sh",
+            "/bin/sh",
+            "-c",
+            ~command,
+            (void*)NULL);
+        return EExitCode::ExecutorError;
     }
 
     // Start an appropriate server.

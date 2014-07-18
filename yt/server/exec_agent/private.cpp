@@ -13,8 +13,6 @@ const int EmptyUserId = -1;
 
 const Stroka SandboxDirectoryName("sandbox");
 
-const Stroka ProxyConfigFileName("config.yson");
-
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

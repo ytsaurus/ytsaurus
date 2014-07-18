@@ -26,33 +26,20 @@ void CheckJobDescriptor(int fd);
 
 ////////////////////////////////////////////////////////////////////
 
-struct TPipe
+struct TJobPipe
 {
+    int PipeIndex;
     int ReadFd;
     int WriteFd;
-
-    TPipe(int fd[2])
-        : ReadFd(fd[0])
-        , WriteFd(fd[1])
-    { }
-
-    TPipe()
-        : ReadFd(-1)
-        , WriteFd(-1)
-    { }
 };
+
+void PrepareUserJobPipe(int fd);
 
 ////////////////////////////////////////////////////////////////////
 
 struct IDataPipe
     : public virtual TRefCounted
 {
-    /*!
-     *  Called from job process after fork and before exec.
-     *  Closes unused fds, remaps other to a proper number.
-     */
-    virtual void PrepareJobDescriptors() = 0;
-
     /*!
      *  Called from proxy process after fork.
      *  E.g. makes required pipes non-blocking.
@@ -64,6 +51,8 @@ struct IDataPipe
     virtual TError Close() = 0;
 
     virtual void Finish() = 0;
+
+    virtual TJobPipe GetJobPipe() const = 0;
 };
 
 typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
@@ -79,7 +68,6 @@ public:
         TOutputStream* output,
         int jobDescriptor);
 
-    virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
     virtual TError DoAll() override;
@@ -88,6 +76,8 @@ public:
 
     virtual TError Close() override;
     virtual void Finish() override;
+
+    virtual TJobPipe GetJobPipe() const override;
 
 private:
     TOutputStream* OutputStream;
@@ -118,7 +108,6 @@ public:
         std::unique_ptr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
-    virtual void PrepareJobDescriptors() override;
     virtual void PrepareProxyDescriptors() override;
 
     virtual TError DoAll() override;
@@ -127,6 +116,8 @@ public:
 
     virtual TError Close() override;
     virtual void Finish() override;
+
+    virtual TJobPipe GetJobPipe() const override;
 
 private:
     TPipe Pipe;
