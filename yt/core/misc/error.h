@@ -64,6 +64,12 @@ public:
 
     TNullable<TError> FindMatching(int code) const;
 
+    template <class TInner, class... TArgs>
+    static TError Wrap(const TInner& inner, TArgs&&... args);
+
+    template <class TInner>
+    static TError Wrap(const TInner& inner);
+
     enum
     {
         OK = 0,
@@ -170,12 +176,7 @@ TException&& operator <<= (TException&& ex, const TError& error)
 #define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
     if ((error).IsOK()) {\
     } else { \
-        auto PP_CONCAT(wrapperError_, __LINE__) = ::NYT::TError(__VA_ARGS__); \
-        if (PP_CONCAT(wrapperError_, __LINE__).IsOK()) { \
-            THROW_ERROR (error); \
-        } else { \
-            THROW_ERROR PP_CONCAT(wrapperError_, __LINE__) << (error); \
-        } \
+        THROW_ERROR ::NYT::TError::Wrap(error, __VA_ARGS__); \
     }\
 
 ////////////////////////////////////////////////////////////////////////////////

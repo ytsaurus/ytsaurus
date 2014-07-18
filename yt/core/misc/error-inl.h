@@ -9,6 +9,20 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TInner, class... TArgs>
+static TError TError::Wrap(const TInner& inner, TArgs&&... args)
+{
+    return TError(std::forward<TArgs>(args)...) << inner;
+}
+
+template <class TInner>
+static TError TError::Wrap(const TInner& inner)
+{
+    return inner;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class... TArgs>
 TError::TErrorOr(const char* format, const TArgs&... args)
     : Code_(GenericFailure)
