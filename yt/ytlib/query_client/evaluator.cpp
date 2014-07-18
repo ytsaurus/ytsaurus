@@ -41,7 +41,7 @@ static const auto& Logger = QueryClientLogger;
 
 void InitializeLlvmImpl()
 {
-    llvm::llvm_start_multithreaded();
+    YCHECK(llvm::llvm_is_multithreaded());
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmParser();
     llvm::InitializeNativeTargetAsmPrinter();
