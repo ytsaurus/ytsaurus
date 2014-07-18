@@ -105,13 +105,6 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
         auto currentPath = chunk->GetLocation()->GetChunkFileName(chunk->GetId());
 
-        // Compare if replicas are equal.
-        LOG_FATAL_IF(
-            oldChunk->GetInfo().disk_space() != chunk->GetInfo().disk_space(),
-            "Duplicate chunks with different size: %v vs %v",
-            currentPath,
-            oldPath);
-
         // Check that replicas point to the different inodes.
         LOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
@@ -119,12 +112,49 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             currentPath,
             oldPath);
 
-        // Remove duplicate replica.
-        LOG_WARNING("Removing duplicate chunk: %v vs %v",
-            currentPath,
-            oldPath);
+        switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
+                // Compare if replicas are equal.
+                LOG_FATAL_IF(
+                    oldChunk->GetInfo().disk_space() != chunk->GetInfo().disk_space(),
+                    "Duplicate chunks with different size: %v vs %v",
+                    currentPath,
+                    oldPath);
 
-        chunk->SyncRemove();
+                // Remove duplicate replica.
+                LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
+                    currentPath,
+                    oldPath);
+                chunk->SyncRemove();
+                break;
+            }
+
+            case EObjectType::JournalChunk: {
+                auto longerInfo = chunk->GetInfo();
+                auto shorterInfo = oldChunk->GetInfo();
+
+                auto longerChunk = chunk;
+                auto shorterChunk = oldChunk;
+
+                if (longerInfo.record_count() < shorterInfo.record_count()) {
+                    std::swap(longerInfo, shorterInfo);
+                    std::swap(longerChunk, shorterChunk);
+                }
+
+                // Remove shorter replica.
+                LOG_WARNING("Removing shorter journal chunk: %v (%v records) vs %v (%v records)",
+                    shorterChunk->GetFileName(),
+                    shorterInfo.record_count(),
+                    longerChunk->GetFileName(),
+                    longerInfo.record_count());
+                shorterChunk->SyncRemove();
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
         return;
     }
 
