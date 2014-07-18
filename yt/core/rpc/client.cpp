@@ -147,7 +147,7 @@ bool TClientResponseBase::IsOK() const
     return Error_.IsOK();
 }
 
-TClientResponseBase::operator TError()
+TClientResponseBase::operator TError() const
 {
     return Error_;
 }

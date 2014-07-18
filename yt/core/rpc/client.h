@@ -230,7 +230,7 @@ public:
 
 public:
     bool IsOK() const;
-    operator TError();
+    operator TError() const;
 
 protected:
     DECLARE_ENUM(EState,
