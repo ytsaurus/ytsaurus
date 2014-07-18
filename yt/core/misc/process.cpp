@@ -173,24 +173,24 @@ TError TProcess::Spawn()
 
     {
         int data[2];
-        if (::read(Pipe_.ReadFd, &data, 2 * sizeof(int)) == 2 * sizeof(int)) {
+        if (::read(Pipe_.ReadFd, &data, sizeof(data)) == sizeof(data)) {
             ::waitpid(pid, nullptr, 0);
             Finished_ = true;
             auto errorType = data[0];
-            auto errCode = data[1];
+            auto errorCode = data[1];
             if (errorType == -1) {
                 return TError("Error waiting for child process to finish: execve failed")
-                    << TError::FromSystem(errCode);
+                    << TError::FromSystem(errorCode);
             } else if (errorType < FileActions_.size()) {
                 const auto& action = FileActions_[errorType];
                 if (action.Type == NDetail::EFileAction::Close) {
                     return TError("Error closing %v file descriptor in the child", action.Param1)
-                        << TError::FromSystem(errCode);
+                        << TError::FromSystem(errorCode);
                 } else if (action.Type == NDetail::EFileAction::Dup2) {
                     return TError("Error duplication %v file descriptor to %v in the child",
                         action.Param1,
                         action.Param2)
-                        << TError::FromSystem(errCode);
+                        << TError::FromSystem(errorCode);
                 } else {
                     YUNREACHABLE();
                 }
@@ -296,7 +296,8 @@ void TProcess::ChildErrorHandler(int errorType)
         errno
     };
 
-    while (::write(ChildPipe_.WriteFd, &data, 2 * sizeof(int)) < 0);
+    // according to pipe(7) write of small buffer is atomic
+    while (::write(ChildPipe_.WriteFd, &data, sizeof(data)) < 0);
 
     _exit(1);
 }

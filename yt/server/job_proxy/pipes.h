@@ -19,10 +19,6 @@ int SafeDup(int oldFd);
 void SafeDup2(int oldFd, int newFd);
 int SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
-void ChmodJobDescriptor(int fd);
-
-// Ensures that descriptor is open and CLOEXEC flag is not set.
-void CheckJobDescriptor(int fd);
 
 ////////////////////////////////////////////////////////////////////
 

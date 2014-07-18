@@ -113,34 +113,6 @@ void SafeMakeNonblocking(int fd)
     }
 }
 
-void CheckJobDescriptor(int fd)
-{
-    auto res = fcntl(fd, F_GETFD);
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("Job descriptor is not valid (Fd: %d)", fd)
-            << TError::FromSystem();
-    }
-
-    if (res & FD_CLOEXEC) {
-        THROW_ERROR_EXCEPTION("CLOEXEC flag is set for job descriptor (Fd: %d)", fd);
-    }
-}
-
-void ChmodJobDescriptor(int fd)
-{
-    const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
-    auto procPath = Format("/proc/self/fd/%v", fd);
-    auto res = chmod(~procPath, permissions);
-
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (Fd: %d, Permissions: %d)",
-            fd,
-            permissions)
-            << TError::FromSystem();
-    }
-}
-
-
 #else
 
 // Streaming jobs are not supposed to work on windows for now.
@@ -181,8 +153,18 @@ void ChmodJobDescriptor(int fd)
 
 void PrepareUserJobPipe(int fd)
 {
-    ChmodJobDescriptor(fd);
-    CheckJobDescriptor(fd);
+#ifdef _unix_
+    const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
+    auto procPath = Format("/proc/self/fd/%v", fd);
+    auto res = chmod(~procPath, permissions);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (Fd: %d, Permissions: %d)",
+            fd,
+            permissions)
+            << TError::FromSystem();
+    }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////
