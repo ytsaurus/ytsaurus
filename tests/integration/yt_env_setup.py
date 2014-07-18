@@ -7,6 +7,7 @@ import gc
 import os
 import logging
 import shutil
+import uuid
 from datetime import datetime
 
 from functools import wraps
@@ -33,21 +34,7 @@ class YTEnvSetup(YTEnv):
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel
-        # counter = 0
-        # while True:
-        #     counter += 1
-        #     path_to_run = os.path.join(path_to_test, "run" + str(counter))
-        #     try:
-        #         if os.path.exists(path_to_run):
-        #             age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(path_to_run)) 
-        #             if age.days > 0 or age.seconds > 60:
-        #                 shutil.rmtree(path_to_run, ignore_errors=True)
-        #         os.makedirs(path_to_run)
-        #         break
-        #     except OSError:
-        #         pass
-        path_to_run = os.path.join(path_to_test, "run")
-
+        path_to_run = os.path.join(path_to_test, "run" + str(uuid.uuid4().hex))
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
         cls.path_to_test = path_to_test
