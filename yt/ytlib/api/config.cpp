@@ -41,18 +41,28 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();
+
     RegisterParameter("query_timeout", QueryTimeout)
         .Default(TDuration::Seconds(60));
+
     RegisterParameter("write_request_codec", WriteRequestCodec)
         .Default(NCompression::ECodec::Lz4);
     RegisterParameter("lookup_request_codec", LookupRequestCodec)
         .Default(NCompression::ECodec::Lz4);
+
     RegisterParameter("max_rows_per_read", MaxRowsPerRead)
         .GreaterThan(0)
         .Default(1000);
     RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
         .GreaterThan(0)
         .Default(1000);
+
+    RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
+        .GreaterThan(0)
+        .Default(100000000);
+    RegisterParameter("default_output_row_limit", DefaultInputRowLimit)
+        .GreaterThan(0)
+        .Default(1000000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

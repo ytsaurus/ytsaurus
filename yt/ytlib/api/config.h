@@ -55,13 +55,20 @@ public:
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
+    
     TDuration QueryTimeout;
+    
     NCompression::ECodec WriteRequestCodec;
     NCompression::ECodec LookupRequestCodec;
+    
     int MaxRowsPerRead;
     int MaxRowsPerWrite;
 
+    int DefaultInputRowLimit;
+    int DefaultOutputRowLimit;
+
     TConnectionConfig();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)

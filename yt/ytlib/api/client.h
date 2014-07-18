@@ -119,8 +119,10 @@ struct TSelectRowsOptions
 {
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::LastCommittedTimestamp;
-    i64 InputRowLimit = std::numeric_limits<i64>::max();
-    i64 OutputRowLimit = std::numeric_limits<i64>::max();
+    //! If null then connection defaults are used.
+    TNullable<i64> InputRowLimit;
+    //! If null then connection defaults are used.
+    TNullable<i64> OutputRowLimit;
 };
 
 struct TGetNodeOptions

@@ -17,7 +17,6 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-
 namespace NYT {
 namespace NScheduler {
 
