@@ -22,6 +22,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Profiler = HydraProfiler;
+static const auto& Logger = HydraLogger;
 
 static const auto FlushThreadQuantum = TDuration::MilliSeconds(10);
 
@@ -36,6 +37,11 @@ public:
         , UseCount_(0)
         , FlushedRecordCount_(changelog->GetRecordCount())
     { }
+
+    TSyncFileChangelogPtr GetChangelog()
+    {
+        return Changelog_;
+    }
 
 
     void Lock()
@@ -472,13 +478,8 @@ public:
 
     void Remove(TSyncFileChangelogPtr changelog)
     {
-        RemoveQueue(changelog);
-
-        auto path = changelog->GetFileName();
-
-        changelog->Close();
-
-        RemoveChangelogFiles(path);
+        Close(changelog);
+        RemoveChangelogFiles(changelog->GetFileName());
     }
 
 private:
@@ -526,6 +527,7 @@ private:
         } else {
             queue = New<TChangelogQueue>(changelog);
             YCHECK(QueueMap_.insert(std::make_pair(changelog, queue)).second);
+            LOG_DEBUG("Changelog queue created (Path: %v)", changelog->GetFileName());
         }
 
         queue->Lock();
@@ -536,6 +538,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock_);
         QueueMap_.erase(changelog);
+        LOG_DEBUG("Changelog queue removed (Path: %v)", changelog->GetFileName());
     }
 
     void FlushQueues()
@@ -567,6 +570,7 @@ private:
             auto queue = jt->second;
             if (queue->TrySweep()) {
                 QueueMap_.erase(jt);
+                LOG_DEBUG("Changelog queue removed (Path: %v)", jt->second->GetChangelog()->GetFileName());
             }
         }
     }
@@ -665,6 +669,11 @@ public:
         return DispatcherImpl_->Unseal(SyncChangelog_);
     }
 
+    void Close()
+    {
+        DispatcherImpl_->Close(SyncChangelog_);
+    }
+
     void Remove()
     {
         DispatcherImpl_->Remove(SyncChangelog_);
@@ -720,6 +729,13 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     syncChangelog->Open();
 
     return New<TFileChangelog>(this, config, syncChangelog);
+}
+
+void TFileChangelogDispatcher::CloseChangelog(IChangelogPtr changelog)
+{
+    auto* fileChangelog = dynamic_cast<TFileChangelog*>(changelog.Get());
+    YCHECK(fileChangelog);
+    fileChangelog->Close();
 }
 
 void TFileChangelogDispatcher::RemoveChangelog(IChangelogPtr changelog)

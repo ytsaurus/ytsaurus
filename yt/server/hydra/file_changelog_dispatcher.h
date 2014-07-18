@@ -27,6 +27,8 @@ public:
         const Stroka& path,
         TFileChangelogConfigPtr config);
 
+    void CloseChangelog(IChangelogPtr changelog);
+
     void RemoveChangelog(IChangelogPtr changelog);
 
 private:

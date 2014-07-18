@@ -152,6 +152,11 @@ public:
         TCacheBase::Remove(chunk->GetId());
     }
 
+    void CloseChangelog(IChangelogPtr changelog)
+    {
+        ChangelogDispatcher_->CloseChangelog(changelog);
+    }
+
 private:
     friend class TCachedChangelog;
     friend class TMultiplexedReplay;
@@ -393,6 +398,11 @@ public:
         , EnableMultiplexing_(enableMultiplexing)
         , LastSplitFlushResult_(UnderlyingChangelog_->Flush())
     { }
+
+    ~TCachedChangelog()
+    {
+        Owner_->CloseChangelog(UnderlyingChangelog_);
+    }
 
     virtual TSharedRef GetMeta() const override
     {
