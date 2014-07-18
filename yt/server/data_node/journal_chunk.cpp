@@ -62,15 +62,21 @@ bool TJournalChunk::IsActive() const
     return Active_;
 }
 
+const TChunkInfo& TJournalChunk::GetInfo() const
+{
+    UpdateInfo();
+    return TChunkBase::GetInfo();
+}
+
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
-    UpdateInfo();
+    const auto& info = GetInfo();
 
     TMiscExt miscExt;
-    miscExt.set_record_count(Info_.record_count());
-    miscExt.set_sealed(Info_.sealed());
+    miscExt.set_record_count(info.record_count());
+    miscExt.set_sealed(info.sealed());
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
@@ -158,7 +164,7 @@ void TJournalChunk::DoReadBlocks(
     }
 }
 
-void TJournalChunk::UpdateInfo()
+void TJournalChunk::UpdateInfo() const
 {
     if (Changelog_) {
         Info_.set_record_count(Changelog_->GetRecordCount());

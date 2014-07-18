@@ -40,7 +40,7 @@ protected:
     NCellNode::TBootstrap* Bootstrap_;
     TLocationPtr Location_;
     TChunkId Id_;
-    NChunkClient::NProto::TChunkInfo Info_;
+    mutable NChunkClient::NProto::TChunkInfo Info_;
 
     int Version_ = 0;
 

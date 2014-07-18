@@ -25,6 +25,7 @@ public:
     void SetActive(bool value);
     virtual bool IsActive() const override;
 
+    virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const override;
     virtual TAsyncGetMetaResult GetMeta(
         i64 priority,
         const std::vector<int>* tags = nullptr) override;
@@ -42,7 +43,7 @@ private:
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
 
-    void UpdateInfo();
+    void UpdateInfo() const;
 
     virtual void EvictFromCache() override;
     virtual TFuture<void> AsyncRemove() override;
