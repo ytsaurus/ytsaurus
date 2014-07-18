@@ -3,6 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 #include "plan_fragment.h"
+#include "key_trie.h"
 
 #include <core/logging/log.h>
 
@@ -71,7 +72,7 @@ private:
     };
 
 private:
-    std::vector<const TOperator*> Scatter(const TOperator* op);
+    std::vector<const TOperator*> Scatter(const TOperator* op, const TKeyTrieNode& keyTrie = TKeyTrieNode());
     const TOperator* Gather(const std::vector<const TOperator*>& ops);
 
     const TOperator* Simplify(const TOperator*);
@@ -79,7 +80,8 @@ private:
     TGroupedDataSplits SplitAndRegroup(
         const TDataSplits& splits,
         const TTableSchema& tableSchema,
-        const TKeyColumns& keyColumns);
+        const TKeyColumns& keyColumns,
+        const TKeyTrieNode& keyTrie);
 
     TDataSplitExplanation Explain(const TDataSplit& split);
 

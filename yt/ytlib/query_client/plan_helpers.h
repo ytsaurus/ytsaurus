@@ -1,18 +1,26 @@
 #pragma once
 
 #include "public.h"
+#include "key_trie.h"
+
+#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/new_table_client/row_buffer.h>
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyTrieNode ExtractMultipleConstraints(
+    const TExpression* expr,
+    const TKeyColumns& keyColumns,
+    TRowBuffer* rowBuffer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Infers key columns of the query result.
 //! XXX(sandello): Right now it just computes key columns for the data source.
 TKeyColumns InferKeyColumns(const TOperator* op);
-
-//! Estimates superset of the key range of the query result.
-TKeyRange InferKeyRange(const TOperator* op);
 
 //! Refines |keyRange| for key composed of |keyColumns| given
 //! the filtering predicate.

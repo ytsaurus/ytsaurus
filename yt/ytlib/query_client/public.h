@@ -64,6 +64,8 @@ typedef NVersionedTableClient::TUnversionedValueData TValueData;
 typedef NVersionedTableClient::TOwningKey TKey;
 typedef std::pair<TKey, TKey> TKeyRange;
 
+using NVersionedTableClient::TRowBuffer;
+
 struct TQueryStatistics
 {
     i64 RowsRead = 0;

@@ -259,12 +259,8 @@ public:
         TLabel(const TOperator* op)
         {
             AddHeader(op);
-            auto keyColumns = op->GetKeyColumns();
-            auto keyRange = op->GetKeyRange();
             WithRow(
-                "KeyColumns: " + NDot::EscapeHtml(JoinToString(keyColumns)) + "<BR />" +
-                "KeyRange: " + NDot::EscapeHtml(ToString(keyRange.first)) +
-                    " ... " + NDot::EscapeHtml(ToString(keyRange.second)));
+                "KeyColumns: " + NDot::EscapeHtml(JoinToString(op->GetKeyColumns())));
         }
 
         TLabel(const TExpression* expr, const TTableSchema& sourceSchema)

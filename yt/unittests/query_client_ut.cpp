@@ -667,12 +667,40 @@ INSTANTIATE_TEST_CASE_P(
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInFirstComponent));
 
+// NotEqual, First component.
+TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
+    {
+        ("1;1;1"), ("100;100;100"),
+        "k", EBinaryOp::NotEqual, 50,
+        false, ("1;1;1"), ("100;100;100")
+    },
+    {
+        ("1;1;1"), ("100;100;100"),
+        "k", EBinaryOp::NotEqual, 1,
+        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
+    },
+    {
+        ("1;1;1"), ("100;100;100"),
+        "k", EBinaryOp::NotEqual, 100,
+        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
+    },
+    {
+        ("1;1;1"), ("100;100;100"),
+        "k", EBinaryOp::NotEqual, 200,
+        false, ("1;1;1"), ("100;100;100")
+    },
+};
+INSTANTIATE_TEST_CASE_P(
+    NotEqualInFirstComponent,
+    TRefineKeyRangeTest,
+    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInFirstComponent));
+
 // Less, First component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Less, 50,
-        false, ("1;1;1"), ("49;" _MAX_ ";" _MAX_)
+        false, ("1;1;1"), ("50;" _MIN_ ";" _MIN_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -682,7 +710,7 @@ TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Less, 100,
-        false, ("1;1;1"), ("99;" _MAX_ ";" _MAX_)
+        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -700,17 +728,17 @@ TRefineKeyRangeTestCase refineCasesForLessOrEqualOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 50,
-        false, ("1;1;1"), ("50;" _MAX_ ";" _MAX_)
+        false, ("1;1;1"), ("51;" _MIN_ ";" _MIN_)
     },
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 1,
-        false, ("1;1;1"), ("1;" _MAX_ ";" _MAX_)
+        false, ("1;1;1"), ("2;" _MIN_ ";" _MIN_)
     },
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 99,
-        false, ("1;1;1"), ("99;" _MAX_ ";" _MAX_)
+        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -823,6 +851,34 @@ INSTANTIATE_TEST_CASE_P(
     EqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInLastComponent));
+
+// NotEqual, Last component.
+TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
+    {
+        ("1;1;1"), ("1;1;100"),
+        "m", EBinaryOp::NotEqual, 50,
+        false, ("1;1;1"), ("1;1;100")
+    },
+    {
+        ("1;1;1"), ("1;1;100"),
+        "m", EBinaryOp::NotEqual, 1,
+        false, ("1;1;2"), ("1;1;100")
+    },
+    {
+        ("1;1;1"), ("1;1;100"),
+        "m", EBinaryOp::NotEqual, 100,
+        false, ("1;1;1"), ("1;1;100")
+    },
+    {
+        ("1;1;1"), ("1;1;100"),
+        "m", EBinaryOp::NotEqual, 200,
+        false, ("1;1;1"), ("1;1;100")
+    },
+};
+INSTANTIATE_TEST_CASE_P(
+    NotEqualInLastComponent,
+    TRefineKeyRangeTest,
+    ::testing::ValuesIn(refineCasesForNotEqualOpcodeInLastComponent));
 
 // Less, Last component.
 TRefineKeyRangeTestCase refineCasesForLessOpcodeInLastComponent[] = {
@@ -1021,7 +1077,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
         Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
 
     EXPECT_EQ(BuildKey("10;" _MIN_ ";" _MIN_), result.first);
-    EXPECT_EQ(BuildKey("89;" _MAX_ ";" _MAX_), result.second);
+    EXPECT_EQ(BuildKey("90;" _MIN_ ";" _MIN_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
@@ -1047,8 +1103,8 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
                 Make<TBinaryOpExpression>(EBinaryOp::And,
                     conj1, conj2), conj3), conj4));
 
-    EXPECT_EQ(BuildKey("50;10;50"), result.first);
-    EXPECT_EQ(BuildKey("50;89;51"), result.second);
+    EXPECT_EQ(BuildKey("50;10;" _MIN_), result.first);
+    EXPECT_EQ(BuildKey("50;90;" _MIN_), result.second);
 }
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
@@ -1065,8 +1121,175 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
         Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
 
-    EXPECT_EQ(BuildKey("50;" _MIN_ ";50"), result.first);
-    EXPECT_EQ(BuildKey("50;" _MAX_ ";51"), result.second);
+    EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result.first);
+    EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
+}
+
+TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("m"),
+        Make<TLiteralExpression>(i64(50)));
+
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
+
+    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(75)));
+    auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("m"),
+        Make<TLiteralExpression>(i64(50)));
+
+    auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::And, conj4, conj5);
+
+    TRowBuffer rowBuffer;
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        Make<TBinaryOpExpression>(EBinaryOp::Or, conj3, conj6),
+        keyColumns,
+        &rowBuffer);
+
+    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        &rowBuffer,
+        keyColumns.size(),
+        keyTrie);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result[0].first);
+    EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("75;" _MIN_ ";" _MIN_), result[1].first);
+    EXPECT_EQ(BuildKey("75;" _MAX_ ";" _MAX_), result[1].second);
+}
+
+TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(50)));
+
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(40)));
+
+    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Less,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(60)));
+
+    auto conj5 = Make<TBinaryOpExpression>(
+        EBinaryOp::And,
+        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2),
+        Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4));
+
+    TRowBuffer rowBuffer;
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        conj5,
+        keyColumns,
+        &rowBuffer);
+
+    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        &rowBuffer,
+        keyColumns.size(),
+        keyTrie);
+
+    EXPECT_EQ(result.size(), 2);
+
+    EXPECT_EQ(BuildKey("50;41;" _MIN_), result[0].first);
+    EXPECT_EQ(BuildKey("50;50;" _MIN_), result[0].second);
+
+    EXPECT_EQ(BuildKey("50;51;" _MIN_), result[1].first);
+    EXPECT_EQ(BuildKey("50;60;" _MIN_), result[1].second);
+}
+
+TEST_F(TRefineKeyRangeTest, RangesProduct)
+{
+    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(40)));
+    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("k"),
+        Make<TLiteralExpression>(i64(60)));
+
+    auto disj1 = Make<TBinaryOpExpression>(
+        EBinaryOp::Or,
+        Make<TBinaryOpExpression>(EBinaryOp::Or, conj1, conj2),
+        conj3);
+
+    auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(40)));
+    auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(50)));
+    auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
+        Make<TReferenceExpression>("l"),
+        Make<TLiteralExpression>(i64(60)));
+
+    auto disj2 = Make<TBinaryOpExpression>(
+        EBinaryOp::Or,
+        Make<TBinaryOpExpression>(EBinaryOp::Or, conj4, conj5),
+        conj6);
+
+    TRowBuffer rowBuffer;
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        Make<TBinaryOpExpression>(EBinaryOp::And, disj1, disj2),
+        keyColumns,
+        &rowBuffer);
+
+    std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        &rowBuffer,
+        keyColumns.size(),
+        keyTrie);
+
+    EXPECT_EQ(result.size(), 9);
+
+    EXPECT_EQ(BuildKey("40;40;" _MIN_), result[0].first);
+    EXPECT_EQ(BuildKey("40;40;" _MAX_), result[0].second);
+
+    EXPECT_EQ(BuildKey("40;50;" _MIN_), result[1].first);
+    EXPECT_EQ(BuildKey("40;50;" _MAX_), result[1].second);
+
+    EXPECT_EQ(BuildKey("40;60;" _MIN_), result[2].first);
+    EXPECT_EQ(BuildKey("40;60;" _MAX_), result[2].second);
+
+    EXPECT_EQ(BuildKey("50;40;" _MIN_), result[3].first);
+    EXPECT_EQ(BuildKey("50;40;" _MAX_), result[3].second);
+
+    EXPECT_EQ(BuildKey("50;50;" _MIN_), result[4].first);
+    EXPECT_EQ(BuildKey("50;50;" _MAX_), result[4].second);
+
+    EXPECT_EQ(BuildKey("50;60;" _MIN_), result[5].first);
+    EXPECT_EQ(BuildKey("50;60;" _MAX_), result[5].second);
+
+    EXPECT_EQ(BuildKey("60;40;" _MIN_), result[6].first);
+    EXPECT_EQ(BuildKey("60;40;" _MAX_), result[6].second);
+
+    EXPECT_EQ(BuildKey("60;50;" _MIN_), result[7].first);
+    EXPECT_EQ(BuildKey("60;50;" _MAX_), result[7].second);
+
+    EXPECT_EQ(BuildKey("60;60;" _MIN_), result[8].first);
+    EXPECT_EQ(BuildKey("60;60;" _MAX_), result[8].second);
 }
 
 TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
@@ -1149,7 +1372,7 @@ TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
         .RetiresOnSaturation();
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(splits)));
-    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(3), _))
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
         .WillOnce(Return(groupedSplits));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
         .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));

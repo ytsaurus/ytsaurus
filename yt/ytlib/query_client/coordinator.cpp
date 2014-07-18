@@ -5,10 +5,8 @@
 #include "helpers.h"
 
 #include "plan_node.h"
-#include "plan_visitor.h"
 #include "plan_helpers.h"
-
-#include "graphviz.h"
+#include "plan_visitor.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -83,30 +81,6 @@ void TCoordinator::Run()
             LOG_DEBUG("Coordinating plan fragment");
             NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
-            // Infer key range and push it down.
-            auto keyRange = Fragment_.GetHead()->GetKeyRange();
-            auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
-                return Format("[%v .. %v]",
-                    range.first,
-                    range.second);
-            };
-            Fragment_.Rewrite([&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
-                if (auto* scanOp = op->As<TScanOperator>()) {
-                    auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
-                    for (auto& split : clonedScanOp->DataSplits()) {
-                        auto originalRange = GetBothBoundsFromDataSplit(split);
-                        auto intersectedRange = Intersect(originalRange, keyRange);
-                        LOG_DEBUG("Narrowing split %s key range from %s to %s",
-                                ~ToString(GetObjectIdFromDataSplit(split)),
-                                ~keyRangeFormatter(originalRange),
-                                ~keyRangeFormatter(intersectedRange));
-                        SetBothBounds(&split, intersectedRange);
-                    }
-                    return clonedScanOp;
-                }
-                return op;
-            });
-
             // Now build and distribute fragments.
             Fragment_ = TPlanFragment(
                 Fragment_.GetContext(),
@@ -157,7 +131,7 @@ TQueryStatistics TCoordinator::GetStatistics() const
     return result;
 }
 
-std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
+std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op, const TKeyTrieNode& keyTrie)
 {
     auto* context = Fragment_.GetContext().Get();
     std::vector<const TOperator*> resultOps;
@@ -169,7 +143,8 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
             auto groupedSplits = SplitAndRegroup(
                 scanOp->DataSplits(),
                 scanOp->GetTableSchema(),
-                scanOp->GetKeyColumns());
+                scanOp->GetKeyColumns(),
+                keyTrie);
 
             for (const auto& splits : groupedSplits) {
                 auto* newScanOp = scanOp->Clone(context)->As<TScanOperator>();
@@ -183,7 +158,13 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Filter: {
             auto* filterOp = op->As<TFilterOperator>();
 
-            resultOps = Scatter(filterOp->GetSource());
+            TRowBuffer rowBuffer;
+            auto predicateConstraints = ExtractMultipleConstraints(
+                filterOp->GetPredicate(),
+                InferKeyColumns(filterOp->GetSource()), &rowBuffer);
+            auto resultConstraints = IntersectKeyTrie(predicateConstraints, keyTrie, &rowBuffer);            
+
+            resultOps = Scatter(filterOp->GetSource(), resultConstraints);
             for (auto& resultOp : resultOps) {
                 auto* newFilterOp = filterOp->Clone(context)->As<TFilterOperator>();
                 newFilterOp->SetSource(resultOp);
@@ -196,7 +177,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Group: {
             auto* groupOp = op->As<TGroupOperator>();
 
-            resultOps = Scatter(groupOp->GetSource());
+            resultOps = Scatter(groupOp->GetSource(), keyTrie);
             for (auto& resultOp : resultOps) {
                 auto* newGroupOp = groupOp->Clone(context)->As<TGroupOperator>();
                 newGroupOp->SetSource(resultOp);
@@ -239,7 +220,7 @@ std::vector<const TOperator*> TCoordinator::Scatter(const TOperator* op)
         case EOperatorKind::Project: {
             auto* projectOp = op->As<TProjectOperator>();
 
-            resultOps = Scatter(projectOp->GetSource());
+            resultOps = Scatter(projectOp->GetSource(), keyTrie);
 
             for (auto& resultOp : resultOps) {
                 auto* newProjectOp = projectOp->Clone(context)->As<TProjectOperator>();
@@ -294,7 +275,6 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
             MakeId(EObjectType::PlanFragment, 0xbabe, index, 0xc0ffee));
         SetTableSchema(&facadeSplit, op->GetTableSchema());
         SetKeyColumns(&facadeSplit, op->GetKeyColumns());
-        SetBothBounds(&facadeSplit, op->GetKeyRange());
 
         resultSplits.push_back(facadeSplit);
     }
@@ -343,7 +323,8 @@ const TOperator* TCoordinator::Simplify(const TOperator* op)
 TGroupedDataSplits TCoordinator::SplitAndRegroup(
     const TDataSplits& splits,
     const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    const TKeyTrieNode& keyTrie)
 {
     TGroupedDataSplits result;
     TDataSplits allSplits;
@@ -388,9 +369,41 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
 
         result.emplace_back(allSplits);
     } else {
-        LOG_DEBUG("Regrouping %" PRISZT " splits", allSplits.size());
 
-        result = Callbacks_->Regroup(allSplits, Fragment_.GetContext());
+        auto keyRangeFormatter = [] (const TKeyRange& range) -> Stroka {
+            return Format("[%v .. %v]",
+                range.first,
+                range.second);
+        };
+
+        LOG_DEBUG("Splitting %v splits according to ranges", allSplits.size());
+
+        TDataSplits resultSplits;
+        for (const auto& split : allSplits) {
+            auto originalRange = GetBothBoundsFromDataSplit(split);
+
+            auto keySize = GetKeyColumnsFromDataSplit(split).size();
+
+            TRowBuffer rowBuffer;
+            std::vector<TKeyRange> ranges = 
+                GetRangesFromTrieWithinRange(originalRange, &rowBuffer, keySize, keyTrie);
+
+            for (const auto& range : ranges) {
+                auto splitCopy = split;
+
+                LOG_DEBUG("Narrowing split %v key range from %v to %v",
+                        ToString(GetObjectIdFromDataSplit(splitCopy)),
+                        keyRangeFormatter(originalRange),
+                        keyRangeFormatter(range));
+                SetBothBounds(&splitCopy, range);
+
+                resultSplits.push_back(std::move(splitCopy));
+            }
+        }
+
+        LOG_DEBUG("Regrouping %v splits", resultSplits.size());
+
+        result = Callbacks_->Regroup(resultSplits, Fragment_.GetContext());
     }
 
     return result;

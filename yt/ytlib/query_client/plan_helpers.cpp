@@ -1,14 +1,14 @@
 #include "stdafx.h"
 #include "plan_helpers.h"
 #include "plan_node.h"
+#include "key_trie.h"
 
 #include "private.h"
 #include "helpers.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -40,216 +40,182 @@ TKeyColumns InferKeyColumns(const TOperator* op)
     YUNREACHABLE();
 }
 
-TKeyRange InferKeyRange(const TOperator* op)
+// Computes key index for a given column name.
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
 {
-    switch (op->GetKind()) {
-        case EOperatorKind::Scan: {
-            auto* scanOp = op->As<TScanOperator>();
-            auto unitedKeyRange = std::make_pair(MaxKey(), MinKey());
-            for (const auto& dataSplit : scanOp->DataSplits()) {
-                unitedKeyRange = Unite(unitedKeyRange, GetBothBoundsFromDataSplit(dataSplit));
-            }
-            return unitedKeyRange;
-        }
-        case EOperatorKind::Filter: {
-            auto* filterOp = op->As<TFilterOperator>();
-            auto* sourceOp = filterOp->GetSource();
-            return RefineKeyRange(
-                InferKeyColumns(sourceOp),
-                InferKeyRange(sourceOp),
-                filterOp->GetPredicate());
-        }
-        case EOperatorKind::Group: {
-            return InferKeyRange(op->As<TGroupOperator>()->GetSource());
-        }
-        case EOperatorKind::Project: {
-            return InferKeyRange(op->As<TProjectOperator>()->GetSource());
+    for (size_t index = 0; index < keyColumns.size(); ++index) {
+        if (keyColumns[index] == columnName) {
+            return index;
         }
     }
-    YUNREACHABLE();
-}
+    return -1;
+};
+
+// Descend down to conjuncts and disjuncts and extract all constraints.
+TKeyTrieNode ExtractMultipleConstraints(
+    const TExpression* expr,
+    const TKeyColumns& keyColumns,
+    TRowBuffer* rowBuffer)
+{
+    if (auto* binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+        auto opcode = binaryOpExpr->GetOpcode();
+        auto* lhsExpr = binaryOpExpr->GetLhs();
+        auto* rhsExpr = binaryOpExpr->GetRhs();
+
+        if (opcode == EBinaryOp::And) {
+            return IntersectKeyTrie(
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer),
+                rowBuffer);
+        } if (opcode == EBinaryOp::Or) {
+            return UniteKeyTrie(
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer),
+                rowBuffer);
+        } else {
+            if (rhsExpr->IsA<TReferenceExpression>()) {
+                // Ensure that references are on the left.
+                std::swap(lhsExpr, rhsExpr);
+                switch (opcode) {
+                    case EBinaryOp::Equal:
+                        opcode = EBinaryOp::Equal;
+                    case EBinaryOp::Less:
+                        opcode = EBinaryOp::Greater;
+                    case EBinaryOp::LessOrEqual:
+                        opcode = EBinaryOp::GreaterOrEqual;
+                    case EBinaryOp::Greater:
+                        opcode = EBinaryOp::Less;
+                    case EBinaryOp::GreaterOrEqual:
+                        opcode = EBinaryOp::LessOrEqual;
+                    default:
+                        break;
+                }
+            }
+
+            auto* referenceExpr = lhsExpr->As<TReferenceExpression>();
+            auto* constantExpr = rhsExpr->IsConstant() ? rhsExpr : nullptr;
+
+            TKeyTrieNode result;
+
+            if (referenceExpr && constantExpr) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->GetColumnName());
+                if (keyPartIndex >= 0) {
+                    auto value = constantExpr->GetConstantValue();
+                    switch (opcode) {
+                        case EBinaryOp::Equal:
+                            result.Offset = keyPartIndex;
+                            result.Next[value] = TKeyTrieNode();
+                            break;
+                        case EBinaryOp::NotEqual:
+                            result.Offset = keyPartIndex;
+
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
+                            result.Bounds.push_back(value);
+
+                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
+                            
+                            break;
+                        case EBinaryOp::Less:
+                            result.Offset = keyPartIndex;
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
+                            result.Bounds.push_back(value);
+
+                            break;
+                        case EBinaryOp::LessOrEqual:
+                            result.Offset = keyPartIndex;
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
+                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
+
+                            break;
+                        case EBinaryOp::Greater:
+                            result.Offset = keyPartIndex;
+                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
+
+                            break;
+                        case EBinaryOp::GreaterOrEqual:
+                            result.Offset = keyPartIndex;
+                            result.Bounds.push_back(value);
+                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            return result;
+        }
+    } else if (auto* functionExpr = expr->As<TFunctionExpression>()) {
+        Stroka functionName(functionExpr->GetFunctionName());
+        functionName.to_lower();
+
+        auto* lhsExpr = functionExpr->Arguments()[0];
+        auto* rhsExpr = functionExpr->Arguments()[1];
+
+        auto* referenceExpr = rhsExpr->As<TReferenceExpression>();
+        auto* constantExpr = lhsExpr->IsConstant() ? lhsExpr : nullptr;
+
+        TKeyTrieNode result;
+
+        if (functionName == "is_prefix" && referenceExpr && constantExpr) {
+            int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->GetColumnName());
+            if (keyPartIndex >= 0) {
+                auto value = constantExpr->GetConstantValue();
+
+                YCHECK(value.Type == EValueType::String);
+
+                result.Offset = keyPartIndex;
+                result.Bounds.push_back(value);
+
+                ui32 length = value.Length;
+                while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
+                    --length;
+                }
+
+                if (length > 0) {
+                    char* newValue = rowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+                    memcpy(newValue, value.Data.String, length);
+                    ++newValue[length - 1];
+
+                    value.Length = length;
+                    value.Data.String = newValue;
+                } else {
+                    value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
+                }
+                result.Bounds.push_back(value);
+            }
+        }
+
+        return result;
+    }
+
+    return TKeyTrieNode();
+};
 
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
     const TExpression* predicate)
 {
-    typedef std::tuple<size_t, bool, TValue> TConstraint;
-    typedef std::vector<TConstraint> TConstraints;
-
-    TConstraints constraints;
-
-    const int keySize = std::max({
-        static_cast<int>(keyColumns.size()),
-        keyRange.first.GetCount(),
-        keyRange.second.GetCount()
-    });
-
-    // Computes key index for a given column name.
-    auto columnNameToKeyPartIndex =
-    [&] (const Stroka& columnName) -> size_t {
-        for (size_t index = 0; index < keyColumns.size(); ++index) {
-            if (keyColumns[index] == columnName) {
-                return index;
-            }
-        }
-        return -1;
-    };
-    
     TRowBuffer rowBuffer;
 
-    // Descend down to conjuncts and extract all constraints.
-    std::function<void(const TExpression*)> extractMultipleConstraints =
-    [&] (const TExpression* expr) {
-        if (auto* binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-            auto opcode = binaryOpExpr->GetOpcode();
-            auto* lhsExpr = binaryOpExpr->GetLhs();
-            auto* rhsExpr = binaryOpExpr->GetRhs();
+    auto keyTrie = ExtractMultipleConstraints(
+        predicate,
+        keyColumns,
+        &rowBuffer);
 
-            if (opcode == EBinaryOp::And) {
-                extractMultipleConstraints(lhsExpr);
-                extractMultipleConstraints(rhsExpr);
-                return;
-            } else {
-                if (rhsExpr->IsA<TReferenceExpression>()) {
-                    // Ensure that references are on the left.
-                    std::swap(lhsExpr, rhsExpr);
-                    switch (opcode) {
-                        case EBinaryOp::Equal:
-                            opcode = EBinaryOp::Equal;
-                        case EBinaryOp::Less:
-                            opcode = EBinaryOp::Greater;
-                        case EBinaryOp::LessOrEqual:
-                            opcode = EBinaryOp::GreaterOrEqual;
-                        case EBinaryOp::Greater:
-                            opcode = EBinaryOp::Less;
-                        case EBinaryOp::GreaterOrEqual:
-                            opcode = EBinaryOp::LessOrEqual;
-                        default:
-                            break;
-                    }
-                }
+    std::vector<TKeyRange> result = 
+        GetRangesFromTrieWithinRange(keyRange, &rowBuffer, keyColumns.size(), keyTrie);
 
-                auto* referenceExpr = lhsExpr->As<TReferenceExpression>();
-                auto* constantExpr = rhsExpr->IsConstant() ? rhsExpr : nullptr;
-
-                if (referenceExpr && constantExpr) {
-                    int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
-                    if (keyPartIndex >= 0) {
-                        auto value = constantExpr->GetConstantValue();
-                        switch (opcode) {
-                            case EBinaryOp::Equal:
-                                constraints.emplace_back(keyPartIndex, false, value);
-                                constraints.emplace_back(keyPartIndex, true, value);
-                                break;
-                            case EBinaryOp::Less:
-                                constraints.emplace_back(keyPartIndex, true, GetPrevValue(value, &rowBuffer));
-                                break;
-                            case EBinaryOp::LessOrEqual:
-                                constraints.emplace_back(keyPartIndex, true, value);
-                                break;
-                            case EBinaryOp::Greater:
-                                constraints.emplace_back(keyPartIndex, false, GetNextValue(value, &rowBuffer));
-                                break;
-                            case EBinaryOp::GreaterOrEqual:
-                                constraints.emplace_back(keyPartIndex, false, value);
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                }
-            }
-        } else if (auto* functionExpr = expr->As<TFunctionExpression>()) {
-            Stroka functionName(functionExpr->GetFunctionName());
-            functionName.to_lower();
-
-            auto* lhsExpr = functionExpr->Arguments()[0];
-            auto* rhsExpr = functionExpr->Arguments()[1];
-
-            auto* referenceExpr = rhsExpr->As<TReferenceExpression>();
-            auto* constantExpr = lhsExpr->IsConstant() ? lhsExpr : nullptr;
-
-            if (functionName == "is_prefix" && referenceExpr && constantExpr) {
-                int keyPartIndex = columnNameToKeyPartIndex(referenceExpr->GetColumnName());
-                if (keyPartIndex >= 0) {
-                    auto value = constantExpr->GetConstantValue();
-
-                    YCHECK(value.Type == EValueType::String);
-
-                    constraints.emplace_back(keyPartIndex, false, value);
-
-                    ui32 length = value.Length;
-                    while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
-                        --length;
-                    }
-
-                    if (length > 0) {
-                        char* newValue = rowBuffer.GetUnalignedPool()->AllocateUnaligned(length);
-                        memcpy(newValue, value.Data.String, length);
-                        ++newValue[length - 1];
-
-                        value.Length = length;
-                        value.Data.String = newValue;
-                    } else {
-                        value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
-                    }
-            
-                    constraints.emplace_back(keyPartIndex, true, value);
-                }
-            }
-        }
-    };
-
-    // Now, traverse expression tree and actually extract constraints.
-    extractMultipleConstraints(predicate);
-
-    auto leftBound = TRow::Allocate(rowBuffer.GetAlignedPool(), keySize);
-    auto rightBound = TRow::Allocate(rowBuffer.GetAlignedPool(), keySize);
-
-    for (int keyPartIndex = 0; keyPartIndex < keySize; ++keyPartIndex) {
-        leftBound[keyPartIndex].Type = EValueType::Min;
-        rightBound[keyPartIndex].Type = EValueType::Max;
+    if (result.empty()) {
+        return std::make_pair(EmptyKey(), EmptyKey());
+    } else if (result.size() == 1) {
+        return result[0];
+    } else {
+        return keyRange;
     }
-
-
-    for (int constraintIndex = 0; constraintIndex < constraints.size(); ++constraintIndex) {
-        const auto& constraint = constraints[constraintIndex];
-
-        auto keyPartIndex = std::get<0>(constraint);
-        auto constraintDirection = std::get<1>(constraint);
-        auto constraintBound = std::get<2>(constraint);
-
-        if (constraintDirection) {
-            if (CompareRowValues(rightBound[keyPartIndex], constraintBound) > 0) {
-                rightBound[keyPartIndex] = constraintBound;
-            }
-        } else {
-            if (CompareRowValues(leftBound[keyPartIndex], constraintBound) < 0) {
-                leftBound[keyPartIndex] = constraintBound;
-            }
-        }
-    }
-
-    if (rightBound[keySize - 1].Type != EValueType::Max) {
-        rightBound[keySize - 1] = GetNextValue(rightBound[keySize - 1], &rowBuffer);
-    }
-
-    for (int keyPartIndex = 0; keyPartIndex < keyRange.first.GetCount(); ++keyPartIndex) {
-        if (CompareRowValues(keyRange.first[keyPartIndex], leftBound[keyPartIndex]) < 0) {
-            break;
-        }
-        leftBound[keyPartIndex] = keyRange.first[keyPartIndex];        
-    }
-
-    for (int keyPartIndex = 0; keyPartIndex < keyRange.second.GetCount(); ++keyPartIndex) {
-        if (CompareRowValues(keyRange.second[keyPartIndex], rightBound[keyPartIndex]) > 0) {
-            break;
-        }
-        rightBound[keyPartIndex] = keyRange.second[keyPartIndex];        
-    }
-
-    return TKeyRange(TKey(leftBound), TKey(rightBound));
 }
 
 TKeyRange Unite(const TKeyRange& first, const TKeyRange& second)

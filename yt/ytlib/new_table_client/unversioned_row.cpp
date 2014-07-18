@@ -294,7 +294,27 @@ bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) != 0;
 }
 
-TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer)
+bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) <= 0;
+}
+
+bool operator < (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) < 0;
+}
+
+bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) >= 0;
+}
+
+bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) > 0;
+}
+
+TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuffer)
 {
     auto unalignedPool = rowBuffer->GetUnalignedPool();
 
@@ -326,58 +346,6 @@ TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer)
             memcpy(newValue, value.Data.String, value.Length);
             newValue[value.Length] = 0;
             value.Data.String = newValue;
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
-
-    return value;
-}
-
-TUnversionedValue GetPrevValue(TUnversionedValue value, TRowBuffer* rowBuffer)
-{
-    auto unalignedPool = rowBuffer->GetUnalignedPool();
-
-    switch (value.Type) {
-        case EValueType::Integer: {
-            auto& inner = value.Data.Integer;
-            const auto minimum = std::numeric_limits<i64>::min();
-            if (LIKELY(inner != minimum)) {
-                --inner;
-            } else {
-                value.Type = EValueType::Min;
-            }
-            break;
-        }
-
-        case EValueType::Double: {
-            auto& inner = value.Data.Double;
-            const auto minimum = std::numeric_limits<double>::min();
-            if (LIKELY(inner != minimum)) {
-                inner = std::nextafter(inner, minimum);
-            } else {
-                value.Type = EValueType::Min;
-            }
-            break;
-        }
-
-        case EValueType::String: {
-            if (LIKELY(value.Length > 0)) {
-                if (value.Data.String[value.Length - 1] > 0) {
-                    char* newValue = unalignedPool->AllocateUnaligned(value.Length);
-                    memcpy(newValue, value.Data.String, value.Length);
-                    --newValue[value.Length - 1];
-                    value.Data.String = newValue;
-                } else {
-                    char* newValue = unalignedPool->AllocateUnaligned(value.Length - 1);
-                    memcpy(newValue, value.Data.String, value.Length - 1);
-                    value.Data.String = newValue;
-                }
-            } else {
-                value.Type = EValueType::Min;
-            }            
             break;
         }
 
@@ -1121,7 +1089,7 @@ TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapac
 void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
-        ValueCapacity_ *= 2;
+        ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
         RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
     }
 

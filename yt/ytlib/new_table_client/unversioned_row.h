@@ -115,11 +115,13 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 
 bool operator == (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Computes next and previous value.
-TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer);
-TUnversionedValue GetPrevValue(TUnversionedValue value, TRowBuffer* rowBuffer);
-
+//! Computes succeeding value.
+TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuffer);
 
 //! Checks that two given values form a valid predecessor-successor pair.
 bool IsValueSuccessor(

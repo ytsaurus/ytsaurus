@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
 set( SRCS
   ${BASE}/plan_visitor.cpp
   ${BASE}/plan_helpers.cpp
-  ${BASE}/graphviz.cpp
   ${BASE}/operator.cpp
   ${BASE}/expression.cpp
   ${BASE}/plan_context.cpp
@@ -13,6 +12,7 @@ set( SRCS
   ${BASE}/coordinator.cpp
   ${BASE}/prepare_controller.cpp
   ${BASE}/executor.cpp
+  ${BASE}/key_trie.cpp
 )
 
 set( HDRS
@@ -27,7 +27,6 @@ set( HDRS
   ${BASE}/prepare_controller.h
   ${BASE}/executor.h
   ${BASE}/expression.h
-  ${BASE}/graphviz.h
   ${BASE}/lexer.h
   ${BASE}/operator.h
   ${BASE}/parser.hpp
@@ -36,6 +35,7 @@ set( HDRS
   ${BASE}/plan_context.h
   ${BASE}/plan_fragment.h
   ${BASE}/query_service_proxy.h
+  ${BASE}/key_trie.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)

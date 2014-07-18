@@ -114,11 +114,6 @@ TKeyColumns TOperator::GetKeyColumns() const
     return InferKeyColumns(this);
 }
 
-TKeyRange TOperator::GetKeyRange() const
-{
-    return InferKeyRange(this);
-}
-
 NVersionedTableClient::TNameTablePtr TOperator::GetNameTable() const
 {
     return NVersionedTableClient::TNameTable::FromSchema(GetTableSchema());
