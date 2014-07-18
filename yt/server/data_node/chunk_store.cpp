@@ -6,6 +6,8 @@
 #include "journal_chunk.h"
 #include "chunk_store.h"
 #include "master_connector.h"
+#include "session_manager.h"
+#include "session.h"
 
 #include <core/misc/fs.h>
 
@@ -336,18 +338,33 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // Scan through all chunks and remove those residing on this dead location.
-    LOG_INFO("Started cleaning up chunk map");
-    int count = 0;
-    auto it = ChunkMap_.begin();
-    while (it != ChunkMap_.end()) {
-        auto jt = it++;
-        auto chunk = jt->second.Chunk;
-        if (chunk->GetLocation() == location) {
-            ChunkMap_.erase(jt);
-            ++count;
+    {
+        int count = 0;
+        auto it = ChunkMap_.begin();
+        while (it != ChunkMap_.end()) {
+            auto jt = it++;
+            auto chunk = jt->second.Chunk;
+            if (chunk->GetLocation() == location) {
+                ChunkMap_.erase(jt);
+                ++count;
+            }
         }
+        LOG_INFO("%v chunks discarded at disabled location", count);
     }
-    LOG_INFO("Chunk map cleaned, %d chunks discarded", count);
+
+    // Scan through all sessions and cancel those opened for discarded chunks.
+    {
+        int count = 0;
+        auto sessionManager = Bootstrap_->GetSessionManager();
+        auto sessions = sessionManager->GetSessions();
+        for (auto session : sessions) {
+            if (session->GetLocation() == location) {
+                session->Cancel(TError("Location disabled"));
+                ++count;
+            }
+        }
+        LOG_INFO("%v sessions canceled at disabled location", count);
+    }
 
     // Register an alert and
     // schedule an out-of-order heartbeat to notify the master about the disaster.
