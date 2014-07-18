@@ -181,9 +181,21 @@ TError TProcess::Spawn()
             if (errorType == -1) {
                 return TError("Error waiting for child process to finish: execve failed")
                     << TError::FromSystem(errCode);
+            } else if (errorType < FileActions_.size()) {
+                const auto& action = FileActions_[errorType];
+                if (action.Type == NDetail::EFileAction::Close) {
+                    return TError("Error closing %v file descriptor in the child", action.Param1)
+                        << TError::FromSystem(errCode);
+                } else if (action.Type == NDetail::EFileAction::Dup2) {
+                    return TError("Error duplication %v file descriptor to %v in the child",
+                        action.Param1,
+                        action.Param2)
+                        << TError::FromSystem(errCode);
+                } else {
+                    YUNREACHABLE();
+                }
             } else {
-                return TError("Error waiting for child process to finish: %v file action failed", errorType)
-                    << TError::FromSystem(errCode);
+                YUNREACHABLE();
             }
         }
     }
