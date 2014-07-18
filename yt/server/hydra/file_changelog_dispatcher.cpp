@@ -570,7 +570,7 @@ private:
             auto queue = jt->second;
             if (queue->TrySweep()) {
                 QueueMap_.erase(jt);
-                LOG_DEBUG("Changelog queue removed (Path: %v)", jt->second->GetChangelog()->GetFileName());
+                LOG_DEBUG("Changelog queue removed (Path: %v)", queue->GetChangelog()->GetFileName());
             }
         }
     }
