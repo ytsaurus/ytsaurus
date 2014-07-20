@@ -82,6 +82,9 @@ public:
         double progress,
         const NJobTrackerClient::NProto::TJobStatistics& jobStatistics);
 
+    //! Compares new usage with resource limits. Detects resource overdraft.
+    bool CheckResourceUsageDelta(const NNodeTrackerClient::NProto::TNodeResources& delta);
+
     //! Updates job result.
     void SetJobResult(
         IJobPtr job,
