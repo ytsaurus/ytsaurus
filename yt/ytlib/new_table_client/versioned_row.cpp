@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NVersionedTableClient {
 
+using namespace NTransactionClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetByteSize(const TVersionedValue& value)
@@ -99,6 +101,73 @@ size_t GetHash(TVersionedRow row)
         result = (result * 1000003) ^ GetHash(row.BeginValues()[i]);
     }
     return result ^ partCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
+{
+    Keys_.push_back(value);
+}
+
+void TVersionedRowBuilder::AddValue(const TVersionedValue& value)
+{
+    Timestamps_.push_back(value.Timestamp);
+    YASSERT((value.Timestamp & TimestampValueMask) == value.Timestamp);
+
+    auto valueCopy = value;
+    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        valueCopy.Data.String = Pool_.AllocateUnaligned(value.Length);
+        memcpy(const_cast<char*>(valueCopy.Data.String), value.Data.String, value.Length);
+    }
+
+    Values_.push_back(valueCopy);
+}
+
+void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)
+{
+    YASSERT((timestamp & TimestampValueMask) == timestamp);
+    Timestamps_.push_back(timestamp | TombstoneTimestampMask);
+}
+
+TVersionedRow TVersionedRowBuilder::GetRowAndReset()
+{
+    std::sort(
+        Values_.begin(),
+        Values_.end(),
+        [] (const TVersionedValue& lhs, const TVersionedValue& rhs) -> bool {
+            if (lhs.Id < rhs.Id) {
+                return true;
+            }
+            if (lhs.Id > rhs.Id) {
+                return false;
+            }
+            if (lhs.Timestamp > rhs.Timestamp) {
+                return true;
+            }
+            if (lhs.Timestamp < rhs.Timestamp) {
+                return false;
+            }
+            return false;
+        });
+
+    std::sort(
+        Timestamps_.begin(),
+        Timestamps_.end(),
+        [] (TTimestamp lhs, TTimestamp rhs) {
+            return (lhs & TimestampValueMask) < (rhs & TimestampValueMask);
+        });
+
+    auto row = TVersionedRow::Allocate(&Pool_, Keys_.size(), Values_.size(), Timestamps_.size());
+    memcpy(row.BeginKeys(), Keys_.data(), sizeof (TUnversionedValue) * Keys_.size());
+    memcpy(row.BeginValues(), Values_.data(), sizeof (TVersionedValue)* Values_.size());
+    memcpy(row.BeginTimestamps(), Timestamps_.data(), sizeof (TTimestamp) * Timestamps_.size());
+
+    Keys_.clear();
+    Values_.clear();
+    Timestamps_.clear();
+
+    return row;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

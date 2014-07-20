@@ -227,9 +227,30 @@ static_assert(
     sizeof(TVersionedRow) == sizeof(intptr_t),
     "TVersionedRow size must match that of a pointer.");
 
+size_t GetHash(TVersionedRow row);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetHash(TVersionedRow row);
+//! A helper used for constructing TVersionedRow instances.
+//! Not very efficient, only useful in tests.
+class TVersionedRowBuilder
+{
+public:
+    void AddKey(const TUnversionedValue& value);
+    void AddValue(const TVersionedValue& value);
+    void AddDeleteTimestamp(TTimestamp timestamp);
+
+    TVersionedRow GetRowAndReset();
+
+private:
+    std::vector<TUnversionedValue> Keys_;
+    std::vector<TVersionedValue> Values_;
+    std::vector<TTimestamp> Timestamps_;
+    TChunkedMemoryPool Pool_;
+
+    TBlob RowData_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
