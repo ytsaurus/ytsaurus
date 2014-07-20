@@ -108,6 +108,7 @@ DECLARE_ENUM(EAutomatonThreadQueue,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)

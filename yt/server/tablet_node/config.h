@@ -23,8 +23,36 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountConfig
+class TRetentionConfig
     : public NYTree::TYsonSerializable
+{
+public:
+    int MinVersions;
+    int MaxVersions;
+    TDuration MinTtl;
+    TDuration MaxTtl;
+
+    TRetentionConfig()
+    {
+        RegisterParameter("min_versions", MinVersions)
+            .GreaterThanOrEqual(0)
+            .Default(1);
+        RegisterParameter("max_versions", MaxVersions)
+            .GreaterThanOrEqual(0)
+            .Default(3);
+        RegisterParameter("min_ttl", MinTtl)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("max_ttl", MaxTtl)
+            .Default(TDuration::Minutes(3));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRetentionConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TTableMountConfig
+    : public TRetentionConfig
 {
 public:
     int MaxMemoryStoreKeyCount;
