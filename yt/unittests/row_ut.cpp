@@ -3,8 +3,9 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
 #include <core/ytree/convert.h>
+
+#include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -37,9 +38,9 @@ TEST(TUnversionedRowTest, Serialize1)
 TEST(TUnversionedRowTest, Serialize2)
 {
     TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeSentinelValue<TUnversionedValue>(EValueType::Null, 0));
-    builder.AddValue(MakeIntegerValue<TUnversionedValue>(42, 1));
-    builder.AddValue(MakeDoubleValue<TUnversionedValue>(0.25, 2));
+    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
+    builder.AddValue(MakeUnversionedIntegerValue(42, 1));
+    builder.AddValue(MakeUnversionedDoubleValue(0.25, 2));
     CheckSerialize(builder.GetRowAndReset());
 }
 
@@ -48,11 +49,11 @@ TEST(TUnversionedRowTest, Serialize3)
     // TODO(babenko): cannot test Any type at the moment since CompareRowValues does not work
     // for it.
     TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeStringValue<TUnversionedValue>("string1", 10));
-    builder.AddValue(MakeIntegerValue<TUnversionedValue>(1234, 20));
-    builder.AddValue(MakeStringValue<TUnversionedValue>("string2", 30));
-    builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
-    builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
+    builder.AddValue(MakeUnversionedStringValue("string1", 10));
+    builder.AddValue(MakeUnversionedIntegerValue(1234, 20));
+    builder.AddValue(MakeUnversionedStringValue("string2", 30));
+    builder.AddValue(MakeUnversionedDoubleValue(4321.0, 1000));
+    builder.AddValue(MakeUnversionedStringValue("", 10000));
     CheckSerialize(builder.GetRowAndReset());
 }
 
@@ -62,9 +63,7 @@ TEST(TUnversionedRowTest, Serialize4)
     // for it.
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedStringValue("string1"));
-    builder.AddValue(MakeStringValue<TUnversionedValue>("string2"));
-    //builder.AddValue(MakeDoubleValue<TUnversionedValue>(4321.0, 1000));
-    //builder.AddValue(MakeStringValue<TUnversionedValue>("", 10000));
+    builder.AddValue(MakeUnversionedStringValue("string2"));
     CheckSerialize(builder.GetRow());
 }
 
