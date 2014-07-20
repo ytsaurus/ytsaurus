@@ -284,6 +284,16 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 }
 
+bool operator == (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) == 0;
+}
+
+bool operator != (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    return CompareRowValues(lhs, rhs) != 0;
+}
+
 TUnversionedValue GetNextValue(TUnversionedValue value, TRowBuffer* rowBuffer)
 {
     auto unalignedPool = rowBuffer->GetUnalignedPool();
