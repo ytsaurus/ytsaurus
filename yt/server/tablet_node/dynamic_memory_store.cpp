@@ -693,7 +693,11 @@ void TDynamicMemoryStore::CommitRow(TDynamicRow row)
 
     Unlock();
     row.Unlock();
-    row.SetLastCommitTimestamp(transaction->GetCommitTimestamp());
+
+    auto timestamp = transaction->GetCommitTimestamp();
+    row.SetLastCommitTimestamp(timestamp);
+    MinTimestamp_ = std::min(MinTimestamp_, timestamp);
+    MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
 }
 
 void TDynamicMemoryStore::AbortRow(TDynamicRow row)
@@ -941,12 +945,12 @@ TOwningKey TDynamicMemoryStore::GetMaxKey() const
 
 TTimestamp TDynamicMemoryStore::GetMinTimestamp() const
 {
-    return MinTimestamp;
+    return MinTimestamp_;
 }
 
 TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const
 {
-    return MaxTimestamp;
+    return MaxTimestamp_;
 }
 
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(

@@ -109,6 +109,9 @@ private:
 
     i64 MemoryUsage_ = 0;
 
+    TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
+    TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
+
 
     TDynamicRow AllocateRow();
     
