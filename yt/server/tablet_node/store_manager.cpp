@@ -481,12 +481,7 @@ void TStoreManager::AddStore(IStorePtr store)
     YCHECK(store->GetType() == EStoreType::Chunk);
 
     Tablet_->AddStore(store);
-
-    auto latestTimestamp = store->GetMaxTimestamp();
-    // Dynamic store returns MaxTimestamp.
-    if (latestTimestamp != MaxTimestamp) {
-        LatestTimestampToStore_.insert(std::make_pair(latestTimestamp, store));
-    }
+    LatestTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
 }
 
 void TStoreManager::RemoveStore(IStorePtr store)
