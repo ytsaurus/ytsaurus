@@ -30,7 +30,12 @@ TPlanFragment TPlanFragment::Prepare(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    return TPrepareController(callbacks, source, inputRowLimit, outputRowLimit, timestamp).Run();
+    return TPrepareController(
+        callbacks,
+        source,
+        inputRowLimit,
+        outputRowLimit,
+        timestamp).Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +86,8 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
