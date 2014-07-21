@@ -4,6 +4,7 @@
 #include "partition.h"
 #include "store.h"
 #include "row_merger.h"
+#include "config.h"
 #include "private.h"
 
 #include <core/misc/chunked_memory_pool.h>
@@ -139,7 +140,6 @@ protected:
                 } else {
                     currentKeyBegin = partialRow.BeginKeys();
                     currentKeyEnd = partialRow.EndKeys();
-                    rowMerger->Start(currentKeyBegin);
                 }
 
                 rowMerger->AddPartialRow(partialRow);
@@ -385,13 +385,16 @@ public:
         std::vector<IStorePtr> stores,
         TOwningKey lowerBound,
         TOwningKey upperBound,
-        TTimestamp timestamp)
+        TTimestamp currentTimestamp,
+        TTimestamp majorTimestamp)
         : TTabletReaderBase(
             tablet,
             std::move(lowerBound),
             std::move(upperBound),
-            timestamp)
+            AllCommittedTimestamp)
         , Stores_(std::move(stores))
+        , CurrentTimestamp_(currentTimestamp)
+        , MajorTimestamp_(majorTimestamp)
     { }
 
     virtual TAsyncError Open() override
@@ -414,6 +417,8 @@ public:
 
 private:
     std::vector<IStorePtr> Stores_;
+    TTimestamp CurrentTimestamp_;
+    TTimestamp MajorTimestamp_;
 
     std::unique_ptr<TVersionedRowMerger> RowMerger_;
 
@@ -423,8 +428,10 @@ private:
         // Initialize merger.
         RowMerger_.reset(new TVersionedRowMerger(
             &Pool_,
-            Tablet_->GetSchemaColumnCount(),
-            Tablet_->GetKeyColumnCount()));
+            Tablet_->GetKeyColumnCount(),
+            Tablet_->GetConfig(),
+            CurrentTimestamp_,
+            MajorTimestamp_));
 
         TTabletReaderBase::DoOpen(TColumnFilter(), Stores_);
     }
@@ -436,14 +443,16 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     std::vector<IStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp)
+    TTimestamp currentTimestamp,
+    TTimestamp majorTimestamp)
 {
     return New<TVersionedTabletReader>(
         tablet,
         std::move(stores),
         std::move(lowerBound),
         std::move(upperBound),
-        timestamp);
+        currentTimestamp,
+        majorTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,6 +22,7 @@
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
 
 #include <ytlib/new_table_client/versioned_row.h>
 #include <ytlib/new_table_client/versioned_reader.h>
@@ -30,6 +31,7 @@
 #include <ytlib/chunk_client/config.h>
 
 #include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 #include <ytlib/api/transaction.h>
 
 #include <server/hydra/hydra_manager.h>
@@ -161,13 +163,6 @@ private:
         if (partition->GetState() != EPartitionState::None)
             return;
 
-        std::vector<IStorePtr> allStores;
-        for (auto store : partition->Stores()) {
-            if (store->GetState() == EStoreState::Persistent) {
-                allStores.push_back(std::move(store));
-            }
-        }
-
         // Don't compact partitions whose data size exceeds the limit.
         // Let Partition Balancer do its job.
         auto* tablet = partition->GetTablet();
@@ -175,13 +170,15 @@ private:
         if (partition->GetTotalDataSize() > config->MaxPartitionDataSize)
             return;
 
-        auto stores = PickStoresForCompaction(config, allStores);
+        auto stores = PickStoresForCompaction(config, partition);
         if (stores.empty())
             return;
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
         if (!guard)
             return;
+
+        auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
         for (auto store : stores) {
             store->SetState(EStoreState::Compacting);
@@ -194,14 +191,22 @@ private:
             MakeStrong(this),
             Passed(std::move(guard)),
             partition,
-            stores));
+            stores,
+            majorTimestamp));
     }
 
 
     std::vector<IStorePtr> PickStoresForCompaction(
         TTableMountConfigPtr config,
-        std::vector<IStorePtr>& allStores)
+        TPartition* partition)
     {
+        std::vector<IStorePtr> allStores;
+        for (auto store : partition->Stores()) {
+            if (store->GetState() == EStoreState::Persistent) {
+                allStores.push_back(std::move(store));
+            }
+        }
+
         int chunkCount = static_cast<int>(allStores.size());
         if (chunkCount <= config->MaxPartitionChunkCount) {
             return std::vector<IStorePtr>();
@@ -210,6 +215,41 @@ private:
         return std::vector<IStorePtr>(
             allStores.begin(),
             allStores.begin() + std::min(chunkCount, Config_->StoreCompactor->MaxChunksPerCompaction));
+    }
+
+    TTimestamp ComputeMajorTimestamp(
+        TPartition* partition,
+        const std::vector<IStorePtr>& stores)
+    {
+        auto result = MaxTimestamp;
+        auto handleStore = [&] (const IStorePtr& store) {
+            result = std::min(result, store->GetMinTimestamp());
+        };
+
+        auto* tablet = partition->GetTablet();
+        auto* eden = tablet->GetEden();
+        for (const auto& store : eden->Stores()) {
+            handleStore(store);
+        }
+
+        for (const auto& store : partition->Stores()) {
+            if (std::find(stores.begin(), stores.end(), store) == stores.end()) {
+                handleStore(store);
+            }
+        }
+
+        return result;
+    }
+
+
+    IVersionedReaderPtr CreateReader(
+        TTablet* tablet,
+        const std::vector<IStorePtr>& stores,
+        TOwningKey lowerBound,
+        TOwningKey upperBound,
+        TTimestamp majorTimestamp)
+    {
+
     }
 
 
@@ -245,17 +285,27 @@ private:
                 dataSize += store->GetDataSize();
             }
 
-            LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v)",
-                static_cast<int>(pivotKeys.size()),
+            TTimestamp currentTimestamp;
+            {
+                auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+                auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+                THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError);
+                currentTimestamp = currentTimestampOrError.Value();
+            }
+
+            LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
+                pivotKeys.size(),
                 dataSize,
-                static_cast<int>(stores.size()));
+                stores.size(),
+                currentTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tablet,
                 stores,
                 tabletPivotKey,
                 nextTabletPivotKey,
-                AllCommittedTimestamp);
+                currentTimestamp,
+                MinTimestamp); // NB: No major compaction during Eden partitioning.
 
             SwitchTo(poolInvoker);
 
@@ -448,7 +498,8 @@ private:
     void CompactPartition(
         TAsyncSemaphoreGuard /*guard*/,
         TPartition* partition,
-        const std::vector<IStorePtr>& stores)
+        const std::vector<IStorePtr>& stores,
+        TTimestamp majorTimestamp)
     {
         // Capture everything needed below.
         // NB: Avoid accessing tablet from pool invoker.
@@ -477,16 +528,27 @@ private:
                 dataSize += store->GetDataSize();
             }
 
-            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v)",
+            TTimestamp currentTimestamp;
+            {
+                auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+                auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+                THROW_ERROR_EXCEPTION_IF_FAILED(currentTimestampOrError);
+                currentTimestamp = currentTimestampOrError.Value();
+            }
+
+            LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
-                stores.size());
+                stores.size(),
+                currentTimestamp,
+                majorTimestamp);
 
             auto reader = CreateVersionedTabletReader(
                 tablet,
                 stores,
                 tabletPivotKey,
                 nextTabletPivotKey,
-                AllCommittedTimestamp);
+                currentTimestamp,
+                majorTimestamp);
 
             SwitchTo(poolInvoker);
 

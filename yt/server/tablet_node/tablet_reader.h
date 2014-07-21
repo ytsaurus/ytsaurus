@@ -33,7 +33,8 @@ NVersionedTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     std::vector<IStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp);
+    TTimestamp currentTimestamp,
+    TTimestamp majorTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

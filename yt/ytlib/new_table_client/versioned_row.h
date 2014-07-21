@@ -83,23 +83,18 @@ static_assert(
 
 int GetByteSize(const TVersionedValue& value);
 int GetDataWeight(const TVersionedValue& value);
-int WriteValue(char* output, const TVersionedValue& value);
-int ReadValue(const char* input, TVersionedValue* value);
 
-////////////////////////////////////////////////////////////////////////////////
+int ReadValue(const char* input, TVersionedValue* value);
+int WriteValue(char* output, const TVersionedValue& value);
+
+Stroka ToString(const TVersionedValue& value);
 
 void Save(TStreamSaveContext& context, const TVersionedValue& value);
 void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPool* pool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TVersionedValue& value);
-
 size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount = 1);
-
-i64 GetDataWeight(TVersionedRow row);
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRow
 {
@@ -227,7 +222,15 @@ static_assert(
     sizeof(TVersionedRow) == sizeof(intptr_t),
     "TVersionedRow size must match that of a pointer.");
 
+i64 GetDataWeight(TVersionedRow row);
 size_t GetHash(TVersionedRow row);
+
+//! Compares versioned rows for equality.
+//! Row values must be canonically sorted.
+bool operator == (TVersionedRow lhs, TVersionedRow rhs);
+
+//! Compares versioned rows for nonequality.
+bool operator != (TVersionedRow lhs, TVersionedRow rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -236,6 +239,8 @@ size_t GetHash(TVersionedRow row);
 class TVersionedRowBuilder
 {
 public:
+    explicit TVersionedRowBuilder(TRowBuffer* buffer);
+
     void AddKey(const TUnversionedValue& value);
     void AddValue(const TVersionedValue& value);
     void AddDeleteTimestamp(TTimestamp timestamp);
@@ -243,12 +248,11 @@ public:
     TVersionedRow GetRowAndReset();
 
 private:
+    TRowBuffer* Buffer_;
+
     std::vector<TUnversionedValue> Keys_;
     std::vector<TVersionedValue> Values_;
     std::vector<TTimestamp> Timestamps_;
-    TChunkedMemoryPool Pool_;
-
-    TBlob RowData_;
 
 };
 

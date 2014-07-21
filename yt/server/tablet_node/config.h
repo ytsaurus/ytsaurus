@@ -27,23 +27,23 @@ class TRetentionConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    int MinVersions;
-    int MaxVersions;
-    TDuration MinTtl;
-    TDuration MaxTtl;
+    int MinDataVersions;
+    int MaxDataVersions;
+    TDuration MinDataTtl;
+    TDuration MaxDataTtl;
 
     TRetentionConfig()
     {
-        RegisterParameter("min_versions", MinVersions)
+        RegisterParameter("min_data_versions", MinDataVersions)
             .GreaterThanOrEqual(0)
             .Default(1);
-        RegisterParameter("max_versions", MaxVersions)
+        RegisterParameter("max_data_versions", MaxDataVersions)
             .GreaterThanOrEqual(0)
-            .Default(3);
-        RegisterParameter("min_ttl", MinTtl)
+            .Default(1);
+        RegisterParameter("min_data_ttl", MinDataTtl)
             .Default(TDuration::Minutes(1));
-        RegisterParameter("max_ttl", MaxTtl)
-            .Default(TDuration::Minutes(3));
+        RegisterParameter("max_data_ttl", MaxDataTtl)
+            .Default(TDuration::Minutes(1));
     }
 };
 

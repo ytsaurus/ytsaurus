@@ -1159,7 +1159,6 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::GetRowAndReset()
     return row;
 }
 
-
 void TUnversionedOwningRowBuilder::Reset()
 {
     ValueCapacity_ = InitialValueCapacity_;

@@ -186,8 +186,6 @@ void TStoreManager::LookupRows(
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        rowMerger.Start(lowerBound.Begin());
-
         // Merge values.
         for (const auto& reader : rowReaders) {
             VersionedPooledRows_.clear();

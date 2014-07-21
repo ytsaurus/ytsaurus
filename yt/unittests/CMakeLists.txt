@@ -73,6 +73,7 @@ set( SRCS
   ${BASE}/skip_list_ut.cpp
   ${BASE}/query_client_ut.cpp
   ${BASE}/row_ut.cpp
+  ${BASE}/row_merger_ut.cpp
   ${BASE}/memory_store_ut.h
 #  ${BASE}/static_memory_store_ut.cpp
   ${BASE}/dynamic_memory_store_ut.cpp

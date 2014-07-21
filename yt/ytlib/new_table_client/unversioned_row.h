@@ -590,7 +590,6 @@ public:
 
     void AddValue(const TUnversionedValue& value);
     TUnversionedOwningRow GetRowAndReset();
-    void Reset();
 
 private:
     int InitialValueCapacity_;
@@ -601,6 +600,7 @@ private:
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(int index);
+    void Reset();
 
 };
 

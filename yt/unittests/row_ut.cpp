@@ -3,15 +3,11 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <core/ytree/convert.h>
-
 #include <ytlib/new_table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 namespace {
-
-using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
