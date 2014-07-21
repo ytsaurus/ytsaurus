@@ -234,7 +234,7 @@ public:
 
         State_ = EPeerState::Stopped;
 
-        LOG_INFO("Slot created");
+        LOG_INFO("Slot initialized");
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
