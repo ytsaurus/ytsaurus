@@ -58,7 +58,7 @@ int GetByteSize(const TUnversionedValue& value)
     return result;
 }
 
-int GetDataWeight(const TUnversionedValue &value)
+int GetDataWeight(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:

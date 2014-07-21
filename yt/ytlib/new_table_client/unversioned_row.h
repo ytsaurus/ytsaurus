@@ -173,6 +173,7 @@ size_t GetHash(TUnversionedRow row);
 //! Returns the number of bytes needed to store the fixed part of the row (header + values).
 size_t GetUnversionedRowDataSize(int valueCount);
 
+//! Returns the storage-invariant data weight of a given row.
 i64 GetDataWeight(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
