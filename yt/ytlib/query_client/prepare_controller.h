@@ -24,6 +24,7 @@ public:
 
 private:
     void ParseSource();
+    void CheckDepth();
     void GetInitialSplits();
     void CheckAndPruneReferences();
     void TypecheckExpressions();

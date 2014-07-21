@@ -30,6 +30,7 @@ using namespace NConcurrency;
 using namespace NVersionedTableClient;
 
 static const auto& Logger = QueryClientLogger;
+static const int PlanFragmentDepthLimit = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,6 +112,7 @@ private:
 TPlanFragment TPrepareController::Run()
 {
     ParseSource();
+    CheckDepth();
     GetInitialSplits();
     MoveAggregateExpressions();
     CheckAndPruneReferences();
@@ -130,6 +132,64 @@ void TPrepareController::ParseSource()
     int result = parser.parse();
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Failed to parse query");
+    }
+}
+
+void TPrepareController::CheckDepth()
+{
+    std::function<int(const TExpression* op)> getExpressionDepth = [&] (const TExpression* op) -> int {
+        if (auto* literalExpr = op->As<TLiteralExpression>()) {
+            return 1;
+        } else if (auto* referenceExpr = op->As<TReferenceExpression>()) {
+            return 1;
+        } else if (auto* functionExpr = op->As<TFunctionExpression>()) {
+            int maxChildDepth = 0;
+            for (const auto& argument : functionExpr->Arguments()) {
+                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(argument));
+            }
+            return maxChildDepth + 1;
+        } else if (auto* binaryOpExpr = op->As<TBinaryOpExpression>()) {
+            return std::max(
+                getExpressionDepth(binaryOpExpr->GetLhs()), 
+                getExpressionDepth(binaryOpExpr->GetRhs())) + 1;
+        }
+        YUNREACHABLE();
+    };
+
+
+    std::function<int(const TOperator* op)> getOperatorDepth = [&] (const TOperator* op) -> int {
+        if (auto* scanOp = op->As<TScanOperator>()) {
+            return 1;
+        }
+        if (auto* filterOp = op->As<TFilterOperator>()) {
+            return std::max(
+                getOperatorDepth(filterOp->GetSource()), 
+                getExpressionDepth(filterOp->GetPredicate())) + 1;
+        }
+        if (auto* projectOp = op->As<TProjectOperator>()) {
+            int maxChildDepth = getOperatorDepth(projectOp->GetSource());
+            for (const auto& projection : projectOp->Projections()) {
+                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(projection.Expression) + 1);
+            }
+            return maxChildDepth + 1;
+        }
+        if (auto* groupOp = op->As<TGroupOperator>()) {
+            int maxChildDepth = getOperatorDepth(groupOp->GetSource());
+            for (const auto& groupItem : groupOp->GroupItems()) {
+                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(groupItem.Expression) + 1);
+            }
+            for (const auto& aggregateItem : groupOp->AggregateItems()) {
+                maxChildDepth = std::max(maxChildDepth, getExpressionDepth(aggregateItem.Expression) + 1);
+            }
+            return maxChildDepth + 1;
+        }
+        YUNREACHABLE();
+    };
+
+    int depth = getOperatorDepth(Head_);
+
+    if (depth > PlanFragmentDepthLimit) {
+        THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
 }
 

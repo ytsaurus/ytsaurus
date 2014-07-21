@@ -352,6 +352,19 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         ContainsRegex("Type mismatch .* in expression \"a > 3.1415926\""));
 }
 
+TEST_F(TQueryPrepareTest, TooBigQuery)
+{
+    Stroka query = "k from [//t] where a in (0";
+    for (int i = 1; i < 50 ; ++i) {
+        query += ", " + ToString(i);
+    }
+    query += ")";
+
+    ExpectPrepareThrowsWithDiagnostics(
+        query,
+        ContainsRegex("Plan fragment depth limit exceeded"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryCoordinateTest
