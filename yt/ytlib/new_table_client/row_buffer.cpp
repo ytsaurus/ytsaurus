@@ -1,11 +1,25 @@
 #include "stdafx.h"
 #include "row_buffer.h"
+#include "versioned_row.h"
 #include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
+{
+    if (value->Type == EValueType::String || value->Type == EValueType::Any) {
+        char* dst = pool->AllocateUnaligned(value->Length);
+        memcpy(dst, value->Data.String, value->Length);
+        value->Data.String = dst;
+    }
+}
+
+} // namespace
 
 struct TAlignedRowBufferPoolTag { };
 struct TUnalignedRowBufferPoolTag { };
@@ -42,6 +56,20 @@ TChunkedMemoryPool* TRowBuffer::GetUnalignedPool()
 const TChunkedMemoryPool* TRowBuffer::GetUnalignedPool() const
 {
     return &UnalignedPool_;
+}
+
+TVersionedValue TRowBuffer::Capture(const TVersionedValue& value)
+{
+    auto capturedValue = value;
+    CaptureValue(&capturedValue, &UnalignedPool_);
+    return capturedValue;
+}
+
+TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
+{
+    auto capturedValue = value;
+    CaptureValue(&capturedValue, &UnalignedPool_);
+    return capturedValue;
 }
 
 TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
