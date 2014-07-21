@@ -138,9 +138,9 @@ void TPrepareController::ParseSource()
 void TPrepareController::CheckDepth()
 {
     std::function<int(const TExpression* op)> getExpressionDepth = [&] (const TExpression* op) -> int {
-        if (auto* literalExpr = op->As<TLiteralExpression>()) {
+        if (op->IsA<TLiteralExpression>()) {
             return 1;
-        } else if (auto* referenceExpr = op->As<TReferenceExpression>()) {
+        } else if (op->IsA<TReferenceExpression>()) {
             return 1;
         } else if (auto* functionExpr = op->As<TFunctionExpression>()) {
             int maxChildDepth = 0;
@@ -158,7 +158,7 @@ void TPrepareController::CheckDepth()
 
 
     std::function<int(const TOperator* op)> getOperatorDepth = [&] (const TOperator* op) -> int {
-        if (auto* scanOp = op->As<TScanOperator>()) {
+        if (op->IsA<TScanOperator>()) {
             return 1;
         }
         if (auto* filterOp = op->As<TFilterOperator>()) {
