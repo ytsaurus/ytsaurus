@@ -857,16 +857,17 @@ private:
         // Figure out and analyze the reality.
         yhash_set<TTabletCell*> actualCells;
         for (int slotIndex = 0; slotIndex < request.tablet_slots_size(); ++slotIndex) {
-            auto& slot = node->TabletSlots()[slotIndex];
-            const auto& slotInfo = request.tablet_slots(slotIndex);
-
             // Pre-erase slot.
+            auto& slot = node->TabletSlots()[slotIndex];
             slot = TNode::TTabletSlot();
 
-            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_guid());
-            if (cellId == NullTabletCellId)
+            const auto& slotInfo = request.tablet_slots(slotIndex);
+
+            auto state = EPeerState(slotInfo.peer_state());
+            if (state == EPeerState::None)
                 continue;
 
+            auto cellId = FromProto<TTabletCellId>(slotInfo.cell_guid());
             auto* cell = FindTabletCell(cellId);
             if (!IsObjectAlive(cell)) {
                 LOG_INFO_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
@@ -909,7 +910,7 @@ private:
 
             // Populate slot.
             slot.Cell = cell;
-            slot.PeerState = EPeerState(slotInfo.peer_state());
+            slot.PeerState = state;
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
@@ -920,9 +921,7 @@ private:
                 slotInfo.config_version());
 
             // Request slot reconfiguration if states are appropriate and versions differ.
-            if (/*slot.Cell->GetState() == ETabletCellState::Running &&*/
-                slotInfo.config_version() != slot.Cell->GetConfigVersion())
-            {
+            if (slotInfo.config_version() != slot.Cell->GetConfigVersion()) {
                 requestConfigureSlot(slot.Cell);
             }
         }

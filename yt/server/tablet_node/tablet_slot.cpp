@@ -222,7 +222,7 @@ public:
     }
 
 
-    void Create(const TCreateTabletSlotInfo& createInfo)
+    void Initialize(const TCreateTabletSlotInfo& createInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ == EPeerState::None);
@@ -341,7 +341,7 @@ public:
         LOG_INFO("Slot configured");
     }
 
-    void Remove()
+    void Finalize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
@@ -372,7 +372,7 @@ public:
 
         State_ = EPeerState::None;
 
-        LOG_INFO("Slot removed");
+        LOG_INFO("Slot finalized");
     }
 
 
@@ -460,12 +460,10 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         BuildYsonMapFluently(consumer)
+            .Item("index").Value(SlotIndex_)
             .Item("state").Value(GetControlState())
-            .DoIf(GetControlState() != EPeerState::None, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("cell_guid").Value(CellGuid_)
-                    .Item("options").Value(*Options_);
-            });
+            .Item("cell_guid").Value(CellGuid_)
+            .Item("options").Value(*Options_);
     }
 
     void BuildOrchidYsonAutomaton(IYsonConsumer* consumer)
@@ -614,9 +612,9 @@ TObjectId TTabletSlot::GenerateId(EObjectType type)
     return Impl_->GenerateId(type);
 }
 
-void TTabletSlot::Create(const TCreateTabletSlotInfo& createInfo)
+void TTabletSlot::Initialize(const TCreateTabletSlotInfo& createInfo)
 {
-    Impl_->Create(createInfo);
+    Impl_->Initialize(createInfo);
 }
 
 void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
@@ -624,9 +622,9 @@ void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
     Impl_->Configure(configureInfo);
 }
 
-void TTabletSlot::Remove()
+void TTabletSlot::Finalize()
 {
-    Impl_->Remove();
+    Impl_->Finalize();
 }
 
 void TTabletSlot::BuildOrchidYson(IYsonConsumer* consumer)

@@ -346,10 +346,14 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     auto tabletSlotManager = Bootstrap_->GetTabletSlotManager();
     for (auto slot : tabletSlotManager->Slots()) {
         auto* info = request->add_tablet_slots();
-        ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
-        info->set_peer_state(slot->GetControlState());
-        info->set_peer_id(slot->GetPeerId());
-        info->set_config_version(slot->GetCellConfigVersion());
+        if (slot) {
+            ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
+            info->set_peer_state(slot->GetControlState());
+            info->set_peer_id(slot->GetPeerId());
+            info->set_config_version(slot->GetCellConfigVersion());
+        } else {
+            info->set_peer_state(NHydra::EPeerState::None);
+        }
     }
 
     auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();

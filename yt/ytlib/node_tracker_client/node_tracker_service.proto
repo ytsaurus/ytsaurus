@@ -58,11 +58,10 @@ message TRspFullHeartbeat
 
 message TTabletSlotInfo
 {
-    // Null GUID indicates empty slot.
-    required NYT.NProto.TGuid cell_guid = 1;
-    required int32 peer_state = 2;
-    required int32 peer_id = 3;
-    required int32 config_version = 4;
+    required int32 peer_state = 1;
+    optional NYT.NProto.TGuid cell_guid = 2;
+    optional int32 peer_id = 3;
+    optional int32 config_version = 4;
 }
 
 message THiveCellInfo

@@ -59,15 +59,10 @@ public:
     {
         LOG_INFO("Initializing tablet node");
 
-        // Clean snapshot temporary directory.
         ForcePath(Config_->Snapshots->TempPath);
         CleanTempFiles(Config_->Snapshots->TempPath);
 
-        // Create slots.
-        for (int index = 0; index < Config_->Slots; ++index) {
-            auto slot = CreateSlot(index);
-            Slots_.push_back(slot);
-        }
+        Slots_.resize(Config_->Slots);
 
         SlotScanExecutor_->Start();
 
@@ -118,36 +113,23 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         for (auto slot : Slots_) {
-            if (slot->GetCellGuid() == id) {
+            if (slot && slot->GetCellGuid() == id) {
                 return slot;
             }
         }
+
         return nullptr;
     }
 
-    TTabletSlotPtr FindFreeSlot()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return FindSlot(NullCellGuid);
-    }
-
-    TTabletSlotPtr GetFreeSlot()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto slot = FindFreeSlot();
-        YCHECK(slot);
-        return slot;
-    }
 
 
     void CreateSlot(const TCreateTabletSlotInfo& createInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto slot = GetFreeSlot();
-        slot->Create(createInfo);
+        int index = GetFreeSlotIndex();
+        Slots_[index] = New<TTabletSlot>(index, Config_, Bootstrap_);
+        Slots_[index]->Initialize(createInfo);
         ++UsedSlotCount_;
     }
 
@@ -162,13 +144,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Notify the existing instance.
-        slot->Remove();
-
-        // Recreate the slot.
-        int index = slot->GetIndex();
-        Slots_[index] = CreateSlot(index);
-
+        slot->Finalize();
+        Slots_[slot->GetIndex()].Reset();
         --UsedSlotCount_;
     }
 
@@ -283,9 +260,11 @@ private:
 
         BuildYsonFluently(consumer)
             .DoListFor(Slots_, [&] (TFluentList fluent, TTabletSlotPtr slot) {
-                fluent
-                    .Item()
-                    .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
+                if (slot) {
+                    fluent
+                        .Item()
+                        .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
+                }
             });
     }
 
@@ -306,6 +285,9 @@ private:
             Owner_->BeginSlotScan_.Fire();
 
             for (auto slot : Owner_->Slots_) {
+                if (!slot)
+                    continue;
+
                 auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
                 if (!invoker)
                     continue;
@@ -351,14 +333,6 @@ private:
     }
 
 
-    TTabletSlotPtr CreateSlot(int index)
-    {
-        return New<TTabletSlot>(
-            index,
-            Config_,
-            Bootstrap_);
-    }
-
     static TTabletDescriptorPtr BuildTabletDescriptor(TTablet* tablet)
     {
         auto descriptor = New<TTabletDescriptor>();
@@ -372,6 +346,18 @@ private:
         return descriptor;
     }
 
+
+    int GetFreeSlotIndex()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (int index = 0; index < Slots_.size(); ++index) {
+            if (!Slots_[index]) {
+                return index;
+            }
+        }
+        YUNREACHABLE();
+    }
 
 };
 
