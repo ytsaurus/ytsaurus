@@ -8,6 +8,8 @@
 #include <ytlib/table_client/public.h>
 #include <ytlib/chunk_client/public.h>
 
+#include <initializer_list>
+
 // TODO(babenko): remove after migration
 namespace NYT { namespace NTableClient { namespace NProto {
     class TKeyColumnsExt;
@@ -81,6 +83,11 @@ struct TColumnFilter
 {
     TColumnFilter()
         : All(true)
+    { }
+
+    TColumnFilter(const std::initializer_list<int>& indexes)
+        : All(false)
+        , Indexes(indexes.begin(), indexes.end())
     { }
 
     bool All;
