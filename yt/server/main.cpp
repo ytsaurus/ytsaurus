@@ -272,13 +272,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NProfiling::TProfilingManager::Get()->Start();
     }
 
-    std::vector<Stroka> cgroups = parser.CGroups.getValue();
+    auto cgroups = parser.CGroups.getValue();
     for (const auto& path : cgroups) {
         NCGroup::TNonOwningCGroup cgroup(path);
         cgroup.EnsureExistance();
         cgroup.AddCurrentTask();
     }
 
+#ifndef _win_
     auto vmLimit = parser.VMLimit.getValue();
     if (vmLimit > 0) {
         struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
@@ -328,6 +329,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             (void*)NULL);
         return EExitCode::ExecutorError;
     }
+#endif
 
     // Start an appropriate server.
     if (isCellNode) {
