@@ -57,6 +57,16 @@ const TTableSchema& TFilterOperator::GetTableSchema(bool ignoreCache) const
     return GetSource()->GetTableSchema(ignoreCache);
 }
 
+void CheckTableScheme(const TTableSchema& tableScheme)
+{
+    std::unordered_set<Stroka> columnNames;
+    for (const auto& column : tableScheme.Columns()) {
+        if (!columnNames.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Redefinition of column %s", column.Name.Quote());
+        }
+    }
+}
+
 const TTableSchema& TGroupOperator::GetTableSchema(bool ignoreCache) const
 {
     if (!TableSchema_ || ignoreCache) {
@@ -75,6 +85,8 @@ const TTableSchema& TGroupOperator::GetTableSchema(bool ignoreCache) const
                 aggregateItem.Name,
                 InferType(aggregateItem.Expression, sourceSchema));
         }
+
+        CheckTableScheme(result);
     }
     return *TableSchema_;
 }
@@ -91,6 +103,8 @@ const TTableSchema& TProjectOperator::GetTableSchema(bool ignoreCache) const
                 projection.Name,
                 InferType(projection.Expression, sourceSchema));
         }
+
+        CheckTableScheme(result);
     }
     return *TableSchema_;
 }

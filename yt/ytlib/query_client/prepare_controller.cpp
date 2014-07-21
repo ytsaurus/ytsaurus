@@ -287,6 +287,8 @@ void TPrepareController::TypecheckExpressions()
             }
         }
     });
+
+    Head_->GetTableSchema();
 }
 
 void TPrepareController::MoveAggregateExpressions()

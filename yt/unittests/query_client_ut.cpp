@@ -365,6 +365,16 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
         ContainsRegex("Plan fragment depth limit exceeded"));
 }
 
+TEST_F(TQueryPrepareTest, ResultSchemaCollision)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "a as x, b as x FROM [//t] WHERE k > 3",
+        ContainsRegex("Redefinition of column .*"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryCoordinateTest
