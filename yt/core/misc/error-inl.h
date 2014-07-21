@@ -9,17 +9,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 template <class TInner, class... TArgs>
-static TError TError::Wrap(const TInner& inner, TArgs&&... args)
+bool IsOK(const TInner& inner, TArgs&&... args)
+{
+    return inner.IsOK();
+}
+
+template <class TInner, class... TArgs>
+TError WrapError(const TInner& inner, TArgs&&... args)
 {
     return TError(std::forward<TArgs>(args)...) << inner;
 }
 
 template <class TInner>
-static TError TError::Wrap(const TInner& inner)
+TError WrapError(const TInner& inner)
 {
     return inner;
 }
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
