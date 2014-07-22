@@ -31,6 +31,7 @@ public:
         YCHECK(Provider_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTimestamp));
     }
 
 private:
@@ -40,23 +41,29 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
     {
         int count = request->count();
-
-        if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-            context->SetRequestInfo("Count: %d", count);
-        }
+        context->SetRequestInfo("Count: %v", count);
 
         Provider_->GenerateTimestamps(count).Subscribe(BIND([=] (TErrorOr<TTimestamp> result) {
             if (result.IsOK()) {
                 auto timestamp = result.Value();
-                if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
-                    context->SetRequestInfo("Timestamp: %" PRId64, timestamp);
-                }
+                context->SetRequestInfo("Timestamp: %v", timestamp);
                 response->set_timestamp(timestamp);
                 context->Reply();
             } else {
                 context->Reply(result);
             }
         }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GetTimestamp)
+    {
+        context->SetRequestInfo();
+
+        auto timestamp = Provider_->GetLatestTimestamp();
+        context->SetRequestInfo("Timestamp: %v", timestamp);
+        response->set_timestamp(timestamp);
+
+        context->Reply();
     }
 
 };
