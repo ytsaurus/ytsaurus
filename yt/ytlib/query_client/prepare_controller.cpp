@@ -156,24 +156,20 @@ void TPrepareController::CheckDepth()
         YUNREACHABLE();
     };
 
-
     std::function<int(const TOperator* op)> getOperatorDepth = [&] (const TOperator* op) -> int {
         if (op->IsA<TScanOperator>()) {
             return 1;
-        }
-        if (auto* filterOp = op->As<TFilterOperator>()) {
+        } else if (auto* filterOp = op->As<TFilterOperator>()) {
             return std::max(
                 getOperatorDepth(filterOp->GetSource()), 
                 getExpressionDepth(filterOp->GetPredicate())) + 1;
-        }
-        if (auto* projectOp = op->As<TProjectOperator>()) {
+        } else if (auto* projectOp = op->As<TProjectOperator>()) {
             int maxChildDepth = getOperatorDepth(projectOp->GetSource());
             for (const auto& projection : projectOp->Projections()) {
                 maxChildDepth = std::max(maxChildDepth, getExpressionDepth(projection.Expression) + 1);
             }
             return maxChildDepth + 1;
-        }
-        if (auto* groupOp = op->As<TGroupOperator>()) {
+        } else if (auto* groupOp = op->As<TGroupOperator>()) {
             int maxChildDepth = getOperatorDepth(groupOp->GetSource());
             for (const auto& groupItem : groupOp->GroupItems()) {
                 maxChildDepth = std::max(maxChildDepth, getExpressionDepth(groupItem.Expression) + 1);
@@ -186,9 +182,7 @@ void TPrepareController::CheckDepth()
         YUNREACHABLE();
     };
 
-    int depth = getOperatorDepth(Head_);
-
-    if (depth > PlanFragmentDepthLimit) {
+    if (getOperatorDepth(Head_) > PlanFragmentDepthLimit) {
         THROW_ERROR_EXCEPTION("Plan fragment depth limit exceeded");
     }
 }
