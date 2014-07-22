@@ -56,6 +56,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/t2') == []
 
+    def test_job_statistics(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat; python -c "import os; os.write(5, \"{ k1=4}; {k2=-7}\")"')
+
+        assert read('//tmp/t2') == []
+
     @only_linux
     def test_one_chunk(self):
         create('table', '//tmp/t1')

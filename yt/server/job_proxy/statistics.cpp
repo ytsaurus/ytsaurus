@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "statistics.h"
 
+#include <core/ytree/fluent.h>
+#include <core/ytree/serialize.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -46,6 +49,17 @@ void TSummary::Merge(const TSummary& other)
     Max_ = max(Max_, other.Max_);
 }
 
+void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("summ").Value(summary.GetSumm())
+            .Item("count").Value(summary.GetCount())
+            .Item("min").Value(summary.GetMin())
+            .Item("max").Value(summary.GetMax())
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 void TStatistics::Add(const Stroka& name, const TSummary& summary)
@@ -68,6 +82,11 @@ void TStatistics::Clear()
 bool TStatistics::Empty() const
 {
     return Statistics_.empty();
+}
+
+void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    NYTree::Serialize(statistics.Statistics(), consumer);
 }
 
 ////////////////////////////////////////////////////////////////////

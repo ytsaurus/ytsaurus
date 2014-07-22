@@ -7,6 +7,7 @@
 #include "stderr_output.h"
 #include "table_output.h"
 #include "pipes.h"
+#include "statistics.h"
 
 #include <server/exec_agent/public.h>
 
@@ -81,6 +82,7 @@ static const auto& Logger = JobProxyLogger;
 
 #ifdef _linux_
 
+static int JobStatisticsFD = 5;
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
@@ -381,12 +383,25 @@ private:
             }
         }
 
+        {
+            std::unique_ptr<NYson::IYsonConsumer> consumer(new TStatisticsConvertor(BIND(&TUserJob::ConsumeStatistics, this)));
+            auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
+            JobStatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
+
+            createPipe(pipe);
+            OutputPipes.push_back(New<TOutputPipe>(pipe, JobStatisticsOutput.get(), JobStatisticsFD));
+        }
+
         // Close reserved descriptors.
         for (int fd : reservedDescriptors) {
             SafeClose(fd);
         }
 
         LOG_DEBUG("Pipes initialized");
+    }
+
+    void ConsumeStatistics(const TStatistics& statistics)
+    {
     }
 
     void SetError(const TError& error)
@@ -608,6 +623,7 @@ private:
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor;
 
+    std::unique_ptr<TTableOutput> JobStatisticsOutput;
     std::unique_ptr<TErrorOutput> ErrorOutput;
     TNullOutput NullErrorOutput;
     std::vector< std::unique_ptr<TOutputStream> > TableOutput;

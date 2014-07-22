@@ -22,6 +22,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
 };
 
+void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////
 
 class TStatistics
 {
@@ -35,6 +38,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TSummaryDict, Statistics);
 };
 
+void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////
 
 class TStatisticsConvertor
     : public NYson::TYsonConsumerBase
