@@ -212,6 +212,8 @@ private:
             *req->add_events() = event;
         }
 
+        LOG_DEBUG("Pushed %v events to proxy", CurrentBatch_.size());
+
         req->Invoke();
         CurrentBatch_.clear();
     }
@@ -225,17 +227,17 @@ private:
     void EnqueueEvent(const NProto::TTraceEvent& event)
     {
         if (event.has_annotation_key()) {
-            LOG_DEBUG("Event %s=%s %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-                ~event.annotation_key(),
-                ~event.annotation_value(),
+            LOG_DEBUG("Event %v=%v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+                event.annotation_key(),
+                event.annotation_value(),
                 event.trace_id(),
                 event.span_id(),
                 event.parent_span_id());
         } else {
-            LOG_DEBUG("Event %s:%s %s %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
-                ~event.service_name(),
-                ~event.span_name(),
-                ~event.annotation_name(),
+            LOG_DEBUG("Event %v:%v %v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
+                event.service_name(),
+                event.span_name(),
+                event.annotation_name(),
                 event.trace_id(),
                 event.span_id(),
                 event.parent_span_id());
