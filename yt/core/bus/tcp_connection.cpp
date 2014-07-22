@@ -140,6 +140,7 @@ void TTcpConnection::SyncInitialize()
 
         case EConnectionType::Server:
             InitFd();
+            InitWatcher();
             SyncOpen();
             break;
 
@@ -269,7 +270,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
         return;
     }
 
-    InitFd();
+    InitWatcher();
 
     AtomicSet(State, EState::Opening);
 }
@@ -320,7 +321,10 @@ void TTcpConnection::InitFd()
 #else
     Fd = Socket;
 #endif
+}
 
+void TTcpConnection::InitWatcher()
+{
     SocketWatcher.reset(new ev::io(DispatcherThread->GetEventLoop()));
     SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
     SocketWatcher->start(Fd, ev::READ|ev::WRITE);
@@ -350,6 +354,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         THROW_ERROR_EXCEPTION("Failed to create client socket")
             << TError::FromSystem();
     }
+
+    InitFd();
 
     if (family == AF_INET6) {
         int value = 0;
