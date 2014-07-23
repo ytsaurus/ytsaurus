@@ -75,7 +75,7 @@ IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     const auto& info = GetInfo();
 
     TMiscExt miscExt;
-    miscExt.set_record_count(info.record_count());
+    miscExt.set_row_count(info.row_count());
     miscExt.set_sealed(info.sealed());
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
@@ -167,7 +167,7 @@ void TJournalChunk::DoReadBlocks(
 void TJournalChunk::UpdateInfo() const
 {
     if (Changelog_) {
-        Info_.set_record_count(Changelog_->GetRecordCount());
+        Info_.set_row_count(Changelog_->GetRecordCount());
         Info_.set_sealed(Changelog_->IsSealed());
     }
 }

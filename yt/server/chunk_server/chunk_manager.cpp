@@ -684,7 +684,7 @@ public:
     }
 
 
-    void SealChunk(TChunk* chunk, int recordCount)
+    void SealChunk(TChunk* chunk, i64 rowCount)
     {
         if (!chunk->IsJournal()) {
             THROW_ERROR_EXCEPTION("Not a journal chunk");
@@ -701,10 +701,10 @@ public:
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
         TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.RecordCount = recordCount - miscExt.record_count(); // the latter is usually 0
+        statisticsDelta.RowCount = rowCount - miscExt.row_count(); // the latter is usually 0
         statisticsDelta.Sealed = true;
         
-        chunk->Seal(recordCount);
+        chunk->Seal(rowCount);
 
         YCHECK(chunk->Parents().size() == 1);
         auto* chunkList = chunk->Parents()[0];
@@ -722,10 +722,10 @@ public:
         }
     }
 
-    TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk)
+    TFuture<TErrorOr<i64>> GetChunkQuorumRowCount(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            return MakeFuture<TErrorOr<int>>(chunk->GetSealedRecordCount());
+            return MakeFuture<TErrorOr<i64>>(chunk->GetSealedRowCount());
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
@@ -734,7 +734,7 @@ public:
             replicas.push_back(node->GetDescriptor());
         }
 
-        return ComputeQuorumRecordCount(
+        return ComputeQuorumRowCount(
             chunk->GetId(),
             replicas,
             Config_->JournalRpcTimeout,
@@ -1019,9 +1019,6 @@ private:
             auto& rowCountSums = chunkList->RowCountSums();
             rowCountSums.clear();
 
-            auto& recordCountSums = chunkList->RecordCountSums();
-            recordCountSums.clear();
-
             auto& chunkCountSums = chunkList->ChunkCountSums();
             chunkCountSums.clear();
 
@@ -1047,7 +1044,6 @@ private:
 
                 if (childIndex + 1 < childrenCount) {
                     rowCountSums.push_back(statistics.RowCount + childStatistics.RowCount);
-                    recordCountSums.push_back(statistics.RecordCount + childStatistics.RecordCount);
                     chunkCountSums.push_back(statistics.ChunkCount + childStatistics.ChunkCount);
                     dataSizeSums.push_back(statistics.UncompressedDataSize + childStatistics.UncompressedDataSize);
                 }
@@ -1721,14 +1717,14 @@ EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
     return Impl_->ComputeChunkStatus(chunk);
 }
 
-void TChunkManager::SealChunk(TChunk* chunk, int recordCount)
+void TChunkManager::SealChunk(TChunk* chunk, i64 rowCount)
 {
-    Impl_->SealChunk(chunk, recordCount);
+    Impl_->SealChunk(chunk, rowCount);
 }
 
-TFuture<TErrorOr<int>> TChunkManager::GetChunkQuorumRecordCount(TChunk* chunk)
+TFuture<TErrorOr<i64>> TChunkManager::GetChunkQuorumRowCount(TChunk* chunk)
 {
-    return Impl_->GetChunkQuorumRecordCount(chunk);
+    return Impl_->GetChunkQuorumRowCount(chunk);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)

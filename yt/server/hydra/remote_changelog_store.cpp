@@ -158,10 +158,10 @@ private:
             id);
 
         // TODO(babenko): consolidate with the above when YT-624 is done
-        LOG_DEBUG("Getting quorum record count of changelog %v",
+        LOG_DEBUG("Getting quorum record count for changelog %v",
             id);
         {
-            auto result = WaitFor(MasterClient_->GetNode(path + "/@quorum_record_count"));
+            auto result = WaitFor(MasterClient_->GetNode(path + "/@quorum_row_count"));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             recordCount = ConvertTo<int>(result.Value());
         }
@@ -301,8 +301,8 @@ private:
             i64 /*maxBytes*/) const override
         {
             TJournalReaderOptions options;
-            options.FirstRecordIndex = firstRecordId;
-            options.RecordCount = maxRecords;
+            options.FirstRowIndex = firstRecordId;
+            options.RowCount = maxRecords;
 
             auto reader = Owner_->MasterClient_->CreateJournalReader(
                 Path_,

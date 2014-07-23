@@ -41,11 +41,8 @@ message TMiscExt
     // Size of chunk meta (without TMiscExt), obtained via ByteSize.
     optional int64 meta_size = 6 [default = 0];
 
-    // Number of rows in this chunk (tables only).
+    // Number of rows in this chunk (tables and journals only).
     optional int64 row_count = 2 [default = 0];
-
-    // Number of records in this chunk (journals only).
-    optional int32 record_count = 12 [default = 0];
 
     // ECompressionCodec
     optional int32 compression_codec = 3 [default = 0];

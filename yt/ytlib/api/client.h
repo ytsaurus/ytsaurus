@@ -222,8 +222,8 @@ struct TJournalReaderOptions
     : public TTransactionalOptions
     , public TSuppressableAccessTrackingOptions
 {
-    TNullable<i64> FirstRecordIndex;
-    TNullable<i64> RecordCount;
+    TNullable<i64> FirstRowIndex;
+    TNullable<i64> RowCount;
 };
 
 struct TJournalWriterOptions

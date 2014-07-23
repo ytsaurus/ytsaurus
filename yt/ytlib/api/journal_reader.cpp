@@ -98,9 +98,9 @@ private:
     IReaderPtr CurrentChunkReader_;
 
     // Inside current chunk.
-    int BeginRecordIndex_ = -1;
-    int CurrentRecordIndex_ = -1;
-    int EndRecordIndex_ = -1; // exclusive
+    i64 BeginRowIndex_ = -1;
+    i64 CurrentRowIndex_ = -1;
+    i64 EndRowIndex_ = -1; // exclusive
 
     NLog::TLogger Logger;
 
@@ -122,12 +122,12 @@ private:
 
         {
             auto req = TJournalYPathProxy::Fetch(Path_);
-            i64 firstRecordIndex = Options_.FirstRecordIndex.Get(0);
-            if (Options_.FirstRecordIndex) {
-                req->mutable_lower_limit()->set_record_index(firstRecordIndex);
+            i64 firstRowIndex = Options_.FirstRowIndex.Get(0);
+            if (Options_.FirstRowIndex) {
+                req->mutable_lower_limit()->set_row_index(firstRowIndex);
             }
-            if (Options_.RecordCount) {
-                req->mutable_upper_limit()->set_record_index(firstRecordIndex + *Options_.RecordCount);
+            if (Options_.RowCount) {
+                req->mutable_upper_limit()->set_row_index(firstRowIndex + *Options_.RowCount);
             }
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
@@ -144,10 +144,10 @@ private:
 
             auto type = EObjectType(rsp->type());
             if (type != EObjectType::Journal) {
-                THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
-                    ~Path_,
-                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                    Path_,
+                    EObjectType(EObjectType::File),
+                    type);
             }
         }
 
@@ -196,23 +196,23 @@ private:
                     replicas);
 
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
-                BeginRecordIndex_ = lowerLimit.HasRecordIndex() ? lowerLimit.GetRecordIndex() : 0;
+                BeginRowIndex_ = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
 
                 auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
-                EndRecordIndex_ = upperLimit.HasRecordIndex() ? upperLimit.GetRecordIndex() : std::numeric_limits<int>::max();
+                EndRowIndex_ = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<int>::max();
 
-                CurrentRecordIndex_ = BeginRecordIndex_;
+                CurrentRowIndex_ = BeginRowIndex_;
             }
 
-            auto recordsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
-                CurrentRecordIndex_,
-                EndRecordIndex_ - CurrentRecordIndex_));
-            THROW_ERROR_EXCEPTION_IF_FAILED(recordsOrError);
+            auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
+                CurrentRowIndex_,
+                EndRowIndex_ - CurrentRowIndex_));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);
 
-            const auto& records = recordsOrError.Value();
-            if (!records.empty()) {
-                CurrentRecordIndex_ += records.size();
-                return records;
+            const auto& rows = rowsOrError.Value();
+            if (!rows.empty()) {
+                CurrentRowIndex_ += rows.size();
+                return rows;
             }
 
             CurrentChunkReader_.Reset();

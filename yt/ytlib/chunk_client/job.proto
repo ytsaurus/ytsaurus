@@ -47,7 +47,7 @@ message TSealChunkJobSpecExt
         optional TSealChunkJobSpecExt seal_chunk_job_spec_ext = 203;
     }
 
-    required int32 record_count = 1;
+    required int64 row_count = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated fixed32 replicas = 3;
 }

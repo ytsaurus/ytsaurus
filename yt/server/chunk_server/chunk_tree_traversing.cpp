@@ -185,25 +185,10 @@ protected:
                         continue;
                     }
                     childLowerBound.SetRowIndex(childLimit);
-                    childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), statistics.RowCount));
+                    i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
+                    childUpperBound.SetRowIndex(fetchCurrentSum(chunkList->RowCountSums(), totalRowCount));
                 } else if (entry.LowerBound.HasRowIndex()) {
                     childLowerBound.SetRowIndex(childLimit);
-                }
-            }
-
-            // Record index
-            {
-                i64 childLimit = fetchPrevSum(chunkList->RecordCountSums());
-                if (entry.UpperBound.HasRecordIndex()) {
-                    if (entry.UpperBound.GetRecordIndex() <= childLimit) {
-                        PopStack();
-                        continue;
-                    }
-                    childLowerBound.SetRecordIndex(childLimit);
-                    // NB: The last chunk may be non-sealed.
-                    childUpperBound.SetRecordIndex(fetchCurrentSum(chunkList->RecordCountSums(), std::numeric_limits<i64>::max()));
-                } else if (entry.LowerBound.HasRecordIndex()) {
-                    childLowerBound.SetRecordIndex(childLimit);
                 }
             }
 
@@ -323,13 +308,8 @@ protected:
 
         // Row Index
         if (lowerBound.HasRowIndex()) {
-            adjustResult(lowerBound.GetRowIndex(), statistics.RowCount, chunkList->RowCountSums());
-        }
-
-        // Record index
-        if (lowerBound.HasRecordIndex()) {
-            // NB: The last chunk may be non-sealed.
-            adjustResult(lowerBound.GetRecordIndex(), std::numeric_limits<i64>::max(), chunkList->RecordCountSums());
+            i64 totalRowCount = statistics.Sealed ? statistics.RowCount : std::numeric_limits<i64>::max();
+            adjustResult(lowerBound.GetRowIndex(), totalRowCount, chunkList->RowCountSums());
         }
 
         // Chunk index
@@ -380,21 +360,6 @@ protected:
             i64 newUpperBound = stackEntry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
             YASSERT(newUpperBound > 0);
             endLimit->SetRowIndex(newUpperBound);
-        }
-
-        // Record index
-        if (stackEntry.LowerBound.HasRecordIndex()) {
-            i64 newLowerBound = stackEntry.LowerBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
-            if (newLowerBound > 0) {
-                startLimit->SetRecordIndex(newLowerBound);
-            }
-        }
-        if (stackEntry.UpperBound.HasRecordIndex() &&
-            stackEntry.UpperBound.GetRecordIndex() < childUpperBound.GetRecordIndex())
-        {
-            i64 newUpperBound = stackEntry.UpperBound.GetRecordIndex() - childLowerBound.GetRecordIndex();
-            YASSERT(newUpperBound > 0);
-            endLimit->SetRecordIndex(newUpperBound);
         }
 
         // Chunk index

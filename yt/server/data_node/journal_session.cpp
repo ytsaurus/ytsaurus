@@ -42,7 +42,7 @@ TChunkInfo TJournalSession::GetChunkInfo() const
 void TJournalSession::UpdateChunkInfo() const
 {
     if (Changelog_) {
-        ChunkInfo_.set_record_count(Changelog_->GetRecordCount());
+        ChunkInfo_.set_row_count(Changelog_->GetRecordCount());
         ChunkInfo_.set_sealed(Changelog_->IsSealed());
     }
 }

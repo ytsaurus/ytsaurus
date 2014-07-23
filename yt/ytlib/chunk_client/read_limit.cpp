@@ -84,22 +84,6 @@ void TReadLimit::SetRowIndex(i64 rowIndex)
     ReadLimit_.set_row_index(rowIndex);
 }
 
-i64 TReadLimit::GetRecordIndex() const
-{
-    YASSERT(HasRecordIndex());
-    return ReadLimit_.record_index();
-}
-
-bool TReadLimit::HasRecordIndex() const
-{
-    return ReadLimit_.has_record_index();
-}
-
-void TReadLimit::SetRecordIndex(i64 recordIndex)
-{
-    ReadLimit_.set_record_index(recordIndex);
-}
-
 i64 TReadLimit::GetOffset() const
 {
     YASSERT(HasOffset());
@@ -187,11 +171,6 @@ Stroka ToString(const TReadLimit& limit)
         append(ToString(limit.GetRowIndex()));
     }
 
-    if (limit.HasRecordIndex()) {
-        append("RecordIndex: ");
-        append(ToString(limit.GetRecordIndex()));
-    }
-
     if (limit.HasOffset()) {
         append("Offset: ");
         append(ToString(limit.GetOffset()));
@@ -214,7 +193,6 @@ bool IsTrivial(const NProto::TReadLimit& limit)
 {
     return
         !limit.has_row_index() &&
-        !limit.has_record_index() &&
         !limit.has_key() &&
         !limit.has_offset() &&
         !limit.has_chunk_index();
@@ -242,9 +220,6 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
             .DoIf(readLimit.HasRowIndex(), [&] (TFluentMap fluent) {
                 fluent.Item("row_index").Value(readLimit.GetRowIndex());
             })
-            .DoIf(readLimit.HasRecordIndex(), [&] (TFluentMap fluent) {
-                fluent.Item("record_index").Value(readLimit.GetRecordIndex());
-            })
             .DoIf(readLimit.HasOffset(), [&] (TFluentMap fluent) {
                 fluent.Item("offset").Value(readLimit.GetOffset());
             })
@@ -263,9 +238,6 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
     }
     if (attributes->Contains("row_index")) {
         readLimit.SetRowIndex(attributes->Get<i64>("row_index"));
-    }
-    if (attributes->Contains("record_index")) {
-        readLimit.SetRecordIndex(attributes->Get<i64>("record_index"));
     }
     if (attributes->Contains("offset")) {
         readLimit.SetOffset(attributes->Get<i64>("offset"));

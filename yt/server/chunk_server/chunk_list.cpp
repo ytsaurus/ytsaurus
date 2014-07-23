@@ -41,7 +41,6 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, RowCountSums_);
     Save(context, ChunkCountSums_);
     Save(context, DataSizeSums_);
-    Save(context, RecordCountSums_);
 }
 
 void TChunkList::Load(NCellMaster::TLoadContext& context)
@@ -63,10 +62,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     Load(context, DataSizeSums_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, RecordCountSums_);
-    }
 }
 
 ui64 TChunkList::GenerateVisitMark()

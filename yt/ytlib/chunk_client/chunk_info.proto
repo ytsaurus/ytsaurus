@@ -10,7 +10,7 @@ message TChunkInfo
     optional int64 disk_space = 1 [default = 0];
 
     // For journal chunks only.
-    optional int32 record_count = 2 [default = 0];
+    optional int64 row_count = 2 [default = 0];
 
     // For journal chunks only.
     optional bool sealed = 3 [default = false];

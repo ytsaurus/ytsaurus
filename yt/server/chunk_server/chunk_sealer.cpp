@@ -240,15 +240,15 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        int recordCount;
+        int rowCount;
         {
-            auto result = WaitFor(ComputeQuorumRecordCount(
+            auto result = WaitFor(ComputeQuorumRowCount(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum()));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            recordCount = result.Value();
+            rowCount = result.Value();
         }
 
         // NB: Double-check.
@@ -259,7 +259,7 @@ private:
         auto rootService = objectManager->GetRootService();
         auto chunkProxy = objectManager->GetProxy(chunk);
         auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
-        req->set_record_count(recordCount);
+        req->set_row_count(rowCount);
         ExecuteVerb(rootService, req);
     }
 

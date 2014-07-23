@@ -54,9 +54,9 @@ private:
     {
         attributes->push_back("read_quorum");
         attributes->push_back("write_quorum");
+        attributes->push_back("row_count");
+        attributes->push_back(TAttributeInfo("quorum_row_count", true, true));
         attributes->push_back("sealed");
-        attributes->push_back("record_count");
-        attributes->push_back(TAttributeInfo("quorum_record_count", true, true));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -76,15 +76,15 @@ private:
             return true;
         }
 
-        if (key == "sealed") {
+        if (key == "row_count") {
             BuildYsonFluently(consumer)
-                .Value(node->IsSealed());
+                .Value(node->GetChunkList()->Statistics().RowCount);
             return true;
         }
 
-        if (key == "record_count") {
+        if (key == "sealed") {
             BuildYsonFluently(consumer)
-                .Value(node->GetChunkList()->Statistics().RecordCount);
+                .Value(node->IsSealed());
             return true;
         }
 
@@ -147,7 +147,7 @@ private:
     virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
-        if (key == "quorum_record_count") {
+        if (key == "quorum_row_count") {
             const auto* chunkList = node->GetChunkList();
             if (chunkList->Children().empty()) {
                 BuildYsonFluently(consumer)
@@ -156,17 +156,16 @@ private:
             }
 
             auto* chunk = chunkList->Children().back()->AsChunk();
-            i64 penultimateRecordCount = chunkList->RecordCountSums().empty() ? 0 : chunkList->RecordCountSums().back();
+            i64 penultimateRowCount = chunkList->RowCountSums().empty() ? 0 : chunkList->RowCountSums().back();
 
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto recordCountResult = chunkManager->GetChunkQuorumRecordCount(chunk);
-
-            return recordCountResult.Apply(BIND([=] (TErrorOr<int> recordCountOrError) -> TError {
-                if (recordCountOrError.IsOK()) {
+            auto rowCountResult = chunkManager->GetChunkQuorumRowCount(chunk);
+            return rowCountResult.Apply(BIND([=] (TErrorOr<i64> result) -> TError {
+                if (result.IsOK()) {
                     BuildYsonFluently(consumer)
-                        .Value(penultimateRecordCount + recordCountOrError.Value());
+                        .Value(penultimateRowCount + result.Value());
                 }
-                return TError(recordCountOrError);
+                return TError(result);
             }));
         }
 

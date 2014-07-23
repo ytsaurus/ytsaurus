@@ -123,8 +123,8 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
-    void SealChunk(TChunk* chunk, int recordCount);
-    TFuture<TErrorOr<int>> GetChunkQuorumRecordCount(TChunk* chunk);
+    void SealChunk(TChunk* chunk, i64 rowCount);
+    TFuture<TErrorOr<i64>> GetChunkQuorumRowCount(TChunk* chunk);
 
 private:
     class TImpl;

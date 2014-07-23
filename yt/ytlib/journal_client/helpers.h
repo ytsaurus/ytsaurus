@@ -19,7 +19,7 @@ TAsyncError AbortSessionsQuorum(
     TDuration timeout,
     int quorum);
 
-TFuture<TErrorOr<int>> ComputeQuorumRecordCount(
+TFuture<TErrorOr<i64>> ComputeQuorumRowCount(
     const NChunkClient::TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& replicas,
     TDuration timeout,

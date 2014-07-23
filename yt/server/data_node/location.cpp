@@ -422,7 +422,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
 
     TChunkDescriptor descriptor;
     descriptor.Id = chunkId;
-    descriptor.Info.set_record_count(changelog->GetRecordCount());
+    descriptor.Info.set_row_count(changelog->GetRecordCount());
     descriptor.Info.set_sealed(changelog->IsSealed());
     return descriptor;
 }

@@ -16,9 +16,6 @@ struct TChunkTreeStatistics
     //! Total number of rows in the tree.
     i64 RowCount = 0;
 
-    //! Total number of records in the tree.
-    i64 RecordCount = 0;
-
     //! Sum of uncompressed data sizes of chunks in the tree.
     i64 UncompressedDataSize = 0;
 

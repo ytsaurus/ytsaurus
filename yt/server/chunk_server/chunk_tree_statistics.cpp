@@ -16,7 +16,6 @@ namespace NChunkServer {
 void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 {
     RowCount += other.RowCount;
-    RecordCount += other.RecordCount;
     UncompressedDataSize += other.UncompressedDataSize;
     CompressedDataSize += other.CompressedDataSize;
     DataWeight += other.DataWeight;
@@ -32,7 +31,6 @@ void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RowCount);
-    Save(context, RecordCount);
     Save(context, UncompressedDataSize);
     Save(context, CompressedDataSize);
     Save(context, DataWeight);
@@ -48,10 +46,6 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     Load(context, RowCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, RecordCount);
-    }
     Load(context, UncompressedDataSize);
     Load(context, CompressedDataSize);
     Load(context, DataWeight);
@@ -73,7 +67,6 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .Item("row_count").Value(statistics.RowCount)
-            .Item("record_count").Value(statistics.RecordCount)
             .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
             .Item("compressed_data_size").Value(statistics.CompressedDataSize)
             .Item("data_weight").Value(statistics.DataWeight)

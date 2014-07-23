@@ -94,6 +94,8 @@ private:
         attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
         attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec(), false, true));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
+        attributes->push_back(TAttributeInfo("quorum_row_count", chunk->IsJournal(), true));
+        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
         attributes->push_back(TAttributeInfo("min_timestamp", chunk->IsConfirmed() && miscExt->has_min_timestamp()));
@@ -102,9 +104,6 @@ private:
         attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
         attributes->push_back(TAttributeInfo("min_key", hasBoundaryKeysExt));
         attributes->push_back(TAttributeInfo("max_key", hasBoundaryKeysExt));        
-        attributes->push_back(TAttributeInfo("record_count", chunk->IsJournal() && chunk->IsSealed()));
-        attributes->push_back(TAttributeInfo("quorum_record_count", chunk->IsJournal(), true));
-        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("read_quorum", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("write_quorum", chunk->IsJournal()));
         TBase::ListSystemAttributes(attributes);
@@ -310,6 +309,12 @@ private:
                 return true;
             }
 
+            if (key == "sealed" && chunk->IsJournal()) {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->IsSealed());
+                return true;
+            }
+
             if (key == "value_count" && miscExt.has_value_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.value_count());
@@ -331,18 +336,6 @@ private:
             if (key == "max_timestamp" && miscExt.has_max_timestamp()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.max_timestamp());
-                return true;
-            }
-
-            if (key == "record_count" && chunk->IsSealed()) {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->GetSealedRecordCount());
-                return true;
-            }
-
-            if (key == "sealed" && chunk->IsJournal()) {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->IsSealed());
                 return true;
             }
 
@@ -394,15 +387,15 @@ private:
     virtual TAsyncError GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto* chunk = GetThisTypedImpl();
-        if (chunk->IsJournal() && key == "quorum_record_count") {
+        if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto recordCountResult = chunkManager->GetChunkQuorumRecordCount(chunk);
-            return recordCountResult.Apply(BIND([=] (TErrorOr<int> recordCountOrError) -> TError {
-                if (recordCountOrError.IsOK()) {
+            auto rowCountResult = chunkManager->GetChunkQuorumRowCount(chunk);
+            return rowCountResult.Apply(BIND([=] (TErrorOr<i64> result) -> TError {
+                if (result.IsOK()) {
                     BuildYsonFluently(consumer)
-                        .Value(recordCountOrError.Value());
+                        .Value(result.Value());
                 }
-                return TError(recordCountOrError);
+                return TError(result);
             }));
         }
         return TBase::GetBuiltinAttributeAsync(key, consumer);
@@ -480,12 +473,12 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("RecordCount: %d",
-            request->record_count());
+        context->SetRequestInfo("RowCount: %d",
+            request->row_count());
 
         auto* chunk = GetThisTypedImpl();
         auto chunkManager = Bootstrap->GetChunkManager();
-        chunkManager->SealChunk(chunk, request->record_count());
+        chunkManager->SealChunk(chunk, request->row_count());
 
         context->Reply();
     }

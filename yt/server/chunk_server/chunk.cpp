@@ -70,7 +70,6 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
-    result.RecordCount = miscExt.record_count();
     result.UncompressedDataSize = miscExt.uncompressed_data_size();
     result.CompressedDataSize = miscExt.compressed_data_size();
     result.DataWeight = miscExt.data_weight();
@@ -363,21 +362,21 @@ bool TChunk::IsSealed() const
     return miscExt.sealed();
 }
 
-int TChunk::GetSealedRecordCount() const
+i64 TChunk::GetSealedRowCount() const
 {
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     YCHECK(miscExt.sealed());
-    return miscExt.record_count();
+    return miscExt.row_count();
 }
 
-void TChunk::Seal(int recordCount)
+void TChunk::Seal(i64 rowCount)
 {
     YASSERT(IsConfirmed());
 
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     YASSERT(!miscExt.sealed());
     miscExt.set_sealed(true);
-    miscExt.set_record_count(recordCount);
+    miscExt.set_row_count(rowCount);
     SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
 }
 

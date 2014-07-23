@@ -34,8 +34,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, ChunkCountSums);
     // Same as above but for data size sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, DataSizeSums);
-    // Same as above but for record count sums.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RecordCountSums);
 
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);

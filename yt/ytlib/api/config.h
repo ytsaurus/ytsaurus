@@ -106,12 +106,12 @@ class TJournalWriterConfig
 public:
     TDuration MaxBatchDelay;
     i64 MaxBatchDataSize;
-    int MaxBatchRecordCount;
+    int MaxBatchRowCount;
     bool PreferLocalHost;
     TDuration NodeRpcTimeout;
     TDuration NodePingPeriod;
     int MaxChunkOpenAttempts;
-    int MaxChunkRecordCount;
+    int MaxChunkRowCount;
     i64 MaxChunkDataSize;
     TDuration NodeBanTimeout;
 
@@ -121,7 +121,7 @@ public:
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_batch_data_size", MaxBatchDataSize)
             .Default((i64) 16 * 1024 * 1024);
-        RegisterParameter("max_batch_record_count", MaxBatchRecordCount)
+        RegisterParameter("max_batch_row_count", MaxBatchRowCount)
             .Default(100000);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
@@ -132,7 +132,7 @@ public:
         RegisterParameter("max_chunk_open_attempts", MaxChunkOpenAttempts)
             .GreaterThan(0)
             .Default(5);
-        RegisterParameter("max_chunk_record_count", MaxChunkRecordCount)
+        RegisterParameter("max_chunk_row_count", MaxChunkRowCount)
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_chunk_data_size", MaxChunkDataSize)

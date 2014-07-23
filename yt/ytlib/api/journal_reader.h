@@ -21,8 +21,8 @@ struct IJournalReader
     virtual TAsyncError Open() = 0;
 
     //! Reads another portion of the journal.
-    //! Each record is passed in its own TSharedRef.
-    //! When no more records remain, an empty vector is returned.
+    //! Each row is passed in its own TSharedRef.
+    //! When no more rows remain, an empty vector is returned.
     virtual TFuture<TErrorOr<std::vector<TSharedRef>>> Read() = 0;
 };
 

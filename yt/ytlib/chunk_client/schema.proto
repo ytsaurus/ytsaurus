@@ -30,22 +30,17 @@ message TKey
 }
 
 // A boundary can be given by:
-// * row index (for tables only)
+// * row index (for tables and journals only)
 // * chunk index
 // * offset (for files only)
 // * key (for tables only)
-// * record index (for journals only)
 // A boundary is either inclusive or exclusive depending of the context.
 message TReadLimit
 {
     optional int64 row_index = 1;
-    optional int64 record_index = 6;
-    optional int32 chunk_index = 3;
-    optional int64 offset = 4;
-    optional bytes key = 5;
-
-    // Deprecated
-    // optional TKey key = 2;
+    optional int32 chunk_index = 2;
+    optional int64 offset = 3;
+    optional bytes key = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

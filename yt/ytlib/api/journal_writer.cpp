@@ -86,9 +86,9 @@ public:
         return Impl_->Open();
     }
 
-    virtual TAsyncError Write(const std::vector<TSharedRef>& records) override
+    virtual TAsyncError Write(const std::vector<TSharedRef>& rows) override
     {
-        return Impl_->Write(records);
+        return Impl_->Write(rows);
     }
 
     virtual TAsyncError Close() override
@@ -141,7 +141,7 @@ private:
             return OpenedPromise_;
         }
 
-        TAsyncError Write(const std::vector<TSharedRef>& records)
+        TAsyncError Write(const std::vector<TSharedRef>& rows)
         {
             TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
 
@@ -150,8 +150,8 @@ private:
             }
 
             auto batch = EnsureCurrentBatch();
-            for (const auto& record : records) {
-                AppendToBatch(batch, record);
+            for (const auto& row : rows) {
+                AppendToBatch(batch, row);
                 if (IsBatchFull(batch)) {
                     FlushCurrentBatch();
                     batch = EnsureCurrentBatch();
@@ -188,9 +188,9 @@ private:
         struct TBatch
             : public TIntrinsicRefCounted
         {
-            int FirstRecordIndex = -1;
+            int FirstRowIndex = -1;
             i64 DataSize = 0;
-            std::vector<TSharedRef> Records;
+            std::vector<TSharedRef> Rows;
             TAsyncErrorPromise FlushedPromise = NewPromise<TError>();
             int FlushedReplicas = 0;
         };
@@ -246,8 +246,8 @@ private:
         {
             TChunkId ChunkId;
             std::vector<TNodePtr> Nodes;
-            int RecordCount = 0;
-            int FlushedRecordCount = 0;
+            i64 RowCount = 0;
+            i64 FlushedRowCount = 0;
             i64 DataSize = 0;
         };
 
@@ -255,7 +255,7 @@ private:
 
         TChunkSessionPtr CurrentSession_;
 
-        int CurrentRecordIndex_ = 0;
+        i64 CurrentRowIndex_ = 0;
         std::deque<TBatchPtr> PendingBatches_;
 
         typedef TBatchPtr TBatchCommand;
@@ -583,14 +583,14 @@ private:
 
         void HandleBatch(TBatchPtr batch)
         {
-            int recordCount = static_cast<int>(batch->Records.size());
+            i64 rowCount = batch->Rows.size();
 
-            LOG_DEBUG("Records batch ready (Records: %d-%d)",
-                CurrentRecordIndex_,
-                CurrentRecordIndex_ + recordCount - 1);
+            LOG_DEBUG("Batch ready (Rows: %d-%d)",
+                CurrentRowIndex_,
+                CurrentRowIndex_ + rowCount - 1);
 
-            batch->FirstRecordIndex = CurrentRecordIndex_;
-            CurrentRecordIndex_ += recordCount;
+            batch->FirstRowIndex = CurrentRowIndex_;
+            CurrentRowIndex_ += rowCount;
 
             PendingBatches_.push_back(batch);
 
@@ -600,13 +600,13 @@ private:
         bool IsSessionOverful()
         {
             return
-                CurrentSession_->RecordCount > Config_->MaxChunkRecordCount ||
+                CurrentSession_->RowCount > Config_->MaxChunkRowCount ||
                 CurrentSession_->DataSize > Config_->MaxChunkDataSize;
         }
 
         void EnqueueBatchToSession(TBatchPtr batch)
         {
-            CurrentSession_->RecordCount += batch->Records.size();
+            CurrentSession_->RowCount += batch->Rows.size();
             CurrentSession_->DataSize += batch->DataSize;
 
             for (auto node : CurrentSession_->Nodes) {
@@ -622,7 +622,7 @@ private:
 
         void CloseChunk()
         {
-            // Release the current session to prevent writing more records
+            // Release the current session to prevent writing more rows
             // or detecting failed pings.
             auto session = CurrentSession_;
             CurrentSession_.Reset();
@@ -637,12 +637,12 @@ private:
                 node->PingExecutor->Stop();
             }
 
-            LOG_INFO("Sealing chunk (ChunkId: %s, RecordCount: %d)",
-                ~ToString(session->ChunkId),
-                session->FlushedRecordCount);
+            LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
+                session->ChunkId,
+                session->FlushedRowCount);
             {
                 auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
-                req->set_record_count(session->FlushedRecordCount);
+                req->set_row_count(session->FlushedRowCount);
                 auto rsp = WaitFor(Proxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %s",
                     ~ToString(session->ChunkId));
@@ -707,18 +707,18 @@ private:
         }
 
 
-        static void AppendToBatch(const TBatchPtr& batch, const TSharedRef& record)
+        static void AppendToBatch(const TBatchPtr& batch, const TSharedRef& row)
         {
-            YASSERT(record);
-            batch->Records.push_back(record);
-            batch->DataSize += record.Size();
+            YASSERT(row);
+            batch->Rows.push_back(row);
+            batch->DataSize += row.Size();
         }
 
         bool IsBatchFull(const TBatchPtr& batch)
         {
             return
                 batch->DataSize > Config_->MaxBatchDataSize ||
-                batch->Records.size() > Config_->MaxBatchRecordCount;
+                batch->Rows.size() > Config_->MaxBatchRowCount;
         }
 
 
@@ -827,7 +827,7 @@ private:
             node->PendingBatches.pop();
 
             int firstBlockIndex = node->FirstBlockIndex;
-            int lastLastIndex = firstBlockIndex + batch->Records.size() - 1;
+            int lastLastIndex = firstBlockIndex + batch->Rows.size() - 1;
 
             LOG_DEBUG("Flushing journal replica (Address: %s, BlockIds: %s:%d-%d)",
                 ~node->Descriptor.GetDefaultAddress(),
@@ -839,7 +839,7 @@ private:
             ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
             req->set_first_block_index(node->FirstBlockIndex);
             req->set_flush_blocks(true);
-            req->Attachments() = batch->Records;
+            req->Attachments() = batch->Rows;
 
             node->FlushInProgress = true;
 
@@ -881,13 +881,13 @@ private:
                     break;
 
                 front->FlushedPromise.Set(TError());
-                int recordCount = static_cast<int>(front->Records.size());
-                session->FlushedRecordCount += recordCount;
+                i64 rowCount = front->Rows.size();
+                session->FlushedRowCount += rowCount;
                 PendingBatches_.pop_front();
 
-                LOG_DEBUG("Records are flushed by a quorum of replicas (Records: %d-%d)",
-                    front->FirstRecordIndex,
-                    front->FirstRecordIndex + recordCount - 1);
+                LOG_DEBUG("Rows are flushed by a quorum of replicas (Rows: %d-%d)",
+                    front->FirstRowIndex,
+                    front->FirstRowIndex + rowCount - 1);
             }
 
             MaybeFlushBlocks(node);

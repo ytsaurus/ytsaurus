@@ -130,11 +130,11 @@ public:
     //! For blob chunks always returns |true|.
     bool IsSealed() const;
 
-    //! Returns the number of records in a sealed chunk.
-    int GetSealedRecordCount() const;
+    //! Returns the number of rows in a sealed chunk.
+    i64 GetSealedRowCount() const;
 
-    //! Marks the chunk as sealed, i.e. sets its ultimate record count.
-    void Seal(int recordCount);
+    //! Marks the chunk as sealed, i.e. sets its ultimate row count.
+    void Seal(i64 rowCount);
 
     TChunkProperties GetChunkProperties() const;
 

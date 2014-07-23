@@ -20,10 +20,10 @@ struct IJournalWriter
     //! No other method can be called prior to the success of this one.
     virtual TAsyncError Open() = 0;
 
-    //! Writes another portion of records into the journal.
-    //! The result is set when the records are successfully flushed by an appropriate number
+    //! Writes another portion of rows into the journal.
+    //! The result is set when the rows are successfully flushed by an appropriate number
     //! of replicas.
-    virtual TAsyncError Write(const std::vector<TSharedRef>& records) = 0;
+    virtual TAsyncError Write(const std::vector<TSharedRef>& rows) = 0;
 
     //! Closes the writer.
     //! No other method can be called after this one.

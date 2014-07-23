@@ -171,16 +171,16 @@ void TFetchChunkVisitor::ReplySuccess()
             auto lowerLimit = FromProto<TReadLimit>(lastChunkSpec->lower_limit());
             auto upperLimit = FromProto<TReadLimit>(lastChunkSpec->upper_limit());
 
-            auto result = WaitFor(chunkManager->GetChunkQuorumRecordCount(chunk));
+            auto result = WaitFor(chunkManager->GetChunkQuorumRowCount(chunk));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-            int quorumRecordCount = result.Value();
-            int specLowerLimit = lowerLimit.HasRecordIndex() ? lowerLimit.GetRecordIndex() : 0;
-            int specUpperLimit = upperLimit.HasRecordIndex() ? upperLimit.GetRecordIndex() : std::numeric_limits<int>::max();
+            i64 quorumRowCount = result.Value();
+            i64 specLowerLimit = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
+            i64 specUpperLimit = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
             
-            int adjustedUpperLimit = std::min(quorumRecordCount, specUpperLimit);
+            i64 adjustedUpperLimit = std::min(quorumRowCount, specUpperLimit);
             if (adjustedUpperLimit > specLowerLimit) {
-                upperLimit.SetRecordIndex(adjustedUpperLimit);
+                upperLimit.SetRowIndex(adjustedUpperLimit);
                 ToProto(lastChunkSpec->mutable_upper_limit(), upperLimit);
             } else {
                 chunkSpecs->RemoveLast();

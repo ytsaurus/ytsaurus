@@ -71,14 +71,14 @@ private:
 
     void DoRun()
     {
-        LOG_INFO("Aborting journal chunk session quroum (ChunkId: %s, Addresses: [%s])",
-            ~ToString(ChunkId_),
-            ~JoinToString(Replicas_));
+        LOG_INFO("Aborting journal chunk session quroum (ChunkId: %v, Addresses: [%v])",
+            ChunkId_,
+            JoinToString(Replicas_));
 
         if (Replicas_.size() < Quorum_) {
-            auto error = TError("Unable to abort sessions quorum for journal chunk %s: too few replicas known, %d given, %d needed",
-                ~ToString(ChunkId_),
-                static_cast<int>(Replicas_.size()),
+            auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
+                ChunkId_,
+                Replicas_.size(),
                 Quorum_);
             Promise_.Set(error);
             return;
@@ -100,26 +100,26 @@ private:
         ++ResponseCounter_;
         // NB: Missing session is also OK.
         if (rsp->IsOK() || rsp->GetError().GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
-            LOG_INFO("Journal chunk session aborted successfully (ChunkId: %s, Address: %s)",
-                ~ToString(ChunkId_),
-                ~descriptor.GetDefaultAddress());
+            LOG_INFO("Journal chunk session aborted successfully (ChunkId: %v, Address: %v)",
+                ChunkId_,
+                descriptor.GetDefaultAddress());
 
             if (++SuccessCounter_ == Quorum_) {
-                LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %s)",
-                    ~ToString(ChunkId_));
+                LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %v)",
+                    ChunkId_);
                 Promise_.TrySet(TError());
             }
         } else {
             auto error = rsp->GetError();
             InnerErrors_.push_back(error);
 
-            LOG_WARNING(error, "Failed to abort journal chunk session (ChunkId: %s, Address: %s)",
-                ~ToString(ChunkId_),
-                ~descriptor.GetDefaultAddress());
+            LOG_WARNING(error, "Failed to abort journal chunk session (ChunkId: %v, Address: %v)",
+                ChunkId_,
+                descriptor.GetDefaultAddress());
            
             if (ResponseCounter_ == Replicas_.size()) {
-                auto combinedError = TError("Unable to abort sessions quorum for journal chunk %s",
-                    ~ToString(ChunkId_))
+                auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
+                    ChunkId_)
                     << InnerErrors_;
                 Promise_.TrySet(combinedError);
             }
@@ -140,11 +140,11 @@ TAsyncError AbortSessionsQuorum(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComputeQuorumRecordCountSession
+class TComputeQuorumRowCountSession
     : public TRefCounted
 {
 public:
-    TComputeQuorumRecordCountSession(
+    TComputeQuorumRowCountSession(
         const TChunkId& chunkId,
         const std::vector<TNodeDescriptor>& replicas,
         TDuration timeout,
@@ -156,9 +156,9 @@ public:
         , Logger(JournalClientLogger)
     { }
 
-    TFuture<TErrorOr<int>> Run()
+    TFuture<TErrorOr<i64>> Run()
     {
-        BIND(&TComputeQuorumRecordCountSession::DoRun, MakeStrong(this))
+        BIND(&TComputeQuorumRowCountSession::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
             .Run();
         return Promise_;
@@ -170,10 +170,10 @@ private:
     TDuration Timeout_;
     int Quorum_;
 
-    std::vector<int> RecordCounts_;
+    std::vector<i64> RowCounts_;
     std::vector<TError> InnerErrors_;
 
-    TPromise<TErrorOr<int>> Promise_ = NewPromise<TErrorOr<int>>();
+    TPromise<TErrorOr<i64>> Promise_ = NewPromise<TErrorOr<i64>>();
 
     NLog::TLogger Logger;
 
@@ -181,17 +181,17 @@ private:
     void DoRun()
     {
         if (Replicas_.size() < Quorum_) {
-            auto error = TError("Unable to compute quorum record count for journal chunk %s: too few replicas known, %d given, %d needed",
-                ~ToString(ChunkId_),
-                static_cast<int>(Replicas_.size()),
+            auto error = TError("Unable to compute quorum row count for journal chunk %v: too few replicas known, %v given, %v needed",
+                ChunkId_,
+                Replicas_.size(),
                 Quorum_);
             Promise_.Set(error);
             return;
         }
 
-        LOG_INFO("Computing quorum record count for journal chunk (ChunkId: %s, Addresses: [%s])",
-            ~ToString(ChunkId_),
-            ~JoinToString(Replicas_));
+        LOG_INFO("Computing quorum row count for journal chunk (ChunkId: %v, Addresses: [%v])",
+            ChunkId_,
+            JoinToString(Replicas_));
 
         auto awaiter = New<TParallelAwaiter>(GetCurrentInvoker());
         for (const auto& descriptor : Replicas_) {
@@ -203,66 +203,66 @@ private:
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             awaiter->Await(
                 req->Invoke(),
-                BIND(&TComputeQuorumRecordCountSession::OnResponse, MakeStrong(this), descriptor));
+                BIND(&TComputeQuorumRowCountSession::OnResponse, MakeStrong(this), descriptor));
         }
 
         awaiter->Complete(
-            BIND(&TComputeQuorumRecordCountSession::OnComplete, MakeStrong(this)));
+            BIND(&TComputeQuorumRowCountSession::OnComplete, MakeStrong(this)));
     }
 
     void OnResponse(const TNodeDescriptor& descriptor, TDataNodeServiceProxy::TRspGetChunkMetaPtr rsp)
     {
         if (rsp->IsOK()) {
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
-            int recordCount = miscExt.record_count();
-            RecordCounts_.push_back(recordCount);
+            i64 rowCount = miscExt.row_count();
+            RowCounts_.push_back(rowCount);
 
-            LOG_INFO("Received record count for journal chunk (ChunkId: %s, Address: %s, RecordCount: %d)",
-                ~ToString(ChunkId_),
-                ~descriptor.GetDefaultAddress(),
-                recordCount);
+            LOG_INFO("Received row count for journal chunk (ChunkId: %v, Address: %v, RowCount: %v)",
+                ChunkId_,
+                descriptor.GetDefaultAddress(),
+                rowCount);
         } else {
             auto error = rsp->GetError();
             InnerErrors_.push_back(error);
 
-            LOG_WARNING(error, "Failed to get journal chunk record count (ChunkId: %s, Address: %s)",
-                ~ToString(ChunkId_),
-                ~descriptor.GetDefaultAddress());
+            LOG_WARNING(error, "Failed to get journal chunk row count (ChunkId: %v, Address: %v)",
+                ChunkId_,
+                descriptor.GetDefaultAddress());
            
         }
     }
 
     void OnComplete()
     {
-        if (RecordCounts_.size() < Quorum_) {
-            auto error = TError("Unable to compute quorum record count for journal chunk %s: too few replicas alive, %d found, %d needed",
-                ~ToString(ChunkId_),
-                static_cast<int>(RecordCounts_.size()),
+        if (RowCounts_.size() < Quorum_) {
+            auto error = TError("Unable to compute quorum row count for journal chunk %v: too few replicas alive, %v found, %v needed",
+                ChunkId_,
+                RowCounts_.size(),
                 Quorum_)
                 << InnerErrors_;
             Promise_.Set(error);
             return;
         }
 
-        std::sort(RecordCounts_.begin(), RecordCounts_.end());
-        int quorumRecordCount = RecordCounts_[Quorum_ - 1];
+        std::sort(RowCounts_.begin(), RowCounts_.end());
+        int quorumRowCount = RowCounts_[Quorum_ - 1];
 
-        LOG_INFO("Quorum record count for journal chunk computed successfully (ChunkId: %s, QuorumRecordCount: %d)",
-            ~ToString(ChunkId_),
-            quorumRecordCount);
+        LOG_INFO("Quorum row count for journal chunk computed successfully (ChunkId: %v, QuorumRowCount: %v)",
+            ChunkId_,
+            quorumRowCount);
 
-        Promise_.Set(quorumRecordCount);
+        Promise_.Set(quorumRowCount);
     }
 
 };
 
-TFuture<TErrorOr<int>> ComputeQuorumRecordCount(
+TFuture<TErrorOr<i64>> ComputeQuorumRowCount(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,
     int quorum)
 {
-    return New<TComputeQuorumRecordCountSession>(chunkId, replicas, timeout, quorum)
+    return New<TComputeQuorumRowCountSession>(chunkId, replicas, timeout, quorum)
         ->Run();
 }
 

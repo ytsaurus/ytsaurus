@@ -81,9 +81,6 @@ void AccumulateChildStatistics(
         chunkList->RowCountSums().push_back(
             chunkList->Statistics().RowCount +
             statistics->RowCount);
-        chunkList->RecordCountSums().push_back(
-            chunkList->Statistics().RecordCount +
-            statistics->RecordCount);
         chunkList->ChunkCountSums().push_back(
             chunkList->Statistics().ChunkCount +
             statistics->ChunkCount);
@@ -98,7 +95,6 @@ void AccumulateChildStatistics(
 void ResetChunkListStatistics(TChunkList* chunkList)
 {
     chunkList->RowCountSums().clear();
-    chunkList->RecordCountSums().clear();
     chunkList->ChunkCountSums().clear();
     chunkList->DataSizeSums().clear();
     chunkList->Statistics() = TChunkTreeStatistics();

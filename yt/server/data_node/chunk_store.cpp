@@ -139,17 +139,17 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;
 
-                if (longerInfo.record_count() < shorterInfo.record_count()) {
+                if (longerInfo.row_count() < shorterInfo.row_count()) {
                     std::swap(longerInfo, shorterInfo);
                     std::swap(longerChunk, shorterChunk);
                 }
 
                 // Remove shorter replica.
-                LOG_WARNING("Removing shorter journal chunk: %v (%v records) vs %v (%v records)",
+                LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
                     shorterChunk->GetFileName(),
-                    shorterInfo.record_count(),
+                    shorterInfo.row_count(),
                     longerChunk->GetFileName(),
-                    longerInfo.record_count());
+                    longerInfo.row_count());
                 shorterChunk->SyncRemove();
                 break;
             }

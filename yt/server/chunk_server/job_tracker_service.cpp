@@ -191,7 +191,7 @@ private:
 
                     auto* sealChunkJobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
 
-                    sealChunkJobSpecExt->set_record_count(chunk->GetSealedRecordCount());
+                    sealChunkJobSpecExt->set_row_count(chunk->GetSealedRowCount());
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(sealChunkJobSpecExt->mutable_node_directory());
                     const auto& replicas = chunk->StoredReplicas();
