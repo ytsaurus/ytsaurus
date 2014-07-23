@@ -15,14 +15,14 @@ def transaction_params(transaction=None, ping_ancestor_transactions=None, client
     return {"ping_ancestor_transactions": bool_to_string(ping_ancestor_transactions),
             "transaction_id": transaction}
 
-def _add_transaction_params(params):
-    return update(deepcopy(params), transaction_params())
+def _add_transaction_params(params, client=None):
+    return update(deepcopy(params), transaction_params(client=client))
 
 def _make_transactional_request(command_name, params, **kwargs):
-    return make_request(command_name, _add_transaction_params(params), **kwargs)
+    return make_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), **kwargs)
 
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
-    return make_formatted_request(command_name, _add_transaction_params(params), format, **kwargs)
+    return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, **kwargs)
 
 def start_transaction(parent_transaction=None, timeout=None, attributes=None, client=None):
     """Start transaction.
