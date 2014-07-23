@@ -145,6 +145,8 @@ private:
 
     void OnMemoryUsageUpdated();
 
+    TOwningKey RowToKey(TDynamicRow row);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)

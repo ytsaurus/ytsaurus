@@ -338,8 +338,11 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
 
             auto latestTimestamp = store->GetLatestCommitTimestamp(key);
             if (latestTimestamp > startTimestamp) {
-                THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %" PRIu64,
-                    latestTimestamp);
+                THROW_ERROR_EXCEPTION("Row lock conflict")
+                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                    << TErrorAttribute("winner_transaction_commit_timestamp", latestTimestamp)
+                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+                    << TErrorAttribute("key", key);
             }
         }
     }

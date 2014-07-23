@@ -729,14 +729,20 @@ void TDynamicMemoryStore::CheckRowLock(
                     mode);
             }
         } else {
-            THROW_ERROR_EXCEPTION("Row lock conflict with concurrent transaction %v",
-                existingTransaction->GetId());
+            THROW_ERROR_EXCEPTION("Row lock conflict")
+                << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                << TErrorAttribute("winner_transaction_id", existingTransaction->GetId())
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("key", RowToKey(row));
         }
     }
 
     if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
-        THROW_ERROR_EXCEPTION("Row lock conflict with a transaction committed at %v",
-            row.GetLastCommitTimestamp());
+        THROW_ERROR_EXCEPTION("Row lock conflict")
+            << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+            << TErrorAttribute("winner_transaction_commit_timestamp", row.GetLastCommitTimestamp())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
+            << TErrorAttribute("key", RowToKey(row));
     }
 }
 
@@ -1130,6 +1136,15 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
         MemoryUsage_ = memoryUsage;
         MemoryUsageUpdated_.Fire(delta);
     }
+}
+
+TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto* it = row.GetKeys(); it != row.GetKeys() + KeyColumnCount_; ++it) {
+        builder.AddValue(*it);
+    }
+    return builder.GetRowAndReset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
