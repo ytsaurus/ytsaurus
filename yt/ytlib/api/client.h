@@ -242,6 +242,8 @@ struct TJournalWriterOptions
 struct IClientBase
     : public virtual TRefCounted
 {
+    virtual IConnectionPtr GetConnection() = 0;
+
     // Transactions
     virtual TFuture<TErrorOr<ITransactionPtr>> StartTransaction(
         NTransactionClient::ETransactionType type,
@@ -371,7 +373,6 @@ DEFINE_REFCOUNTED_TYPE(IClientBase)
 struct IClient
     : public IClientBase
 {
-    virtual IConnectionPtr GetConnection() = 0;
     virtual NRpc::IChannelPtr GetMasterChannel() = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;

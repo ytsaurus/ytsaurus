@@ -1038,6 +1038,11 @@ public:
     { }
 
 
+    virtual IConnectionPtr GetConnection() override
+    {
+        return Client_->GetConnection();
+    }
+
     virtual IClientPtr GetClient() const override
     {
         return Client_;
