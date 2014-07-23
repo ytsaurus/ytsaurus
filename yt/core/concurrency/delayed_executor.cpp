@@ -22,8 +22,6 @@ const TDelayedExecutorCookie NullDelayedExecutorCookie;
 struct TDelayedExecutorEntry
     : public TIntrinsicRefCounted
 {
-    typedef TDelayedExecutorCookie TDelayedExecutorCookie;
-
     struct TComparer
     {
         bool operator()(const TDelayedExecutorCookie& lhs, const TDelayedExecutorCookie& rhs) const
