@@ -200,11 +200,6 @@ void TSlot::MakeLink(
     NFS::SetExecutableMode(linkPath, isExecutable);
 }
 
-void TSlot::MakeEmptyFile(const Stroka& fileName)
-{
-    TFile file(NFS::CombinePaths(SandboxPath, fileName), CreateAlways | CloseOnExec);
-}
-
 void TSlot::MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer)
 {
     auto path = NFS::CombinePaths(SandboxPath, fileName);

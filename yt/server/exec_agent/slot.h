@@ -43,19 +43,11 @@ public:
 
     IInvokerPtr GetInvoker();
 
-    //! Makes symbolic link on target inside slot sandbox.
-    /*!
-     *  Throws if operation fails.
-     */
-    void MakeLink(
-        const Stroka& linkName,
-        const Stroka& targetPath,
-        bool isExecutable);
+    //! Creates a symbolic link in the sandbox.
+    void MakeLink(const Stroka& linkName, const Stroka& targetPath, bool isExecutable);
 
-    //! Writes data from producer to #fileName.
+    //! Creates a file named #fileName in the sandbox, fills it with data obtained from #dataProducer.
     void MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer);
-
-    void MakeEmptyFile(const Stroka& fileName);
 
     const Stroka& GetWorkingDirectory() const;
 
