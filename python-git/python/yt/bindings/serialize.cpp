@@ -85,7 +85,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
     } else if (obj.isBoolean()) {
         consumer->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
     } else if (obj.isInteger()) {
-        consumer->OnIntegerScalar(Py::Int(obj).asLongLong());
+        consumer->OnInt64Scalar(Py::Int(obj).asLongLong());
     } else if (obj.isFloat()) {
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || IsInstance(obj, GetYsonType("YsonEntity"))) {
@@ -103,7 +103,7 @@ TPythonObjectBuilder::TPythonObjectBuilder()
     : YsonMap(GetYsonType("YsonMap"))
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
-    , YsonInteger(GetYsonType("YsonInteger"))
+    , YsonInt64(GetYsonType("YsonInt64"))
     , YsonDouble(GetYsonType("YsonDouble"))
     , YsonEntity(GetYsonType("YsonEntity"))
 { }
@@ -113,9 +113,9 @@ void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
     AddObject(Py::String(value), YsonString);
 }
 
-void TPythonObjectBuilder::OnIntegerScalar(i64 value)
+void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    AddObject(Py::Int(value), YsonInteger);
+    AddObject(Py::Int(value), YsonInt64);
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
@@ -250,8 +250,8 @@ void Deserialize(Py::Object& obj, INodePtr node)
         obj = CreateYsonObject("YsonMap", map, attributes);
     } else if (type == ENodeType::Entity) {
         obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
-    } else if (type == ENodeType::Integer) {
-        obj = CreateYsonObject("YsonInteger", Py::Int(node->AsInteger()->GetValue()), attributes);
+    } else if (type == ENodeType::Int64) {
+        obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
         obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
