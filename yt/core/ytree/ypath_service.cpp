@@ -164,14 +164,13 @@ private:
     TSpinLock SpinLock_;
     TFuture<INodePtr> CachedTree_;
     TInstant LastUpdateTime_;
-    bool Updating_ = false;
 
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
         
-        if (!CachedTree_ || 
+        if (!CachedTree_ ||
             (CachedTree_.IsSet() && LastUpdateTime_ + ExpirationTime_ < TInstant::Now()))
         {
             auto promise = NewPromise<INodePtr>();
