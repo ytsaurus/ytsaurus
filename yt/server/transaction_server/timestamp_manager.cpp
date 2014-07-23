@@ -78,8 +78,6 @@ public:
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
             .SetInvoker(TimestampInvoker_));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTimestamp)
-            .SetInvoker(TimestampInvoker_));
 
         RegisterLoader(
             "TimestampManager",
@@ -141,40 +139,16 @@ private:
         DoGenerateTimestamps(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GetTimestamp)
-    {
-        VERIFY_THREAD_AFFINITY(TimestampThread);
-
-        context->SetRequestInfo();
-
-        if (!CheckActive(context))
-            return;
-
-        context->SetRequestInfo("Timestamp: %v", CurrentTimestamp_);
-
-        response->set_timestamp(CurrentTimestamp_);
-        context->Reply();
-    }
-
-
-    bool CheckActive(const IServiceContextPtr& context)
-    {
-        if (!Active_) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Timestamp provider is not active"));
-            return false;
-        }
-
-        return true;
-    }
-
     void DoGenerateTimestamps(const TCtxGenerateTimestampsPtr& context)
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
 
-        if (!CheckActive(context))
+        if (!Active_) {
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Timestamp provider is not active"));
             return;
+        }
 
         int count = context->Request().count();
         YCHECK(count >= 0);
