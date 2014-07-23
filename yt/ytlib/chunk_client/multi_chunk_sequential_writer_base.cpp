@@ -142,7 +142,7 @@ TError TMultiChunkSequentialWriterBase::DoOpen()
 
 void TMultiChunkSequentialWriterBase::CreateNextSession()
 {
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
         Options_->ReplicationFactor,
         UploadReplicationFactor_);
 
@@ -189,7 +189,7 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         return;
     }
 
-    LOG_DEBUG("Chunk created (ChunkId: %s)", ~ToString(NextSession_.ChunkId));
+    LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
 
     if (Options_->ErasureCodec == ECodec::None) {
         auto targets = NodeDirectory_->GetDescriptors(NextSession_.Replicas);
@@ -256,7 +256,7 @@ TFuture<void> TMultiChunkSequentialWriterBase::FinishSession(const TSession& ses
 void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
 {
     if (session.FrontalWriter->GetDataSize() == 0) {
-        LOG_DEBUG("Canceling empty chunk (ChunkId: %s)", ~ToString(session.ChunkId));
+        LOG_DEBUG("Canceling empty chunk (ChunkId: %v)", session.ChunkId);
         return;
     }
 
@@ -264,16 +264,19 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     WrittenChunks_.push_back(TChunkSpec());
     auto& chunkSpec = WrittenChunks_.back();
 
-    LOG_DEBUG("Finishing chunk (ChunkId: %s)", ~ToString(session.ChunkId));
+    LOG_DEBUG("Finishing chunk (ChunkId: %v)", session.ChunkId);
 
     auto error = WaitFor(session.FrontalWriter->Close());
 
     if (!error.IsOK()) {
-        CompletionError_.TrySet(TError("Failed to close chunk (ChunkId: %s)", ~ToString(session.ChunkId)) << error);
+        CompletionError_.TrySet(TError(
+            "Failed to close chunk %v",
+            session.ChunkId)
+            << error);
         return;
     }
 
-    LOG_DEBUG("Chunk closed (ChunkId: %s)", ~ToString(session.ChunkId));
+    LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
 
     std::vector<TChunkReplica> replicas;
     for (int index : session.UnderlyingWriter->GetWrittenReplicaIndexes()) {
@@ -296,11 +299,14 @@ void TMultiChunkSequentialWriterBase::DoFinishSession(const TSession& session)
     auto rsp = WaitFor(objectProxy.Execute(req));
 
     if (!rsp->IsOK()) {
-        CompletionError_.TrySet(TError("Failed to confirm chunk (ChunkId: %s)", ~ToString(session.ChunkId)) << *rsp);
+        CompletionError_.TrySet(TError(
+            "Failed to confirm chunk %v",
+            session.ChunkId)
+            << *rsp);
         return;
     }
 
-    LOG_DEBUG("Chunk confirmed (ChunkId: %s)", ~ToString(session.ChunkId));
+    LOG_DEBUG("Chunk confirmed (ChunkId: %v)", session.ChunkId);
 }
 
 TError TMultiChunkSequentialWriterBase::InitCurrentSession()
@@ -339,7 +345,7 @@ bool TMultiChunkSequentialWriterBase::VerifyActive()
 bool TMultiChunkSequentialWriterBase::TrySwitchSession()
 {
     if (CurrentSession_.FrontalWriter->GetMetaSize() > Config_->MaxMetaSize) {
-        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %" PRId64 ")",
+        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
             CurrentSession_.FrontalWriter->GetMetaSize());
 
         SwitchSession();
@@ -353,7 +359,7 @@ bool TMultiChunkSequentialWriterBase::TrySwitchSession()
         if (expectedInputSize > Config_->DesiredChunkSize ||
             CurrentSession_.FrontalWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.FrontalWriter->GetDataSize(),
                 expectedInputSize,
                 Config_->DesiredChunkSize);
@@ -381,7 +387,7 @@ void TMultiChunkSequentialWriterBase::DoClose()
     }
 
 
-    LOG_DEBUG("Attaching %d chunks", static_cast<int>(WrittenChunks_.size()));
+    LOG_DEBUG("Attaching %v chunks", WrittenChunks_.size());
 
     auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkListId_));
     GenerateMutationId(req);
