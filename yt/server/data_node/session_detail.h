@@ -33,7 +33,7 @@ public:
     virtual EWriteSessionType GetType() const override;
     TLocationPtr GetLocation() const override;
 
-    virtual void Start(TLeaseManager::TLease lease) override;
+    virtual void Start(TLease lease) override;
 
     virtual void Ping() override;
 
@@ -67,7 +67,7 @@ protected:
     IInvokerPtr WriteInvoker_;
 
     bool Active_ = false;
-    TLeaseManager::TLease Lease_;
+    TLease Lease_;
 
     NLog::TLogger Logger;
     NProfiling::TProfiler Profiler;

@@ -40,7 +40,7 @@ class TExecNode
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsageDiscount);
 
     //! Controls heartbeat expiration.
-    DEFINE_BYVAL_RW_PROPERTY(TLeaseManager::TLease, Lease);
+    DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;

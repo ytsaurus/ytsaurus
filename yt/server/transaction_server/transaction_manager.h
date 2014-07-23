@@ -86,7 +86,7 @@ private:
     TTransactionManagerConfigPtr Config;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap;
-    yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
+    yhash_map<TTransactionId, TLease> LeaseMap;
 
     void OnTransactionExpired(const TTransactionId& id);
 

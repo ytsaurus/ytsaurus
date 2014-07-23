@@ -72,7 +72,7 @@ TLocationPtr TSessionBase::GetLocation() const
     return Location_;
 }
 
-void TSessionBase::Start(TLeaseManager::TLease lease)
+void TSessionBase::Start(TLease lease)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

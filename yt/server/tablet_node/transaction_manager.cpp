@@ -255,7 +255,7 @@ private:
     TTransactionManagerConfigPtr Config_;
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-    yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap_;
+    yhash_map<TTransactionId, TLease> LeaseMap_;
 
     NLog::TLogger Logger;
 

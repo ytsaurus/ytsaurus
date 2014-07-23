@@ -6,6 +6,9 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
+typedef TLeaseEntryPtr TLease;
+
 class TStreamSaveContext;
 class TStreamLoadContext;
 

@@ -1,9 +1,8 @@
 #include "stdafx.h"
 #include "lease_manager.h"
 
-#include <core/actions/bind.h>
-
 #include <core/concurrency/delayed_executor.h>
+
 #include <core/concurrency/thread_affinity.h>
 
 namespace NYT {
@@ -12,7 +11,26 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaseManager::TLease TLeaseManager::NullLease = TLeaseManager::TLease();
+const TLease NullLease = TLease();
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLeaseEntry
+    : public TIntrinsicRefCounted
+{
+    bool IsValid = true;
+    TDuration Timeout;
+    TClosure OnExpired;
+    NConcurrency::TDelayedExecutor::TCookie Cookie;
+    TSpinLock SpinLock;
+
+    TLeaseEntry(TDuration timeout, TClosure onExpired)
+        : Timeout(timeout)
+        , OnExpired(std::move(onExpired))
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TLeaseEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,14 +38,12 @@ class TLeaseManager::TImpl
     : private TNonCopyable
 {
 public:
-    typedef TLeaseManager::TLease TLease;
-
-    static TLease CreateLease(TDuration timeout, const TClosure& onExpired)
+    static TLease CreateLease(TDuration timeout, TClosure onExpired)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(onExpired);
 
-        auto lease = New<TEntry>(timeout, onExpired);
+        auto lease = New<TLeaseEntry>(timeout, std::move(onExpired));
         lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
             timeout);
@@ -92,19 +108,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, const TClosure& onExpired)
+TLease TLeaseManager::CreateLease(TDuration timeout, TClosure onExpired)
 {
-    return TImpl::CreateLease(timeout, onExpired);
+    return TImpl::CreateLease(timeout, std::move(onExpired));
 }
 
 bool TLeaseManager::RenewLease(TLease lease, TNullable<TDuration> timeout)
 {
-    return TImpl::RenewLease(lease, timeout);
+    return TImpl::RenewLease(std::move(lease), timeout);
 }
 
 bool TLeaseManager::CloseLease(TLease lease)
 {
-    return TImpl::CloseLease(lease);
+    return TImpl::CloseLease(std::move(lease));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

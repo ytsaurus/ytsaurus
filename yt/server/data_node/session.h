@@ -42,7 +42,7 @@ struct ISession
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const = 0;
 
     //! Initializes the session instance.
-    virtual void Start(TLeaseManager::TLease lease) = 0;
+    virtual void Start(TLease lease) = 0;
 
     //! Cancels the session.
     virtual void Cancel(const TError& error) = 0;

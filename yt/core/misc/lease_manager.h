@@ -1,12 +1,8 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include "public.h"
 
-#include <core/actions/bind.h>
 #include <core/actions/callback.h>
-#include <core/actions/invoker.h>
-
-#include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/nullable.h>
 
@@ -25,32 +21,9 @@ namespace NYT {
 class TLeaseManager
     : public TNonCopyable
 {
-private:
-    struct TEntry
-        : public TRefCounted
-    {
-        bool IsValid;
-        TDuration Timeout;
-        TClosure OnExpired;
-        NConcurrency::TDelayedExecutor::TCookie Cookie;
-        TSpinLock SpinLock;
-
-        TEntry(TDuration timeout, const TClosure& onExpired)
-            : IsValid(true)
-            , Timeout(timeout)
-            , OnExpired(onExpired)
-        { }
-    };
-
 public:
-    //! Represents a lease token.
-    typedef TIntrusivePtr<TEntry> TLease;
-
-    //! An invalid lease.
-    static TLease NullLease;
-
     //! Creates a new lease with a given timeout and a given expiration callback.
-    static TLease CreateLease(TDuration timeout, const TClosure& onExpired);
+    static TLease CreateLease(TDuration timeout, TClosure onExpired);
 
     //! Renews the lease.
     /*!
@@ -70,6 +43,9 @@ private:
     class TImpl;
 
 };
+
+//! An invalid lease.
+extern const TLease NullLease;
 
 ////////////////////////////////////////////////////////////////////////////////
 
