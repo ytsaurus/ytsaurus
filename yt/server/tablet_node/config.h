@@ -70,6 +70,11 @@ public:
     i64 MaxEdenDataSize;
     int MaxEdenChunkCount;
 
+    int MinCompactionChunkCount;
+    int MaxCompactionChunkCount;
+    i64 CompactionDataSizeBase;
+    double CompactionDataSizeRatio;
+
     int SamplesPerPartition;
 
     TTableMountConfig()
@@ -111,6 +116,19 @@ public:
             .Default(8)
             .GreaterThan(0);
 
+        RegisterParameter("min_compaction_chunk_count", MinCompactionChunkCount)
+            .Default(3)
+            .GreaterThan(1);
+        RegisterParameter("max_compaction_chunk_count", MaxCompactionChunkCount)
+            .Default(5)
+            .GreaterThan(1);
+        RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
+            .Default((i64) 16 * 1024 * 1024)
+            .GreaterThan(0);
+        RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
+            .Default(2.0)
+            .GreaterThan(1.0);
+
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(1)
             .GreaterThanOrEqual(1);
@@ -121,6 +139,9 @@ public:
             }
             if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
+            }
+            if (MaxCompactionChunkCount <= MinCompactionChunkCount) {
+                THROW_ERROR_EXCEPTION("\"max_compaction_chunk_count\" must be greater than \"min_compaction_chunk_count\"");
             }
         });
     }

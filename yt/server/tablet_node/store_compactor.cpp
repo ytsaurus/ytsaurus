@@ -5,7 +5,7 @@
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "tablet.h"
-#include "store.h"
+#include "chunk_store.h"
 #include "partition.h"
 #include "tablet_reader.h"
 #include "config.h"
@@ -200,21 +200,37 @@ private:
         TTableMountConfigPtr config,
         TPartition* partition)
     {
-        std::vector<IStorePtr> allStores;
+        std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
             if (store->GetState() == EStoreState::Persistent) {
-                allStores.push_back(std::move(store));
+                candidates.push_back(store->AsChunk());
             }
         }
 
-        int chunkCount = static_cast<int>(allStores.size());
-        if (chunkCount <= config->MaxPartitionChunkCount) {
-            return std::vector<IStorePtr>();
+        std::sort(
+            candidates.begin(),
+            candidates.end(),
+            [] (TChunkStorePtr lhs, TChunkStorePtr rhs) {
+                return lhs->GetDataSize() < rhs->GetDataSize();
+            });
+
+        for (int i = 0; i < candidates.size(); ++i) {
+            i64 dataSizeSum = 0;
+            int j = i;
+            while (j < candidates.size() && j < i + config->MaxCompactionChunkCount) {
+                i64 dataSize = candidates[j]->GetDataSize();
+                if (j > i && dataSize > config->CompactionDataSizeBase && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
+                    break;
+                dataSizeSum += dataSize;
+                ++j;
+            }
+
+            if (j - i >= config->MinCompactionChunkCount) {
+                return std::vector<IStorePtr>(candidates.begin() + i, candidates.begin() + j);
+            }
         }
 
-        return std::vector<IStorePtr>(
-            allStores.begin(),
-            allStores.begin() + std::min(chunkCount, Config_->StoreCompactor->MaxChunksPerCompaction));
+        return std::vector<IStorePtr>();
     }
 
     TTimestamp ComputeMajorTimestamp(
@@ -239,17 +255,6 @@ private:
         }
 
         return result;
-    }
-
-
-    IVersionedReaderPtr CreateReader(
-        TTablet* tablet,
-        const std::vector<IStorePtr>& stores,
-        TOwningKey lowerBound,
-        TOwningKey upperBound,
-        TTimestamp majorTimestamp)
-    {
-
     }
 
 
