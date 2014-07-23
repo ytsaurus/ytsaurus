@@ -20,7 +20,7 @@ public:
 
 protected:
     virtual void OnMyStringScalar(const TStringBuf& value) override;
-    virtual void OnMyIntegerScalar(i64 value) override;
+    virtual void OnMyInt64Scalar(i64 value) override;
     virtual void OnMyDoubleScalar(double value) override;
     virtual void OnMyEntity() override;
     virtual void OnMyBeginList() override;

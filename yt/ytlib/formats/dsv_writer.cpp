@@ -59,7 +59,7 @@ void TDsvTabularConsumer::OnStringScalar(const TStringBuf& value)
     State = EState::ExpectColumnName;
 }
 
-void TDsvTabularConsumer::OnIntegerScalar(i64 value)
+void TDsvTabularConsumer::OnInt64Scalar(i64 value)
 {
     if (State == EState::ExpectColumnValue) {
         Stream->Write(::ToString(value));
@@ -281,7 +281,7 @@ void TDsvNodeConsumer::OnStringScalar(const TStringBuf& value)
     EscapeAndWrite(value, false);
 }
 
-void TDsvNodeConsumer::OnIntegerScalar(i64 value)
+void TDsvNodeConsumer::OnInt64Scalar(i64 value)
 {
     Stream->Write(::ToString(value));
 }

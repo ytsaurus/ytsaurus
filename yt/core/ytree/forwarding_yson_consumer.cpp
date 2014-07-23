@@ -65,12 +65,12 @@ void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TForwardingYsonConsumer::OnIntegerScalar(i64 value)
+void TForwardingYsonConsumer::OnInt64Scalar(i64 value)
 {
     if (!CheckForwarding()) {
-        OnMyIntegerScalar(value);
+        OnMyInt64Scalar(value);
     } else {
-        ForwardingConsumer->OnIntegerScalar(value);
+        ForwardingConsumer->OnInt64Scalar(value);
         UpdateDepth(0);
     }
 }
@@ -192,7 +192,7 @@ void TForwardingYsonConsumer::OnMyStringScalar(const TStringBuf& value)
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyIntegerScalar(i64 value)
+void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value)
 {
     UNUSED(value);
 

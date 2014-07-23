@@ -29,7 +29,7 @@ static int OnBoolean(void *ctx, int boolean) {
 }
 
 static int OnInteger(void *ctx, long long value) {
-    static_cast<TJsonCallbacks*>(ctx)->OnIntegerScalar(value);
+    static_cast<TJsonCallbacks*>(ctx)->OnInt64Scalar(value);
     return 1;
 }
 
@@ -193,8 +193,8 @@ void TJsonParser::TImpl::Parse(TInputStream* input)
 void TJsonParser::TImpl::ConsumeNode(INodePtr node)
 {
     switch (node->GetType()) {
-        case ENodeType::Integer:
-            Consumer_->OnIntegerScalar(node->AsInteger()->GetValue());
+        case ENodeType::Int64:
+            Consumer_->OnInt64Scalar(node->AsInt64()->GetValue());
             break;
         case ENodeType::Double:
             Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());

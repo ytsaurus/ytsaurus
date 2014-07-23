@@ -33,7 +33,7 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TTableConsumer::OnIntegerScalar(i64 value)
+void TTableConsumer::OnInt64Scalar(i64 value)
 {
     if (ControlState == EControlState::ExpectControlAttributeValue) {
         YCHECK(Depth == 1);
@@ -65,7 +65,7 @@ void TTableConsumer::OnIntegerScalar(i64 value)
     if (Depth == 0) {
         ThrowMapExpected();
     } else {
-        ValueWriter.OnIntegerScalar(value);
+        ValueWriter.OnInt64Scalar(value);
     }
 }
 
@@ -369,7 +369,7 @@ TError TTableConsumerBase::AttachLocationAttributes(TError error)
     return error;
 }
 
-void TTableConsumerBase::OnControlIntegerScalar(i64 /*value*/)
+void TTableConsumerBase::OnControlInt64Scalar(i64 /*value*/)
 {
     ThrowControlAttributesNotSupported();
 }
@@ -396,11 +396,11 @@ void TTableConsumerBase::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TTableConsumerBase::OnIntegerScalar(i64 value)
+void TTableConsumerBase::OnInt64Scalar(i64 value)
 {
     if (ControlState_ == EControlState::ExpectValue) {
         YASSERT(Depth_ == 1);
-        OnControlIntegerScalar(value);
+        OnControlInt64Scalar(value);
         return;
     }
 
@@ -409,7 +409,7 @@ void TTableConsumerBase::OnIntegerScalar(i64 value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else {
-        WriteValue(MakeIntegerValue<TUnversionedValue>(value, ColumnIndex_));
+        WriteValue(MakeInt64Value<TUnversionedValue>(value, ColumnIndex_));
     }
 }
 

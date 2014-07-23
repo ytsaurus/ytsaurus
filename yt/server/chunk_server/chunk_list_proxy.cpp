@@ -64,7 +64,7 @@ private:
                 consumer->OnKeyedItem("id");
                 consumer->OnStringScalar(ToString(chunkList->GetId()));
                 consumer->OnKeyedItem("rank");
-                consumer->OnIntegerScalar(chunkList->Statistics().Rank);
+                consumer->OnInt64Scalar(chunkList->Statistics().Rank);
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();

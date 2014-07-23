@@ -245,7 +245,7 @@ public:
         Type* targetType;
 
         switch (type) {
-            case EValueType::Integer:
+            case EValueType::Int64:
                 targetType = TDataTypeBuilder::TInteger::get(Builder_.getContext());
                 break;
             case EValueType::Double:
@@ -620,7 +620,7 @@ TCGValue TCGContext::CodegenFunctionExpr(
         }, [&] (TCGIRBuilder& builder) {
             return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
                 return builder.CreateICmpNE(
-                    builder.CreateZExtOrBitCast(condition.GetData(EValueType::Integer), builder.getInt64Ty()),
+                    builder.CreateZExtOrBitCast(condition.GetData(EValueType::Int64), builder.getInt64Ty()),
                     builder.getInt64(0));            
             }, [&] (TCGIRBuilder& builder) {
                 return CodegenExpr(builder, thenExpr, schema, row);
@@ -714,7 +714,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                         break;
 
                 switch (operandType) {
-                    case EValueType::Integer:
+                    case EValueType::Int64:
                         switch (expr->GetOpcode()) {
                             OP(Plus, Add)
                             OP(Minus, Sub)
@@ -918,7 +918,7 @@ void TCGContext::CodegenFilterOp(
                 row);
 
             Value* result = innerBuilder.CreateZExtOrBitCast(
-                predicateResult.GetData(EValueType::Integer),
+                predicateResult.GetData(EValueType::Int64),
                 builder.getInt64Ty());
 
             auto* ifBB = innerBuilder.CreateBBHere("if");
@@ -1041,7 +1041,7 @@ void TCGContext::CodegenGroupOp(
             auto type = expr->GetType(sourceTableSchema);
 
             // TODO(sandello): Others are unsupported.
-            YCHECK(type == EValueType::Integer);
+            YCHECK(type == EValueType::Int64);
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .SetTypeIfNotNull(type)

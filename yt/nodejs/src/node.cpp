@@ -111,7 +111,7 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
         builder->OnStringScalar(utf8Decoder.Decode(string));
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {
-            builder->OnIntegerScalar(value->IntegerValue());
+            builder->OnInt64Scalar(value->IntegerValue());
         } else {
             builder->OnDoubleScalar(value->NumberValue());
         }
@@ -152,7 +152,7 @@ Handle<Value> ProduceV8(const INodePtr& node)
             auto value = node->GetValue<Stroka>();
             return String::New(value.c_str(), value.length());
         }
-        case ENodeType::Integer: {
+        case ENodeType::Int64: {
             return Integer::New(node->GetValue<i64>());
         }
         case ENodeType::Double: {

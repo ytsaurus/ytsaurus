@@ -32,7 +32,7 @@ TEST(TYamrParserTest, Simple)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginAttributes());
         EXPECT_CALL(Mock, OnKeyedItem("table_index"));
-        EXPECT_CALL(Mock, OnIntegerScalar(2));
+        EXPECT_CALL(Mock, OnInt64Scalar(2));
     EXPECT_CALL(Mock, OnEndAttributes());
     EXPECT_CALL(Mock, OnEntity());
 
@@ -233,7 +233,7 @@ TEST(TYamrLenvalParserTest, Simple)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginAttributes());
         EXPECT_CALL(Mock, OnKeyedItem("table_index"));
-        EXPECT_CALL(Mock, OnIntegerScalar(1));
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnEndAttributes());
     EXPECT_CALL(Mock, OnEntity());
 

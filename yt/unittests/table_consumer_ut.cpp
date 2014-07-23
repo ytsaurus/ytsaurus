@@ -81,7 +81,7 @@ TEST(TTableConsumerTest, Simple)
     consumer.OnListItem();
     consumer.OnBeginMap();
         consumer.OnKeyedItem("k1");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
     consumer.OnEndMap();
     consumer.OnListItem();
     consumer.OnBeginMap();
@@ -104,7 +104,7 @@ TEST(TTableConsumerTest, TableIndex)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(0);
+        consumer.OnInt64Scalar(0);
     consumer.OnEndAttributes();
     consumer.OnEntity();
 
@@ -159,7 +159,7 @@ TEST(TTableConsumerTest, RowWithAttributes)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(0);
+        consumer.OnInt64Scalar(0);
     consumer.OnEndAttributes();
     EXPECT_THROW(consumer.OnBeginMap(), std::exception);
 }
@@ -170,7 +170,7 @@ TEST(TTableConsumerTest, IntegerRow)
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
-    EXPECT_THROW(consumer.OnIntegerScalar(10), std::exception);
+    EXPECT_THROW(consumer.OnInt64Scalar(10), std::exception);
 }
 
 TEST(TTableConsumerTest, EntityRow)

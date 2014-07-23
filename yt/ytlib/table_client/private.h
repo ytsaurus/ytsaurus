@@ -25,8 +25,8 @@ DECLARE_ENUM(EKeyPartType,
     ((MinSentinel)(-1))
     // Denotes a missing (null) component in a composite key.
     ((Null)(0))
-    // Integer value.
-    ((Integer)(1))
+    // Int64 value.
+    ((Int64)(1))
     // Floating-point value.
     ((Double)(2))
     // String value.

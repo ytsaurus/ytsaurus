@@ -12,7 +12,7 @@ namespace NVersionedTableClient {
 void ValidateDataValueType(EValueType type)
 {
 	// TODO(babenko): handle any
- 	if (type != EValueType::Integer &&
+ 	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
  	    type != EValueType::String &&
  	    type != EValueType::Null)
@@ -24,7 +24,7 @@ void ValidateDataValueType(EValueType type)
 void ValidateKeyValueType(EValueType type)
 {
 	// TODO(babenko): handle any
- 	if (type != EValueType::Integer &&
+ 	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
  	    type != EValueType::String &&
  	    type != EValueType::Null &&
@@ -38,7 +38,7 @@ void ValidateKeyValueType(EValueType type)
 void ValidateSchemaValueType(EValueType type)
 {
 	// TODO(babenko): handle any
- 	if (type != EValueType::Integer &&
+ 	if (type != EValueType::Int64 &&
  	    type != EValueType::Double &&
  	    type != EValueType::String)
     {

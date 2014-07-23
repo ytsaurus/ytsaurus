@@ -36,10 +36,10 @@ TYamredDsvConsumer::TYamredDsvConsumer(TOutputStream* stream, TYamredDsvFormatCo
 TYamredDsvConsumer::~TYamredDsvConsumer()
 { }
 
-void TYamredDsvConsumer::OnIntegerScalar(i64 value)
+void TYamredDsvConsumer::OnInt64Scalar(i64 value)
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Integer values are not supported by YAMRed DSV");
+        THROW_ERROR_EXCEPTION("Int64 values are not supported by YAMRed DSV");
     }
 
     YASSERT(State == EState::ExpectAttributeValue);

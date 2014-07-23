@@ -213,7 +213,7 @@ TEST(TYamredDsvWriterTest, TableIndex)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(0);
+        consumer.OnInt64Scalar(0);
     consumer.OnEndAttributes();
     consumer.OnEntity();
 

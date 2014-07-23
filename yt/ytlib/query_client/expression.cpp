@@ -108,8 +108,8 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
 
             switch (value.Type) {
 
-                case EValueType::Integer: {
-                    proto->set_int64_value(data.Integer);
+                case EValueType::Int64: {
+                    proto->set_int64_value(data.Int64);
                     break;
                 }
 
@@ -169,7 +169,7 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
 
             switch (type) {
 
-                case EValueType::Integer: {
+                case EValueType::Int64: {
                     typedResult = new (context) TLiteralExpression(
                         context,
                         NullSourceLocation,

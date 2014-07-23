@@ -56,7 +56,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginAttributes());
         EXPECT_CALL(Mock, OnKeyedItem("table_index"));
-        EXPECT_CALL(Mock, OnIntegerScalar(1));
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnEndAttributes());
     EXPECT_CALL(Mock, OnEntity());
 
@@ -69,7 +69,7 @@ TEST(TSchemafulDsvParserTest, TableIndex)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginAttributes());
         EXPECT_CALL(Mock, OnKeyedItem("table_index"));
-        EXPECT_CALL(Mock, OnIntegerScalar(0));
+        EXPECT_CALL(Mock, OnInt64Scalar(0));
     EXPECT_CALL(Mock, OnEndAttributes());
     EXPECT_CALL(Mock, OnEntity());
 

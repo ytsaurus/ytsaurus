@@ -19,8 +19,8 @@ TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& le
     YCHECK(!token.IsEmpty());
 
     switch (token.GetType()) {
-        case NYson::ETokenType::Integer:
-            return MakeUnversionedIntegerValue(token.GetIntegerValue());
+        case NYson::ETokenType::Int64:
+            return MakeUnversionedInt64Value(token.GetInt64Value());
 
         case NYson::ETokenType::Double:
             return MakeUnversionedDoubleValue(token.GetDoubleValue());
@@ -105,9 +105,9 @@ void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnver
                 keyPart->set_type(EKeyPartType::Null);
                 break;
 
-            case NVersionedTableClient::EValueType::Integer:
-                keyPart->set_type(EKeyPartType::Integer);
-                keyPart->set_int_value(row[i].Data.Integer);
+            case NVersionedTableClient::EValueType::Int64:
+                keyPart->set_type(EKeyPartType::Int64);
+                keyPart->set_int_value(row[i].Data.Int64);
                 break;
 
             case NVersionedTableClient::EValueType::Double:

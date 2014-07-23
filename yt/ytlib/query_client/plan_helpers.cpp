@@ -274,7 +274,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 EValueType thenType = thenExpr->GetType(sourceSchema);
                 EValueType elseType = elseExpr->GetType(sourceSchema);
 
-                YCHECK(conditionType == EValueType::Integer);
+                YCHECK(conditionType == EValueType::Int64);
                 YCHECK(thenType == elseType);
                 
                 return thenType;
@@ -286,7 +286,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 YCHECK(lhsExpr->GetType(sourceSchema) == EValueType::String);
                 YCHECK(rhsExpr->GetType(sourceSchema) == EValueType::String);
 
-                return EValueType::Integer;
+                return EValueType::Int64;
             }
             YUNIMPLEMENTED();
         }
@@ -304,8 +304,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
             }
 
             switch (lhsType) {
-                case EValueType::Integer:
-                    return EValueType::Integer;
+                case EValueType::Int64:
+                    return EValueType::Int64;
                 case EValueType::Double:
                     switch (typedExpr->GetOpcode()) {
                         case EBinaryOp::Plus:
@@ -319,7 +319,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                         case EBinaryOp::LessOrEqual:
                         case EBinaryOp::Greater:
                         case EBinaryOp::GreaterOrEqual:
-                            return EValueType::Integer;
+                            return EValueType::Int64;
                         default:
                              THROW_ERROR_EXCEPTION(
                                 "Expression %s is not supported",
@@ -334,7 +334,7 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                         case EBinaryOp::NotEqual:
                         case EBinaryOp::Less:
                         case EBinaryOp::Greater:
-                            return EValueType::Integer;
+                            return EValueType::Int64;
                         default:
                             THROW_ERROR_EXCEPTION(
                                 "Expression %s is not supported",

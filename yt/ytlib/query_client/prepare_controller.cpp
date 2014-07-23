@@ -258,7 +258,7 @@ void TPrepareController::TypecheckExpressions()
     {
         if (auto* filterOp = op->As<TFilterOperator>()) {
             auto actualType = filterOp->GetPredicate()->GetType(filterOp->GetSource()->GetTableSchema());
-            auto expectedType = EValueType(EValueType::Integer);
+            auto expectedType = EValueType(EValueType::Int64);
             if (actualType != expectedType) {
                 THROW_ERROR_EXCEPTION("WHERE-clause is not of a valid type")
                     << TErrorAttribute("actual_type", actualType)

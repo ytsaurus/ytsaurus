@@ -183,7 +183,7 @@ TEST(TYamrWriterTest, SimpleWithTableIndex)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
     consumer.OnEndAttributes();
     consumer.OnEntity();
 
@@ -311,7 +311,7 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(0);
+        consumer.OnInt64Scalar(0);
     consumer.OnEndAttributes();
     consumer.OnEntity();
     consumer.OnBeginMap();
@@ -340,7 +340,7 @@ TEST(TYamrWriterTest, IntegerAndDoubleValues)
     consumer.OnListItem();
     consumer.OnBeginMap();
         consumer.OnKeyedItem("key");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
         consumer.OnKeyedItem("value");
         consumer.OnDoubleScalar(1.5);
     consumer.OnEndMap();

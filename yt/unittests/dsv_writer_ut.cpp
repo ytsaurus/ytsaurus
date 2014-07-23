@@ -21,7 +21,7 @@ TEST(TDsvWriterTest, SimpleTabular)
     consumer.OnListItem();
     consumer.OnBeginMap();
         consumer.OnKeyedItem("integer");
-        consumer.OnIntegerScalar(42);
+        consumer.OnInt64Scalar(42);
         consumer.OnKeyedItem("string");
         consumer.OnStringScalar("some");
         consumer.OnKeyedItem("double");
@@ -32,7 +32,7 @@ TEST(TDsvWriterTest, SimpleTabular)
         consumer.OnKeyedItem("foo");
         consumer.OnStringScalar("bar");
         consumer.OnKeyedItem("one");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
     consumer.OnEndMap();
 
     Stroka output =
@@ -67,7 +67,7 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
 
     consumer.OnBeginList();
     consumer.OnListItem();
-    consumer.OnIntegerScalar(100);
+    consumer.OnInt64Scalar(100);
     consumer.OnListItem();
     consumer.OnStringScalar("foo");
     consumer.OnListItem();
@@ -156,7 +156,7 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
     consumer.OnListItem();
     consumer.OnBeginAttributes();
     consumer.OnKeyedItem("table_index");
-    consumer.OnIntegerScalar(2);
+    consumer.OnInt64Scalar(2);
     consumer.OnEndAttributes();
     consumer.OnEntity();
     consumer.OnListItem();
@@ -267,7 +267,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         consumer.OnKeyedItem("id");
         consumer.OnStringScalar("1");
         consumer.OnKeyedItem("guid");
-        consumer.OnIntegerScalar(100500);
+        consumer.OnInt64Scalar(100500);
     consumer.OnEndMap();
 
     consumer.OnListItem();
@@ -275,7 +275,7 @@ TEST(TTskvWriterTest, SimpleTabular)
         consumer.OnKeyedItem("id");
         consumer.OnStringScalar("2");
         consumer.OnKeyedItem("guid");
-        consumer.OnIntegerScalar(20025);
+        consumer.OnInt64Scalar(20025);
     consumer.OnEndMap();
 
     Stroka output =

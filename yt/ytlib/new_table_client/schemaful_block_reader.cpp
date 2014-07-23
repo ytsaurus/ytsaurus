@@ -81,7 +81,7 @@ TBlockReader::TBlockReader(
             Columns.push_back(column);
 
             int columnWidth =
-                column.Type == EValueType::Integer || column.Type == EValueType::Double
+                column.Type == EValueType::Int64 || column.Type == EValueType::Double
                 ? 8
                 : 4;
             input.Skip(columnWidth * GetRowCount());
@@ -141,8 +141,8 @@ TUnversionedValue TBlockReader::Read(int index) const
         value.Type = column.Type;
 
         switch (column.Type) {
-            case EValueType::Integer:
-                value.Data.Integer = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
+            case EValueType::Int64:
+                value.Data.Int64 = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
                 break;
             case EValueType::Double:
                 value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);

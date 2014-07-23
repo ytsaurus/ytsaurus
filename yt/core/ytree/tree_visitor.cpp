@@ -59,7 +59,7 @@ private:
 
         switch (node->GetType()) {
             case ENodeType::String:
-            case ENodeType::Integer:
+            case ENodeType::Int64:
             case ENodeType::Double:
                 VisitScalar(node);
                 break;
@@ -88,8 +88,8 @@ private:
                 Consumer->OnStringScalar(node->GetValue<Stroka>());
                 break;
 
-            case ENodeType::Integer:
-                Consumer->OnIntegerScalar(node->GetValue<i64>());
+            case ENodeType::Int64:
+                Consumer->OnInt64Scalar(node->GetValue<i64>());
                 break;
 
             case ENodeType::Double:

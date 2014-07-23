@@ -35,7 +35,7 @@ TEST(TUnversionedRowTest, Serialize2)
 {
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
-    builder.AddValue(MakeUnversionedIntegerValue(42, 1));
+    builder.AddValue(MakeUnversionedInt64Value(42, 1));
     builder.AddValue(MakeUnversionedDoubleValue(0.25, 2));
     CheckSerialize(builder.GetRowAndReset());
 }
@@ -46,7 +46,7 @@ TEST(TUnversionedRowTest, Serialize3)
     // for it.
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedStringValue("string1", 10));
-    builder.AddValue(MakeUnversionedIntegerValue(1234, 20));
+    builder.AddValue(MakeUnversionedInt64Value(1234, 20));
     builder.AddValue(MakeUnversionedStringValue("string2", 30));
     builder.AddValue(MakeUnversionedDoubleValue(4321.0, 1000));
     builder.AddValue(MakeUnversionedStringValue("", 10000));

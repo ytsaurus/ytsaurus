@@ -26,7 +26,7 @@ void TYamrConsumerBase::SwitchTable(i64 tableIndex)
     Consumer->OnListItem();
     Consumer->OnBeginAttributes();
     Consumer->OnKeyedItem(key);
-    Consumer->OnIntegerScalar(tableIndex);
+    Consumer->OnInt64Scalar(tableIndex);
     Consumer->OnEndAttributes();
     Consumer->OnEntity();
 }

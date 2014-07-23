@@ -52,9 +52,9 @@ public:
         AddNode(node, false);
     }
 
-    virtual void OnMyIntegerScalar(i64 value) override
+    virtual void OnMyInt64Scalar(i64 value) override
     {
-        auto node = Factory->CreateInteger();
+        auto node = Factory->CreateInt64();
         node->SetValue(value);
         AddNode(node, false);
     }

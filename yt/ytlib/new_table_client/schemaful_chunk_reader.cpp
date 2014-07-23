@@ -182,7 +182,7 @@ void TChunkReader::DoOpen()
     // In versioned chunks first column in block is used for timestamp.
     int schemaIndexBase = IsVersionedChunk ? 1 : 0;
     if (IsVersionedChunk) {
-        BlockColumnTypes.push_back(EValueType::Integer);
+        BlockColumnTypes.push_back(EValueType::Int64);
     }
 
     for (const auto& chunkColumn : chunkSchema.Columns()) {
@@ -433,11 +433,11 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
                 YCHECK(!token.IsEmpty());
 
                 switch (value.Type) {
-                    case EValueType::Integer:
-                        if (token.GetType() != ETokenType::Integer) {
+                    case EValueType::Int64:
+                        if (token.GetType() != ETokenType::Int64) {
                             ThrowIncompatibleType(schemaColumn);
                         }
-                        value.Data.Integer = token.GetIntegerValue();
+                        value.Data.Int64 = token.GetInt64Value();
                         break;
 
                     case EValueType::Double:

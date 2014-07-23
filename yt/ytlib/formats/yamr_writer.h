@@ -28,7 +28,7 @@ public:
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnEntity() override;
     virtual void OnBeginList() override;
@@ -71,7 +71,7 @@ private:
     EValueType ValueType;
     NTableClient::EControlAttribute ControlAttribute;
 
-    // To store Integer and Double values converted to strings.
+    // To store Int64 and Double values converted to strings.
     std::vector<Stroka> StringStorage_;
 
     void WriteRow();

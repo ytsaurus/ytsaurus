@@ -220,7 +220,7 @@ TEST(TYsonSerializableTest, Options)
         const auto& name = pair.first;
         auto child = pair.second;
         EXPECT_EQ("option", name);
-        EXPECT_EQ(1, child->AsInteger()->GetValue());
+        EXPECT_EQ(1, child->AsInt64()->GetValue());
     }
 }
 

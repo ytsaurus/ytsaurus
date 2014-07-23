@@ -22,11 +22,11 @@ struct IYsonConsumer
      */
     virtual void OnStringScalar(const TStringBuf& value) = 0;
 
-    //! The current item is an integer scalar (IIntegerNode).
+    //! The current item is an integer scalar (IInt64Node).
     /*!
      *  \param value A scalar value.
      */
-    virtual void OnIntegerScalar(i64 value) = 0;
+    virtual void OnInt64Scalar(i64 value) = 0;
 
     //! The current item is an FP scalar (IDoubleNode).
     /*!

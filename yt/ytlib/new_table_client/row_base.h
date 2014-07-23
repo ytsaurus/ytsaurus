@@ -28,12 +28,12 @@ TValue MakeSentinelValue(EValueType type, int id = 0)
 }
 
 template <class TValue>
-TValue MakeIntegerValue(i64 value, int id = 0)
+TValue MakeInt64Value(i64 value, int id = 0)
 {
     TValue result;
     result.Id = id;
-    result.Type = EValueType::Integer;
-    result.Data.Integer = value;
+    result.Type = EValueType::Int64;
+    result.Data.Int64 = value;
     return result;
 }
 

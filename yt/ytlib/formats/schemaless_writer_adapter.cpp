@@ -41,8 +41,8 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
                 auto& value = *it;
                 Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
                 switch (value.Type) {
-                    case EValueType::Integer:
-                        Consumer_->OnIntegerScalar(value.Data.Integer);
+                    case EValueType::Int64:
+                        Consumer_->OnInt64Scalar(value.Data.Int64);
                         break;
                     case EValueType::Double:
                         Consumer_->OnDoubleScalar(value.Data.Double);

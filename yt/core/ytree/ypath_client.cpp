@@ -699,7 +699,7 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
         case ENodeType::String:
             return lhs->GetValue<Stroka>() == rhs->GetValue<Stroka>();
 
-        case ENodeType::Integer:
+        case ENodeType::Int64:
             return lhs->GetValue<i64>() == rhs->GetValue<i64>();
 
         case ENodeType::Double:

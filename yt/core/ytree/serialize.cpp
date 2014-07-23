@@ -28,7 +28,7 @@ NYson::EYsonType GetYsonType(const TYsonProducer& producer)
 #define SERIALIZE(type) \
     void Serialize(type value, NYson::IYsonConsumer* consumer) \
     { \
-        consumer->OnIntegerScalar(CheckedStaticCast<i64>(value)); \
+        consumer->OnInt64Scalar(CheckedStaticCast<i64>(value)); \
     }
 
 SERIALIZE(short)
@@ -81,7 +81,7 @@ void Serialize(char value, NYson::IYsonConsumer* consumer)
 // TDuration
 void Serialize(TDuration value, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnIntegerScalar(value.MilliSeconds());
+    consumer->OnInt64Scalar(value.MilliSeconds());
 }
 
 // TInstant
@@ -108,7 +108,7 @@ void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer)
 #define DESERIALIZE(type) \
     void Deserialize(type& value, INodePtr node) \
     { \
-        value = CheckedStaticCast<type>(node->AsInteger()->GetValue()); \
+        value = CheckedStaticCast<type>(node->AsInt64()->GetValue()); \
     }
 
 DESERIALIZE(short)
@@ -126,8 +126,8 @@ DESERIALIZE(unsigned long long)
 void Deserialize(double& value, INodePtr node)
 {
     // Allow integer nodes to be serialized into doubles.
-    if (node->GetType() == ENodeType::Integer) {
-        value = node->AsInteger()->GetValue();
+    if (node->GetType() == ENodeType::Int64) {
+        value = node->AsInt64()->GetValue();
     } else {
         value = node->AsDouble()->GetValue();
     }
@@ -159,14 +159,14 @@ void Deserialize(char& value, INodePtr node)
 // TDuration
 void Deserialize(TDuration& value, INodePtr node)
 {
-    value = TDuration::MilliSeconds(node->AsInteger()->GetValue());
+    value = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
 
 // TInstant
 void Deserialize(TInstant& value, INodePtr node)
 {
-    if (node->GetType() == ENodeType::Integer) {
-        value = TInstant::MilliSeconds(node->AsInteger()->GetValue());
+    if (node->GetType() == ENodeType::Int64) {
+        value = TInstant::MilliSeconds(node->AsInt64()->GetValue());
     } else {
         value = TInstant::ParseIso8601(node->AsString()->GetValue());
     }

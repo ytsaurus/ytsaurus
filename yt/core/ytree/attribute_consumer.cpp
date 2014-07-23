@@ -49,7 +49,7 @@ void TAttributeConsumer::OnMyStringScalar(const TStringBuf& value)
     ThrowMapExpected();
 }
 
-void TAttributeConsumer::OnMyIntegerScalar(i64 value)
+void TAttributeConsumer::OnMyInt64Scalar(i64 value)
 {
     UNUSED(value);
     ThrowMapExpected();

@@ -29,7 +29,7 @@ public:
     void Flush();
 
     virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
 
     virtual void OnEntity() override;
@@ -184,7 +184,7 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TJsonConsumerImpl::OnIntegerScalar(i64 value)
+void TJsonConsumerImpl::OnInt64Scalar(i64 value)
 {
     if (IsWriteAllowed()) {
         EnterNode();

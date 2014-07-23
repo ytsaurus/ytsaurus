@@ -32,7 +32,7 @@ TYamrConsumer::TYamrConsumer(TOutputStream* stream, TYamrFormatConfigPtr config)
 TYamrConsumer::~TYamrConsumer()
 { }
 
-void TYamrConsumer::OnIntegerScalar(i64 value)
+void TYamrConsumer::OnInt64Scalar(i64 value)
 {
     if (State == EState::ExpectValue) {
         StringStorage_.push_back(::ToString(value));

@@ -62,18 +62,18 @@ const TToken TToken::EndOfStream;
 
 TToken::TToken()
     : Type_(ETokenType::EndOfStream)
-    , IntegerValue(0)
+    , Int64Value(0)
     , DoubleValue(0.0)
 { }
 
 TToken::TToken(ETokenType type)
     : Type_(type)
-    , IntegerValue(0)
+    , Int64Value(0)
     , DoubleValue(0.0)
 {
     switch (type) {
         case ETokenType::String:
-        case ETokenType::Integer:
+        case ETokenType::Int64:
         case ETokenType::Double:
             YUNREACHABLE();
         default:
@@ -84,19 +84,19 @@ TToken::TToken(ETokenType type)
 TToken::TToken(const TStringBuf& stringValue)
     : Type_(ETokenType::String)
     , StringValue(stringValue)
-    , IntegerValue(0)
+    , Int64Value(0)
     , DoubleValue(0.0)
 { }
 
 TToken::TToken(i64 integerValue)
-    : Type_(ETokenType::Integer)
-    , IntegerValue(integerValue)
+    : Type_(ETokenType::Int64)
+    , Int64Value(integerValue)
     , DoubleValue(0.0)
 { }
 
 TToken::TToken(double doubleValue)
     : Type_(ETokenType::Double)
-    , IntegerValue(0)
+    , Int64Value(0)
     , DoubleValue(doubleValue)
 { }
 
@@ -111,10 +111,10 @@ const TStringBuf& TToken::GetStringValue() const
     return StringValue;
 }
 
-i64 TToken::GetIntegerValue() const
+i64 TToken::GetInt64Value() const
 {
-    CheckType(ETokenType::Integer);
-    return IntegerValue;
+    CheckType(ETokenType::Int64);
+    return Int64Value;
 }
 
 double TToken::GetDoubleValue() const
@@ -159,7 +159,7 @@ void TToken::CheckType(ETokenType expectedType) const
 void TToken::Reset()
 {
     Type_ = ETokenType::EndOfStream;
-    IntegerValue = 0;
+    Int64Value = 0;
     DoubleValue = 0.0;
     StringValue = TStringBuf();
 }
@@ -173,8 +173,8 @@ Stroka ToString(const TToken& token)
         case ETokenType::String:
             return Stroka(token.GetStringValue());
 
-        case ETokenType::Integer:
-            return ::ToString(token.GetIntegerValue());
+        case ETokenType::Int64:
+            return ::ToString(token.GetInt64Value());
 
         case ETokenType::Double:
             return ::ToString(token.GetDoubleValue());

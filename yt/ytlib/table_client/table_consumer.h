@@ -48,7 +48,7 @@ public:
 
     virtual void OnKeyedItem(const TStringBuf& name) override;
     virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnEntity() override;
     virtual void OnBeginList() override;
@@ -111,7 +111,7 @@ protected:
 
     virtual TError AttachLocationAttributes(TError error);
 
-    virtual void OnControlIntegerScalar(i64 value);
+    virtual void OnControlInt64Scalar(i64 value);
     virtual void OnControlStringScalar(const TStringBuf& value);
 
     virtual void OnBeginRow() = 0;
@@ -119,7 +119,7 @@ protected:
     virtual void OnEndRow() = 0;
 
     virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnEntity() override;
     virtual void OnBeginList() override;

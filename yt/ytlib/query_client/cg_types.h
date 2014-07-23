@@ -177,7 +177,7 @@ public:
 
     enum Fields
     {
-        Integer,
+        Int64,
         Double,
         String
     };

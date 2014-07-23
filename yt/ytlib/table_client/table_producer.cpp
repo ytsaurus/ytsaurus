@@ -69,7 +69,7 @@ void ProduceTableSwitch(IYsonConsumer* consumer, int tableIndex)
     consumer->OnListItem();
     consumer->OnBeginAttributes();
     consumer->OnKeyedItem(tableIndexKey);
-    consumer->OnIntegerScalar(tableIndex);
+    consumer->OnInt64Scalar(tableIndex);
     consumer->OnEndAttributes();
     consumer->OnEntity();
 }

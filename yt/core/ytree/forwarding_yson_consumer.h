@@ -15,7 +15,7 @@ class TForwardingYsonConsumer
 public:
     // IYsonConsumer methods
     virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnIntegerScalar(i64 value);
+    virtual void OnInt64Scalar(i64 value);
     virtual void OnDoubleScalar(double value);
     virtual void OnEntity();
 
@@ -41,7 +41,7 @@ protected:
         NYson::EYsonType type = NYson::EYsonType::Node);
 
     virtual void OnMyStringScalar(const TStringBuf& value);
-    virtual void OnMyIntegerScalar(i64 value);
+    virtual void OnMyInt64Scalar(i64 value);
     virtual void OnMyDoubleScalar(double value);
     virtual void OnMyEntity();
 

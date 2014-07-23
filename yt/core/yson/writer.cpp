@@ -210,10 +210,10 @@ void TYsonWriter::OnStringScalar(const TStringBuf& value)
     EndNode();
 }
 
-void TYsonWriter::OnIntegerScalar(i64 value)
+void TYsonWriter::OnInt64Scalar(i64 value)
 {
     if (Format == EYsonFormat::Binary) {
-        Stream->Write(IntegerMarker);
+        Stream->Write(Int64Marker);
         WriteVarInt64(Stream, value);
     } else {
         Stream->Write(::ToString(value));

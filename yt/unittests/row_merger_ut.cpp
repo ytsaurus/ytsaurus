@@ -50,8 +50,8 @@ protected:
         int keyId = 0;
         for (auto key : keys) {
             switch (key->GetType()) {
-                case ENodeType::Integer:
-                    builder.AddKey(MakeUnversionedIntegerValue(key->GetValue<i64>(), keyId));
+                case ENodeType::Int64:
+                    builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
                     break;
                 case ENodeType::Double:
                     builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
@@ -74,7 +74,7 @@ protected:
                 case ENodeType::Entity:
                     builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id));
                     break;
-                case ENodeType::Integer:
+                case ENodeType::Int64:
                     builder.AddValue(MakeVersionedIntegerValue(value->GetValue<i64>(), timestamp, id));
                     break;
                 case ENodeType::Double:
@@ -107,8 +107,8 @@ protected:
                 case ENodeType::Entity:
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
                     break;
-                case ENodeType::Integer:
-                    builder.AddValue(MakeUnversionedIntegerValue(value->GetValue<i64>(), id));
+                case ENodeType::Int64:
+                    builder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
                     break;
                 case ENodeType::Double:
                     builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));

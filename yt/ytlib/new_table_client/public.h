@@ -59,7 +59,7 @@ DECLARE_ENUM(EValueType,
     ((Min)         (0))
     ((TheBottom)   (1))
     ((Null)        (2))
-    ((Integer)     (3))
+    ((Int64)     (3))
     ((Double)      (4))
     ((String)      (5))
     ((Any)         (6))

@@ -31,7 +31,7 @@ TEST(TJsonParserTest, List)
 
     EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnIntegerScalar(1));
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
         EXPECT_CALL(Mock, OnListItem());
         EXPECT_CALL(Mock, OnStringScalar("aaa"));
         EXPECT_CALL(Mock, OnListItem());
@@ -152,7 +152,7 @@ TEST(TJsonParserTest, ListWithAttributes)
 
     EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnIntegerScalar(1));
+        EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnEndList());
 
     Stroka input =
@@ -192,7 +192,7 @@ TEST(TJsonParserTest, MapWithAttributes)
     ParseJson(&stream, &Mock);
 }
 
-TEST(TJsonParserTest, IntegerWithAttributes)
+TEST(TJsonParserTest, Int64WithAttributes)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -202,7 +202,7 @@ TEST(TJsonParserTest, IntegerWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("bar"));
     EXPECT_CALL(Mock, OnEndAttributes());
 
-    EXPECT_CALL(Mock, OnIntegerScalar(42));
+    EXPECT_CALL(Mock, OnInt64Scalar(42));
 
     Stroka input =
         "{"

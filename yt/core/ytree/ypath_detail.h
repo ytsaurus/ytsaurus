@@ -255,7 +255,7 @@ protected:
     virtual ENodeType GetExpectedType() = 0;
 
     virtual void OnMyStringScalar(const TStringBuf& value) override;
-    virtual void OnMyIntegerScalar(i64 value) override;
+    virtual void OnMyInt64Scalar(i64 value) override;
     virtual void OnMyDoubleScalar(double value) override;
     virtual void OnMyEntity() override;
 
@@ -308,7 +308,7 @@ class TNodeSetter
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Integer,  i64);
+DECLARE_SCALAR_TYPE(Int64,  i64);
 DECLARE_SCALAR_TYPE(Double, double);
 
 #undef DECLARE_SCALAR_TYPE

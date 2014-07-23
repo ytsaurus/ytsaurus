@@ -237,8 +237,8 @@ void ParseKeyPart(
             break;
         }
 
-        case NYson::ETokenType::Integer: {
-            value = MakeUnversionedIntegerValue(tokenizer.CurrentToken().GetIntegerValue());
+        case NYson::ETokenType::Int64: {
+            value = MakeUnversionedInt64Value(tokenizer.CurrentToken().GetInt64Value());
             break;
         }
 
@@ -270,7 +270,7 @@ void ParseRowLimit(
     switch (tokenizer.GetCurrentType()) {
         case RowIndexMarkerToken:
             tokenizer.ParseNext();
-            limit->SetRowIndex(tokenizer.CurrentToken().GetIntegerValue());
+            limit->SetRowIndex(tokenizer.CurrentToken().GetInt64Value());
             tokenizer.ParseNext();
             break;
 

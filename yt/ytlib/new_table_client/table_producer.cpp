@@ -23,8 +23,8 @@ void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row, TNameTableP
             continue;
         consumer->OnKeyedItem(nameTable->GetName(value.Id));
         switch (value.Type) {
-            case EValueType::Integer:
-                consumer->OnIntegerScalar(value.Data.Integer);
+            case EValueType::Int64:
+                consumer->OnInt64Scalar(value.Data.Int64);
                 break;
             case EValueType::Double:
                 consumer->OnDoubleScalar(value.Data.Double);

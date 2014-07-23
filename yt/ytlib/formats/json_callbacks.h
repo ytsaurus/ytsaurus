@@ -20,7 +20,7 @@ public:
     TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memoryLimit);
 
     void OnStringScalar(const TStringBuf& value);
-    void OnIntegerScalar(i64 value);
+    void OnInt64Scalar(i64 value);
     void OnDoubleScalar(double value);
     void OnEntity();
     void OnBeginList();

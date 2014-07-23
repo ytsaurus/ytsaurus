@@ -49,16 +49,16 @@ TEST_F(TYsonWriterTest, BinaryString)
     Run();
 }
 
-TEST_F(TYsonWriterTest, BinaryInteger)
+TEST_F(TYsonWriterTest, BinaryInt64)
 {
     i64 value = 100500424242ll;
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnIntegerScalar(value));
+    EXPECT_CALL(Mock, OnInt64Scalar(value));
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
-    writer.OnIntegerScalar(value);
+    writer.OnInt64Scalar(value);
 
     Run();
 }
@@ -126,7 +126,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
 
         EXPECT_CALL(Mock, OnKeyedItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755));
+        EXPECT_CALL(Mock, OnInt64Scalar(755));
     EXPECT_CALL(Mock, OnEndMap());
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
@@ -156,7 +156,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         writer.OnStringScalar("/home/sandello");
 
         writer.OnKeyedItem("mode");
-        writer.OnIntegerScalar(755);
+        writer.OnInt64Scalar(755);
     writer.OnEndMap();
 
     Run();
@@ -254,13 +254,13 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
 
     TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::ListFragment);
     writer.OnListItem();
-        writer.OnIntegerScalar(200);
+        writer.OnInt64Scalar(200);
     writer.OnListItem();
         writer.OnBeginMap();
             writer.OnKeyedItem("key");
-            writer.OnIntegerScalar(42);
+            writer.OnInt64Scalar(42);
             writer.OnKeyedItem("yek");
-            writer.OnIntegerScalar(24);
+            writer.OnInt64Scalar(24);
             writer.OnKeyedItem("list");
             writer.OnBeginList();
             writer.OnEndList();
@@ -283,18 +283,18 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
 
     TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::MapFragment);
     writer.OnKeyedItem("a");
-        writer.OnIntegerScalar(100);
+        writer.OnInt64Scalar(100);
     writer.OnKeyedItem("b");
         writer.OnBeginList();
             writer.OnListItem();
             writer.OnBeginMap();
                 writer.OnKeyedItem("key");
-                writer.OnIntegerScalar(42);
+                writer.OnInt64Scalar(42);
                 writer.OnKeyedItem("yek");
-                writer.OnIntegerScalar(24);
+                writer.OnInt64Scalar(24);
             writer.OnEndMap();
             writer.OnListItem();
-            writer.OnIntegerScalar(-1);
+            writer.OnInt64Scalar(-1);
         writer.OnEndList();
     writer.OnKeyedItem("c");
         writer.OnStringScalar("word");
@@ -315,10 +315,10 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
     writer.OnKeyedItem("a1");
         writer.OnBeginMap();
             writer.OnKeyedItem("key");
-            writer.OnIntegerScalar(42);
+            writer.OnInt64Scalar(42);
         writer.OnEndMap();
     writer.OnKeyedItem("a2");
-        writer.OnIntegerScalar(0);
+        writer.OnInt64Scalar(0);
 
     Stroka output =
         "\"a1\" = {\n"

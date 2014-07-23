@@ -81,7 +81,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TStatelessLexerTest, Strings)
+TEST_F(TStatelessLexerTest, StringValues)
 {
     TestToken("abc_123.-%", ETokenType::String, "abc_123.-%");
     TestToken("%0-0-0-0", ETokenType::String, "%0-0-0-0"); // guids
@@ -96,22 +96,22 @@ TEST_F(TStatelessLexerTest, Strings)
     TestToken("\x01\x08\x01\x02\x03\x04", ETokenType::String, "\x01\x02\x03\x04");
 }
 
-TEST_F(TStatelessLexerTest, Integers)
+TEST_F(TStatelessLexerTest, Int64Values)
 {
-    TestToken("123", ETokenType::Integer, "123");
-    TestToken("0", ETokenType::Integer, "0");
-    TestToken("+1", ETokenType::Integer, "1");
-    TestToken("-1", ETokenType::Integer, "-1");
+    TestToken("123", ETokenType::Int64, "123");
+    TestToken("0", ETokenType::Int64, "0");
+    TestToken("+1", ETokenType::Int64, "1");
+    TestToken("-1", ETokenType::Int64, "-1");
 
-    TestToken(Stroka("\x02\x00", 2), ETokenType::Integer, "0");
-    TestToken("\x02\x01", ETokenType::Integer, "-1");
-    TestToken("\x02\x02", ETokenType::Integer, "1");
-    TestToken("\x02\x03", ETokenType::Integer, "-2");
-    TestToken("\x02\x04", ETokenType::Integer, "2");
-    TestToken("\x02\x80\x80\x80\x02", ETokenType::Integer, ToString(1ull << 21));
+    TestToken(Stroka("\x02\x00", 2), ETokenType::Int64, "0");
+    TestToken("\x02\x01", ETokenType::Int64, "-1");
+    TestToken("\x02\x02", ETokenType::Int64, "1");
+    TestToken("\x02\x03", ETokenType::Int64, "-2");
+    TestToken("\x02\x04", ETokenType::Int64, "2");
+    TestToken("\x02\x80\x80\x80\x02", ETokenType::Int64, ToString(1ull << 21));
 }
 
-TEST_F(TStatelessLexerTest, Doubles)
+TEST_F(TStatelessLexerTest, DoubleValues)
 {
     const double x = 3.1415926;
     TestDouble("3.1415926", x);

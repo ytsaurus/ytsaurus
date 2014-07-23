@@ -52,7 +52,7 @@ void TBlockWriter::WriteInteger(const TUnversionedValue& value, int index)
         column.Stream.DoWrite(&ZeroInteger, sizeof(i64));
     } else {
         column.NullBitmap.Push(true);
-        column.Stream.DoWrite(&value.Data.Integer, sizeof(i64));
+        column.Stream.DoWrite(&value.Data.Int64, sizeof(i64));
     }
 }
 
@@ -134,8 +134,8 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
         TYsonWriter writer(&IntermediateBuffer);
 
         switch (value.Type) {
-            case EValueType::Integer:
-                writer.OnIntegerScalar(value.Data.Integer);
+            case EValueType::Int64:
+                writer.OnInt64Scalar(value.Data.Int64);
                 break;
             case EValueType::Double:
                 writer.OnDoubleScalar(value.Data.Double);

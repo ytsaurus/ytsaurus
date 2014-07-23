@@ -125,8 +125,8 @@ void TSimpleVersionedBlockWriter::WriteValue(
     const TUnversionedValue& value)
 {
     switch (value.Type) {
-        case EValueType::Integer:
-            WritePod(stream, value.Data.Integer);
+        case EValueType::Int64:
+            WritePod(stream, value.Data.Int64);
             nullFlags.Append(false);
             break;
 

@@ -97,7 +97,7 @@ void TSchemafulDsvConsumer::OnEntity()
     State_ = EState::None;
 }
 
-void TSchemafulDsvConsumer::OnIntegerScalar(i64 value)
+void TSchemafulDsvConsumer::OnInt64Scalar(i64 value)
 {
     if (State_ == EState::None) {
         return;         
@@ -317,10 +317,10 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
         case EValueType::Null:
             break;
             
-        case EValueType::Integer: {
+        case EValueType::Int64: {
             char buf[64];
             char* begin = buf;
-            char* end = WriteIntegerReversed(begin, value.Data.Integer);
+            char* end = WriteIntegerReversed(begin, value.Data.Int64);
             size_t length = end - begin;
             
             Buffer_.Resize(Buffer_.Size() + length, false);

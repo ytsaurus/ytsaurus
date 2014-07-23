@@ -14,7 +14,7 @@ using namespace NYson;
 namespace NDetail {
 
 const ENodeType::EDomain TScalarTypeTraits<Stroka>::NodeType = ENodeType::String;
-const ENodeType::EDomain TScalarTypeTraits<i64>::NodeType = ENodeType::Integer;
+const ENodeType::EDomain TScalarTypeTraits<i64>::NodeType = ENodeType::Int64;
 const ENodeType::EDomain TScalarTypeTraits<double>::NodeType = ENodeType::Double;
 
 } // namespace NDetail

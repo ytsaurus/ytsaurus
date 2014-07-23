@@ -19,7 +19,7 @@ class TNullYsonConsumer
         UNUSED(value);
     }
 
-    virtual void OnIntegerScalar(i64 value)
+    virtual void OnInt64Scalar(i64 value)
     {
         UNUSED(value);
     }

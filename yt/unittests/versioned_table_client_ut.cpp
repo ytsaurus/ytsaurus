@@ -75,7 +75,7 @@ protected:
     void PrepareSimple()
     {
         TTableSchema schema;
-        schema.Columns().push_back({ "banner", EValueType::Integer });
+        schema.Columns().push_back({ "banner", EValueType::Int64 });
         schema.Columns().push_back({ "bid",    EValueType::Double  });
         schema.Columns().push_back({ "body",   EValueType::String  });
 

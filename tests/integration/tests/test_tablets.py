@@ -27,7 +27,7 @@ class TestTablets(YTEnvSetup):
     def _create_table(self):
         create('table', '//tmp/t',
                attributes = {
-                 'schema': [{'name': 'key', 'type': 'integer'}, {'name': 'value', 'type': 'string'}],
+                 'schema': [{'name': 'key', 'type': 'int64'}, {'name': 'value', 'type': 'string'}],
                  'key_columns': ['key']
                })
 

@@ -85,9 +85,9 @@ public:
         return CreateNode(EObjectType::StringNode)->AsString();
     }
 
-    virtual IIntegerNodePtr CreateInteger() override
+    virtual IInt64NodePtr CreateInt64() override
     {
-        return CreateNode(EObjectType::IntegerNode)->AsInteger();
+        return CreateNode(EObjectType::Int64Node)->AsInt64();
     }
 
     virtual IDoubleNodePtr CreateDouble() override
@@ -425,7 +425,7 @@ TCypressManager::TCypressManager(
     RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
-    RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));

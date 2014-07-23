@@ -136,7 +136,7 @@ void TSchemafulDsvParser::SwitchTable(int newTableIndex)
         Consumer_->OnListItem();
         Consumer_->OnBeginAttributes();
         Consumer_->OnKeyedItem(key);
-        Consumer_->OnIntegerScalar(TableIndex_);
+        Consumer_->OnInt64Scalar(TableIndex_);
         Consumer_->OnEndAttributes();
         Consumer_->OnEntity();
     }

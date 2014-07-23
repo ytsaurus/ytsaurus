@@ -39,10 +39,10 @@ protected:
     {
         Schema.Columns() = {
             TColumnSchema("k1", EValueType::String),
-            TColumnSchema("k2", EValueType::Integer),
+            TColumnSchema("k2", EValueType::Int64),
             TColumnSchema("k3", EValueType::Double),
-            TColumnSchema("v1", EValueType::Integer),
-            TColumnSchema("v2", EValueType::Integer)
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64)
         };
 
         KeyColumns = {"k1", "k2", "k3"};
@@ -85,7 +85,7 @@ protected:
             ? MakeUnversionedStringValue(*k1, 0)
             : MakeUnversionedSentinelValue(EValueType::Null, 0);
         row.BeginKeys()[1] = k2 
-            ? MakeUnversionedIntegerValue(*k2, 1)
+            ? MakeUnversionedInt64Value(*k2, 1)
             : MakeUnversionedSentinelValue(EValueType::Null, 1);
         row.BeginKeys()[2] = k3 
             ? MakeUnversionedDoubleValue(*k3, 2)
@@ -208,7 +208,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
-    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(15, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(15, 1));
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
@@ -361,9 +361,9 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     TTableSchema schema;
     schema.Columns() = {
         TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Integer),
+        TColumnSchema("k2", EValueType::Int64),
         TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("v2", EValueType::Integer)
+        TColumnSchema("v2", EValueType::Int64)
     };
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
@@ -373,7 +373,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
-    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(1, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(1, 1));
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
@@ -409,7 +409,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
-    lowerKeyBuilder.AddValue(MakeUnversionedIntegerValue(15, 1));
+    lowerKeyBuilder.AddValue(MakeUnversionedInt64Value(15, 1));
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;

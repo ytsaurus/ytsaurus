@@ -13,7 +13,7 @@ DECLARE_ENUM(ETokenType,
     (EndOfStream) // Empty or uninitialized token
 
     (String)
-    (Integer)
+    (Int64)
     (Double)
 
     // Special values:
@@ -62,7 +62,7 @@ public:
 
     bool IsEmpty() const;
     const TStringBuf& GetStringValue() const;
-    i64 GetIntegerValue() const;
+    i64 GetInt64Value() const;
     double GetDoubleValue() const;
 
     void CheckType(ETokenType expectedType) const;
@@ -73,7 +73,7 @@ private:
     friend class TLexerImpl;
 
     TStringBuf StringValue;
-    i64 IntegerValue;
+    i64 Int64Value;
     double DoubleValue;
 
 };

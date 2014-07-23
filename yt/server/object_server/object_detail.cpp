@@ -285,9 +285,9 @@ void TObjectProxyBase::SerializeAttributes(
             UnderlyingConsumer->OnStringScalar(value);
         }
 
-        virtual void OnIntegerScalar(i64 value) override
+        virtual void OnInt64Scalar(i64 value) override
         {
-            UnderlyingConsumer->OnIntegerScalar(value);
+            UnderlyingConsumer->OnInt64Scalar(value);
         }
 
         virtual void OnDoubleScalar(double value) override
@@ -371,10 +371,10 @@ void TObjectProxyBase::SerializeAttributes(
             UnderlyingConsumer->OnStringScalar(value);
         }
 
-        virtual void OnIntegerScalar(i64 value) override
+        virtual void OnInt64Scalar(i64 value) override
         {
             ProduceKeyIfNeeded();
-            UnderlyingConsumer->OnIntegerScalar(value);
+            UnderlyingConsumer->OnInt64Scalar(value);
         }
 
         virtual void OnDoubleScalar(double value) override

@@ -144,8 +144,8 @@ inline i64 ConvertTo(const TYsonString& str)
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
-        case NYson::ETokenType::Integer:
-            return token.GetIntegerValue();
+        case NYson::ETokenType::Int64:
+            return token.GetInt64Value();
         default:
             THROW_ERROR_EXCEPTION("Cannot parse integer from %s",
                 ~str.Data().Quote());
@@ -158,8 +158,8 @@ inline double ConvertTo(const TYsonString& str)
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
-        case NYson::ETokenType::Integer:
-            return token.GetIntegerValue();
+        case NYson::ETokenType::Int64:
+            return token.GetInt64Value();
         case NYson::ETokenType::Double:
             return token.GetDoubleValue();
         default:

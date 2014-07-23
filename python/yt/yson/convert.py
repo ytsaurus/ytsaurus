@@ -9,7 +9,7 @@ def to_yson_type(value, attributes = None):
     if isinstance(value, str):
         result = YsonString(value)
     elif isinstance(value, int):
-        result = YsonInteger(value)
+        result = YsonInt64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
@@ -31,7 +31,7 @@ def json_to_yson(json_tree):
     elif isinstance(value, str):
         result = YsonString(value)
     elif isinstance(value, int):
-        result = YsonInteger(value)
+        result = YsonInt64(value)
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):

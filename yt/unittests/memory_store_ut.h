@@ -56,8 +56,8 @@ protected:
 
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Integer));
-        schema.Columns().push_back(TColumnSchema("a", EValueType::Integer));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));
 
@@ -84,8 +84,8 @@ protected:
         TUnversionedOwningRowBuilder rowBuilder;
         auto addValue = [&] (int id, INodePtr value) {
             switch (value->GetType()) {
-                case ENodeType::Integer:
-                    rowBuilder.AddValue(MakeUnversionedIntegerValue(value->GetValue<i64>(), id));
+                case ENodeType::Int64:
+                    rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
                     break;
                 case ENodeType::Double:
                     rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
@@ -178,11 +178,11 @@ protected:
             const auto& name = NameTable->GetName(value.Id);
             auto it = expectedRowParts.find(name);
             switch (value.Type) {
-                case EValueType::Integer:
+                case EValueType::Int64:
                     ASSERT_TRUE(it != expectedRowParts.end());
                     ASSERT_EQ(
                         it->second->GetValue<i64>(),
-                        value.Data.Integer);
+                        value.Data.Int64);
                     break;
 
                 case EValueType::Double:

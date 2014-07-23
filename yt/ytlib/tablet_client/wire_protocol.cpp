@@ -231,7 +231,7 @@ private:
         const i64* rawValue = reinterpret_cast<const i64*>(&value);
         UnsafeWriteInt64(rawValue[0]);
         switch (value.Type) {
-            case EValueType::Integer:
+            case EValueType::Int64:
             case EValueType::Double:
                 UnsafeWriteInt64(rawValue[1]);
                 break;
@@ -528,7 +528,7 @@ private:
         rawValue[0] = ReadInt64();
 
         switch (value->Type) {
-            case EValueType::Integer:
+            case EValueType::Int64:
             case EValueType::Double:
                 rawValue[1] = ReadInt64();
                 break;

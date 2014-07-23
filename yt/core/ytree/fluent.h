@@ -211,7 +211,7 @@ public:
         {
             this->Consumer->OnBeginAttributes();
             this->Consumer->OnKeyedItem("count");
-            this->Consumer->OnIntegerScalar(collection.size());
+            this->Consumer->OnInt64Scalar(collection.size());
             this->Consumer->OnEndAttributes();
             this->Consumer->OnBeginList();
             size_t printedSize = 0;

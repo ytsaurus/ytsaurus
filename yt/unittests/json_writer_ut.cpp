@@ -27,7 +27,7 @@ TEST(TJsonWriterTest, List)
 
     consumer->OnBeginList();
         consumer->OnListItem();
-        consumer->OnIntegerScalar(1);
+        consumer->OnInt64Scalar(1);
         consumer->OnListItem();
         consumer->OnStringScalar("aaa");
         consumer->OnListItem();
@@ -201,7 +201,7 @@ TEST(TJsonWriterTest, ListWithAttributes)
 
     consumer->OnBeginList();
         consumer->OnListItem();
-        consumer->OnIntegerScalar(1);
+        consumer->OnInt64Scalar(1);
     consumer->OnEndList();
 
     Stroka output =
@@ -237,7 +237,7 @@ TEST(TJsonWriterTest, MapWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, IntegerWithAttributes)
+TEST(TJsonWriterTest, Int64WithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -247,7 +247,7 @@ TEST(TJsonWriterTest, IntegerWithAttributes)
         consumer->OnStringScalar("bar");
     consumer->OnEndAttributes();
 
-    consumer->OnIntegerScalar(42);
+    consumer->OnInt64Scalar(42);
 
     Stroka output =
         "{"
@@ -346,7 +346,7 @@ TEST(TJsonWriterTest, NeverAttributes)
 
     consumer->OnBeginMap();
         consumer->OnKeyedItem("answer");
-        consumer->OnIntegerScalar(42);
+        consumer->OnInt64Scalar(42);
 
         consumer->OnKeyedItem("question");
         consumer->OnBeginAttributes();
@@ -378,7 +378,7 @@ TEST(TJsonWriterTest, AlwaysAttributes)
 
     consumer->OnBeginMap();
         consumer->OnKeyedItem("answer");
-        consumer->OnIntegerScalar(42);
+        consumer->OnInt64Scalar(42);
 
         consumer->OnKeyedItem("question");
         consumer->OnBeginAttributes();
@@ -415,7 +415,7 @@ TEST(TJsonWriterTest, SpecialKeys)
         writer->OnKeyedItem("$$attributes");
         writer->OnStringScalar("bar");
         writer->OnKeyedItem("$other");
-        writer->OnIntegerScalar(42);
+        writer->OnInt64Scalar(42);
     writer->OnEndMap();
 
     Stroka output = "{\"$$value\":\"foo\",\"$$$attributes\":\"bar\",\"$$other\":42}";

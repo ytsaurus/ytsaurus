@@ -900,9 +900,9 @@ void TNodeSetterBase::OnMyStringScalar(const TStringBuf& /*value*/)
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyIntegerScalar(i64 /*value*/)
+void TNodeSetterBase::OnMyInt64Scalar(i64 /*value*/)
 {
-    ThrowInvalidType(ENodeType::Integer);
+    ThrowInvalidType(ENodeType::Int64);
 }
 
 void TNodeSetterBase::OnMyDoubleScalar(double /*value*/)

@@ -41,7 +41,7 @@ public:
 
         auto executeRead = [&] () {
             TUnversionedOwningRowBuilder builder;
-            builder.AddValue(MakeUnversionedIntegerValue(RandomNumber<ui64>(1000000000), 0));
+            builder.AddValue(MakeUnversionedInt64Value(RandomNumber<ui64>(1000000000), 0));
 
             auto key = builder.GetRowAndReset();
             auto keySuccessor = GetKeySuccessor(key.Get());
@@ -60,8 +60,8 @@ public:
             auto transaction = StartTransaction();
 
             TUnversionedOwningRowBuilder builder;
-            builder.AddValue(MakeUnversionedIntegerValue(RandomNumber<ui64>(1000000000), 0));
-            builder.AddValue(MakeUnversionedIntegerValue(123, 1));
+            builder.AddValue(MakeUnversionedInt64Value(RandomNumber<ui64>(1000000000), 0));
+            builder.AddValue(MakeUnversionedInt64Value(123, 1));
             builder.AddValue(MakeUnversionedDoubleValue(3.1415, 2));
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
             auto row = builder.GetRowAndReset();

@@ -120,11 +120,11 @@ public:
                 Consumer->OnStringScalar(value);
                 break;
             }
-            case IntegerMarker:{
+            case Int64Marker:{
                 TBase::Advance(1);
                 i64 value;
-                TBase::ReadBinaryInteger(&value);
-                Consumer->OnIntegerScalar(value);
+                TBase::ReadBinaryInt64(&value);
+                Consumer->OnInt64Scalar(value);
                 break;
             }
             case DoubleMarker: {
@@ -282,7 +282,7 @@ public:
                     << *this
                     << ex;
             }
-            Consumer->OnIntegerScalar(value);
+            Consumer->OnInt64Scalar(value);
         }
     } 
 };

@@ -70,7 +70,7 @@ private:
         bool IsKeyPart;
 
         union {
-            i64 Integer;
+            i64 Int64;
             double Double;
             struct {
                 const char* String;
@@ -170,7 +170,7 @@ void TChunkWriter::Open(
         Schema.Columns().end(),
         [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
             auto isFront = [] (const TColumnSchema& schema) {
-                return schema.Type == EValueType::Integer || schema.Type == EValueType::Double;
+                return schema.Type == EValueType::Int64 || schema.Type == EValueType::Double;
             };
             if (isFront(lhs) && !isFront(rhs)) {
                 return true;
@@ -242,14 +242,14 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
     }
 
     switch (columnDescriptor.Type) {
-        case EValueType::Integer:
-            YASSERT(value.Type == EValueType::Integer || value.Type == EValueType::Null);
+        case EValueType::Int64:
+            YASSERT(value.Type == EValueType::Int64 || value.Type == EValueType::Null);
             CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
-                if (value.Data.Integer != columnDescriptor.PreviousValue.Integer) {
+                if (value.Data.Int64 != columnDescriptor.PreviousValue.Int64) {
                     IsNewKey = true;
                 }
-                columnDescriptor.PreviousValue.Integer = value.Data.Integer;
+                columnDescriptor.PreviousValue.Int64 = value.Data.Int64;
             }
             break;
 
@@ -311,8 +311,8 @@ bool TChunkWriter::EndRow()
                 const auto& column = ColumnDescriptors[id];
                 part->set_type(column.Type);
                 switch (column.Type) {
-                    case EValueType::Integer:
-                        part->set_int_value(column.PreviousValue.Integer);
+                    case EValueType::Int64:
+                        part->set_int_value(column.PreviousValue.Int64);
                         break;
                     case EValueType::Double:
                         part->set_double_value(column.PreviousValue.Double);

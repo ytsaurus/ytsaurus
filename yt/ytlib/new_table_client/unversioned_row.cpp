@@ -38,7 +38,7 @@ int GetByteSize(const TUnversionedValue& value)
         case EValueType::TheBottom:
             break;
 
-        case EValueType::Integer:
+        case EValueType::Int64:
             result += MaxVarInt64Size;
             break;
 
@@ -67,7 +67,7 @@ int GetDataWeight(const TUnversionedValue& value)
         case EValueType::TheBottom:
             return 0;
 
-        case EValueType::Integer:
+        case EValueType::Int64:
             return sizeof(i64);
 
         case EValueType::Double:
@@ -96,8 +96,8 @@ int WriteValue(char* output, const TUnversionedValue& value)
         case EValueType::TheBottom:
             break;
 
-        case EValueType::Integer:
-            current += WriteVarInt64(current, value.Data.Integer);
+        case EValueType::Int64:
+            current += WriteVarInt64(current, value.Data.Int64);
             break;
 
         case EValueType::Double:
@@ -138,8 +138,8 @@ int ReadValue(const char* input, TUnversionedValue* value)
         case EValueType::TheBottom:
             break;
 
-        case EValueType::Integer:
-            current += ReadVarInt64(current, &value->Data.Integer);
+        case EValueType::Int64:
+            current += ReadVarInt64(current, &value->Data.Int64);
             break;
 
         case EValueType::Double:
@@ -204,8 +204,8 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::TheBottom:
             return Format("<%v>", EValueType(value.Type));
 
-        case EValueType::Integer:
-            return Format("%vi", value.Data.Integer);
+        case EValueType::Int64:
+            return Format("%vi", value.Data.Int64);
 
         case EValueType::Double:
             return Format("%v", value.Data.Double);
@@ -227,9 +227,9 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     }
 
     switch (lhs.Type) {
-        case EValueType::Integer: {
-            auto lhsValue = lhs.Data.Integer;
-            auto rhsValue = rhs.Data.Integer;
+        case EValueType::Int64: {
+            auto lhsValue = lhs.Data.Int64;
+            auto rhsValue = rhs.Data.Int64;
             if (lhsValue < rhsValue) {
                 return -1;
             } else if (lhsValue > rhsValue) {
@@ -319,8 +319,8 @@ TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuff
     auto unalignedPool = rowBuffer->GetUnalignedPool();
 
     switch (value.Type) {
-        case EValueType::Integer: {
-            auto& inner = value.Data.Integer;
+        case EValueType::Int64: {
+            auto& inner = value.Data.Int64;
             const auto maximum = std::numeric_limits<i64>::max();
             if (LIKELY(inner != maximum)) {
                 ++inner;
@@ -361,13 +361,13 @@ bool IsValueSuccessor(
     const TUnversionedValue& successor)
 {
     switch (value.Type) {
-        case EValueType::Integer: {
-            const auto& inner = value.Data.Integer;
+        case EValueType::Int64: {
+            const auto& inner = value.Data.Int64;
             const auto maximum = std::numeric_limits<i64>::max();
             if (LIKELY(inner != maximum)) {
                 return
-                    successor.Type == EValueType::Integer &&
-                    successor.Data.Integer == inner + 1;
+                    successor.Type == EValueType::Int64 &&
+                    successor.Data.Int64 == inner + 1;
             } else {
                 return
                     successor.Type == EValueType::Max;
@@ -515,10 +515,10 @@ size_t GetHash(const TUnversionedValue& value)
         case EValueType::String:
             return TStringBuf(value.Data.String, value.Length).hash();
 
-        case EValueType::Integer:
+        case EValueType::Int64:
         case EValueType::Double:
-            // Integer and Double are aliased.
-            return (value.Data.Integer & 0xffff) + 17 * (value.Data.Integer >> 32);
+            // Int64 and Double are aliased.
+            return (value.Data.Int64 & 0xffff) + 17 * (value.Data.Int64 >> 32);
 
         default:
             // No idea how to hash other types.
@@ -922,8 +922,8 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
                 rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, id));
                 break;
 
-            case EKeyPartType::Integer:
-                rowBuilder.AddValue(MakeUnversionedIntegerValue(keyPart.int_value(), id));
+            case EKeyPartType::Int64:
+                rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int_value(), id));
                 break;
 
             case EKeyPartType::Double:
@@ -954,8 +954,8 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
         const auto& value = key[index];
         auto type = EValueType(value.Type);
         switch (type) {
-            case EValueType::Integer:
-                consumer->OnIntegerScalar(value.Data.Integer);
+            case EValueType::Int64:
+                consumer->OnInt64Scalar(value.Data.Int64);
                 break;
 
             case EValueType::Double:
@@ -997,8 +997,8 @@ void Deserialize(TOwningKey& key, INodePtr node)
     int id = 0;
     for (const auto& item : node->AsList()->GetChildren()) {
         switch (item->GetType()) {
-            case ENodeType::Integer:
-                builder.AddValue(MakeUnversionedIntegerValue(item->GetValue<i64>(), id));
+            case ENodeType::Int64:
+                builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
                 break;
             
             case ENodeType::Double:

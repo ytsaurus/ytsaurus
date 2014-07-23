@@ -445,10 +445,10 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
         YCHECK(!token.IsEmpty());
 
         switch (token.GetType()) {
-            case ETokenType::Integer: {
+            case ETokenType::Int64: {
                 auto* keyPart = part->mutable_key_part();
-                keyPart->set_type(EKeyPartType::Integer);
-                keyPart->set_int_value(token.GetIntegerValue());
+                keyPart->set_type(EKeyPartType::Int64);
+                keyPart->set_int_value(token.GetInt64Value());
                 size += sizeof(i64);
                 break;
             }

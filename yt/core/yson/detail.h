@@ -50,7 +50,7 @@ const char EndSymbol = '\0';
 //! Marks the beginning of a binary string literal.
 const char StringMarker = '\x01';
 //! Marks the beginning of a binary i64 literal.
-const char IntegerMarker = '\x02';
+const char Int64Marker = '\x02';
 //! Marks the beginning of a binary double literal.
 const char DoubleMarker = '\x03';
 
@@ -500,7 +500,7 @@ protected:
         }
     }
     
-    void ReadBinaryInteger(i64* result)
+    void ReadBinaryInt64(i64* result)
     {
         ui64 uvalue;
         if (!TBaseStream::ReadVarint64(&uvalue)) {

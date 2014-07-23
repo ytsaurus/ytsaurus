@@ -44,10 +44,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonParserTest, Integer)
+TEST_F(TYsonParserTest, Int64)
 {
     InSequence dummy;
-    EXPECT_CALL(Mock, OnIntegerScalar(100500));
+    EXPECT_CALL(Mock, OnInt64Scalar(100500));
 
     Run("   100500  ");
 }
@@ -84,20 +84,20 @@ TEST_F(TYsonParserTest, Entity)
     Run(" # ");
 }
 
-TEST_F(TYsonParserTest, BinaryInteger)
+TEST_F(TYsonParserTest, BinaryInt64)
 {
     InSequence dummy;
     {
-        EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21));
+        EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21));
 
-        //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
+        //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
         Run(Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2));
     }
 
     {
-        EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21));
+        EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21));
 
-        //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
+        //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
         std::vector<Stroka> parts = {Stroka("\x02"), Stroka("\x80\x80\x80\x02")};
         Run(parts);
     }
@@ -167,7 +167,7 @@ TEST_F(TYsonParserTest, OneElementList)
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginList());
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(42));
+    EXPECT_CALL(Mock, OnInt64Scalar(42));
     EXPECT_CALL(Mock, OnEndList());
 
     Run("  [  42  ]   ");
@@ -203,7 +203,7 @@ TEST_F(TYsonParserTest, SeveralElementsList)
     EXPECT_CALL(Mock, OnBeginList());
 
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(42));
+    EXPECT_CALL(Mock, OnInt64Scalar(42));
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(1000)));
@@ -252,7 +252,7 @@ TEST_F(TYsonParserTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
 
         EXPECT_CALL(Mock, OnKeyedItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755));
+        EXPECT_CALL(Mock, OnInt64Scalar(755));
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input;
@@ -306,15 +306,15 @@ TEST_F(TYsonParserTest, ListFragment)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(1));
+    EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(2));
+    EXPECT_CALL(Mock, OnInt64Scalar(2));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(3));
+    EXPECT_CALL(Mock, OnInt64Scalar(3));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(4));
+    EXPECT_CALL(Mock, OnInt64Scalar(4));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(5));
+    EXPECT_CALL(Mock, OnInt64Scalar(5));
 
     Run("   1 ;2; 3; 4;5  ", EYsonType::ListFragment);
 }
@@ -340,7 +340,7 @@ TEST_F(TYsonParserTest, OneListFragment)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnIntegerScalar(100500));
+    EXPECT_CALL(Mock, OnInt64Scalar(100500));
 
     Run("   100500  ", EYsonType::ListFragment);
 }
@@ -355,15 +355,15 @@ TEST_F(TYsonParserTest, MapFragment)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnKeyedItem("a"));
-    EXPECT_CALL(Mock, OnIntegerScalar(1));
+    EXPECT_CALL(Mock, OnInt64Scalar(1));
     EXPECT_CALL(Mock, OnKeyedItem("b"));
-    EXPECT_CALL(Mock, OnIntegerScalar(2));
+    EXPECT_CALL(Mock, OnInt64Scalar(2));
     EXPECT_CALL(Mock, OnKeyedItem("c"));
-    EXPECT_CALL(Mock, OnIntegerScalar(3));
+    EXPECT_CALL(Mock, OnInt64Scalar(3));
     EXPECT_CALL(Mock, OnKeyedItem("d"));
-    EXPECT_CALL(Mock, OnIntegerScalar(4));
+    EXPECT_CALL(Mock, OnInt64Scalar(4));
     EXPECT_CALL(Mock, OnKeyedItem("e"));
-    EXPECT_CALL(Mock, OnIntegerScalar(5));
+    EXPECT_CALL(Mock, OnInt64Scalar(5));
 
     Run("  a = 1 ;b=2; c= 3; d =4;e=5  ", EYsonType::MapFragment);
 }
@@ -387,7 +387,7 @@ TEST_F(TYsonParserTest, OneMapFragment)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnKeyedItem("1"));
-    EXPECT_CALL(Mock, OnIntegerScalar(100500));
+    EXPECT_CALL(Mock, OnInt64Scalar(100500));
 
     Run("   \"1\" = 100500  ", EYsonType::MapFragment);
 }

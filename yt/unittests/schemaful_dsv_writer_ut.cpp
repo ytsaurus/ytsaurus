@@ -61,13 +61,13 @@ TEST(TSchemafulDsvWriterTest, TableIndex)
     consumer.OnListItem();
     consumer.OnBeginMap();
         consumer.OnKeyedItem("a");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
     consumer.OnEndMap();
 
     consumer.OnListItem();
     consumer.OnBeginAttributes();
         consumer.OnKeyedItem("table_index");
-        consumer.OnIntegerScalar(1);
+        consumer.OnInt64Scalar(1);
     consumer.OnEndAttributes();
     consumer.OnEntity();
 

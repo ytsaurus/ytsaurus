@@ -26,7 +26,7 @@ private:
     //         OtherSpecialToken           =    10b
     //     Other                           =    x1b
     //         BinaryIntegerOrBinaryDouble =   x01b
-    //             BinaryInteger           =   001b
+    //             BinaryInt64           =   001b
     //             BinaryDouble            =   101b
     //         Other                       = xxx11b
     //             Quote                   = 00011b
@@ -39,7 +39,7 @@ private:
         ((BinaryString)                 (0))    // =    00b
         ((OtherSpecialToken)            (2))    // =    10b
 
-        ((BinaryInteger)                (1))    // =   001b
+        ((BinaryInt64)                (1))    // =   001b
         ((BinaryDouble)                 (5))    // =   101b
 
         ((Quote)                        (3))    // = 00011b
@@ -54,7 +54,7 @@ private:
     {
 #define NN EReadStartCase::None
 #define BS EReadStartCase::BinaryString
-#define BI EReadStartCase::BinaryInteger
+#define BI EReadStartCase::BinaryInt64
 #define BD EReadStartCase::BinaryDouble
 #define SP NN 
         //EReadStartCase::Space
@@ -149,7 +149,7 @@ public:
         //         OtherSpecialToken           =    10b
         //     Other                           =    x1b
         //         BinaryIntegerOrBinaryDouble =   x01b
-        //             BinaryInteger           =   001b
+        //             BinaryInt64           =   001b
         //             BinaryDouble            =   101b
         //         Other                       = xxx11b
         //             Quote                   = 00011b
@@ -193,10 +193,10 @@ public:
                     double value;
                     TBase::ReadBinaryDouble(&value);
                     *token = TToken(value);
-                } else { // BinaryInteger = 001b
-                    YASSERT(state == EReadStartCase::BinaryInteger);
+                } else { // BinaryInt64 = 001b
+                    YASSERT(state == EReadStartCase::BinaryInt64);
                     i64 value;
-                    TBase::ReadBinaryInteger(&value);
+                    TBase::ReadBinaryInt64(&value);
                     *token = TToken(value);
                 }
             }

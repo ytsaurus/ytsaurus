@@ -26,7 +26,7 @@ namespace NVersionedTableClient {
 union TUnversionedValueData
 {
     //! Integral value.
-    i64 Integer;
+    i64 Int64;
     //! Floating-point value.
     double Double;
     //! String value for |String| type or YSON-encoded value for |Any| type.
@@ -60,9 +60,9 @@ inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 
     return MakeSentinelValue<TUnversionedValue>(type, id);
 }
 
-inline TUnversionedValue MakeUnversionedIntegerValue(i64 value, int id = 0)
+inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0)
 {
-    return MakeIntegerValue<TUnversionedValue>(value, id);
+    return MakeInt64Value<TUnversionedValue>(value, id);
 }
 
 inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0)

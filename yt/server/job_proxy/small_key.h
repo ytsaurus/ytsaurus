@@ -18,7 +18,7 @@ struct TSmallKeyPart
     ui32 Length;
 
     union {
-        i64 Int;
+        i64 Int64;
         double Double;
         const char* Str;
     } Value;

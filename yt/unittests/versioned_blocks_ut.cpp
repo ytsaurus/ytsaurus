@@ -54,10 +54,10 @@ protected:
     {
         Schema.Columns() = {
             TColumnSchema("k1", EValueType::String),
-            TColumnSchema("k2", EValueType::Integer),
+            TColumnSchema("k2", EValueType::Int64),
             TColumnSchema("k3", EValueType::Double),
-            TColumnSchema("v1", EValueType::Integer),
-            TColumnSchema("v2", EValueType::Integer)
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64)
         };
 
         KeyColumns = {"k1", "k2", "k3"};
@@ -66,7 +66,7 @@ protected:
 
         TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-        row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+        row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
@@ -105,7 +105,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
     row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 4);
@@ -131,7 +131,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.BeginTimestamps()[0] = 9 | TombstoneTimestampMask;
 
@@ -155,7 +155,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.BeginTimestamps()[0] = 11;
 
@@ -180,7 +180,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
-    row.BeginKeys()[1] = MakeUnversionedIntegerValue(1, 1);
+    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
     // v2

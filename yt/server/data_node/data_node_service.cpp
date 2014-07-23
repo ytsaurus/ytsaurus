@@ -988,8 +988,8 @@ private:
                         case EKeyPartType::Composite:
                             keyPart = MakeUnversionedAnyValue(TStringBuf());
                             break;
-                        case EKeyPartType::Integer:
-                            keyPart = MakeUnversionedIntegerValue(it->key_part().int_value());
+                        case EKeyPartType::Int64:
+                            keyPart = MakeUnversionedInt64Value(it->key_part().int_value());
                             break;
                         case EKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());

@@ -91,7 +91,7 @@ public:
         const TSourceLocation& sourceLocation,
         i64 value)
         : TExpression(context, EExpressionKind::Literal, sourceLocation)
-        , Value_(NVersionedTableClient::MakeUnversionedIntegerValue(value))
+        , Value_(NVersionedTableClient::MakeUnversionedInt64Value(value))
     { }
 
     TLiteralExpression(

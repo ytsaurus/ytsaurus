@@ -169,7 +169,7 @@ void TFoldingProfiler::Profile(const TOperator* op)
 
 void TFoldingProfiler::Profile(const TExpression* expr)
 {
-    using NVersionedTableClient::MakeIntegerValue;
+    using NVersionedTableClient::MakeInt64Value;
     using NVersionedTableClient::MakeDoubleValue;
     using NVersionedTableClient::MakeStringValue;
 

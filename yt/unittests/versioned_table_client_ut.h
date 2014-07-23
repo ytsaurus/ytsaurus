@@ -28,8 +28,8 @@ inline TUnversionedOwningRow BuildKey(const Stroka& yson)
     for (int id = 0; id < keyParts.size(); ++id) {
         const auto& keyPart = keyParts[id];
         switch (keyPart->GetType()) {
-            case ENodeType::Integer:
-                keyBuilder.AddValue(MakeIntegerValue<TUnversionedValue>(
+            case ENodeType::Int64:
+                keyBuilder.AddValue(MakeInt64Value<TUnversionedValue>(
                     keyPart->GetValue<i64>(),
                     id));
                 break;

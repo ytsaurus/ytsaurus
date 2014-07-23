@@ -36,7 +36,7 @@ const ETokenType::EDomain EntityToken = ETokenType::Hash;
 //! Marks the beginning of a binary string literal.
 const char StringMarker = char(1);
 //! Marks the beginning of a binary i64 literal.
-const char IntegerMarker = char(2);
+const char Int64Marker = char(2);
 //! Marks the beginning of a binary double literal.
 const char DoubleMarker = char(3);
 

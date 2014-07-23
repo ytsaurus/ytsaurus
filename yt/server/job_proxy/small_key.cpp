@@ -19,9 +19,9 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TSta
     YCHECK(!token.IsEmpty());
 
     switch (token.GetType()) {
-    case NYson::ETokenType::Integer:
-        keyPart.Type = EValueType::Integer;
-        keyPart.Value.Int = token.GetIntegerValue();
+    case NYson::ETokenType::Int64:
+        keyPart.Type = EValueType::Int64;
+        keyPart.Value.Int64 = token.GetInt64Value();
         break;
 
     case NYson::ETokenType::Double:
@@ -50,10 +50,10 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
     }
 
     switch (lhs.Type) {
-    case EValueType::Integer:
-        if (lhs.Value.Int > rhs.Value.Int)
+    case EValueType::Int64:
+        if (lhs.Value.Int64 > rhs.Value.Int64)
             return 1;
-        if (lhs.Value.Int < rhs.Value.Int)
+        if (lhs.Value.Int64 < rhs.Value.Int64)
             return -1;
         return 0;
 
@@ -81,8 +81,8 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
 TUnversionedValue MakeKeyPart(const TSmallKeyPart& keyPart)
 {
     switch (keyPart.Type) {
-    case EValueType::Integer:
-        return MakeUnversionedIntegerValue(keyPart.Value.Int);
+    case EValueType::Int64:
+        return MakeUnversionedInt64Value(keyPart.Value.Int64);
 
     case EValueType::Double:
         return MakeUnversionedDoubleValue(keyPart.Value.Double);

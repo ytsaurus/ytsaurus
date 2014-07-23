@@ -30,11 +30,11 @@ void TJsonCallbacks::OnStringScalar(const TStringBuf& value)
     OnItemFinished();
 }
 
-void TJsonCallbacks::OnIntegerScalar(i64 value)
+void TJsonCallbacks::OnInt64Scalar(i64 value)
 {
     AccountMemory(sizeof(value));
     OnItemStarted();
-    TreeBuilder_->OnIntegerScalar(value);
+    TreeBuilder_->OnInt64Scalar(value);
     OnItemFinished();
 }
 
