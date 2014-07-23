@@ -33,8 +33,6 @@ static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): automaton invoker may expire
-
 struct TTabletReaderPoolTag { };
 
 class TTabletReaderBase
