@@ -66,7 +66,6 @@ public:
 
 private:
     TChunkedMemoryPool* Pool_;
-    int SchemaColumnCount_;
     int KeyColumnCount_;
     TRetentionConfigPtr Config_;
     TTimestamp CurrentTimestamp_;
