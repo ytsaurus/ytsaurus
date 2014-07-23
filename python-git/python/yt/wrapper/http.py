@@ -87,6 +87,14 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
         current_time = datetime.now()
         try:
+            if http_config.REQUEST_BACKOFF is not None:
+                last_request_time = getattr(get_session(), "last_request_time", 0)
+                now_seconds = (datetime.now() - datetime(1970, 1, 1)).total_seconds()
+                diff = now_seconds - last_request_time
+                if diff * 1000.0 < float(http_config.REQUEST_BACKOFF):
+                    time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
+                get_session().last_request_time = now_seconds
+
             response = Response(get_session().request(method, url, **kwargs))
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
             # So we should retry this request.
