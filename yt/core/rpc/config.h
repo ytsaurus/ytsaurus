@@ -106,15 +106,15 @@ class TBalancingChannelConfigBase
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    //! Timeout for Discovery requests.
+    //! Timeout for |Discover| requests.
     TDuration DiscoverTimeout;
 
     //! Time between consequent attempts to reconnect to a peer, which
-    //! returns a hard failure (i.e. non-OK response) to Discover request.
+    //! returns a hard failure (i.e. non-OK response) to |Discover| request.
     TDuration HardBackoffTime;
 
     //! Time between consequent attempts to reconnect to a peer, which
-    //! returns a soft failure (i.e. "down" response) to Discover request.
+    //! returns a soft failure (i.e. "down" response) to |Discover| request.
     TDuration SoftBackoffTime;
 
     TBalancingChannelConfigBase()
@@ -135,9 +135,15 @@ public:
     //! List of seed addresses.
     std::vector<Stroka> Addresses;
 
+    //! Maximum number of peers to query in parallel when locating alive endpoint.
+    int MaxConcurrentDiscoverRequests;
+
     TBalancingChannelConfig()
     {
         RegisterParameter("addresses", Addresses);
+        RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
+            .GreaterThan(0)
+            .Default(1);
     }
 };
 

@@ -8,6 +8,7 @@
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/string.h>
+#include <core/misc/variant.h>
 
 #include <core/ytree/convert.h>
 
@@ -62,6 +63,7 @@ private:
     mutable TSpinLock SpinLock_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
+    yhash_set<Stroka> RequestedAddresses_;
 
     NLog::TLogger Logger;
 
@@ -94,60 +96,71 @@ private:
 
         TPromise<TErrorOr<IChannelPtr>> Promise_;
         
-        Stroka CurrentAddress_;
-        IChannelPtr CurrentChannel_;
-
         NLog::TLogger Logger;
 
 
         void DoRun()
         {
-            auto maybeAddress = Owner_->PickPeer();
-            if (!maybeAddress) {
-                ReportError(TError(NRpc::EErrorCode::Unavailable, "No alive peers left"));
+            if (Promise_.IsSet())
                 return;
+
+            while (true) {
+                auto pickResult = Owner_->PickPeer();
+                
+                if (pickResult.Is<TNoAlivePeersLeft>()) {
+                    ReportError(TError(NRpc::EErrorCode::Unavailable, "No alive peers left"));
+                    return;
+                }
+
+                if (pickResult.Is<TTooManyConcurrentRequests>()) {
+                    break;
+                }
+                
+                auto address = pickResult.As<Stroka>();
+
+                LOG_DEBUG("Quering peer %v", address);
+
+                auto channel = Owner_->ChannelFactory_->CreateChannel(address);
+       
+                TGenericProxy proxy(channel, Request_->GetService());
+                proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
+
+                auto req = proxy.Discover();
+                req->Invoke().Subscribe(BIND(
+                    &TSession::OnResponse,
+                    MakeStrong(this),
+                    address,
+                    channel));
             }
-            CurrentAddress_ = *maybeAddress;
-
-            LOG_DEBUG("Checking peer %s",
-                ~CurrentAddress_);
-
-            CurrentChannel_ = Owner_->ChannelFactory_->CreateChannel(CurrentAddress_);
-        
-            TGenericProxy proxy(CurrentChannel_, Request_->GetService());
-            proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
-
-            auto req = proxy.Discover();
-            req->Invoke().Subscribe(BIND(
-                &TSession::OnDiscovered,
-                MakeStrong(this)));
         }
 
-        void OnDiscovered(TProxyBase::TRspDiscoverPtr rsp)
+        void OnResponse(
+            const Stroka& address,
+            IChannelPtr channel,
+            TProxyBase::TRspDiscoverPtr rsp)
         {
             if (rsp->IsOK()) {
                 bool up = rsp->up();
                 auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
 
-                LOG_DEBUG("Peer %s is %s (SuggestedAddresses: [%s])",
-                    ~CurrentAddress_,
+                LOG_DEBUG("Peer %v is %v (SuggestedAddresses: [%v])",
+                    address,
                     up ? "up" : "down",
-                    ~JoinToString(suggestedAddresses));
+                    JoinToString(suggestedAddresses));
 
                 Owner_->AddPeers(suggestedAddresses);
 
                 if (up) {
-                    Promise_.Set(CurrentChannel_);
+                    Promise_.TrySet(channel);
                 } else {
-                    Owner_->BanPeer(CurrentAddress_, Owner_->Config_->SoftBackoffTime);
-                    DoRun();
+                    Owner_->BanPeer(address, Owner_->Config_->SoftBackoffTime);
                 }
             } else {
-                LOG_WARNING(*rsp, "Peer %s has failed to respond",
-                    ~CurrentAddress_);
-                Owner_->BanPeer(CurrentAddress_, Owner_->Config_->HardBackoffTime);
-                DoRun();
+                LOG_WARNING(*rsp, "Peer %v has failed to respond", address);
+                Owner_->BanPeer(address, Owner_->Config_->HardBackoffTime);
             }
+
+            DoRun();
         }
 
         void ReportError(const TError& error)
@@ -159,14 +172,44 @@ private:
     };
 
 
-    TNullable<Stroka> PickPeer()
+    struct TNoAlivePeersLeft { };
+    struct TTooManyConcurrentRequests { };
+
+    TVariant<Stroka, TNoAlivePeersLeft, TTooManyConcurrentRequests> PickPeer()
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (ActiveAddresses_.empty()) {
-            return Null;
+
+        if (RequestedAddresses_.size() >= Config_->MaxConcurrentDiscoverRequests) {
+            return TTooManyConcurrentRequests();
         }
-        std::vector<Stroka> addresses(ActiveAddresses_.begin(), ActiveAddresses_.end());
-        return addresses[RandomNumber(addresses.size())];
+
+        std::vector<Stroka> candidates;
+        candidates.reserve(ActiveAddresses_.size());
+
+        for (const auto& address : ActiveAddresses_) {
+            if (RequestedAddresses_.find(address) == RequestedAddresses_.end()) {
+                candidates.push_back(address);
+            }
+        }
+
+        if (candidates.empty()) {
+            if (RequestedAddresses_.empty()) {
+                return TNoAlivePeersLeft();
+            } else {
+                return TTooManyConcurrentRequests();
+            }
+        }
+
+        const auto& result = candidates[RandomNumber(candidates.size())];
+        YCHECK(RequestedAddresses_.insert(result).second);
+        return result;
+    }
+
+    void ReleasePeer(const Stroka& address)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        YCHECK(RequestedAddresses_.erase(address) == 1);
     }
 
     std::vector<Stroka> GetAllAddresses() const
@@ -186,10 +229,9 @@ private:
                 continue;
             if (BannedAddresses_.find(address) != BannedAddresses_.end())
                 continue;
-            ActiveAddresses_.insert(address);
 
-            LOG_DEBUG("Added peer %s",
-                ~address);
+            ActiveAddresses_.insert(address);
+            LOG_DEBUG("Added peer %v", address);
         }
     }
 
@@ -197,15 +239,15 @@ private:
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
-
+            YCHECK(RequestedAddresses_.erase(address) == 1);
             if (ActiveAddresses_.erase(address) != 1)
                 return;
             BannedAddresses_.insert(address);
         }
 
-        LOG_DEBUG("Peer %s banned (BackoffTime: %s)",
-            ~address,
-            ~ToString(backoffTime));
+        LOG_DEBUG("Peer %v banned (BackoffTime: %v)",
+            address,
+            backoffTime);
 
         TDelayedExecutor::Submit(
             BIND(&TBalancingChannelProvider::UnbanPeer, MakeWeak(this), address),
@@ -221,8 +263,7 @@ private:
             ActiveAddresses_.insert(address);
         }
 
-        LOG_DEBUG("Peer %s unbanned",
-            ~address);
+        LOG_DEBUG("Peer %v unbanned", address);
     }
 
 };

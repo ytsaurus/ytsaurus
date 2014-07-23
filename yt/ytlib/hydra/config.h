@@ -25,6 +25,11 @@ public:
     {
         RegisterParameter("cell_guid", CellGuid)
             .Default();
+
+        RegisterInitializer([&] () {
+            // Query all peers in parallel.
+            MaxConcurrentDiscoverRequests = std::numeric_limits<int>::max();
+        });
     }
 };
 
