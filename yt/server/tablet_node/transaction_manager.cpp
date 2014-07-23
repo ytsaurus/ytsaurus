@@ -14,6 +14,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 
@@ -22,6 +24,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
@@ -188,7 +191,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLease(transaction);
+            CloseLeases(transaction);
         }
 
         transaction->SetCommitTimestamp(commitTimestamp);
@@ -214,7 +217,7 @@ public:
         }
 
         if (IsLeader()) {
-            CloseLease(transaction);
+            CloseLeases(transaction);
         }
 
         transaction->SetState(ETransactionState::Aborted);
@@ -258,20 +261,34 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
-    void CreateLease(TTransaction* transaction, TDuration timeout)
+    void CreateLeases(TTransaction* transaction, TDuration timeout)
     {
+        auto invoker = Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
+
         auto lease = TLeaseManager::CreateLease(
             timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)));
+                .Via(invoker));
         transaction->SetLease(lease);
+
+        auto startInstants = TimestampToInstant(transaction->GetStartTimestamp());
+        auto deadline = startInstants.first + Config_->MaxTransactionDuration;
+        auto cookie = TDelayedExecutor::Submit(
+            BIND(&TImpl::OnTransactionTimedOut, MakeStrong(this), transaction->GetId())
+                .Via(invoker),
+            deadline);
+        transaction->SetTimeoutCookie(cookie);
     }
 
-    void CloseLease(TTransaction* transaction)
+    void CloseLeases(TTransaction* transaction)
     {
         TLeaseManager::CloseLease(transaction->GetLease());
         transaction->SetLease(NullLease);
+
+        TDelayedExecutor::Cancel(transaction->GetTimeoutCookie());
+        transaction->SetTimeoutCookie(NullDelayedExecutorCookie);
     }
+
 
     void OnTransactionExpired(const TTransactionId& id)
     {
@@ -290,6 +307,26 @@ private:
         transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (TError error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                    id);
+            }
+        }));
+    }
+
+    void OnTransactionTimedOut(const TTransactionId& id)
+    {
+        auto* transaction = FindTransaction(id);
+        if (!transaction)
+            return;
+        if (transaction->GetState() != ETransactionState::Active)
+            return;
+
+        LOG_DEBUG("Transaction timed out (TransactionId: %v)",
+            id);
+
+        auto transactionSupervisor = Slot_->GetTransactionSupervisor();
+        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (TError error) {
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Error aborting timed out transaction (TransactionId: %v)",
                     id);
             }
         }));
@@ -330,7 +367,7 @@ private:
             timeout);
 
         if (IsLeader()) {
-            CreateLease(transaction, timeout);
+            CreateLeases(transaction, timeout);
         }
     }
 
@@ -344,7 +381,7 @@ private:
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
                 auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
-                CreateLease(transaction, actualTimeout);
+                CreateLeases(transaction, actualTimeout);
             }
         }
     }
@@ -359,7 +396,7 @@ private:
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
-            CloseLease(transaction);
+            CloseLeases(transaction);
         }
     }
 
