@@ -18,6 +18,7 @@ TLogger::TLogger(const Stroka& category)
 
 TLogger::TLogger(const TLogger& other)
     : Category_(other.Category_)
+    , Context_(other.Context_)
 { }
 
 const Stroka& TLogger::GetCategory() const
