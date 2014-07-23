@@ -279,7 +279,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         cgroup.AddCurrentTask();
     }
 
-#ifndef _win_
+#ifdef _linux_
     auto vmLimit = parser.VMLimit.getValue();
     if (vmLimit > 0) {
         struct rlimit rlimit = {vmLimit, RLIM_INFINITY};

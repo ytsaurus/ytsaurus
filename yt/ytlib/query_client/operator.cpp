@@ -59,7 +59,7 @@ const TTableSchema& TFilterOperator::GetTableSchema(bool ignoreCache) const
 
 void CheckTableScheme(const TTableSchema& tableScheme)
 {
-    std::unordered_set<Stroka> columnNames;
+    yhash_set<Stroka> columnNames;
     for (const auto& column : tableScheme.Columns()) {
         if (!columnNames.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Redefinition of column %s", column.Name.Quote());
