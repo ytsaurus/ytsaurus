@@ -262,6 +262,20 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
     }
 }
 
+// map
+template <class T>
+void Deserialize(std::map<Stroka, T>& value, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    for (const auto& pair : mapNode->GetChildren()) {
+        auto& key = pair.first;
+        T item;
+        Deserialize(item, pair.second);
+        value.insert(std::make_pair(key, std::move(item)));
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

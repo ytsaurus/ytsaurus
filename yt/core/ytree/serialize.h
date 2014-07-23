@@ -185,6 +185,9 @@ void Deserialize(yhash_set<T>& value, INodePtr node);
 template <class T>
 void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
 
+template <class T>
+void Deserialize(std::map<Stroka, T>& value, INodePtr node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
