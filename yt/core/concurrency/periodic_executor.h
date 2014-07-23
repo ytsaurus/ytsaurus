@@ -63,7 +63,7 @@ private:
     bool Started;
     bool Busy;
     bool OutOfBandRequested;
-    TDelayedExecutor::TCookie Cookie;
+    TDelayedExecutorCookie Cookie;
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();

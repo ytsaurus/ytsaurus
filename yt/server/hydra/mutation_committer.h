@@ -147,7 +147,7 @@ private:
 
     TSpinLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
-    NConcurrency::TDelayedExecutor::TCookie BatchTimeoutCookie_;
+    NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
 
     NConcurrency::TPeriodicExecutorPtr AutoCheckpointCheckExecutor_;
 

@@ -337,7 +337,7 @@ private:
             IClientRequestPtr ClientRequest;
             TNullable<TDuration> Timeout;
             IClientResponseHandlerPtr ResponseHandler;
-            TDelayedExecutor::TCookie TimeoutCookie;
+            TDelayedExecutorCookie TimeoutCookie;
             NProfiling::TTimer Timer;
         };
 

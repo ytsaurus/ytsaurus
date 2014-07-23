@@ -15,16 +15,18 @@ namespace NConcurrency {
 
 static auto DeadlinePrecision = TDuration::MilliSeconds(1);
 
+const TDelayedExecutorCookie NullDelayedExecutorCookie;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDelayedExecutorEntry
     : public TIntrinsicRefCounted
 {
-    typedef TDelayedExecutor::TCookie TCookie;
+    typedef TDelayedExecutorCookie TDelayedExecutorCookie;
 
     struct TComparer
     {
-        bool operator()(const TCookie& lhs, const TCookie& rhs) const
+        bool operator()(const TDelayedExecutorCookie& lhs, const TDelayedExecutorCookie& rhs) const
         {
             if (lhs->Deadline != rhs->Deadline) {
                 return lhs->Deadline < rhs->Deadline;
@@ -42,7 +44,7 @@ struct TDelayedExecutorEntry
 
     TInstant Deadline;
     TClosure Callback; // if null then the entry is invalidated
-    std::set<TCookie, TComparer>::iterator Iterator;
+    std::set<TDelayedExecutorCookie, TComparer>::iterator Iterator;
 
 };
 
@@ -65,12 +67,12 @@ public:
         Start();
     }
 
-    TCookie Submit(TClosure callback, TDuration delay)
+    TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
     {
         return Submit(std::move(callback), delay.ToDeadLine());
     }
 
-    TCookie Submit(TClosure callback, TInstant deadline)
+    TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
 
@@ -91,7 +93,7 @@ public:
         return entry;
     }
 
-    bool Cancel(TCookie entry)
+    bool Cancel(TDelayedExecutorCookie entry)
     {
         TClosure callback;
         {
@@ -106,7 +108,7 @@ public:
         return true;
     }
 
-    bool CancelAndClear(TCookie& entry)
+    bool CancelAndClear(TDelayedExecutorCookie& entry)
     {
         if (!entry) {
             return false;
@@ -120,7 +122,7 @@ private:
     ev::timer TimerWatcher;
 
     TSpinLock SpinLock;
-    std::set<TCookie, TDelayedExecutorEntry::TComparer> Entries;
+    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> Entries;
 
 
     virtual void OnShutdown() override
@@ -129,7 +131,7 @@ private:
         PurgeEntries();
     }
 
-    void StartWatcher(TCookie entry)
+    void StartWatcher(TDelayedExecutorCookie entry)
     {
         GetInvoker()->Invoke(BIND(
             &TImpl::DoStartWatcher,
@@ -183,22 +185,22 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
+TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
     return RefCountedSingleton<TImpl>()->Submit(std::move(callback), delay);
 }
 
-TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
+TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
     return RefCountedSingleton<TImpl>()->Submit(std::move(callback), deadline);
 }
 
-bool TDelayedExecutor::Cancel(TCookie entry)
+bool TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
     return RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
 }
 
-bool TDelayedExecutor::CancelAndClear(TCookie& entry)
+bool TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
     return RefCountedSingleton<TImpl>()->CancelAndClear(entry);
 }

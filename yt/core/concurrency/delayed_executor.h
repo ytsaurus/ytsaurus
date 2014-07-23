@@ -13,26 +13,23 @@ namespace NConcurrency {
 class TDelayedExecutor
 {
 public:
-    //! An opaque token.
-    typedef TDelayedExecutorEntryPtr TCookie;
-
     //! Submits #callback for execution after a given #delay.
-    static TCookie Submit(TClosure callback, TDuration delay);
+    static TDelayedExecutorCookie Submit(TClosure callback, TDuration delay);
 
     //! Submits #callback for execution at a given #deadline.
-    static TCookie Submit(TClosure callback, TInstant deadline);
+    static TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline);
 
     //! Cancels an earlier scheduled execution.
     /*!
      *  \returns True iff the cookie is valid.
      */
-    static bool Cancel(TCookie cookie);
+    static bool Cancel(TDelayedExecutorCookie cookie);
 
     //! Cancels an earlier scheduled execution and clears the cookie.
     /*!
      *  \returns True iff the cookie is valid.
      */
-    static bool CancelAndClear(TCookie& cookie);
+    static bool CancelAndClear(TDelayedExecutorCookie& cookie);
 
     //! Terminates the scheduler thread.
     /*!
@@ -46,6 +43,8 @@ private:
     class TImpl;
 
 };
+
+extern const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
 ////////////////////////////////////////////////////////////////////////////////
 

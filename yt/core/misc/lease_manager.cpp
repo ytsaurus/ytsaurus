@@ -21,7 +21,7 @@ struct TLeaseEntry
     bool IsValid = true;
     TDuration Timeout;
     TClosure OnExpired;
-    NConcurrency::TDelayedExecutor::TCookie Cookie;
+    NConcurrency::TDelayedExecutorCookie Cookie;
     TSpinLock SpinLock;
 
     TLeaseEntry(TDuration timeout, TClosure onExpired)

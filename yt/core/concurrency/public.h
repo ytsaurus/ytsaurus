@@ -15,6 +15,7 @@ DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
 DECLARE_REFCOUNTED_CLASS(TFiber)
 
 DECLARE_REFCOUNTED_STRUCT(TDelayedExecutorEntry)
+typedef TDelayedExecutorEntryPtr TDelayedExecutorCookie;
 
 DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)

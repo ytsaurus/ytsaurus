@@ -200,7 +200,7 @@ private:
         TSpinLock CurrentBatchSpinLock_;
         TError Error_;
         TBatchPtr CurrentBatch_;
-        TDelayedExecutor::TCookie CurrentBatchFlushCookie_;
+        TDelayedExecutorCookie CurrentBatchFlushCookie_;
 
         TAsyncErrorPromise OpenedPromise_ = NewPromise<TError>();
 

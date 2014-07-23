@@ -89,7 +89,7 @@ private:
     TPeerSet AliveFollowers;
     TPeerSet PotentialFollowers;
 
-    NConcurrency::TDelayedExecutor::TCookie PingTimeoutCookie;
+    NConcurrency::TDelayedExecutorCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
 
 
