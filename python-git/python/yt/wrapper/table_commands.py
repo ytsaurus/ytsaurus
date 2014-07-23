@@ -334,7 +334,7 @@ def create_temp_table(path=None, prefix=None, client=None):
         mkdir(path, recursive=True, client=client)
     else:
         path = to_name(path, client=client)
-    require(exists(path), YtError("You cannot create table in unexisting path"))
+    require(exists(path, client=client), YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = os.path.join(path, prefix)
     else:
@@ -382,7 +382,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
                 return
 
     def prepare_table(path):
-        if exists(path):
+        if exists(path, client=client):
             require(replication_factor is None and compression_codec is None,
                     YtError("Cannot write to existing path %s "
                             "with set replication factor or compression codec" % path))
@@ -860,12 +860,12 @@ class Finalizer(object):
                 remove(file, force=True, client=self.client)
 
     def check_for_merge(self, table):
-        chunk_count = int(get_attribute(table, "chunk_count"))
+        chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
         if  chunk_count < config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING:
             return
 
         # We use uncompressed data size to simplify recommended command
-        chunk_size = float(get_attribute(table, "compressed_data_size")) / chunk_count
+        chunk_size = float(get_attribute(table, "compressed_data_size", client=self.client)) / chunk_count
         if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
             return
 

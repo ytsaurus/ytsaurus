@@ -139,11 +139,11 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     if placement_strategy == "hash":
         md5 = md5sum(filename)
         destination = os.path.join(config.FILE_STORAGE, "hash", md5)
-        link_exists = exists(destination + "&")
+        link_exists = exists(destination + "&", client=client)
 
         # COMPAT(ignat): old versions of 0.14 have not support attribute broken
         try:
-            broken = parse_bool(get_attribute(destination + "&", "broken"))
+            broken = parse_bool(get_attribute(destination + "&", "broken", client=client))
         except YtResponseError as rsp:
             if not rsp.is_resolve_error():
                 raise

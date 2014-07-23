@@ -40,7 +40,8 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                                 params,
                                 data=chunk,
                                 proxy=get_host_for_heavy_operation(client=client),
-                                retry_unavailable_proxy=False)
+                                retry_unavailable_proxy=False,
+                                client=client)
                         break
                     except (YtNetworkError, YtError) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
@@ -56,4 +57,5 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
-                proxy=get_host_for_heavy_operation(client=client))
+                proxy=get_host_for_heavy_operation(client=client),
+                client=client)
