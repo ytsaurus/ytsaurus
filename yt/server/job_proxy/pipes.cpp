@@ -177,7 +177,6 @@ TOutputPipe::TOutputPipe(
     , JobDescriptor(jobDescriptor)
     , Pipe(fd)
     , IsFinished(false)
-    , IsClosed(false)
     , Buffer(OutputBufferSize)
     , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
@@ -247,7 +246,6 @@ TInputPipe::TInputPipe(
     , TableProducer(std::move(tableProducer))
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
-    , Position(0)
     , HasData(true)
     , IsFinished(false)
     , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))

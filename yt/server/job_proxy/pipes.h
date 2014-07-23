@@ -81,7 +81,6 @@ private:
     TPipe Pipe;
 
     bool IsFinished;
-    bool IsClosed;
     TBlob Buffer;
 
     NPipes::TAsyncReaderPtr Reader;
@@ -122,7 +121,6 @@ private:
     std::unique_ptr<NTableClient::TTableProducer> TableProducer;
     std::unique_ptr<TBlobOutput> Buffer;
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
-    int Position;
 
     bool HasData;
     bool IsFinished;
