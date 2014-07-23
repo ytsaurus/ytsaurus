@@ -20,8 +20,8 @@ namespace NPipes {
 
 DECLARE_REFCOUNTED_STRUCT(IFDWatcher);
 
-DECLARE_REFCOUNTED_STRUCT(TAsyncReader);
-DECLARE_REFCOUNTED_STRUCT(TAsyncWriter);
+DECLARE_REFCOUNTED_CLASS(TAsyncReader);
+DECLARE_REFCOUNTED_CLASS(TAsyncWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
