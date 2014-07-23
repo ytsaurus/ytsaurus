@@ -80,7 +80,7 @@ private:
     int JobDescriptor;
     TPipe Pipe;
 
-    bool IsFinished;
+    bool IsFinished = false;
     TBlob Buffer;
 
     NPipes::TAsyncReaderPtr Reader;
@@ -122,8 +122,8 @@ private:
     std::unique_ptr<TBlobOutput> Buffer;
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
 
-    bool HasData;
-    bool IsFinished;
+    bool HasData = true;
+    bool IsFinished = false;
 
     NPipes::TAsyncWriterPtr Writer;
 };

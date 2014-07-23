@@ -35,7 +35,6 @@ using NConcurrency::WaitFor;
 static const auto& Logger = JobProxyLogger;
 
 static const i64 InputBufferSize = (i64) 1 * 1024 * 1024;
-
 static const i64 OutputBufferSize = (i64) 1 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
@@ -176,7 +175,6 @@ TOutputPipe::TOutputPipe(
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , Pipe(fd)
-    , IsFinished(false)
     , Buffer(OutputBufferSize)
     , Reader(New<NPipes::TAsyncReader>(Pipe.ReadFd))
 {
@@ -246,8 +244,6 @@ TInputPipe::TInputPipe(
     , TableProducer(std::move(tableProducer))
     , Buffer(std::move(buffer))
     , Consumer(std::move(consumer))
-    , HasData(true)
-    , IsFinished(false)
     , Writer(New<NPipes::TAsyncWriter>(Pipe.WriteFd))
 {
     YCHECK(TableProducer);
