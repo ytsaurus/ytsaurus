@@ -33,7 +33,7 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
     return _make_formatted_transactional_request(
         "get",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "attributes": get_value(attributes, []),
             "ignore_opaque": bool_to_string(ignore_opaque)
         },
@@ -51,7 +51,7 @@ def set(path, value, client=None):
     return _make_transactional_request(
         "set",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "input_format": "yson"
         },
         data=yson.dumps(value),
@@ -65,8 +65,8 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
     :param preserve_account: (bool)
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
     """
-    params = {"source_path": prepare_path(source_path),
-              "destination_path": prepare_path(destination_path)}
+    params = {"source_path": prepare_path(source_path, client=client),
+              "destination_path": prepare_path(destination_path, client=client)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
     return _make_transactional_request("copy", params, client=client)
@@ -81,8 +81,8 @@ def move(source_path, destination_path, client=None):
     _make_transactional_request(
         "move",
         {
-            "source_path": prepare_path(source_path),
-            "destination_path": prepare_path(destination_path)
+            "source_path": prepare_path(source_path, client=client),
+            "destination_path": prepare_path(destination_path, client=client)
         },
         client=client)
 
@@ -98,8 +98,8 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
     return _make_transactional_request(
         "link",
         {
-            "target_path": prepare_path(target_path),
-            "link_path": prepare_path(link_path),
+            "target_path": prepare_path(target_path, client=client),
+            "link_path": prepare_path(link_path, client=client),
             "recursive": bool_to_string(recursive),
             "ignore_existing": bool_to_string(ignore_existing),
         },
@@ -127,7 +127,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None, clie
     result = _make_formatted_transactional_request(
         "list",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "max_size": max_size,
             "attributes": get_value(attributes, [])
         },
@@ -146,7 +146,7 @@ def exists(path, client=None):
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
-            {"path": prepare_path(path)},
+            {"path": prepare_path(path, client=client)},
             format=None,
             client=client))
 
@@ -161,7 +161,7 @@ def remove(path, recursive=False, force=False, client=None):
     _make_transactional_request(
         "remove",
         {
-            "path": prepare_path(path),
+            "path": prepare_path(path, client=client),
             "recursive": bool_to_string(recursive),
             "force": bool_to_string(force)
         },
@@ -182,7 +182,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
         "attributes": get_value(attributes, {})
     }
     if path is not None:
-        params["path"] = prepare_path(path)
+        params["path"] = prepare_path(path, client=client)
     return _make_formatted_transactional_request("create", params, format=None, client=client)
 
 def mkdir(path, recursive=None, client=None):
