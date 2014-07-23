@@ -59,7 +59,6 @@ private:
     mutable TSpinLock SpinLock_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
-    yhash_set<Stroka> RequestedAddresses_;
 
     NLog::TLogger Logger;
 
@@ -90,8 +89,10 @@ private:
         TBalancingChannelProviderPtr Owner_;
         IClientRequestPtr Request_;
 
+        TSpinLock SpinLock_;
         TPromise<TErrorOr<IChannelPtr>> Promise_;
-        
+        yhash_set<Stroka> RequestedAddresses_;
+
         NLog::TLogger Logger;
 
 
@@ -101,7 +102,7 @@ private:
                 return;
 
             while (true) {
-                auto pickResult = Owner_->PickPeer();
+                auto pickResult = PickPeer();
                 
                 if (pickResult.Is<TNoAlivePeersLeft>()) {
                     ReportError(TError(NRpc::EErrorCode::Unavailable, "No alive peers left"));
@@ -149,11 +150,11 @@ private:
                 if (up) {
                     Promise_.TrySet(channel);
                 } else {
-                    Owner_->BanPeer(address, Owner_->Config_->SoftBackoffTime);
+                    BanPeer(address, Owner_->Config_->SoftBackoffTime);
                 }
             } else {
                 LOG_WARNING(*rsp, "Peer %v has failed to respond", address);
-                Owner_->BanPeer(address, Owner_->Config_->HardBackoffTime);
+                BanPeer(address, Owner_->Config_->HardBackoffTime);
             }
 
             DoRun();
@@ -165,48 +166,63 @@ private:
                 << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
             Promise_.Set(detailedError);
         }
-    };
 
+        struct TNoAlivePeersLeft { };
+        struct TTooManyConcurrentRequests { };
 
-    struct TNoAlivePeersLeft { };
-    struct TTooManyConcurrentRequests { };
+        TVariant<Stroka, TNoAlivePeersLeft, TTooManyConcurrentRequests> PickPeer()
+        {
+            TGuard<TSpinLock> thisGuard(SpinLock_);
+            TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
 
-    TVariant<Stroka, TNoAlivePeersLeft, TTooManyConcurrentRequests> PickPeer()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (RequestedAddresses_.size() >= Config_->MaxConcurrentDiscoverRequests) {
-            return TTooManyConcurrentRequests();
-        }
-
-        std::vector<Stroka> candidates;
-        candidates.reserve(ActiveAddresses_.size());
-
-        for (const auto& address : ActiveAddresses_) {
-            if (RequestedAddresses_.find(address) == RequestedAddresses_.end()) {
-                candidates.push_back(address);
-            }
-        }
-
-        if (candidates.empty()) {
-            if (RequestedAddresses_.empty()) {
-                return TNoAlivePeersLeft();
-            } else {
+            if (RequestedAddresses_.size() >= Owner_->Config_->MaxConcurrentDiscoverRequests) {
                 return TTooManyConcurrentRequests();
             }
+
+            std::vector<Stroka> candidates;
+            candidates.reserve(Owner_->ActiveAddresses_.size());
+
+            for (const auto& address : Owner_->ActiveAddresses_) {
+                if (RequestedAddresses_.find(address) == RequestedAddresses_.end()) {
+                    candidates.push_back(address);
+                }
+            }
+
+            if (candidates.empty()) {
+                if (RequestedAddresses_.empty()) {
+                    return TNoAlivePeersLeft();
+                } else {
+                    return TTooManyConcurrentRequests();
+                }
+            }
+
+            const auto& result = candidates[RandomNumber(candidates.size())];
+            YCHECK(RequestedAddresses_.insert(result).second);
+            return result;
         }
 
-        const auto& result = candidates[RandomNumber(candidates.size())];
-        YCHECK(RequestedAddresses_.insert(result).second);
-        return result;
-    }
+       void BanPeer(const Stroka& address, TDuration backoffTime)
+        {
+            {
+                TGuard<TSpinLock> thisGuard(SpinLock_);
+                TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
+                YCHECK(RequestedAddresses_.erase(address) == 1);
+                if (Owner_->ActiveAddresses_.erase(address) != 1)
+                    return;
+                Owner_->BannedAddresses_.insert(address);
+            }
 
-    void ReleasePeer(const Stroka& address)
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
+            LOG_DEBUG("Peer %v banned (BackoffTime: %v)",
+                address,
+                backoffTime);
 
-        YCHECK(RequestedAddresses_.erase(address) == 1);
-    }
+            TDelayedExecutor::Submit(
+                BIND(&TBalancingChannelProvider::OnPeerBanTimeout, Owner_, address),
+                backoffTime);
+        }
+
+    };
+
 
     std::vector<Stroka> GetAllAddresses() const
     {
@@ -231,26 +247,7 @@ private:
         }
     }
 
-    void BanPeer(const Stroka& address, TDuration backoffTime)
-    {
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(RequestedAddresses_.erase(address) == 1);
-            if (ActiveAddresses_.erase(address) != 1)
-                return;
-            BannedAddresses_.insert(address);
-        }
-
-        LOG_DEBUG("Peer %v banned (BackoffTime: %v)",
-            address,
-            backoffTime);
-
-        TDelayedExecutor::Submit(
-            BIND(&TBalancingChannelProvider::UnbanPeer, MakeWeak(this), address),
-            backoffTime);
-    }
-
-    void UnbanPeer(const Stroka& address)
+    void OnPeerBanTimeout(const Stroka &address)
     {
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -261,7 +258,6 @@ private:
 
         LOG_DEBUG("Peer %v unbanned", address);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
