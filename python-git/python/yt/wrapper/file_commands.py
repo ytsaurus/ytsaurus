@@ -36,7 +36,7 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     """
     if response_type is None: response_type = "iter_lines"
 
-    params = {"path": prepare_path(path)}
+    params = {"path": prepare_path(path, client=client)}
     if file_reader is not None:
         params["file_reader"] = file_reader
     if offset is not None:
