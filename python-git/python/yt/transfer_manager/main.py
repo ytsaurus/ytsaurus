@@ -12,6 +12,7 @@ import os
 import json
 import time
 import signal
+import socket
 import argparse
 from copy import deepcopy
 from datetime import datetime
@@ -155,11 +156,12 @@ class Application(object):
         self._yt.token = config["token"]
         
         message_queue = Queue()
-        self._lock_path = config["lock_path"]
+        self._lock_path = os.path.join(config["path"], "lock")
         self._lock_thread = Process(target=self._take_lock, args=(message_queue,))
         self._lock_thread.start()
         if not message_queue.get(timeout=5.0):
             raise yt.YtError("Cannot take lock " + self._lock_path)
+        self._yt.set_attribute(config["path"], "address", socket.getfqdn())
 
         self._load_config(config)
 
@@ -240,10 +242,12 @@ class Application(object):
 
         self._availability_graph = config["availability_graph"]
 
-        self._load_tasks(config["tasks_path"])
+        self._load_tasks(os.path.join(config["path"], "tasks"))
 
     def _load_tasks(self, tasks_path): #, archived_tasks_path):
         self._tasks_path = tasks_path
+        if not self._yt.exists(self._tasks_path):
+            self._yt.create("map_node", self._tasks_path)
         #self._archived_tasks_path = archived_tasks_path
 
         # From id to task description
@@ -491,8 +495,7 @@ DEFAULT_CONFIG = {
         "plato": ["cedar", "kant", "smith"],
         "cedar": ["kant", "smith", "plato"]
     },
-    "tasks_path": "//home/ignat/tasks",
-    "lock_path": "//home/ignat/tasks_lock",
+    "path": "//home/ignat/transfer_manager",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb"}
     
