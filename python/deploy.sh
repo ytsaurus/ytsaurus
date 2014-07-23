@@ -23,7 +23,7 @@ make deb_without_test
 if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
     REPO="precise"
 else
-    if [ "$PACKAGE" = "yandex-yt-python-fennel" ]; then
+    if [ "$PACKAGE" = "yandex-yt-python-fennel" ] || [ "$PACKAGE" = "yandex-yt-transfer-manager" ]; then
         REPO="yt-common"
     else
         REPO="common"
