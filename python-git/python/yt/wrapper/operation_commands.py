@@ -189,7 +189,7 @@ def abort_operation(operation, client=None):
     :param operation: (string) operation id.
     """
     #TODO(ignat): remove check!?
-    if not get_operation_state(operation).is_final():
+    if not get_operation_state(operation, client=client).is_final():
         make_request("abort_op", {"operation_id": operation}, client=client)
 
 def suspend_operation(operation, client=None):
@@ -299,7 +299,7 @@ class WaitStrategy(object):
 
         def abort():
             state = wait_final_state(operation, TimeWatcher(1.0, 1.0, 0.0, timeout=None),
-                                     print_info, lambda: abort_operation(operation), client=client)
+                                     print_info, lambda: abort_operation(operation, client=client), client=client)
             finalize(state)
             return state
 

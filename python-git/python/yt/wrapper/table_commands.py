@@ -179,7 +179,7 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
         if config.THROW_ON_EMPTY_DST_LIST:
             raise YtError("Destination tables are absent")
         return []
-    tables = map(to_table, flatten(tables))
+    tables = map(lambda name: to_table(name, client=client), flatten(tables))
     for table in tables:
         if exists(table.name, client=client):
             compression_codec_ok = (compression_codec is None) or \
@@ -235,7 +235,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "command": binary,
                 "file_paths": map(
                     yson_to_json,
-                    flatten(files + additional_files + map(prepare_path, get_value(file_paths, [])))
+                    flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, [])))
                 ),
                 "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
             }
@@ -1128,7 +1128,7 @@ def run_remote_copy(source_table, destination_table, cluster_name,
     .. seealso::  :ref:`operation_parameters`.
     """
     def get_input_name(table):
-        return to_table(table).get_json()
+        return to_table(table, client=client).get_json()
 
     # TODO(ignat): use base string in other places
     if isinstance(source_table, basestring):
