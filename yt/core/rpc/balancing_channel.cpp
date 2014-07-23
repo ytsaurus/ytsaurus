@@ -164,7 +164,7 @@ private:
         {
             auto detailedError = error
                 << TErrorAttribute("endpoint", Owner_->GetEndpointDescription());
-            Promise_.Set(detailedError);
+            Promise_.TrySet(detailedError);
         }
 
         struct TNoAlivePeersLeft { };
