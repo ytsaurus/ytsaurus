@@ -52,7 +52,7 @@ public:
     TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
     void CommitTransaction(TTransaction* transaction);
     void AbortTransaction(TTransaction* transaction, bool force);
-    void PingTransaction(const TTransaction* transaction, bool pingAncestors = false);
+    void PingTransaction(TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
@@ -90,11 +90,11 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction* transaction, TDuration timeout);
-    void CloseLease(const TTransaction* transaction);
+    void CreateLease(TTransaction* transaction, TDuration timeout);
+    void CloseLease(TTransaction* transaction);
     void FinishTransaction(TTransaction* transaction);
 
-    void DoPingTransaction(const TTransaction* transaction);
+    void DoPingTransaction(TTransaction* transaction);
 
     // TAutomatonPart overrides
     virtual void OnLeaderActive() override;

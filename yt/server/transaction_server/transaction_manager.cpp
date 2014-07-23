@@ -480,7 +480,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::PingTransaction(const TTransaction* transaction, bool pingAncestors)
+void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -501,18 +501,15 @@ void TTransactionManager::PingTransaction(const TTransaction* transaction, bool 
     }
 }
 
-void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
+void TTransactionManager::DoPingTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(transaction->GetState() == ETransactionState::Active);
 
-    auto it = LeaseMap.find(transaction->GetId());
-    YCHECK(it != LeaseMap.end());
-
     auto timeout = transaction->GetTimeout();
 
-    TLeaseManager::RenewLease(it->second, timeout);
+    TLeaseManager::RenewLease(transaction->GetLease(), timeout);
 
     LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
         transaction->GetId(),
@@ -603,7 +600,7 @@ void TTransactionManager::OnLeaderActive()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     for (const auto& pair : TransactionMap) {
-        const auto* transaction = pair.second;
+        auto* transaction = pair.second;
         if (transaction->GetState() == ETransactionState::Active ||
             transaction->GetState() == ETransactionState::PersistentCommitPrepared)
         {
@@ -617,34 +614,28 @@ void TTransactionManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    for (const auto& pair : LeaseMap) {
-        TLeaseManager::CloseLease(pair.second);
-    }
-    LeaseMap.clear();
-
     // Reset all transiently prepared transactions back into active state.
     for (const auto& pair : TransactionMap) {
         auto* transaction = pair.second;
         transaction->SetState(transaction->GetPersistentState());
+        CloseLease(transaction);
     }
 }
 
-void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration timeout)
+void TTransactionManager::CreateLease(TTransaction* transaction, TDuration timeout)
 {
     auto hydraFacade = Bootstrap->GetHydraFacade();
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
             .Via(hydraFacade->GetEpochAutomatonInvoker()));
-    YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
+    transaction->SetLease(lease);
 }
 
-void TTransactionManager::CloseLease(const TTransaction* transaction)
+void TTransactionManager::CloseLease(TTransaction* transaction)
 {
-    auto it = LeaseMap.find(transaction->GetId());
-    YCHECK(it != LeaseMap.end());
-    TLeaseManager::CloseLease(it->second);
-    LeaseMap.erase(it);
+    TLeaseManager::CloseLease(transaction->GetLease());
+    transaction->SetLease(NullLease);
 }
 
 void TTransactionManager::OnTransactionExpired(const TTransactionId& id)

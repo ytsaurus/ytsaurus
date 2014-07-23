@@ -236,12 +236,9 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        auto it = LeaseMap_.find(transaction->GetId());
-        YCHECK(it != LeaseMap_.end());
 
         auto timeout = transaction->GetTimeout();
-
-        TLeaseManager::RenewLease(it->second, timeout);
+        TLeaseManager::RenewLease(transaction->GetLease(), timeout);
 
         LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
             transaction->GetId(),
@@ -255,28 +252,25 @@ private:
     TTransactionManagerConfigPtr Config_;
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-    yhash_map<TTransactionId, TLease> LeaseMap_;
 
     NLog::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     
-    void CreateLease(const TTransaction* transaction, TDuration timeout)
+    void CreateLease(TTransaction* transaction, TDuration timeout)
     {
         auto lease = TLeaseManager::CreateLease(
             timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
                 .Via(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)));
-        YCHECK(LeaseMap_.insert(std::make_pair(transaction->GetId(), lease)).second);
+        transaction->SetLease(lease);
     }
 
-    void CloseLease(const TTransaction* transaction)
+    void CloseLease(TTransaction* transaction)
     {
-        auto it = LeaseMap_.find(transaction->GetId());
-        YCHECK(it != LeaseMap_.end());
-        TLeaseManager::CloseLease(it->second);
-        LeaseMap_.erase(it);
+        TLeaseManager::CloseLease(transaction->GetLease());
+        transaction->SetLease(NullLease);
     }
 
     void OnTransactionExpired(const TTransactionId& id)
@@ -345,7 +339,7 @@ private:
     {
         // Recreate leases for all active transactions.
         for (const auto& pair : TransactionMap_) {
-            const auto* transaction = pair.second;
+            auto* transaction = pair.second;
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
@@ -359,18 +353,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // Reset all leases.
-        for (const auto& pair : LeaseMap_) {
-            TLeaseManager::CloseLease(pair.second);
-        }
-        LeaseMap_.clear();
-
         // Reset all transiently prepared transactions back into active state.
         // Mark all transactions are finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
+            CloseLease(transaction);
         }
     }
 
