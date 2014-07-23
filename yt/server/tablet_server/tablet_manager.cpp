@@ -356,6 +356,14 @@ public:
         return schema;
     }
 
+    TChunkTreeStatistics GetTabletStatistics(TTablet* tablet)
+    {
+        const auto* table = tablet->GetTable();
+        const auto* rootChunkList = table->GetChunkList();
+        const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
+        return tabletChunkList->Statistics();
+    }
+
 
     void MountTable(
         TTableNode* table,
@@ -1603,6 +1611,11 @@ int TTabletManager::GetAssignedTabletCellCount(const Stroka& address) const
 TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
 {
     return Impl_->GetTableSchema(table);
+}
+
+TChunkTreeStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
+{
+    return Impl_->GetTabletStatistics(tablet);
 }
 
 void TTabletManager::MountTable(

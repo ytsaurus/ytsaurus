@@ -15,6 +15,8 @@
 
 #include <server/tablet_server/tablet_manager.pb.h>
 
+#include <server/chunk_server/chunk_tree_statistics.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -34,6 +36,9 @@ public:
     int GetAssignedTabletCellCount(const Stroka& address) const;
 
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
+
+    NChunkServer::TChunkTreeStatistics GetTabletStatistics(TTablet* tablet);
+    
 
     void MountTable(
         NTableServer::TTableNode* table,
@@ -59,6 +64,8 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
+
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);

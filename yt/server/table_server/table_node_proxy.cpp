@@ -96,10 +96,12 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
-        const auto* chunkList = node->GetChunkList();
-        const auto& statistics = chunkList->Statistics();
+
+        auto tabletManager = Bootstrap->GetTabletManager();
 
         if (key == "row_count") {
+            const auto* chunkList = node->GetChunkList();
+            const auto& statistics = chunkList->Statistics();
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
@@ -127,19 +129,19 @@ private:
 
         if (key == "tablets") {
             BuildYsonFluently(consumer)
-                .DoListFor(node->Tablets(), [] (TFluentList fluent, TTablet* tablet) {
-                auto* cell = tablet->GetCell();
-                fluent
-                    .Item().BeginMap()
-                    .Item("tablet_id").Value(tablet->GetId())
-                    .Item("state").Value(tablet->GetState())
-                    .Item("pivot_key").Value(tablet->GetPivotKey())
-                    .DoIf(cell, [&] (TFluentMap fluent) {
+                .DoListFor(node->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                    auto* cell = tablet->GetCell();
                     fluent
-                        .Item("cell_id").Value(cell->GetId());
-                })
-                    .EndMap();
-            });
+                        .Item().BeginMap()
+                            .Item("tablet_id").Value(tablet->GetId())
+                            .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
+                            .Item("state").Value(tablet->GetState())
+                            .Item("pivot_key").Value(tablet->GetPivotKey())
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("cell_id").Value(cell->GetId());
+                            })
+                        .EndMap();
+                });
             return true;
         }
 
