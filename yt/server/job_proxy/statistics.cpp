@@ -3,6 +3,7 @@
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/serialize.h>
+#include <core/ytree/convert.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -60,6 +61,15 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
         .EndMap();
 }
 
+void Deserialize(TSummary& value, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    value.Summ_ = NYTree::ConvertTo<i64>(mapNode->FindChild("summ"));
+    value.Count_ = NYTree::ConvertTo<i64>(mapNode->FindChild("count"));
+    value.Min_ = NYTree::ConvertTo<i64>(mapNode->FindChild("min"));
+    value.Max_ = NYTree::ConvertTo<i64>(mapNode->FindChild("max"));
+}
+
 ////////////////////////////////////////////////////////////////////
 
 void TStatistics::Add(const Stroka& name, const TSummary& summary)
@@ -87,6 +97,11 @@ bool TStatistics::Empty() const
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::Serialize(statistics.Statistics(), consumer);
+}
+
+void Deserialize(TStatistics& value, NYTree::INodePtr node)
+{
+    Deserialize(value.Statistics_, node);
 }
 
 ////////////////////////////////////////////////////////////////////

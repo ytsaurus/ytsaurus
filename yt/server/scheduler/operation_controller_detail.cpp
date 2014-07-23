@@ -1594,6 +1594,9 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     JobCounter.Completed(1);
     CompletedJobStatistics += result.statistics();
 
+    auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(result.statistics().statistics()));
+    Statistics.Merge(statistics);
+
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
@@ -3310,6 +3313,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
+        .Item("statistics").Value(Statistics)
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)

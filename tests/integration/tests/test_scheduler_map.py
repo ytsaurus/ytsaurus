@@ -59,9 +59,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_job_statistics(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat; python -c "import os; os.write(5, \"{ k1=4}; {k2=-7}\")"')
+        write('//tmp/t1', {"a": "b"})
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command=r'cat; python -c "import os; os.write(5, \"{ k1=4}; {k2=-7};{k2=1};\"); os.close(5);"')
 
-        assert read('//tmp/t2') == []
+        statistics = get('//sys/operations/%s/@progress/statistics' % (op_id,))
+        assert statistics['k1']['max'] == 4
+        assert statistics['k2']['count'] == 2
 
     @only_linux
     def test_one_chunk(self):

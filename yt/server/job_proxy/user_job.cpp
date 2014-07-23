@@ -402,6 +402,8 @@ private:
 
     void ConsumeStatistics(const TStatistics& statistics)
     {
+        TGuard<TSpinLock> guard(SpinLock);
+        Statistics.Merge(statistics);
     }
 
     void SetError(const TError& error)
@@ -568,6 +570,11 @@ private:
             ToProto(result.mutable_block_io(), BlockIOStats);
         }
 
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics).Data());
+        }
+
         return result;
     }
 
@@ -640,6 +647,8 @@ private:
 
     NCGroup::TMemory Memory;
     NCGroup::TEvent OomEvent;
+
+    TStatistics Statistics;
 };
 
 TJobPtr CreateUserJob(

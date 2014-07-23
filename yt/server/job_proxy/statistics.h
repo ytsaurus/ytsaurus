@@ -2,6 +2,7 @@
 
 #include <core/misc/property.h>
 #include <core/yson/consumer.h>
+#include <core/ytree/public.h>
 #include <core/actions/bind.h>
 
 namespace NYT {
@@ -20,9 +21,12 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
+
+    friend void Deserialize(TSummary& value, NYTree::INodePtr node);
 };
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer);
+void Deserialize(TSummary& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -36,9 +40,12 @@ public:
 
     typedef std::map<Stroka, TSummary> TSummaryDict;
     DEFINE_BYREF_RO_PROPERTY(TSummaryDict, Statistics);
+
+    friend void Deserialize(TStatistics& value, NYTree::INodePtr node);
 };
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
+void Deserialize(TStatistics& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////
 

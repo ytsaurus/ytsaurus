@@ -41,6 +41,8 @@
 
 #include <server/chunk_server/public.h>
 
+#include <server/job_proxy/statistics.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -158,6 +160,7 @@ protected:
     TProgressCounter JobCounter;
 
     // Job statistics.
+    NJobProxy::TStatistics Statistics;
     NJobTrackerClient::NProto::TJobStatistics CompletedJobStatistics;
     NJobTrackerClient::NProto::TJobStatistics FailedJobStatistics;
     NJobTrackerClient::NProto::TJobStatistics AbortedJobStatistics;

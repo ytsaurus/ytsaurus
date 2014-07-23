@@ -24,6 +24,8 @@ message TJobStatistics
 
     optional NCGroup.NProto.TCpuAccountingStatistics cpu = 4;
     optional NCGroup.NProto.TBlockIOStatistics block_io = 5;
+
+    optional string statistics = 6;
 }
 
 // Describes the outcome of the job, in particular if it has finished successfully.
