@@ -16,10 +16,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
-static const char* TestFileName = "health_check~";
+static const Stroka TestFileName("health_check~");
+static const Stroka DisabledLockFileName("disabled");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,33 +27,38 @@ TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const Stroka& path,
     IInvokerPtr invoker)
-    : Config(config)
-    , Path(path)
-    , CheckInvoker(invoker)
-    , PeriodicExecutor(New<TPeriodicExecutor>(
+    : Config_(config)
+    , Path_(path)
+    , CheckInvoker_(invoker)
+    , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
-        Config->CheckPeriod,
+        Config_->CheckPeriod,
         EPeriodicExecutorMode::Manual))
-    , FailedLock(0)
-    , CheckCallback(BIND(&TDiskHealthChecker::DoRunCheck, Unretained(this)))
-{ }
+    , Logger(DataNodeLogger)
+{
+    Logger.AddTag("Path: %v", Path_);
+    FailedLock_.clear();
+}
 
 void TDiskHealthChecker::Start()
 {
-    PeriodicExecutor->Start();
+    PeriodicExecutor_->Start();
 }
 
 TAsyncError TDiskHealthChecker::RunCheck()
 {
     auto asyncError = NewPromise<TError>();
 
-    CheckCallback.AsyncVia(CheckInvoker).Run().Subscribe(
-        Config->Timeout,
-        BIND([=] (TError error) mutable {
-            asyncError.Set(error);
-        }),
-        BIND(&TDiskHealthChecker::OnCheckTimeout, MakeWeak(this), asyncError));
+    BIND(&TDiskHealthChecker::DoRunCheck, Unretained(this))
+        .AsyncVia(CheckInvoker_)
+        .Run()
+        .Subscribe(
+            Config_->Timeout,
+            BIND([=] (TError error) mutable {
+                asyncError.Set(error);
+            }),
+            BIND(&TDiskHealthChecker::OnCheckTimeout, MakeWeak(this), asyncError));
     return asyncError;
 }
 
@@ -65,63 +70,69 @@ void TDiskHealthChecker::OnCheck()
 void TDiskHealthChecker::OnCheckCompleted(TError error)
 {
     if (error.IsOK()) {
-        PeriodicExecutor->ScheduleNext();
-    } else if (AtomicIncrement(FailedLock) == 1) {
+        PeriodicExecutor_->ScheduleNext();
+    } else if (!FailedLock_.test_and_set()) {
         Failed_.Fire();
     }
 }
 
 void TDiskHealthChecker::OnCheckTimeout(TAsyncErrorPromise result)
 {
-    auto error = TError("Disk health check timed out: %s", ~Path);
+    auto error = TError("Disk health check timed out at %v", Path_);
     LOG_ERROR(error);
     result.Set(error);
 }
 
 TError TDiskHealthChecker::DoRunCheck()
 {
-    LOG_DEBUG("Disk health check started: %s", ~Path);
+    LOG_DEBUG("Disk health check started");
 
-    std::vector<ui8> writeData(Config->TestSize);
-    std::vector<ui8> readData(Config->TestSize);
+    auto lockFileName = NFS::CombinePaths(Path_, DisabledLockFileName);
+    if (NFS::Exists(lockFileName)) {
+        LOG_INFO("Lock file found");
+        return TError("Location is disabled by lock file");
+    }
 
-    for (int i = 0; i < Config->TestSize; ++i) {
+    std::vector<ui8> writeData(Config_->TestSize);
+    std::vector<ui8> readData(Config_->TestSize);
+
+    for (int i = 0; i < Config_->TestSize; ++i) {
         writeData[i] = RandomNumber<ui8>();
     }
 
-    Stroka fileName = NFS::CombinePaths(Path, TestFileName);
+    auto testFileName = NFS::CombinePaths(Path_, TestFileName);
 
     try {
-
         {
-            TFile file(fileName, CreateAlways|WrOnly|Seq|Direct);
-            file.Write(writeData.data(), Config->TestSize);
+            TFile file(testFileName, CreateAlways|WrOnly|Seq|Direct);
+            file.Write(writeData.data(), Config_->TestSize);
         }
 
         {
-            TFile file(fileName, OpenExisting|RdOnly|Seq|Direct);
-            if (file.GetLength() != Config->TestSize) {
-                THROW_ERROR_EXCEPTION("Wrong test file size: %" PRId64 " instead of %" PRId64,
+            TFile file(testFileName, OpenExisting|RdOnly|Seq|Direct);
+            if (file.GetLength() != Config_->TestSize) {
+                THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
                     file.GetLength(),
-                    Config->TestSize);
+                    Config_->TestSize);
             }
-            file.Read(readData.data(), Config->TestSize);
+            file.Read(readData.data(), Config_->TestSize);
         }
 
-        NFS::Remove(fileName);
+        NFS::Remove(testFileName);
 
-        if (memcmp(readData.data(), writeData.data(), Config->TestSize) != 0) {
+        if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
-
-        LOG_DEBUG("Disk health check finished: %s", ~Path);
-
-        return TError();
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Disk health check failed at %s", ~Path) << ex;
+        auto wrappedError = TError("Disk health check failed at %v", ~Path_)
+            << ex;
         LOG_ERROR(wrappedError);
         return wrappedError;
     }
+
+    LOG_DEBUG("Disk health check finished");
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

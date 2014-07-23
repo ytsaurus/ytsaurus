@@ -8,6 +8,10 @@
 
 #include <core/misc/error.h>
 
+#include <core/logging/log.h>
+
+#include <atomic>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -35,15 +39,16 @@ public:
     DEFINE_SIGNAL(void(), Failed);
 
 private:
-    TDiskHealthCheckerConfigPtr Config;
-    Stroka Path;
+    TDiskHealthCheckerConfigPtr Config_;
+    Stroka Path_;
 
-    IInvokerPtr CheckInvoker;
+    IInvokerPtr CheckInvoker_;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
-    TAtomic FailedLock;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    std::atomic_flag FailedLock_;
 
-    TCallback<TError (void)> CheckCallback;
+    NLog::TLogger Logger;
+
 
     void OnCheck();
     void OnCheckCompleted(TError error);
