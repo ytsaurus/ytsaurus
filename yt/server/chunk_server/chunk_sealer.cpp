@@ -208,8 +208,8 @@ private:
             GuardedSealChunk(chunk);
             EndDequeueChunk(chunk);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error sealing journal chunk %s, backing off",
-                ~ToString(chunk->GetId()));
+            LOG_WARNING(ex, "Error sealing journal chunk %v, backing off",
+                chunk->GetId());
             TDelayedExecutor::Submit(
                 BIND(&TImpl::RescheduleSeal, MakeStrong(this), chunk)
                     .Via(GetCurrentInvoker()),
@@ -222,8 +222,7 @@ private:
         if (!CanSeal(chunk))
             return;
 
-        LOG_INFO("Sealing journal chunk (ChunkId: %s)",
-            ~ToString(chunk->GetId()));
+        LOG_INFO("Sealing journal chunk (ChunkId: %v)", chunk->GetId());
 
         std::vector<TNodeDescriptor> replicas;
         for (auto nodeWithIndex : chunk->StoredReplicas()) {
@@ -262,6 +261,8 @@ private:
         req->set_row_count(rowCount);
         auto rsp = WaitFor(ExecuteVerb(rootService, req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+        LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }
 
 
