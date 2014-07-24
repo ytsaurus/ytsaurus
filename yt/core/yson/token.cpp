@@ -88,9 +88,9 @@ TToken::TToken(const TStringBuf& stringValue)
     , DoubleValue(0.0)
 { }
 
-TToken::TToken(i64 integerValue)
+TToken::TToken(i64 int64Value)
     : Type_(ETokenType::Int64)
-    , Int64Value(integerValue)
+    , Int64Value(int64Value)
     , DoubleValue(0.0)
 { }
 

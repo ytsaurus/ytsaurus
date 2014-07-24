@@ -26,7 +26,7 @@ private:
     //         OtherSpecialToken           =    10b
     //     Other                           =    x1b
     //         BinaryIntegerOrBinaryDouble =   x01b
-    //             BinaryInt64           =   001b
+    //             BinaryInt64             =   001b
     //             BinaryDouble            =   101b
     //         Other                       = xxx11b
     //             Quote                   = 00011b
@@ -39,7 +39,7 @@ private:
         ((BinaryString)                 (0))    // =    00b
         ((OtherSpecialToken)            (2))    // =    10b
 
-        ((BinaryInt64)                (1))    // =   001b
+        ((BinaryInt64)                  (1))    // =   001b
         ((BinaryDouble)                 (5))    // =   101b
 
         ((Quote)                        (3))    // = 00011b

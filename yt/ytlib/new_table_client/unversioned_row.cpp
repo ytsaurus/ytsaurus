@@ -923,7 +923,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
                 break;
 
             case EKeyPartType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int_value(), id));
+                rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int64_value(), id));
                 break;
 
             case EKeyPartType::Double:

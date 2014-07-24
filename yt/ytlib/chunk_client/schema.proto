@@ -20,7 +20,7 @@ message TKeyPart
     // EKeyPartType
     required int32 type = 1;
     optional bytes str_value = 2;
-    optional int64 int_value = 3;
+    optional int64 int64_value = 3;
     optional double double_value = 4;
 }
 

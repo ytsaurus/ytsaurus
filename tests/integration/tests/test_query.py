@@ -24,8 +24,8 @@ class TestQuery(YTEnvSetup):
         
         sort(in_=path, out=path, sort_by=['a', 'b'])
         set(path + "/@schema", [
-            {"name": "a", "type": "Int64"},
-            {"name": "b", "type": "Int64"}
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "int64"}
         ])
 
     # TODO(sandello): TableMountCache is not invalidated at the moment,

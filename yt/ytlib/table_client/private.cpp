@@ -51,11 +51,11 @@ int CompareKeyParts(const NChunkClient::NProto::TKeyPart& lhs, const NChunkClien
         return 0;
     }
 
-    if (lhs.has_int_value()) {
+    if (lhs.has_int64_value()) {
 
-        if (lhs.int_value() > rhs.int_value())
+        if (lhs.int64_value() > rhs.int64_value())
             return 1;
-        if (lhs.int_value() < rhs.int_value())
+        if (lhs.int64_value() < rhs.int64_value())
             return -1;
         return 0;
     }
@@ -107,7 +107,7 @@ void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnver
 
             case NVersionedTableClient::EValueType::Int64:
                 keyPart->set_type(EKeyPartType::Int64);
-                keyPart->set_int_value(row[i].Data.Int64);
+                keyPart->set_int64_value(row[i].Data.Int64);
                 break;
 
             case NVersionedTableClient::EValueType::Double:

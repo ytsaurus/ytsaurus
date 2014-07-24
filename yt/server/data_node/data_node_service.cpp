@@ -989,7 +989,7 @@ private:
                             keyPart = MakeUnversionedAnyValue(TStringBuf());
                             break;
                         case EKeyPartType::Int64:
-                            keyPart = MakeUnversionedInt64Value(it->key_part().int_value());
+                            keyPart = MakeUnversionedInt64Value(it->key_part().int64_value());
                             break;
                         case EKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());

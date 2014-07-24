@@ -55,7 +55,7 @@ public:
     TToken();
     TToken(ETokenType type); // for special types
     explicit TToken(const TStringBuf& stringValue); // for strings
-    explicit TToken(i64 integerValue); // for integers
+    explicit TToken(i64 int64Value); // for integers
     explicit TToken(double doubleValue); // for doubles
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
