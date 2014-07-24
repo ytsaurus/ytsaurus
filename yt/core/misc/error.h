@@ -134,7 +134,7 @@ class TErrorException
 public:
     TErrorException() = default;
     TErrorException(const TErrorException& other) = default;
-    TErrorException(TErrorException&& other) noexcept = default;
+    TErrorException(TErrorException&& other) = default;
 
     virtual const char* what() const throw() override;
 
