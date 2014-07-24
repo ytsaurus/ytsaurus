@@ -56,6 +56,8 @@ void TInvokerQueue::SetThreadId(TThreadId threadId)
 
 void TInvokerQueue::Invoke(const TClosure& callback)
 {
+    YASSERT(callback);
+
     if (!Running.load(std::memory_order_relaxed)) {
         LOG_TRACE_IF(
             EnableLogging,
@@ -644,6 +646,8 @@ TEVSchedulerThread::TInvoker::TInvoker(TEVSchedulerThread* owner)
 
 void TEVSchedulerThread::TInvoker::Invoke(const TClosure& callback)
 {
+    YASSERT(callback);
+
     if (!Owner->IsRunning())
         return;
 
