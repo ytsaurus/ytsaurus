@@ -154,7 +154,9 @@ private:
 
         AppendInfo(&builder, "Error: %v", error);
 
-        AppendInfo(&builder, "%v", ResponseInfo_);
+        if (!ResponseInfo_.empty()) {
+            AppendInfo(&builder, "%v", ResponseInfo_);
+        }
 
         LOG_DEBUG("%v -> %v",
             GetMethod(),
