@@ -134,33 +134,30 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         yt.create_table(other_table)
 
         copy_table(table, other_table)
-        self.assertEqual(sorted(self.temp_records()),
-                         sorted(yt.read_table(other_table)))
+        assert sorted(self.temp_records()) == sorted(yt.read_table(other_table))
 
         copy_table(table, other_table)
-        self.assertEqual(sorted(self.temp_records()),
-                         sorted(yt.read_table(other_table)))
+        assert sorted(self.temp_records()) == sorted(yt.read_table(other_table))
 
         copy_table(table, TablePath(other_table, append=True))
-        self.assertEqual(sorted(list(self.temp_records()) + list(self.temp_records())),
-                         sorted(yt.read_table(other_table)))
+        assert sorted(list(self.temp_records()) + list(self.temp_records())) == \
+               sorted(yt.read_table(other_table))
 
         yt.run_sort(table, table)
         copy_table(table, TablePath(other_table, append=True))
-        self.assertEqual(sorted(list(self.temp_records()) * 3),
-                         sorted(yt.read_table(other_table)))
+        assert sorted(list(self.temp_records()) * 3) == sorted(yt.read_table(other_table))
 
         move_table(table, other_table)
-        self.assertFalse(yt.exists(table))
-        self.assertEqual(list(yt.read_table(other_table)),
-                         sorted(list(self.temp_records())))
+        assert yt.exists(other_table)
+        assert not yt.exists(table)
+        assert list(yt.read_table(other_table)) == sorted(list(self.temp_records()))
 
         copy_table(table, table)
-        self.assertFalse(yt.exists(table))
+        assert not yt.exists(table)
 
         embedded_path = TEST_DIR + "dir/other_dir/table"
         copy_table(table, embedded_path)
-        self.assertTrue(embedded_path)
+        assert embedded_path
 
     def test_sort(self):
         table = self.create_temp_table()

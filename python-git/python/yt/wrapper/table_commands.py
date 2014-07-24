@@ -79,20 +79,20 @@ from cStringIO import StringIO
 
 # Auxiliary methods
 
-DEFAULT_EMPTY_TABLE = "//sys/empty_table"
+DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_table", simplify=False)
 
 def _prepare_source_tables(tables, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
     if config.TREAT_UNEXISTING_AS_EMPTY:
         def get_empty_table(table):
             logger.warning("Warning: input table '%s' does not exist", table.name)
-            return TablePath(DEFAULT_EMPTY_TABLE)
+            return DEFAULT_EMPTY_TABLE
         return [table if exists(table.name, client=client) else get_empty_table(table)
                   for table in result]
     return result
 
 def _are_default_empty_table(tables):
-    return all(table.name == DEFAULT_EMPTY_TABLE for table in tables)
+    return all(table == DEFAULT_EMPTY_TABLE for table in tables)
 
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
@@ -555,7 +555,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_tables):
         return
     destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
@@ -587,7 +587,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table, client=client)
-    if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
+    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_tables):
         return
     destination_table = to_table(destination_table, client=client)
     if _are_nodes(source_tables, destination_table):
