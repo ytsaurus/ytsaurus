@@ -151,9 +151,9 @@ TVersionedRowMerger::TVersionedRowMerger(
     : Pool_(pool)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
-    , KeyComparer_(KeyColumnCount_)
     , CurrentTimestamp_(currentTimestamp)
     , MajorTimestamp_(majorTimestamp)
+    , KeyComparer_(KeyColumnCount_)
     , Keys_(KeyColumnCount_)
 {
     Reset();
