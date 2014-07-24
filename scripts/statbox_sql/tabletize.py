@@ -92,7 +92,10 @@ def main():
     yt.run_map(ApplySchemaTypes(args.schema), args.input, temp)
     yt.run_map(AddHash(args.hash_columns), temp, temp)
     yt.run_map_reduce(None, unique, temp, temp, reduce_by=["hash"] + args.key_columns)
-    yt.run_map('grep -v "#;$" | yt insert "%s" --format yson' % args.output, temp, yt.create_temp_table(), spec={"data_size_per_job": 128 * 1024})
+    yt.run_map("./upload.sh " + args.output, temp, yt.create_temp_table(),
+               spec={"data_size_per_job": 16 * 1024 * 1024,
+                     "mapper": {"enable_input_table_index": "false"}},
+               local_files="upload.sh")
     #yt.remove(temp)
 
 if __name__ == "__main__":
