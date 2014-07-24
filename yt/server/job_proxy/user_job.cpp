@@ -298,6 +298,7 @@ private:
             maxReservedDescriptor = std::max(
                 JobIO->GetInputCount(),
                 JobIO->GetOutputCount()) * 3;
+            maxReservedDescriptor = std::max(maxReservedDescriptor, JobStatisticsFD + 1);
         }
 
         YASSERT(maxReservedDescriptor > 0);
@@ -384,12 +385,14 @@ private:
         }
 
         {
-            std::unique_ptr<NYson::IYsonConsumer> consumer(new TStatisticsConvertor(BIND(&TUserJob::ConsumeStatistics, this)));
-            auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-            JobStatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
+            if (!UserJobSpec.use_yamr_descriptors()) {
+                std::unique_ptr<NYson::IYsonConsumer> consumer(new TStatisticsConvertor(BIND(&TUserJob::ConsumeStatistics, this)));
+                auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
+                JobStatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
 
-            createPipe(pipe);
-            OutputPipes.push_back(New<TOutputPipe>(pipe, JobStatisticsOutput.get(), JobStatisticsFD));
+                createPipe(pipe);
+                OutputPipes.push_back(New<TOutputPipe>(pipe, JobStatisticsOutput.get(), JobStatisticsFD));
+            }
         }
 
         // Close reserved descriptors.
@@ -570,7 +573,7 @@ private:
             ToProto(result.mutable_block_io(), BlockIOStats);
         }
 
-        {
+        if (!UserJobSpec.use_yamr_descriptors()) {
             TGuard<TSpinLock> guard(SpinLock);
             ToProto(result.mutable_statistics(), ConvertToYsonString(Statistics).Data());
         }

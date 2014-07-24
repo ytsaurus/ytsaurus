@@ -1591,11 +1591,14 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     LogFinishedJobFluently(ELogEventType::JobCompleted, job);
 
+    const auto& jobStatistics = result.statistics();
     JobCounter.Completed(1);
-    CompletedJobStatistics += result.statistics();
+    CompletedJobStatistics += jobStatistics;
 
-    auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(result.statistics().statistics()));
-    Statistics.Merge(statistics);
+    if (jobStatistics.has_statistics()) {
+        auto statistics = ConvertTo<NJobProxy::TStatistics>(TYsonString(jobStatistics.statistics()));
+        Statistics.Merge(statistics);
+    }
 
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
