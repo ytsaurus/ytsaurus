@@ -260,7 +260,8 @@ private:
         auto chunkProxy = objectManager->GetProxy(chunk);
         auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
         req->set_row_count(rowCount);
-        ExecuteVerb(rootService, req);
+        auto rsp = WaitFor(ExecuteVerb(rootService, req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
 
