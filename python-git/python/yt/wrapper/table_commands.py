@@ -204,7 +204,7 @@ def _remove_locks(table, client=None):
 
 def _remove_tables(tables, client=None):
     for table in tables:
-        if exists(table) and get_type(table) == "table" and not table.append:
+        if exists(table) and get_type(table) == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
             if config.FORCE_DROP_DST:
                 _remove_locks(table, client=client)
             remove(table, client=client)
@@ -600,6 +600,8 @@ def move_table(source_table, destination_table, replace=True, client=None):
         copy_table(source_table, destination_table, client=client)
         for table in source_tables:
             if to_name(table, client=client) == to_name(destination_table, client=client):
+                continue
+            if table == DEFAULT_EMPTY_TABLE:
                 continue
             remove(table.name, client=client)
 
