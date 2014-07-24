@@ -229,7 +229,7 @@ static std::string ReadableMetric(double value, unsigned int decimals)
 static void PrintBenchmarkResultsAsTable(const TBenchmarkResults& data)
 {
     // Width available.
-    static const uint columns = 76;
+    static const unsigned int columns = 76;
 
     // Compute the longest benchmark name.
     size_t longestName = 0;
