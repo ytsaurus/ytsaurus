@@ -466,7 +466,6 @@ private:
         context->Reply();
     }
 
-
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Seal)
     {
         UNUSED(response);
