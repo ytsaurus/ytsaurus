@@ -19,6 +19,7 @@ namespace NHive {
 
 class TCommit
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TMutationId, MutationId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellGuid>, ParticipantCellGuids);

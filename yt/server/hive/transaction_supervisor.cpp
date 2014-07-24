@@ -84,7 +84,6 @@ public:
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnTransactionCommitPrepared, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitPreparedTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortFailedTransaction, Unretained(this)));
 
         RegisterLoader(
             "TransactionSupervisor.Keys",
@@ -120,7 +119,7 @@ public:
             return MakeFuture(TError(ex));
         }
 
-        TReqAbortTransaction request;
+        TReqHydraAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
 
         return CreateMutation(HydraManager, request)
@@ -178,7 +177,7 @@ private:
                 false,
                 transactionId,
                 mutationId,
-                participantCellGuids);
+                std::vector<TCellGuid>());
             SimpleCommitMap_.Insert(transactionId, commit);
             ReplyWhenFinished(commit, context);
 
@@ -248,15 +247,12 @@ private:
 
     // Hydra handlers.
 
-    void HydraAbortTransaction(const TReqAbortTransaction& request)
+    void HydraAbortTransaction(const TReqHydraAbortTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-
-        // Does not throw.
-        TransactionManager_->AbortTransaction(transactionId, false);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
-            transactionId);
+        auto force = request.force();
+        auto* commit = FindCommit(transactionId);
+        DoAbortTransaction(transactionId, commit, force);
     }
 
     void HydraStartDistributedCommit(TCtxCommitTransactionPtr context, const TReqStartDistributedCommit& request)
@@ -395,18 +391,6 @@ private:
         }
     }
 
-    void HydraAbortFailedTransaction(const TReqAbortFailedTransaction& request)
-    {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        
-        DoAbortFailed(transactionId);
-
-        auto* commit = FindCommit(transactionId);
-        if (commit) {
-            RemoveCommit(commit);
-        }
-    }
-
     void HydraFinalizeDistributedCommit(const TReqFinalizeDistributedCommit& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
@@ -440,11 +424,6 @@ private:
         SetCommitCompleted(commit, commitTimestamp);
     }
 
-    void HydraAbortFailedCommit(const TReqAbortFailedCommit& request)
-    {
-
-    }
-
 
     TCommit* FindCommit(const TTransactionId& transactionId)
     {
@@ -466,22 +445,39 @@ private:
         const auto& transactionId = commit->GetTransactionId();
 
         if (HydraManager->IsMutating()) {
-            // Abort at coordinator.
-            DoAbortFailed(transactionId);
-
-            // Abort at participants.
-            TReqAbortFailedTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            PostToParticipants(commit, request);
-
-            RemoveCommit(commit);
+            DoAbortTransaction(transactionId, commit, true);
         } else {
-            TReqAbortFailedCommit request;
+            TReqHydraAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(true);
             CreateMutation(HydraManager, request)
                 ->Commit();
         }
     }
+
+    void DoAbortTransaction(const TTransactionId& transactionId, TCommit* commit, bool force)
+    {
+        try {
+            // All exceptions thrown here are caught below and ignored.
+            TransactionManager_->AbortTransaction(transactionId, force);
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
+                transactionId);
+
+            if (commit) {
+                TReqHydraAbortTransaction request;
+                ToProto(request.mutable_transaction_id(), transactionId);
+                request.set_force(force);
+                PostToParticipants(commit, request);
+
+                RemoveCommit(commit);
+            }
+        } catch (const std::exception& ex) {
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction, ignoring (TransactionId: %v)",
+                transactionId);
+        }
+    }
+
 
     void SetCommitCompleted(TCommit* commit, TTimestamp commitTimestamp)
     {

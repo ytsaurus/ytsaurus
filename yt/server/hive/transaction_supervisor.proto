@@ -33,11 +33,6 @@ message TReqFinalizeDistributedCommit
     required int64 commit_timestamp = 2;
 }
 
-message TReqAbortFailedCommit
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-}
-
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -45,9 +40,11 @@ message TReqCommitPreparedTransaction
     required bool is_distributed = 3;
 }
 
-message TReqAbortFailedTransaction
+// Not to be confused with TReqAbortTransaction from RPC.
+message TReqHydraAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
+    optional bool force = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
