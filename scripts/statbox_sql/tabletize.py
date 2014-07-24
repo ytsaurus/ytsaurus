@@ -15,7 +15,7 @@ def date_to_timestamp(date_str):
     return int((datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S") - datetime(year=1970, month=1, day=1)).total_seconds())
 
 def get_python_type(schema_type):
-    if schema_type == "integer":
+    if schema_type == "int64":
         return int
     elif schema_type == "double":
         return float
@@ -30,7 +30,7 @@ def to_yt_schema(schema):
     result = deepcopy(schema)
     for elem in result:
         if elem["type"] == "date":
-            elem["type"] = "integer"
+            elem["type"] = "int64"
     return result
 
 
@@ -83,7 +83,7 @@ def main():
     
     yt.remove(args.output, force=True)
     yt.create_table(args.output)
-    yt.set_attribute(args.output, "schema", [{"name": "hash", "type": "integer"}] + to_yt_schema(args.schema))
+    yt.set_attribute(args.output, "schema", [{"name": "hash", "type": "int64"}] + to_yt_schema(args.schema))
     yt.set_attribute(args.output, "key_columns", ["hash"] + args.key_columns)
     yt.reshard_table(args.output, [[]] + [[(i * MOD) / SHARD_COUNT] for i in xrange(1, SHARD_COUNT)])
     yt.mount_table(args.output)
