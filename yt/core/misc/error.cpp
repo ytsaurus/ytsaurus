@@ -384,12 +384,6 @@ TError operator >>= (const TErrorAttribute& attribute, TError error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TErrorException::TErrorException()
-{ }
-
-TErrorException::~TErrorException() throw()
-{ }
-
 const char* TErrorException::what() const throw()
 {
     if (CachedWhat.empty()) {

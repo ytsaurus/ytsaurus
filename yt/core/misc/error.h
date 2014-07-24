@@ -132,11 +132,9 @@ class TErrorException
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
-    TErrorException();
-    TErrorException(TErrorException&& other) noexcept = default;
+    TErrorException() = default;
     TErrorException(const TErrorException& other) = default;
-
-    ~TErrorException() throw();
+    TErrorException(TErrorException&& other) noexcept = default;
 
     virtual const char* what() const throw() override;
 
