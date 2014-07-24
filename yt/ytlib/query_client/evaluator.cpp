@@ -283,7 +283,7 @@ public:
 
         Compiler_ = CreateFragmentCompiler();
 
-        CallCodegenedFunctionPtr_ = &CallCodegenedFunction;
+        CallCgFunctionPtr_ = &CallCgFunction;
     }
 
     TQueryStatistics Run(
@@ -302,10 +302,10 @@ public:
             try {
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
-                TCodegenedFunction codegenedFunction;
+                TCgFunction cgFunction;
                 TCGVariables fragmentParams;
 
-                std::tie(codegenedFunction, fragmentParams) = Codegen(fragment);
+                std::tie(cgFunction, fragmentParams) = Codegen(fragment);
 
                 // Make TRow from fragmentParams.ConstantArray.
                 TChunkedMemoryPool memoryPool;
@@ -344,7 +344,7 @@ public:
                 executionContext.InputRowLimit = fragment.GetContext()->GetInputRowLimit();
                 executionContext.OutputRowLimit = fragment.GetContext()->GetOutputRowLimit();
 
-                CallCodegenedFunctionPtr_(codegenedFunction, constants, &executionContext);
+                CallCgFunctionPtr_(cgFunction, constants, &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
@@ -384,7 +384,7 @@ public:
     }
 
 private:
-    std::pair<TCodegenedFunction, TCGVariables> Codegen(const TPlanFragment& fragment)
+    std::pair<TCgFunction, TCGVariables> Codegen(const TPlanFragment& fragment)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
@@ -414,15 +414,15 @@ private:
         }
 
         auto cgFragment = cookie.GetValue().Get().ValueOrThrow();
-        auto codegenedFunction = cgFragment->GetCompiledBody();
+        auto cgFunction = cgFragment->GetCompiledBody();
 
-        YCHECK(codegenedFunction);
+        YCHECK(cgFunction);
 
-        return std::make_pair(codegenedFunction, std::move(variables));
+        return std::make_pair(cgFunction, std::move(variables));
     }
 
-    static void CallCodegenedFunction(
-        TCodegenedFunction codegenedFunction,
+    static void CallCgFunction(
+        TCgFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext)
     {
@@ -430,11 +430,11 @@ private:
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        codegenedFunction(constants, executionContext);
+        cgFunction(constants, executionContext);
     }
 
-    void(* volatile CallCodegenedFunctionPtr_)(
-        TCodegenedFunction codegenedFunction,
+    void(* volatile CallCgFunctionPtr_)(
+        TCgFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext);
 

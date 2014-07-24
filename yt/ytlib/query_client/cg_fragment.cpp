@@ -152,7 +152,7 @@ public:
         YCHECK(!CompiledBody_);
 
         auto parent = Module_;
-        auto type = llvm::TypeBuilder<TCodegenedFunction, false>::get(Context_);
+        auto type = llvm::TypeBuilder<TCgFunction, false>::get(Context_);
 
         YCHECK(body->getParent() == parent);
         YCHECK(body->getType() == type);
@@ -164,10 +164,10 @@ public:
 
         // TODO(sandello): Clean module here.
 
-        CompiledBody_ = reinterpret_cast<TCodegenedFunction>(fp);
+        CompiledBody_ = reinterpret_cast<TCgFunction>(fp);
     }
 
-    TCodegenedFunction GetCompiledBody()
+    TCgFunction GetCompiledBody()
     {
         return CompiledBody_;
     }
@@ -282,7 +282,7 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    TCodegenedFunction CompiledBody_;
+    TCgFunction CompiledBody_;
 
     mutable std::unordered_map<Stroka, llvm::Function*> CachedRoutines_;
 
@@ -310,7 +310,7 @@ void TCGFragment::Embody(llvm::Function* body)
     Impl_->Embody(body);
 }
 
-TCodegenedFunction TCGFragment::GetCompiledBody()
+TCgFunction TCGFragment::GetCompiledBody()
 {
     return Impl_->GetCompiledBody();
 }

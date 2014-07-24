@@ -19,7 +19,7 @@ public:
 
     void Embody(llvm::Function* body);
 
-    TCodegenedFunction GetCompiledBody();
+    TCgFunction GetCompiledBody();
 
 private:
     class TImpl;
