@@ -70,12 +70,13 @@ private:
 
     TChunkedMemoryPool MemoryPool_;
 
-    int CurrentBlockIndex_;
-    i64 CurrentRowIndex_;
+    int CurrentBlockIndex_ = 0;
+    i64 CurrentRowIndex_ = 0;
 
-    i64 RowCount_;
+    i64 RowCount_ = 0;
 
-    TAsyncErrorPromise ReadyEvent_;
+    TAsyncErrorPromise ReadyEvent_ = MakePromise(TError());
+
 
     int GetBeginBlockIndex() const;
     int GetEndBlockIndex() const;
@@ -104,10 +105,6 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     , UpperLimit_(std::move(upperLimit))
     , Timestamp_(timestamp)
     , MemoryPool_(TVersionedChunkReaderPoolTag())
-    , CurrentBlockIndex_(0)
-    , CurrentRowIndex_(0)
-    , RowCount_(0)
-    , ReadyEvent_(MakePromise(TError()))
 {
     YCHECK(CachedChunkMeta_->Misc().sorted());
     YCHECK(CachedChunkMeta_->ChunkMeta().type() == EChunkType::Table);
@@ -164,7 +161,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
             return false;
         }
 
-        if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
+        if (UpperLimit_.HasKey() && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
             return false;
         }
 
@@ -348,7 +345,7 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     }
 
     if (LowerLimit_.HasKey()) {
-        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
     }
 
     return TError();

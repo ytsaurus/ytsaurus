@@ -712,14 +712,13 @@ void TBuildingTableConsumer::OnValue(const TUnversionedValue& value)
 
 void TBuildingTableConsumer::OnEndRow()
 {
-    auto row = Builder_.GetRowAndReset();
     std::sort(
-        row.Begin(),
-        row.End(),
+        Builder_.BeginValues(),
+        Builder_.EndValues(),
         [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
             return lhs.Id < rhs.Id;
         });
-    Rows_.emplace_back(std::move(row));
+    Rows_.emplace_back(Builder_.GetRowAndReset());
     ++RowIndex_;
 }
 

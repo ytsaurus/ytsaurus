@@ -50,15 +50,13 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , SchemaIdMapping_(schemaIdMapping)
     , Schema_(chunkSchema)
     , Meta_(meta)
-    , Closed_(false)
 {
     YCHECK(Meta_.row_count() > 0);
 
-    std::vector<TUnversionedValue> key(
-        KeyColumnCount_,
-        MakeUnversionedSentinelValue(EValueType::Null, 0));
-    Key_ = TOwningKey(key.data(), key.data() + KeyColumnCount_);
-    KeyBegin_ = Key_.Begin();
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
+    }
+    Key_ = KeyBuilder_.GetRow();
 
     VersionedMeta_ = Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
 
@@ -98,7 +96,7 @@ bool TSimpleVersionedBlockReader::SkipToRowIndex(int rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool TSimpleVersionedBlockReader::SkipToKey(const TOwningKey& key)
+bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
 {
     YCHECK(!Closed_);
 
@@ -133,7 +131,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
         Schema_.Columns().size()) * RowIndex_;
 
     for (int id = 0; id < KeyColumnCount_; ++id) {
-        ReadKeyValue(KeyBegin_ + id, id);
+        ReadKeyValue(&Key_[id], id);
     }
 
     TimestampOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
@@ -172,7 +170,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
         GetColumnValueCount(Schema_.Columns().size() - 1),
         TimestampCount_);
 
-    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
     auto* beginTimestamps = row.BeginTimestamps();
     for (int i = 0; i < TimestampCount_; ++i) {
@@ -220,7 +218,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         SchemaIdMapping_.size(),
         1);
 
-    ::memcpy(row.BeginKeys(), KeyBegin_, sizeof(TUnversionedValue) * KeyColumnCount_);
+    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
     
     auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
     auto timestampValue = timestamp & TimestampValueMask;
@@ -366,7 +364,7 @@ TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex, int i
     return *reinterpret_cast<TTimestamp*>(ptr + 8);
 }
 
-const TOwningKey& TSimpleVersionedBlockReader::GetKey() const
+TKey TSimpleVersionedBlockReader::GetKey() const
 {
     return Key_;
 }

@@ -28,9 +28,9 @@ public:
     bool NextRow();
 
     bool SkipToRowIndex(int rowIndex);
-    bool SkipToKey(const TOwningKey& key);
+    bool SkipToKey(TKey key);
     
-    const TOwningKey& GetKey() const;
+    TKey GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
     static int FormatVersion;
@@ -59,13 +59,13 @@ private:
 
     TRef StringData_;
 
-    bool Closed_;
+    bool Closed_ = false;
 
-    // Members describing current row.
     int RowIndex_;
 
-    TOwningKey Key_;
-    TUnversionedValue* KeyBegin_;
+    TUnversionedRowBuilder KeyBuilder_;
+    TKey Key_;
+
     char* KeyDataPtr_;
     i64 TimestampOffset_;
     i64 ValueOffset_;

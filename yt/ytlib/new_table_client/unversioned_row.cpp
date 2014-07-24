@@ -845,7 +845,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
         return TUnversionedOwningRow();
     }
 
-    const char* current = ~data;
+    const char* current = data.data();
 
     ui32 version;
     current += ReadVarUInt32(current, &version);
@@ -1116,6 +1116,16 @@ void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     }
 
     ++header->Count;
+}
+
+TUnversionedValue* TUnversionedOwningRowBuilder::BeginValues()
+{
+    return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1);
+}
+
+TUnversionedValue* TUnversionedOwningRowBuilder::EndValues()
+{
+    return BeginValues() + GetHeader()->Count;
 }
 
 TUnversionedOwningRow TUnversionedOwningRowBuilder::GetRowAndReset()

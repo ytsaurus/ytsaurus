@@ -300,7 +300,7 @@ void ValidateClientDataRow(TUnversionedRow row, int keyColumnCount);
 /*! The row must obey the following properties:
  *  1. Its value count must pass #ValidateRowValueCount checks.
  *  2. It must contain all key components (values with ids in range [0, keyColumnCount - 1])
- *  in this order at the very begining.
+ *  in this order at the very beginning.
  */
 void ValidateServerDataRow(TUnversionedRow row, int keyColumnCount);
 
@@ -400,18 +400,18 @@ public:
     }
 
     TUnversionedOwningRow(const TUnversionedOwningRow& other)
-        : RowData(other.RowData)
-        , StringData(other.StringData)
+        : RowData_(other.RowData_)
+        , StringData_(other.StringData_)
     { }
 
     TUnversionedOwningRow(TUnversionedOwningRow&& other)
-        : RowData(std::move(other.RowData))
-        , StringData(std::move(other.StringData))
+        : RowData_(std::move(other.RowData_))
+        , StringData_(std::move(other.StringData_))
     { }
 
     explicit operator bool() const
     {
-        return static_cast<bool>(RowData);
+        return static_cast<bool>(RowData_);
     }
 
     const TUnversionedValue* Begin() const
@@ -420,21 +420,8 @@ public:
         return header ? reinterpret_cast<const TUnversionedValue*>(header + 1) : nullptr;
     }
 
-    TUnversionedValue* Begin()
-    {
-        RowData.EnsureNonShared<TOwningRowTag>();
-        auto* header = GetHeader();
-        return header ? reinterpret_cast<TUnversionedValue*>(header + 1) : nullptr;
-    }
-
     const TUnversionedValue* End() const
     {
-        return Begin() + GetCount();
-    }
-
-    TUnversionedValue* End()
-    {
-        RowData.EnsureNonShared<TOwningRowTag>();
         return Begin() + GetCount();
     }
 
@@ -449,41 +436,31 @@ public:
         return Begin()[index];
     }
 
-    TUnversionedValue& operator[] (int index)
-    {
-        RowData.EnsureNonShared<TOwningRowTag>();
-        return Begin()[index];
-    }
-
     const TUnversionedRow Get() const
     {
         return TUnversionedRow(const_cast<TUnversionedRowHeader*>(GetHeader()));
     }
 
-    TUnversionedRow Get()
-    {
-        RowData.EnsureNonShared<TOwningRowTag>();
-        return TUnversionedRow(GetHeader());
-    }
 
     friend void swap(TUnversionedOwningRow& lhs, TUnversionedOwningRow& rhs)
     {
         using std::swap;
-        swap(lhs.RowData, rhs.RowData);
-        swap(lhs.StringData, rhs.StringData);
+
+        swap(lhs.RowData_, rhs.RowData_);
+        swap(lhs.StringData_, rhs.StringData_);
     }
 
     TUnversionedOwningRow& operator=(const TUnversionedOwningRow& other)
     {
-        RowData = other.RowData;
-        StringData = other.StringData;
+        RowData_ = other.RowData_;
+        StringData_ = other.StringData_;
         return *this;
     }
 
     TUnversionedOwningRow& operator=(TUnversionedOwningRow&& other)
     {
-        RowData = std::move(other.RowData);
-        StringData = std::move(other.StringData);
+        RowData_ = std::move(other.RowData_);
+        StringData_ = std::move(other.StringData_);
         return *this;
     }
 
@@ -497,22 +474,22 @@ private:
 
     friend class TUnversionedOwningRowBuilder;
 
-    TSharedRef RowData; // TRowHeader plus TValue-s
-    Stroka StringData;  // Holds string data
+    TSharedRef RowData_; // TRowHeader plus TValue-s
+    Stroka StringData_;  // Holds string data
 
     TUnversionedOwningRow(TSharedRef rowData, Stroka stringData)
-        : RowData(std::move(rowData))
-        , StringData(std::move(stringData))
+        : RowData_(std::move(rowData))
+        , StringData_(std::move(stringData))
     { }
 
     TUnversionedRowHeader* GetHeader()
     {
-        return RowData ? reinterpret_cast<TUnversionedRowHeader*>(RowData.Begin()) : nullptr;
+        return RowData_ ? reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
 
     const TUnversionedRowHeader* GetHeader() const
     {
-        return RowData ? reinterpret_cast<const TUnversionedRowHeader*>(RowData.Begin()) : nullptr;
+        return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
 
     void Init(const TUnversionedValue* begin, const TUnversionedValue* end)
@@ -520,7 +497,7 @@ private:
         int count = std::distance(begin, end);
 
         size_t fixedSize = GetUnversionedRowDataSize(count);
-        RowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+        RowData_ = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
         auto* header = GetHeader();
 
         header->Count = count;
@@ -536,8 +513,8 @@ private:
         }
 
         if (variableSize != 0) {
-            StringData.resize(variableSize);
-            char* current = const_cast<char*>(StringData.data());
+            StringData_.resize(variableSize);
+            char* current = const_cast<char*>(StringData_.data());
 
             for (int index = 0; index < count; ++index) {
                 const auto& otherValue = begin[index];
@@ -591,6 +568,9 @@ public:
     explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16);
 
     void AddValue(const TUnversionedValue& value);
+    TUnversionedValue* BeginValues();
+    TUnversionedValue* EndValues();
+
     TUnversionedOwningRow GetRowAndReset();
 
 private:
