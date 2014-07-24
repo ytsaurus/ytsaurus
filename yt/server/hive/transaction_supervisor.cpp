@@ -440,6 +440,11 @@ private:
         SetCommitCompleted(commit, commitTimestamp);
     }
 
+    void HydraAbortFailedCommit(const TReqAbortFailedCommit& request)
+    {
+
+    }
+
 
     TCommit* FindCommit(const TTransactionId& transactionId)
     {
@@ -460,20 +465,20 @@ private:
 
         const auto& transactionId = commit->GetTransactionId();
 
-        TReqAbortFailedTransaction abortFailedRequest;
-        ToProto(abortFailedRequest.mutable_transaction_id(), transactionId);
-
         if (HydraManager->IsMutating()) {
             // Abort at coordinator.
             DoAbortFailed(transactionId);
 
             // Abort at participants.
-            PostToParticipants(commit, abortFailedRequest);
+            TReqAbortFailedTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            PostToParticipants(commit, request);
 
             RemoveCommit(commit);
         } else {
-            YCHECK(commit->ParticipantCellGuids().empty());
-            CreateMutation(HydraManager, abortFailedRequest)
+            TReqAbortFailedCommit request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            CreateMutation(HydraManager, request)
                 ->Commit();
         }
     }

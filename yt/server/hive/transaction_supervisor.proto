@@ -33,6 +33,11 @@ message TReqFinalizeDistributedCommit
     required int64 commit_timestamp = 2;
 }
 
+message TReqAbortFailedCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
