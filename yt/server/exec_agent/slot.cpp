@@ -142,8 +142,8 @@ void TSlot::DoCleanProcessGroups()
 void TSlot::Clean()
 {
     try {
-        DoCleanSandbox();
         DoCleanProcessGroups();
+        DoCleanSandbox();
     } catch (const std::exception& ex) {
         LOG_FATAL("%s", ex.what());
     }
