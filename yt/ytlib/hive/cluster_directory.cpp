@@ -33,11 +33,11 @@ IConnectionPtr TClusterDirectory::GetConnection(TCellId cellId) const
 
 IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellId cellId) const
 {
-    auto client = GetConnection(cellId);
-    if (!client) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %d", ~cellId);
+    auto connection = GetConnection(cellId);
+    if (!connection) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with cell id %v", cellId);
     }
-    return client;
+    return connection;
 }
 
 IConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
@@ -49,11 +49,21 @@ IConnectionPtr TClusterDirectory::GetConnection(const Stroka& clusterName) const
 
 IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const Stroka& clusterName) const
 {
-    auto client = GetConnection(clusterName);
-    if (!client) {
-        THROW_ERROR_EXCEPTION("Cannot find cluster with name %s", ~clusterName.Quote());
+    auto connection = GetConnection(clusterName);
+    if (!connection) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
     }
-    return client;
+    return connection;
+}
+
+TNullable<Stroka> TClusterDirectory::GetDefaultNetwork(const Stroka& clusterName) const
+{
+    TGuard<TSpinLock> guard(Lock_);
+    auto it = NameMap_.find(clusterName);
+    if (it == NameMap_.end()) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
+    }
+    return it == NameMap_.end() ? Null : it->second.DefaultNetwork;
 }
 
 TConnectionConfigPtr TClusterDirectory::GetConnectionConfig(const Stroka& clusterName) const
@@ -61,6 +71,15 @@ TConnectionConfigPtr TClusterDirectory::GetConnectionConfig(const Stroka& cluste
     TGuard<TSpinLock> guard(Lock_);
     auto it = NameMap_.find(clusterName);
     return it == NameMap_.end() ? nullptr : it->second.ConnectionConfig;
+}
+
+TConnectionConfigPtr TClusterDirectory::GetConnectionConfigOrThrow(const Stroka& clusterName) const
+{
+    auto connectionConfig = GetConnectionConfig(clusterName);
+    if (!connectionConfig) {
+        THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
+    }
+    return connectionConfig;
 }
 
 std::vector<Stroka> TClusterDirectory::GetClusterNames() const
@@ -87,7 +106,8 @@ void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
 void TClusterDirectory::UpdateCluster(
     const Stroka& clusterName,
     TConnectionConfigPtr config,
-    TCellId cellId)
+    TCellId cellId,
+    TNullable<Stroka> defaultNetwork)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         if (CellIdMap_.find(cluster.CellId) != CellIdMap_.end()) {
@@ -102,18 +122,21 @@ void TClusterDirectory::UpdateCluster(
         auto cluster = CreateCluster(
             clusterName,
             config,
-            cellId);
+            cellId,
+            defaultNetwork);
 
         TGuard<TSpinLock> guard(Lock_);
         addNewCluster(cluster);
     } else if (!AreNodesEqual(
             ConvertToNode(*(it->second.ConnectionConfig)),
-            ConvertToNode(*config)))
+            ConvertToNode(*config)) ||
+            !(defaultNetwork == it->second.DefaultNetwork))
     {
         auto cluster = CreateCluster(
             clusterName,
             config,
-            cellId);
+            cellId,
+            defaultNetwork);
 
         TGuard<TSpinLock> guard(Lock_);
         CellIdMap_.erase(it->second.CellId);
@@ -132,13 +155,15 @@ void TClusterDirectory::UpdateSelf()
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
     const Stroka& name,
     TConnectionConfigPtr config,
-    TCellId cellId) const
+    TCellId cellId,
+    TNullable<Stroka> defaultNetwork) const
 {
     TCluster cluster;
     cluster.Name = name;
     cluster.Connection = CreateConnection(config);
     cluster.ConnectionConfig = config;
     cluster.CellId = cellId;
+    cluster.DefaultNetwork = defaultNetwork;
 
     return cluster;
 }
@@ -153,6 +178,7 @@ TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
     cluster.Name = "";
     cluster.Connection = SelfConnection_;
     cluster.CellId = cellId;
+    cluster.DefaultNetwork = Null;
 
     return cluster;
 

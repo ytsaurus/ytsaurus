@@ -1680,10 +1680,18 @@ private:
 
                     auto cellId = ConvertTo<TCellId>(clusterNode->GetChild("cell_id"));
 
+                    TNullable<Stroka> defaultNetwork = Null;
+                    {
+                        auto child = clusterNode->FindChild("default_network");
+                        if (child) {
+                            defaultNetwork = ConvertTo<Stroka>(child);
+                        }
+                    }
+
                     auto connectionConfig = New<NApi::TConnectionConfig>();
                     connectionConfig->Load(clusterNode->GetChild("connection"));
 
-                    ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId);
+                    ClusterDirectory->UpdateCluster(clusterName, connectionConfig, cellId, defaultNetwork);
                 }
                 LOG_DEBUG("Cell directory updated successfully");
             } catch (const std::exception& ex) {

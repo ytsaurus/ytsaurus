@@ -23,7 +23,10 @@ public:
     NApi::IConnectionPtr GetConnection(const Stroka& clusterName) const;
     NApi::IConnectionPtr GetConnectionOrThrow(const Stroka& clusterName) const;
 
+    TNullable<Stroka> GetDefaultNetwork(const Stroka& clusterName) const;
+
     NApi::TConnectionConfigPtr GetConnectionConfig(const Stroka& clusterName) const;
+    NApi::TConnectionConfigPtr GetConnectionConfigOrThrow(const Stroka& clusterName) const;
 
     std::vector<Stroka> GetClusterNames() const;
 
@@ -32,7 +35,8 @@ public:
     void UpdateCluster(
         const Stroka& clusterName,
         NApi::TConnectionConfigPtr config,
-        NObjectClient::TCellId cellId);
+        NObjectClient::TCellId cellId,
+        TNullable<Stroka> defaultNetwork);
 
     void UpdateSelf();
 
@@ -46,6 +50,7 @@ private:
         NApi::TConnectionConfigPtr ConnectionConfig;
         NObjectClient::TCellId CellId;
         Stroka Name;
+        TNullable<Stroka> DefaultNetwork;
     };
 
     TSpinLock Lock_;
@@ -56,7 +61,8 @@ private:
     TCluster CreateCluster(
         const Stroka& name,
         NApi::TConnectionConfigPtr config,
-        NObjectClient::TCellId cellId) const;
+        NObjectClient::TCellId cellId,
+        TNullable<Stroka> defaultNetwork) const;
     TCluster CreateSelfCluster() const;
 
 };

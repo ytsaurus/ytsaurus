@@ -394,11 +394,23 @@ private:
             Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
+        auto clusterDirectory = Host->GetClusterDirectory();
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(
             TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         remoteCopyJobSpecExt->set_connection_config(
-            ConvertToYsonString(Host->GetClusterDirectory()->GetConnectionConfig(Spec_->ClusterName)).Data());
-        remoteCopyJobSpecExt->set_network_name(Spec_->NetworkName);
+            ConvertToYsonString(clusterDirectory->GetConnectionConfigOrThrow(Spec_->ClusterName)).Data());
+
+        auto networkName = NNodeTrackerClient::DefaultNetworkName;
+        if (Spec_->NetworkName) {
+            networkName = *Spec_->NetworkName;
+        } else {
+            auto defaultNetwork = clusterDirectory->GetDefaultNetwork(Spec_->ClusterName);
+            if (defaultNetwork) {
+                networkName = *defaultNetwork;
+            }
+        }
+
+        remoteCopyJobSpecExt->set_network_name(networkName);
     }
 
 };
