@@ -72,11 +72,15 @@ public:
     static bool CloseLease(TLease lease)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(lease);
+
+        if (!lease) {
+            return false;
+        }
 
         TGuard<TSpinLock> guard(lease->SpinLock);
-        if (!lease->IsValid)
+        if (!lease->IsValid) {
             return false;
+        }
 
         InvalidateLease(lease);
         return true;
