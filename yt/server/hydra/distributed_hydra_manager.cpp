@@ -200,11 +200,13 @@ public:
 
         ElectionManager_.Reset();
 
-        if (EpochContext_) {
+        if (ControlEpochContext_) {
             StopEpoch();
         }
 
         ControlState_ = EPeerState::Stopped;
+
+        AutomatonInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStop, MakeStrong(this)));
 
         LOG_INFO("Hydra instance stopped");
     }
@@ -234,7 +236,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
         return epochContext ? epochContext->IsActiveLeader : false;
     }
 
@@ -242,7 +244,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return EpochContext_;
+        return ControlEpochContext_;
     }
 
     virtual NElection::TEpochContextPtr GetAutomatonEpochContext() const override
@@ -283,7 +285,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         if (!epochContext || GetAutomatonState() != EPeerState::Leading) {
             return MakeFuture<TErrorOr<int>>(TError(
@@ -355,7 +357,7 @@ public:
                 "Read-only mode is active")));
         }
 
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
         if (!epochContext || !epochContext->IsActiveLeader) {
             return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NHydra::EErrorCode::NoQuorum,
@@ -425,7 +427,7 @@ private:
     TElectionManagerPtr ElectionManager_;
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
-    TEpochContextPtr EpochContext_;
+    TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
     NProfiling::TProfiler Profiler;
@@ -508,7 +510,7 @@ private:
         switch (ControlState_) {
             case EPeerState::Following: {
                 auto this_ = MakeStrong(this);
-                EpochContext_->FollowerCommitter->LogMutations(startVersion, request->Attachments())
+                ControlEpochContext_->FollowerCommitter->LogMutations(startVersion, request->Attachments())
                     .Subscribe(BIND([this, this_, context, response] (TError error) {
                         response->set_logged(error.IsOK());
 
@@ -522,8 +524,8 @@ private:
             }
 
             case EPeerState::FollowerRecovery: {
-                if (EpochContext_->FollowerRecovery) {
-                    auto error = EpochContext_->FollowerRecovery->PostponeMutations(startVersion, request->Attachments());
+                if (ControlEpochContext_->FollowerRecovery) {
+                    auto error = ControlEpochContext_->FollowerRecovery->PostponeMutations(startVersion, request->Attachments());
                     if (!error.IsOK()) {
                         LOG_WARNING(error, "Error postponing mutations, restarting");
                         Restart();
@@ -565,7 +567,7 @@ private:
         }
 
         ValidateEpoch(epochId);
-        auto* epochContext = EpochContext_.Get();
+        auto* epochContext = ControlEpochContext_.Get();
 
         switch (ControlState_) {
             case EPeerState::Following:
@@ -622,7 +624,7 @@ private:
         }
 
         ValidateEpoch(epochId);
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         SwitchTo(epochContext->EpochUserAutomatonInvoker);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -665,7 +667,7 @@ private:
         }
 
         ValidateEpoch(epochId);
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         switch (ControlState_) {
             case EPeerState::Following: {
@@ -734,6 +736,13 @@ private:
         ElectionManager_->Stop();
     }
 
+
+    void DoStop()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        AutomatonEpochContext_.Reset();
+    }
 
     void DoParticipate()
     {
@@ -865,7 +874,7 @@ private:
         ControlState_ = EPeerState::LeaderRecovery;
 
         StartEpoch();
-        auto* epochContext = EpochContext_.Get();
+        auto* epochContext = ControlEpochContext_.Get();
 
         epochContext->FollowerTracker = New<TFollowerTracker>(
             Config_->FollowerTracker,
@@ -913,7 +922,7 @@ private:
         try {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            auto* epochContext = EpochContext_.Get();
+            auto* epochContext = ControlEpochContext_.Get();
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
                 Config_,
                 CellManager_,
@@ -1013,7 +1022,7 @@ private:
         ControlState_ = EPeerState::FollowerRecovery;
 
         StartEpoch();
-        auto* epochContext = EpochContext_.Get();
+        auto* epochContext = ControlEpochContext_.Get();
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             CellManager_,
@@ -1034,7 +1043,7 @@ private:
         try {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            auto epochContext = EpochContext_;
+            auto epochContext = ControlEpochContext_;
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1095,30 +1104,30 @@ private:
 
         auto electionEpochContext = ElectionManager_->GetEpochContext();
 
-        YCHECK(!EpochContext_);
-        EpochContext_ = New<TEpochContext>();
-        EpochContext_->LeaderId = electionEpochContext->LeaderId;
-        EpochContext_->EpochId = electionEpochContext->EpochId;
-        EpochContext_->StartTime = electionEpochContext->StartTime;
-        EpochContext_->CancelableContext = electionEpochContext->CancelableContext;
-        EpochContext_->EpochControlInvoker = EpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
-        EpochContext_->EpochSystemAutomatonInvoker = EpochContext_->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
-        EpochContext_->EpochUserAutomatonInvoker = EpochContext_->CancelableContext->CreateInvoker(AutomatonInvoker_);
+        YCHECK(!ControlEpochContext_);
+        ControlEpochContext_ = New<TEpochContext>();
+        ControlEpochContext_->LeaderId = electionEpochContext->LeaderId;
+        ControlEpochContext_->EpochId = electionEpochContext->EpochId;
+        ControlEpochContext_->StartTime = electionEpochContext->StartTime;
+        ControlEpochContext_->CancelableContext = electionEpochContext->CancelableContext;
+        ControlEpochContext_->EpochControlInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
+        ControlEpochContext_->EpochSystemAutomatonInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(DecoratedAutomaton_->GetSystemInvoker());
+        ControlEpochContext_->EpochUserAutomatonInvoker = ControlEpochContext_->CancelableContext->CreateInvoker(AutomatonInvoker_);
     }
 
     void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(EpochContext_);
-        EpochContext_->IsActiveLeader = false;
-        EpochContext_->CancelableContext->Cancel();
-        EpochContext_.Reset();
+        YCHECK(ControlEpochContext_);
+        ControlEpochContext_->IsActiveLeader = false;
+        ControlEpochContext_->CancelableContext->Cancel();
+        ControlEpochContext_.Reset();
     }
 
     void ValidateEpoch(const TEpochId& epochId)
     {
-        auto currentEpochId = EpochContext_->EpochId;
+        auto currentEpochId = ControlEpochContext_->EpochId;
         if (epochId != currentEpochId) {
             THROW_ERROR_EXCEPTION(
                 NHydra::EErrorCode::InvalidEpoch,
@@ -1131,7 +1140,7 @@ private:
 
     TFollowerTrackerPtr GetFollowerTrackerAsync() const
     {
-        auto epochContext = EpochContext_;
+        auto epochContext = ControlEpochContext_;
         return epochContext ? epochContext->FollowerTracker : nullptr;
     }
 
@@ -1143,7 +1152,7 @@ private:
         if ((ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery) &&
             peerId != CellManager_->GetSelfId())
         {
-            EpochContext_->FollowerTracker->ResetFollower(peerId);
+            ControlEpochContext_->FollowerTracker->ResetFollower(peerId);
         }
     }
 
