@@ -58,8 +58,9 @@ public:
     explicit TStatisticsConvertor(TStatisticsConsumer consumer);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnInt64Scalar(i64 value) override;
     virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity() override;
 
     virtual void OnBeginList() override;

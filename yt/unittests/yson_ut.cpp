@@ -17,6 +17,29 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonTest, GetYPath)
+{
+    Stroka yson = "{key=value; submap={ other_key=other_value; }}";
+    auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
+
+    EXPECT_EQ("/submap/other_key", node->AsMap()->GetChild("submap")->AsMap()->GetChild("other_key")->GetPath());
+}
+
+TEST(TYsonTest, SetNodeByYPath)
+{
+    auto node = NYT::NYTree::ConvertToNode(TYsonString("{}"));
+    ForceYPath(node, "/submap/other_key");
+
+    auto submap = node->AsMap()->GetChild("submap")->AsMap();
+    EXPECT_EQ(0, submap->GetChildCount());
+
+    auto value = NYT::NYTree::ConvertToNode(TYsonString("4"));
+
+    SetNodeByYPath(node, "/submap/other_key", value);
+    submap = node->AsMap()->GetChild("submap")->AsMap();
+    EXPECT_EQ(4, ConvertTo<int>(submap->GetChild("other_key")));
+}
+
 TEST(TYsonTest, ConvertToNode)
 {
     Stroka yson = "{key=value; other_key=10}";

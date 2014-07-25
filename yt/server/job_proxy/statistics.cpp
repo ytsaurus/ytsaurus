@@ -98,9 +98,14 @@ void TStatisticsConvertor::OnStringScalar(const TStringBuf& value)
     YUNREACHABLE();
 }
 
-void TStatisticsConvertor::OnIntegerScalar(i64 value)
+void TStatisticsConvertor::OnInt64Scalar(i64 value)
 {
     Statistics_.Add(LastKey_, TSummary(value));
+}
+
+void TStatisticsConvertor::OnBooleanScalar(bool value)
+{
+    YUNREACHABLE();
 }
 
 void TStatisticsConvertor::OnDoubleScalar(double value)
