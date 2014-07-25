@@ -54,10 +54,10 @@ private:
     size_t MaxSmallBlockSize_;
     void* TagCookie_;
 
-    int CurrentChunkIndex_;
+    int CurrentChunkIndex_ = 0;
 
-    i64 Size_;
-    i64 Capacity_;
+    i64 Size_ = 0;
+    i64 Capacity_ = 0;
 
     char* CurrentPtr_;
     char* EndPtr_;

@@ -17,9 +17,6 @@ TChunkedMemoryPool::TChunkedMemoryPool(
     : ChunkSize_ ((chunkSize + 7) & ~7) // must be aligned
     , MaxSmallBlockSize_(static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio))
     , TagCookie_(tagCookie)
-    , CurrentChunkIndex_(0)
-    , Size_(0)
-    , Capacity_(0)
 {
     SetupPointers();
 }
