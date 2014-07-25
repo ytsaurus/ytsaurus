@@ -154,11 +154,11 @@ TEST_F(TLoggingTest, LogManager)
     auto config = R"({
         rules = [
             {
-                "min_level" = "Info";
+                "min_level" = "info";
                 "writers" = [ "info" ];
             };
             {
-                "min_level" = "Error";
+                "min_level" = "error";
                 "writers" = [ "error" ];
             };
         ];
@@ -169,7 +169,7 @@ TEST_F(TLoggingTest, LogManager)
             };
             "info" = {
                 "file_name" = "test.log";
-                "type" = "File";
+                "type" = "file";
             };
         };
     })";
@@ -202,14 +202,14 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
     auto config = R"({
         rules = [
             {
-                "min_level" = "Info";
+                "min_level" = "info";
                 "writers" = [ "info" ];
             };
         ];
         "writers" = {
             "info" = {
                 "file_name" = "test.log";
-                "type" = "File";
+                "type" = "file";
             };
         };
     })";
