@@ -1108,6 +1108,8 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
         Rows_->Insert(row);
     }
+
+    OnMemoryUsageUpdated();
 }
 
 void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
