@@ -36,11 +36,13 @@ if [ "$PACKAGE" = "yandex-yt-python" ]; then
     export YT_PROXY=kant.yt.yandex.net
     DEST="//home/files"
 
+    python setup.py sdist upload -r yandex
+
     make egg
     EGG_VERSION=$(echo $VERSION | tr '-' '_')
-    eggname="YandexYt-${EGG_VERSION}_-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/YandexYt-${VERSION}-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/YandexYt-py2.7.egg"
+    eggname="yandex-yt-${EGG_VERSION}-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/yandex-yt-${VERSION}-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/yandex-yt-py2.7.egg"
     
     # Upload self-contained binaries
     mv yt/wrapper/pickling.py pickling.py

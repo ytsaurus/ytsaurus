@@ -1,13 +1,11 @@
+from helpers import get_version
+
 from setuptools import setup
 
-import subprocess
-
 def main():
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
-
     setup(
-        name = "YandexYtYsonBindings",
-        version = version,
+        name = "yandex-yt-yson-bindings",
+        version = get_version(),
         packages = ["yt.bindings.yson"],
         package_data = {"yt.bindings.yson": ["yson_lib.so"] },
 
