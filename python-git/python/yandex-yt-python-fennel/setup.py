@@ -1,29 +1,16 @@
-import os
-import subprocess
+from helpers import get_version, prepare_files
 
 from setuptools import setup
 
 def main():
-    scripts = []
-    data_files = []
-    files = [
-        "yt/fennel/binaries/fennel.py"
-    ]
-    for file in files:
-        # in egg and debian cases strategy of binary distribution is different
-        if "EGG" in os.environ:
-            scripts.append(file)
-        else:
-            data_files.append(("/usr/bin", [file]))
-
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
+    scripts, data_files = prepare_files(["yt/fennel/binaries/fennel.py"])
 
     setup(
-        name="fennel",
-        version=version,
+        name="yandex-yt-fennel",
+        version=get_version(),
         packages = [ "yt.fennel" ],
 
-        scripts = files,
+        scripts = scripts,
         data_files = data_files,
 
         author="Oleksandr Pryimak",

@@ -1,33 +1,23 @@
-from setuptools import setup
+from helpers import get_version, prepare_files
 
-import os
-import subprocess
+from setuptools import setup
 
 def main():
     requires =["yandex-yt-python", "python-sh"]
 
-    scripts = []
-    data_files = []
-    files = ["yt/tools/binaries/import_from_mr.py",
-             "yt/tools/binaries/export_to_mr.py",
-             "yt/tools/binaries/export_to_yt.py",
-             "yt/tools/binaries/yt_add_user.py",
-             "yt/tools/binaries/yt_set_account.py",
-             "yt/tools/binaries/yt_convert_to_erasure.py",
-             "yt/tools/binaries/yt_lock.py",
-             "yt/tools/binaries/yt_doctor.py"]
-    for file in files:
-        # in egg and debian cases strategy of binary distribution is different
-        if "EGG" in os.environ:
-            scripts.append(file)
-        else:
-            data_files.append(("/usr/bin", [file]))
-
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
+    scripts, data_files = prepare_files([
+        "yt/tools/binaries/import_from_mr.py",
+        "yt/tools/binaries/export_to_mr.py",
+        "yt/tools/binaries/export_to_yt.py",
+        "yt/tools/binaries/yt_add_user.py",
+        "yt/tools/binaries/yt_set_account.py",
+        "yt/tools/binaries/yt_convert_to_erasure.py",
+        "yt/tools/binaries/yt_lock.py",
+        "yt/tools/binaries/yt_doctor.py"])
 
     setup(
-        name = "YandexYtTools",
-        version = version,
+        name = "yandex-yt-tools",
+        version = get_version(),
         packages = ["yt.tools"],
 
         scripts = scripts,

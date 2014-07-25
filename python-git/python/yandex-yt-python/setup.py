@@ -1,3 +1,5 @@
+from helpers import get_version, prepare_files
+
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
@@ -35,23 +37,14 @@ def main():
         requires.append("argparse")
 
 
-    scripts = []
-    data_files = []
-    # in egg and debian cases strategy of binary distribution is different
-    if "EGG" in os.environ:
-        scripts.append("yt/wrapper/mapreduce-yt")
-        scripts.append("yt/wrapper/yt2")
-    else:
-        data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
-        data_files.append(("/usr/bin", ["yt/wrapper/yt2"]))
+    scripts, data_files = prepare_files(["yt/wrapper/mapreduce-yt", "yt/wrapper/yt2"])
+    if "EGG" not in os.environ:
         data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
     
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
-
     find_packages("yt/packages")
     setup(
-        name = "YandexYt",
-        version = version,
+        name = "yandex-yt",
+        version = get_version(),
         packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
         scripts = scripts,
 

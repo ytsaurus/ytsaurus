@@ -1,26 +1,14 @@
-from setuptools import setup
+from helpers import get_version, prepare_files
 
-import os
-import subprocess
+from setuptools import setup
 
 def main():
     requires =["yandex-yt-python", "python-flask"]
-
-    scripts = []
-    data_files = []
-    files = ["yt/transfer_manager/yt_transfer_manager"]
-    for file in files:
-        # in egg and debian cases strategy of binary distribution is different
-        if "EGG" in os.environ:
-            scripts.append(file)
-        else:
-            data_files.append(("/usr/bin", [file]))
-
-    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
+    scripts, data_files = prepare_files(["yt/transfer_manager/yt_transfer_manager"])
 
     setup(
-        name = "YandexYtTransferManager",
-        version = version,
+        name = "yandex-yt-transfer-manager",
+        version = get_version(),
         packages = [],
 
         scripts = scripts,
