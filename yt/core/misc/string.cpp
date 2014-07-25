@@ -89,4 +89,23 @@ Stroka FormatBool(bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka DecodeEnumValue(const Stroka& value)
+{
+    auto camelValue = UnderscoreCaseToCamelCase(value);
+    auto underscoreValue = CamelCaseToUnderscoreCase(camelValue);
+    if (value != underscoreValue) {
+        THROW_ERROR_EXCEPTION("Enum value %Qv is not in a proper underscore case; did you mean %Qv?",
+            value,
+            underscoreValue);
+    }
+    return camelValue;
+}
+
+Stroka EncodeEnumValue(const Stroka& value)
+{
+    return CamelCaseToUnderscoreCase(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

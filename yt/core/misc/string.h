@@ -228,12 +228,15 @@ Stroka FormatBool(bool value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka DecodeEnumValue(const Stroka& value);
+Stroka EncodeEnumValue(const Stroka& value);
+
 template <class T>
 inline T ParseEnum(
     const Stroka& value,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0)
 {
-    return T::FromString(UnderscoreCaseToCamelCase(value));
+    return T::FromString(DecodeEnumValue(value));
 }
 
 template <class T>
@@ -241,7 +244,7 @@ Stroka FormatEnum(
     T value,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0)
 {
-    return CamelCaseToUnderscoreCase(ToString(value));
+    return EncodeEnumValue(ToString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
