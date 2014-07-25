@@ -386,12 +386,12 @@ private:
 
         {
             if (!UserJobSpec.use_yamr_descriptors()) {
-                std::unique_ptr<NYson::IYsonConsumer> consumer(new TStatisticsConvertor(BIND(&TUserJob::ConsumeStatistics, this)));
+                auto consumer = std::make_unique<TStatisticsConvertor>(BIND(&TUserJob::ConsumeStatistics, this));
                 auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-                JobStatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
+                StatisticsOutput.reset(new TTableOutput(std::move(parser), std::move(consumer)));
 
                 createPipe(pipe);
-                OutputPipes.push_back(New<TOutputPipe>(pipe, JobStatisticsOutput.get(), JobStatisticsFD));
+                OutputPipes.push_back(New<TOutputPipe>(pipe, StatisticsOutput.get(), JobStatisticsFD));
             }
         }
 
@@ -633,7 +633,7 @@ private:
 
     TPeriodicExecutorPtr MemoryWatchdogExecutor;
 
-    std::unique_ptr<TTableOutput> JobStatisticsOutput;
+    std::unique_ptr<TTableOutput> StatisticsOutput;
     std::unique_ptr<TErrorOutput> ErrorOutput;
     TNullOutput NullErrorOutput;
     std::vector< std::unique_ptr<TOutputStream> > TableOutput;

@@ -15,9 +15,10 @@ class TSummary
 public:
     TSummary();
     explicit TSummary(i64 value);
+
     void Merge(const TSummary& other);
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, Summ);
+    DEFINE_BYVAL_RO_PROPERTY(i64, Sum);
     DEFINE_BYVAL_RO_PROPERTY(i64, Count);
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);

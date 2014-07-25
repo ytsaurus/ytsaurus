@@ -22,16 +22,16 @@ TEST(TSummary, MergeBasic)
 
     sum1.Merge(sum2);
 
-    ASSERT_EQ(sum1.GetMin(), 10);
-    ASSERT_EQ(sum1.GetMax(), 20);
-    ASSERT_EQ(sum1.GetCount(), 2);
-    ASSERT_EQ(sum1.GetSumm(), 30);
+    EXPECT_EQ(10, sum1.GetMin());
+    EXPECT_EQ(20, sum1.GetMax());
+    EXPECT_EQ(2, sum1.GetCount());
+    EXPECT_EQ(30, sum1.GetSum());
 }
 
 TEST(TStatistics, Empty)
 {
     TStatistics statistics;
-    ASSERT_TRUE(statistics.Statistics().empty());
+    EXPECT_TRUE(statistics.Statistics().empty());
 }
 
 TEST(TStatistics, Add)
@@ -39,7 +39,7 @@ TEST(TStatistics, Add)
     TStatistics statistics;
     statistics.Add("key", TSummary(10));
 
-    ASSERT_EQ(statistics.Statistics().at("key").GetSumm(), 10);
+    EXPECT_EQ(10, statistics.Statistics().at("key").GetSum());
 }
 
 TEST(TStatistics, Clear)
@@ -48,7 +48,7 @@ TEST(TStatistics, Clear)
     statistics.Add("key", TSummary(10));
     statistics.Clear();
 
-    ASSERT_TRUE(statistics.Statistics().empty());
+    EXPECT_TRUE(statistics.Statistics().empty());
 }
 
 TEST(TStatistics, MergeDifferent)
@@ -56,13 +56,12 @@ TEST(TStatistics, MergeDifferent)
     TStatistics statistics;
     statistics.Add("key", TSummary(10));
 
-
     TStatistics other;
     other.Add("other_key", TSummary(40));
 
     statistics.Merge(other);
 
-    ASSERT_EQ(statistics.Statistics().size(), 2);
+    EXPECT_EQ(2, statistics.Statistics().size());
 }
 
 TEST(TStatistics, MergeTheSameKey)
@@ -76,7 +75,7 @@ TEST(TStatistics, MergeTheSameKey)
 
     statistics.Merge(other);
 
-    ASSERT_EQ(statistics.Statistics().at("key").GetCount(), 2);
+    EXPECT_EQ(2, statistics.Statistics().at("key").GetCount());
 }
 
 class TMergeStatisticsConsumer
@@ -99,14 +98,14 @@ private:
 TEST(TStatisticsConvertor, Integration)
 {
     TMergeStatisticsConsumer statisticsConsumer;
-    std::unique_ptr<NYson::IYsonConsumer> consumer(new TStatisticsConvertor(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer)));
+    auto consumer = std::make_unique<TStatisticsConvertor>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer));
     auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
     TTableOutput output(std::move(parser), std::move(consumer));
     output.Write("{ k1=4}; {k2=-7}");
 
     const auto& stats = statisticsConsumer.GetStatistics();
-    ASSERT_EQ(stats.at("k1").GetSumm(), 4);
-    ASSERT_EQ(stats.at("k2").GetSumm(), -7);
+    EXPECT_EQ(4, stats.at("k1").GetSum());
+    EXPECT_EQ(-7, stats.at("k2").GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////

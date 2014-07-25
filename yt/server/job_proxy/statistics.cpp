@@ -10,33 +10,15 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-i64 min(i64 left, i64 right)
-{
-    if (left < right) {
-        return left;
-    } else {
-        return right;
-    }
-}
-
-i64 max(i64 left, i64 right)
-{
-    if (left < right) {
-        return right;
-    } else {
-        return left;
-    }
-}
-
 TSummary::TSummary()
-    : Summ_(0)
+    : Sum_(0)
     , Count_(0)
     , Min_(std::numeric_limits<i64>::max())
     , Max_(std::numeric_limits<i64>::min())
 { }
 
 TSummary::TSummary(i64 value)
-    : Summ_(value)
+    : Sum_(value)
     , Count_(1)
     , Min_(value)
     , Max_(value)
@@ -44,17 +26,17 @@ TSummary::TSummary(i64 value)
 
 void TSummary::Merge(const TSummary& other)
 {
-    Summ_ += other.Summ_;
+    Sum_ += other.Sum_;
     Count_ += other.Count_;
-    Min_ = min(Min_, other.Min_);
-    Max_ = max(Max_, other.Max_);
+    Min_ = std::min(Min_, other.Min_);
+    Max_ = std::max(Max_, other.Max_);
 }
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("summ").Value(summary.GetSumm())
+            .Item("sum").Value(summary.GetSum())
             .Item("count").Value(summary.GetCount())
             .Item("min").Value(summary.GetMin())
             .Item("max").Value(summary.GetMax())
@@ -64,10 +46,10 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 void Deserialize(TSummary& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    value.Summ_ = NYTree::ConvertTo<i64>(mapNode->FindChild("summ"));
-    value.Count_ = NYTree::ConvertTo<i64>(mapNode->FindChild("count"));
-    value.Min_ = NYTree::ConvertTo<i64>(mapNode->FindChild("min"));
-    value.Max_ = NYTree::ConvertTo<i64>(mapNode->FindChild("max"));
+    value.Sum_ = NYTree::ConvertTo<i64>(mapNode->GetChild("sum"));
+    value.Count_ = NYTree::ConvertTo<i64>(mapNode->GetChild("count"));
+    value.Min_ = NYTree::ConvertTo<i64>(mapNode->GetChild("min"));
+    value.Max_ = NYTree::ConvertTo<i64>(mapNode->GetChild("max"));
 }
 
 ////////////////////////////////////////////////////////////////////
