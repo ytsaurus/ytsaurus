@@ -80,7 +80,7 @@ private:
     NTransactionServer::TTransactionManagerPtr TransactionManager;
     NHive::TTransactionSupervisorPtr TransactionSupervisor;
     NCypressServer::TCypressManagerPtr CypressManager;
-    THydraFacadePtr HydraManager;
+    THydraFacadePtr HydraFacade;
     TWorldInitializerPtr WorldInitializer;
     NObjectServer::TObjectManagerPtr ObjectManager;
     NChunkServer::TChunkManagerPtr ChunkManager;

@@ -167,20 +167,46 @@ public:
 
     virtual void Start() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Hydra instance is starting");
+        if (ControlState_ != EPeerState::None)
+            return;
 
-        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStart, MakeStrong(this)));
+        DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
+            &TDecoratedAutomaton::Clear,
+            DecoratedAutomaton_));
+
+        RpcServer_->RegisterService(this);
+
+        LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
+            CellManager_->GetSelfAddress(),
+            CellManager_->GetSelfId());
+
+        ControlState_ = EPeerState::Elections;
+
+        Participate();
     }
 
     virtual void Stop() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Hydra instance is stopping");
+        if (ControlState_ == EPeerState::Stopped)
+            return;
 
-        ControlInvoker_->Invoke(BIND(&TDistributedHydraManager::DoStop, MakeStrong(this)));
+        if (ControlState_ != EPeerState::None) {
+            RpcServer_->UnregisterService(this);
+        }
+
+        ElectionManager_.Reset();
+
+        if (EpochContext_) {
+            StopEpoch();
+        }
+
+        ControlState_ = EPeerState::Stopped;
+
+        LOG_INFO("Hydra instance stopped");
     }
 
     virtual EPeerState GetControlState() const override
@@ -708,46 +734,6 @@ private:
         ElectionManager_->Stop();
     }
 
-
-    void DoStart()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (ControlState_ != EPeerState::None)
-            return;
-
-        DecoratedAutomaton_->GetSystemInvoker()->Invoke(BIND(
-            &TDecoratedAutomaton::Clear,
-            DecoratedAutomaton_));
-
-        RpcServer_->RegisterService(this);
-
-        LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
-            CellManager_->GetSelfAddress(),
-            CellManager_->GetSelfId());
-
-        ControlState_ = EPeerState::Elections;
-
-        Participate();
-    }
-
-    void DoStop()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (ControlState_ == EPeerState::Stopped)
-            return;
-
-        if (ControlState_ != EPeerState::None) {
-            RpcServer_->UnregisterService(this);
-        }
-
-        ElectionManager_.Reset();
-
-        ControlState_ = EPeerState::Stopped;
-
-        LOG_INFO("Hydra instance stopped");
-    }
 
     void DoParticipate()
     {

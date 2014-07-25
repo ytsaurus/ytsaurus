@@ -21,13 +21,13 @@ struct IHydraManager
 {
     //! Activates the instance.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
     virtual void Start() = 0;
 
     //! Deactivates the instance.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
     virtual void Stop() = 0;
 

@@ -188,7 +188,7 @@ TCypressManagerPtr TBootstrap::GetCypressManager() const
 
 THydraFacadePtr TBootstrap::GetHydraFacade() const
 {
-    return HydraManager;
+    return HydraFacade;
 }
 
 TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
@@ -299,7 +299,7 @@ void TBootstrap::DoRun()
         CellManager,
         fileSnapshotStore);
 
-    HydraManager = New<THydraFacade>(Config, this);
+    HydraFacade = New<THydraFacade>(Config, this);
 
     WorldInitializer = New<TWorldInitializer>(Config, this);
     
@@ -312,9 +312,9 @@ void TBootstrap::DoRun()
         GetCellGuid(),
         Config->HiveManager,
         CellDirectory,
-        HydraManager->GetAutomatonInvoker(),
-        HydraManager->GetHydraManager(),
-        HydraManager->GetAutomaton());
+        HydraFacade->GetAutomatonInvoker(),
+        HydraFacade->GetHydraManager(),
+        HydraFacade->GetAutomaton());
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
@@ -334,9 +334,9 @@ void TBootstrap::DoRun()
     
     auto timestampManager = New<TTimestampManager>(
         Config->TimestampManager,
-        HydraManager->GetAutomatonInvoker(),
-        HydraManager->GetHydraManager(),
-        HydraManager->GetAutomaton());
+        HydraFacade->GetAutomatonInvoker(),
+        HydraFacade->GetHydraManager(),
+        HydraFacade->GetAutomaton());
     
     auto timestampProvider = CreateRemoteTimestampProvider(
         Config->TimestampProvider,
@@ -344,9 +344,9 @@ void TBootstrap::DoRun()
     
     TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,
-        HydraManager->GetAutomatonInvoker(),
-        HydraManager->GetHydraManager(),
-        HydraManager->GetAutomaton(),
+        HydraFacade->GetAutomatonInvoker(),
+        HydraFacade->GetHydraManager(),
+        HydraFacade->GetAutomaton(),
         HiveManager,
         TransactionManager,
         timestampProvider);
@@ -366,7 +366,7 @@ void TBootstrap::DoRun()
         TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Register(
         "/hydra",
-        HydraManager->GetHydraManager()->GetMonitoringProducer());
+        HydraFacade->GetHydraManager()->GetMonitoringProducer());
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -419,7 +419,7 @@ void TBootstrap::DoRun()
     CypressManager->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager->RegisterHandler(CreateTabletMapTypeHandler(this));
 
-    HydraManager->Start();
+    HydraFacade->Start();
 
     monitoringManager->Start();
 
