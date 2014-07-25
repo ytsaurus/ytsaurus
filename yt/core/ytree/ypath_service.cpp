@@ -188,7 +188,7 @@ private:
         }
 
         CachedTree_.Subscribe(BIND([=] (INodePtr root) {
-            root->Invoke(context);
+            ExecuteVerb(root, context);
         }));
 
         return true;
