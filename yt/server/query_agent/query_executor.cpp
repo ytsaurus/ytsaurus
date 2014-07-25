@@ -327,15 +327,12 @@ private:
 
             const auto& slot = tabletDescriptor->Slot;
             auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
-            if (!invoker) {
-                ThrowNoSuchTablet(tabletId);
-            }
-
             auto futureReader = BIND(&TQueryExecutor::DoAutomatonGetTabletReader, MakeStrong(this))
                 .Guarded()
                 .AsyncVia(invoker)
                 .Run(tabletId, slot, split, std::move(context));
 
+            // TODO(babenko): this is a hack
             if (futureReader.IsCanceled()) {
                 ThrowNoSuchTablet(tabletId);
             }

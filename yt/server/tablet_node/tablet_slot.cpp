@@ -165,7 +165,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        return EpochAutomatonInvokers_.empty() ? nullptr : EpochAutomatonInvokers_[queue];
+        return EpochAutomatonInvokers_[queue];
     }
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -173,7 +173,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        return GuardedAutomatonInvokers_.empty() ? nullptr : GuardedAutomatonInvokers_[queue];
+        return GuardedAutomatonInvokers_[queue];
     }
 
     THiveManagerPtr GetHiveManager() const
@@ -372,11 +372,7 @@ public:
             rpcServer->UnregisterService(TabletService_);
         }
 
-        {
-            TGuard<TSpinLock> guard(InvokersSpinLock_);
-            EpochAutomatonInvokers_.clear();
-            GuardedAutomatonInvokers_.clear();
-        }
+        OnStopEpoch();
 
         State_ = EPeerState::None;
 
@@ -459,7 +455,12 @@ private:
     void OnStopEpoch()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-        EpochAutomatonInvokers_.clear();
+        for (auto& invoker : EpochAutomatonInvokers_) {
+            invoker = GetNullInvoker();
+        }
+        for (auto& invoker : GuardedAutomatonInvokers_) {
+            invoker = GetNullInvoker();
+        }
     }
 
 

@@ -160,11 +160,6 @@ private:
             if (!tabletDesriptor)
                 continue;
 
-            auto slot = tabletDesriptor->Slot;
-            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
-            if (!invoker)
-                continue;
-
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %s, "
                 "TotalMemoryUsage: %" PRId64 ", TabletMemoryUsage: %" PRId64 ", "
                 "MemoryLimit: %" PRId64 ")",
@@ -173,6 +168,8 @@ private:
                 candidate.MemoryUsage,
                 Config_->MemoryLimit);
 
+            auto slot = tabletDesriptor->Slot;
+            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
             invoker->Invoke(BIND([slot, tabletId] () {
                 auto tabletManager = slot->GetTabletManager();
                 auto* tablet = tabletManager->FindTablet(tabletId);
