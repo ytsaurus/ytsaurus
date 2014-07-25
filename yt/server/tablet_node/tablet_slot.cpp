@@ -353,6 +353,14 @@ public:
             HydraManager_->Stop();
         }
 
+        // NB: Many subsystems (e.g. Transaction Manager) hold TTabletSlot instance by raw pointer.
+        // The above call to Stop cancels the current epoch and thus ensures that no new callbacks can be
+        // queued via control or automaton invokers. However, some background activities could still be
+        // running in the context of the automaton invoker. To save them from crashing we submit
+        // a callback whose sole purpose is to hold |this| a bit longer.
+        auto this_ = MakeStrong(this);
+        GetAutomatonInvoker(EAutomatonThreadQueue::Read)->Invoke(BIND([this_] () { }));
+
         auto rpcServer = Bootstrap_->GetRpcServer();
         if (TransactionSupervisor_) {
             rpcServer->UnregisterService(TransactionSupervisor_->GetRpcService());
