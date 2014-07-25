@@ -66,6 +66,7 @@ void TChunkedMemoryPool::AllocateChunk()
     auto chunk = TSharedRef::Allocate(ChunkSize_, false, TagCookie_);
     YCHECK((reinterpret_cast<intptr_t>(chunk.Begin()) & 7) == 0);
     Chunks_.push_back(chunk);
+    Capacity_ += ChunkSize_;
     CurrentChunkIndex_ = static_cast<int>(Chunks_.size()) - 1;
     SetupPointers();
 }
