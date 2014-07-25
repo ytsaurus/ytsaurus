@@ -11,6 +11,10 @@ namespace NYT {
 //! method invokes the closure immediately.
 IInvokerPtr GetSyncInvoker();
 
+//! Returns the null invoker, i.e. the invoker whose |Invoke|
+//! method does nothing.
+IInvokerPtr GetNullInvoker();
+
 //! Tries to invoke #onSuccess via #invoker.
 //! If the invoker discards the callback without executing it then
 //! #onCancel is run.

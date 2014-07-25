@@ -26,15 +26,35 @@ public:
         callback.Run();
     }
 
-    virtual NConcurrency::TThreadId GetThreadId() const override
+    virtual TThreadId GetThreadId() const override
     {
-        return NConcurrency::InvalidThreadId;
+        return InvalidThreadId;
     }
 };
 
 IInvokerPtr GetSyncInvoker()
 {
     return RefCountedSingleton<TSyncInvoker>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullInvoker
+    : public IInvoker
+{
+public:
+    virtual void Invoke(const TClosure& /*callback*/) override
+    { }
+
+    virtual TThreadId GetThreadId() const override
+    {
+        return InvalidThreadId;
+    }
+};
+
+IInvokerPtr GetNullInvoker()
+{
+    return RefCountedSingleton<TNullInvoker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
