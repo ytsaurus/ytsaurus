@@ -76,9 +76,14 @@ bool TStatistics::Empty() const
     return Statistics_.empty();
 }
 
+TSummary TStatistics::GetStatistic(const Stroka& name) const
+{
+    return Statistics_.at(name);
+}
+
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::Serialize(statistics.Statistics(), consumer);
+    NYTree::Serialize(statistics.Statistics_, consumer);
 }
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node)

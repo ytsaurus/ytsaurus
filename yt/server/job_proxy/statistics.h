@@ -39,9 +39,13 @@ public:
     void Clear();
     bool Empty() const;
 
-    typedef std::map<Stroka, TSummary> TSummaryDict;
-    DEFINE_BYREF_RO_PROPERTY(TSummaryDict, Statistics);
+    TSummary GetStatistic(const Stroka& name) const;
 
+private:
+    typedef std::map<Stroka, TSummary> TSummaryDict;
+    TSummaryDict Statistics_;
+
+    friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TStatistics& value, NYTree::INodePtr node);
 };
 
