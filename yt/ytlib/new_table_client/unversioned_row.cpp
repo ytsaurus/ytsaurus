@@ -1158,6 +1158,44 @@ TUnversionedValue* TUnversionedOwningRowBuilder::GetValue(int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversionedValue* end)
+{
+    int count = std::distance(begin, end);
+
+    size_t fixedSize = GetUnversionedRowDataSize(count);
+    RowData_ = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
+    auto* header = GetHeader();
+
+    header->Count = count;
+    header->Padding = 0;
+    ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
+
+    size_t variableSize = 0;
+    for (auto it = begin; it != end; ++it) {
+        const auto& otherValue = *it;
+        if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+            variableSize += otherValue.Length;
+        }
+    }
+
+    if (variableSize > 0) {
+        StringData_.resize(variableSize);
+        char* current = const_cast<char*>(StringData_.data());
+
+        for (int index = 0; index < count; ++index) {
+            const auto& otherValue = begin[index];
+            auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];;
+            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+                ::memcpy(current, otherValue.Data.String, otherValue.Length);
+                value.Data.String = current;
+                current += otherValue.Length;
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT
 

@@ -223,5 +223,58 @@ TVersionedRow TVersionedRowBuilder::GetRowAndReset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
+{
+    if (!other)
+        return;
+
+    size_t fixedSize = GetVersionedRowDataSize(
+        other.GetKeyCount(),
+        other.GetValueCount(),
+        other.GetTimestampCount());
+
+    size_t variableSize = 0;
+    auto adjustVariableSize = [&] (const TUnversionedValue& value) {
+        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+            variableSize += value.Length;
+        }
+    };
+
+    for (int index = 0; index < other.GetKeyCount(); ++index) {
+        adjustVariableSize(other.BeginKeys()[index]);
+    }
+    for (int index = 0; index < other.GetValueCount(); ++index) {
+        adjustVariableSize(other.BeginValues()[index]);
+    }
+
+    Data_ = TSharedRef::Allocate(fixedSize + variableSize, false);
+
+    *GetHeader() = *other.GetHeader();
+
+    ::memcpy(BeginKeys(), other.BeginKeys(), sizeof (TUnversionedValue) * other.GetKeyCount());
+    ::memcpy(BeginValues(), other.BeginValues(), sizeof (TVersionedValue) * other.GetValueCount());
+    ::memcpy(BeginTimestamps(), other.BeginTimestamps(), sizeof (TTimestamp) * other.GetTimestampCount());
+
+    if (variableSize > 0) {
+        char* current = Data_.Begin() + fixedSize;
+        auto captureValue = [&] (TUnversionedValue* value) {
+            if (value->Type == EValueType::String || value->Type == EValueType::Any) {
+                ::memcpy(current, value->Data.String, value->Length);
+                value->Data.String = current;
+                current += value->Length;
+            }
+        };
+
+        for (int index = 0; index < other.GetKeyCount(); ++index) {
+            captureValue(other.BeginKeys() + index);
+        }
+        for (int index = 0; index < other.GetValueCount(); ++index) {
+            captureValue(other.BeginValues() + index);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT

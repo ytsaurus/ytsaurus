@@ -376,7 +376,7 @@ struct TOwningRowTag { };
 
 //! An immutable owning version of TUnversionedRow.
 /*!
- *  Instances of TOwningRow are lightweight ref-counted handles.
+ *  Instances of TUnversionedOwningRow are lightweight ref-counted handles.
  *  Fixed part is stored in a (shared) blob.
  *  Variable part is stored in a (shared) string.
  */
@@ -414,6 +414,16 @@ public:
         return static_cast<bool>(RowData_);
     }
 
+    TUnversionedRow Get() const
+    {
+        return TUnversionedRow(const_cast<TUnversionedOwningRow*>(this)->GetHeader());
+    }
+
+    const TUnversionedRowHeader* GetHeader() const
+    {
+        return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
+    }
+
     const TUnversionedValue* Begin() const
     {
         const auto* header = GetHeader();
@@ -434,11 +444,6 @@ public:
     const TUnversionedValue& operator[] (int index) const
     {
         return Begin()[index];
-    }
-
-    const TUnversionedRow Get() const
-    {
-        return TUnversionedRow(const_cast<TUnversionedRowHeader*>(GetHeader()));
     }
 
 
@@ -487,46 +492,7 @@ private:
         return RowData_ ? reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
 
-    const TUnversionedRowHeader* GetHeader() const
-    {
-        return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
-    }
-
-    void Init(const TUnversionedValue* begin, const TUnversionedValue* end)
-    {
-        int count = std::distance(begin, end);
-
-        size_t fixedSize = GetUnversionedRowDataSize(count);
-        RowData_ = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
-        auto* header = GetHeader();
-
-        header->Count = count;
-        header->Padding = 0;
-        ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
-
-        size_t variableSize = 0;
-        for (auto it = begin; it != end; ++it) {
-            const auto& otherValue = *it;
-            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
-                variableSize += otherValue.Length;
-            }
-        }
-
-        if (variableSize != 0) {
-            StringData_.resize(variableSize);
-            char* current = const_cast<char*>(StringData_.data());
-
-            for (int index = 0; index < count; ++index) {
-                const auto& otherValue = begin[index];
-                auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];;
-                if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
-                    ::memcpy(current, otherValue.Data.String, otherValue.Length);
-                    value.Data.String = current;
-                    current += otherValue.Length;
-                }
-            }
-        }
-    }
+    void Init(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 };
 

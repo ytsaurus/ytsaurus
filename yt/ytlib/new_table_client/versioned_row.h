@@ -258,5 +258,147 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! An immutable owning version of TVersionedRow.
+/*!
+ *  Instances of TVersionedOwningRow are lightweight ref-counted handles.
+ *  All data is stored in a (shared) blob.
+ */
+class TVersionedOwningRow
+{
+public:
+    TVersionedOwningRow()
+    { }
+
+    explicit TVersionedOwningRow(TVersionedRow other);
+
+    TVersionedOwningRow(const TVersionedOwningRow& other)
+        : Data_(other.Data_)
+    { }
+
+    TVersionedOwningRow(TVersionedOwningRow&& other)
+        : Data_(std::move(other.Data_))
+    { }
+
+    explicit operator bool() const
+    {
+        return static_cast<bool>(Data_);
+    }
+
+    TVersionedRow Get() const
+    {
+        return TVersionedRow(const_cast<TVersionedOwningRow*>(this)->GetHeader());
+    }
+
+    const TVersionedRowHeader* GetHeader() const
+    {
+        return Data_ ? reinterpret_cast<const TVersionedRowHeader*>(Data_.Begin()) : nullptr;
+    }
+
+    const TTimestamp* BeginTimestamps() const
+    {
+        return reinterpret_cast<const TTimestamp*>(GetHeader() + 1);
+    }
+
+    TTimestamp* BeginTimestamps()
+    {
+        return reinterpret_cast<TTimestamp*>(GetHeader() + 1);
+    }
+
+    const TTimestamp* EndTimestamps() const
+    {
+        return BeginTimestamps() + GetTimestampCount();
+    }
+
+    TTimestamp* EndTimestamps()
+    {
+        return BeginTimestamps() + GetTimestampCount();
+    }
+
+    const TUnversionedValue* BeginKeys() const
+    {
+        return reinterpret_cast<const TUnversionedValue*>(EndTimestamps());
+    }
+
+    TUnversionedValue* BeginKeys()
+    {
+        return reinterpret_cast<TUnversionedValue*>(EndTimestamps());
+    }
+
+    const TUnversionedValue* EndKeys() const
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    TUnversionedValue* EndKeys()
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    const TVersionedValue* BeginValues() const
+    {
+        return reinterpret_cast<const TVersionedValue*>(EndKeys());
+    }
+
+    TVersionedValue* BeginValues()
+    {
+        return reinterpret_cast<TVersionedValue*>(EndKeys());
+    }
+
+    const TVersionedValue* EndValues() const
+    {
+        return BeginValues() + GetValueCount();
+    }
+
+    TVersionedValue* EndValues()
+    {
+        return BeginValues() + GetValueCount();
+    }
+
+    int GetKeyCount() const
+    {
+        return GetHeader()->KeyCount;
+    }
+
+    int GetValueCount() const
+    {
+        return GetHeader()->ValueCount;
+    }
+
+    int GetTimestampCount() const
+    {
+        return GetHeader()->TimestampCount;
+    }
+
+
+    friend void swap(TVersionedOwningRow& lhs, TVersionedOwningRow& rhs)
+    {
+        using std::swap;
+        swap(lhs.Data_, rhs.Data_);
+    }
+
+    TVersionedOwningRow& operator=(const TVersionedOwningRow& other)
+    {
+        Data_ = other.Data_;
+        return *this;
+    }
+
+    TVersionedOwningRow& operator=(TVersionedOwningRow&& other)
+    {
+        Data_ = std::move(other.Data_);
+        return *this;
+    }
+
+private:
+    TSharedRef Data_;
+
+    TVersionedRowHeader* GetHeader()
+    {
+        return Data_ ? reinterpret_cast<TVersionedRowHeader*>(Data_.Begin()) : nullptr;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NVersionedTableClient
 } // namespace NYT
