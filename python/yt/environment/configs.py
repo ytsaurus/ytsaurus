@@ -9,15 +9,15 @@ def get_logging_pattern():
 {
     rules = [
         {
-            min_level = Info;
+            min_level = info;
             writers = [ info ];
         };
         {
-            min_level = Debug;
+            min_level = debug;
             writers = [ debug ];
         };
         {
-            min_level = Error;
+            min_level = error;
             writers = [ stderr ];
         };
     ];
