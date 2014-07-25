@@ -95,8 +95,8 @@ int ParseChangelogId(const Stroka& str, const Stroka& fileName)
     try {
         return FromString<int>(str);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %s",
-            ~fileName.Quote());
+        THROW_ERROR_EXCEPTION("Error parsing multiplexed changelog id %Qv",
+            fileName);
     }
 }
 
@@ -152,11 +152,6 @@ public:
         TCacheBase::Remove(chunk->GetId());
     }
 
-    void CloseChangelog(IChangelogPtr changelog)
-    {
-        ChangelogDispatcher_->CloseChangelog(changelog);
-    }
-
 private:
     friend class TCachedChangelog;
     friend class TMultiplexedReplay;
@@ -187,9 +182,9 @@ private:
         const auto& chunkId = chunk->GetId();
         auto location = chunk->GetLocation();
 
-        LOG_DEBUG("Started creating journal chunk (LocationId: %s, ChunkId: %s)",
-            ~location->GetId(),
-            ~ToString(chunkId));
+        LOG_DEBUG("Started creating journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
 
         IChangelogPtr changelog;
 
@@ -205,15 +200,15 @@ private:
                 location->Disable();
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::IOError,
-                    "Error creating journal chunk %s",
-                    ~ToString(chunkId))
+                    "Error creating journal chunk %v",
+                    chunkId)
                     << ex;
             }
         }
 
-        LOG_DEBUG("Finished creating journal chunk (LocationId: %s, ChunkId: %s)",
-            ~location->GetId(),
-            ~ToString(chunkId));
+        LOG_DEBUG("Finished creating journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
 
         return changelog;
     }
@@ -222,8 +217,8 @@ private:
     {
         const auto& chunkId = chunk->GetId();
 
-        LOG_DEBUG("Started removing journal chunk files (ChunkId: %s)",
-            ~ToString(chunkId));
+        LOG_DEBUG("Started removing journal chunk files (ChunkId: %v)",
+            chunkId);
 
         auto location = chunk->GetLocation();
         auto& Profiler = location->Profiler();
@@ -234,14 +229,14 @@ private:
                 location->Disable();
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::IOError,
-                    "Error removing journal chunk %s",
-                    ~ToString(chunkId))
+                    "Error removing journal chunk %v",
+                    chunkId)
                     << ex;
             }
         }
 
-        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %s)",
-            ~ToString(chunkId));
+        LOG_DEBUG("Finished removing journal chunk files (ChunkId: %v)",
+            chunkId);
     }
 
 
@@ -390,18 +385,30 @@ public:
     TCachedChangelog(
         TImplPtr owner,
         const TChunkId& chunkId,
-        IChangelogPtr underlyingChangelog,
+        TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError,
         bool enableMultiplexing)
         : TCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
         , Owner_(owner)
-        , UnderlyingChangelog_(underlyingChangelog)
+        , FutureChangelogOrError_(futureChangelogOrError)
         , EnableMultiplexing_(enableMultiplexing)
-        , LastSplitFlushResult_(UnderlyingChangelog_->Flush())
-    { }
+    {
+        auto changelogOrError = FutureChangelogOrError_.TryGet();
+        if (changelogOrError && changelogOrError->IsOK()) {
+            UnderlyingChangelog_ = changelogOrError->Value();
+        } else {
+            UnderlyingChangelog_ = CreateLazyChangelog(futureChangelogOrError);
+        }
+
+        LastSplitFlushResult_ = UnderlyingChangelog_->Flush();
+    }
 
     ~TCachedChangelog()
     {
-        Owner_->CloseChangelog(UnderlyingChangelog_);
+        // TODO(babenko): avoid blocking
+        auto changelogOrError = FutureChangelogOrError_.Get();
+        if (changelogOrError.IsOK()) {
+            Owner_->ChangelogDispatcher_->CloseChangelog(changelogOrError.Value());
+        }
     }
 
     virtual TSharedRef GetMeta() const override
@@ -475,9 +482,10 @@ public:
 
 private:
     TImplPtr Owner_;
-    IChangelogPtr UnderlyingChangelog_;
+    TFuture<TErrorOr<IChangelogPtr>> FutureChangelogOrError_;
     bool EnableMultiplexing_;
 
+    IChangelogPtr UnderlyingChangelog_;
     TAsyncError LastSplitFlushResult_;
 
 };
@@ -586,13 +594,13 @@ private:
         for (auto& pair : SplitMap_) {
             auto& entry = pair.second;
                 
-            LOG_INFO("Started flushing journal chunk (ChunkId: %s)",
-                ~ToString(pair.first));
+            LOG_INFO("Started flushing journal chunk (ChunkId: %v)",
+                pair.first);
 
             entry.Changelog->Flush().Get();
 
-            LOG_INFO("Finished flushing journal chunk (ChunkId: %s, RecordAdded: %d)",
-                ~ToString(pair.first),
+            LOG_INFO("Finished flushing journal chunk (ChunkId: %v, RecordAdded: %v)",
+                pair.first,
                 entry.RecordsAdded);
 
             entry.RecordsAdded = 0;
@@ -737,9 +745,9 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
     TInsertCookie cookie(chunkId);
     if (BeginInsert(&cookie)) {
         auto fileName = location->GetChunkFileName(chunkId);
-        LOG_DEBUG("Started opening journal chunk (LocationId: %s, ChunkId: %s)",
-            ~location->GetId(),
-            ~ToString(chunkId));
+        LOG_DEBUG("Started opening journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
 
         PROFILE_TIMING("/journal_chunk_open_time") {
             try {
@@ -749,14 +757,14 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
                 auto cachedChangelog = New<TCachedChangelog>(
                     this,
                     chunkId,
-                    changelog,
+                    MakeFuture<TErrorOr<IChangelogPtr>>(changelog),
                     enableMultiplexing);
                 cookie.EndInsert(cachedChangelog);
             } catch (const std::exception& ex) {
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
-                    "Error opening journal chunk %s",
-                    ~ToString(chunkId))
+                    "Error opening journal chunk %v",
+                    chunkId)
                     << ex;
                 cookie.Cancel(error);
                 location->Disable();
@@ -764,9 +772,9 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
             }
         }
 
-        LOG_DEBUG("Finished opening journal chunk (LocationId: %s, ChunkId: %s)",
-            ~location->GetId(),
-            ~ToString(chunkId));
+        LOG_DEBUG("Finished opening journal chunk (LocationId: %v, ChunkId: %v)",
+            location->GetId(),
+            chunkId);
     }
 
     auto resultOrError = cookie.GetValue().Get();
@@ -792,19 +800,20 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
         .Guarded()
         .AsyncVia(location->GetWriteInvoker())
         .Run();
-    auto lazyChangelog = CreateLazyChangelog(futureChangelogOrError);
     auto cachedChangelog = New<TCachedChangelog>(
         this,
         chunkId,
-        lazyChangelog,
+        futureChangelogOrError,
         enableMultiplexing);
     cookie.EndInsert(cachedChangelog);
 
-    TMultiplexedRecord record;
-    record.Header.Type = EMultiplexedRecordType::Create;
-    record.Header.ChunkId = chunkId;
-    record.Header.RecordId = -1;
-    AppendMultiplexedRecord(record, cachedChangelog);
+    if (enableMultiplexing) {
+        TMultiplexedRecord record;
+        record.Header.Type = EMultiplexedRecordType::Create;
+        record.Header.ChunkId = chunkId;
+        record.Header.RecordId = -1;
+        AppendMultiplexedRecord(record, cachedChangelog);
+    }
 
     return cachedChangelog;
 }
