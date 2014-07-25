@@ -738,8 +738,6 @@ private:
         if (ControlState_ == EPeerState::Stopped)
             return;
 
-        DecoratedAutomaton_.Reset();
-
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
         }
