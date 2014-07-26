@@ -240,9 +240,9 @@ public:
         return epochContext ? epochContext->IsActiveLeader : false;
     }
 
-    virtual NElection::TEpochContextPtr GetEpochContext() const override
+    virtual NElection::TEpochContextPtr GetControlEpochContext() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlEpochContext_;
     }
@@ -285,7 +285,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto epochContext = ControlEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         if (!epochContext || GetAutomatonState() != EPeerState::Leading) {
             return MakeFuture<TErrorOr<int>>(TError(
@@ -346,29 +346,29 @@ public:
         YCHECK(!DecoratedAutomaton_->GetMutationContext());
 
         if (GetAutomatonState() != EPeerState::Leading) {
-            return MakeFuture(TErrorOr<TMutationResponse>(TError(
+            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::NoLeader,
-                "Not a leader")));
+                "Not a leader"));
         }
 
         if (ReadOnly_) {
-            return MakeFuture(TErrorOr<TMutationResponse>(TError(
+            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::ReadOnly,
-                "Read-only mode is active")));
+                "Read-only mode is active"));
         }
 
-        auto epochContext = ControlEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !epochContext->IsActiveLeader) {
-            return MakeFuture(TErrorOr<TMutationResponse>(TError(
+            return MakeFuture<TErrorOr<TMutationResponse>>(TError(
                 NHydra::EErrorCode::NoQuorum,
-                "Not an active leader")));
+                "Not an active leader"));
         }
 
         if (request.Id != NullMutationId) {
             LOG_DEBUG("Returning kept response (MutationId: %v)", request.Id);
             auto keptResponse = DecoratedAutomaton_->FindKeptResponse(request.Id);
             if (keptResponse) {
-                return MakeFuture(TErrorOr<TMutationResponse>(*keptResponse));
+                return MakeFuture<TErrorOr<TMutationResponse>>(*keptResponse);
             }
         }
 

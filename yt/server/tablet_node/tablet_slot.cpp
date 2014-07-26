@@ -498,7 +498,7 @@ private:
         if (!HydraManager_)
             return;
         
-        auto epochContext = HydraManager_->GetEpochContext();
+        auto epochContext = HydraManager_->GetControlEpochContext();
         if (!epochContext)
             return;
 

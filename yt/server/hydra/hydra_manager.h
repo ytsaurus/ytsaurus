@@ -55,11 +55,11 @@ struct IHydraManager
      */
     virtual bool IsActiveLeader() const = 0;
 
-    //! Returns the current epoch context, unsynchronized and possibly racy.
+    //! Returns the current epoch context, as viewed by the Control Thread.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: ControlThread
      */
-    virtual NElection::TEpochContextPtr GetEpochContext() const = 0;
+    virtual NElection::TEpochContextPtr GetControlEpochContext() const = 0;
 
     //! Returns the current epoch context, as viewed by the Automaton Thread.
     /*!
