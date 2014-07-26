@@ -296,8 +296,7 @@ private:
         {
             if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
                 BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
-                LOG_INFO("Node banned (Address: %s)",
-                    ~address);
+                LOG_INFO("Node banned (Address: %v)", address);
             }
         }
 
@@ -309,8 +308,7 @@ private:
             while (it != BannedNodeToDeadline_.end()) {
                 auto jt = it++;
                 if (jt->second < now) {
-                    LOG_INFO("Node unbanned (Address: %s)",
-                        ~jt->first);
+                    LOG_INFO("Node unbanned (Address: %v)", jt->first);
                     BannedNodeToDeadline_.erase(jt);
                 } else {
                     result.push_back(jt->first);
@@ -340,8 +338,7 @@ private:
                 UploadTransaction_ = transactionOrError.Value();
             }
 
-            LOG_INFO("Upload transaction created (TransactionId: %s)",
-                ~ToString(UploadTransaction_->GetId()));
+            LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
             
             ListenTransaction(UploadTransaction_);
 
@@ -383,10 +380,10 @@ private:
 
                 auto type = attributes.Get<EObjectType>("type");
                 if (type != EObjectType::Journal) {
-                    THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
-                        ~Path_,
-                        ~FormatEnum(EObjectType(EObjectType::Journal)).Quote(),
-                        ~FormatEnum(type).Quote());
+                    THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                        Path_,
+                        EObjectType(EObjectType::Journal),
+                        type);
                 }
 
                 ReplicationFactor_ = attributes.Get<int>("replication_factor");
@@ -401,11 +398,11 @@ private:
                 ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
 
-            LOG_INFO("Journal opened (ReplicationFactor: %d, WriteQuorum: %d, Account: %s, ChunkListId: %s)",
+            LOG_INFO("Journal opened (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, ChunkListId: %v)",
                 ReplicationFactor_,
                 WriteQuorum_,
-                ~Account_,
-                ~ToString(ChunkListId_));
+                Account_,
+                ChunkListId_);
 
             LOG_INFO("Journal writer opened");
             OpenedPromise_.Set(TError());
@@ -452,8 +449,8 @@ private:
 
                 replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
                 if (replicas.size() < ReplicationFactor_) {
-                    THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
-                        static_cast<int>(replicas.size()),
+                    THROW_ERROR_EXCEPTION("Not enough data nodes available: %v received, %v needed",
+                        replicas.size(),
                         ReplicationFactor_);
                 }
 
@@ -463,9 +460,9 @@ private:
                 }
             }
 
-            LOG_INFO("Chunk created (ChunkId: %s, Targets: [%s])",
-                ~ToString(CurrentSession_->ChunkId),
-                ~JoinToString(targets));
+            LOG_INFO("Chunk created (ChunkId: %v, Targets: [%v])",
+                CurrentSession_->ChunkId,
+                JoinToString(targets));
 
             for (int index = 0; index < ReplicationFactor_; ++index) {
                 auto node = New<TNode>(targets[index]);
@@ -546,7 +543,7 @@ private:
                 if (TryOpenChunk())
                     return;
             }
-            THROW_ERROR_EXCEPTION("All %d attempts to open a chunk were unsuccessful",
+            THROW_ERROR_EXCEPTION("All %v attempts to open a chunk were unsuccessful",
                 Config_->MaxChunkOpenAttempts);
         }
 
@@ -585,7 +582,7 @@ private:
         {
             i64 rowCount = batch->Rows.size();
 
-            LOG_DEBUG("Batch ready (Rows: %d-%d)",
+            LOG_DEBUG("Batch ready (Rows: %v-%v)",
                 CurrentRowIndex_,
                 CurrentRowIndex_ + rowCount - 1);
 
@@ -606,6 +603,16 @@ private:
 
         void EnqueueBatchToSession(TBatchPtr batch)
         {
+            // Reset flushed replica count: this batch might have already been 
+            // flushed (partially) by the previous (failed session).
+            if (batch->FlushedReplicas > 0) {
+                LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
+                    batch->FirstRowIndex,
+                    batch->FirstRowIndex + batch->Rows.size() - 1,
+                    batch->FlushedReplicas);
+                batch->FlushedReplicas = 0;
+            }
+
             CurrentSession_->RowCount += batch->Rows.size();
             CurrentSession_->DataSize += batch->DataSize;
 
@@ -644,8 +651,8 @@ private:
                 auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
                 req->set_row_count(session->FlushedRowCount);
                 auto rsp = WaitFor(Proxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %s",
-                    ~ToString(session->ChunkId));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %v",
+                    session->ChunkId);
             }
             LOG_INFO("Chunk sealed");
         }
@@ -764,9 +771,9 @@ private:
             if (!node_)
                 return;
 
-            LOG_DEBUG("Sending ping (Address: %s, ChunkId: %s)",
-                ~node_->Descriptor.GetDefaultAddress(),
-                ~ToString(session->ChunkId));
+            LOG_DEBUG("Sending ping (Address: %v, ChunkId: %v)",
+                node_->Descriptor.GetDefaultAddress(),
+                session->ChunkId);
 
             auto req = node_->LightProxy.PingSession();
             ToProto(req->mutable_chunk_id(), session->ChunkId);
@@ -785,22 +792,22 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Ping succeeded (Address: %s, ChunkId: %s)",
-                ~node->Descriptor.GetDefaultAddress(),
-                ~ToString(session->ChunkId));
+            LOG_DEBUG("Ping succeeded (Address: %v, ChunkId: %v)",
+                node->Descriptor.GetDefaultAddress(),
+                session->ChunkId);
         }
 
 
         TError OnChunkStarted(TNodePtr node, TDataNodeServiceProxy::TRspStartChunkPtr rsp)
         {
             if (rsp->IsOK()) {
-                LOG_DEBUG("Chunk session started (Address: %s)",
-                    ~node->Descriptor.GetDefaultAddress());
+                LOG_DEBUG("Chunk session started (Address: %v)",
+                    node->Descriptor.GetDefaultAddress());
                 return TError();
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
-                return TError("Error starting session at %s",
-                    ~node->Descriptor.GetDefaultAddress())
+                return TError("Error starting session at %v",
+                    node->Descriptor.GetDefaultAddress())
                     << *rsp;
             }
         }
@@ -808,12 +815,12 @@ private:
         void OnChunkFinished(TNodePtr node, TDataNodeServiceProxy::TRspFinishChunkPtr rsp)
         {
             if (rsp->IsOK()) {
-                LOG_DEBUG("Chunk session finished (Address: %s)",
-                    ~node->Descriptor.GetDefaultAddress());
+                LOG_DEBUG("Chunk session finished (Address: %v)",
+                    node->Descriptor.GetDefaultAddress());
             } else {
                 BanNode(node->Descriptor.GetDefaultAddress());
-                LOG_WARNING(*rsp, "Chunk session has failed to finish (Address: %s)",
-                    ~node->Descriptor.GetDefaultAddress());
+                LOG_WARNING(*rsp, "Chunk session has failed to finish (Address: %v)",
+                    node->Descriptor.GetDefaultAddress());
             }
         }
 
@@ -829,11 +836,13 @@ private:
             int firstBlockIndex = node->FirstBlockIndex;
             int lastLastIndex = firstBlockIndex + batch->Rows.size() - 1;
 
-            LOG_DEBUG("Flushing journal replica (Address: %s, BlockIds: %s:%d-%d)",
-                ~node->Descriptor.GetDefaultAddress(),
-                ~ToString(CurrentSession_->ChunkId),
+            LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v)",
+                node->Descriptor.GetDefaultAddress(),
+                CurrentSession_->ChunkId,
                 firstBlockIndex,
-                lastLastIndex);
+                lastLastIndex,
+                batch->FirstRowIndex,
+                batch->FirstRowIndex + batch->Rows.size() - 1);
 
             auto req = node->HeavyProxy.PutBlocks();
             ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
@@ -864,16 +873,19 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Journal replica flushed (Address: %s, BlockIds: %s:%d-%d)",
-                ~node->Descriptor.GetDefaultAddress(),
-                ~ToString(session->ChunkId),
-                firstBlockIndex,
-                lastBlockIndex);
-
             node->FirstBlockIndex = lastBlockIndex + 1;
             node->FlushInProgress = false;
 
             ++batch->FlushedReplicas;
+
+            LOG_DEBUG("Journal replica flushed (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, FlushCounter: %v)",
+                node->Descriptor.GetDefaultAddress(),
+                session->ChunkId,
+                firstBlockIndex,
+                lastBlockIndex,
+                batch->FirstRowIndex,
+                batch->FirstRowIndex + batch->Rows.size() - 1,
+                batch->FlushedReplicas);
 
             while (!PendingBatches_.empty()) {
                 auto front = PendingBatches_.front();
@@ -881,13 +893,12 @@ private:
                     break;
 
                 front->FlushedPromise.Set(TError());
-                i64 rowCount = front->Rows.size();
-                session->FlushedRowCount += rowCount;
+                session->FlushedRowCount += front->Rows.size();
                 PendingBatches_.pop_front();
 
-                LOG_DEBUG("Rows are flushed by a quorum of replicas (Rows: %d-%d)",
+                LOG_DEBUG("Rows are flushed by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
-                    front->FirstRowIndex + rowCount - 1);
+                    front->FirstRowIndex + front->Rows.size() - 1);
             }
 
             MaybeFlushBlocks(node);
@@ -898,9 +909,9 @@ private:
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
 
-            LOG_WARNING(error, "Journal replica failed (Address: %s, ChunkId: %s)",
-                ~address,
-                ~ToString(session->ChunkId));
+            LOG_WARNING(error, "Journal replica failed (Address: %v, ChunkId: %v)",
+                address,
+                session->ChunkId);
 
             BanNode(address);
 
