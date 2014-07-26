@@ -136,6 +136,12 @@ private:
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     i64 quorumRowCount = result.Value();
 
+                    auto lowerLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
+                    if (!lowerLimit.HasRowIndex()) {
+                        lowerLimit.SetRowIndex(0);
+                    }
+                    ToProto(chunkSpec.mutable_lower_limit(), lowerLimit);
+                    
                     auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
                     i64 upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
                     upperLimit.SetRowIndex(std::min(upperLimitRowIndex, quorumRowCount));
