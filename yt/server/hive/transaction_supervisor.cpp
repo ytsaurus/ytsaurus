@@ -25,7 +25,6 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 #include <server/hydra/hydra_service.h>
-#include <server/hydra/rpc_helpers.h>
 
 #include <server/election/election_manager.h>
 
