@@ -214,16 +214,23 @@ private:
         TReqCommitTimestamp request;
         request.set_timestamp(commitTimestamp);
 
-        auto mutation = CreateMutation(HydraManager_, request)
-            ->OnSuccess(BIND(&TImpl::OnCommitSuccess, MakeStrong(this), commitTimestamp)
-                .Via(TimestampInvoker_));
-
-        AutomatonInvoker_->Invoke(BIND(IgnoreResult(&TMutation::Commit), mutation));
+        auto mutation = CreateMutation(HydraManager_, request);
+        auto this_ = MakeStrong(this);
+        AutomatonInvoker_->Invoke(BIND([=] () {
+            mutation
+                ->Commit()
+                 .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp));
+        }));
     }
 
-    void OnCommitSuccess(TTimestamp timestamp)
+    void OnTimestampCommitted(TTimestamp timestamp, TErrorOr<TMutationResponse> result)
     {
         VERIFY_THREAD_AFFINITY(TimestampThread);
+
+        if (!result.IsOK()) {
+            LOG_ERROR(result, "Error committing timestamp");
+            return;
+        }
 
         CommittedTimestamp_ = timestamp;
 

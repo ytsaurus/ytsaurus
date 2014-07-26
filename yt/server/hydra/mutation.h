@@ -29,21 +29,10 @@ public:
     template <class TResponse>
     TMutationPtr SetAction(TCallback<TResponse()> action);
 
-    TMutationPtr OnSuccess(TClosure onSuccess);
-    TMutationPtr OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess);
-    template <class TResponse>
-    TMutationPtr OnSuccess(TCallback<void(const TResponse&)> onSuccess);
-
-    TMutationPtr OnError(TCallback<void(const TError&)> onError);
-
 private:
     IHydraManagerPtr HydraManager_;
 
     TMutationRequest Request_;
-    TCallback<void(const TMutationResponse&)> OnSuccess_;
-    TCallback<void(const TError&)> OnError_;
-
-    TErrorOr<TMutationResponse> OnCommitted(TErrorOr<TMutationResponse> response);
 
 };
 

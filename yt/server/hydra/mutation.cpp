@@ -14,8 +14,7 @@ TMutation::TMutation(IHydraManagerPtr hydraManager)
 
 TFuture<TErrorOr<TMutationResponse>>  TMutation::Commit()
 {
-    return HydraManager_->CommitMutation(Request_).Apply(
-        BIND(&TMutation::OnCommitted, MakeStrong(this)));
+    return HydraManager_->CommitMutation(Request_);
 }
 
 TMutationPtr TMutation::SetId(const TMutationId& id)
@@ -35,43 +34,6 @@ TMutationPtr TMutation::SetAction(TCallback<void(TMutationContext*)> action)
 {
     Request_.Action = std::move(action);
     return this;
-}
-
-TMutationPtr TMutation::OnSuccess(TClosure onSuccess)
-{
-    YASSERT(!OnSuccess_);
-    OnSuccess_ = BIND([=] (const TMutationResponse&) {
-        onSuccess.Run();
-    });
-    return this;
-}
-
-TMutationPtr TMutation::OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess)
-{
-    YASSERT(!OnSuccess_);
-    OnSuccess_ = std::move(onSuccess);
-    return this;
-}
-
-TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
-{
-    YASSERT(!OnError_);
-    OnError_ = std::move(onError);
-    return this;
-}
-
-TErrorOr<TMutationResponse> TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
-{
-    if (result.IsOK()) {
-        if (OnSuccess_) {
-            OnSuccess_.Run(result.Value());
-        }
-    } else {
-        if (OnError_) {
-            OnError_.Run(result);
-        }
-    }
-    return std::move(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

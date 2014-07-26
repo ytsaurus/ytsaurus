@@ -103,18 +103,6 @@ TMutationPtr TMutation::SetAction(TCallback<TResponse()> action)
     return SetAction(std::move(wrappedAction));
 }
 
-template <class TResponse>
-TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
-{
-    YASSERT(!OnSuccess_);
-    OnSuccess_ = BIND([=] (const TMutationResponse& mutationResponse) {
-        TResponse response;
-        YCHECK(DeserializeFromProtoWithEnvelope(&response, mutationResponse.Data[0]));
-        onSuccess.Run(response);
-    });
-    return this;
-}
-
 template <class TRequest>
 TMutationPtr TMutation::SetRequestData(const TRequest& request)
 {
