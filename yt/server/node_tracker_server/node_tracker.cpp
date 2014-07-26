@@ -485,6 +485,14 @@ private:
         }
     }
 
+    virtual void OnStopLeading() override
+    {
+        for (const auto& pair : NodeMap) {
+            auto* node = pair.second;
+            node->Jobs().clear();
+        }
+    }
+
 
     void UpdateNodeCounters(TNode* node, int delta)
     {

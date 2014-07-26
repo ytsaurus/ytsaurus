@@ -18,7 +18,7 @@ public:
         NCellMaster::TBootstrap* bootstrap);
     ~TChunkSealer();
 
-    void Initialize();
+    void Start();
 
     void ScheduleSeal(TChunk* chunk);
 

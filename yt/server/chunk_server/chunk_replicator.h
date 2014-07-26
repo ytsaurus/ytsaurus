@@ -35,8 +35,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement);
 
-    void Initialize();
-    void Finalize();
+    void Start();
 
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);

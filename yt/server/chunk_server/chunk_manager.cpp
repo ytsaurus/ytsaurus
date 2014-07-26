@@ -1113,31 +1113,17 @@ private:
     {
         LOG_INFO("Scheduling full chunk refresh");
         PROFILE_TIMING ("/full_chunk_refresh_schedule_time") {
-            YCHECK(!ChunkPlacement_);
             ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap);
-            ChunkPlacement_->Initialize();
-
-            YCHECK(!ChunkReplicator_);
             ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap, ChunkPlacement_);
-            ChunkReplicator_->Initialize();
-
-            YCHECK(!ChunkSealer_);
             ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap);
-            ChunkSealer_->Initialize();
         }
         LOG_INFO("Full chunk refresh scheduled");
     }
 
-    virtual void OnStopLeading() override
+    virtual void OnLeaderActive() override
     {
-        ChunkPlacement_.Reset();
-
-        if (ChunkReplicator_) {
-            ChunkReplicator_->Finalize();
-            ChunkReplicator_.Reset();
-        }
-
-        ChunkSealer_.Reset();
+        ChunkReplicator_->Start();
+        ChunkSealer_->Start();
     }
 
 

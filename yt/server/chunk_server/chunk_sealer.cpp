@@ -59,9 +59,6 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(Config_->MaxChunkConcurrentSeals)
-    { }
-
-    void Initialize()
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         for (auto* chunk : chunkManager->Chunks().GetValues()) {
@@ -69,7 +66,10 @@ public:
                 ScheduleSeal(chunk);
             }
         }
+    }
 
+    void Start()
+    {
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         RefreshExecutor_ = New<TPeriodicExecutor>(
             hydraFacade->GetEpochAutomatonInvoker(),
@@ -282,9 +282,9 @@ TChunkSealer::TChunkSealer(
 TChunkSealer::~TChunkSealer()
 { }
 
-void TChunkSealer::Initialize()
+void TChunkSealer::Start()
 {
-    Impl_->Initialize();
+    Impl_->Start();
 }
 
 void TChunkSealer::ScheduleSeal(TChunk* chunk)

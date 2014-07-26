@@ -89,22 +89,6 @@ TChunkReplicator::TChunkReplicator(
     YCHECK(config);
     YCHECK(bootstrap);
     YCHECK(chunkPlacement);
-}
-
-void TChunkReplicator::Initialize()
-{
-    RefreshExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
-        Config_->ChunkRefreshPeriod);
-    RefreshExecutor_->Start();
-
-    PropertiesUpdateExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
-        Config_->ChunkPropertiesUpdatePeriod,
-        EPeriodicExecutorMode::Manual);
-    PropertiesUpdateExecutor_->Start();
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     for (auto* node : nodeTracker->Nodes().GetValues()) {
@@ -118,12 +102,20 @@ void TChunkReplicator::Initialize()
     }
 }
 
-void TChunkReplicator::Finalize()
+void TChunkReplicator::Start()
 {
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (auto* node : nodeTracker->Nodes().GetValues()) {
-        node->Jobs().clear();
-    }
+    RefreshExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
+        Config_->ChunkRefreshPeriod);
+    RefreshExecutor_->Start();
+
+    PropertiesUpdateExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
+        Config_->ChunkPropertiesUpdatePeriod,
+        EPeriodicExecutorMode::Manual);
+    PropertiesUpdateExecutor_->Start();
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
