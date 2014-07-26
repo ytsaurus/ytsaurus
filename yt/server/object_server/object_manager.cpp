@@ -297,9 +297,6 @@ TObjectManager::TObjectManager(
     , RootService(New<TRootService>(bootstrap))
     , ObjectResolver(new TObjectResolver(bootstrap))
     , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
-    , CreatedObjectCount(0)
-    , DestroyedObjectCount(0)
-    , LockedObjectCount(0)
 {
     YCHECK(config);
     YCHECK(bootstrap);

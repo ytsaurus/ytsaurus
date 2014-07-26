@@ -218,9 +218,9 @@ private:
 
     TGarbageCollectorPtr GarbageCollector;
 
-    i64 CreatedObjectCount;
-    i64 DestroyedObjectCount;
-    int LockedObjectCount;
+    i64 CreatedObjectCount = 0;
+    i64 DestroyedObjectCount = 0;
+    int LockedObjectCount = 0;
 
     //! Stores deltas from parent transaction.
     NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> Attributes;
