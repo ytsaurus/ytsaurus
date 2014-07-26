@@ -195,11 +195,12 @@ private:
                     chunkId,
                     replicas);
 
+                // NB: Lower/upper limits are mandatory for journal chunks.
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
-                BeginRowIndex_ = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
+                BeginRowIndex_ = lowerLimit.GetRowIndex();
 
                 auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
-                EndRowIndex_ = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<int>::max();
+                EndRowIndex_ = upperLimit.GetRowIndex();
 
                 CurrentRowIndex_ = BeginRowIndex_;
             }
