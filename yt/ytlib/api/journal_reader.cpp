@@ -146,7 +146,7 @@ private:
             if (type != EObjectType::Journal) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     Path_,
-                    EObjectType(EObjectType::File),
+                    EObjectType(EObjectType::Journal),
                     type);
             }
         }
