@@ -510,7 +510,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // Make sure we're still using the same context.
-        // Otherwise cell guid, which has alread been printed, might be wrong.
+        // Otherwise cell id, which has already been printed, might be wrong.
         if (context->IsCanceled())
             return;
 
