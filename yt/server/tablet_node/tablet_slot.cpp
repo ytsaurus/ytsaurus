@@ -91,7 +91,8 @@ public:
         VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
 
         SetCellGuid(NullCellGuid);
-        ResetInvokers();
+        ResetEpochInvokers();
+        ResetGuardedInvokers();
     }
 
 
@@ -373,7 +374,8 @@ public:
             rpcServer->UnregisterService(TabletService_);
         }
 
-        ResetInvokers();
+        ResetEpochInvokers();
+        ResetGuardedInvokers();
         
         State_ = EPeerState::None;
 
@@ -441,15 +443,18 @@ private:
     }
 
 
-    void ResetInvokers()
+    void ResetEpochInvokers()
     {
         TGuard<TSpinLock> guard(InvokersSpinLock_);
-
         EpochAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
         for (auto& invoker : EpochAutomatonInvokers_) {
             invoker = GetNullInvoker();
         }
+    }
 
+    void ResetGuardedInvokers()
+    {
+        TGuard<TSpinLock> guard(InvokersSpinLock_);
         GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
         for (auto& invoker : GuardedAutomatonInvokers_) {
             invoker = GetNullInvoker();
@@ -471,7 +476,7 @@ private:
 
     void OnStopEpoch()
     {
-        ResetInvokers();
+        ResetEpochInvokers();
     }
 
 
