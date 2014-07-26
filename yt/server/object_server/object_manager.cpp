@@ -116,13 +116,20 @@ public:
                 objectManager,
                 userId,
                 context))
-            ->OnSuccess(BIND([=] (const TMutationResponse& response) {
-                // Handle kept response.
-                if (response.IsKept) {
-                    context->Reply(response.Data);
+            ->Commit()
+            .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
+                if (result.IsOK()) {
+                    const auto& response = result.Value();
+                    if (response.IsKept) {
+                        // Reply with kept response.
+                        context->Reply(response.Data);
+                    } else {
+                        // Do nothing: context is already replied by the mutation handler.
+                    }
+                } else {
+                    context->Reply(TError(result));
                 }
-            }))
-            ->Commit();
+            }));
     }
 
     virtual NLog::TLogger GetLogger() const override
