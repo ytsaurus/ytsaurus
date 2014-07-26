@@ -39,8 +39,9 @@ public:
         for (auto* node : nodeTracker->Nodes().GetValues()) {
             int total = node->GetTotalTabletSlots();
             int used = tabletManager->GetAssignedTabletCellCount(node->GetAddress());
+            int spare = total - used;
             if (used < total) {
-                YCHECK(CandidatesToSpareSlots_.insert(std::make_pair(node, total - used)).second);
+                MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
             }
         }
     }
@@ -49,11 +50,14 @@ public:
         TTabletCell* cell,
         const TSmallSet<Stroka, TypicalCellSize>& forbiddenAddresses)
     {
-        for (auto it = CandidatesToSpareSlots_.begin(); it != CandidatesToSpareSlots_.end(); ++it) {
-            auto* node = it->first;
+        for (auto it = MinusSpareSlotsToNode_.begin(); it != MinusSpareSlotsToNode_.end(); ++it) {
+            int spare = it->first;
+            auto* node = it->second;
             if (forbiddenAddresses.count(node->GetAddress()) == 0) {
-                if (--it->second == 0) {
-                    CandidatesToSpareSlots_.erase(it);
+                MinusSpareSlotsToNode_.erase(it);
+                --spare;
+                if (spare > 0) {
+                    MinusSpareSlotsToNode_.insert(std::make_pair(-spare, node));
                 }
                 return node;
             }
@@ -63,7 +67,9 @@ public:
 
 private:
     NCellMaster::TBootstrap* Bootstrap_;
-    yhash_map<NNodeTrackerServer::TNode*, int> CandidatesToSpareSlots_;
+    // NB: "Minus" is to avoid iterating backwards and converting reserve iterator to forward iterator
+    // in call to erase.
+    std::multimap<int, TNode*> MinusSpareSlotsToNode_;
 
 };
 
