@@ -136,7 +136,7 @@ private:
                     THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     i64 quorumRowCount = result.Value();
 
-                    auto lowerLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
+                    auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
                     if (!lowerLimit.HasRowIndex()) {
                         lowerLimit.SetRowIndex(0);
                     }
@@ -236,7 +236,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         --SessionCount_;
-            YCHECK(SessionCount_ >= 0);
+        YCHECK(SessionCount_ >= 0);
 
         ReplyError(error);
     }
@@ -246,7 +246,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         --SessionCount_;
-            YCHECK(SessionCount_ >= 0);
+        YCHECK(SessionCount_ >= 0);
 
         if (Completed_ && !Finished_ && SessionCount_ == 0) {
             ReplySuccess();
