@@ -117,46 +117,37 @@ private:
         YCHECK(!Finished_);
         Finished_ = true;
 
-        auto* chunkSpecs = Context_->Response().mutable_chunks();
-        int chunkCount = chunkSpecs->size();
+        try {
+            // Update upper limits for all returned journal chunks.
+            auto* chunkSpecs = Context_->Response().mutable_chunks();
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            for (auto& chunkSpec : *chunkSpecs) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
+                    auto* chunk = chunkManager->FindChunk(chunkId);
+                    if (!chunk) {
+                        THROW_ERROR_EXCEPTION(
+                            NRpc::EErrorCode::Unavailable,
+                            "Optimistic locking failed for chunk %v",
+                            chunkId);
+                    }
 
-        // Update the upper limit for the last journal chunk.
-        if (chunkCount > 0) {
-            auto* lastChunkSpec = chunkSpecs->Mutable(chunkCount - 1);
-            auto chunkId = FromProto<TChunkId>(lastChunkSpec->chunk_id());
-            if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
-                auto chunkManager = Bootstrap_->GetChunkManager();
-                auto* chunk = chunkManager->FindChunk(chunkId);
-                if (!chunk) {
-                    Context_->Reply(TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Optimistic locking failed for chunk %v",
-                        chunkId));
-                    return;
-                }
+                    auto result = WaitFor(chunkManager->GetChunkQuorumRowCount(chunk));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    i64 quorumRowCount = result.Value();
 
-                auto lowerLimit = FromProto<TReadLimit>(lastChunkSpec->lower_limit());
-                auto upperLimit = FromProto<TReadLimit>(lastChunkSpec->upper_limit());
-
-                auto result = WaitFor(chunkManager->GetChunkQuorumRowCount(chunk));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-
-                i64 quorumRowCount = result.Value();
-                i64 specLowerLimit = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
-                i64 specUpperLimit = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
-
-                i64 adjustedUpperLimit = std::min(quorumRowCount, specUpperLimit);
-                if (adjustedUpperLimit > specLowerLimit) {
-                    upperLimit.SetRowIndex(adjustedUpperLimit);
-                    ToProto(lastChunkSpec->mutable_upper_limit(), upperLimit);
-                } else {
-                    chunkSpecs->RemoveLast();
+                    auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
+                    i64 upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
+                    upperLimit.SetRowIndex(std::min(upperLimitRowIndex, quorumRowCount));
+                    ToProto(chunkSpec.mutable_upper_limit(), upperLimit);
                 }
             }
-        }
 
-        Context_->SetResponseInfo("ChunkCount: %v", chunkCount);
-        Context_->Reply();
+            Context_->SetResponseInfo("ChunkCount: %v", chunkSpecs->size());
+            Context_->Reply();
+        } catch (const std::exception& ex) {
+            Context_->Reply(ex);
+        }
     }
 
     void ReplyError(const TError& error)
