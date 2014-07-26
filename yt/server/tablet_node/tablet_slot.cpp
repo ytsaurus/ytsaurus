@@ -450,7 +450,7 @@ private:
             invoker = GetNullInvoker();
         }
 
-        GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize())
+        GuardedAutomatonInvokers_.resize(EAutomatonThreadQueue::GetDomainSize());
         for (auto& invoker : GuardedAutomatonInvokers_) {
             invoker = GetNullInvoker();
         }
