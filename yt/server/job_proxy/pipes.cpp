@@ -266,7 +266,11 @@ TError TInputPipe::DoAll()
 TError TInputPipe::WriteAll()
 {
     while (HasData) {
-        HasData = TableProducer->ProduceRow();
+        try {
+            HasData = TableProducer->ProduceRow();
+        } catch (const std::exception& ex) {
+            return ex;
+        }
 
         if (HasData && Buffer->Size() < OutputBufferSize) {
             continue;
@@ -277,14 +281,18 @@ TError TInputPipe::WriteAll()
             continue;
         }
 
-        auto error = WaitFor(Writer->Write(Buffer->Begin(), Buffer->Size()));
-        RETURN_IF_ERROR(error);
+        {
+            auto error = WaitFor(Writer->Write(Buffer->Begin(), Buffer->Size()));
+            RETURN_IF_ERROR(error);
+        }
 
         Buffer->Clear();
     }
 
-    auto error = WaitFor(Writer->Close());
-    return error;
+    {
+        auto error = WaitFor(Writer->Close());
+        return error;
+    }
 }
 
 TError TInputPipe::Close()
