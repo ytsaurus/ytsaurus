@@ -26,7 +26,9 @@
 
 namespace NYT {
 
-static NLog::TLogger SILENT_UNUSED Logger("Proc");
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLog::TLogger Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +107,7 @@ TError StatusToError(int status)
 void CloseAllDescriptors()
 {
 #ifdef _linux_
-    DIR *dp = ::opendir("/proc/self/fd");
+    DIR* dp = ::opendir("/proc/self/fd");
     YCHECK(dp != NULL);
 
     int dirfd = ::dirfd(dp);
