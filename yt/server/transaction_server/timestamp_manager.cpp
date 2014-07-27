@@ -219,7 +219,8 @@ private:
         AutomatonInvoker_->Invoke(BIND([=] () {
             mutation
                 ->Commit()
-                 .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp));
+                 .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp)
+                    .Via(GetCurrentInvoker()));
         }));
     }
 
