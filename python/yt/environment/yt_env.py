@@ -4,6 +4,8 @@ from helpers import unorderable_list_difference, _AssertRaisesContext, Counter
 from yt.common import update
 import yt.yson as yson
 
+import py.test
+
 import logging
 import os
 import re
@@ -13,7 +15,6 @@ import socket
 import shutil
 import subprocess
 import sys
-import errno
 import simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -118,6 +119,7 @@ class YTEnv(object):
         self._master_addresses = defaultdict(lambda: [])
         self._node_addresses = defaultdict(lambda: [])
         self._process_to_kill = defaultdict(lambda: [])
+        self._all_processes = {}
         self._ports = defaultdict(lambda: [])
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
@@ -199,6 +201,7 @@ class YTEnv(object):
             p_message, p_ok = self.kill_process(p, name)
             if not p_ok:
                 ok = False
+            del self._all_processes[p.pid]
             message += p_message
 
         if ok:
@@ -207,7 +210,7 @@ class YTEnv(object):
         return ok, message
 
 
-    def clear_environment(self):
+    def clear_environment(self, safe=True):
         total_ok = True
         total_message = ""
         for name in self.configs:
@@ -216,7 +219,16 @@ class YTEnv(object):
                 total_ok = False
                 total_message += message + "\n\n"
 
-        assert total_ok, total_message
+        if safe:
+            assert total_ok, total_message
+
+    def check_liveness(self):
+        for pid, info in self._all_processes.iteritems():
+            proc, args = info
+            if proc.returncode is not None:
+                self.clear_environment(safe=False)
+                py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
+                             .format(" ".join(args)))
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
@@ -232,6 +244,7 @@ class YTEnv(object):
         p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
                              stdout=stdout, stderr=stderr)
         self._process_to_kill[name].append(p)
+        self._all_processes[p.pid] = (p, args)
         self._append_pid(p.pid)
 
         time.sleep(timeout)

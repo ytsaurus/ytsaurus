@@ -34,7 +34,7 @@ class YTEnvSetup(YTEnv):
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel
-        path_to_run = os.path.join(path_to_test, "run" + str(uuid.uuid4().hex))
+        path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
         cls.path_to_test = path_to_test
@@ -56,6 +56,7 @@ class YTEnvSetup(YTEnv):
             self.transactions_at_start = set(yt_commands.get_transactions())
 
     def teardown_method(self, method):
+        self.Env.check_liveness()
         if self.Env.NUM_MASTERS > 0:
             current_txs = set(yt_commands.get_transactions())
             txs_to_abort = current_txs.difference(self.transactions_at_start)
