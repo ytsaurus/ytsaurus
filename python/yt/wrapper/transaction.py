@@ -31,15 +31,19 @@ class Transaction(object):
     initial_transaction = "0-0-0-0"
     initial_ping_ancestor_transactions = False
 
-    def __init__(self, timeout=None, attributes=None, client=None):
+    def __init__(self, timeout=None, attributes=None, null=False, client=None):
         self.client = get_value(client, config.CLIENT)
+        self.null = null
 
         if self.client is None:
             if not Transaction.stack:
                 Transaction.initial_transaction = config.TRANSACTION
                 Transaction.initial_ping_ancestor_transactions = config.PING_ANCESTOR_TRANSACTIONS
 
-        self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
+        if self.null:
+            self.transaction_id = "0-0-0-0"
+        else:
+            self.transaction_id = start_transaction(timeout=timeout, attributes=attributes, client=client)
         if self.client is None:
             Transaction.stack.append(self.transaction_id)
             self._update_global_config()
@@ -56,24 +60,25 @@ class Transaction(object):
         if self.finished:
             return
         try:
-            if type is not None:
-                logger.warning(
-                    "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
-                    type,
-                    value,
-                    tb.format_exc(traceback).replace("\n", "\\n"),
-                    self.transaction_id)
+            if not self.null:
+                if type is not None:
+                    logger.warning(
+                        "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
+                        type,
+                        value,
+                        tb.format_exc(traceback).replace("\n", "\\n"),
+                        self.transaction_id)
 
-            try:
-                if type is None:
-                    commit_transaction(self.transaction_id, client=self.client)
-                else:
-                    abort_transaction(self.transaction_id, client=self.client)
-            except YtResponseError as rsp:
-                if rsp.is_resolve_error():
-                    logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
-                else:
-                    raise
+                try:
+                    if type is None:
+                        commit_transaction(self.transaction_id, client=self.client)
+                    else:
+                        abort_transaction(self.transaction_id, client=self.client)
+                except YtResponseError as rsp:
+                    if rsp.is_resolve_error():
+                        logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
+                    else:
+                        raise
         finally:
             if self.client is None:
                 Transaction.stack.pop()
