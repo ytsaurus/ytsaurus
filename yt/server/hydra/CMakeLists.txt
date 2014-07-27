@@ -27,6 +27,7 @@ set( SRCS
   ${BASE}/composite_automaton.cpp
   ${BASE}/mutation.cpp
   ${BASE}/hydra_service.cpp
+  ${BASE}/rpc_helpers.cpp
   ${BASE}/local_snapshot_service.cpp
   ${BASE}/local_snapshot_store.cpp
   ${BASE}/remote_snapshot_store.cpp
@@ -67,6 +68,7 @@ set( HDRS
   ${BASE}/entity_map-inl.h
   ${BASE}/entity_map.h
   ${BASE}/hydra_service.h
+  ${BASE}/rpc_helpers.h
   ${BASE}/snapshot_service_proxy.h
   ${BASE}/local_snapshot_service.h
   ${BASE}/local_snapshot_store.h

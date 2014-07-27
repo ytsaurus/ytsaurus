@@ -30,6 +30,7 @@
 #include <server/hydra/mutation_context.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/hydra_service.h>
+#include <server/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NHive {
@@ -269,10 +270,8 @@ private:
             firstMessageId + request->messages_size() - 1);
         
         CreatePostMessagesMutation(context)
-            ->Commit()
-            .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-                context->Reply(result);
-            }));
+            ->OnSuccess(CreateRpcSuccessHandler(context))
+            ->Commit();
     }
 
 

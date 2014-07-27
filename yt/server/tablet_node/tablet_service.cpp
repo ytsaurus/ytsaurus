@@ -15,6 +15,7 @@
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
+#include <server/hydra/rpc_helpers.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -81,10 +82,8 @@ private:
 
         transactionManager
             ->CreateStartTransactionMutation(*request)
-            ->Commit()
-            .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-                context->Reply(result);
-            }));
+            ->OnSuccess(CreateRpcSuccessHandler(context))
+            ->Commit();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)

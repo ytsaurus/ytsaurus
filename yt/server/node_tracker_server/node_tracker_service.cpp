@@ -7,6 +7,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
+#include <server/hydra/rpc_helpers.h>
+
 #include <server/object_server/object_manager.h>
 
 #include <server/chunk_server/chunk_manager.h>
@@ -93,10 +95,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 
     nodeTracker
         ->CreateRegisterNodeMutation(*request)
-        ->Commit()
-        .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-            context->Reply(result);
-        }));
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
@@ -123,10 +123,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
 
     nodeTracker
         ->CreateFullHeartbeatMutation(context)
-        ->Commit()
-        .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-            context->Reply(result);
-        }));
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
@@ -153,10 +151,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(context)
-        ->Commit()
-        .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-            context->Reply(result);
-        }));
+        ->OnSuccess(CreateRpcSuccessHandler(context))
+        ->Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
