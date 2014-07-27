@@ -270,8 +270,8 @@ private:
             firstMessageId + request->messages_size() - 1);
         
         CreatePostMessagesMutation(context)
-            ->OnSuccess(CreateRpcSuccessHandler(context))
-            ->Commit();
+            ->Commit()
+             .Subscribe(CreateRpcResponseHandler(context));
     }
 
 

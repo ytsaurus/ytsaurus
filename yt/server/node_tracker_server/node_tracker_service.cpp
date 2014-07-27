@@ -95,8 +95,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 
     nodeTracker
         ->CreateRegisterNodeMutation(*request)
-        ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->Commit();
+        ->Commit()
+         .Subscribe(CreateRpcResponseHandler(context));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
@@ -123,8 +123,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
 
     nodeTracker
         ->CreateFullHeartbeatMutation(context)
-        ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->Commit();
+        ->Commit()
+         .Subscribe(CreateRpcResponseHandler(context));
+    ;
 }
 
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
@@ -151,8 +152,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(context)
-        ->OnSuccess(CreateRpcSuccessHandler(context))
-        ->Commit();
+        ->Commit()
+         .Subscribe(CreateRpcResponseHandler(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

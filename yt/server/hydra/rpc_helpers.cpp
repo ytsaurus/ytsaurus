@@ -11,24 +11,19 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCallback<void(const TMutationResponse&)> CreateRpcSuccessHandler(IServiceContextPtr context)
+TCallback<void(TErrorOr<TMutationResponse>)> CreateRpcResponseHandler(IServiceContextPtr context)
 {
-    return BIND([=] (const TMutationResponse& response) {
-        if (response.Data) {
-            context->Reply(response.Data);
+    return BIND([=] (TErrorOr<TMutationResponse> result) {
+        if (result.IsOK()) {
+            const auto& response = result.Value();
+            if (response.Data) {
+                context->Reply(response.Data);
+            } else {
+                context->Reply(TError());
+            }
         } else {
-            context->Reply(TError());
+            context->Reply(TError(result));
         }
-    });
-}
-
-TCallback<void(const TError&)> CreateRpcErrorHandler(IServiceContextPtr context)
-{
-    return BIND([=] (const TError& error) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            "Error committing mutations")
-            << error);
     });
 }
 

@@ -82,8 +82,8 @@ private:
 
         transactionManager
             ->CreateStartTransactionMutation(*request)
-            ->OnSuccess(CreateRpcSuccessHandler(context))
-            ->Commit();
+            ->Commit()
+             .Subscribe(CreateRpcResponseHandler(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)
