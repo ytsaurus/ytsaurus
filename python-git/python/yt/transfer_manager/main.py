@@ -157,6 +157,7 @@ class Application(object):
         
         message_queue = Queue()
         self._lock_path = os.path.join(config["path"], "lock")
+        self._yt.create("map_node", self._lock_path, ignore_existing=True)
         self._lock_thread = Process(target=self._take_lock, args=(message_queue,))
         self._lock_thread.start()
         if not message_queue.get(timeout=5.0):
@@ -200,18 +201,21 @@ class Application(object):
         return decorator
 
     def _take_lock(self, message_queue):
-        with self._yt.PingableTransaction():
-            try:
-                self._yt.create("map_node", self._lock_path, ignore_existing=True)
-                self._yt.lock(self._lock_path)
-                message_queue.put(True)
-            except Exception as err:
-                logger.exception(err)
-                message_queue.put(True)
-                return
+        try:
+            with self._yt.PingableTransaction():
+                try:
+                    self._yt.lock(self._lock_path)
+                    message_queue.put(True)
+                except Exception as err:
+                    logger.exception(err)
+                    message_queue.put(True)
+                    return
 
-            # Sleep infinitely long
-            time.sleep(2 ** 60)
+                # Sleep infinitely long
+                time.sleep(2 ** 60)
+        except KeyboardInterrupt:
+            # Do not print backtrace in case of SIGINT
+            pass
 
     def _load_config(self, config):
         self._clusters = {}
