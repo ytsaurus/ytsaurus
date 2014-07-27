@@ -62,7 +62,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
                           _make_formatted_transactional_request
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import PingableTransaction
+from transaction import PingableTransaction, Transaction
 from format import create_format
 from lock import lock
 from heavy_commands import make_heavy_request
@@ -125,8 +125,9 @@ def _prepare_files(files, client=None):
         return []
 
     file_paths = []
-    for file in flatten(files):
-        file_paths.append(smart_upload_file(file, client=client))
+    with Transaction(null=True, client=client):
+        for file in flatten(files):
+            file_paths.append(smart_upload_file(file, client=client))
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
