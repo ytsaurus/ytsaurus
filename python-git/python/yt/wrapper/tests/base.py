@@ -48,6 +48,6 @@ class YtTestBase(object):
         yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
     def teardown(self):
-        self.Env.check_liveness()
+        self.env.check_liveness()
         yt.remove(TEST_DIR, recursive=True, force=True)
 
