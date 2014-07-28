@@ -220,7 +220,7 @@ private:
             mutation
                 ->Commit()
                  .Subscribe(BIND(&TImpl::OnTimestampCommitted, this_, commitTimestamp)
-                    .Via(GetCurrentInvoker()));
+                    .Via(TimestampInvoker_));
         }));
     }
 
