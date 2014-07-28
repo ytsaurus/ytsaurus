@@ -14,31 +14,35 @@ namespace NDetail {
 template <class TIterator, class TComparer>
 void SiftDown(TIterator begin, TIterator end, TIterator current, const TComparer& comparer)
 {
-    auto value = *current;
+    size_t size = std::distance(begin, end);
+    size_t offset = std::distance(begin, current);
+
+    auto value = begin[offset];
     while (true) {
-        size_t dist = std::distance(begin, current);
-        auto left = begin + 2 * dist + 1;
-        auto right = left + 1;
-        if (left >= end) {
+        size_t left = 2 * offset + 1;
+
+        if (left >= size) {
             break;
         }
 
-        TIterator min;
-        if (right >= end) {
+        size_t right = left + 1;
+        size_t min;
+
+        if (right >= size) {
             min = left;
         } else {
-            min = comparer(*left, *right) ? left : right;
+            min = comparer(begin[left], begin[right]) ? left : right;
         }
 
-        auto minValue = *min;
+        auto minValue = begin[min];
         if (comparer(value, minValue)) {
             break;
         }
 
-        *current = minValue;
-        current = min;
+        begin[offset] = minValue;
+        offset = min;
     }
-    *current = value;
+    begin[offset] = value;
 }
 
 template <class TIterator, class TComparer>
@@ -65,8 +69,9 @@ void MakeHeap(TIterator begin, TIterator end, const TComparer& comparer)
 {
     if (begin != end) {
         size_t size = std::distance(begin, end);
-        for (auto current = begin + size / 2 - 1; current >= begin; --current) {
-            NYT::NDetail::SiftDown(begin, end, current, comparer);
+        for (size_t current = size / 2; current > 0; ) {
+            --current;
+            NYT::NDetail::SiftDown(begin, end, begin + current, comparer);
         }
     }
 }
