@@ -4,6 +4,7 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/serialize.h>
 #include <core/ytree/convert.h>
+#include <core/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -45,7 +46,21 @@ void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TSummary& value, NYTree::INodePtr node)
 {
+    static std::array<Stroka, 4> possibleKeys = {
+        "sum",
+        "count",
+        "min",
+        "max"
+    };
+
     auto mapNode = node->AsMap();
+    auto keys = mapNode->GetKeys();
+    if (keys.size() != possibleKeys.size()) {
+        THROW_ERROR_EXCEPTION("Expected map with %v values but got %v",
+            possibleKeys.size(),
+            keys.size());
+    }
+
     value.Sum_ = NYTree::ConvertTo<i64>(mapNode->GetChild("sum"));
     value.Count_ = NYTree::ConvertTo<i64>(mapNode->GetChild("count"));
     value.Min_ = NYTree::ConvertTo<i64>(mapNode->GetChild("min"));
@@ -54,7 +69,7 @@ void Deserialize(TSummary& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////
 
-void TStatistics::Add(const Stroka& name, const TSummary& summary)
+void TStatistics::Add(const NYPath::TYPath& name, const TSummary& summary)
 {
     Statistics_[name] = summary;
 }
@@ -76,36 +91,54 @@ bool TStatistics::Empty() const
     return Statistics_.empty();
 }
 
-TSummary TStatistics::GetStatistic(const Stroka& name) const
+TSummary TStatistics::GetStatistic(const NYPath::TYPath& name) const
 {
     return Statistics_.at(name);
 }
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::Serialize(statistics.Statistics_, consumer);
+    auto root = NYTree::GetEphemeralNodeFactory()->CreateMap();
+    for (const auto& pair : statistics.Statistics_) {
+        ForceYPath(root, pair.first);
+        auto value = NYTree::ConvertToNode(pair.second);
+        SetNodeByYPath(root, pair.first, value);
+    }
+    NYTree::Serialize(*root, consumer);
 }
 
 void Deserialize(TStatistics& value, NYTree::INodePtr node)
 {
-    Deserialize(value.Statistics_, node);
+    try {
+        TSummary summary;
+        Deserialize(summary, node);
+        value.Statistics_.emplace(node->GetPath(), std::move(summary));
+    } catch (const std::exception& ) {
+        for (auto& pair : node->AsMap()->GetChildren()) {
+            Deserialize(value, pair.second);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
 
 TStatisticsConvertor::TStatisticsConvertor(TStatisticsConsumer consumer)
     : Depth_(0)
+    , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
 
 void TStatisticsConvertor::OnStringScalar(const TStringBuf& value)
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain string literals");
 }
 
 void TStatisticsConvertor::OnInt64Scalar(i64 value)
 {
-    Statistics_.Add(LastKey_, TSummary(value));
+    if (Depth_ == 0) {
+        THROW_ERROR_EXCEPTION("Statistics should use map as a container.");
+    }
+    TreeBuilder_->OnIntegerScalar(value);
 }
 
 void TStatisticsConvertor::OnBooleanScalar(bool value)
@@ -115,22 +148,22 @@ void TStatisticsConvertor::OnBooleanScalar(bool value)
 
 void TStatisticsConvertor::OnDoubleScalar(double value)
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain float numbers. Use integer.");
 }
 
 void TStatisticsConvertor::OnEntity()
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain entity literal.");
 }
 
 void TStatisticsConvertor::OnBeginList()
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain lists.");
 }
 
 void TStatisticsConvertor::OnListItem()
 {
-    YCHECK(Statistics_.Empty());
+    TreeBuilder_->BeginTree();
 }
 
 void TStatisticsConvertor::OnEndList()
@@ -140,32 +173,47 @@ void TStatisticsConvertor::OnEndList()
 
 void TStatisticsConvertor::OnBeginMap()
 {
-    YCHECK(Depth_ == 0);
     ++Depth_;
+    TreeBuilder_->OnBeginMap();
 }
 
 void TStatisticsConvertor::OnKeyedItem(const TStringBuf& key)
 {
-    LastKey_ = key;
+    TreeBuilder_->OnKeyedItem(key);
 }
 
 void TStatisticsConvertor::OnEndMap()
 {
-    YCHECK(Depth_ == 1);
+    TreeBuilder_->OnEndMap();
     --Depth_;
-
-    Consumer_.Run(Statistics_);
-    Statistics_.Clear();
+    if (Depth_ == 0) {
+        TStatistics statistics;
+        ConvertToStatistics(statistics, TreeBuilder_->EndTree());
+        Consumer_.Run(statistics);
+    }
 }
 
 void TStatisticsConvertor::OnBeginAttributes()
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain attributes.");
 }
 
 void TStatisticsConvertor::OnEndAttributes()
 {
     YUNREACHABLE();
+}
+
+void TStatisticsConvertor::ConvertToStatistics(TStatistics& value, NYTree::INodePtr node)
+{
+    if (node->GetType() == NYTree::ENodeType::Integer) {
+        TSummary summary(node->AsInteger()->GetValue());
+        value.Add(node->GetPath(), std::move(summary));
+        return;
+    }
+
+    for (auto& pair : node->AsMap()->GetChildren()) {
+        ConvertToStatistics(value, pair.second);
+    }
 }
 
 

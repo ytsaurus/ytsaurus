@@ -7,6 +7,8 @@
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/parser.h>
 
+#include <core/ytree/convert.h>
+
 namespace NYT {
 namespace NJobProxy {
 namespace {
@@ -79,6 +81,15 @@ TEST(TStatistics, MergeTheSameKey)
     EXPECT_EQ(2, statistics.GetStatistic("key").GetCount());
 }
 
+TEST(TStatistics, Serialization)
+{
+    TStatistics statistics;
+    statistics.Add("/key", TSummary(10));
+    statistics.Add("/other_key", TSummary(40));
+
+    auto newStatistics = NYTree::ConvertTo<TStatistics>(NYTree::ConvertToYsonString(statistics));
+}
+
 class TMergeStatisticsConsumer
 {
 public:
@@ -105,8 +116,8 @@ TEST(TStatisticsConvertor, Integration)
     output.Write("{ k1=4}; {k2=-7}");
 
     const auto& stats = statisticsConsumer.GetStatistics();
-    EXPECT_EQ(4, stats.GetStatistic("k1").GetSum());
-    EXPECT_EQ(-7, stats.GetStatistic("k2").GetSum());
+    EXPECT_EQ(4, stats.GetStatistic("/k1").GetSum());
+    EXPECT_EQ(-7, stats.GetStatistic("/k2").GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////

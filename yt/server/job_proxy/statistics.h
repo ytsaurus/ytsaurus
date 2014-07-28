@@ -4,6 +4,8 @@
 #include <core/yson/consumer.h>
 #include <core/ytree/public.h>
 #include <core/actions/bind.h>
+// should be removed
+#include <core/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -34,15 +36,15 @@ void Deserialize(TSummary& value, NYTree::INodePtr node);
 class TStatistics
 {
 public:
-    void Add(const Stroka& name, const TSummary& summary);
+    void Add(const NYPath::TYPath& name, const TSummary& summary);
     void Merge(const TStatistics& other);
     void Clear();
     bool Empty() const;
 
-    TSummary GetStatistic(const Stroka& name) const;
+    TSummary GetStatistic(const NYPath::TYPath& name) const;
 
 private:
-    typedef std::map<Stroka, TSummary> TSummaryDict;
+    typedef std::map<NYPath::TYPath, TSummary> TSummaryDict;
     TSummaryDict Statistics_;
 
     friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -80,10 +82,10 @@ public:
 
 private:
     int Depth_;
-    Stroka LastKey_;
-    TStatistics Statistics_;
-
+    std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     TStatisticsConsumer Consumer_;
+
+    void ConvertToStatistics(TStatistics& value, NYTree::INodePtr node);
 };
 
 ////////////////////////////////////////////////////////////////////
