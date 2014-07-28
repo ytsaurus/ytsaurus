@@ -114,8 +114,8 @@ TEST(TCoroutineTest, Binary)
     for (
         i = 0;
         (actual = coro.Run(
-            Coroutine2TestCases[i].lhs,
-            Coroutine2TestCases[i].rhs));
+            i < Coroutine2TestCases.size() ? Coroutine2TestCases[i].lhs : 0,
+            i < Coroutine2TestCases.size() ? Coroutine2TestCases[i].rhs : 0));
         ++i
     ) {
         EXPECT_EQ(Coroutine2TestCases[i].sum, actual.Get());
