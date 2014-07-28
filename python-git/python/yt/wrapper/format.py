@@ -453,9 +453,11 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
-    def __init__(self, attributes=None):
+    def __init__(self, attributes=None, process_table_index=False, table_index_field_name="table_index"):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes)
+        self.process_table_index = process_table_index
+        self.table_index_field_name = table_index_field_name
 
     def load_row(self, stream, unparsed=False):
         row = stream.readline()
@@ -465,15 +467,42 @@ class JsonFormat(Format):
             return None
         return json.loads(row.rstrip("\n"))
 
+    def _process_input_rows(self, rows):
+        for row in rows:
+            if "$value" in row:
+                require(row["$value"] == None,
+                        YtError("Incorrect $value of table switch in json format"))
+                table_index = row["$attributes"]["table_index"]
+            else:
+                row[self.table_index_field_name] = table_index
+                yield row
+
     def load_rows(self, stream):
-        for line in stream:
-            yield json.loads(line)
+        def _load_rows(stream):
+            for line in stream:
+                yield json.loads(line)
+
+        rows = _load_rows(stream)
+        if self.process_table_index:
+            return self._process_input_rows(rows)
+        return rows
 
     def dump_row(self, row, stream):
         json.dump(row, stream)
         stream.write("\n")
 
+    def _process_output_rows(self, rows):
+        table_index = 0
+        for row in rows:
+            if self.table_index_field_name in row and row[self.table_index_field_name] != table_index:
+                table_index = row[self.table_index_field_name]
+                del row[self.table_index_field_name]
+                yield {"$value": None, "$attributes": {"table_index": table_index}}
+            yield row
+
     def dump_rows(self, rows, stream):
+        if self.process_table_index:
+            rows = self._process_output_rows(rows)
         for row in rows:
             self.dump_row(row, stream)
 
