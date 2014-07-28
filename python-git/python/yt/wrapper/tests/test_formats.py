@@ -108,6 +108,18 @@ def test_json_format():
     stream = StringIO('{"a": 1}\n{"b": 2}')
     assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
 
+def test_json_format_table_index():
+    format = yt.JsonFormat(process_table_index=True)
+
+    stream = StringIO()
+    format.dump_rows([{"a": 1, "table_index": 1}], stream)
+    assert stream.getvalue() == '{"$value": null, "$attributes": {"table_index": 1}}\n'\
+                                '{"a": 1}\n'
+
+    assert [{"table_index": 1, "a": 1}] == \
+        list(format.load_rows(StringIO('{"$value": null, "$attributes": {"table_index": 1}}\n'
+                                       '{"a": 1}')))
+
 def test_schemaful_dsv_format():
     format = yt.SchemafulDsvFormat(columns=["a", "b"])
     check_format(format, "1\t2\n", {"a": "1", "b": "2"})
