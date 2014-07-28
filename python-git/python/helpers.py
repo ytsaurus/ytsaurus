@@ -13,4 +13,4 @@ def prepare_files(files):
             scripts.append(file)
         else:
             data_files.append(("/usr/bin", [file]))
-    return scripts, files
+    return scripts, data_files

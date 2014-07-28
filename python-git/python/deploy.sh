@@ -40,9 +40,9 @@ if [ "$PACKAGE" = "yandex-yt-python" ]; then
 
     make egg
     EGG_VERSION=$(echo $VERSION | tr '-' '_')
-    eggname="yandex-yt-${EGG_VERSION}-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/yandex-yt-${VERSION}-py2.7.egg"
-    cat dist/$eggname | $YT upload "$DEST/yandex-yt-py2.7.egg"
+    eggname="yandex_yt-${EGG_VERSION}-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/yandex_yt-${VERSION}-py2.7.egg"
+    cat dist/$eggname | $YT upload "$DEST/yandex_yt-py2.7.egg"
     
     # Upload self-contained binaries
     mv yt/wrapper/pickling.py pickling.py
