@@ -447,7 +447,8 @@ TEST(TJsonParserTest, MemoryLimit2)
 
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("my_string"));
-        EXPECT_CALL(Mock, OnStringScalar(Stroka(100000, 'X')));
+        Stroka expectedString(100000, 'X');
+        EXPECT_CALL(Mock, OnStringScalar(expectedString));
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "{\"my_string\":\"" + Stroka(100000, 'X') + "\"}";

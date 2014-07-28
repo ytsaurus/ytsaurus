@@ -359,12 +359,10 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     WriteThreeRows();
 
     TTableSchema schema;
-    schema.Columns() = {
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("v2", EValueType::Int64)
-    };
+    schema.Columns().emplace_back("k1", EValueType::String);
+    schema.Columns().emplace_back("k2", EValueType::Int64);
+    schema.Columns().emplace_back("k3", EValueType::Double);
+    schema.Columns().emplace_back("v2", EValueType::Int64);
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
