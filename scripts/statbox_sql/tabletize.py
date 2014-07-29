@@ -3,6 +3,7 @@
 import yt.yson as yson
 import yt.wrapper as yt
 
+import sys
 import argparse
 from datetime import datetime
 from copy import deepcopy
@@ -95,7 +96,6 @@ def main():
         yt.run_map(AddHash(args.hash_columns), temp, temp)
     yt.run_map_reduce(None, unique, temp, temp, reduce_by=key_columns)
 
-
     yt.remove(args.output, force=True)
     yt.create_table(args.output)
     yt.set_attribute(args.output, "schema", schema)
@@ -107,8 +107,9 @@ def main():
         row_count = yt.get(temp + "/@row_count")
         pivot_keys = [[]] + [
                 yt.read_table(yt.TablePath(temp, start_index=index, end_index=index+1),
-                              format=yt.SchemafulDsv(columns=key_columns))
+                              format=yt.SchemafulDsvFormat(columns=key_columns), raw=False).next().values()
                 for index in xrange(1, row_count, row_count / SHARD_COUNT)]
+
 
     yt.reshard_table(args.output, pivot_keys)
     
