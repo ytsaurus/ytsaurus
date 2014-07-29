@@ -2,9 +2,6 @@
 
 #include <util/system/defaults.h>
 
-namespace NYT {
-namespace NConcurrency {
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
@@ -27,10 +24,13 @@ namespace __cxxabiv1 {
         __untyped_cxa_exception* caughtExceptions;
         unsigned int uncaughtExceptions;
     };
-    extern "C" __cxa_eh_globals* __cxa_get_globals() CXXABIv1_NOTHROW;
-    extern "C" __cxa_eh_globals* __cxa_get_globals_fast() CXXABIv1_NOTHROW;
 } // namespace __cxxabiv1
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
