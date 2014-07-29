@@ -56,12 +56,12 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////
 
-class TStatisticsConvertor
+class TStatisticsConverter
     : public NYson::TYsonConsumerBase
 {
 public:
     typedef TCallback<void(const TStatistics&)> TStatisticsConsumer;
-    explicit TStatisticsConvertor(TStatisticsConsumer consumer);
+    explicit TStatisticsConverter(TStatisticsConsumer consumer);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;

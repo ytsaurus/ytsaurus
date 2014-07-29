@@ -122,67 +122,67 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////
 
-TStatisticsConvertor::TStatisticsConvertor(TStatisticsConsumer consumer)
+TStatisticsConverter::TStatisticsConverter(TStatisticsConsumer consumer)
     : Depth_(0)
     , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
     , Consumer_(consumer)
 { }
 
-void TStatisticsConvertor::OnStringScalar(const TStringBuf& value)
+void TStatisticsConverter::OnStringScalar(const TStringBuf& value)
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain string literals");
 }
 
-void TStatisticsConvertor::OnInt64Scalar(i64 value)
+void TStatisticsConverter::OnInt64Scalar(i64 value)
 {
     if (Depth_ == 0) {
         THROW_ERROR_EXCEPTION("Statistics should use map as a container.");
     }
-    TreeBuilder_->OnIntegerScalar(value);
+    TreeBuilder_->OnInt64Scalar(value);
 }
 
-void TStatisticsConvertor::OnBooleanScalar(bool value)
+void TStatisticsConverter::OnBooleanScalar(bool value)
 {
-    YUNREACHABLE();
+    THROW_ERROR_EXCEPTION("Statistics cannot contain booleans. Use integer.");
 }
 
-void TStatisticsConvertor::OnDoubleScalar(double value)
+void TStatisticsConverter::OnDoubleScalar(double value)
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain float numbers. Use integer.");
 }
 
-void TStatisticsConvertor::OnEntity()
+void TStatisticsConverter::OnEntity()
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain entity literal.");
 }
 
-void TStatisticsConvertor::OnBeginList()
+void TStatisticsConverter::OnBeginList()
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain lists.");
 }
 
-void TStatisticsConvertor::OnListItem()
+void TStatisticsConverter::OnListItem()
 {
     TreeBuilder_->BeginTree();
 }
 
-void TStatisticsConvertor::OnEndList()
+void TStatisticsConverter::OnEndList()
 {
     YUNREACHABLE();
 }
 
-void TStatisticsConvertor::OnBeginMap()
+void TStatisticsConverter::OnBeginMap()
 {
     ++Depth_;
     TreeBuilder_->OnBeginMap();
 }
 
-void TStatisticsConvertor::OnKeyedItem(const TStringBuf& key)
+void TStatisticsConverter::OnKeyedItem(const TStringBuf& key)
 {
     TreeBuilder_->OnKeyedItem(key);
 }
 
-void TStatisticsConvertor::OnEndMap()
+void TStatisticsConverter::OnEndMap()
 {
     TreeBuilder_->OnEndMap();
     --Depth_;
@@ -193,20 +193,20 @@ void TStatisticsConvertor::OnEndMap()
     }
 }
 
-void TStatisticsConvertor::OnBeginAttributes()
+void TStatisticsConverter::OnBeginAttributes()
 {
     THROW_ERROR_EXCEPTION("Statistics cannot contain attributes.");
 }
 
-void TStatisticsConvertor::OnEndAttributes()
+void TStatisticsConverter::OnEndAttributes()
 {
     YUNREACHABLE();
 }
 
-void TStatisticsConvertor::ConvertToStatistics(TStatistics& value, NYTree::INodePtr node)
+void TStatisticsConverter::ConvertToStatistics(TStatistics& value, NYTree::INodePtr node)
 {
-    if (node->GetType() == NYTree::ENodeType::Integer) {
-        TSummary summary(node->AsInteger()->GetValue());
+    if (node->GetType() == NYTree::ENodeType::Int64) {
+        TSummary summary(node->AsInt64()->GetValue());
         value.Add(node->GetPath(), std::move(summary));
         return;
     }

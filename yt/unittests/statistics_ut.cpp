@@ -107,10 +107,10 @@ private:
     TStatistics Statistics_;
 };
 
-TEST(TStatisticsConvertor, Integration)
+TEST(TStatisticsConverter, Integration)
 {
     TMergeStatisticsConsumer statisticsConsumer;
-    auto consumer = std::make_unique<TStatisticsConvertor>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer));
+    auto consumer = std::make_unique<TStatisticsConverter>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer));
     auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
     TTableOutput output(std::move(parser), std::move(consumer));
     output.Write("{ k1=4}; {k2=-7}");
