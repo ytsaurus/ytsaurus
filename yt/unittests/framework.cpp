@@ -7,6 +7,7 @@
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/fiber.h>
+#include <core/concurrency/action_queue.h>
 
 #include <util/random/random.h>
 
@@ -70,8 +71,11 @@ Matcher<Stroka>::Matcher(const char* s)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TrackedVia(IInvokerPtr invoker, TClosure closure)
+void TrackedVia(TClosure closure)
 {
+    auto queue = New<TActionQueue>("Main");
+    auto invoker = queue->GetInvoker();
+
     auto promise = NewPromise<TFiberPtr>();
 
     BIND([promise, closure] () mutable {
@@ -98,6 +102,8 @@ void TrackedVia(IInvokerPtr invoker, TClosure closure)
         }
         Sleep(TDuration::MilliSeconds(10));
     }
+
+    queue->Shutdown();
 
     SUCCEED();
 }

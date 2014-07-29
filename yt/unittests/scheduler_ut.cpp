@@ -34,14 +34,8 @@ class TSchedulerTest
     : public ::testing::Test
 {
 protected:
-    TActionQueuePtr MainQueue;
     TLazyIntrusivePtr<TActionQueue> Queue1;
     TLazyIntrusivePtr<TActionQueue> Queue2;
-
-    virtual void SetUp()
-    {
-        MainQueue = New<TActionQueue>("Main");
-    }
 
     virtual void TearDown()
     {
@@ -51,9 +45,6 @@ protected:
         if (Queue2.HasValue()) {
             Queue2->Shutdown();
         }
-
-        MainQueue->Shutdown();
-        MainQueue.Reset();
     }
 };
 

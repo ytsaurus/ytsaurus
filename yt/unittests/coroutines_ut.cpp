@@ -11,6 +11,10 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCoroutineTest
+    : public ::testing::Test
+{ };
+
 void Coroutine0(TCoroutine<int()>& self)
 {
     self.Yield(1);
@@ -20,7 +24,7 @@ void Coroutine0(TCoroutine<int()>& self)
     self.Yield(5);
 }
 
-TEST(TCoroutineTest, Nullary)
+TEST_F(TCoroutineTest, Nullary)
 {
     TCoroutine<int()> coro(BIND(&Coroutine0));
     EXPECT_FALSE(coro.IsCompleted());
@@ -57,7 +61,7 @@ void Coroutine1(TCoroutine<int(int)>& self, int arg)
     EXPECT_EQ(10, arg);
 }
 
-TEST(TCoroutineTest, Unary)
+TEST_F(TCoroutineTest, Unary)
 {
     TCoroutine<int(int)> coro(BIND(&Coroutine1));
     EXPECT_FALSE(coro.IsCompleted());
@@ -104,7 +108,7 @@ void Coroutine2(TCoroutine<int(int, int)>& self, int lhs, int rhs)
     }
 }
 
-TEST(TCoroutineTest, Binary)
+TEST_F(TCoroutineTest, Binary)
 {
     TCoroutine<int(int, int)> coro(BIND(&Coroutine2));
     EXPECT_FALSE(coro.IsCompleted());
@@ -124,6 +128,24 @@ TEST(TCoroutineTest, Binary)
     EXPECT_FALSE(actual.HasValue());
     EXPECT_EQ(i, Coroutine2TestCases.size());
 
+    EXPECT_TRUE(coro.IsCompleted());
+}
+
+void Coroutine3(TCoroutine<void()>& self)
+{
+    for (int i = 0; i < 10; ++i) {
+        WaitFor(MakeDelayed(TDuration::MilliSeconds(1)));
+        self.Yield();
+    }
+}
+
+TEST_W(TCoroutineTest, WaitFor)
+{
+    TCoroutine<void()> coro(BIND(&Coroutine3));
+    for (int i = 0; i < 11; ++i) {
+        EXPECT_FALSE(coro.IsCompleted());
+        coro.Run();
+    }
     EXPECT_TRUE(coro.IsCompleted());
 }
 

@@ -204,7 +204,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TrackedVia(NYT::IInvokerPtr invoker, NYT::TClosure closure);
+void TrackedVia(NYT::TClosure closure);
 
 // Wraps tests in an extra fiber and awaits termination. Adapted from `gtest.h`.
 #define TEST_W_(test_case_name, test_name, parent_class, parent_id)\
@@ -229,7 +229,7 @@ class GTEST_TEST_CLASS_NAME_(test_case_name, test_name) : public parent_class {\
         new ::testing::internal::TestFactoryImpl<\
             GTEST_TEST_CLASS_NAME_(test_case_name, test_name)>);\
 void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestBody() {\
-  ::testing::TrackedVia(MainQueue->GetInvoker(), BIND(\
+  ::testing::TrackedVia(BIND(\
     &GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody,\
     this));\
 }\
