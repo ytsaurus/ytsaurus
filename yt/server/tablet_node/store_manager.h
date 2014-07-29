@@ -90,7 +90,6 @@ private:
     TChunkedMemoryPool LookupMemoryPool_;
     std::vector<TUnversionedRow> PooledKeys_;
     std::vector<TUnversionedRow> UnversionedPooledRows_;
-    std::vector<TVersionedRow> VersionedPooledRows_;
 
     NLog::TLogger Logger;
 

@@ -211,30 +211,14 @@ protected:
 
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
-        auto keySuccessor = GetKeySuccessor(key.Get());
-        auto reader = store->CreateReader(
-            key,
-            keySuccessor,
-            timestamp,
-            TColumnFilter());
+        auto lookuper = store->CreateLookuper(timestamp, TColumnFilter());
+        auto rowOrError = lookuper->Lookup(key.Get()).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(rowOrError);
 
-        if (!reader) {
+        auto row = rowOrError.Value();
+        if (!row) {
             return TUnversionedOwningRow();
         }
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(reader->Open().Get());
-
-        std::vector<TVersionedRow> rows;
-        rows.reserve(1);
-
-        reader->Read(&rows);
-
-        EXPECT_LE(rows.size(), 1);
-        if (rows.empty()) {
-            return TUnversionedOwningRow();
-        }
-
-        auto row = rows[0];
 
         EXPECT_EQ(row.GetTimestampCount(), 1);
         auto rowTimestamp = row.BeginTimestamps()[0];

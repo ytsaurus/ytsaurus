@@ -106,6 +106,7 @@ class TUnversionedRow;
 class TUnversionedOwningRow;
 
 class TVersionedRow;
+class TVersionedOwningRow;
 
 typedef TUnversionedRow TKey;
 typedef TUnversionedOwningRow TOwningKey;

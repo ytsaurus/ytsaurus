@@ -50,7 +50,9 @@ using NVersionedTableClient::TOwningKey;
 using NVersionedTableClient::TUnversionedValue;
 using NVersionedTableClient::TVersionedValue;
 using NVersionedTableClient::TUnversionedRow;
+using NVersionedTableClient::TUnversionedOwningRow;
 using NVersionedTableClient::TVersionedRow;
+using NVersionedTableClient::TVersionedOwningRow;
 using NVersionedTableClient::TColumnFilter;
 
 using NHive::ETransactionState;
@@ -134,6 +136,7 @@ DECLARE_REFCOUNTED_STRUCT(TTabletDescriptor)
 class TTransaction;
 
 DECLARE_REFCOUNTED_STRUCT(IStore)
+DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicMemoryStore)
 DECLARE_REFCOUNTED_CLASS(TChunkStore)

@@ -13,6 +13,21 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IVersionedLookuper
+    : public virtual TRefCounted
+{
+    //! Runs an asynchronous lookup.
+    /*!
+     *  The result remains valid as long as the lookuper instance lives and
+     *  no more #Lookup calls are made.
+     */
+    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IVersionedLookuper)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IStore
     : public virtual TRefCounted
 {
@@ -46,7 +61,7 @@ struct IStore
     //! Returns the maximum timestamp of changes recorded in the store.
     virtual TTimestamp GetMaxTimestamp() const = 0;
 
-    //! Returns a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
+    //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!
     *  If no matching row is found then |nullptr| might be returned.
     *
@@ -56,6 +71,11 @@ struct IStore
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) = 0;
+
+    //! Creates a lookuper instance.
+    virtual IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 

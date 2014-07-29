@@ -82,6 +82,10 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
+    virtual IVersionedLookuperPtr CreateLookuper(
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) override;
+
     virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
 
     virtual void Save(TSaveContext& context) const override;
@@ -95,7 +99,9 @@ public:
     DEFINE_SIGNAL(void(i64 delta), MemoryUsageUpdated)
 
 private:
+    class TFetcherBase;
     class TReader;
+    class TLookuper;
 
     TTabletManagerConfigPtr Config_;
     int KeyColumnCount_;

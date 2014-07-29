@@ -48,7 +48,7 @@ static const int TypicalEditListCount = 16;
 static const int TabletReaderPoolSize = 1024;
 static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
-struct TTabletReaderPoolTag { };
+struct TDynamicMemoryStoreFetcherPoolTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,97 +139,50 @@ void EnumerateListsAndReverse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TReader
-    : public IVersionedReader
+class TDynamicMemoryStore::TFetcherBase
 {
 public:
-    TReader(
+    explicit TFetcherBase(
         TDynamicMemoryStorePtr store,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
-        : Store_(store)
-        , LowerKey_(std::move(lowerKey))
-        , UpperKey_(std::move(upperKey))
+        : Store_(std::move(store))
         , Timestamp_(timestamp)
         , ColumnFilter_(columnFilter)
         , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
         , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
-        , Pool_(TTabletReaderPoolTag(), TabletReaderPoolSize)
+        , Pool_(TDynamicMemoryStoreFetcherPoolTag(), TabletReaderPoolSize)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
     }
 
-    virtual TAsyncError Open() override
-    {
-        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_);
-        return OKFuture;
-    }
-
-    virtual bool Read(std::vector<TVersionedRow>* rows) override
-    {
-        if (Finished_) {
-            return false;
-        }
-
-        YASSERT(rows->capacity() > 0);
-        rows->clear();
-        Pool_.Clear();
-
-        TKeyComparer keyComparer(KeyColumnCount_);
-
-        while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
-            const auto* rowKeys = Iterator_.GetCurrent().GetKeys();
-            if (CompareRows(rowKeys, rowKeys + KeyColumnCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
-                break;
-
-            auto row = ProduceRow();
-            if (row) {
-                rows->push_back(row);
-            }
-
-            Iterator_.MoveNext();
-        }
-
-        if (rows->empty()) {
-            Finished_ = true;
-            return false;
-        }
-
-        return true;
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        return OKFuture;
-    }
-
-private:
+protected:
     TDynamicMemoryStorePtr Store_;
-    TOwningKey LowerKey_;
-    TOwningKey UpperKey_;
     TTimestamp Timestamp_;
     TColumnFilter ColumnFilter_;
 
     int KeyColumnCount_;
     int SchemaColumnCount_;
 
-    TSkipList<TDynamicRow, TKeyComparer>::TIterator Iterator_;
-
     TChunkedMemoryPool Pool_;
     
-    bool Finished_ = false;
 
-
-    TVersionedRow ProduceRow()
+    void WaitOnRow(TDynamicRow dynamicRow)
     {
-        auto dynamicRow = Iterator_.GetCurrent();
-        return
-            Timestamp_ == AllCommittedTimestamp
-            ? ProduceAllRowVersions(dynamicRow)
-            : ProduceSingleRowVersion(dynamicRow);
+        WaitFor(
+            BIND(&TFetcherBase::DoWaitOnRow, dynamicRow)
+                .AsyncVia(Store_->Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
+                .Run());
     }
+
+    static void DoWaitOnRow(TDynamicRow dynamicRow)
+    {
+        auto* transaction = dynamicRow.GetTransaction();
+        if (transaction) {
+            WaitFor(transaction->GetFinished());
+        }
+    }
+
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
@@ -359,21 +312,121 @@ private:
         return versionedRow;
     }
 
+};
 
-    void WaitOnRow(TDynamicRow dynamicRow)
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMemoryStore::TReader
+    : public TFetcherBase
+    , public IVersionedReader
+{
+public:
+    TReader(
+        TDynamicMemoryStorePtr store,
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+        : TFetcherBase(
+            std::move(store),
+            timestamp,
+            columnFilter)
+        , LowerKey_(std::move(lowerKey))
+        , UpperKey_(std::move(upperKey))
+    { }
+
+    virtual TAsyncError Open() override
     {
-        WaitFor(
-            BIND(&TReader::DoWaitOnRow, MakeStrong(this), dynamicRow)
-                .AsyncVia(Store_->Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
-                .Run());
+        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_);
+        return OKFuture;
     }
 
-    void DoWaitOnRow(TDynamicRow dynamicRow)
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        auto* transaction = dynamicRow.GetTransaction();
-        if (transaction) {
-            WaitFor(transaction->GetFinished());
+        if (Finished_) {
+            return false;
         }
+
+        YASSERT(rows->capacity() > 0);
+        rows->clear();
+        Pool_.Clear();
+
+        TKeyComparer keyComparer(KeyColumnCount_);
+
+        while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
+            const auto* rowKeys = Iterator_.GetCurrent().GetKeys();
+            if (CompareRows(rowKeys, rowKeys + KeyColumnCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
+                break;
+
+            auto row = ProduceRow();
+            if (row) {
+                rows->push_back(row);
+            }
+
+            Iterator_.MoveNext();
+        }
+
+        if (rows->empty()) {
+            Finished_ = true;
+            return false;
+        }
+
+        return true;
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        return OKFuture;
+    }
+
+private:
+    TOwningKey LowerKey_;
+    TOwningKey UpperKey_;
+
+    TSkipList<TDynamicRow, TKeyComparer>::TIterator Iterator_;
+
+    bool Finished_ = false;
+
+
+    TVersionedRow ProduceRow()
+    {
+        auto dynamicRow = Iterator_.GetCurrent();
+        return
+            Timestamp_ == AllCommittedTimestamp
+            ? ProduceAllRowVersions(dynamicRow)
+            : ProduceSingleRowVersion(dynamicRow);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMemoryStore::TLookuper
+    : public TFetcherBase
+    , public IVersionedLookuper
+{
+public:
+    TLookuper(
+        TDynamicMemoryStorePtr store,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+        : TFetcherBase(
+            std::move(store),
+            timestamp,
+            columnFilter)
+    { }
+
+    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
+    {
+        auto iterator = Store_->Rows_->FindEqualTo(key);
+        if (!iterator.IsValid()) {
+            static const auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+            return NullRow;
+        }
+
+        auto dynamicRow = iterator.GetCurrent();
+        auto versionedRow = ProduceSingleRowVersion(dynamicRow);
+        return MakeFuture<TErrorOr<TVersionedRow>>(versionedRow);
     }
 
 };
@@ -971,6 +1024,13 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         std::move(upperKey),
         timestamp,
         columnFilter);
+}
+
+IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    return New<TLookuper>(this, timestamp, columnFilter);
 }
 
 TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(TKey key)

@@ -54,6 +54,10 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
+    virtual IVersionedLookuperPtr CreateLookuper(
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) override;
+
     virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
 
     virtual void Save(TSaveContext& context) const override;
@@ -62,6 +66,8 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
+    class TLookuper;
+
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.

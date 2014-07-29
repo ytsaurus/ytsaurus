@@ -54,6 +54,60 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkStore::TLookuper
+    : public IVersionedLookuper
+{
+public:
+    TLookuper(
+        TChunkStorePtr store,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+        : Store_(std::move(store))
+        , Timestamp_(timestamp)
+        , ColumnFilter_(columnFilter)
+    { }
+
+    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
+    {
+        Reader_ = Store_->CreateReader(
+            TOwningKey(key),
+            GetKeySuccessor(key),
+            Timestamp_,
+            ColumnFilter_);
+        if (!Reader_) {
+            static auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+            return NullRow;
+        }
+
+        return Reader_->Open().Apply(BIND(&TLookuper::OnOpened, MakeStrong(this)));
+    }
+
+private:
+    TChunkStorePtr Store_;
+    TTimestamp Timestamp_;
+    TColumnFilter ColumnFilter_;
+
+    IVersionedReaderPtr Reader_;
+    std::vector<TVersionedRow> PooledRows_;
+
+
+    TErrorOr<TVersionedRow> OnOpened(TError error)
+    {
+        if (!error.IsOK()) {
+            return error;
+        }
+
+        PooledRows_.clear();
+        PooledRows_.reserve(1);
+        Reader_->Read(&PooledRows_);
+        YASSERT(PooledRows_.size() <= 1);
+        return PooledRows_.empty() ? TVersionedRow() : PooledRows_[0];
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
@@ -165,6 +219,13 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
+IVersionedLookuperPtr TChunkStore::CreateLookuper(
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    return New<TLookuper>(this, timestamp, columnFilter);
+}
+
 TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)
 {
     // TODO(babenko): fixme
@@ -254,7 +315,4 @@ void TChunkStore::PrecacheProperties()
 
 } // namespace NTabletNode
 } // namespace NYT
-
-
-
 

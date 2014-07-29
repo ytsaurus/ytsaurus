@@ -61,8 +61,6 @@ TStoreManager::TStoreManager(
     YCHECK(Config_);
     YCHECK(Tablet_);
 
-    VersionedPooledRows_.reserve(MaxRowsPerRead);
-
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
     }
@@ -126,7 +124,7 @@ void TStoreManager::LookupRows(
     } else {
         for (int index : columnFilter.Indexes) {
             if (index < 0 || index >= schemaColumnCount) {
-                THROW_ERROR_EXCEPTION("Invalid index %d in column filter",
+                THROW_ERROR_EXCEPTION("Invalid index %v in column filter",
                     index);
             }
             columnFilterFlags[index] = true;
@@ -150,55 +148,41 @@ void TStoreManager::LookupRows(
     for (auto key : PooledKeys_) {
         ValidateServerKey(key, keyColumnCount);
 
-        auto lowerBound = TOwningKey(key);
-        auto upperBound = GetKeySuccessor(key);
-
-        // Construct readers.
-        SmallVector<IVersionedReaderPtr, TypicalStoreCount> rowReaders;
+        // Create lookupers, send requests, collect sync responses.
+        TIntrusivePtr<TParallelCollector<TVersionedRow>> openCollector;
+        SmallVector<IVersionedLookuperPtr, TypicalStoreCount> lookupers;
+        SmallVector<TVersionedRow, TypicalStoreCount> partialRows;
         for (const auto& pair : Tablet_->Stores()) {
             const auto& store = pair.second;
-            auto rowReader = store->CreateReader(
-                lowerBound,
-                upperBound,
-                timestamp,
-                columnFilter);
-            if (rowReader) {
-                rowReaders.push_back(std::move(rowReader));
-            }
-        }
+            
+            auto lookuper = store->CreateLookuper(timestamp, columnFilter);
+            lookupers.push_back(lookuper);
 
-        // Open readers.
-        TIntrusivePtr<TParallelCollector<void>> openCollector;
-        for (const auto& reader : rowReaders) {
-            auto asyncResult = reader->Open();
-            if (asyncResult.IsSet()) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(asyncResult.Get());
+            auto futureRowOrError = lookuper->Lookup(key);
+            auto maybeRowOrError = futureRowOrError.TryGet();
+            if (maybeRowOrError) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
+                partialRows.push_back(maybeRowOrError->Value());
             } else {
                 if (!openCollector) {
-                    openCollector = New<TParallelCollector<void>>();
+                    openCollector = New<TParallelCollector<TVersionedRow>>();
                 }
-                openCollector->Collect(asyncResult);
+                openCollector->Collect(futureRowOrError);
             }
         }
 
+        // Wait for async responses.
         if (openCollector) {
             auto result = WaitFor(openCollector->Complete());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            partialRows.insert(partialRows.end(), result.Value().begin(), result.Value().end());
         }
 
-        // Merge values.
-        for (const auto& reader : rowReaders) {
-            VersionedPooledRows_.clear();
-            // NB: Reading at most one row.
-            reader->Read(&VersionedPooledRows_);
-            if (VersionedPooledRows_.empty())
-                continue;
-
-            auto partialRow = VersionedPooledRows_[0];
-            if (keyComparer(lowerBound, partialRow.BeginKeys()) != 0)
-                continue;
-
-            rowMerger.AddPartialRow(partialRow);
+        // Merge partial rows.
+        for (auto row : partialRows) {
+            if (row) {
+                rowMerger.AddPartialRow(row);
+            }
         }
 
         auto mergedRow = rowMerger.BuildMergedRow();
@@ -330,8 +314,8 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
             auto store = it->second;
 
             if (!logged && store->GetType() == EStoreType::Chunk) {
-                LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %s, StartTimestamp: %" PRIu64 ")",
-                    ~ToString(transaction->GetId()),
+                LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %v, StartTimestamp: %v)",
+                    transaction->GetId(),
                     startTimestamp);
                 logged = true;
             }
@@ -355,9 +339,9 @@ void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
 
-    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (TabletId: %s, StoreId: %s)",
-        ~ToString(Tablet_->GetId()),
-        ~ToString(store->GetId()));
+    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (TabletId: %v, StoreId: %v)",
+        Tablet_->GetId(),
+        store->GetId());
     YCHECK(LockedStores_.erase(store) == 1);
 }
 
@@ -430,8 +414,8 @@ void TStoreManager::SetRotationScheduled()
     
     RotationScheduled_ = true;
 
-    LOG_INFO("Tablet store rotation scheduled (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
+    LOG_INFO("Tablet store rotation scheduled (TabletId: %v)",
+        Tablet_->GetId());
 }
 
 void TStoreManager::ResetRotationScheduled()
@@ -441,8 +425,8 @@ void TStoreManager::ResetRotationScheduled()
 
     RotationScheduled_ = false;
 
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled (TabletId: %v)",
+        Tablet_->GetId());
 }
 
 void TStoreManager::RotateStores(bool createNew)
@@ -455,17 +439,17 @@ void TStoreManager::RotateStores(bool createNew)
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (TabletId: %s, StoreId: %s, LockCount: %d)",
-            ~ToString(Tablet_->GetId()),
-            ~ToString(activeStore->GetId()),
+        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (TabletId: %v, StoreId: %v, LockCount: %v)",
+            Tablet_->GetId(),
+            activeStore->GetId(),
             activeStore->GetLockCount());
         YCHECK(LockedStores_.insert(activeStore).second);
     }
 
     YCHECK(PassiveStores_.insert(activeStore).second);
-    LOG_INFO_UNLESS(IsRecovery(), "Passive store registered (TabletId: %s, StoreId: %s)",
-        ~ToString(Tablet_->GetId()),
-        ~ToString(activeStore->GetId()));
+    LOG_INFO_UNLESS(IsRecovery(), "Passive store registered (TabletId: %v, StoreId: %v)",
+        Tablet_->GetId(),
+        activeStore->GetId());
 
     if (createNew) {
         CreateActiveStore();
@@ -473,8 +457,8 @@ void TStoreManager::RotateStores(bool createNew)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated (TabletId: %s)",
-        ~ToString(Tablet_->GetId()));
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated (TabletId: %v)",
+        Tablet_->GetId());
 }
 
 void TStoreManager::AddStore(IStorePtr store)
@@ -492,9 +476,9 @@ void TStoreManager::RemoveStore(IStorePtr store)
 
     if (store->GetType() == EStoreType::DynamicMemory) {
         YCHECK(PassiveStores_.erase(store->AsDynamicMemory()) == 1);
-        LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %s, StoreId: %s)",
-            ~ToString(Tablet_->GetId()),
-            ~ToString(store->GetId()));
+        LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %v, StoreId: %v)",
+            Tablet_->GetId(),
+            store->GetId());
     }
 
     auto latestTimestamp = store->GetMaxTimestamp();
