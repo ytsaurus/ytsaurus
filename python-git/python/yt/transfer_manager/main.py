@@ -19,7 +19,7 @@ from datetime import datetime
 from collections import defaultdict
 
 from threading import RLock, Thread
-from multiprocessing import Process, Value, Array, Queue
+from multiprocessing import Process, Queue
 
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
@@ -117,24 +117,37 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
             files=mr_client.binary,
             memory_limit = 2500 * yt.config.MB,
             spec=spec)
+
+        if sorted:
+            logger.info("Sorting '%s'", dst)
+            yt.run_sort(dst, sort_by=["key", "subkey"])
+
+        result_record_count = yt.records_count(dst)
+        if yt.records_count(dst) != record_count:
+            error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
+            logger.error(error)
+            raise yt.YtError(error)
+
     finally:
         mr_client.drop(temp_yamr_table)
 
 class Task(object):
-    def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state, token="", user="unknown", mr_user="tmp", error=None, finish_time=None):
+    def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
+                 token="", user="unknown", mr_user="tmp", error=None, finish_time=None, progress=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.destination_cluster = destination_cluster
         self.destination_table = destination_table
 
         self.creation_time = creation_time
+        self.finish_time = finish_time
         self.state = state
         self.id = id
         self.user = user
         self.mr_user = mr_user
         self.error = error
         self.token = token
-        #self.detailed_state = ...
+        self.progress = progress
 
     def get_queue_id(self):
         return self.source_cluster, self.destination_cluster
@@ -158,7 +171,7 @@ class Application(object):
         self._mutex = RLock()
         self._yt = Yt(config["proxy"])
         self._yt.token = config["token"]
-        
+
         message_queue = Queue()
         self._lock_path = os.path.join(config["path"], "lock")
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
@@ -201,7 +214,7 @@ class Application(object):
                 rsp = make_response(func(self, *args, **kwargs))
                 rsp.headers["Access-Control-Allow-Origin"] = "*"
                 return rsp
-        
+
         return decorator
 
     def _take_lock(self, message_queue):
@@ -309,7 +322,6 @@ class Application(object):
             keys = list(source_client.read_table(yt.TablePath(task.source_table, end_index=1, simplify=False), format=yt.JsonFormat(), raw=False).next())
             if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                 raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
-        
 
         if destination_client._type == "yt":
             destination_dir = os.path.dirname(task.destination_table)
@@ -327,18 +339,29 @@ class Application(object):
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
-                for id, (process, error_message, error_code) in self._task_processes.items():
+                for id, (process, message_queue) in self._task_processes.items():
+                    error = None
+                    while not message_queue.empty():
+                        message = None
+                        try:
+                            message = message_queue.get()
+                        except:
+                            break
+                        if message["type"] == "error":
+                            assert not process.is_alive()
+                            error = message["error"]
+                        elif message["type"] == "operation_started":
+                            self._tasks[id].progress["operations"].append(message["operation"])
+
                     if not process.is_alive():
                         self._tasks[id].finish_time = now()
                         if process.aborted:
                             pass
-                        elif error_code.value == 0:
+                        elif error is None:
                             self._change_task_state(id, "completed")
                         else:
                             self._change_task_state(id, "failed")
-                            self._tasks[id].error = {
-                                "message": error_message.value,
-                                "code": error_code.value}
+                            self._tasks[id].error = error
 
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
@@ -348,16 +371,16 @@ class Application(object):
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._change_task_state(id, "running")
-                    task_error_message = Array('c', Application.ERROR_BUFFER_SIZE)
-                    task_error_code = Value('d')
-                    task_process = Process(target=lambda: self._execute_task(self._tasks[id], task_error_message, task_error_code))
+                    self._tasks[id].progress = {"operations": {}}
+                    queue = Queue()
+                    task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
                     task_process.aborted = False
                     task_process.start()
-                    self._task_processes[id] = (task_process, task_error_message, task_error_code)
+                    self._task_processes[id] = (task_process, queue)
 
             time.sleep(1.0)
 
-    def _execute_task(self, task, error_message, error_code):
+    def _execute_task(self, task, message_queue):
         logger.info("Executing task %s", task.id)
         try:
             self._precheck(task)
@@ -398,8 +421,13 @@ class Application(object):
         except Exception as err:
             logger.exception(err)
             logger.info("Task %s failed with error '%s'", task.id, err.message)
-            error_message.value = err.message[:Application.ERROR_BUFFER_SIZE]
-            error_code.value = 1
+            message_queue.put({
+                "event_type": "error",
+                "error": {
+                    "message": err.message[:Application.ERROR_BUFFER_SIZE],
+                    "code": 1
+                }
+            })
 
     def _get_task_description(self, task):
         task_description = task.dict(hide_token=True)
@@ -470,7 +498,7 @@ class Application(object):
         if id not in self._task_processes:
             return "Taks {0} is not running ".format(id), 400
 
-        process, _, _ = self._task_processes[id]
+        process, _ = self._task_processes[id]
         process.aborted = True
 
         os.kill(process.pid, signal.SIGINT)
@@ -532,7 +560,7 @@ DEFAULT_CONFIG = {
             "options": {
                 "server": "cedar.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/opt/cron/tools/mapreduce",
+                "binary": "/home/ignat/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,
@@ -546,10 +574,10 @@ DEFAULT_CONFIG = {
         "plato": ["cedar", "kant", "smith"],
         "cedar": ["kant", "smith", "plato"]
     },
-    "path": "//home/ignat/transfer_manager_test",
+    "path": "//home/ignat/transfer_manager_test2",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb"}
-    
+
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
     parser.add_argument("--config")
