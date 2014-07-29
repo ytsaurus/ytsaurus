@@ -19,12 +19,12 @@ from datetime import datetime
 from collections import defaultdict
 
 from threading import RLock, Thread
-from multiprocessing import Process, Array, Queue
+from multiprocessing import Process, Value, Array, Queue
 
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
 
-def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, title):
+def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
     yt_client = deepcopy(yt_client)
     mr_client = deepcopy(mr_client)
 
@@ -36,10 +36,10 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, title):
 
     record_count = yt_client.records_count(src)
 
-    spec={"data_size_per_job": 2 * 1024 * yt.config.MB}
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 2 * 1024 * yt.config.MB
     if yt_client._export_pool is not None:
         spec["pool"] = yt_client._export_pool
-    spec["title"] = title
 
     write_command = mr_client.get_write_command(dst)
     logger.info("Running map '%s'", write_command)
@@ -56,7 +56,7 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, title):
         logger.error(error)
         raise yt.YtError(error)
 
-def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, title):
+def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
     yt_client = deepcopy(yt_client)
     mr_client = deepcopy(mr_client)
 
@@ -88,10 +88,10 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, title):
                           ["\t".join(map(str, range)) + "\n" for range in ranges],
                           format=yt.YamrFormat(lenval=False, has_subkey=True))
 
-    spec = {"data_size_per_job": 1}
+    spec = deepcopy(spec_template)
+    spec["data_size_per_job"] = 1
     if yt_client._import_pool is not None:
         spec["pool"] = yt_client._import_pool
-    spec["title"] = title
 
     temp_yamr_table = "tmp/yt/" + generate_uuid()
     mr_client.copy(src, temp_yamr_table)
@@ -121,7 +121,7 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, title):
         mr_client.drop(temp_yamr_table)
 
 class Task(object):
-    def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state, token="", user="unknown", mr_user="tmp", error=""):
+    def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state, token="", user="unknown", mr_user="tmp", error=None, finish_time=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.destination_cluster = destination_cluster
@@ -139,9 +139,13 @@ class Task(object):
     def get_queue_id(self):
         return self.source_cluster, self.destination_cluster
 
-    def dict(self):
+    def dict(self, hide_token=False):
         result = deepcopy(self.__dict__)
-        del result["token"]
+        if hide_token:
+            del result["token"]
+        for key in result.keys():
+            if result[key] is None:
+                del result[key]
         return result
 
 class Application(object):
@@ -167,11 +171,11 @@ class Application(object):
         self._load_config(config)
 
         self._add_rule("/", 'main', methods=["GET"])
-        self._add_rule("/add/", 'add', methods=["POST"])
-        self._add_rule("/abort/<id>/", 'abort', methods=["POST"])
-        self._add_rule("/restart/<id>/", 'restart', methods=["POST"])
-        self._add_rule("/get/<id>/", 'get_task', methods=["GET"])
-        self._add_rule("/get/tasks/", 'get_tasks', methods=["GET"])
+        self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
+        self._add_rule("/tasks/", 'add', methods=["POST"])
+        self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
+        self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"])
+        self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
 
         self._task_processes = {}
@@ -277,7 +281,7 @@ class Application(object):
     def _change_task_state(self, id, new_state):
         with self._mutex:
             self._tasks[id].state = new_state
-            self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].__dict__)
+            self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
 
     def _get_token(self, authorization_header):
         words = authorization_header.split()
@@ -317,15 +321,18 @@ class Application(object):
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
-                for id, (process, error) in self._task_processes.items():
+                for id, (process, error_message, error_code) in self._task_processes.items():
                     if not process.is_alive():
+                        self._tasks[id].finish_time = now()
                         if process.aborted:
                             pass
-                        elif not error.value:
+                        elif error_code.value == 0:
                             self._change_task_state(id, "completed")
                         else:
                             self._change_task_state(id, "failed")
-                            self._tasks[id].error = error.value
+                            self._tasks[id].error = {
+                                "message": error_message.value,
+                                "code": error_code.value}
 
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
@@ -335,36 +342,58 @@ class Application(object):
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._change_task_state(id, "running")
-                    task_error = Array('c', Application.ERROR_BUFFER_SIZE)
-                    task_process = Process(target=lambda: self._execute_task(self._tasks[id], task_error))
+                    task_error_message = Array('c', Application.ERROR_BUFFER_SIZE)
+                    task_error_code = Value('d')
+                    task_process = Process(target=lambda: self._execute_task(self._tasks[id], task_error_message, task_error_code))
                     task_process.aborted = False
                     task_process.start()
-                    self._task_processes[id] = (task_process, task_error)
+                    self._task_processes[id] = (task_process, task_error_message, task_error_code)
 
             time.sleep(1.0)
 
-    def _execute_task(self, task, error):
+    def _execute_task(self, task, error_message, error_code):
         logger.info("Executing task %s", task.id)
         try:
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
+            task_spec = {"title": title, "transfer_task_id": task.id}
 
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yt":
                 client = deepcopy(self._clusters[task.destination_cluster])
                 client.token = task.token
-                client.run_remote_copy(task.source_table, task.destination_table, cluster_name=task.source_cluster, network_name=self._clusters[task.source_cluster]._network, spec={"title": title})
+                client.run_remote_copy(
+                    task.source_table,
+                    task.destination_table,
+                    cluster_name=task.source_cluster,
+                    network_name=self._clusters[task.source_cluster]._network,
+                    spec=task_spec)
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "mr":
-                export_to_mr(self._clusters[task.source_cluster], self._clusters[task.destination_cluster], task.source_table, task.destination_table, task.mr_user, task.token, title=title)
+                export_to_mr(
+                    self._clusters[task.source_cluster],
+                    self._clusters[task.destination_cluster],
+                    task.source_table,
+                    task.destination_table,
+                    task.mr_user,
+                    task.token,
+                    spec_template=task_spec)
             if self._clusters[task.source_cluster]._type == "mr" and self._clusters[task.destination_cluster]._type == "yt":
-                import_from_mr(self._clusters[task.destination_cluster], self._clusters[task.source_cluster], task.source_table, task.destination_table, task.mr_user, task.token, title=title)
+                import_from_mr(
+                    self._clusters[task.destination_cluster],
+                    self._clusters[task.source_cluster],
+                    task.source_table,
+                    task.destination_table,
+                    task.mr_user,
+                    task.token,
+                    spec_template=task_spec)
             logger.info("Task %s completed", task.id)
         except KeyboardInterrupt:
             pass
         except Exception as err:
             logger.exception(err)
             logger.info("Task %s failed with error '%s'", task.id, err.message)
-            error.value = err.message[:Application.ERROR_BUFFER_SIZE]
+            error_message.value = err.message[:Application.ERROR_BUFFER_SIZE]
+            error_code.value = 1
 
 
     # Public interface
@@ -411,7 +440,7 @@ class Application(object):
                     self._tasks[task.id] = task
                     self._pending_tasks.append(task.id)
 
-                self._yt.set(os.path.join(self._tasks_path, task.id), task.__dict__)
+                self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
 
         except Exception as error:
             return "Unknown error: " + error.message, 502
@@ -425,7 +454,7 @@ class Application(object):
         if id not in self._task_processes:
             return "Taks {0} is not running ".format(id), 400
 
-        process, _ = self._task_processes[id]
+        process, _, _ = self._task_processes[id]
         process.aborted = True
 
         os.kill(process.pid, signal.SIGINT)
@@ -446,7 +475,7 @@ class Application(object):
 
         self._tasks[id].state = "pending"
         self._tasks[id].creation_time = now()
-        self._tasks[id].error = ""
+        self._tasks[id].error = None
         self._pending_tasks.append(id)
 
         return "OK"
@@ -454,7 +483,7 @@ class Application(object):
     def get_task(self, id):
         if id not in self._tasks:
             return "Unknown task " + id, 400
-        return jsonify(**self._tasks[id].dict())
+        return jsonify(**self._tasks[id].dict(hide_token=True))
 
     def get_tasks(self):
         user = request.args.get("user")
@@ -462,7 +491,7 @@ class Application(object):
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
-        return Response(json.dumps(map(lambda task: task.dict(), tasks)), mimetype='application/json')
+        return Response(json.dumps(map(lambda task: task.dict(hide_token=True), tasks)), mimetype='application/json')
 
     def config(self):
         return jsonify(self._config)
@@ -489,7 +518,8 @@ DEFAULT_CONFIG = {
                 "binary": "/opt/cron/tools/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
-                "fastbone": True
+                "fastbone": True,
+                "viewer": "https://specto.yandex.ru/cedar-viewer/"
             }
         }
     },
@@ -499,7 +529,7 @@ DEFAULT_CONFIG = {
         "plato": ["cedar", "kant", "smith"],
         "cedar": ["kant", "smith", "plato"]
     },
-    "path": "//home/ignat/transfer_manager",
+    "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb"}
     
@@ -514,7 +544,7 @@ def main():
         config = DEFAULT_CONFIG
 
     app = Application(config)
-    app.run(host="localhost", port=5000, debug=True, use_reloader=False)
+    app.run(host="localhost", port=5010, debug=True, use_reloader=False)
 
 if __name__ == "__main__":
     main()
