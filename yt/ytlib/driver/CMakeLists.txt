@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/scheduler_commands.cpp
   ${BASE}/table_commands.cpp
+  ${BASE}/journal_commands.cpp
   ${BASE}/transaction_commands.cpp
 )
 set( HDRS
@@ -24,6 +25,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/scheduler_commands.h
   ${BASE}/table_commands.h
+  ${BASE}/journal_commands.h
   ${BASE}/transaction_commands.h
 )
 

@@ -86,7 +86,11 @@ void TReadTableCommand::DoExecute()
 
     // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
-    i64 bufferLimit = Context_->GetConfig()->ReadBufferSize;
+    auto flushBuffer = [&] () {
+        auto result = WaitFor(output->Write(buffer.Begin(), buffer.Size()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        buffer.Clear();
+    };
 
     auto format = Context_->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
@@ -109,16 +113,10 @@ void TReadTableCommand::DoExecute()
     BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
-    auto flushBuffer = [&] () {
-        auto result = WaitFor(output->Write(buffer.Begin(), buffer.Size()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        buffer.Clear();
-    };
-
     while (true) {
         ProduceRow(consumer.get(), reader->GetRow());
 
-        if (buffer.Size() > bufferLimit) {
+        if (buffer.Size() > Context_->GetConfig()->ReadBufferSize) {
             flushBuffer();
         }
 

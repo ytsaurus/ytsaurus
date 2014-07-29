@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/preprocess.cpp
   ${BASE}/scheduler_executors.cpp
   ${BASE}/table_executors.cpp
+  ${BASE}/journal_executors.cpp
   ${BASE}/transaction_executors.cpp
 )
 
@@ -25,6 +26,7 @@ set( HDRS
   ${BASE}/preprocess.h
   ${BASE}/scheduler_executors.h
   ${BASE}/table_executors.h
+  ${BASE}/journal_executors.h
   ${BASE}/transaction_executors.h
 )
 

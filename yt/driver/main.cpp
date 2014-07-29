@@ -5,6 +5,7 @@
 #include "table_executors.h"
 #include "scheduler_executors.h"
 #include "etc_executors.h"
+#include "journal_executors.h"
 
 #include <core/build.h>
 
@@ -102,6 +103,9 @@ public:
         REGISTER(TAddMemberExecutor,         "add_member"        );
         REGISTER(TRemoveMemberExecutor,      "remove_member"     );
         REGISTER(TCheckPermissionExecutor,   "check_permission"  );
+
+        REGISTER(TWriteJournalExecutor,      "write_journal"     );
+        REGISTER(TReadJournalExecutor,       "read_journal"      );
 #undef REGISTER
     }
 

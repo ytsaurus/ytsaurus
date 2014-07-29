@@ -9,6 +9,7 @@
 #include "file_commands.h"
 #include "table_commands.h"
 #include "scheduler_commands.h"
+#include "journal_commands.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -146,6 +147,9 @@ public:
         REGISTER(TAddMemberCommand,         "add_member",        Null,       Null,       true,  false);
         REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
         REGISTER(TCheckPermissionCommand,   "check_permission",  Null,       Structured, false, false);
+
+        REGISTER(TWriteJournalCommand,      "write_journal",       Tabular,    Null,       true,  true );
+        REGISTER(TReadJournalCommand,       "read_journal",        Null,       Tabular,    false, true );
 #undef REGISTER
     }
 

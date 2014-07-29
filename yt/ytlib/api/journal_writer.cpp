@@ -411,6 +411,7 @@ private:
         void CloseJournal()
         {
             LOG_INFO("Journal writer closed");
+            ClosedPromise_.TrySet(TError());
         }
 
         bool TryOpenChunk()

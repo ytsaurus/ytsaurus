@@ -34,8 +34,11 @@ public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
     NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
+    NApi::TJournalReaderConfigPtr JournalReader;
+    NApi::TJournalWriterConfigPtr JournalWriter;
     bool ReadFromFollowers;
     i64 ReadBufferSize;
+    i64 WriteBufferSize;
     int HeavyPoolSize;
 
     TDriverConfig()
@@ -48,12 +51,18 @@ public:
             .DefaultNew();
         RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
+        RegisterParameter("journal_reader", JournalReader)
+            .DefaultNew();
+        RegisterParameter("journal_writer", JournalWriter)
+            .DefaultNew();
         RegisterParameter("new_table_writer", NewTableWriter)
             .DefaultNew();
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
             .Default(false);
         RegisterParameter("read_buffer_size", ReadBufferSize)
+            .Default((i64) 1 * 1024 * 1024);
+        RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("heavy_pool_size", HeavyPoolSize)
             .Describe("Number of threads handling heavy requests")
