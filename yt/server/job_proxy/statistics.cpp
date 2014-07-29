@@ -86,14 +86,18 @@ void TStatistics::Clear()
     Statistics_.clear();
 }
 
-bool TStatistics::Empty() const
+bool TStatistics::IsEmpty() const
 {
     return Statistics_.empty();
 }
 
 TSummary TStatistics::GetStatistic(const NYPath::TYPath& name) const
 {
-    return Statistics_.at(name);
+    auto it = Statistics_.find(name);
+    if (it != Statistics_.end()) {
+        return it->second;
+    }
+    THROW_ERROR_EXCEPTION("There is no %v statistic", name);
 }
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
@@ -112,7 +116,7 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node)
     try {
         TSummary summary;
         Deserialize(summary, node);
-        value.Statistics_.emplace(node->GetPath(), std::move(summary));
+        value.Statistics_.insert(std::make_pair(node->GetPath(), std::move(summary)));
     } catch (const std::exception& ) {
         for (auto& pair : node->AsMap()->GetChildren()) {
             Deserialize(value, pair.second);
@@ -219,5 +223,5 @@ void TStatisticsConverter::ConvertToStatistics(TStatistics& value, NYTree::INode
 
 ////////////////////////////////////////////////////////////////////
 
-} // NJobProxy
-} // NYT
+} // namespace NJobProxy
+} // namespace NYT

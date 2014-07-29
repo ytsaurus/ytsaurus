@@ -30,10 +30,10 @@ TEST(TSummary, MergeBasic)
     EXPECT_EQ(30, sum1.GetSum());
 }
 
-TEST(TStatistics, Empty)
+TEST(TStatistics, IsEmpty)
 {
     TStatistics statistics;
-    EXPECT_TRUE(statistics.Empty());
+    EXPECT_TRUE(statistics.IsEmpty());
 }
 
 TEST(TStatistics, Add)
@@ -50,7 +50,7 @@ TEST(TStatistics, Clear)
     statistics.Add("key", TSummary(10));
     statistics.Clear();
 
-    EXPECT_TRUE(statistics.Empty());
+    EXPECT_TRUE(statistics.IsEmpty());
 }
 
 TEST(TStatistics, MergeDifferent)
@@ -71,7 +71,6 @@ TEST(TStatistics, MergeTheSameKey)
 {
     TStatistics statistics;
     statistics.Add("key", TSummary(10));
-
 
     TStatistics other;
     other.Add("key", TSummary(40));
@@ -122,7 +121,7 @@ TEST(TStatisticsConverter, Integration)
 
 ////////////////////////////////////////////////////////////////////
 
-} // anon
-} // NJobProxy
-} // NYT
+} // namespace
+} // namespace NJobProxy
+} // namespace NYT
 

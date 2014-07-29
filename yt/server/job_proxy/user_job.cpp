@@ -82,8 +82,8 @@ static const auto& Logger = JobProxyLogger;
 
 #ifdef _linux_
 
-static int JobStatisticsFD = 5;
-static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
+static const int JobStatisticsFD = 5;
+static const i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
 class TUserJob

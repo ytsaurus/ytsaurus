@@ -60,9 +60,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write('//tmp/t1', {"a": "b"})
-        op_id = map(in_='//tmp/t1', out='//tmp/t2', command=r'cat; python -c "import os; os.write(5, \"{ k1=4}; {k2=-7};{k2=1};\"); os.close(5);"')
+        op_id = map(
+            in_='//tmp/t1',
+            out='//tmp/t2',
+            command=(
+                r'cat; python -c "'
+                r'import os; '
+                r'os.write(5, \"{ k1=4}; {k2=-7};{k2=1};\"); '
+                r'os.close(5);"'))
 
-        statistics = get('//sys/operations/%s/@progress/statistics' % (op_id,))
+        statistics = get('//sys/operations/{0}/@progress/statistics'.format(op_id))
         assert statistics['k1']['max'] == 4
         assert statistics['k2']['count'] == 2
 

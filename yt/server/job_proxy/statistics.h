@@ -39,12 +39,12 @@ public:
     void Add(const NYPath::TYPath& name, const TSummary& summary);
     void Merge(const TStatistics& other);
     void Clear();
-    bool Empty() const;
+    bool IsEmpty() const;
 
     TSummary GetStatistic(const NYPath::TYPath& name) const;
 
 private:
-    typedef std::map<NYPath::TYPath, TSummary> TSummaryDict;
+    typedef yhash_map<NYPath::TYPath, TSummary> TSummaryDict;
     TSummaryDict Statistics_;
 
     friend void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -90,5 +90,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
-} // NJobProxy
-} // NYT
+} // namespace NJobProxy
+} // namespace NYT
