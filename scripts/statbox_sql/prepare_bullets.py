@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 from urllib import urlencode
 
@@ -26,7 +28,8 @@ for line in sys.stdin:
         date_field = words[4]
         dates = (to_timestamp(words[5] + " " + words[6]), to_timestamp(words[7] + " " + words[8]))
 
-    tail = " ".join(words[9:])
+    #tail = " ".join(words[9:])
+    tail = ""
 
     query = "project, region_sname, fielddate, hosts, visitors_per_host, puids, old_cookie_hits, visitors, luids, hits, spuids, old_cookie_visitors, hits_per_visitor from [//tmp/totals] WHERE {} AND {} {}".format(
         " AND ".join('{}={}'.format(key, format(value)) for key, value in values.iteritems()),
