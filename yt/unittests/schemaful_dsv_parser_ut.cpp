@@ -4,6 +4,7 @@
 #include <core/formats/schemaful_dsv_parser.h>
 
 #include <core/ytree/yson_consumer-mock.h>
+#include <core/ytree/null_yson_consumer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -95,6 +96,16 @@ TEST(TSchemafulDsvParserTest, TableIndex)
     config->EnableTableIndex = true;
 
     ParseSchemafulDsv(input, &Mock, config);
+}
+
+TEST(TSchemafulDsvParserTest, TooManyRows)
+{
+    Stroka input = "5\t6\n";
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns.push_back("a");
+
+    EXPECT_THROW({ ParseSchemafulDsv(input, NYTree::GetNullYsonConsumer(), config); }, std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
