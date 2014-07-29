@@ -312,6 +312,7 @@ protected:
     {
         PeerList_.clear();
         PeerSet_.clear();
+        PeerIndex_ = 0;
         AddressToDescriptor_.clear();
     }
 
