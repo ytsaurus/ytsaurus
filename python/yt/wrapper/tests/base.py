@@ -33,7 +33,6 @@ class YtTestBase(object):
         yt.config.set_proxy("localhost:%d" % cls.env._ports["proxy"][0])
         yt.config.http.USE_TOKEN = False
         yt.config.http.RETRY_VOLATILE_COMMANDS = True
-        yt.config.TRANSACTION_PING_BACKOFF = 100
         yt.config.OPERATION_STATE_UPDATE_PERIOD = 100
 
     @classmethod

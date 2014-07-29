@@ -76,22 +76,44 @@ def main():
                         help="Names of hash columns (as yson list)")
     args = parser.parse_args()
 
-    assert(len(args.hash_columns) <= len(args.key_columns) and 
-           args.key_columns[:len(args.hash_columns)] == args.hash_columns)
+    has_hash = args.hash_columns is not None
+
+    schema = to_yt_schema(args.schema)
+    key_columns = args.key_columns
+    if has_hash:
+        assert(len(args.hash_columns) <= len(args.key_columns) and 
+               args.key_columns[:len(args.hash_columns)] == args.hash_columns)
+        schema = [{"name": "hash", "type": "int64"}] + schema
+        key_columns = ["hash"] + key_columns
 
     yt.config.format.TABULAR_DATA_FORMAT = yt.YsonFormat()
     
-    yt.remove(args.output, force=True)
-    yt.create_table(args.output)
-    yt.set_attribute(args.output, "schema", [{"name": "hash", "type": "int64"}] + to_yt_schema(args.schema))
-    yt.set_attribute(args.output, "key_columns", ["hash"] + args.key_columns)
-    yt.reshard_table(args.output, [[]] + [[(i * MOD) / SHARD_COUNT] for i in xrange(1, SHARD_COUNT)])
-    yt.mount_table(args.output)
 
     temp = "//tmp/intermediate" #yt.create_temp_table()
     yt.run_map(ApplySchemaTypes(args.schema), args.input, temp)
-    yt.run_map(AddHash(args.hash_columns), temp, temp)
-    yt.run_map_reduce(None, unique, temp, temp, reduce_by=["hash"] + args.key_columns)
+    if has_hash:
+        yt.run_map(AddHash(args.hash_columns), temp, temp)
+    yt.run_map_reduce(None, unique, temp, temp, reduce_by=key_columns)
+
+
+    yt.remove(args.output, force=True)
+    yt.create_table(args.output)
+    yt.set_attribute(args.output, "schema", schema)
+    yt.set_attribute(args.output, "key_columns", key_columns)
+    if has_hash:
+        pivot_keys = [[]] + [[(i * MOD) / SHARD_COUNT] for i in xrange(1, SHARD_COUNT)]
+    else:
+        yt.run_sort(temp, temp, sort_by=key_columns)
+        row_count = yt.get(temp + "/@row_count")
+        pivot_keys = [[]] + [
+                yt.read_table(yt.TablePath(temp, start_index=index, end_index=index+1),
+                              format=yt.SchemafulDsv(columns=key_columns))
+                for index in xrange(1, row_count, row_count / SHARD_COUNT)]
+
+    yt.reshard_table(args.output, pivot_keys)
+    
+    yt.mount_table(args.output)
+
     yt.run_map("./upload.sh " + args.output, temp, yt.create_temp_table(),
                spec={"data_size_per_job": 16 * 1024 * 1024,
                      "mapper": {"enable_input_table_index": "false"}},
