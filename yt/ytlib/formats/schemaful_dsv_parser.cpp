@@ -112,10 +112,10 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 
     if (*next == Config_->RecordSeparator) {
         if (FieldIndex_ != Config_->Columns.size()) {
-            THROW_ERROR_EXCEPTION("Row is incomplete: found %d < %d fields (row index %d)",
-                FieldIndex_,
+            THROW_ERROR_EXCEPTION("Row %v is incomplete: expected %v fields but found %v",
+                RowIndex_,
                 Config_->Columns.size(),
-                RowIndex_);
+                FieldIndex_);
         }
         Consumer_->OnEndMap();
         NewRecordStarted_ = false;
@@ -145,7 +145,7 @@ void TSchemafulDsvParser::SwitchTable(int newTableIndex)
 void TSchemafulDsvParser::Finish()
 {
     if (NewRecordStarted_ || !CurrentToken_.Empty() || ExpectingEscapedChar_) {
-        THROW_ERROR_EXCEPTION("Row is not finished (row index %d)", RowIndex_);
+        THROW_ERROR_EXCEPTION("Row %v is not finished", RowIndex_);
     }
     CurrentToken_.clear();
 }
