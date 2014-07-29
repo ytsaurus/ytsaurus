@@ -308,9 +308,13 @@ class Application(object):
             if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                 raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
         
-        if destination_client._type == "yt" and \
-           destination_client.check_permission(task.user, "write", os.path.dirname(task.destination_table))["action"] != "allow":
-            raise yt.YtError("There is no permission to write to " + task.destination_table)
+
+        if destination_client._type == "yt":
+            destination_dir = os.path.dirname(task.destination_table)
+            if not os.path.exists(destination_dir):
+                raise yt.YtError("Directory {} should exist".format())
+            if destination_client.check_permission(task.user, "write", destination_dir)["action"] != "allow":
+                raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
 
     def _can_run(self, task):
