@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import pytest
+
 from yt.environment import YTEnv
 from yt.wrapper.table_commands import copy_table, move_table
 import yt.wrapper as yt
@@ -458,3 +460,34 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         table = self.create_temp_table()
         yt.write_table(table, [])
         self.assertFalse(yt.exists(table))
+
+    def test_get_smart_format(self):
+        from yt.wrapper.table_commands import _get_format_from_tables as get_format
+
+        existing_table = TEST_DIR + '/existing'
+        yt.create_table(existing_table)
+        not_existing_table = TEST_DIR + '/not_existing'
+        dsv_table = TablePath(TEST_DIR + '/dsv_table', columns="1")
+        yt.create_table(dsv_table)
+        yamr_table = TEST_DIR + '/yamr_table'
+        yt.create_table(yamr_table, attributes={"_format": "yamr"})
+        yson_table = TEST_DIR + '/yson_table'
+        yt.create_table(yson_table, attributes={"_format": "yson"})
+
+        assert get_format([], ignore_unexisting_tables=False) == None
+        assert get_format([], ignore_unexisting_tables=True) == None
+
+        assert get_format([existing_table], ignore_unexisting_tables=False) == None
+        assert get_format([existing_table], ignore_unexisting_tables=True) == None
+
+        assert get_format([dsv_table], ignore_unexisting_tables=False).name() == "dsv"
+        assert get_format([yamr_table], ignore_unexisting_tables=False).name() == "yamr"
+        assert get_format([yson_table], ignore_unexisting_tables=False).name() == "yson"
+
+        with pytest.raises(YtError):
+            get_format([[dsv_table, not_existing_table], None], ignore_unexisting_tables=False)
+
+        assert get_format([[dsv_table, not_existing_table], None], ignore_unexisting_tables=True).name() == "dsv"
+
+        with pytest.raises(YtError):
+            get_format([dsv_table, yson_table], ignore_unexisting_tables=False)
