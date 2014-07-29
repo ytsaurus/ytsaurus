@@ -100,9 +100,10 @@ struct IYsonConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYsonConsumerBase
+class TYsonConsumerBase
     : public virtual IYsonConsumer
 {
+public:
     virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type);
 };
 
