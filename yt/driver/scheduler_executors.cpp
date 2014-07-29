@@ -36,7 +36,7 @@ void TStartOpExecutor::DoExecute(const TDriverRequest& request)
         return;
     }
 
-    printf("Starting %s operation... ", ~GetCommandName().Quote());
+    printf("Starting %s operation... ", ~FormatEnum(GetOperationType()).Quote());
 
     TDriverRequest requestCopy = request;
 
@@ -356,13 +356,13 @@ EOperationType TMapReduceExecutor::GetOperationType() const
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TAbortOpExecutor::TAbortOpExecutor()
+TAbortOperationExecutor::TAbortOperationExecutor()
     : OpArg("", "id of an operation to abort", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
 
-void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
+void TAbortOperationExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
@@ -370,20 +370,20 @@ void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
     TRequestExecutor::BuildArgs(consumer);
 }
 
-Stroka TAbortOpExecutor::GetCommandName() const
+Stroka TAbortOperationExecutor::GetCommandName() const
 {
     return "abort_op";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSuspendOpExecutor::TSuspendOpExecutor()
+TSuspendOperationExecutor::TSuspendOperationExecutor()
     : OpArg("", "id of an operation to suspend", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
 
-void TSuspendOpExecutor::BuildArgs(IYsonConsumer* consumer)
+void TSuspendOperationExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
@@ -391,20 +391,20 @@ void TSuspendOpExecutor::BuildArgs(IYsonConsumer* consumer)
     TRequestExecutor::BuildArgs(consumer);
 }
 
-Stroka TSuspendOpExecutor::GetCommandName() const
+Stroka TSuspendOperationExecutor::GetCommandName() const
 {
     return "suspend_op";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResumeOpExecutor::TResumeOpExecutor()
+TResumeOperationExecutor::TResumeOperationExecutor()
     : OpArg("", "id of an operation to resume", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
 
-void TResumeOpExecutor::BuildArgs(IYsonConsumer* consumer)
+void TResumeOperationExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_id").Value(OpArg.getValue());
@@ -412,20 +412,20 @@ void TResumeOpExecutor::BuildArgs(IYsonConsumer* consumer)
     TRequestExecutor::BuildArgs(consumer);
 }
 
-Stroka TResumeOpExecutor::GetCommandName() const
+Stroka TResumeOperationExecutor::GetCommandName() const
 {
     return "resume_op";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTrackOpExecutor::TTrackOpExecutor()
+TTrackOperationExecutor::TTrackOperationExecutor()
     : OpArg("", "id of an operation to track", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
 
-void TTrackOpExecutor::DoExecute()
+void TTrackOperationExecutor::DoExecute()
 {
     auto operationId = TOperationId::FromString(OpArg.getValue());
     printf("Started tracking operation %s\n", ~ToString(operationId));
@@ -434,7 +434,7 @@ void TTrackOpExecutor::DoExecute()
     tracker.Run();
 }
 
-Stroka TTrackOpExecutor::GetCommandName() const
+Stroka TTrackOperationExecutor::GetCommandName() const
 {
     return "track_op";
 }

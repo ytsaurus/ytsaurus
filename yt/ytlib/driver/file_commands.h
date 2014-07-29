@@ -9,7 +9,7 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDownloadRequest
+struct TReadFileRequest
     : public TTransactionalRequest
     , public TSuppressableAccessTrackingRequest
 {
@@ -18,7 +18,7 @@ struct TDownloadRequest
     TNullable<i64> Length;
     NYTree::INodePtr FileReader;
 
-    TDownloadRequest()
+    TReadFileRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("offset", Offset)
@@ -30,10 +30,8 @@ struct TDownloadRequest
     }
 };
 
-typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
-
-class TDownloadCommand
-    : public TTypedCommand<TDownloadRequest>
+class TReadFileCommand
+    : public TTypedCommand<TReadFileRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -42,13 +40,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUploadRequest
+struct TWriteFileRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileWriter;
 
-    TUploadRequest()
+    TWriteFileRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("file_writer", FileWriter)
@@ -56,10 +54,8 @@ struct TUploadRequest
     }
 };
 
-typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
-
-class TUploadCommand
-    : public TTypedCommand<TUploadRequest>
+class TWriteFileCommand
+    : public TTypedCommand<TWriteFileRequest>
 {
 private:
     virtual void DoExecute() override;

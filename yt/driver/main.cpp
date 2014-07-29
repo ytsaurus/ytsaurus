@@ -47,52 +47,62 @@ public:
     TDriverProgram()
         : ExitCode(EExitCode::OK)
     {
-        RegisterExecutor(New<TStartTxExecutor>());
-        RegisterExecutor(New<TPingTxExecutor>());
-        RegisterExecutor(New<TCommitTxExecutor>());
-        RegisterExecutor(New<TAbortTxExecutor>());
+#define REGISTER(command, name) \
+        RegisterExecutor(New<command>(), name);
 
-        RegisterExecutor(New<TGetExecutor>());
-        RegisterExecutor(New<TSetExecutor>());
-        RegisterExecutor(New<TRemoveExecutor>());
-        RegisterExecutor(New<TListExecutor>());
-        RegisterExecutor(New<TCreateExecutor>());
-        RegisterExecutor(New<TLockExecutor>());
-        RegisterExecutor(New<TCopyExecutor>());
-        RegisterExecutor(New<TMoveExecutor>());
-        RegisterExecutor(New<TExistsExecutor>());
-        RegisterExecutor(New<TLinkExecutor>());
+        REGISTER(TStartTransactionExecutor,  "start_tx"          );
+        REGISTER(TPingTransactionExecutor,   "ping_tx"           );
+        REGISTER(TCommitTransactionExecutor, "commit_tx"         );
+        REGISTER(TAbortTransactionExecutor,  "abort_tx"          );
 
-        RegisterExecutor(New<TDownloadExecutor>());
-        RegisterExecutor(New<TUploadExecutor>());
+        REGISTER(TCreateExecutor,            "create"            );
+        REGISTER(TRemoveExecutor,            "remove"            );
+        REGISTER(TSetExecutor,               "set"               );
+        REGISTER(TGetExecutor,               "get"               );
+        REGISTER(TListExecutor,              "list"              );
+        REGISTER(TLockExecutor,              "lock"              );
+        REGISTER(TCopyExecutor,              "copy"              );
+        REGISTER(TMoveExecutor,              "move"              );
+        REGISTER(TLinkExecutor,              "link"              );
+        REGISTER(TExistsExecutor,            "exists"            );
 
-        RegisterExecutor(New<TReadExecutor>());
-        RegisterExecutor(New<TWriteExecutor>());
-        RegisterExecutor(New<TMountTableExecutor>());
-        RegisterExecutor(New<TUnmountTableExecutor>());
-        RegisterExecutor(New<TRemountTableExecutor>());
-        RegisterExecutor(New<TReshardTableExecutor>());
-        RegisterExecutor(New<TInsertExecutor>());
-        RegisterExecutor(New<TSelectExecutor>());
-        RegisterExecutor(New<TLookupExecutor>());
-        RegisterExecutor(New<TDeleteExecutor>());
+        REGISTER(TWriteFileExecutor,         "write_file"        );
+        REGISTER(TReadFileExecutor,          "read_file"         );
+        // COMPAT(babenko)
+        REGISTER(TWriteFileExecutor,         "upload"            );
+        REGISTER(TReadFileExecutor,          "download"          );
 
-        RegisterExecutor(New<TMapExecutor>());
-        RegisterExecutor(New<TMergeExecutor>());
-        RegisterExecutor(New<TSortExecutor>());
-        RegisterExecutor(New<TEraseExecutor>());
-        RegisterExecutor(New<TReduceExecutor>());
-        RegisterExecutor(New<TMapReduceExecutor>());
-        RegisterExecutor(New<TAbortOpExecutor>());
-        RegisterExecutor(New<TSuspendOpExecutor>());
-        RegisterExecutor(New<TResumeOpExecutor>());
-        RegisterExecutor(New<TTrackOpExecutor>());
+        REGISTER(TWriteTableExecutor,        "write_table"       );
+        REGISTER(TReadTableExecutor,         "read_table"        );
+        // TODO(babenko): proper naming
+        REGISTER(TInsertExecutor,            "insert"            );
+        REGISTER(TSelectExecutor,            "select"            );
+        REGISTER(TLookupExecutor,            "lookup"            );
+        REGISTER(TDeleteExecutor,            "delete"            );
+        // COMPAT(babenko)
+        REGISTER(TWriteTableExecutor,        "write"             );
+        REGISTER(TReadTableExecutor,         "read"              );
 
-        RegisterExecutor(New<TBuildSnapshotExecutor>());
-        RegisterExecutor(New<TGCCollectExecutor>());
-        RegisterExecutor(New<TAddMemberExecutor>());
-        RegisterExecutor(New<TRemoveMemberExecutor>());
-        RegisterExecutor(New<TCheckPermissionExecutor>());
+        REGISTER(TMountTableExecutor,        "mount_table"       );
+        REGISTER(TUnmountTableExecutor,      "unmount_table"     );
+        REGISTER(TRemountTableExecutor,      "remount_table"     );
+        REGISTER(TReshardTableExecutor,      "reshard_table"     );
+
+        REGISTER(TMergeExecutor,             "merge"             );
+        REGISTER(TEraseExecutor,             "erase"             );
+        REGISTER(TMapExecutor,               "map"               );
+        REGISTER(TSortExecutor,              "sort"              );
+        REGISTER(TReduceExecutor,            "reduce"            );
+        REGISTER(TMapReduceExecutor,         "map_reduce"        );
+        REGISTER(TAbortOperationExecutor,    "abort_op"          );
+        REGISTER(TSuspendOperationExecutor,  "suspend_op"        );
+        REGISTER(TResumeOperationExecutor,   "resume_op"         );
+        REGISTER(TTrackOperationExecutor,    "track_op"          );
+
+        REGISTER(TAddMemberExecutor,         "add_member"        );
+        REGISTER(TRemoveMemberExecutor,      "remove_member"     );
+        REGISTER(TCheckPermissionExecutor,   "check_permission"  );
+#undef REGISTER
     }
 
     int Main(int argc, const char* argv[])
@@ -105,14 +115,14 @@ public:
 
         try {
             if (argc < 2) {
-                PrintAllCommands();
+                PrintAllExecutors();
                 THROW_ERROR_EXCEPTION("Not enough arguments");
             }
 
             Stroka commandName = Stroka(argv[1]);
 
             if (commandName == "--help") {
-                PrintAllCommands();
+                PrintAllExecutors();
                 return 0;
             }
 
@@ -177,7 +187,7 @@ private:
         }
     }
 
-    void PrintAllCommands()
+    void PrintAllExecutors()
     {
         printf("Available commands:\n");
         for (const auto& pair : GetSortedIterators(Executors)) {
@@ -190,9 +200,8 @@ private:
         printf("%s\n", GetVersion());
     }
 
-    void RegisterExecutor(TExecutorPtr executor)
+    void RegisterExecutor(TExecutorPtr executor, const Stroka& name)
     {
-        auto name = executor->GetCommandName();
         YCHECK(Executors.insert(std::make_pair(name, executor)).second);
     }
 

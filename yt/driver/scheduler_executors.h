@@ -146,11 +146,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TAbortOpExecutor
+class TAbortOperationExecutor
     : public TRequestExecutor
 {
 public:
-    TAbortOpExecutor();
+    TAbortOperationExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
@@ -161,11 +161,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSuspendOpExecutor
+class TSuspendOperationExecutor
     : public TRequestExecutor
 {
 public:
-    TSuspendOpExecutor();
+    TSuspendOperationExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
@@ -176,11 +176,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResumeOpExecutor
+class TResumeOperationExecutor
     : public TRequestExecutor
 {
 public:
-    TResumeOpExecutor();
+    TResumeOperationExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
@@ -191,11 +191,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTrackOpExecutor
+class TTrackOperationExecutor
     : public TExecutor
 {
 public:
-    TTrackOpExecutor();
+    TTrackOperationExecutor();
 
 
 private:

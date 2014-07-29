@@ -10,44 +10,44 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStartTxExecutor::TStartTxExecutor()
+TStartTransactionExecutor::TStartTransactionExecutor()
     : TTransactedExecutor(false, true)
 { }
 
-Stroka TStartTxExecutor::GetCommandName() const
+Stroka TStartTransactionExecutor::GetCommandName() const
 {
     return "start_tx";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TPingTxExecutor::TPingTxExecutor()
+TPingTransactionExecutor::TPingTransactionExecutor()
     : TTransactedExecutor(true, false)
 { }
 
-Stroka TPingTxExecutor::GetCommandName() const
+Stroka TPingTransactionExecutor::GetCommandName() const
 {
     return "ping_tx";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TCommitTxExecutor::TCommitTxExecutor()
+TCommitTransactionExecutor::TCommitTransactionExecutor()
     : TTransactedExecutor(true, false)
 { }
 
-Stroka TCommitTxExecutor::GetCommandName() const
+Stroka TCommitTransactionExecutor::GetCommandName() const
 {
     return "commit_tx";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TAbortTxExecutor::TAbortTxExecutor()
+TAbortTransactionExecutor::TAbortTransactionExecutor()
     : TTransactedExecutor(true, false)
 { }
 
-Stroka TAbortTxExecutor::GetCommandName() const
+Stroka TAbortTransactionExecutor::GetCommandName() const
 {
     return "abort_tx";
 }

@@ -108,15 +108,22 @@ public:
         REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
 
-        REGISTER(TUploadCommand,            "upload",            Binary,     Null,       true,  true );
-        REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );
+        REGISTER(TWriteFileCommand,         "write_file",        Binary,     Null,       true,  true );
+        REGISTER(TReadFileCommand,          "read_file",         Null,       Binary,     false, true );
+        // COMPAT(babenko)
+        REGISTER(TWriteFileCommand,         "upload",            Binary,     Null,       true,  true );
+        REGISTER(TReadFileCommand,          "download",          Null,       Binary,     false, true );
 
-        REGISTER(TWriteCommand,             "write",             Tabular,    Null,       true,  true );
-        REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
+        REGISTER(TWriteTableCommand,        "write_table",       Tabular,    Null,       true,  true );
+        REGISTER(TReadTableCommand,         "read_table",        Null,       Tabular,    false, true );
+        // TODO(babenko): proper naming
         REGISTER(TInsertCommand,            "insert",            Tabular,    Null,       true,  true );
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
         REGISTER(TLookupCommand,            "lookup",            Null,       Tabular,    false, true );
         REGISTER(TDeleteCommand,            "delete",            Null,       Null,       true,  true);
+        // COMPAT(babenko)
+        REGISTER(TWriteTableCommand,        "write",             Tabular,    Null,       true,  true );
+        REGISTER(TReadTableCommand,         "read",              Null,       Tabular,    false, true );
 
         REGISTER(TMountTableCommand,        "mount_table",       Null,       Null,       true,  false);
         REGISTER(TUnmountTableCommand,      "unmount_table",     Null,       Null,       true,  false);
@@ -138,7 +145,7 @@ public:
 
         REGISTER(TAddMemberCommand,         "add_member",        Null,       Null,       true,  false);
         REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
-        REGISTER(TCheckPersmissionCommand,  "check_permission",  Null,       Structured, false, false);
+        REGISTER(TCheckPermissionCommand,   "check_permission",  Null,       Structured, false, false);
 #undef REGISTER
     }
 

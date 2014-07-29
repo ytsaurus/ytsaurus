@@ -14,13 +14,13 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUploadExecutor::TUploadExecutor()
+TWriteFileExecutor::TWriteFileExecutor()
     : PathArg("path", "file path to create", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }
 
-void TUploadExecutor::BuildArgs(IYsonConsumer* consumer)
+void TWriteFileExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -30,20 +30,20 @@ void TUploadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TUploadExecutor::GetCommandName() const
+Stroka TWriteFileExecutor::GetCommandName() const
 {
-    return "upload";
+    return "write_file";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TDownloadExecutor::TDownloadExecutor()
+TReadFileExecutor::TReadFileExecutor()
     : PathArg("path", "file path to download", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }
 
-void TDownloadExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReadFileExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -53,9 +53,9 @@ void TDownloadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TDownloadExecutor::GetCommandName() const
+Stroka TReadFileExecutor::GetCommandName() const
 {
-    return "download";
+    return "read_file";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,11 +7,11 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStartTxExecutor
+class TStartTransactionExecutor
     : public TTransactedExecutor
 {
 public:
-    TStartTxExecutor();
+    TStartTransactionExecutor();
 
 private:
     virtual Stroka GetCommandName() const override;
@@ -19,11 +19,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TPingTxExecutor
+class TPingTransactionExecutor
     : public TTransactedExecutor
 {
 public:
-    TPingTxExecutor();
+    TPingTransactionExecutor();
 
 private:
     virtual Stroka GetCommandName() const override;
@@ -31,11 +31,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TCommitTxExecutor
+class TCommitTransactionExecutor
     : public TTransactedExecutor
 {
 public:
-    TCommitTxExecutor();
+    TCommitTransactionExecutor();
 
 private:
     virtual Stroka GetCommandName() const override;
@@ -44,11 +44,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TAbortTxExecutor
+class TAbortTransactionExecutor
     : public TTransactedExecutor
 {
 public:
-    TAbortTxExecutor();
+    TAbortTransactionExecutor();
 
 private:
     virtual Stroka GetCommandName() const override;

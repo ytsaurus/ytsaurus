@@ -15,13 +15,13 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadRequest
+struct TReadTableRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
 
-    TReadRequest()
+    TReadTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_reader", TableReader)
@@ -29,8 +29,8 @@ struct TReadRequest
     }
 };
 
-class TReadCommand
-    : public TTypedCommand<TReadRequest>
+class TReadTableCommand
+    : public TTypedCommand<TReadTableRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -39,13 +39,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteRequest
+struct TWriteTableRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableWriter;
 
-    TWriteRequest()
+    TWriteTableRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_writer", TableWriter)
@@ -53,8 +53,8 @@ struct TWriteRequest
     }
 };
 
-class TWriteCommand
-    : public TTypedCommand<TWriteRequest>
+class TWriteTableCommand
+    : public TTypedCommand<TWriteTableRequest>
 {
 private:
     virtual void DoExecute() override;

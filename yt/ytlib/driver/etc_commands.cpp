@@ -57,7 +57,7 @@ void TParseYPathCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCheckPersmissionCommand::DoExecute()
+void TCheckPermissionCommand::DoExecute()
 {
     TCheckPermissionOptions options;
     SetTransactionalOptions(&options);

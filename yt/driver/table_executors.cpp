@@ -14,13 +14,13 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadExecutor::TReadExecutor()
+TReadTableExecutor::TReadTableExecutor()
     : PathArg("path", "table path to read", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
 
-void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
+void TReadTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
@@ -30,14 +30,14 @@ void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-Stroka TReadExecutor::GetCommandName() const
+Stroka TReadTableExecutor::GetCommandName() const
 {
-    return "read";
+    return "read_table";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TWriteExecutor::TWriteExecutor()
+TWriteTableExecutor::TWriteTableExecutor()
     : PathArg("path", "table path to write", true, "", "YPATH")
     , ValueArg("value", "row(s) to write", false, "", "YSON")
     , SortedByArg("", "sorted_by", "key columns names (for sorted write)", false, "", "YSON_LIST_FRAGMENT")
@@ -48,7 +48,7 @@ TWriteExecutor::TWriteExecutor()
     CmdLine.add(SortedByArg);
 }
 
-void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
+void TWriteTableExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
     auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
@@ -69,14 +69,14 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
     TTransactedExecutor::BuildArgs(consumer);
 }
 
-TInputStream* TWriteExecutor::GetInputStream()
+TInputStream* TWriteTableExecutor::GetInputStream()
 {
     return UseStdIn ? &StdInStream() : &Stream;
 }
 
-Stroka TWriteExecutor::GetCommandName() const
+Stroka TWriteTableExecutor::GetCommandName() const
 {
-    return "write";
+    return "write_table";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

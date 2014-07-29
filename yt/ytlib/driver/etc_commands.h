@@ -80,7 +80,7 @@ struct TCheckPermissionRequest
 
 typedef TIntrusivePtr<TCheckPermissionRequest> TCheckPermissionRequestPtr;
 
-class TCheckPersmissionCommand
+class TCheckPermissionCommand
     : public TTypedCommand<TCheckPermissionRequest>
 {
 private:

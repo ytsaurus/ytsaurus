@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDownloadCommand::DoExecute()
+void TReadFileCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->FileReader
     auto config = UpdateYsonSerializable(
@@ -62,7 +62,7 @@ void TDownloadCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TUploadCommand::DoExecute()
+void TWriteFileCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
         Context_->GetConfig()->FileWriter,

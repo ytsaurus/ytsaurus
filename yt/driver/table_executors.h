@@ -9,11 +9,11 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadExecutor
+class TReadTableExecutor
     : public TTransactedExecutor
 {
 public:
-    TReadExecutor();
+    TReadTableExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
@@ -24,11 +24,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TWriteExecutor
+class TWriteTableExecutor
     : public TTransactedExecutor
 {
 public:
-    TWriteExecutor();
+    TWriteTableExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;

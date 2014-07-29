@@ -7,11 +7,11 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUploadExecutor
+class TWriteFileExecutor
     : public TTransactedExecutor
 {
 public:
-    TUploadExecutor();
+    TWriteFileExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
@@ -22,11 +22,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TDownloadExecutor
+class TReadFileExecutor
     : public TTransactedExecutor
 {
 public:
-    TDownloadExecutor();
+    TReadFileExecutor();
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;

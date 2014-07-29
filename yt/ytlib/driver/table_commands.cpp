@@ -65,7 +65,7 @@ using namespace NApi;
 
 static const auto& Logger = DriverLogger;
 
-void TReadCommand::DoExecute()
+void TReadTableCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableReader
     auto config = UpdateYsonSerializable(
@@ -134,7 +134,7 @@ void TReadCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TWriteCommand::DoExecute()
+void TWriteTableCommand::DoExecute()
 {
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(
