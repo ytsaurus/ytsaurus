@@ -59,11 +59,11 @@ from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                           move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
-                          _make_formatted_transactional_request
+                          _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction, Transaction
-from format import create_format
+from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
 import yt.logger as logger
@@ -297,6 +297,32 @@ def _make_operation_request(command_name, spec, strategy,
         with KeyboardInterruptsCatcher(finish_transaction):
             with transaction:
                 _manage_operation(finalizer)
+
+def _get_format_from_tables(tables, ignore_unexisting_tables):
+    """Try to get format from tables, raise YtError if tables are inappropriate"""
+    not_none_tables = filter(None, flatten(tables))
+    existing_tables = filter(lambda x: exists(to_name(x)), not_none_tables)
+    if not existing_tables:
+        return None
+    if not ignore_unexisting_tables:
+        require(len(existing_tables) == len(not_none_tables),
+                YtError("Tables [{0}] must exist"
+                          .format(", ".join(str(table) for table in not_none_tables))))
+
+    def extract_format(table):
+        table_name = to_table(table).name
+        if "channel" in table_name.attributes:
+            return create_format("<line_prefix=tskv>dsv")
+        if has_attribute(table_name, "_format"):
+            format_name = get(table_name + "/@_format", format=YsonFormat())
+            return create_format(format_name)
+        return None
+    formats = map(extract_format, existing_tables)
+
+    require(len(set(repr(format) for format in formats)) == 1,
+            YtError("Tables have different attribute _format: " + repr(formats)))
+
+    return formats[0]
 
 """ Common table methods """
 
