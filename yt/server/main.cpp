@@ -147,7 +147,7 @@ public:
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDumps;
-    TCLAP::ValueArg<i64> VMLimit;
+    TCLAP::ValueArg<rlim_t> VMLimit;
     TCLAP::ValueArg<int> Uid;
     TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
