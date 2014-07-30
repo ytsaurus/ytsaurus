@@ -278,7 +278,7 @@ void TSchedulerThread::ThreadMainStep()
     SwitchExecutionContext(
         &SchedulerContext,
         CurrentFiber->GetContext(),
-        /* as per FiberTrampoline */ CurrentFiber.Get());
+        /* as per TFiber::Trampoline */ CurrentFiber.Get());
 
     // Notify context switch subscribers.
     OnContextSwitch();
