@@ -35,42 +35,52 @@ namespace __cxxabiv1 {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecutionStack;
-typedef void (*TTrampoline)(void*);
 
 #if defined(_unix_)
 
-struct TExecutionContext
+class TExecutionContext
 {
+public:
     TExecutionContext();
     TExecutionContext(TExecutionContext&& other);
     TExecutionContext(const TExecutionContext&) = delete;
 
-    void* SP;
+private:
+    void* SP_;
 #ifdef CXXABIv1
-    __cxxabiv1::__cxa_eh_globals EH;
+    __cxxabiv1::__cxa_eh_globals EH_;
 #endif
+
+    friend TExecutionContext CreateExecutionContext(
+        TExecutionStack* stack,
+        void (*trampoline)(void*));
+    friend void* SwitchExecutionContext(
+        TExecutionContext* caller,
+        TExecutionContext* target,
+        void* opaque);
+
 };
 
 #elif defined(_win_)
 
-struct TExecutionContextImpl
+class TExecutionContext
 {
-    TExecutionContextImpl();
-    TExecutionContextImpl(TExecutionContextImpl&& other);
-    TExecutionContextImpl(const TExecutionContextImpl&) = delete;
-    ~TExecutionContextImpl();
-
-    void* Handle;
-    bool Owning;
-    void* Opaque;
-    void (*Callee)(void*);
-};
-
-struct TExecutionContext
-{
+public:
     TExecutionContext();
+    TExecutionContext(TExecutionContext&& other);
+    TExecutionContext(const TExecutionContext&) = delete;
 
-    std::unique_ptr<TExecutionContextImpl> Impl;
+private:
+    void* Handle_;
+
+    friend TExecutionContext CreateExecutionContext(
+        TExecutionStack* stack,
+        void (*trampoline)(void*));
+    friend void* SwitchExecutionContext(
+        TExecutionContext* caller,
+        TExecutionContext* target,
+        void* opaque);
+
 };
 
 #else
@@ -79,7 +89,7 @@ struct TExecutionContext
 
 TExecutionContext CreateExecutionContext(
     TExecutionStack* stack,
-    TTrampoline trampoline);
+    void (*trampoline)(void*));
 
 void* SwitchExecutionContext(
     TExecutionContext* caller,

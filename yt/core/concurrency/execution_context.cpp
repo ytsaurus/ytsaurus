@@ -24,25 +24,25 @@ extern "C" void* __attribute__((__regparm__(3))) SwitchExecutionContextImpl(
     void* opaque);
 
 TExecutionContext::TExecutionContext()
-    : SP(nullptr)
+    : SP_(nullptr)
 {
-    memset(&EH, 0, sizeof(EH));
+    memset(&EH_, 0, sizeof(EH_));
 }
 
 TExecutionContext::TExecutionContext(TExecutionContext&& other)
 {
-    SP = other.SP;
-    other.SP = nullptr;
+    SP_ = other.SP_;
+    other.SP_ = nullptr;
 
 #ifdef CXXABIv1
-    EH = other.EH;
-    memset(&other.EH, 0, sizeof(other.EH));
+    EH_ = other.EH_;
+    memset(&other.EH_, 0, sizeof(other.EH_));
 #endif
 }
 
 TExecutionContext CreateExecutionContext(
     TExecutionStack* stack,
-    TTrampoline trampoline)
+    void (*trampoline)(void*))
 {
     TExecutionContext context;
     memset(&context, 0, sizeof(context));
@@ -54,7 +54,7 @@ TExecutionContext CreateExecutionContext(
     *--sp = reinterpret_cast<void*>(trampoline);
     // No need to set any extra registers, so just pad for them.
     sp -= 6;
-    context.SP = sp;
+    context.SP_ = sp;
 
     return context;
 }
@@ -66,61 +66,32 @@ void* SwitchExecutionContext(
 {
 #ifdef CXXABIv1
     auto* eh = __cxxabiv1::__cxa_get_globals_fast();
-    caller->EH = *eh;
-    *eh = target->EH;
+    caller->EH_ = *eh;
+    *eh = target->EH_;
 #endif
-    return SwitchExecutionContextImpl(&caller->SP, &target->SP, opaque);
+    return SwitchExecutionContextImpl(&caller->SP_, &target->SP_, opaque);
 }
 
 #elif defined(_win_)
 
-static VOID CALLBACK FiberTrampoline(PVOID opaque)
-{
-    auto* contextImpl = reinterpret_cast<TExecutionContextImpl*>(opaque);
-    contextImpl->Callee(contextImpl->Opaque);
-}
-
 TExecutionContext::TExecutionContext()
-    : Impl(std::make_unique<TExecutionContextImpl>())
-{  }
-
-TExecutionContextImpl::TExecutionContextImpl()
-    : Owning(false)
-    , Handle(nullptr)
-    , Opaque(nullptr)
-    , Callee(nullptr)
+    : Handle_(nullptr)
 { }
 
-TExecutionContextImpl::TExecutionContextImpl(TExecutionContextImpl&& other)
+TExecutionContext::TExecutionContext(TExecutionContext&& other)
 {
-    Owning = other.Owning;
-    other.Owning = false;
-
-    Handle = other.Handle;
-    other.Handle = nullptr;
-
-    Opaque = other.Opaque;
-    other.Opaque = nullptr;
-
-    Callee = other.Callee;
-    other.Callee = nullptr;
-}
-
-TExecutionContextImpl::~TExecutionContextImpl()
-{
-    if (Owning) {
-        DeleteFiber(Handle);
-    }
+    Handle_ = other.Handle_;
+    other.Handle_ = nullptr;
 }
 
 TExecutionContext CreateExecutionContext(
     TExecutionStack* stack,
-    TTrampoline trampoline)
+    void (*trampoline)(void*))
 {
+    stack->SetTrampoline(trampoline);
+
     TExecutionContext context;
-    context.Impl->Owning = true;
-    context.Impl->Handle = CreateFiber(stack->GetSize(), &FiberTrampoline, context.Impl.get());
-    context.Impl->Callee = trampoline;
+    context.Handle_ = stack->Handle_;
     return context;
 }
 
@@ -129,18 +100,15 @@ void* SwitchExecutionContext(
     TExecutionContext* target,
     void* opaque)
 {
-    if (!caller->Impl->Handle) {
-        auto callerFiber = GetCurrentFiber();
-        if (callerFiber == (void*)0x0 || callerFiber == (void*)0x1e00) {
-            callerFiber = ConvertThreadToFiber(0);
-        }
-        caller->Impl->Owning = false;
-        caller->Impl->Handle = callerFiber;
+    auto callerHandle = GetCurrentFiber();
+    if (callerHandle == (void*)0x0 || callerHandle == (void*)0x1e00) {
+        callerHandle = ConvertThreadToFiber(0);
     }
+    caller->Handle_ = callerHandle;
 
-    target->Impl->Opaque = opaque;
-    SwitchToFiber(target->Impl->Handle);
-    return caller->Impl->Opaque;
+    TExecutionStack::SetOpaque(opaque);
+    SwitchToFiber(target->Handle_);
+    return TExecutionStack::GetOpaque();
 }
 
 #else

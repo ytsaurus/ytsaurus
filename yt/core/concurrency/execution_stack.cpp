@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "execution_stack.h"
+#include "execution_context.h"
 
 #if defined(_unix_)
 #   include <sys/mman.h>
@@ -24,20 +25,20 @@ const size_t LargeExecutionStackSize = 1 << 23; //   8 Mb
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExecutionStack::TExecutionStack(size_t size)
+TExecutionStackBase::TExecutionStackBase(size_t size)
     : Stack_(nullptr)
-    , Size_(size)
+    , Size_(RoundUpToPage(size))
 { }
 
-TExecutionStack::~TExecutionStack()
+TExecutionStackBase::~TExecutionStackBase()
 { }
 
-void* TExecutionStack::GetStack() const
+void* TExecutionStackBase::GetStack() const
 {
     return Stack_;
 }
 
-size_t TExecutionStack::GetSize() const
+size_t TExecutionStackBase::GetSize() const
 {
     return Size_;
 }
@@ -46,81 +47,105 @@ size_t TExecutionStack::GetSize() const
 
 #if defined(_unix_)
 
-//! Mapped memory with a few extra guard pages.
-template <size_t Size>
-class TExecutionStackImpl
-    : public TExecutionStack
+TExecutionStack::TExecutionStack(size_t size)
+    : TExecutionStackBase(size)
 {
-public:
-    TExecutionStackImpl()
-        : TExecutionStack(RoundUpToPage(Size))
-    {
-        const size_t guardSize = GuardPages * GetPageSize();
+    const size_t guardSize = GuardPages * GetPageSize();
 
-        int flags =
+    int flags =
 #if defined(_darwin_)
-            MAP_ANON | MAP_PRIVATE;
+        MAP_ANON | MAP_PRIVATE;
 #else
-            MAP_ANONYMOUS | MAP_PRIVATE;
+        MAP_ANONYMOUS | MAP_PRIVATE;
 #endif
 
-        Base_ = reinterpret_cast<char*>(::mmap(
-            0,
-            guardSize + Size_,
-            PROT_READ | PROT_WRITE,
-            flags,
-            -1,
-            0));
+    Base_ = reinterpret_cast<char*>(::mmap(
+        0,
+        guardSize + Size_,
+        PROT_READ | PROT_WRITE,
+        flags,
+        -1,
+        0));
 
-        if (Base_ == MAP_FAILED) {
-            THROW_ERROR_EXCEPTION("Failed to allocate execution stack")
-                << TErrorAttribute("size", Size)
-                << TErrorAttribute("guard_size", guardSize)
-                << TError::FromSystem();
-        }
-
-        ::mprotect(Base_, guardSize, PROT_NONE);
-
-        Stack_ = Base_ + guardSize;
-        YCHECK((reinterpret_cast<uintptr_t>(Stack_) & 15) == 0);
+    if (Base_ == MAP_FAILED) {
+        THROW_ERROR_EXCEPTION("Failed to allocate execution stack")
+            << TErrorAttribute("size", Size_)
+            << TErrorAttribute("guard_size", guardSize)
+            << TError::FromSystem();
     }
 
-    ~TExecutionStackImpl()
-    {
-        const size_t guardSize = GuardPages * GetPageSize();
-        ::munmap(Base_, guardSize + Size_);
-    }
+    ::mprotect(Base_, guardSize, PROT_NONE);
 
-private:
-    char* Base_;
+    Stack_ = Base_ + guardSize;
+    YCHECK((reinterpret_cast<uintptr_t>(Stack_)& 15) == 0);
+}
 
-    static const int GuardPages = 4;
-
-};
+TExecutionStack::~TExecutionStack()
+{
+    const size_t guardSize = GuardPages * GetPageSize();
+    ::munmap(Base_, guardSize + Size_);
+}
 
 #elif defined(_win_)
 
-template <size_t Size>
-class TExecutionStackImpl
-    : public TExecutionStack
+TExecutionStack::TExecutionStack(size_t size)
+    : TExecutionStackBase(size)
+    , Handle_(::CreateFiber(Size_, &FiberTrampoline, this))
+    , Trampoline_(nullptr)
+{ }
+
+TExecutionStack::~TExecutionStack()
 {
-public:
-    TExecutionStackImpl()
-        : TExecutionStack(RoundUpToPage(Size))
-    { }
-};
+    ::DeleteFiber(Handle_);
+}
+
+TLS_STATIC void* FiberTrampolineOpaque;
+
+void TExecutionStack::SetOpaque(void* opaque)
+{
+    FiberTrampolineOpaque = opaque;
+}
+
+void* TExecutionStack::GetOpaque()
+{
+    return FiberTrampolineOpaque;
+}
+
+void TExecutionStack::SetTrampoline(void (*trampoline)(void*))
+{
+    YASSERT(!Trampoline_);
+    Trampoline_ = trampoline;
+}
+
+VOID CALLBACK TExecutionStack::FiberTrampoline(PVOID opaque)
+{
+    auto* stack = reinterpret_cast<TExecutionStack*>(opaque);
+    stack->Trampoline_(FiberTrampolineOpaque);
+}
 
 #else
 #   error Unsupported platform
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <size_t Size>
+class TPooledExecutionStack
+    : public TExecutionStack
+{
+public:
+    TPooledExecutionStack()
+        : TExecutionStack(Size)
+    { }
+};
+
 std::shared_ptr<TExecutionStack> CreateExecutionStack(EExecutionStack stack)
 {
     switch (stack) {
         case EExecutionStack::Small:
-            return ObjectPool<TExecutionStackImpl<SmallExecutionStackSize>>().Allocate();
+            return ObjectPool<TPooledExecutionStack<SmallExecutionStackSize>>().Allocate();
         case EExecutionStack::Large:
-            return ObjectPool<TExecutionStackImpl<LargeExecutionStackSize>>().Allocate();
+            return ObjectPool<TPooledExecutionStack<LargeExecutionStackSize>>().Allocate();
         default:
             YUNREACHABLE();
     }
@@ -137,10 +162,10 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Size>
-struct TPooledObjectTraits<NConcurrency::TExecutionStackImpl<Size>, void>
+struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Size>, void>
     : public TPooledObjectTraitsBase
 {
-    typedef NConcurrency::TExecutionStackImpl<Size> TStack;
+    typedef NConcurrency::TPooledExecutionStack<Size> TStack;
 
     static void Clean(TStack* stack)
     {
