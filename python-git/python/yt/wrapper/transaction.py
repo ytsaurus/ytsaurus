@@ -149,7 +149,8 @@ class PingableTransaction(object):
         self.transaction = Transaction(self.timeout, self.attributes, client=self.client)
         self.transaction.__enter__()
 
-        self.ping = PingTransaction(config.TRANSACTION, delay=self.timeout / (1000 * 10), client=self.client)
+        transaction = config.TRANSACTION if self.client is None else self.client._get_transaction()[0]
+        self.ping = PingTransaction(transaction, delay=self.timeout / (1000 * 10), client=self.client)
         self.ping.start()
         return self
 
