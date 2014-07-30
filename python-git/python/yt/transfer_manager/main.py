@@ -234,6 +234,8 @@ class Application(object):
                 self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
             elif type == "mr":
+                if "viewer" in options:
+                    del options["viewer"]
                 self._clusters[name] = Mr(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
@@ -399,6 +401,16 @@ class Application(object):
             error_message.value = err.message[:Application.ERROR_BUFFER_SIZE]
             error_code.value = 1
 
+    def _get_task_description(self, task):
+        task_description = task.dict(hide_token=True)
+        queue_index = 1
+        with self._mutex:
+            for id in self._pending_tasks:
+                if id == task.id:
+                    task_description["queue_index"] = queue_index
+                if self._tasks[id].get_queue_id() == task.get_queue_id():
+                    queue_index += 1
+        return task_description
 
     # Public interface
     def run(self, *args, **kwargs):
@@ -487,7 +499,8 @@ class Application(object):
     def get_task(self, id):
         if id not in self._tasks:
             return "Unknown task " + id, 400
-        return jsonify(**self._tasks[id].dict(hide_token=True))
+
+        return jsonify(**self._get_task_description(self._tasks[id]))
 
     def get_tasks(self):
         user = request.args.get("user")
@@ -495,7 +508,7 @@ class Application(object):
         if user is not None:
             tasks = [task.user == user for task in tasks]
 
-        return Response(json.dumps(map(lambda task: task.dict(hide_token=True), tasks)), mimetype='application/json')
+        return Response(json.dumps(map(self._get_task_description, tasks)), mimetype='application/json')
 
     def config(self):
         return jsonify(self._config)
