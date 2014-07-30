@@ -110,15 +110,15 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         auto statistics = NFS::GetDiskSpaceStatistics(FileName_);
         if (statistics.AvailableSpace < minSpace) {
             Disabled_.store(true);
-            LOG_ERROR("Logging disabled: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
-                ~FileName_,
+            LOG_ERROR("Logging disabled: not enough space (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
+                FileName_,
                 statistics.AvailableSpace,
                 minSpace);
         }
     } catch (const std::exception& ex) {
         Disabled_.store(true);
-        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %s)",
-            ~FileName_);
+        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %v)",
+            FileName_);
     }
 }
 
@@ -146,7 +146,7 @@ void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
     try {
         ReopenFile();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName_);
+        LOG_ERROR(ex, "Error opening log file %v", FileName_);
         return;
     }
 
@@ -171,7 +171,7 @@ void TFileLogWriter::Flush()
         try {
             FileOutput_->Flush();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName_);
+            LOG_ERROR(ex, "Failed to flush log file %v", FileName_);
         }
     }
 }
@@ -184,7 +184,7 @@ void TFileLogWriter::Reload()
         try {
             File_->Close();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to close log file %s", ~FileName_);
+            LOG_ERROR(ex, "Failed to close log file %v", FileName_);
         }
     }
 

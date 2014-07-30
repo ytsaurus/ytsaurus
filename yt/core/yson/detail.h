@@ -393,8 +393,8 @@ protected:
                 Buffer_.push_back(ch);
                 isDouble = true;
             } else if (isalpha(ch)) {
-                THROW_ERROR_EXCEPTION("Unexpected %s in numeric literal",
-                    ~Stroka(ch).Quote())
+                THROW_ERROR_EXCEPTION("Unexpected %Qv in numeric literal",
+                    ch)
                     << *this;
             } else {
                 break;
@@ -592,9 +592,9 @@ protected:
     {
         char ch = SkipSpaceAndGetChar();
         if (ch != symbol) {
-            THROW_ERROR_EXCEPTION("Expected %s but found %s",
-                ~Stroka(symbol).Quote(),
-                ~Stroka(ch).Quote())
+            THROW_ERROR_EXCEPTION("Expected %Qv but found %Qv",
+                symbol,
+                ch)
                 << *this;
         }
 

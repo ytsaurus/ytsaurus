@@ -191,8 +191,8 @@ public:
                     *token = TToken(TBase::template ReadBoolean<true>());
                 } else { // None
                     YASSERT(state == EReadStartCase::None);
-                    THROW_ERROR_EXCEPTION("Unexpected %s",
-                        ~Stroka(ch).Quote());
+                    THROW_ERROR_EXCEPTION("Unexpected %Qv",
+                        ch);
                 }
             } else { // BinaryScalar = x01b
                 TBase::Advance(1);
@@ -236,8 +236,8 @@ public:
             try {
                 *token = TToken(FromString<double>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing double literal %s",
-                    ~Stroka(valueBuffer).Quote())
+                THROW_ERROR_EXCEPTION("Error parsing double literal %Qv",
+                    valueBuffer)
                     << *this
                     << ex;
             }
@@ -245,8 +245,8 @@ public:
             try {
                 *token = TToken(FromString<i64>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing integer literal %s",
-                    ~Stroka(valueBuffer).Quote())
+                THROW_ERROR_EXCEPTION("Error parsing integer literal %Qv",
+                    valueBuffer)
                     << *this
                     << ex;
             }

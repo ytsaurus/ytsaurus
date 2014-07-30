@@ -387,8 +387,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPat
         if (!ysonOrError) {
             return MakeFuture(TErrorOr<TYsonString>(TError(
                 NYTree::EErrorCode::ResolveError,
-                "Attribute %s is not found",
-                ~ToYPathLiteral(key).Quote())));
+                "Attribute %Qv is not found",
+                ToYPathLiteral(key))));
         }
 
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -489,8 +489,8 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
         if (!ysonOrError) {
             return MakeFuture(TErrorOr<TYsonString>(TError(
                 NYTree::EErrorCode::ResolveError,
-                "Attribute %s is not found",
-                ~ToYPathLiteral(key))));
+                "Attribute %Qv is not found",
+                ToYPathLiteral(key))));
         }
 
         auto pathSuffix = tokenizer.GetSuffix();
@@ -815,8 +815,8 @@ void TSupportsAttributes::GuardedSetBuiltinAttribute(const Stroka& key, const TY
     try {
         result = GetBuiltinAttributeProvider()->SetBuiltinAttribute(key, yson);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error setting builtin attribute %s",
-            ~ToYPathLiteral(key).Quote())
+        THROW_ERROR_EXCEPTION("Error setting builtin attribute %Qv",
+            ToYPathLiteral(key))
             << ex;
     }
 
@@ -834,12 +834,12 @@ void TSupportsAttributes::GuardedValidateCustomAttributeUpdate(
         ValidateCustomAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting custom attribute %s",
-                ~ToYPathLiteral(key).Quote())
+            THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
+                ToYPathLiteral(key))
                 << ex;
         } else {
-            THROW_ERROR_EXCEPTION("Error removing custom attribute %s",
-                ~ToYPathLiteral(key).Quote())
+            THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
+                ToYPathLiteral(key))
                 << ex;
         }
     }
@@ -890,9 +890,9 @@ TNodeSetterBase::~TNodeSetterBase()
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type: expected %s, actual %s",
-        ~FormatEnum(GetExpectedType()).Quote(),
-        ~FormatEnum(actualType).Quote());
+    THROW_ERROR_EXCEPTION("Invalid node type: expected %Qv, actual %Qv",
+        GetExpectedType(),
+        actualType);
 }
 
 void TNodeSetterBase::OnMyStringScalar(const TStringBuf& /*value*/)

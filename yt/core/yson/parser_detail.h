@@ -46,8 +46,8 @@ public:
 
         while (!(TBase::IsFinished() && TBase::IsEmpty())) {
             if (TBase::template SkipSpaceAndGetChar<true>() != EndSymbol) {
-                THROW_ERROR_EXCEPTION("Stray %s found",
-                    ~Stroka(*TBase::Begin()).Quote())
+                THROW_ERROR_EXCEPTION("Stray %Qv found",
+                    *TBase::Begin())
                     << *this;
             } else if (!TBase::IsEmpty()) {
                 TBase::Advance(1);
@@ -160,8 +160,8 @@ public:
                     TBase::Advance(1);
                     Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
                 } else {
-                    THROW_ERROR_EXCEPTION("Unexpected %s while parsing node",
-                        ~Stroka(ch).Quote())
+                    THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node",
+                        ch)
                         << *this;
                 }
             }
@@ -196,8 +196,8 @@ public:
                     TBase::ReadUnquotedString(&value);
                     Consumer->OnKeyedItem(value);
                 } else {
-                    THROW_ERROR_EXCEPTION("Unexpected %s while parsing key",
-                        ~Stroka(ch).Quote())
+                    THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing key",
+                        ch)
                         << *this;
                 }
             }
@@ -214,9 +214,9 @@ public:
             if (ch == KeyValueSeparatorSymbol) {
                 TBase::Advance(1);
             } else {
-                THROW_ERROR_EXCEPTION("Expected %s but %s found",
-                    ~Stroka(KeyValueSeparatorSymbol).Quote(),
-                    ~Stroka(ch).Quote())
+                THROW_ERROR_EXCEPTION("Expected %Qv but %Qv found",
+                    KeyValueSeparatorSymbol,
+                    ch)
                     << *this;
             }
             ParseNode<AllowFinish>();
@@ -225,10 +225,10 @@ public:
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
-                THROW_ERROR_EXCEPTION("Expected %s or %s but %s found",
-                    ~Stroka(KeyedItemSeparatorSymbol).Quote(),
-                    ~Stroka(endSymbol).Quote(),
-                    ~Stroka(ch).Quote())
+                THROW_ERROR_EXCEPTION("Expected %Qv or %Qv but %Qv found",
+                    KeyedItemSeparatorSymbol,
+                    endSymbol,
+                    ch)
                     << *this;
             }
             
@@ -252,10 +252,10 @@ public:
                 TBase::Advance(1);
                 ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
             } else if (ch != endSymbol) {
-                THROW_ERROR_EXCEPTION("Expected %s or %s but %s found",
-                    ~Stroka(ListItemSeparatorSymbol).Quote(),
-                    ~Stroka(endSymbol).Quote(),
-                    ~Stroka(ch).Quote())
+                THROW_ERROR_EXCEPTION("Expected %Qv or %Qv but %Qv found",
+                    ListItemSeparatorSymbol,
+                    endSymbol,
+                    ch)
                     << *this;
             }            
         }
@@ -278,8 +278,8 @@ public:
                 value = FromString<double>(valueBuffer);
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse double literal %s",
-                    ~Stroka(valueBuffer).Quote())
+                THROW_ERROR_EXCEPTION("Failed to parse double literal %Qv",
+                    valueBuffer)
                     << *this
                     << ex;
             }
@@ -290,8 +290,8 @@ public:
                 value = FromString<i64>(valueBuffer);
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse integer literal %s",
-                    ~Stroka(valueBuffer).Quote())
+                THROW_ERROR_EXCEPTION("Failed to parse integer literal %Qv",
+                    valueBuffer)
                     << *this
                     << ex;
             }

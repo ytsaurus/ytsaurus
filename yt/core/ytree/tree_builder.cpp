@@ -146,7 +146,7 @@ private:
             auto collectionNode = NodeStack.top();
             if (Key) {
                 if (!collectionNode->AsMap()->AddChild(node, *Key)) {
-                    THROW_ERROR_EXCEPTION("Duplicate key %s", ~(*Key).Quote());
+                    THROW_ERROR_EXCEPTION("Duplicate key %Qv", *Key);
                 }
                 Key.Reset();
             } else {

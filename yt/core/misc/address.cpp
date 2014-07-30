@@ -47,8 +47,8 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
 {
     int colonIndex = address.find_last_of(':');
     if (colonIndex == Stroka::npos) {
-        THROW_ERROR_EXCEPTION("Service address %s is malformed, <host>:<port> format is expected",
-            ~Stroka(address).Quote());
+        THROW_ERROR_EXCEPTION("Service address %Qv is malformed, <host>:<port> format is expected",
+            address);
     }
 
     if (hostName) {
@@ -59,8 +59,8 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
         try {
             *port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
-            THROW_ERROR_EXCEPTION("Port number in service address %s is malformed",
-                ~Stroka(address).Quote());
+            THROW_ERROR_EXCEPTION("Port number in service address %Qv is malformed",
+                address);
         }
     }
 }
@@ -147,8 +147,8 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex == Stroka::npos || address[0] != '[') {
-        return TError("Address %s is malformed, expected [<addr>]:<port> or [<addr>] format",
-            ~Stroka(address).Quote());
+        return TError("Address %Qv is malformed, expected [<addr>]:<port> or [<addr>] format",
+            address);
     }
 
     int colonIndex = address.find(':', closingBracketIndex + 1);
@@ -157,8 +157,8 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         try {
             port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
-            return TError("Port number in address %s is malformed",
-                ~Stroka(address).Quote());
+            return TError("Port number in address %Qv is malformed",
+                address);
         }
     }
 
@@ -186,8 +186,8 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
         }
     }
 
-    return TError("Address %s is neither a valid IPv4 nor a valid IPv6 address",
-        ~Stroka(ipAddress).Quote());
+    return TError("Address %Qv is neither a valid IPv4 nor a valid IPv6 address",
+        ipAddress);
 }
 
 TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
@@ -298,9 +298,9 @@ TFuture< TErrorOr<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& add
         if (it != Cache.end()) {
             auto result = it->second;
             guard.Release();
-            LOG_DEBUG("Address cache hit: %s -> %s",
-                ~address,
-                ~ToString(result));
+            LOG_DEBUG("Address cache hit: %v -> %v",
+                address,
+                result);
             return MakeFuture(TErrorOr<TNetworkAddress>(result));
         }
     }
@@ -323,7 +323,7 @@ TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
 
     addrinfo* addrInfo = nullptr;
 
-    LOG_DEBUG("Started resolving host %s", ~hostName);
+    LOG_DEBUG("Started resolving host %v", hostName);
 
     NProfiling::TScopedTimer timer;
 
@@ -341,14 +341,14 @@ TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
     if (gaiResult != 0) {
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
             << TErrorAttribute("errno", gaiResult);
-        auto error = TError("Failed to resolve host %s", ~hostName)
+        auto error = TError("Failed to resolve host %v", hostName)
             << gaiError;
         LOG_WARNING(error);
         return error;
     } else if (duration > WarningDuration) {
-        LOG_WARNING("DNS resolve took too long (Host: %s, Duration: %s)",
-            ~hostName,
-            ~ToString(duration));
+        LOG_WARNING("DNS resolve took too long (Host: %v, Duration: %v)",
+            hostName,
+            duration);
     }
 
     TNullable<TNetworkAddress> result;
@@ -370,14 +370,14 @@ TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
             TGuard<TSpinLock> guard(CacheLock);
             Cache[hostName] = result.Get();
         }
-        LOG_DEBUG("Host resolved: %s -> %s",
-            ~hostName,
-            ~ToString(result.Get()));
+        LOG_DEBUG("Host resolved: %v -> %v",
+            hostName,
+            result.Get());
         return result.Get();
     }
 
     {
-        TError error("No IPv4 or IPv6 address can be found for %s", ~hostName);
+        TError error("No IPv4 or IPv6 address can be found for %v", hostName);
         LOG_WARNING(error);
         return error;
     }
@@ -502,7 +502,7 @@ void TAddressResolver::Configure(TAddressResolverConfigPtr config)
     if (config->LocalHostFqdn) {
         TGuard<TSpinLock> guard(LocalHostLock);
         CachedLocalHostName = *config->LocalHostFqdn;
-        LOG_INFO("LocalHost FQDN configured: %s", ~CachedLocalHostName);
+        LOG_INFO("LocalHost FQDN configured: %v", CachedLocalHostName);
     }
 }
 

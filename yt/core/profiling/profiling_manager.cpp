@@ -347,7 +347,7 @@ private:
             return it->second;
         }
 
-        LOG_DEBUG("Creating bucket %s", ~path);
+        LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
 

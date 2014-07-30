@@ -75,14 +75,14 @@ private:
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool oneWay = header->has_one_way() ? header->one_way() : false;
 
-        LOG_DEBUG("Request received (Service: %s, Method: %s, RealmId: %s, RequestId: %s, OneWay: %s, RequestStartTime: %s, RetryStartTime: %s)",
-            ~serviceName,
-            ~method,
-            ~ToString(realmId),
-            ~ToString(requestId),
-            ~ToString(oneWay),
-            header->has_request_start_time() ? ~ToString(TInstant(header->request_start_time())) : "<Null>",
-            header->has_retry_start_time() ? ~ToString(TInstant(header->retry_start_time())) : "<Null>");
+        LOG_DEBUG("Request received (Service: %v, Method: %v, RealmId: %v, RequestId: %v, OneWay: %v, RequestStartTime: %v, RetryStartTime: %v)",
+            serviceName,
+            method,
+            realmId,
+            requestId,
+            oneWay,
+            header->has_request_start_time() ? ToString(TInstant(header->request_start_time())) : "<Null>",
+            header->has_retry_start_time() ? ToString(TInstant(header->retry_start_time())) : "<Null>");
 
         if (!Started_) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "Server is not started");
@@ -101,10 +101,10 @@ private:
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Service is not registered (Service: %s, RealmId: %s, RequestId: %s)",
-                ~serviceName,
-                ~ToString(realmId),
-                ~ToString(requestId));
+                "Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
+                serviceName,
+                realmId,
+                requestId);
 
             LOG_WARNING(error);
 

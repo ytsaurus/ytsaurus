@@ -47,8 +47,8 @@ private:
             TIFStream stream(FileName);
             return ConvertToNode(&stream);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error loading YSON file %s",
-                ~FileName.Quote())
+            THROW_ERROR_EXCEPTION("Error loading YSON file %Qv",
+                FileName)
                 << ex;
         }
     }

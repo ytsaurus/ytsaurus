@@ -200,8 +200,8 @@ private:
             for (auto& pair : activeRequests) {
                 const auto& requestId = pair.first;
                 auto& request = pair.second;
-                LOG_DEBUG("Request failed due to channel termination (RequestId: %s)",
-                    ~ToString(requestId));
+                LOG_DEBUG("Request failed due to channel termination (RequestId: %v)",
+                    requestId);
                 FinalizeRequest(request);
                 request.ResponseHandler->OnError(error);
             }
@@ -238,10 +238,10 @@ private:
                     auto error = TerminationError_;
                     guard.Release();
 
-                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Service: %s, Method: %s)",
-                        ~ToString(requestId),
-                        ~request->GetService(),
-                        ~request->GetMethod());
+                    LOG_DEBUG("Request via terminated channel is dropped (RequestId: %v, Service: %v, Method: %v)",
+                        requestId,
+                        request->GetService(),
+                        request->GetMethod());
 
                     responseHandler->OnError(error);
                     return;
@@ -297,16 +297,16 @@ private:
                 TGuard<TSpinLock> guard(SpinLock_);
 
                 if (Terminated_) {
-                    LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
-                        ~ToString(requestId));
+                    LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
+                        requestId);
                     return;
                 }
 
                 auto it = ActiveRequests_.find(requestId);
                 if (it == ActiveRequests_.end()) {
                     // This may happen when the other party responds to an already timed-out request.
-                    LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
-                        ~ToString(requestId));
+                    LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
+                        requestId);
                     return;
                 }
 
@@ -366,11 +366,11 @@ private:
                 MakeStrong(this),
                 requestId));
 
-            LOG_DEBUG("Request sent (RequestId: %s, Service: %s, Method: %s, Timeout: %s)",
-                ~ToString(requestId),
-                ~request->GetService(),
-                ~request->GetMethod(),
-                ~ToString(timeout));
+            LOG_DEBUG("Request sent (RequestId: %v, Service: %v, Method: %v, Timeout: %v)",
+                requestId,
+                request->GetService(),
+                request->GetMethod(),
+                timeout);
         }
 
         void OnAcknowledgement(const TRequestId& requestId, TError error)
@@ -382,8 +382,8 @@ private:
             auto it = ActiveRequests_.find(requestId);
             if (it == ActiveRequests_.end()) {
                 // This one may easily get the actual response before the acknowledgment.
-                LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
-                    ~ToString(requestId));
+                LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %v)",
+                    requestId);
                 return;
             }
 
@@ -425,8 +425,8 @@ private:
 
                 auto it = ActiveRequests_.find(requestId);
                 if (it == ActiveRequests_.end()) {
-                    LOG_DEBUG("Timeout for an incorrect or obsolete request occurred (RequestId: %s)",
-                        ~ToString(requestId));
+                    LOG_DEBUG("Timeout for an incorrect or obsolete request occurred (RequestId: %v)",
+                        requestId);
                     return;
                 }
 
@@ -457,8 +457,8 @@ private:
 
         void NotifyAcknowledgement(const TActiveRequest& activeRequest)
         {
-            LOG_DEBUG("Request acknowledged (RequestId: %s)",
-                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+            LOG_DEBUG("Request acknowledged (RequestId: %v)",
+                activeRequest.ClientRequest->GetRequestId());
 
             activeRequest.ResponseHandler->OnAcknowledgement();
         }
@@ -475,16 +475,16 @@ private:
                     << TErrorAttribute("timeout", activeRequest.Timeout->MilliSeconds());
             }
 
-            LOG_DEBUG(detailedError, "Request failed (RequestId: %s)",
-                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+            LOG_DEBUG(detailedError, "Request failed (RequestId: %v)",
+                activeRequest.ClientRequest->GetRequestId());
 
             activeRequest.ResponseHandler->OnError(detailedError);
         }
 
         void NotifyResponse(const TActiveRequest& activeRequest, TSharedRefArray message)
         {
-            LOG_DEBUG("Response received (RequestId: %s)",
-                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+            LOG_DEBUG("Response received (RequestId: %v)",
+                activeRequest.ClientRequest->GetRequestId());
 
             if (activeRequest.ClientRequest->IsResponseHeavy()) {
                 TDispatcher::Get()

@@ -149,13 +149,13 @@ void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
     } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
         auto typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)",
-                ~typesString);
+            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %v)",
+                typesString);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedTypes: %s)",
-                ~ToString(*this).Quote(),
-                ~::ToString(Type_),
-                ~typesString);
+            THROW_ERROR_EXCEPTION("Unexpected token (Token: %Qv, Type: %v, ExpectedTypes: %v)",
+                *this,
+                Type_,
+                typesString);
         }
     }
 }
@@ -164,13 +164,13 @@ void TToken::CheckType(ETokenType expectedType) const
 {
     if (Type_ != expectedType) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)",
-                ~ToString(expectedType));
+            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %v)",
+                expectedType);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedType: %s)",
-                ~ToString(*this).Quote(),
-                ~::ToString(Type_),
-                ~::ToString(expectedType));
+            THROW_ERROR_EXCEPTION("Unexpected token (Token: %Qv, Type: %v, ExpectedType: %v)",
+                *this,
+                Type_,
+                expectedType);
         }
     }
 }

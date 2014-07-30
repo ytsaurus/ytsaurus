@@ -81,8 +81,8 @@ ETokenType TTokenizer::Advance()
 
 void TTokenizer::ThrowMalformedEscapeSequence(const TStringBuf& context)
 {
-    THROW_ERROR_EXCEPTION("Malformed escape sequence %s",
-        ~Stroka(context).Quote());
+    THROW_ERROR_EXCEPTION("Malformed escape sequence %Qv",
+        context);
 }
 
 const char* TTokenizer::AdvanceEscaped(const char* current)
@@ -146,13 +146,13 @@ void TTokenizer::Expect(ETokenType expectedType)
 {
     if (expectedType != Type_) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %s",
-                ~FormatEnum(expectedType).Quote());
+            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %Qv",
+                expectedType);
         } else {
-            THROW_ERROR_EXCEPTION("Expected %s but found %s token %s",
-                ~FormatEnum(expectedType).Quote(),
-                ~FormatEnum(Type_).Quote(),
-                ~Stroka(Token_).Quote());
+            THROW_ERROR_EXCEPTION("Expected %Qv but found %Qv token %Qv",
+                expectedType,
+                Type_,
+                Token_);
         }
     }
 }
@@ -162,9 +162,9 @@ void TTokenizer::ThrowUnexpected()
     if (Type_ == ETokenType::EndOfStream) {
         THROW_ERROR_EXCEPTION("Unexpected end-of-stream");
     } else {
-        THROW_ERROR_EXCEPTION("Unexpected %s token %s",
-            ~FormatEnum(Type_).Quote(),
-            ~Stroka(Token_).Quote());
+        THROW_ERROR_EXCEPTION("Unexpected %Qv token %Qv",
+            Type_,
+            Token_);
     }
 }
 

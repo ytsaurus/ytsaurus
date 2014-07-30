@@ -70,10 +70,10 @@ public:
 
         auto interfaceType = GetInterfaceType(Config_->Address);
 
-        LOG_DEBUG("Connecting to %s (ConnectionId: %s, InterfaceType: %s)",
-            ~Config_->Address,
-            ~ToString(Id_),
-            ~ToString(interfaceType));
+        LOG_DEBUG("Connecting to %v (ConnectionId: %v, InterfaceType: %v)",
+            Config_->Address,
+            Id_,
+            interfaceType);
 
         Connection_ = New<TTcpConnection>(
             Config_,

@@ -32,7 +32,7 @@ struct TWriterConfig
             if (Type == EWriterType::File && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
             } else if (Type != EWriterType::File && !FileName.empty()) {
-                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %s writer", ~FormatEnum(Type).Quote());
+                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qv writer", Type);
             }
         });
     }
@@ -115,7 +115,7 @@ public:
             for (const auto& rule : Rules) {
                 for (const Stroka& writer : rule->Writers) {
                     if (WriterConfigs.find(writer) == WriterConfigs.end()) {
-                        THROW_ERROR_EXCEPTION("Unknown writer %s", ~writer.Quote());
+                        THROW_ERROR_EXCEPTION("Unknown writer %Qv", writer);
                     }
                 }
             }

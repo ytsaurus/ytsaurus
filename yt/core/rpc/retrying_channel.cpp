@@ -87,12 +87,12 @@ private:
 
         void Send()
         {
-            LOG_DEBUG("Request attempt started (RequestId: %s, Attempt: %d of %d, RequestTimeout: %s, RetryTimeout: %s)",
-                ~ToString(Request_->GetRequestId()),
-                static_cast<int>(CurrentAttempt_),
+            LOG_DEBUG("Request attempt started (RequestId: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+                Request_->GetRequestId(),
+                CurrentAttempt_,
                 Config_->RetryAttempts,
-                ~ToString(Timeout_),
-                ~ToString(Config_->RetryTimeout));
+                Timeout_,
+                Config_->RetryTimeout);
 
             auto now = TInstant::Now();
             if (now > Deadline_) {
@@ -126,17 +126,17 @@ private:
 
         virtual void OnAcknowledgement() override
         {
-            LOG_DEBUG("Request attempt acknowledged (RequestId: %s)",
-                ~ToString(Request_->GetRequestId()));
+            LOG_DEBUG("Request attempt acknowledged (RequestId: %v)",
+                Request_->GetRequestId());
 
             // NB: OriginalHandler is not notified.
         }
 
         virtual void OnError(const TError& error) override
         {
-            LOG_DEBUG(error, "Request attempt failed (RequestId: %s, Attempt: %d of %d)",
-                ~ToString(Request_->GetRequestId()),
-                static_cast<int>(CurrentAttempt_),
+            LOG_DEBUG(error, "Request attempt failed (RequestId: %v, Attempt: %v of %v)",
+                Request_->GetRequestId(),
+                CurrentAttempt_,
                 Config_->RetryAttempts);
 
             if (!IsRetriableError(error)) {
@@ -150,8 +150,8 @@ private:
 
         virtual void OnResponse(TSharedRefArray message) override
         {
-            LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
-                ~ToString(Request_->GetRequestId()));
+            LOG_DEBUG("Request attempt succeeded (RequestId: %v)",
+                Request_->GetRequestId());
 
             OriginalHandler_->OnResponse(message);
         }

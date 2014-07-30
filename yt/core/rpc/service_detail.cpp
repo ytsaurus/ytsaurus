@@ -233,9 +233,9 @@ void TServiceBase::OnRequest(
     if (!runtimeInfo) {
         auto error = TError(
             EErrorCode::NoSuchMethod,
-            "Unknown method %s:%s",
-            ~ServiceId_.ServiceName,
-            ~method)
+            "Unknown method %v:%v",
+            ServiceId_.ServiceName,
+            method)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!oneWay) {
@@ -248,11 +248,11 @@ void TServiceBase::OnRequest(
     if (runtimeInfo->Descriptor.OneWay != oneWay) {
         auto error = TError(
             EErrorCode::ProtocolError,
-            "One-way flag mismatch for method %s:%s: expected %s, actual %s",
-            ~ServiceId_.ServiceName,
-            ~method,
-            ~FormatBool(runtimeInfo->Descriptor.OneWay),
-            ~FormatBool(oneWay))
+            "One-way flag mismatch for method %v:%v: expected %v, actual %v",
+            ServiceId_.ServiceName,
+            method,
+            FormatBool(runtimeInfo->Descriptor.OneWay),
+            FormatBool(oneWay))
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!header->one_way()) {
@@ -473,9 +473,9 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %s:%s to configure",
-                    ~ServiceId_.ServiceName,
-                    ~methodName);
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %v:%v to configure",
+                    ServiceId_.ServiceName,
+                    methodName);
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -493,8 +493,8 @@ void TServiceBase::Configure(INodePtr configNode)
             }
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
-            ~ServiceId_.ServiceName)
+        THROW_ERROR_EXCEPTION("Error configuring RPC service %v",
+            ServiceId_.ServiceName)
             << ex;
     }
 }

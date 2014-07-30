@@ -147,8 +147,8 @@ inline i64 ConvertTo(const TYsonString& str)
         case NYson::ETokenType::Int64:
             return token.GetInt64Value();
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse integer from %s",
-                ~str.Data().Quote());
+            THROW_ERROR_EXCEPTION("Cannot parse integer from %Qv",
+                str.Data());
     }
 }
 
@@ -165,8 +165,8 @@ inline double ConvertTo(const TYsonString& str)
         case NYson::ETokenType::Boolean:
             return token.GetBooleanValue();
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse number from %s",
-                ~str.Data().Quote());
+            THROW_ERROR_EXCEPTION("Cannot parse number from %Qv",
+                str.Data());
     }
 }
 
@@ -179,8 +179,8 @@ inline Stroka ConvertTo(const TYsonString& str)
         case NYson::ETokenType::String:
             return Stroka(token.GetStringValue());
         default:
-            THROW_ERROR_EXCEPTION("Cannot parse string from %s",
-                ~str.Data().Quote());
+            THROW_ERROR_EXCEPTION("Cannot parse string from %Qv",
+                str.Data());
     }
 }
 

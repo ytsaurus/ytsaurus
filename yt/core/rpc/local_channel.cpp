@@ -61,9 +61,9 @@ public:
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Service is not registered (Service: %s, RealmId: %s)",
-                ~serviceId.ServiceName,
-                ~ToString(serviceId.RealmId));
+                "Service is not registered (Service: %v, RealmId: %v)",
+                serviceId.ServiceName,
+                serviceId.RealmId);
             responseHandler->OnError(error);
             return;
         }

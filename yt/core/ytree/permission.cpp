@@ -27,7 +27,7 @@ EPermissionSet ParsePermissions(
         } else {
             auto permission = ParseEnum<EPermission>(item);
             if (!(supportedPermissions & permission)) {
-                THROW_ERROR_EXCEPTION("Permission is not supported: %s", ~item);
+                THROW_ERROR_EXCEPTION("Permission is not supported: %v", item);
             }
             result |= permission;
         }

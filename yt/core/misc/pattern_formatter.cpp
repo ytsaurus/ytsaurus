@@ -68,7 +68,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         auto it = PropertyMap.find(property);
         if (it == PropertyMap.end()) {
             if (!isOptional) {
-                THROW_ERROR_EXCEPTION("Property %s is not defined", ~property);
+                THROW_ERROR_EXCEPTION("Property %v is not defined", property);
             }
         } else {
             result.append(it->second);

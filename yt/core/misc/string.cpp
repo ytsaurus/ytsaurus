@@ -77,8 +77,8 @@ bool ParseBool(const Stroka& value)
     } else if (value == "false") {
         return false;
     } else {
-        THROW_ERROR_EXCEPTION("Error parsing boolean value %s",
-            ~value.Quote());
+        THROW_ERROR_EXCEPTION("Error parsing boolean value %Qv",
+            value);
     }
 }
 

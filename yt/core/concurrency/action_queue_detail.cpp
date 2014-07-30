@@ -187,8 +187,8 @@ void TSchedulerThread::Start()
 {
     Epoch.fetch_or((unsigned int)0x1, std::memory_order_relaxed);
 
-    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)",
-        ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)",
+        ThreadName);
 
     Thread.Start();
 
@@ -203,8 +203,8 @@ void TSchedulerThread::Shutdown()
         return;
     }
 
-    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)",
-        ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)",
+        ThreadName);
 
     Epoch.fetch_and(~((unsigned int)0x1), std::memory_order_relaxed);
 
@@ -244,11 +244,11 @@ void TSchedulerThread::ThreadMain()
         }
 
         OnThreadShutdown();
-        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)",
-            ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %v)",
+            ThreadName);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)",
-            ~ThreadName);
+        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %v)",
+            ThreadName);
     }
 }
 
@@ -339,8 +339,8 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
     ++FibersAlive;
     Profiler.Enqueue("/fibers_alive", FibersAlive);
 
-    LOG_DEBUG_IF(EnableLogging, "Fiber started (Name: %s, Created: %d, Alive: %d)",
-        ~ThreadName,
+    LOG_DEBUG_IF(EnableLogging, "Fiber started (Name: %v, Created: %v, Alive: %v)",
+        ThreadName,
         FibersCreated,
         FibersAlive);
 
@@ -349,8 +349,8 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
     --FibersAlive;
     Profiler.Enqueue("/fibers_alive", FibersAlive);
 
-    LOG_DEBUG_IF(EnableLogging, "Fiber finished (Name: %s, Created: %d, Alive: %d)",
-        ~ThreadName,
+    LOG_DEBUG_IF(EnableLogging, "Fiber finished (Name: %v, Created: %v, Alive: %v)",
+        ThreadName,
         FibersCreated,
         FibersAlive);
 }

@@ -31,27 +31,27 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "%s has invalid type: expected %s, actual %s",
-        ~GetNodePathHelper(node),
-        ~FormatEnum(expectedType).Quote(),
-        ~FormatEnum(actualType).Quote());
+        "%v has invalid type: expected %Qv, actual %Qv",
+        GetNodePathHelper(node),
+        expectedType,
+        actualType);
 }
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "%s has no child with key %s",
-        ~GetNodePathHelper(node),
-        ~ToYPathLiteral(key).Quote());
+        "%v has no child with key %Qv",
+        GetNodePathHelper(node),
+        ToYPathLiteral(key));
 }
 
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "%s has no child with index %d",
-        ~GetNodePathHelper(node),
+        "%v has no child with index %v",
+        GetNodePathHelper(node),
         index);
 }
 
@@ -59,32 +59,32 @@ void ThrowNoSuchAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "Attribute %s is not found",
-        ~ToYPathLiteral(key).Quote());
+        "Attribute %Qv is not found",
+        ToYPathLiteral(key));
 }
 
 void ThrowNoSuchCustomAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "Custom attribute %s is not found",
-        ~ToYPathLiteral(key).Quote());
+        "Custom attribute %Qv is not found",
+        ToYPathLiteral(key));
 }
 
 void ThrowNoSuchBuiltinAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "Builtin attribute %s is not found",
-        ~ToYPathLiteral(key).Quote());
+        "Builtin attribute %Qv is not found",
+        ToYPathLiteral(key));
 }
 
 void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,
-        "Method %s is not supported",
-        ~method);
+        "Method %v is not supported",
+        method);
     if (resolveType) {
         error.Attributes().Set("resolve_type", *resolveType);
     }
@@ -93,16 +93,16 @@ void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& reso
 
 void ThrowCannotHaveChildren(IConstNodePtr node)
 {
-    THROW_ERROR_EXCEPTION("%s cannot have children",
-        ~GetNodePathHelper(node));
+    THROW_ERROR_EXCEPTION("%v cannot have children",
+        GetNodePathHelper(node));
 }
 
 void ThrowAlreadyExists(IConstNodePtr node)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::AlreadyExists,
-        "%s already exists",
-        ~GetNodePathHelper(node));
+        "%v already exists",
+        GetNodePathHelper(node));
 }
 
 void ThrowCannotRemoveRoot()
@@ -112,14 +112,14 @@ void ThrowCannotRemoveRoot()
 void ThrowCannotRemoveAttribute(const Stroka& key)
 
 {
-    THROW_ERROR_EXCEPTION("Attribute %s cannot be removed",
-        ~ToYPathLiteral(key).Quote());
+    THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",
+        ToYPathLiteral(key));
 }
 
 void ThrowCannotSetBuiltinAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("Builtin attribute %s cannot be set",
-        ~ToYPathLiteral(key).Quote());
+    THROW_ERROR_EXCEPTION("Builtin attribute %Qv cannot be set",
+        ToYPathLiteral(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

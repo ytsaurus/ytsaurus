@@ -74,7 +74,7 @@ const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 
 TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
-    LOG_DEBUG("Object registration enqueued (%s)", ~object->GetLoggingId());
+    LOG_DEBUG("Object registration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoRegister, MakeStrong(this), object)
         .Guarded()
@@ -84,7 +84,7 @@ TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 
 TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
-    LOG_DEBUG("Object unregistration enqueued (%s)", ~object->GetLoggingId());
+    LOG_DEBUG("Object unregistration enqueued (%v)", object->GetLoggingId());
 
     return BIND(&TTcpDispatcherThread::DoUnregister, MakeStrong(this), object)
         .Guarded()
@@ -102,7 +102,7 @@ void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
     object->SyncInitialize();
     YCHECK(Objects_.insert(object).second);
 
-    LOG_DEBUG("Object registered (%s)", ~object->GetLoggingId());
+    LOG_DEBUG("Object registered (%v)", object->GetLoggingId());
 }
 
 void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
@@ -110,7 +110,7 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
     object->SyncFinalize();
     YCHECK(Objects_.erase(object) == 1);
 
-    LOG_DEBUG("Object unregistered (%s)", ~object->GetLoggingId());
+    LOG_DEBUG("Object unregistered (%v)", object->GetLoggingId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

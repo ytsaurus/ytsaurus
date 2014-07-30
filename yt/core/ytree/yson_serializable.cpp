@@ -83,8 +83,8 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
             validator.Run();
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed at %s",
-            path.empty() ? "/" : ~path)
+        THROW_ERROR_EXCEPTION("Validation failed at %v",
+            path.empty() ? "/" : path)
             << ex;
     }
 }

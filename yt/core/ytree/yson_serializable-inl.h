@@ -38,8 +38,8 @@ struct TLoadHelper
         try {
             Deserialize(parameter, node);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter %s",
-                ~path)
+            THROW_ERROR_EXCEPTION("Error reading parameter %v",
+                path)
                 << ex;
         }
     }
@@ -282,8 +282,8 @@ void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYP
     if (node) {
         NYT::NYTree::NDetail::TLoadHelper<T>::Load(Parameter, node, path);
     } else if (!DefaultValue) {
-        THROW_ERROR_EXCEPTION("Missing required parameter %s",
-            ~path);
+        THROW_ERROR_EXCEPTION("Missing required parameter %v",
+            path);
     }
 }
 
@@ -294,8 +294,8 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed at %s",
-                path.empty() ? "/" : ~path)
+            THROW_ERROR_EXCEPTION("Validation failed at %v",
+                path.empty() ? "/" : path)
                 << ex;
         }
     }
@@ -389,31 +389,31 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Chec
 DEFINE_VALIDATOR(
     GreaterThan(TValueType expected),
     actual > expected,
-    TError("Expected > %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected > %v, found %v", expected, actual)
 )
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(TValueType expected),
     actual >= expected,
-    TError("Expected >= %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected >= %v, found %v", expected, actual)
 )
 
 DEFINE_VALIDATOR(
     LessThan(TValueType expected),
     actual < expected,
-    TError("Expected < %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected < %v, found %v", expected, actual)
 )
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(TValueType expected),
     actual <= expected,
-    TError("Expected <= %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected <= %v, found %v", expected, actual)
 )
 
 DEFINE_VALIDATOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
-    TError("Expected in range [%s,%s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
+    TError("Expected in range [%v,%v], found %v", lowerBound, upperBound, actual)
 )
 
 DEFINE_VALIDATOR(

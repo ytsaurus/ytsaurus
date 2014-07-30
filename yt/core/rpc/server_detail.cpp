@@ -451,8 +451,8 @@ void TServerBase::Configure(TServerConfigPtr config)
         const auto& serviceConfig = pair.second;
         auto services = FindServices(serviceName);
         if (services.empty()) {
-            THROW_ERROR_EXCEPTION("Cannot find RPC service %s to configure",
-                ~serviceName.Quote());
+            THROW_ERROR_EXCEPTION("Cannot find RPC service %Qv to configure",
+                serviceName);
         }
         for (auto service : services) {
             service->Configure(serviceConfig);

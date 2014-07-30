@@ -16,7 +16,7 @@ IChannelPtr TStaticChannelFactory::CreateChannel(const Stroka& address)
 {
     auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
-        THROW_ERROR_EXCEPTION("Unknown address %s", ~address.Quote());
+        THROW_ERROR_EXCEPTION("Unknown address %Qv", address);
     }
     return it->second;
 }

@@ -426,7 +426,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         if (result != 0) {
             int error = LastSystemError();
             if (IsSocketError(error)) {
-                THROW_ERROR_EXCEPTION("Error connecting to %s", ~Address_)
+                THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
                     << TError::FromSystem(error);
             }
         }
@@ -445,8 +445,8 @@ TAsyncError TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel
     TQueuedMessage queuedMessage(std::move(message), level);
 
     // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)",
-        ~ToString(queuedMessage.PacketId));
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %v)",
+        queuedMessage.PacketId);
 
     QueuedMessages_.Enqueue(queuedMessage);
 
@@ -682,16 +682,16 @@ bool TTcpConnection::OnAckPacketReceived()
     auto& unackedMessage = UnackedMessages_.front();
 
     if (Decoder_.GetPacketId() != unackedMessage.PacketId) {
-        LOG_ERROR("Ack for invalid packet ID received: expected %s, found %s",
-            ~ToString(unackedMessage.PacketId),
-            ~ToString(Decoder_.GetPacketId()));
+        LOG_ERROR("Ack for invalid packet ID received: expected %v, found %v",
+            unackedMessage.PacketId,
+            Decoder_.GetPacketId());
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Ack for invalid packet ID received"));
         return false;
     }
 
-    LOG_DEBUG("Ack received (PacketId: %s)", ~ToString(Decoder_.GetPacketId()));
+    LOG_DEBUG("Ack received (PacketId: %v)", Decoder_.GetPacketId());
 
     PROFILE_AGGREGATED_TIMING (OutHandlerTime) {
         if (unackedMessage.Promise) {
@@ -706,8 +706,8 @@ bool TTcpConnection::OnAckPacketReceived()
 
 bool TTcpConnection::OnMessagePacketReceived()
 {
-    LOG_DEBUG("Incoming message received (PacketId: %s, PacketSize: %" PRISZT ")",
-        ~ToString(Decoder_.GetPacketId()),
+    LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v)",
+        Decoder_.GetPacketId(),
         Decoder_.GetPacketSize());
 
     if (Decoder_.GetPacketFlags() & EPacketFlags::RequestAck) {
@@ -747,8 +747,8 @@ void TTcpConnection::OnSocketWrite()
         if (error != 0) {
             auto wrappedErrror = TError(
                 NRpc::EErrorCode::TransportError,
-                "Failed to connect to %s",
-                ~Address_)
+                "Failed to connect to %v",
+                Address_)
                 << TError::FromSystem(error);
             LOG_ERROR(wrappedErrror);
 
@@ -937,7 +937,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         EncodedPackets_.push(packet);
 
         // Encode the packet.
-        LOG_TRACE("Starting encoding packet (PacketId: %s)", ~ToString(packet->PacketId));
+        LOG_TRACE("Starting encoding packet (PacketId: %v)", packet->PacketId);
 
         bool encodeResult = Encoder_.Start(
             packet->Type,
@@ -964,7 +964,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         EncodedPacketSizes_.push(packet->Size);
         encodedSize += packet->Size;
 
-        LOG_TRACE("Finished encoding packet (PacketId: %s)", ~ToString(packet->PacketId));
+        LOG_TRACE("Finished encoding packet (PacketId: %v)", packet->PacketId);
     }
     
     flushCoalesced();
@@ -1016,14 +1016,14 @@ void TTcpConnection::OnPacketSent()
 
 void  TTcpConnection::OnAckPacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Ack sent (PacketId: %s)",
-        ~ToString(packet.PacketId));
+    LOG_DEBUG("Ack sent (PacketId: %v)",
+        packet.PacketId);
 }
 
 void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Outcoming message sent (PacketId: %s, PacketSize: %" PRId64 ")",
-        ~ToString(packet.PacketId),
+    LOG_DEBUG("Outcoming message sent (PacketId: %v, PacketSize: %v)",
+        packet.PacketId,
         packet.Size);
 }
 
@@ -1050,8 +1050,8 @@ void TTcpConnection::ProcessOutcomingMessages()
 
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
         const auto& queuedMessage = *it;
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)",
-            ~ToString(queuedMessage.PacketId));
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
+            queuedMessage.PacketId);
 
         EPacketFlags flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
@@ -1074,8 +1074,8 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages_.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)",
-            ~ToString(queuedMessage.PacketId));
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %v)",
+            queuedMessage.PacketId);
         if (queuedMessage.Promise) {
             queuedMessage.Promise.Set(error);
         }

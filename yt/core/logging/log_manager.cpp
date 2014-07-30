@@ -162,13 +162,13 @@ private:
             IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
 
         if (Wd_ < 0) {
-            LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %s",
-                ~Path_);
+            LOG_ERROR(TError::FromSystem(errno), "Error registering watch for %v",
+                Path_);
             Wd_ = -1;
         } else if (Wd_ > 0) {
-            LOG_TRACE("Registered watch %d for %s",
+            LOG_TRACE("Registered watch %v for %v",
                 Wd_,
-                ~Path_);
+                Path_);
         } else {
             YUNREACHABLE();
         }
@@ -181,9 +181,9 @@ private:
     {
 #ifdef _linux_
         if (Wd_ > 0) {
-            LOG_TRACE("Unregistering watch %d for %s",
+            LOG_TRACE("Unregistering watch %v for %v",
                 Wd_,
-                ~Path_);
+                Path_);
             inotify_rm_watch(Fd_, Wd_);
         }
 #endif
