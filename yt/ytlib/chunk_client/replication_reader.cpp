@@ -87,20 +87,20 @@ public:
     {
         if (!Config_->AllowFetchingSeedsFromMaster && InitialSeedReplicas_.empty()) {
             THROW_ERROR_EXCEPTION(
-                "Cannot read chunk %s: master seeds retries are disabled and no initial seeds are given",
-                ~ToString(ChunkId_));
+                "Cannot read chunk %v: master seeds retries are disabled and no initial seeds are given",
+                ChunkId_);
         }
 
         if (!InitialSeedReplicas_.empty()) {
             GetSeedsPromise_ = MakePromise(TGetSeedsResult(InitialSeedReplicas_));
         }
 
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s, Network: %s)",
-            ~JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
-            ~FormatBool(Config_->FetchFromPeers),
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
+            JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            FormatBool(Config_->FetchFromPeers),
             LocalDescriptor_ ? ~ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
-            ~FormatBool(Config_->EnableNodeCaching),
-            ~NetworkName_);
+            FormatBool(Config_->EnableNodeCaching),
+            NetworkName_);
     }
 
     virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override;
@@ -212,7 +212,7 @@ private:
         YCHECK(rsp->chunks_size() <= 1);
         if (rsp->chunks_size() == 0) {
             YCHECK(!GetSeedsPromise_.IsSet());
-            GetSeedsPromise_.Set(TError("No such chunk %s", ~ToString(ChunkId_)));
+            GetSeedsPromise_.Set(TError("No such chunk %v", ChunkId_));
             return;
         }
         const auto& chunkInfo = rsp->chunks(0);
@@ -223,8 +223,8 @@ private:
         // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
         Shuffle(seedReplicas.begin(), seedReplicas.end());
 
-        LOG_INFO("Chunk seeds received (SeedReplicas: [%s])",
-            ~JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+        LOG_INFO("Chunk seeds received (SeedReplicas: [%v])",
+            JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
         YCHECK(!GetSeedsPromise_.IsSet());
         GetSeedsPromise_.Set(seedReplicas);
@@ -319,8 +319,8 @@ protected:
     void BanPeer(const Stroka& address)
     {
         if (BannedPeers_.insert(address).second) {
-            LOG_INFO("Node is banned for the current retry (Address: %s)",
-                ~address);
+            LOG_INFO("Node is banned for the current retry (Address: %v)",
+                address);
         }
     }
 
@@ -359,7 +359,7 @@ protected:
 
         YCHECK(!GetSeedsResult);
 
-        LOG_INFO("Retry started: %d of %d",
+        LOG_INFO("Retry started: %v of %v",
             RetryIndex_ + 1,
             reader->Config_->RetryCount);
 
@@ -381,7 +381,7 @@ protected:
             return;
 
         int retryCount = reader->Config_->RetryCount;
-        LOG_INFO("Retry failed: %d of %d",
+        LOG_INFO("Retry failed: %v of %v",
             RetryIndex_ + 1,
             retryCount);
 
@@ -408,7 +408,7 @@ protected:
         if (!reader)
             return false;
 
-        LOG_INFO("Pass started: %d of %d",
+        LOG_INFO("Pass started: %v of %v",
             PassIndex_ + 1,
             reader->Config_->PassCount);
 
@@ -510,9 +510,9 @@ private:
             } else {
                 RegisterError(TError(
                     NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-                    "Cannot find %s address for seed %s",
-                    ~NetworkName_.Quote(),
-                    ~descriptor.GetDefaultAddress()));
+                    "Cannot find %Qv address for seed %v",
+                    NetworkName_,
+                    descriptor.GetDefaultAddress()));
                 OnSessionFailed();
             }
         }
@@ -638,7 +638,7 @@ private:
                 TBlockId blockId(reader->ChunkId_, blockIndex);
                 auto block = reader->BlockCache_->Find(blockId);
                 if (block) {
-                    LOG_INFO("Block is fetched from cache (Block: %d)", blockIndex);
+                    LOG_INFO("Block is fetched from cache (Block: %v)", blockIndex);
                     YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
                 }
             }
@@ -670,9 +670,9 @@ private:
             auto blockIndexes = GetRequestBlockIndexes(currentAddress, unfetchedBlockIndexes);
 
             if (!IsPeerBanned(currentAddress) && !blockIndexes.empty()) {
-                LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: [%s])",
-                    ~currentAddress,
-                    ~JoinToString(unfetchedBlockIndexes));
+                LOG_INFO("Requesting blocks from peer (Address: %v, Blocks: [%v])",
+                    currentAddress,
+                    JoinToString(unfetchedBlockIndexes));
 
                 IChannelPtr channel;
                 try {
@@ -707,8 +707,8 @@ private:
                 break;
             }
 
-            LOG_INFO("Skipping peer (Address: %s)",
-                ~currentAddress);
+            LOG_INFO("Skipping peer (Address: %v)",
+                currentAddress);
         }
     }
 
@@ -745,8 +745,8 @@ private:
         }
 
         if (rsp->throttling()) {
-            LOG_INFO("Peer is throttling (Address: %s)",
-                ~adddress);
+            LOG_INFO("Peer is throttling (Address: %v)",
+                adddress);
             return VoidFuture;
         }
 
@@ -785,13 +785,13 @@ private:
                     if (peerAddress) {
                         AddPeer(*peerAddress, peerDescriptor);
                         PeerBlocksMap_[*peerAddress].insert(blockIndex);
-                        LOG_INFO("Peer descriptor received (Block: %d, Address: %s)",
+                        LOG_INFO("Peer descriptor received (Block: %v, Address: %v)",
                             blockIndex,
-                            ~*peerAddress);
+                            *peerAddress);
                     } else {
-                        LOG_WARNING("Peer descriptor ignored, required network is missing (Block: %d, Address: %s)",
+                        LOG_WARNING("Peer descriptor ignored, required network is missing (Block: %v, Address: %v)",
                             blockIndex,
-                            ~peerDescriptor.GetDefaultAddress());
+                            peerDescriptor.GetDefaultAddress());
                     }
                 }
             }
@@ -799,8 +799,8 @@ private:
 
 
         if (IsSeed(adddress) && !rsp->has_complete_chunk()) {
-            LOG_INFO("Seed does not contain the chunk (Address: %s)",
-                ~adddress);
+            LOG_INFO("Seed does not contain the chunk (Address: %v)",
+                adddress);
             BanPeer(adddress);
         }
 
@@ -925,8 +925,8 @@ private:
 
             auto currentAddress = PickNextPeer();
             if (!IsPeerBanned(currentAddress)) {
-                LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: %d-%d)",
-                    ~currentAddress,
+                LOG_INFO("Requesting blocks from peer (Address: %v, Blocks: %v-%v)",
+                    currentAddress,
                     FirstBlockIndex_,
                     FirstBlockIndex_ + BlockCount_ - 1);
 
@@ -958,8 +958,8 @@ private:
                 break;
             }
 
-            LOG_INFO("Skipping peer (Address: %s)",
-                ~currentAddress);
+            LOG_INFO("Skipping peer (Address: %v)",
+                currentAddress);
         }
     }
 
@@ -1005,7 +1005,7 @@ private:
         i64 bytesReceived = 0;
 
         if (blocksReceived > 0) {
-            LOG_INFO("Block range received (Blocks: %d-%d)",
+            LOG_INFO("Block range received (Blocks: %v-%v)",
                 FirstBlockIndex_,
                 FirstBlockIndex_ + blocksReceived - 1);
             for (const auto& block : rsp->Attachments()) {
@@ -1017,14 +1017,14 @@ private:
         }
 
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
-            LOG_INFO("Seed does not contain the chunk (Address: %s)",
-                ~address);
+            LOG_INFO("Seed does not contain the chunk (Address: %v)",
+                address);
             BanPeer(address);
         }
 
         if (blocksReceived == 0) {
-            LOG_INFO("Peer has no relevant blocks (Address: %s)",
-                ~address);
+            LOG_INFO("Peer has no relevant blocks (Address: %v)",
+                address);
             BanPeer(address);
         }
 
@@ -1137,7 +1137,7 @@ private:
         }
 
         auto address = PickNextPeer();
-        LOG_INFO("Requesting chunk meta (Address: %s)", ~address);
+        LOG_INFO("Requesting chunk meta (Address: %v)", address);
 
         IChannelPtr channel;
         try {
@@ -1180,8 +1180,8 @@ private:
         const Stroka& address,
         const TError& error)
     {
-        LOG_WARNING(error, "Error requesting chunk meta (Address: %s)",
-            ~address);
+        LOG_WARNING(error, "Error requesting chunk meta (Address: %v)",
+            address);
 
         RegisterError(error);
 

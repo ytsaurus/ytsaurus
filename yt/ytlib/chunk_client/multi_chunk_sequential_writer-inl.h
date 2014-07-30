@@ -356,8 +356,8 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkConfirmed(
         return;
     }
 
-    LOG_DEBUG("Chunk confirmed (ChunkId: %s)",
-        ~ToString(chunkId));
+    LOG_DEBUG("Chunk confirmed (ChunkId: %v)",
+        chunkId);
 
     finishResult.Set(TError());
 }
@@ -374,8 +374,8 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkFinished(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s)",
-        ~ToString(chunkId));
+    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %v)",
+        chunkId);
 }
 
 template <class TProvider>

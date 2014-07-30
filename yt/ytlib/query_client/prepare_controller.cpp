@@ -195,7 +195,7 @@ void TPrepareController::GetInitialSplits()
         [this] (TPlanContext* context, const TOperator* op) -> const TOperator* {
             if (auto* scanOp = op->As<TScanOperator>()) {
                 auto tablePath = Context_->GetTablePath();
-                LOG_DEBUG("Getting initial data split for %s", ~tablePath);
+                LOG_DEBUG("Getting initial data split for %v", tablePath);
                 // XXX(sandello): We have just one table at the moment.
                 // Will put TParallelAwaiter here in case of multiple tables.
                 auto dataSplitOrError = WaitFor(Callbacks_->GetInitialSplit(
@@ -203,8 +203,8 @@ void TPrepareController::GetInitialSplits()
                     Context_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     dataSplitOrError,
-                    "Failed to get initial data split for table %s",
-                    ~tablePath);
+                    "Failed to get initial data split for table %v",
+                    tablePath);
 
                 auto* clonedScanOp = scanOp->Clone(context)->As<TScanOperator>();
                 clonedScanOp->DataSplits().clear();

@@ -146,9 +146,9 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
 
-    LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
+    LOG_DEBUG("Opening chunk (ChunkIndex: %v, ChunkId: %v)",
         chunkIndex,
-        ~ToString(chunkId));
+        chunkId);
 
     IReaderPtr asyncReader;
     if (IsErasureChunkId(chunkId)) {
@@ -215,7 +215,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& sess
 {
     const auto& chunkSpec = ChunkSpecs[session.ChunkIndex];
     auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunkSpec.chunk_id());
-    LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
+    LOG_DEBUG("Failed chunk added (ChunkId: %v)", chunkId);
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);
 }

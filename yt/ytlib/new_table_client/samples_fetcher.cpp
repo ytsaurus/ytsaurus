@@ -121,8 +121,8 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     auto rsp = WaitFor(req->Invoke());
 
     if (!rsp->IsOK()) {
-        LOG_WARNING("Failed to get samples from node (Address: %s, NodeId: %d)",
-            ~NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+        LOG_WARNING("Failed to get samples from node (Address: %v, NodeId: %v)",
+            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
         OnNodeFailed(nodeId, requestedChunkIndexes);
         return;

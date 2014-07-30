@@ -178,12 +178,12 @@ void RemoveAllSubcgroups(const Stroka& path)
 void RunKiller(const Stroka& processGroupPath)
 {
 #ifdef _linux_
-    LOG_INFO("Kill %s processes", ~processGroupPath.Quote());
+    LOG_INFO("Kill %Qv processes", processGroupPath);
 
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
-            "Failed to kill processes from %s",
-            ~processGroupPath.Quote()) << error;
+            "Failed to kill processes from %Qv",
+            processGroupPath) << error;
     };
 
     while (true) {
@@ -222,8 +222,8 @@ void KillProcessGroup(const Stroka& processGroupPath)
     if (pids.empty())
         return;
 
-    LOG_DEBUG("Killing processes (PIDs: [%s])",
-        ~JoinToString(pids));
+    LOG_DEBUG("Killing processes (PIDs: [%v])",
+        JoinToString(pids));
 
     YCHECK(setuid(0) == 0);
 
@@ -317,7 +317,7 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 
 void TNonOwningCGroup::EnsureExistance()
 {
-    LOG_INFO("Creating cgroup %s", ~FullPath_.Quote());
+    LOG_INFO("Creating cgroup %Qv", ~FullPath_);
 
     YCHECK(!IsNull());
 
@@ -339,7 +339,7 @@ TCGroup::~TCGroup()
         try {
             Destroy();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Unable to destroy cgroup %s", ~FullPath_.Quote());
+            LOG_ERROR(ex, "Unable to destroy cgroup %Qv", FullPath_);
         }
     }
 }
@@ -352,7 +352,7 @@ void TCGroup::Create()
 
 void TCGroup::Destroy()
 {
-    LOG_INFO("Destroying cgroup %s", ~FullPath_.Quote());
+    LOG_INFO("Destroying cgroup %Qv", FullPath_);
 
 #ifdef _linux_
     YCHECK(Created_);

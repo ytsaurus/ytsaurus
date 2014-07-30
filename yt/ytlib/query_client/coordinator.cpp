@@ -262,8 +262,8 @@ const TOperator* TCoordinator::Gather(const std::vector<const TOperator*>& ops)
 
     for (const auto& op : ops) {
         auto fragment = TPlanFragment(context, op);
-        LOG_DEBUG("Created subfragment (SubfragmentId: %s)",
-            ~ToString(fragment.Id()));
+        LOG_DEBUG("Created subfragment (SubfragmentId: %v)",
+            fragment.Id());
 
         int index = Peers_.size();
         Peers_.emplace_back(fragment, collocatedSplit(op), nullptr, Null);
@@ -313,8 +313,8 @@ const TOperator* TCoordinator::Simplify(const TOperator* op)
                 return op;
             }
 
-            LOG_DEBUG("Keeping subfragment local (SubfragmentId: %s)",
-                ~ToString(peer.Fragment.Id()));
+            LOG_DEBUG("Keeping subfragment local (SubfragmentId: %v)",
+                peer.Fragment.Id());
 
             return peer.Fragment.GetHead();
         });
@@ -333,7 +333,7 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         auto objectId = GetObjectIdFromDataSplit(split);
 
         if (Callbacks_->CanSplit(split)) {
-            LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+            LOG_DEBUG("Splitting input %v", objectId);
         } else {
             allSplits.push_back(split);
             continue;
@@ -348,9 +348,9 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         }
 
         LOG_DEBUG(
-            "Got %" PRISZT " splits for input %s",
+            "Got %v splits for input %v",
             newSplits.size(),
-            ~ToString(objectId));
+            objectId);
 
         allSplits.insert(allSplits.end(), newSplits.begin(), newSplits.end());
     }
@@ -441,8 +441,8 @@ void TCoordinator::DelegateToPeers()
     for (auto& peer : Peers_) {
         auto explanation = Explain(peer.CollocatedSplit);
         if (!explanation.IsInternal) {
-            LOG_DEBUG("Delegating subfragment (SubfragmentId: %s)",
-                ~ToString(peer.Fragment.Id()));
+            LOG_DEBUG("Delegating subfragment (SubfragmentId: %v)",
+                peer.Fragment.Id());
             std::tie(peer.Reader, peer.QueryResult) = Callbacks_->Delegate(
                 peer.Fragment,
                 peer.CollocatedSplit);
@@ -457,7 +457,7 @@ ISchemafulReaderPtr TCoordinator::GetReader(
     TPlanContextPtr context)
 {
     auto objectId = GetObjectIdFromDataSplit(split);
-    LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
+    LOG_DEBUG("Creating reader for %v", objectId);
 
     auto explanation = Explain(split);
 

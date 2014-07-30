@@ -155,11 +155,11 @@ public:
     
         Register();
 
-        LOG_INFO("Master transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
-            ~ToString(Id_),
-            ~FormatBool(AutoAbort_),
-            ~FormatBool(Ping_),
-            ~FormatBool(PingAncestors_));
+        LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+            Id_,
+            FormatBool(AutoAbort_),
+            FormatBool(Ping_),
+            FormatBool(PingAncestors_));
 
         if (Ping_) {
             RunPeriodicPings();
@@ -207,8 +207,8 @@ public:
                 State_ = EState::Committed;
             }
 
-            LOG_INFO("Trivial transaction committed (TransactionId: %s)",
-                ~ToString(Id_));
+            LOG_INFO("Trivial transaction committed (TransactionId: %v)",
+                Id_);
             return OKFuture;
         }
 
@@ -216,9 +216,9 @@ public:
             ? Owner_->MasterCellGuid_
             : *participantGuids.begin();
 
-        LOG_INFO("Committing transaction (TransactionId: %s, CoordinatorCellGuid: %s)",
-            ~ToString(Id_),
-            ~ToString(coordinatorCellGuid));
+        LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellGuid: %v)",
+            Id_,
+            coordinatorCellGuid);
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellGuid);
         TTransactionSupervisorServiceProxy proxy(channel);
@@ -279,8 +279,8 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached (TransactionId: %s)",
-            ~ToString(Id_));
+        LOG_INFO("Transaction detached (TransactionId: %v)",
+            Id_);
     }
 
 
@@ -330,9 +330,9 @@ public:
             YCHECK(CellGuidToStartTransactionResult_.insert(std::make_pair(cellGuid, promise)).second);
         }
 
-        LOG_DEBUG("Adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
-            ~ToString(Id_),
-            ~ToString(cellGuid));
+        LOG_DEBUG("Adding transaction tablet participant (TransactionId: %v, CellGuid: %v)",
+            Id_,
+            cellGuid);
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
         TTabletServiceProxy proxy(channel);
@@ -464,9 +464,9 @@ private:
 
         Register();
 
-        LOG_INFO("Starting transaction (StartTimestamp: %" PRIu64 ", Type: %s)",
+        LOG_INFO("Starting transaction (StartTimestamp: %v, Type: %v)",
             StartTimestamp_,
-            ~ToString(Type_));
+            Type_);
 
         switch (Type_) {
             case ETransactionType::Master:
@@ -521,12 +521,12 @@ private:
             Owner_->MasterCellGuid_,
             MakePromise<TError>(TError()))).second);
 
-        LOG_INFO("Master transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s, Ping: %s, PingAncestors: %s)",
-            ~ToString(Id_),
+        LOG_INFO("Master transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+            Id_,
             StartTimestamp_,
-            ~FormatBool(AutoAbort_),
-            ~FormatBool(Ping_),
-            ~FormatBool(PingAncestors_));
+            FormatBool(AutoAbort_),
+            FormatBool(Ping_),
+            FormatBool(PingAncestors_));
 
         if (Ping_) {
             RunPeriodicPings();
@@ -545,10 +545,10 @@ private:
 
         State_ = EState::Active;
 
-        LOG_INFO("Tablet transaction started (TransactionId: %s, StartTimestamp: %" PRIu64 ", AutoAbort: %s)",
-            ~ToString(Id_),
+        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+            Id_,
             StartTimestamp_,
-            ~FormatBool(AutoAbort_));
+            FormatBool(AutoAbort_));
 
         // Start ping scheduling.
         // Participants will be added into it upon arrival.
@@ -564,18 +564,18 @@ private:
         TTabletServiceProxy::TRspStartTransactionPtr rsp)
     {
         if (rsp->IsOK()) {
-            LOG_DEBUG("Transaction tablet participant added (TransactionId: %s, CellGuid: %s)",
-                ~ToString(Id_),
-                ~ToString(cellGuid));
+            LOG_DEBUG("Transaction tablet participant added (TransactionId: %v, CellGuid: %v)",
+                Id_,
+                cellGuid);
 
         } else {
-            LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %s, CellGuid: %s)",
-                ~ToString(Id_),
-                ~ToString(cellGuid));
+            LOG_DEBUG(*rsp, "Error adding transaction tablet participant (TransactionId: %v, CellGuid: %v)",
+                Id_,
+                cellGuid);
 
-            DoAbort(TError("Error adding participant %s to transaction %s",
-                ~ToString(cellGuid),
-                ~ToString(Id_))
+            DoAbort(TError("Error adding participant %v to transaction %v",
+                cellGuid,
+                Id_)
                 << *rsp);
         }
 
@@ -599,8 +599,8 @@ private:
             State_ = EState::Committed;
         }
 
-        LOG_INFO("Transaction committed (TransactionId: %s)",
-            ~ToString(Id_));
+        LOG_INFO("Transaction committed (TransactionId: %v)",
+            Id_);
         return TError();
     }
 
@@ -619,9 +619,9 @@ private:
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellGuid : participantGuids) {
-                LOG_DEBUG("Pinging transaction (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(Transaction_->Id_),
-                    ~ToString(cellGuid));
+                LOG_DEBUG("Pinging transaction (TransactionId: %v, CellGuid: %v)",
+                    Transaction_->Id_,
+                    cellGuid);
 
                 auto channel = Transaction_->Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
                 TTransactionSupervisorServiceProxy proxy(channel);
@@ -661,17 +661,17 @@ private:
             } else {
                 if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
                     // Hard error.
-                    LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(Transaction_->Id_),
-                        ~ToString(cellGuid));
-                    OnError(TError("Transaction %s has expired or was aborted at cell %s",
-                        ~ToString(Transaction_->Id_),
-                        ~ToString(cellGuid)));
+                    LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellGuid: %v)",
+                        Transaction_->Id_,
+                        cellGuid);
+                    OnError(TError("Transaction %v has expired or was aborted at cell %v",
+                        Transaction_->Id_,
+                        cellGuid));
                 } else {
                     // Soft error.
-                    LOG_WARNING(*rsp, "Error pinging transaction (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(Transaction_->Id_),
-                        ~ToString(cellGuid));
+                    LOG_WARNING(*rsp, "Error pinging transaction (TransactionId: %v, CellGuid: %v)",
+                        Transaction_->Id_,
+                        cellGuid);
                 }
             }
         }
@@ -733,9 +733,9 @@ private:
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellGuid : participantGuids) {
-                LOG_DEBUG("Aborting transaction (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(TransactionId_),
-                    ~ToString(cellGuid));
+                LOG_DEBUG("Aborting transaction (TransactionId: %v, CellGuid: %v)",
+                    TransactionId_,
+                    cellGuid);
 
                 auto channel = Transaction_->Owner_->CellDirectory_->FindChannel(cellGuid);
                 if (!channel)
@@ -773,21 +773,21 @@ private:
         void OnResponse(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspAbortTransactionPtr rsp)
         {
             if (rsp->IsOK()) {
-                LOG_DEBUG("Transaction aborted (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(TransactionId_),
-                    ~ToString(cellGuid));
+                LOG_DEBUG("Transaction aborted (TransactionId: %v, CellGuid: %v)",
+                    TransactionId_,
+                    cellGuid);
 
             } else {
                 if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
-                    LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(TransactionId_),
-                        ~ToString(cellGuid));
+                    LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v, CellGuid: %v)",
+                        TransactionId_,
+                        cellGuid);
                 } else {
-                    LOG_WARNING(*rsp, "Error aborting transaction (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(TransactionId_),
-                        ~ToString(cellGuid));
-                    OnError(TError("Error aborting transaction at cell %s",
-                        ~ToString(cellGuid))
+                    LOG_WARNING(*rsp, "Error aborting transaction (TransactionId: %v, CellGuid: %v)",
+                        TransactionId_,
+                        cellGuid);
+                    OnError(TError("Error aborting transaction at cell %v",
+                        cellGuid)
                         << *rsp);
                 }
             }

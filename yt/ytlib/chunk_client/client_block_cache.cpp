@@ -56,12 +56,12 @@ public:
             auto block = New<TCachedBlock>(id, data);
             cookie.EndInsert(block);
 
-            LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
-                ~ToString(id),
+            LOG_DEBUG("Block is put into cache (BlockId: %v, BlockSize: %v)",
+                id,
                 data.Size());
         } else {
             // Already have the block cached, do nothing.
-            LOG_DEBUG("Block is already in cache (BlockId: %s)", ~ToString(id));
+            LOG_DEBUG("Block is already in cache (BlockId: %v)", id);
         }
     }
 
@@ -73,11 +73,11 @@ public:
             YCHECK(result.IsOK());
             auto block = result.Value();
 
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~ToString(id));
+            LOG_DEBUG("Block cache hit (BlockId: %v)", id);
 
             return block->GetData();
         } else {
-            LOG_DEBUG("Block cache miss (BlockId: %s)", ~ToString(id));
+            LOG_DEBUG("Block cache miss (BlockId: %v)", id);
             return TSharedRef();
         }
     }

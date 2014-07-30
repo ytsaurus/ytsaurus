@@ -38,9 +38,9 @@ private:
             auto impl = (TImpl*) param;
             TParsedHttpRequest request(Headers[0]);
 
-            LOG_DEBUG("Started serving HTTP request (Method: %s, Path: %s)",
-                ~request.Method.ToString(),
-                ~request.Request.ToString());
+            LOG_DEBUG("Started serving HTTP request (Method: %v, Path: %v)",
+                request.Method.ToString(),
+                request.Request.ToString());
 
             // See http://www.w3.org/Protocols/rfc2616/rfc2616.html for HTTP RFC.
 
@@ -77,9 +77,9 @@ private:
                 }
             }
 
-            LOG_WARNING("Cannot find a handler for HTTP request (Method; %s, Path: %s)",
-                ~request.Method.ToString(),
-                ~request.Request.ToString());
+            LOG_WARNING("Cannot find a handler for HTTP request (Method; %v, Path: %v)",
+                request.Method.ToString(),
+                request.Request.ToString());
             Output() << FormatNotFoundResponse();
             return true;
         }

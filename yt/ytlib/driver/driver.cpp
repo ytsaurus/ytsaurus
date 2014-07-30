@@ -164,9 +164,9 @@ public:
                 ~request.CommandName.Quote())));
         }
 
-        LOG_INFO("Command started (Command: %s, User: %s)",
-            ~request.CommandName,
-            ~ToString(request.AuthenticatedUser));
+        LOG_INFO("Command started (Command: %v, User: %v)",
+            request.CommandName,
+            request.AuthenticatedUser);
 
         const auto& entry = it->second;
 
@@ -253,9 +253,9 @@ private:
         }
 
         if (response.Error.IsOK()) {
-            LOG_INFO("Command completed (Command: %s)", ~request.CommandName);
+            LOG_INFO("Command completed (Command: %v)", request.CommandName);
         } else {
-            LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
+            LOG_INFO(response.Error, "Command failed (Command: %v)", request.CommandName);
         }
 
         WaitFor(context->Terminate());

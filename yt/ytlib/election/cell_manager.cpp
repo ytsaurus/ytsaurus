@@ -42,9 +42,9 @@ TCellManager::TCellManager(
 
     Logger.AddTag("CellGuid: %v", Config->CellGuid);
 
-    LOG_INFO("Cell initialized (SelfId: %d, PeerAddresses: [%s])",
+    LOG_INFO("Cell initialized (SelfId: %v, PeerAddresses: [%v])",
         SelfId,
-        ~JoinToString(Config->Addresses));
+        JoinToString(Config->Addresses));
 }
 
 void TCellManager::BuildTags()
@@ -142,10 +142,10 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 
     for (TPeerId id = 0; id < GetPeerCount(); ++id) {
         if (addresses[id] != newAddresses[id]) {
-            LOG_INFO("Peer %d reconfigured: %s -> %s",
+            LOG_INFO("Peer %v reconfigured: %v -> %v",
                 id,
-                ~addresses[id],
-                ~newAddresses[id]);
+                addresses[id],
+                newAddresses[id]);
             PeerChannels[id] = CreatePeerChannel(id);
             PeerReconfigured_.Fire(id);
         }

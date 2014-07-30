@@ -346,7 +346,7 @@ private:
         SelectChannels(chunkReader);
         YCHECK(SelectedChannels.size() > 0);
 
-        LOG_DEBUG("Selected channels [%s]", ~JoinToString(SelectedChannels));
+        LOG_DEBUG("Selected channels [%v]", JoinToString(SelectedChannels));
 
         auto blockSequence = GetBlockReadSequence(chunkReader);
         LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));

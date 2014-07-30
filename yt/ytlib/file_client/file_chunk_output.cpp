@@ -59,9 +59,9 @@ TFileChunkOutput::TFileChunkOutput(
 
 void TFileChunkOutput::Open()
 {
-    LOG_INFO("Opening file chunk output (TransactionId: %s, Account: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
-        ~ToString(TransactionId),
-        ~Options->Account,
+    LOG_INFO("Opening file chunk output (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
+        TransactionId,
+        Options->Account,
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
 

@@ -159,8 +159,8 @@ void TAsyncTableWriter::Open()
     UploadTransaction = transactionOrError.Value();
     ListenTransaction(UploadTransaction);
 
-    LOG_INFO("Upload transaction created (TransactionId: %s)",
-        ~ToString(UploadTransaction->GetId()));
+    LOG_INFO("Upload transaction created (TransactionId: %v)",
+        UploadTransaction->GetId());
 
     auto batchRsp = WaitFor(FetchTableInfo());
     auto chunkListId = OnInfoFetched(batchRsp);
@@ -272,7 +272,7 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing table for update");
         chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
     }
-    LOG_INFO("Table info received (ChunkListId: %s)", ~ToString(chunkListId));
+    LOG_INFO("Table info received (ChunkListId: %v)", chunkListId);
 
     return chunkListId;
 }
@@ -340,8 +340,8 @@ void TAsyncTableWriter::Close()
 
         auto path = RichPath.GetPath();
         auto keyColumns = Options->KeyColumns.Get();
-        LOG_INFO("Marking table as sorted by %s",
-            ~ConvertToYsonString(keyColumns, NYson::EYsonFormat::Text).Data());
+        LOG_INFO("Marking table as sorted by %v",
+            ConvertToYsonString(keyColumns, NYson::EYsonFormat::Text).Data());
 
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
