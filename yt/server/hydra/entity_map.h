@@ -67,6 +67,11 @@ class TEntityMap
     : public IReadOnlyEntityMap<TKey, TValue>
 {
 public:
+    typedef yhash_map<TKey, TValue*, THash> TMap;
+    typedef std::pair<TKey, TValue*> TItem;
+    typedef typename TMap::iterator TIterator;
+    typedef typename TMap::const_iterator TConstIterator;
+
     explicit TEntityMap(const TTraits& traits = TTraits());
     virtual ~TEntityMap();
 
@@ -96,10 +101,10 @@ public:
     virtual TConstIterator Begin() const override;
     virtual TConstIterator End() const override;
 
-    using IReadOnlyEntityMap::Begin;
+    using IReadOnlyEntityMap<TKey, TValue>::Begin;
     TIterator Begin();
 
-    using IReadOnlyEntityMap::End;
+    using IReadOnlyEntityMap<TKey, TValue>::End;
     TIterator End();
 
     void SaveKeys(TSaveContext& context) const;
@@ -113,10 +118,10 @@ public:
     void LoadValues(TContext& context);
 
     // STL interop.
-    using IReadOnlyEntityMap::begin;
+    using IReadOnlyEntityMap<TKey, TValue>::begin;
     TIterator begin();
 
-    using IReadOnlyEntityMap::end;
+    using IReadOnlyEntityMap<TKey, TValue>::end;
     TIterator end();
 
 private:
