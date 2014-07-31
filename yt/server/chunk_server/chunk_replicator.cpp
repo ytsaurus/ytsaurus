@@ -118,6 +118,17 @@ void TChunkReplicator::Start()
     PropertiesUpdateExecutor_->Start();
 }
 
+void TChunkReplicator::Stop()
+{
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
+    for (auto* node : nodeTracker->Nodes().GetValues()) {
+        node->Jobs().clear();
+    }
+
+    RefreshExecutor_.Reset();
+    PropertiesUpdateExecutor_.Reset();
+}
+
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();

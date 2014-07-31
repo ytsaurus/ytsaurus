@@ -23,19 +23,19 @@ public:
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void StartFlush();
-    void StopFlush();
+    void Start();
+    void Stop();
 
     void ChargeUser(TUser* user, int requestCount);
 
 private:
-    TSecurityManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
+    TSecurityManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
 
-    NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
-    std::vector<TUser*> UsersWithRequestStatisticsUpdate;
+    NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest_;
+    std::vector<TUser*> UsersWithRequestStatisticsUpdate_;
 
-    NConcurrency::TPeriodicExecutorPtr FlushExecutor;
+    NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

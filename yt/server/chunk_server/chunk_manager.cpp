@@ -1126,6 +1126,13 @@ private:
         ChunkSealer_->Start();
     }
 
+    virtual void OnStopLeading() override
+    {
+        if (ChunkReplicator_) {
+            ChunkReplicator_->Stop();
+        }
+    }
+
 
     DECLARE_ENUM(EAddReplicaReason,
         (IncrementalHeartbeat)

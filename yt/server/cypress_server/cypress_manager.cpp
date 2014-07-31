@@ -1621,14 +1621,14 @@ void TCypressManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    AccessTracker->StartFlush();
+    AccessTracker->Start();
 }
 
 void TCypressManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    AccessTracker->StopFlush();
+    AccessTracker->Stop();
 }
 
 void TCypressManager::UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)

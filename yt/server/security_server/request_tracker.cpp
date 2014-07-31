@@ -27,32 +27,28 @@ static const auto& Logger = SecurityServerLogger;
 TRequestTracker::TRequestTracker(
     TSecurityManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 { }
 
-void TRequestTracker::StartFlush()
+void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(!FlushExecutor);
-    FlushExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
+    FlushExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
-        Config->StatisticsFlushPeriod,
+        Config_->StatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
-    FlushExecutor->Start();
+    FlushExecutor_->Start();
 }
 
-void TRequestTracker::StopFlush()
+void TRequestTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (FlushExecutor) {
-        FlushExecutor->Stop();
-        FlushExecutor.Reset();
-    }
-
+    FlushExecutor_.Reset();
     Reset();
 }
 
@@ -60,13 +56,13 @@ void TRequestTracker::ChargeUser(TUser* user, int requestCount)
 {
     auto* update = user->GetRequestStatisticsUpdate();
     if (!update) {
-        update = UpdateRequestStatisticsRequest.add_updates();
+        update = UpdateRequestStatisticsRequest_.add_updates();
         ToProto(update->mutable_user_id(), user->GetId());
     
         user->SetRequestStatisticsUpdate(update);
-        UsersWithRequestStatisticsUpdate.push_back(user);
+        UsersWithRequestStatisticsUpdate_.push_back(user);
     
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(user);
     }
     
@@ -77,40 +73,40 @@ void TRequestTracker::ChargeUser(TUser* user, int requestCount)
 
 void TRequestTracker::Reset()
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    for (auto* user : UsersWithRequestStatisticsUpdate) {
+    auto objectManager = Bootstrap_->GetObjectManager();
+    for (auto* user : UsersWithRequestStatisticsUpdate_) {
         user->SetRequestStatisticsUpdate(nullptr);
         objectManager->WeakUnrefObject(user);
     }    
 
-    UpdateRequestStatisticsRequest.Clear();
-    UsersWithRequestStatisticsUpdate.clear();
+    UpdateRequestStatisticsRequest_.Clear();
+    UsersWithRequestStatisticsUpdate_.clear();
 }
 
 void TRequestTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (UsersWithRequestStatisticsUpdate.empty()) {
-        FlushExecutor->ScheduleNext();
+    if (UsersWithRequestStatisticsUpdate_.empty()) {
+        FlushExecutor_->ScheduleNext();
         return;
     }
 
     LOG_DEBUG("Starting request statistics commit for %d users",
-        UpdateRequestStatisticsRequest.updates_size());
+        UpdateRequestStatisticsRequest_.updates_size());
 
-    auto hydraFacade = Bootstrap->GetHydraFacade();
+    auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     auto this_ = MakeStrong(this);
-    Bootstrap
+    Bootstrap_
         ->GetSecurityManager()
-        ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest)
+        ->CreateUpdateRequestStatisticsMutation(UpdateRequestStatisticsRequest_)
         ->Commit()
         .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
             if (error.IsOK()) {
-                FlushExecutor->ScheduleOutOfBand();
+                FlushExecutor_->ScheduleOutOfBand();
             }
-            FlushExecutor->ScheduleNext();
+            FlushExecutor_->ScheduleNext();
         }).Via(invoker));
 
     Reset();

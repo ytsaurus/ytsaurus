@@ -29,32 +29,28 @@ static const auto& Logger = CypressServerLogger;
 TAccessTracker::TAccessTracker(
     TCypressManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 { }
 
-void TAccessTracker::StartFlush()
+void TAccessTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(!FlushExecutor);
-    FlushExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(),
+    YCHECK(!FlushExecutor_);
+    FlushExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
-        Config->StatisticsFlushPeriod,
+        Config_->StatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
-    FlushExecutor->Start();
+    FlushExecutor_->Start();
 }
 
-void TAccessTracker::StopFlush()
+void TAccessTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (FlushExecutor) {
-        FlushExecutor->Stop();
-        FlushExecutor.Reset();
-    }
-
+    FlushExecutor_.Reset();
     Reset();
 }
 
@@ -69,10 +65,10 @@ void TAccessTracker::OnModify(
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
     TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
-    auto cypressManager = Bootstrap->GetCypressManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
     auto* node = cypressManager->GetNode(versionedId);
 
-    auto* mutationContext = Bootstrap
+    auto* mutationContext = Bootstrap_
         ->GetHydraFacade()
         ->GetHydraManager()
         ->GetMutationContext();
@@ -89,13 +85,13 @@ void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 
     auto* update = trunkNode->GetAccessStatisticsUpdate();
     if (!update) {
-        update = UpdateAccessStatisticsRequest.add_updates();
+        update = UpdateAccessStatisticsRequest_.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
 
         trunkNode->SetAccessStatisticsUpdate(update);
-        NodesWithAccessStatisticsUpdate.push_back(trunkNode);
+        NodesWithAccessStatisticsUpdate_.push_back(trunkNode);
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(trunkNode);
     }
 
@@ -106,39 +102,39 @@ void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 
 void TAccessTracker::Reset()
 {
-    auto objectManager = Bootstrap->GetObjectManager();
-    for (auto* node : NodesWithAccessStatisticsUpdate) {
+    auto objectManager = Bootstrap_->GetObjectManager();
+    for (auto* node : NodesWithAccessStatisticsUpdate_) {
         node->SetAccessStatisticsUpdate(nullptr);
         objectManager->WeakUnrefObject(node);
     }    
 
-    UpdateAccessStatisticsRequest.Clear();
-    NodesWithAccessStatisticsUpdate.clear();
+    UpdateAccessStatisticsRequest_.Clear();
+    NodesWithAccessStatisticsUpdate_.clear();
 }
 
 void TAccessTracker::OnFlush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (NodesWithAccessStatisticsUpdate.empty()) {
-        FlushExecutor->ScheduleNext();
+    if (NodesWithAccessStatisticsUpdate_.empty()) {
+        FlushExecutor_->ScheduleNext();
         return;
     }
 
     LOG_DEBUG("Starting access statistics commit for %d nodes",
-        UpdateAccessStatisticsRequest.updates_size());
+        UpdateAccessStatisticsRequest_.updates_size());
 
     auto this_ = MakeStrong(this);
-    auto invoker = Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker();
-    Bootstrap
+    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
+    Bootstrap_
         ->GetCypressManager()
-        ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest)
+        ->CreateUpdateAccessStatisticsMutation(UpdateAccessStatisticsRequest_)
         ->Commit()
         .Subscribe(BIND([this, this_] (TErrorOr<TMutationResponse> error) {
             if (error.IsOK()) {
-                FlushExecutor->ScheduleOutOfBand();
+                FlushExecutor_->ScheduleOutOfBand();
             }
-            FlushExecutor->ScheduleNext();
+            FlushExecutor_->ScheduleNext();
         }).Via(invoker));
 
     Reset();

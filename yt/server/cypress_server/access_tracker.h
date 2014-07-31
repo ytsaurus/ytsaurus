@@ -27,8 +27,8 @@ public:
         NCellMaster::TBootstrap* bootstrap);
 
 
-    void StartFlush();
-    void StopFlush();
+    void Start();
+    void Stop();
 
 
     void OnModify(
@@ -40,13 +40,13 @@ public:
 
 
 private:
-    TCypressManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
+    TCypressManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* Bootstrap_;
 
-    NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
-    std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
+    NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
+    std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate_;
 
-    NConcurrency::TPeriodicExecutorPtr FlushExecutor;
+    NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

@@ -1312,7 +1312,7 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        RequestTracker->StartFlush();
+        RequestTracker->Start();
 
         for (const auto& pair : UserMap) {
             auto* user = pair.second;
@@ -1322,7 +1322,7 @@ private:
 
     virtual void OnStopLeading() override
     {
-        RequestTracker->StopFlush();
+        RequestTracker->Stop();
     }
 
 
