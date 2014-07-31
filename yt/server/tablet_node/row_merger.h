@@ -25,7 +25,7 @@ public:
         const TColumnFilter& columnFilter);
 
     void AddPartialRow(TVersionedRow row);
-    TUnversionedRow BuildMergedRow();
+    TUnversionedRow BuildMergedRowAndReset();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -62,7 +62,7 @@ public:
         TTimestamp majorTimestamp);
 
     void AddPartialRow(TVersionedRow row);
-    TVersionedRow BuildMergedRow();
+    TVersionedRow BuildMergedRowAndReset();
 
 private:
     TChunkedMemoryPool* Pool_;

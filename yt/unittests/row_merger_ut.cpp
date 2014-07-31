@@ -150,7 +150,7 @@ TEST_F(TUnversionedRowMergerTest, Simple1)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Simple2)
@@ -163,7 +163,7 @@ TEST_F(TUnversionedRowMergerTest, Simple2)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 3; <id=2> #; <id=3> #"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete1)
@@ -174,7 +174,7 @@ TEST_F(TUnversionedRowMergerTest, Delete1)
 
     EXPECT_EQ(
         TUnversionedRow(),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete2)
@@ -186,7 +186,7 @@ TEST_F(TUnversionedRowMergerTest, Delete2)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete3)
@@ -199,7 +199,7 @@ TEST_F(TUnversionedRowMergerTest, Delete3)
 
     EXPECT_EQ(
         TUnversionedRow(),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete4)
@@ -213,7 +213,7 @@ TEST_F(TUnversionedRowMergerTest, Delete4)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> 3.15; <id=3> #"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Filter1)
@@ -227,7 +227,7 @@ TEST_F(TUnversionedRowMergerTest, Filter1)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TUnversionedRowMergerTest, Filter2)
@@ -241,7 +241,7 @@ TEST_F(TUnversionedRowMergerTest, Filter2)
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +262,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll1)
 
     EXPECT_EQ(
         BuildVersionedRow("0", "<id=1;ts=100> 1"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll2)
@@ -283,7 +283,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll2)
             "<id=1;ts=100> 1;"
             "<id=1;ts=200> 2;"
             "<id=1;ts=300> 3;"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll3)
@@ -303,7 +303,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll3)
             "0",
             "<id=1;ts=100> 1; <id=1;ts=200> 2; <id=1;ts=300> 3;",
             { 50, 150, 250 }),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll4)
@@ -324,7 +324,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
             "<id=1;ts=100> 1; <id=1;ts=200> 2; <id=1;ts=300> 3;"
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=500> \"test\";"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll5)
@@ -343,7 +343,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll5)
             "0",
             "<id=1;ts=100> 1; <id=1;ts=200> 2;"
             "<id=2;ts=100> 3; <id=2;ts=200> 4"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest1)
@@ -363,7 +363,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest1)
         BuildVersionedRow(
             "0",
             "<id=1;ts=300> 3"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest2)
@@ -383,7 +383,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
         BuildVersionedRow(
             "0",
             "<id=1;ts=200> 2; <id=2;ts=100> 3.14; <id=3;ts=300> \"test\""),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest3)
@@ -403,7 +403,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest3)
             "0",
             "",
             { 200 }),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest4)
@@ -418,7 +418,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest4)
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
     merger.AddPartialRow(BuildVersionedRow("0", "", { 200 }));
 
-    EXPECT_FALSE(merger.BuildMergedRow());
+    EXPECT_FALSE(merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire1)
@@ -434,7 +434,7 @@ TEST_F(TVersionedRowMergerTest, Expire1)
 
     EXPECT_EQ(
         BuildVersionedRow("0", "<id=1;ts=100> 1"),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire2)
@@ -448,7 +448,7 @@ TEST_F(TVersionedRowMergerTest, Expire2)
     
     merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
 
-    EXPECT_FALSE(merger.BuildMergedRow());
+    EXPECT_FALSE(merger.BuildMergedRowAndReset());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire3)
@@ -477,7 +477,7 @@ TEST_F(TVersionedRowMergerTest, Expire3)
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=300> \"test\";",
             { 350 }),
-        merger.BuildMergedRow());
+        merger.BuildMergedRowAndReset());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

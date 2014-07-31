@@ -109,9 +109,11 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
+TUnversionedRow TUnversionedRowMerger::BuildMergedRowAndReset()
 {
-    YCHECK(Started_);
+    if (!Started_) {
+        return TUnversionedRow();
+    }
 
     if (LatestWrite_ == NullTimestamp || LatestWrite_ < LatestDelete_) {
         Reset();
@@ -178,9 +180,11 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-TVersionedRow TVersionedRowMerger::BuildMergedRow()
+TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
 {
-    YCHECK(Started_);
+    if (!Started_) {
+        return TVersionedRow();
+    }
 
     // Clear everything.
     MergedValues_.clear();

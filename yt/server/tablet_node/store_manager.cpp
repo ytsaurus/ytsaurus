@@ -185,7 +185,7 @@ void TStoreManager::LookupRows(
             }
         }
 
-        auto mergedRow = rowMerger.BuildMergedRow();
+        auto mergedRow = rowMerger.BuildMergedRowAndReset();
         UnversionedPooledRows_.push_back(mergedRow);
     }
     
