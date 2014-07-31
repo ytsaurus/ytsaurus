@@ -79,22 +79,26 @@ std::vector<typename std::multimap<TKey, TValue>::const_iterator> GetSortedItera
 }
 
 template <class T>
-std::vector<typename T::key_type> GetKeys(const T& collection)
+std::vector<typename T::key_type> GetKeys(const T& collection, size_t sizeLimit)
 {
     std::vector<typename T::key_type> result;
-    result.reserve(collection.size());
+    result.reserve(std::min(collection.size(), sizeLimit));
     for (const auto& pair : collection) {
+        if (result.size() >= sizeLimit)
+            break;
         result.push_back(pair.first);
     }
     return result;
 }
 
 template <class T>
-std::vector<typename T::value_type> GetValues(const T& collection)
+std::vector<typename T::value_type> GetValues(const T& collection, size_t sizeLimit)
 {
     std::vector<typename T::value_type> result;
-    result.reserve(collection.size());
+    result.reserve(std::min(collection.size(), sizeLimit));
     for (const auto& pair : collection) {
+        if (result.size() >= sizeLimit)
+            break;
         result.push_back(pair.second);
     }
     return result;
