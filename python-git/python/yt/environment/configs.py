@@ -229,6 +229,9 @@ def get_node_config():
                 };
             }
         };
+
+        job_proxy_tracing = {
+        };
     };
 
     tablet_node = {
