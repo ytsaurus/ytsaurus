@@ -21,10 +21,33 @@ from collections import defaultdict
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
+class AsyncStrategy(object):
+    def process_operation(self, type, operation, finalize, client=None):
+        self.type = type
+        self.operation_id = operation
+        self.finalize = finalize
+        self.client = client
+
+    def wait(self):
+        yt.WaitStrategy().process_operation(self.type, self.operation_id, self.finalize, self.client)
+
+
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
 
-def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
+def run_operation_and_notify(message_queue, yt_client, run_operation):
+    strategy = AsyncStrategy()
+    run_operation(yt_client, strategy)
+    if message_queue:
+        message_queue.put({"type": "operation_started",
+                           "operation": {
+                               "id": strategy.operation_id,
+                               "cluster_name": yt_client._name
+                            }})
+    strategy.wait()
+
+
+def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, message_queue=None):
     yt_client = deepcopy(yt_client)
     mr_client = deepcopy(mr_client)
 
@@ -43,11 +66,17 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
 
     write_command = mr_client.get_write_command(dst)
     logger.info("Running map '%s'", write_command)
-    yt_client.run_map(write_command, src, yt_client.create_temp_table(),
-                      files=mr_client.binary,
-                      format=yt.YamrFormat(has_subkey=True, lenval=True),
-                      memory_limit=2500 * yt.config.MB,
-                      spec=spec)
+
+    run_operation_and_notify(
+        message_queue,
+        yt_client,
+        lambda yt, strategy:
+            yt.run_map(write_command, src, yt_client.create_temp_table(),
+                       files=mr_client.binary,
+                       format=yt.YamrFormat(has_subkey=True, lenval=True),
+                       memory_limit=2500 * yt.config.MB,
+                       spec=spec,
+                       strategy=strategy))
 
     result_record_count = mr_client.records_count(dst)
     if record_count != result_record_count:
@@ -56,7 +85,7 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
         logger.error(error)
         raise yt.YtError(error)
 
-def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template):
+def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, message_queue=None):
     yt_client = deepcopy(yt_client)
     mr_client = deepcopy(mr_client)
 
@@ -108,19 +137,27 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
                   .format(read_command)
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
-        yt_client.run_map(
-            command,
-            temp_table,
-            dst,
-            input_format=yt.YamrFormat(lenval=False, has_subkey=True),
-            output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-            files=mr_client.binary,
-            memory_limit = 2500 * yt.config.MB,
-            spec=spec)
+        run_operation_and_notify(
+            message_queue,
+            yt_client,
+            lambda yt, strategy:
+                yt.run_map(
+                    command,
+                    temp_table,
+                    dst,
+                    input_format=yt.YamrFormat(lenval=False, has_subkey=True),
+                    output_format=yt.YamrFormat(lenval=True, has_subkey=True),
+                    files=mr_client.binary,
+                    memory_limit = 2500 * yt.config.MB,
+                    spec=spec,
+                    strategy=strategy))
 
         if sorted:
             logger.info("Sorting '%s'", dst)
-            yt.run_sort(dst, sort_by=["key", "subkey"])
+            run_operation_and_notify(
+                message_queue,
+                yt_client,
+                lambda yt, strategy: yt.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
 
         result_record_count = yt.records_count(dst)
         if yt.records_count(dst) != record_count:
@@ -243,6 +280,7 @@ class Application(object):
 
             if type == "yt":
                 self._clusters[name] = Yt(token=config["token"], **options)
+                self._clusters[name]._name = name
                 self._clusters[name]._export_pool = cluster_description.get("mr_export_pool")
                 self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
@@ -347,11 +385,15 @@ class Application(object):
                             message = message_queue.get()
                         except:
                             break
+                        import sys
+                        print >>sys.stderr, "MESSAGE", message
                         if message["type"] == "error":
                             assert not process.is_alive()
                             error = message["error"]
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
+                        else:
+                            assert False, "Incorrect message type: " + message["type"]
 
                     if not process.is_alive():
                         self._tasks[id].finish_time = now()
@@ -371,7 +413,7 @@ class Application(object):
                         continue
                     self._running_task_queues[self._tasks[id].get_queue_id()].append(id)
                     self._change_task_state(id, "running")
-                    self._tasks[id].progress = {"operations": {}}
+                    self._tasks[id].progress = {"operations": []}
                     queue = Queue()
                     task_process = Process(target=lambda: self._execute_task(self._tasks[id], queue))
                     task_process.aborted = False
@@ -391,12 +433,17 @@ class Application(object):
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yt":
                 client = deepcopy(self._clusters[task.destination_cluster])
                 client.token = task.token
-                client.run_remote_copy(
-                    task.source_table,
-                    task.destination_table,
-                    cluster_name=task.source_cluster,
-                    network_name=self._clusters[task.source_cluster]._network,
-                    spec=task_spec)
+                run_operation_and_notify(
+                    message_queue,
+                    client,
+                    lambda client, strategy:
+                        client.run_remote_copy(
+                            task.source_table,
+                            task.destination_table,
+                            cluster_name=task.source_cluster,
+                            network_name=self._clusters[task.source_cluster]._network,
+                            spec=task_spec,
+                            strategy=strategy))
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "mr":
                 export_to_mr(
                     self._clusters[task.source_cluster],
@@ -405,7 +452,8 @@ class Application(object):
                     task.destination_table,
                     task.mr_user,
                     task.token,
-                    spec_template=task_spec)
+                    spec_template=task_spec,
+                    message_queue=message_queue)
             if self._clusters[task.source_cluster]._type == "mr" and self._clusters[task.destination_cluster]._type == "yt":
                 import_from_mr(
                     self._clusters[task.destination_cluster],
@@ -414,7 +462,8 @@ class Application(object):
                     task.destination_table,
                     task.mr_user,
                     task.token,
-                    spec_template=task_spec)
+                    spec_template=task_spec,
+                    message_queue=message_queue)
             logger.info("Task %s completed", task.id)
         except KeyboardInterrupt:
             pass
@@ -422,7 +471,7 @@ class Application(object):
             logger.exception(err)
             logger.info("Task %s failed with error '%s'", task.id, err.message)
             message_queue.put({
-                "event_type": "error",
+                "type": "error",
                 "error": {
                     "message": err.message[:Application.ERROR_BUFFER_SIZE],
                     "code": 1
@@ -558,7 +607,7 @@ DEFAULT_CONFIG = {
         "cedar": {
             "type": "mr",
             "options": {
-                "server": "cedar.search.yandex.net",
+                "server": "cedar00.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
                 "binary": "/home/ignat/mapreduce",
                 "server_port": 8013,
