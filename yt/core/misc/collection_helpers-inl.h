@@ -92,9 +92,9 @@ std::vector<typename T::key_type> GetKeys(const T& collection, size_t sizeLimit)
 }
 
 template <class T>
-std::vector<typename T::value_type> GetValues(const T& collection, size_t sizeLimit)
+std::vector<typename T::mapped_type> GetValues(const T& collection, size_t sizeLimit)
 {
-    std::vector<typename T::value_type> result;
+    std::vector<typename T::mapped_type> result;
     result.reserve(std::min(collection.size(), sizeLimit));
     for (const auto& pair : collection) {
         if (result.size() >= sizeLimit)

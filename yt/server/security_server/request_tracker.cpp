@@ -35,7 +35,7 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(!FlushExecutor);
+    YCHECK(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
