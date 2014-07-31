@@ -134,6 +134,16 @@ void TStoreManager::LookupRows(
     PooledKeys_.clear();
     reader->ReadUnversionedRowset(&PooledKeys_);
 
+    SmallVector<IVersionedLookuperPtr, TypicalStoreCount> lookupers;
+    for (const auto& pair : Tablet_->Stores()) {
+        const auto& store = pair.second;
+        auto lookuper = store->CreateLookuper(timestamp, columnFilter);
+        lookupers.push_back(lookuper);
+    }
+
+    UnversionedPooledRows_.clear();
+    LookupMemoryPool_.Clear();
+
     TUnversionedRowMerger rowMerger(
         &LookupMemoryPool_,
         schemaColumnCount,
@@ -142,38 +152,29 @@ void TStoreManager::LookupRows(
 
     TKeyComparer keyComparer(keyColumnCount);
 
-    UnversionedPooledRows_.clear();
-    LookupMemoryPool_.Clear();
-
     for (auto key : PooledKeys_) {
         ValidateServerKey(key, keyColumnCount);
 
         // Create lookupers, send requests, collect sync responses.
-        TIntrusivePtr<TParallelCollector<TVersionedRow>> openCollector;
-        SmallVector<IVersionedLookuperPtr, TypicalStoreCount> lookupers;
+        TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
         SmallVector<TVersionedRow, TypicalStoreCount> partialRows;
-        for (const auto& pair : Tablet_->Stores()) {
-            const auto& store = pair.second;
-            
-            auto lookuper = store->CreateLookuper(timestamp, columnFilter);
-            lookupers.push_back(lookuper);
-
+        for (const auto& lookuper : lookupers) {
             auto futureRowOrError = lookuper->Lookup(key);
             auto maybeRowOrError = futureRowOrError.TryGet();
             if (maybeRowOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
                 partialRows.push_back(maybeRowOrError->Value());
             } else {
-                if (!openCollector) {
-                    openCollector = New<TParallelCollector<TVersionedRow>>();
+                if (!collector) {
+                    collector = New<TParallelCollector<TVersionedRow>>();
                 }
-                openCollector->Collect(futureRowOrError);
+                collector->Collect(futureRowOrError);
             }
         }
 
         // Wait for async responses.
-        if (openCollector) {
-            auto result = WaitFor(openCollector->Complete());
+        if (collector) {
+            auto result = WaitFor(collector->Complete());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
             partialRows.insert(partialRows.end(), result.Value().begin(), result.Value().end());
         }
