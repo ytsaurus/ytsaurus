@@ -45,6 +45,7 @@ public:
     NScheduler::TJobIOConfigPtr JobIO;
 
     NYTree::INodePtr Logging;
+    NYTree::INodePtr Tracing;
 
     TJobProxyConfig()
     {
@@ -72,6 +73,8 @@ public:
             .DefaultNew();
         
         RegisterParameter("logging", Logging)
+            .Default();
+        RegisterParameter("tracing", Tracing)
             .Default();
     }
 };

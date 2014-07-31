@@ -238,6 +238,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
 
     JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
+    JobProxyConfig->Tracing = Config->ExecAgent->JobProxyTracing;
 
     JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
 

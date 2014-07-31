@@ -118,6 +118,8 @@ public:
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NYTree::INodePtr JobProxyLogging;
+    NYTree::INodePtr JobProxyTracing;
+
     TDuration SupervisorRpcTimeout;
     TDuration MemoryWatchdogPeriod;
 
@@ -133,12 +135,17 @@ public:
             .DefaultNew();
         RegisterParameter("scheduler_connector", SchedulerConnector)
             .DefaultNew();
+
         RegisterParameter("job_proxy_logging", JobProxyLogging)
-            .Default(NULL);
+            .Default();
+        RegisterParameter("job_proxy_tracing", JobProxyTracing)
+            .Default();
+
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
+
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
     }
