@@ -464,7 +464,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     """
     table = to_table(table, client=client)
     format = _prepare_format(format)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name, client=client):
         return EMPTY_GENERATOR
 
     params = {
@@ -479,7 +479,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             "read",
             params,
             return_content=False,
-            proxy=get_host_for_heavy_operation(),
+            proxy=get_host_for_heavy_operation(client=client),
             client=client)
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
