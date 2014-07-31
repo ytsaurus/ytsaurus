@@ -11,6 +11,7 @@
 
 #include <core/misc/address.h>
 #include <core/misc/string.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/concurrency/periodic_executor.h>
 
@@ -1307,8 +1308,8 @@ private:
 
     void ValidateHasHealthyCells()
     {
-        auto cells = TabletCellMap_.GetValues();
-        for (auto* cell : cells) {
+        for (const auto& pair : TabletCellMap_) {
+            auto* cell = pair.second;
             if (cell->GetHealth() == ETabletCellHealth::Good)
                 return;
         }
@@ -1318,7 +1319,7 @@ private:
     TTabletCell* AllocateCell()
     {
         // TODO(babenko): do something smarter?
-        auto cells = TabletCellMap_.GetValues();
+        auto cells = GetValues(TabletCellMap_);
 
         cells.erase(
             std::remove_if(

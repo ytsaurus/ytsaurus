@@ -18,6 +18,26 @@ std::unique_ptr<TValue> TDefaultEntityMapTraits<TKey, TValue>::Create(const TKey
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TKey, class TValue, class THash>
+typename IReadOnlyEntityMap<TKey, TValue, THash>::TConstIterator IReadOnlyEntityMap<TKey, TValue, THash>::begin() const
+{
+    return Begin();
+}
+
+template <class TKey, class TValue, class THash>
+typename IReadOnlyEntityMap<TKey, TValue, THash>::TConstIterator IReadOnlyEntityMap<TKey, TValue, THash>::end() const
+{
+    return End();
+}
+
+template <class TKey, class TValue, class THash>
+size_t IReadOnlyEntityMap<TKey, TValue, THash>::size() const
+{
+    return GetSize();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TKey, class TValue, class TTraits, class THash>
 TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
     : Traits(traits)
@@ -119,46 +139,6 @@ int TEntityMap<TKey, TValue, TTraits, THash>::GetSize() const
     VERIFY_THREAD_AFFINITY(UserThread);
 
     return static_cast<int>(Map.size());
-}
-
-template <class TKey, class TValue, class TTraits, class THash>
-std::vector<TKey> TEntityMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLimit) const
-{
-    VERIFY_THREAD_AFFINITY(UserThread);
-
-    std::vector<TKey> keys;
-    keys.reserve(std::min(Map.size(), sizeLimit));
-
-    for (const auto& pair : Map) {
-        if (keys.size() == sizeLimit) {
-            break;
-        }
-        keys.push_back(pair.first);
-    }
-
-    YCHECK(keys.size() == std::min(Map.size(), sizeLimit));
-
-    return keys;
-}
-
-template <class TKey, class TValue, class TTraits, class THash>
-std::vector<TValue*> TEntityMap<TKey, TValue, TTraits, THash>::GetValues(size_t sizeLimit) const
-{
-    VERIFY_THREAD_AFFINITY(UserThread);
-
-    std::vector<TValue*> values;
-    values.reserve(std::min(Map.size(), sizeLimit));
-
-    for (auto& pair : Map) {
-        values.push_back(pair.second);
-        if (values.size() == sizeLimit) {
-            break;
-        }
-    }
-
-    YCHECK(values.size() == std::min(Map.size(), sizeLimit));
-
-    return values;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -271,6 +251,18 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) con
     for (const auto& item : items) {
         Save(context, *item.second);
     }
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+typename TEntityMap<TKey, TValue, TTraits, THash>::TIterator TEntityMap<TKey, TValue, TTraits, THash>::begin()
+{
+    return Begin();
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+typename TEntityMap<TKey, TValue, TTraits, THash>::TIterator TEntityMap<TKey, TValue, TTraits, THash>::end()
+{
+    return End();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

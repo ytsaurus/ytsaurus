@@ -37,7 +37,8 @@ TChunkPlacement::TChunkPlacement(
     YCHECK(bootstrap);
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (auto* node : nodeTracker->Nodes().GetValues()) {
+    for (const auto& pair : nodeTracker->Nodes()) {
+        auto* node = pair.second;
         OnNodeRegistered(node);
     }
 }

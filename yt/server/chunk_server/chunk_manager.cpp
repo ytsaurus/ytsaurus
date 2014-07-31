@@ -988,7 +988,8 @@ private:
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap->GetNodeTracker();
         TotalReplicaCount_ = 0;
-        for (const auto* node : nodeTracker->Nodes().GetValues()) {
+        for (const auto& pair : nodeTracker->Nodes()) {
+            auto* node = pair.second;
             TotalReplicaCount_ += node->StoredReplicas().size();
             TotalReplicaCount_ += node->CachedReplicas().size();
         }

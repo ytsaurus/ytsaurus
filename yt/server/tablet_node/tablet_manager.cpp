@@ -408,7 +408,8 @@ private:
         }
 
         auto transactionManager = Slot_->GetTransactionManager();
-        for (auto* transaction : transactionManager->Transactions().GetValues()) {
+        for (const auto& pair : transactionManager->Transactions()) {
+            auto* transaction = pair.second;
             transaction->PrelockedRows().clear();
         }
 

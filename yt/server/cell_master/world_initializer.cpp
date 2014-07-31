@@ -3,6 +3,8 @@
 #include "hydra_facade.h"
 #include "config.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/ypath_client.h>
 
@@ -419,7 +421,7 @@ private:
     void AbortTransactions()
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto transactionIds = ToObjectIds(transactionManager->Transactions().GetValues());
+        auto transactionIds = ToObjectIds(GetValues(transactionManager->Transactions()));
         auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
         for (const auto& transactionId : transactionIds) {
             transactionSupervisor->AbortTransaction(transactionId);

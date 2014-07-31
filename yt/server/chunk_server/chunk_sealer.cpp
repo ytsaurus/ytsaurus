@@ -61,7 +61,8 @@ public:
         , Semaphore_(Config_->MaxChunkConcurrentSeals)
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
-        for (auto* chunk : chunkManager->Chunks().GetValues()) {
+        for (const auto& pair : chunkManager->Chunks()) {
+            auto* chunk = pair.second;
             if (chunk->IsAlive() && chunk->IsJournal()) {
                 ScheduleSeal(chunk);
             }

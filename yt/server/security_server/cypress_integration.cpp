@@ -4,6 +4,8 @@
 #include "user.h"
 #include "group.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <core/ytree/virtual.h>
 
 #include <server/cypress_server/virtual.h>
@@ -56,7 +58,7 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->Accounts().GetValues(sizeLimit));
+        return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
     }
 
     virtual size_t GetSize() const override
@@ -106,7 +108,7 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->Users().GetValues(sizeLimit));
+        return ToNames(GetValues(securityManager->Users(), sizeLimit));
     }
 
     virtual size_t GetSize() const override
@@ -156,7 +158,7 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        return ToNames(securityManager->Groups().GetValues(sizeLimit));
+        return ToNames(GetValues(securityManager->Groups(), sizeLimit));
     }
 
     virtual size_t GetSize() const override

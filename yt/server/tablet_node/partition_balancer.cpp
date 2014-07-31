@@ -77,8 +77,8 @@ private:
             return;
 
         auto tabletManager = slot->GetTabletManager();
-        auto tablets = tabletManager->Tablets().GetValues();
-        for (auto* tablet : tablets) {
+        for (const auto& pair : tabletManager->Tablets()) {
+            auto* tablet = pair.second;
             ScanTablet(slot, tablet);
         }
     }

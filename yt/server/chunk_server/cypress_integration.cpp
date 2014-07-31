@@ -4,6 +4,8 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <server/cypress_server/virtual.h>
 
 #include <server/chunk_server/chunk_manager.h>
@@ -75,7 +77,7 @@ private:
         std::vector<TObjectId> ids;
         if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
-            ids = ToObjectIds(chunkManager->Chunks().GetValues(sizeLimit));
+            ids = ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
         } else {
             const auto& chunks = GetFilteredChunks();
             // NB: |chunks| contains all the matching chunks, enforce size limit.

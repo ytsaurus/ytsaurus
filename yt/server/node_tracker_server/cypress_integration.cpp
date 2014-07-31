@@ -284,7 +284,8 @@ private:
         if (key == "registered" || key == "online") {
             auto expectedState = key == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
-                .DoListFor(nodeTracker->Nodes().GetValues(), [=] (TFluentList fluent, TNode* node) {
+                .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<TNodeId, TNode*>& pair) {
+                    auto* node = pair.second;
                     if (node->GetState() == expectedState) {
                         fluent.Item().Value(node->GetAddress());
                     }

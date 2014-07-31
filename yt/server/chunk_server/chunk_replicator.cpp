@@ -91,12 +91,14 @@ TChunkReplicator::TChunkReplicator(
     YCHECK(chunkPlacement);
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (auto* node : nodeTracker->Nodes().GetValues()) {
+    for (const auto& pair : nodeTracker->Nodes()) {
+        auto* node = pair.second;
         OnNodeRegistered(node);
     }
 
     auto chunkManager = Bootstrap_->GetChunkManager();
-    for (auto* chunk : chunkManager->Chunks().GetValues()) {
+    for (const auto& pair : chunkManager->Chunks()) {
+        auto* chunk = pair.second;
         ScheduleChunkRefresh(chunk);
         SchedulePropertiesUpdate(chunk);
     }
@@ -121,7 +123,8 @@ void TChunkReplicator::Start()
 void TChunkReplicator::Stop()
 {
     auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (auto* node : nodeTracker->Nodes().GetValues()) {
+    for (const auto& pair : nodeTracker->Nodes()) {
+        auto* node = pair.second;
         node->Jobs().clear();
     }
 

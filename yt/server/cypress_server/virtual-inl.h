@@ -4,6 +4,7 @@
 #undef VIRTUAL_INL_H_
 
 #include <core/misc/string.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/ytree/virtual.h>
 
@@ -38,8 +39,7 @@ protected:
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
-        auto ids = Map->GetKeys(sizeLimit);
-        return ConvertToStrings(ids);
+        return ConvertToStrings(NYT::GetKeys(*Map, sizeLimit));
     }
 
     virtual size_t GetSize() const override

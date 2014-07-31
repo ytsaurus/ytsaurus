@@ -216,10 +216,11 @@ public:
                             .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
                             .Item("in_flight_message_count").Value(mailbox->GetInFlightMessageCount())
                             .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
-                            .Item("incoming_message_ids").BeginList().DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
-                                fluent
-                                    .Item().Value(pair.first);
-                            })
+                            .Item("incoming_message_ids").BeginList()
+                                .DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
+                                    fluent
+                                        .Item().Value(pair.first);
+                                })
                             .EndList()
                         .EndMap();
                 })

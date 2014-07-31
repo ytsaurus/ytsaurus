@@ -1186,7 +1186,8 @@ private:
             }
 
             auto cypressManager = Bootstrap->GetCypressManager();
-            for (auto* node : cypressManager->Nodes().GetValues()) {
+            for (const auto& pair : cypressManager->Nodes()) {
+                auto* node = pair.second;
                 auto resourceUsage = node->GetResourceUsage();
                 auto* account = node->GetAccount();
                 if (account) {

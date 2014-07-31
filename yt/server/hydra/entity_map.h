@@ -12,10 +12,21 @@ namespace NHydra {
 
 template <
     class TKey,
-    class TValue
+    class TValue,
+    class THash = ::THash<TKey>
 >
 struct IReadOnlyEntityMap
 {
+    typedef yhash_map<TKey, TValue*, THash> TMap;
+    typedef std::pair<TKey, TValue*> TItem;
+    typedef typename TMap::iterator TIterator;
+    typedef typename TMap::const_iterator TConstIterator;
+
+    // STL interop.
+    typedef TKey key_type;
+    typedef std::pair<const TKey, TValue*> value_type;
+    typedef TValue* mapped_type;
+
     virtual ~IReadOnlyEntityMap()
     { }
 
@@ -26,8 +37,13 @@ struct IReadOnlyEntityMap
 
     virtual int GetSize() const = 0;
 
-    virtual std::vector<TKey> GetKeys(size_t sizeLimit = std::numeric_limits<size_t>::max()) const = 0;
-    virtual std::vector<TValue*> GetValues(size_t sizeLimit = std::numeric_limits<size_t>::max()) const = 0;
+    virtual TConstIterator Begin() const = 0;
+    virtual TConstIterator End() const = 0;
+
+    // STL interop.
+    TConstIterator begin() const;
+    TConstIterator end() const;
+    size_t size() const;
 
 };
 
@@ -51,13 +67,6 @@ class TEntityMap
     : public IReadOnlyEntityMap<TKey, TValue>
 {
 public:
-    typedef TEntityMap<TKey, TValue, TTraits, THash> TThis;
-    typedef yhash_map<TKey, TValue*, THash> TMap;
-    typedef typename TMap::iterator TIterator;
-    typedef typename TMap::const_iterator TConstIterator;
-    typedef std::pair<TKey, TValue*> TItem;
-    typedef std::pair<TKey, const TValue*> TConstItem;
-
     explicit TEntityMap(const TTraits& traits = TTraits());
     virtual ~TEntityMap();
 
@@ -73,10 +82,6 @@ public:
 
     virtual int GetSize() const override;
 
-    virtual std::vector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const override;
-
-    virtual std::vector<TValue*> GetValues(size_t sizeLimit = Max<size_t>()) const override;
-
     // Other (possibly mutating) methods.
 
     void Insert(const TKey& key, TValue* value);
@@ -88,11 +93,14 @@ public:
 
     void Clear();
 
-    TIterator Begin();
-    TIterator End();
+    virtual TConstIterator Begin() const override;
+    virtual TConstIterator End() const override;
 
-    TConstIterator Begin() const;
-    TConstIterator End() const;
+    using IReadOnlyEntityMap::Begin;
+    TIterator Begin();
+
+    using IReadOnlyEntityMap::End;
+    TIterator End();
 
     void SaveKeys(TSaveContext& context) const;
         
@@ -103,6 +111,13 @@ public:
 
     template <class TContext>
     void LoadValues(TContext& context);
+
+    // STL interop.
+    using IReadOnlyEntityMap::begin;
+    TIterator begin();
+
+    using IReadOnlyEntityMap::end;
+    TIterator end();
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
@@ -116,34 +131,6 @@ private:
 
 } // namespace NHydra
 } // namespace NYT
-
-// Foreach interop.
-
-template <class TKey, class TValue, class THash>
-inline auto begin(NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
-{
-    return collection.Begin();
-}
-
-template <class TKey, class TValue, class THash>
-inline auto end(NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
-{
-    return collection.End();
-}
-
-template <class TKey, class TValue, class THash>
-inline auto begin(const NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
-{
-    return collection.Begin();
-}
-
-template <class TKey, class TValue, class THash>
-inline auto end(const NYT::NHydra::TEntityMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
-{
-    return collection.End();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \

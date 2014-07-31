@@ -36,7 +36,8 @@ public:
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto tabletManager = Bootstrap_->GetTabletManager();
-        for (auto* node : nodeTracker->Nodes().GetValues()) {
+        for (const auto& pair : nodeTracker->Nodes()) {
+            auto* node = pair.second;
             int total = node->GetTotalTabletSlots();
             int used = tabletManager->GetAssignedTabletCellCount(node->GetAddress());
             int spare = total - used;
@@ -117,7 +118,8 @@ void TTabletTracker::ScanCells()
     TCandidatePool pool(Bootstrap_);
 
     auto tabletManger = Bootstrap_->GetTabletManager();
-    for (auto* cell : tabletManger->TabletCells().GetValues()) {
+    for (const auto& pair : tabletManger->TabletCells()) {
+        auto* cell = pair.second;
         if (!IsObjectAlive(cell))
             continue;
 
