@@ -306,7 +306,7 @@ class Application(object):
             raise yt.YtError("Source table {} is empty".format(task.source_table))
 
         if source_client._type == "yt" and destination_client._type == "mr":
-            keys = list(source_client.read_table(yt.TablePath(task.source_table, end_index=1), format=yt.JsonFormat(), raw=False).next())
+            keys = list(source_client.read_table(yt.TablePath(task.source_table, end_index=1, simplify=False), format=yt.JsonFormat(), raw=False).next())
             if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                 raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
         
