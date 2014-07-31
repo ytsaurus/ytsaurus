@@ -152,7 +152,7 @@ protected:
             }
 
             // Save merged row.
-            auto mergedRow = rowMerger->BuildMergedRow();
+            auto mergedRow = rowMerger->BuildMergedRowAndReset();
             if (mergedRow) {
                 rows->push_back(mergedRow);
             }
