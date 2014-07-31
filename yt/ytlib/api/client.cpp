@@ -1484,29 +1484,35 @@ private:
 
     void DoCommit()
     {
-        for (const auto& request : Requests_) {
-            request->Run();
-        }
+        try {
+            for (const auto& request : Requests_) {
+                request->Run();
+            }
 
-        {
-            auto result = WaitFor(TransactionStartCollector_->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+            {
+                auto result = WaitFor(TransactionStartCollector_->Complete());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
-        auto cellDirectory = Client_->Connection_->GetCellDirectory();
+            auto cellDirectory = Client_->Connection_->GetCellDirectory();
 
-        auto writeCollector = New<TParallelCollector<void>>();
+            auto writeCollector = New<TParallelCollector<void>>();
 
-        for (const auto& pair : TabletToSession_) {
-            const auto& tabletInfo = pair.first;
-            const auto& session = pair.second;
-            auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
-            writeCollector->Collect(session->Invoke(std::move(channel)));
-        }
+            for (const auto& pair : TabletToSession_) {
+                const auto& tabletInfo = pair.first;
+                const auto& session = pair.second;
+                auto channel = cellDirectory->GetChannelOrThrow(tabletInfo->CellId);
+                writeCollector->Collect(session->Invoke(std::move(channel)));
+            }
 
-        {
-            auto result = WaitFor(writeCollector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            {
+                auto result = WaitFor(writeCollector->Complete());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+        } catch (const std::exception& ex) {
+            // Fire and forget.
+            Transaction_->Abort();
+            throw;
         }
 
         {
