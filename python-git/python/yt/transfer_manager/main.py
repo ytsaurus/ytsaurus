@@ -70,13 +70,13 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, 
     run_operation_and_notify(
         message_queue,
         yt_client,
-        lambda yt, strategy:
-            yt.run_map(write_command, src, yt_client.create_temp_table(),
-                       files=mr_client.binary,
-                       format=yt.YamrFormat(has_subkey=True, lenval=True),
-                       memory_limit=2500 * yt.config.MB,
-                       spec=spec,
-                       strategy=strategy))
+        lambda client, strategy:
+            client.run_map(write_command, src, yt_client.create_temp_table(),
+                           files=mr_client.binary,
+                           format=yt.YamrFormat(has_subkey=True, lenval=True),
+                           memory_limit=2500 * yt.config.MB,
+                           spec=spec,
+                           strategy=strategy))
 
     result_record_count = mr_client.records_count(dst)
     if record_count != result_record_count:
@@ -140,8 +140,8 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
         run_operation_and_notify(
             message_queue,
             yt_client,
-            lambda yt, strategy:
-                yt.run_map(
+            lambda client, strategy:
+                client.run_map(
                     command,
                     temp_table,
                     dst,
@@ -157,7 +157,7 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
             run_operation_and_notify(
                 message_queue,
                 yt_client,
-                lambda yt, strategy: yt.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
+                lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
 
         result_record_count = yt.records_count(dst)
         if yt.records_count(dst) != record_count:
