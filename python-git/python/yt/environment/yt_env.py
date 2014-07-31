@@ -380,6 +380,8 @@ class YTEnv(object):
             config['tracing'] = init_tracing(config['rpc_port'])
             config['exec_agent']['job_proxy_logging'] = \
                 init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
+            config['exec_agent']['job_proxy_tracing'] = \
+                init_tracing(config['rpc_port'])
 
             self.modify_node_config(config)
             update(config, self.DELTA_NODE_CONFIG)
