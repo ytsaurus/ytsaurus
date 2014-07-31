@@ -544,19 +544,18 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
-        if id not in self._task_processes:
-            return "Taks {0} is not running ".format(id), 400
+        if id in self._task_processes:
+            process, _ = self._task_processes[id]
+            process.aborted = True
 
-        process, _ = self._task_processes[id]
-        process.aborted = True
+            os.kill(process.pid, signal.SIGINT)
+            time.sleep(0.5)
+            if process.is_alive():
+                process.terminate()
 
-        os.kill(process.pid, signal.SIGINT)
-        time.sleep(0.5)
-        if process.is_alive():
-            process.terminate()
-
-        with self._mutex:
-            self._change_task_state(id, "aborted")
+        if self._tasks[id].state not in ["aborted", "completed", "failed"]:
+            with self._mutex:
+                self._change_task_state(id, "aborted")
 
         return "OK"
 
