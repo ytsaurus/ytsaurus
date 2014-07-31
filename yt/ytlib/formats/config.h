@@ -197,16 +197,16 @@ public:
             for (const auto& name : KeyColumnNames) {
                 if (!names.insert(name).second) {
                     THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"key_column_names\": %s",
-                        ~name.Quote());
+                        "Duplicate column name encountered in \"key_column_names\": %Qv",
+                        name);
                 }
             }
 
             for (const auto& name : SubkeyColumnNames) {
                 if (!names.insert(name).second) {
                     THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"subkey_column_names\": %s",
-                        ~name.Quote());
+                        "Duplicate column name encountered in \"subkey_column_names\": %Qv",
+                        name);
                 }
             }
         });
@@ -269,8 +269,8 @@ public:
             for (const auto& name : Columns) {
                 if (!names.insert(name).second) {
                     THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"columns\": %s",
-                        ~name.Quote());
+                        "Duplicate column name encountered in \"columns\": %Qv",
+                        name);
                 }
             }
             if (Columns.empty()) {

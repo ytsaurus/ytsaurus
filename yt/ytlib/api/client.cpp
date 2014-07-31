@@ -411,10 +411,10 @@ private:
     {
         auto tabletInfo = tableInfo->GetTablet(key);
         if (tabletInfo->State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %s of table %s is in %s state",
-                ~ToString(tabletInfo->TabletId),
-                ~tableInfo->Path,
-                ~FormatEnum(tabletInfo->State).Quote());
+            THROW_ERROR_EXCEPTION("Tablet %v of table %v is in %Qv state",
+                tabletInfo->TabletId,
+                tableInfo->Path,
+                FormatEnum(tabletInfo->State));
         }
         return tabletInfo;
     }

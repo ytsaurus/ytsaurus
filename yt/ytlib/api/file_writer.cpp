@@ -175,10 +175,10 @@ private:
 
             auto type = attributes.Get<EObjectType>("type");
             if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qv, actual %Qv",
                     ~Path_,
-                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                    ~FormatEnum(type).Quote());
+                    EObjectType(EObjectType::File),
+                    type);
             }
 
             writerOptions->ReplicationFactor = attributes.Get<int>("replication_factor");
@@ -194,9 +194,9 @@ private:
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
 
-        LOG_INFO("File opened (Account: %s, ChunkListId: %s)",
-            ~writerOptions->Account,
-            ~ToString(chunkListId));
+        LOG_INFO("File opened (Account: %v, ChunkListId: %v)",
+            writerOptions->Account,
+            chunkListId);
 
         auto provider = New<TFileChunkWriterProvider>(
             Config_,

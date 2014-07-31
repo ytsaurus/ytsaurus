@@ -117,9 +117,9 @@ const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 {
     if (Config->CellGuid != newConfig->CellGuid) {
-        THROW_ERROR_EXCEPTION("Cannot change cell GUID from %s to %s",
-            ~ToString(Config->CellGuid),
-            ~ToString(newConfig->CellGuid));
+        THROW_ERROR_EXCEPTION("Cannot change cell GUID from %v to %v",
+            Config->CellGuid,
+            newConfig->CellGuid);
     }
 
     auto addresses = Config->Addresses;
@@ -132,9 +132,9 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
     }
 
     if (addresses[SelfId] != newAddresses[SelfId]) {
-        THROW_ERROR_EXCEPTION("Cannot change self address from %s to %s",
-            ~addresses[SelfId].Quote(),
-            ~newAddresses[SelfId].Quote());
+        THROW_ERROR_EXCEPTION("Cannot change self address from %Qv to %Qv",
+            addresses[SelfId],
+            newAddresses[SelfId]);
     }
 
     BuildTags();

@@ -202,8 +202,8 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
                 ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
             } catch (const std::exception&) {
                 // Ignore ex, our custom message is more meaningful.
-                THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
-                    ~Stroka(name).Quote());
+                THROW_ERROR_EXCEPTION("Failed to parse control attribute name %Qv",
+                    name);
             }
             ControlState = EControlState::ExpectControlAttributeValue;
             return;
@@ -533,17 +533,17 @@ void TTableConsumerBase::ThrowCompositesNotSupported()
 
 void TTableConsumerBase::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EValueType actualType)
 {
-    THROW_ERROR AttachLocationAttributes(TError("Invalid type of schema column %s: expected %s, actual %s",
-        ~NameTable_->GetName(columnId).Quote(),
-        ~FormatEnum(SchemaColumnDescriptors_[columnId].Type).Quote(),
-        ~FormatEnum(actualType).Quote()));
+    THROW_ERROR AttachLocationAttributes(TError("Invalid type of schema column %Qv: expected %Qv, actual %Qv",
+        NameTable_->GetName(columnId),
+        SchemaColumnDescriptors_[columnId].Type,
+        actualType));
 }
 
 void TTableConsumerBase::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 {
-    THROW_ERROR AttachLocationAttributes(TError("Control attribute %s cannot %s",
-        ~FormatEnum(ControlAttribute_).Quote(),
-        ~whatsWrong));
+    THROW_ERROR AttachLocationAttributes(TError("Control attribute %Qv cannot %v",
+        ControlAttribute_,
+        whatsWrong));
 }
 
 void TTableConsumerBase::OnListItem()
@@ -586,8 +586,8 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
                 ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(name));
             } catch (const std::exception&) {
                 // Ignore ex, our custom message is more meaningful.
-                THROW_ERROR AttachLocationAttributes(TError("Failed to parse control attribute name %s",
-                    ~Stroka(name).Quote()));
+                THROW_ERROR AttachLocationAttributes(TError("Failed to parse control attribute name %Qv",
+                    name));
             }
             ControlState_ = EControlState::ExpectValue;
             return;
@@ -608,8 +608,8 @@ void TTableConsumerBase::OnKeyedItem(const TStringBuf& name)
         } else {
             auto maybeIndex = NameTable_->FindId(name);
             if (!maybeIndex) {
-                THROW_ERROR AttachLocationAttributes(TError("No such column %s in schema",
-                    ~Stroka(name).Quote()));
+                THROW_ERROR AttachLocationAttributes(TError("No such column %Qv in schema",
+                    name));
             }
             ColumnIndex_ = *maybeIndex;
         }

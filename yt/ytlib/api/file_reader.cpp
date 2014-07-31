@@ -147,10 +147,10 @@ private:
 
             auto type = EObjectType(rsp->type());
             if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
-                    ~Path_,
-                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qv, actual %Qv",
+                    Path_,
+                    EObjectType(EObjectType::File),
+                    type);
             }
         }
 

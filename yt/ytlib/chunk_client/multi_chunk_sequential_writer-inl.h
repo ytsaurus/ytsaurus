@@ -156,7 +156,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkCreated(
         return;
     }
 
-    LOG_DEBUG("Chunk created (ChunkId: %s)", ~ToString(session.ChunkId));
+    LOG_DEBUG("Chunk created (ChunkId: %v)", session.ChunkId);
 
     auto targets = NodeDirectory->GetDescriptors(session.Replicas);
     auto erasureCodecId = Options->ErasureCodec;
@@ -242,8 +242,8 @@ TAsyncError TOldMultiChunkSequentialWriter<TProvider>::FinishCurrentSession()
 
     auto finishResult = NewPromise<TError>();
     if (CurrentSession.ChunkWriter->GetDataSize() > 0) {
-        LOG_DEBUG("Finishing chunk (ChunkId: %s)",
-            ~ToString(CurrentSession.ChunkId));
+        LOG_DEBUG("Finishing chunk (ChunkId: %v)",
+            CurrentSession.ChunkId);
 
         Provider->OnChunkFinished();
 
@@ -270,8 +270,8 @@ TAsyncError TOldMultiChunkSequentialWriter<TProvider>::FinishCurrentSession()
             finishResult));
 
     } else {
-        LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
-            ~ToString(CurrentSession.ChunkId));
+        LOG_DEBUG("Canceling empty chunk (ChunkId: %v)",
+            CurrentSession.ChunkId);
         finishResult.Set(TError());
     }
 
@@ -301,8 +301,8 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
 
     Provider->OnChunkClosed(chunkWriter);
 
-    LOG_DEBUG("Chunk closed (ChunkId: %s)",
-        ~ToString(currentSession.ChunkId));
+    LOG_DEBUG("Chunk closed (ChunkId: %v)",
+        currentSession.ChunkId);
 
     std::vector<TChunkReplica> replicas;
     for (int index : asyncWriter->GetWrittenReplicaIndexes()) {
@@ -349,8 +349,8 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkConfirmed(
     if (!error.IsOK()) {
         auto wrappedError = TError(
             EErrorCode::MasterCommunicationFailed,
-            "Error confirming chunk %s",
-            ~ToString(chunkId)) << error;
+            "Error confirming chunk %v",
+            chunkId) << error;
 
         finishResult.Set(wrappedError);
         return;
@@ -436,8 +436,8 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnClose(
     if (!error.IsOK()) {
         auto wrappedError = TError(
             EErrorCode::MasterCommunicationFailed,
-            "Error attaching chunks to chunk list %s",
-            ~ToString(ParentChunkListId))
+            "Error attaching chunks to chunk list %v",
+            ParentChunkListId)
             << error;
         State.Fail(wrappedError);
         return;

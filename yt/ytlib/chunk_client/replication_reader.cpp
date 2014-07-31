@@ -98,7 +98,7 @@ public:
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalDescriptor: %v, EnableCaching: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             FormatBool(Config_->FetchFromPeers),
-            LocalDescriptor_ ? ~ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
+            LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
             FormatBool(Config_->EnableNodeCaching),
             NetworkName_);
     }
@@ -718,8 +718,8 @@ private:
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
         if (!rsp->IsOK()) {
-            RegisterError(TError("Error fetching blocks from node %s",
-                ~address)
+            RegisterError(TError("Error fetching blocks from node %v",
+                address)
                 << *rsp);
             if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
@@ -833,8 +833,8 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error fetching blocks for chunk %s",
-            ~ToString(reader->ChunkId_)));
+            "Error fetching blocks for chunk %v",
+            reader->ChunkId_));
         Promise_.Set(error);
     }
 };
@@ -969,8 +969,8 @@ private:
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
         if (!rsp->IsOK()) {
-            RegisterError(TError("Error fetching blocks from node %s",
-                ~address)
+            RegisterError(TError("Error fetching blocks from node %v",
+                address)
                 << *rsp);
             if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
@@ -996,8 +996,8 @@ private:
         }
 
         if (rsp->throttling()) {
-            LOG_INFO("Peer is throttling (Address: %s)",
-                ~address);
+            LOG_INFO("Peer is throttling (Address: %v)",
+                address);
             return VoidFuture;
         }
 
@@ -1052,8 +1052,8 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error fetching blocks for chunk %s",
-            ~ToString(reader->ChunkId_)));
+            "Error fetching blocks for chunk %v",
+            reader->ChunkId_));
         Promise_.Set(error);
     }
 
@@ -1206,8 +1206,8 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error fetching meta for chunk %s",
-            ~ToString(reader->ChunkId_)));
+            "Error fetching meta for chunk %v",
+            reader->ChunkId_));
         Promise_.Set(error);
     }
 

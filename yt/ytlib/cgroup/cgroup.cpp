@@ -317,7 +317,7 @@ const Stroka& TNonOwningCGroup::GetFullPath() const
 
 void TNonOwningCGroup::EnsureExistance()
 {
-    LOG_INFO("Creating cgroup %Qv", ~FullPath_);
+    LOG_INFO("Creating cgroup %Qv", FullPath_);
 
     YCHECK(!IsNull());
 
@@ -385,8 +385,8 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
     auto path = NFS::CombinePaths(GetFullPath(), "cpuacct.stat");
     auto values = ReadAllValues(path);
     if (values.size() != 4) {
-        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %" PRISZT,
-            ~path.Quote(),
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv: expected 4 values, got %v",
+            path,
             values.size());
     }
 
@@ -465,9 +465,9 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
             if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start with \"8:\"",
-                    ~path,
-                    ~deviceId.Quote());
+                THROW_ERROR_EXCEPTION("Unable to parse %v: %Qv should start with \"8:\"",
+                    path,
+                    deviceId);
             }
 
             result.TotalSectors += sectors;

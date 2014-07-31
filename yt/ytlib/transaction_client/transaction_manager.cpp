@@ -260,11 +260,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             switch (State_) {
                 case EState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %s)", ~ToString(Id_));
+                    THROW_ERROR_EXCEPTION("Transaction is already committed (TransactionId: %v)", Id_);
                     break;
 
                 case EState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %s)", ~ToString(Id_));
+                    THROW_ERROR_EXCEPTION("Transaction is already aborted (TransactionId: %v)", Id_);
                     break;
 
                 case EState::Active:
@@ -585,8 +585,8 @@ private:
     TError OnTransactionCommitted(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)
     {
         if (!rsp->IsOK()) {
-            auto error = TError("Error committing transaction at cell %s",
-                ~ToString(cellGuid))
+            auto error = TError("Error committing transaction at cell %v",
+                cellGuid)
                 << *rsp;
             DoAbort(error);
             return error;
@@ -654,9 +654,9 @@ private:
         void OnResponse(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspPingTransactionPtr rsp)
         {
             if (rsp->IsOK()) {
-                LOG_DEBUG("Transaction pinged (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(Transaction_->Id_),
-                    ~ToString(cellGuid));
+                LOG_DEBUG("Transaction pinged (TransactionId: %v, CellGuid: %v)",
+                    Transaction_->Id_,
+                    cellGuid);
 
             } else {
                 if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {

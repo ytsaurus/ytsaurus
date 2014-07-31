@@ -42,8 +42,8 @@ public:
     {
         auto channel = FindChannel(cellGuid);
         if (!channel) {
-            THROW_ERROR_EXCEPTION("Unknown cell %s",
-                ~ToString(cellGuid));
+            THROW_ERROR_EXCEPTION("Unknown cell %v",
+                cellGuid);
         }
         return channel;
     }
@@ -59,8 +59,8 @@ public:
     {
         auto config = FindCellConfig(cellGuid);
         if (!config) {
-            THROW_ERROR_EXCEPTION("Unknown cell %s",
-                ~ToString(cellGuid));
+            THROW_ERROR_EXCEPTION("Unknown cell %v",
+                cellGuid);
         }
         return config;
     }

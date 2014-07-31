@@ -61,8 +61,8 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
 
         return TErrorOr<TCachedVersionedChunkMetaPtr>(this);
     } catch (const std::exception& ex) {
-        return TError("Error caching meta of chunk %s",
-            ~ToString(chunkReader->GetChunkId()))
+        return TError("Error caching meta of chunk %v",
+            chunkReader->GetChunkId())
             << ex;
     }
 }
@@ -70,15 +70,15 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
     if (ChunkMeta_.type() != EChunkType::Table) {
-        THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %s, expected %s",
-            ~FormatEnum(EChunkType(ChunkMeta_.type())).Quote(),
-            ~FormatEnum(EChunkType(EChunkType::Table)).Quote());
+        THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qv, expected %Qv",
+            EChunkType(ChunkMeta_.type()),
+            EChunkType(EChunkType::Table));
     }
 
     if (ChunkMeta_.version() != ETableChunkFormat::VersionedSimple) {
-        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %s, expected: %s",
-            ~FormatEnum(ETableChunkFormat(ChunkMeta_.version())).Quote(),
-            ~FormatEnum(ETableChunkFormat(ETableChunkFormat::VersionedSimple)).Quote());
+        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qv, expected: %Qv",
+            ETableChunkFormat(ChunkMeta_.version()),
+            ETableChunkFormat(ETableChunkFormat::VersionedSimple));
     }
 }
 
@@ -87,9 +87,9 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
     auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);   
     if (KeyColumns_ != chunkKeyColumns) {
-        THROW_ERROR_EXCEPTION("Incorrect key columns: actual [%s], expected [%s]",
-            ~JoinToString(chunkKeyColumns),
-            ~JoinToString(KeyColumns_));
+        THROW_ERROR_EXCEPTION("Incorrect key columns: actual [%v], expected [%v]",
+            JoinToString(chunkKeyColumns),
+            JoinToString(KeyColumns_));
     }
 
     auto protoSchema = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
@@ -105,9 +105,10 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         }
 
         if (chunkColumn->Type != column.Type) {
-            THROW_ERROR_EXCEPTION("Incompatible type for column %s: actual: %s, expected %s",
-                ~FormatEnum(chunkColumn->Type).Quote(),
-                ~FormatEnum(column.Type).Quote());
+            THROW_ERROR_EXCEPTION("Incompatible type for column %Qv: actual: %Qv, expected %Qv",
+                column.Name,
+                chunkColumn->Type,
+                column.Type);
         }
 
         TColumnIdMapping mapping;

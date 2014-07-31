@@ -237,8 +237,8 @@ void TYamredDsvConsumer::WriteYamrKey(
     if (fieldCount < columnNames.size()) {
         for (const auto& column : fieldValues) {
             if (column.second.RowIndex != RowCount) {
-                THROW_ERROR_EXCEPTION("Missing column %s in YAMRed DSV",
-                    ~Stroka(column.first).Quote());
+                THROW_ERROR_EXCEPTION("Missing column %Qv in YAMRed DSV",
+                    column.first);
             }
         }
         YUNREACHABLE();

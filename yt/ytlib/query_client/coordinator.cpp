@@ -392,7 +392,7 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
                 auto splitCopy = split;
 
                 LOG_DEBUG("Narrowing split %v key range from %v to %v",
-                        ToString(GetObjectIdFromDataSplit(splitCopy)),
+                        GetObjectIdFromDataSplit(splitCopy),
                         keyRangeFormatter(originalRange),
                         keyRangeFormatter(range));
                 SetBothBounds(&splitCopy, range);

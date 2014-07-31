@@ -1081,8 +1081,8 @@ void Deserialize(TOwningKey& key, INodePtr node)
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Key cannot contain %s components",
-                    ~FormatEnum(item->GetType()).Quote());
+                THROW_ERROR_EXCEPTION("Key cannot contain %Qv components",
+                    item->GetType());
         }
         ++id;
     }

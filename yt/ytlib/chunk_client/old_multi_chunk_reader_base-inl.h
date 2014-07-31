@@ -57,8 +57,8 @@ TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
             FailedChunks.push_back(chunkId);
 
             auto error = TError(
-                "Chunk %s is unavailable",
-                ~ToString(chunkId));
+                "Chunk %v is unavailable",
+                chunkId);
             LOG_ERROR(error);
             State.Fail(error);
             return;

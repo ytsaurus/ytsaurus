@@ -191,9 +191,9 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix) const
 {
     if (prefix != Config->LinePrefix.Get()) {
         // TODO(babenko): provide position
-        THROW_ERROR_EXCEPTION("Malformed line prefix in DSV: expected %s, found %s",
-            ~Config->LinePrefix.Get().Quote(),
-            ~prefix.Quote())
+        THROW_ERROR_EXCEPTION("Malformed line prefix in DSV: expected %Qv, found %Qv",
+            Config->LinePrefix.Get(),
+            prefix)
             << TErrorAttribute("record_index", RecordCount)
             << TErrorAttribute("field_index", FieldCount);
     }

@@ -245,10 +245,10 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
 
         auto type = attributes.Get<EObjectType>("type");
         if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %s: expected %s, actual %s",
-                ~RichPath.GetPath(),
-                ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                ~FormatEnum(type).Quote());
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qv, actual %Qv",
+                RichPath.GetPath(),
+                EObjectType(EObjectType::Table),
+                type);
         }
 
         // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).

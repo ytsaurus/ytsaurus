@@ -62,8 +62,8 @@ TTableMountInfo::TTableMountInfo()
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
 {
     if (Tablets.empty()) {
-        THROW_ERROR_EXCEPTION("Table %s has no tablets",
-            ~Path);
+        THROW_ERROR_EXCEPTION("Table %v has no tablets",
+            Path);
     }
     auto it = std::upper_bound(
         Tablets.begin(),

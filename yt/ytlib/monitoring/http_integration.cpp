@@ -63,7 +63,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
         try {
             TYsonString(value).Validate();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing value of query parameter %s", ~key)
+            THROW_ERROR_EXCEPTION("Error parsing value of query parameter %v", key)
                 << ex;
         }
 

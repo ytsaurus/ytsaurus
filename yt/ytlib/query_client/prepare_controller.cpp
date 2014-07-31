@@ -337,8 +337,8 @@ void TPrepareController::MoveAggregateExpressions()
 
                             if (functionExpr->GetArgumentCount() != 1) {
                                 THROW_ERROR_EXCEPTION(
-                                    "Aggregate function %s must have exactly one argument",
-                                    ~ToString(aggregateFunction))
+                                    "Aggregate function %v must have exactly one argument",
+                                    aggregateFunction)
                                     << TErrorAttribute("source", functionExpr->GetSource());
                             }
 

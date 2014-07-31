@@ -106,8 +106,8 @@ namespace {
 
 void ThrowUnexpectedToken(const TToken& token)
 {
-    THROW_ERROR_EXCEPTION("Unexpected token %s",
-        ~ToString(token).Quote());
+    THROW_ERROR_EXCEPTION("Unexpected token %Qv",
+        token);
 }
 
 Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)

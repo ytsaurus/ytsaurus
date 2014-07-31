@@ -229,15 +229,15 @@ private:
         const auto& chunkMeta = result.Value();
 
         if (chunkMeta.type() != EChunkType::Table) {
-            auto error = TError("Invalid chunk type: expected %s, actual %s",
-                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
-                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            auto error = TError("Invalid chunk type: expected %Qv, actual %Qv",
+                EChunkType(EChunkType::Table),
+                EChunkType(chunkMeta.type()));
             OnFail(error, chunkReader);
             return;
         }
 
         if (chunkMeta.version() != FormatVersion) {
-            auto error = TError("Invalid table chunk format version: expected %d, actual %d",
+            auto error = TError("Invalid table chunk format version: expected %v, actual %v",
                 FormatVersion,
                 chunkMeta.version());
             OnFail(error, chunkReader);
@@ -264,8 +264,8 @@ private:
 
         if (HasRangeRequest || chunkReader->Options->ReadKey) {
             if (!miscExt.sorted()) {
-                auto error = TError("Received key range read request for an unsorted chunk %s",
-                    ~ToString(ChunkReader->GetChunkId()));
+                auto error = TError("Received key range read request for an unsorted chunk %v",
+                    ChunkReader->GetChunkId());
                 OnFail(error, chunkReader);
                 return;
             }

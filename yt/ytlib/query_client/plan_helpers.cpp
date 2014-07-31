@@ -297,8 +297,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
             auto rhsType = InferType(typedExpr->GetRhs(), sourceSchema);
             if (lhsType != rhsType) {
                 THROW_ERROR_EXCEPTION(
-                    "Type mismatch between left- and right-hand sides in expression %s",
-                    ~typedExpr->GetSource().Quote())
+                    "Type mismatch between left- and right-hand sides in expression %Qv",
+                    typedExpr->GetSource())
                     << TErrorAttribute("lhs_type", ToString(lhsType))
                     << TErrorAttribute("rhs_type", ToString(rhsType));
             }
@@ -322,8 +322,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                             return EValueType::Int64;
                         default:
                              THROW_ERROR_EXCEPTION(
-                                "Expression %s is not supported",
-                                ~typedExpr->GetSource().Quote())
+                                "Expression %Qv is not supported",
+                                typedExpr->GetSource())
                                 << TErrorAttribute("lhs_type", ToString(lhsType))
                                 << TErrorAttribute("rhs_type", ToString(rhsType));
                     }
@@ -337,8 +337,8 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                             return EValueType::Int64;
                         default:
                             THROW_ERROR_EXCEPTION(
-                                "Expression %s is not supported",
-                                ~typedExpr->GetSource().Quote())
+                                "Expression %Qv is not supported",
+                                typedExpr->GetSource())
                                 << TErrorAttribute("lhs_type", ToString(lhsType))
                                 << TErrorAttribute("rhs_type", ToString(rhsType));
                     }

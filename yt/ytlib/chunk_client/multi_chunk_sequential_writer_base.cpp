@@ -401,8 +401,8 @@ void TMultiChunkSequentialWriterBase::DoClose()
     if (!rsp->IsOK()) {
         CompletionError_.TrySet(TError(
             EErrorCode::MasterCommunicationFailed, 
-            "Error attaching chunks to chunk list %s",
-            ~ToString(ParentChunkListId_)) << *rsp);
+            "Error attaching chunks to chunk list %v",
+            ParentChunkListId_) << *rsp);
         return;
     }
 

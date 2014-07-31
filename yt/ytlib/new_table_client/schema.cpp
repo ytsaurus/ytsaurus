@@ -104,8 +104,8 @@ TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
 {
     auto* column = FindColumn(name);
     if (!column) {
-        THROW_ERROR_EXCEPTION("Missing schema column %s",
-            ~Stroka(name).Quote());
+        THROW_ERROR_EXCEPTION("Missing schema column %Qv",
+            name);
     }
     return *column;
 }
@@ -114,8 +114,8 @@ const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) cons
 {
     auto* column = FindColumn(name);
     if (!column) {
-        THROW_ERROR_EXCEPTION("Missing schema column %s",
-            ~Stroka(name).Quote());
+        THROW_ERROR_EXCEPTION("Missing schema column %Qv",
+            name);
     }
     return *column;
 }
@@ -197,13 +197,13 @@ void Deserialize(TTableSchema& schema, INodePtr node)
             }
             ValidateSchemaValueType(column.Type);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating column %s in table schema",
-                ~column.Name.Quote())
+            THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                column.Name)
                 << ex;
         }
         if (!names.insert(column.Name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column %s in table schema",
-                ~column.Name.Quote());
+            THROW_ERROR_EXCEPTION("Duplicate column %Qv in table schema",
+                column.Name);
         }
     }
 }
@@ -249,8 +249,8 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
     yhash_set<Stroka> names;
     for (const auto& name : keyColumns) {
         if (!names.insert(name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate key column name %s",
-                ~name.Quote());
+            THROW_ERROR_EXCEPTION("Duplicate key column name %Qv",
+                name);
         }
     }
 }

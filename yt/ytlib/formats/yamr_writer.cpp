@@ -214,13 +214,13 @@ void TYamrConsumer::OnEndAttributes()
 void TYamrConsumer::WriteRow()
 {
     if (!Key) {
-        THROW_ERROR_EXCEPTION("Missing column %s in YAMR record",
-            ~Config->Key.Quote());
+        THROW_ERROR_EXCEPTION("Missing column %Qv in YAMR record",
+            Config->Key);
     }
 
     if (!Value) {
-        THROW_ERROR_EXCEPTION("Missing column %s in YAMR record",
-            ~Config->Value.Quote());
+        THROW_ERROR_EXCEPTION("Missing column %Qv in YAMR record",
+            Config->Value);
     }
 
     TStringBuf key = *Key;

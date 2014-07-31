@@ -238,8 +238,8 @@ void TJsonParser::TImpl::ConsumeMapFragment(IMapNodePtr map)
         if (IsSpecialJsonKey(key)) {
             if (key.size() < 2 || key[1] != '$') {
                 THROW_ERROR_EXCEPTION(
-                    "Key '%s' starts with single '$'; use '$%s'"
-                    "to encode this key in JSON format", ~key, ~key);
+                    "Key '%v' starts with single '$'; use '$%v'"
+                    "to encode this key in JSON format", key, key);
             }
             key = key.substr(1);
         }

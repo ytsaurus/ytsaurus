@@ -233,8 +233,8 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     for (const auto& pair : row) {
         if (pair.first.length() > MaxColumnNameSize) {
             State.Fail(TError(
-                "Column name %s is too long: actual size %" PRISZT ", max size %" PRISZT,
-                ~Stroka(pair.first).Quote(),
+                "Column name %Qv is too long: actual size %v, max size %v",
+                pair.first,
                 pair.first.length(),
                 MaxColumnNameSize));
             return;
@@ -244,7 +244,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 
         if (ColumnNames.size() > MaxColumnCount) {
             State.Fail(TError(
-                "Too many different columns: already found %" PRISZT ", limit %d",
+                "Too many different columns: already found %v, limit %v",
                 ColumnNames.size(),
                 MaxColumnCount));
             return;
@@ -255,8 +255,8 @@ void TTableChunkWriter::WriteRow(const TRow& row)
                 // Ignore second and subsequent values with the same column name.
                 continue;
             }
-            State.Fail(TError("Duplicate column name %s",
-                ~Stroka(pair.first).Quote()));
+            State.Fail(TError("Duplicate column name %Qv",
+                pair.first));
             return;
         }
 
@@ -270,7 +270,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 
     i64 rowWeight = DataWeight - dataWeight;
     if (rowWeight > Config->MaxRowWeight) {
-        State.Fail(TError("Table row is too large: current weight %" PRId64 ", max weight %" PRId64,
+        State.Fail(TError("Table row is too large: current weight %v, max weight %v",
             rowWeight,
             Config->MaxRowWeight));
         return;
@@ -282,9 +282,9 @@ void TTableChunkWriter::WriteRow(const TRow& row)
         if (LastKey.Get() > CurrentKey) {
             State.Fail(TError(
                 EErrorCode::SortOrderViolation,
-                "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
-                ~ToString(LastKey.Get()),
-                ~ToString(CurrentKey)));
+                "Sort order violation (PreviousKey: %v, CurrentKey: %v)",
+                LastKey.Get(),
+                CurrentKey));
             return;
         }
 

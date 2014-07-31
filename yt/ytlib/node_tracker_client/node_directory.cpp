@@ -40,9 +40,9 @@ const Stroka& TNodeDescriptor::GetAddressOrThrow(const Stroka& name) const
     if (it == Addresses_.end()) {
         THROW_ERROR_EXCEPTION(
             NNodeTrackerClient::EErrorCode::NoSuchNetwork,
-            "Cannot find %s address for %s",
-            ~name.Quote(),
-            ~GetDefaultAddress());
+            "Cannot find %Qv address for %v",
+            name,
+            GetDefaultAddress());
     }
     return it->second;
 }

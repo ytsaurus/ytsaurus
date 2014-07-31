@@ -320,8 +320,8 @@ public:
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
             if (replicas.empty()) {
                 auto objectId = GetObjectIdFromDataSplit(split);
-                THROW_ERROR_EXCEPTION("No alive replicas for split %s",
-                    ~ToString(objectId));
+                THROW_ERROR_EXCEPTION("No alive replicas for split %v",
+                    objectId);
             }
             auto replica = replicas[RandomNumber(replicas.size())];
             auto descriptor = nodeDirectory->GetDescriptor(replica);
@@ -492,8 +492,8 @@ private:
         auto tableId = GetObjectIdFromDataSplit(split);
 
         if (tableInfo->Tablets.empty()) {
-            THROW_ERROR_EXCEPTION("Table %s is neither sorted nor has tablets",
-                ~ToString(tableId));
+            THROW_ERROR_EXCEPTION("Table %v is neither sorted nor has tablets",
+                tableId);
         }
 
         auto lowerBound = GetLowerBoundFromDataSplit(split);
@@ -520,8 +520,8 @@ private:
 
             if (tabletInfo->State != ETabletState::Mounted) {
                 // TODO(babenko): learn to work with unmounted tablets
-                THROW_ERROR_EXCEPTION("Tablet %s is not mounted",
-                    ~ToString(tabletInfo->TabletId));
+                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                    tabletInfo->TabletId);
             }
 
             TDataSplit subsplit;

@@ -194,17 +194,17 @@ void TChunkReader::DoOpen()
         auto* chunkColumn = chunkSchema.FindColumn(column.Name);
         if (!chunkColumn) {
             State.Finish(TError(
-                "Chunk schema doesn't contain column %s",
-                ~column.Name.Quote()));
+                "Chunk schema doesn't contain column %Qv",
+                column.Name));
             return;
         }
         
         if (chunkColumn->Type != column.Type) {
             State.Finish(TError(
-                "Chunk schema column %s has incompatible type: expected %s, actual %s",
-                ~column.Name.Quote(),
-                ~FormatEnum(column.Type),
-                ~FormatEnum(chunkColumn->Type)));
+                "Chunk schema column %Qv has incompatible type: expected %v, actual %v",
+                column.Name,
+                column.Type,
+                chunkColumn->Type));
             return;
         }
 
@@ -486,8 +486,8 @@ TAsyncError TTableChunkReaderAdapter::GetReadyEvent()
 void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema)
 {
     THROW_ERROR_EXCEPTION(
-        "Chunk data in column %s is incompatible with schema",
-        ~schema.Name.Quote());
+        "Chunk data in column %Qv is incompatible with schema",
+        schema.Name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

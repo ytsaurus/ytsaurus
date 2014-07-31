@@ -18,7 +18,7 @@ void ValidateDataValueType(EValueType type)
  	    type != EValueType::String &&
  	    type != EValueType::Null)
     {
-    	THROW_ERROR_EXCEPTION("Invalid date value type %s", ~FormatEnum(type).Quote());
+        THROW_ERROR_EXCEPTION("Invalid date value type %Qv", type);
     }       
 }
 
@@ -33,7 +33,7 @@ void ValidateKeyValueType(EValueType type)
  	    type != EValueType::Min &&
  	    type != EValueType::Max)
     {
-    	THROW_ERROR_EXCEPTION("Invalid key value type %s", ~FormatEnum(type).Quote());
+        THROW_ERROR_EXCEPTION("Invalid key value type %Qv", type);
     }       
 }
 
@@ -45,7 +45,7 @@ void ValidateSchemaValueType(EValueType type)
  	    type != EValueType::Boolean &&
  	    type != EValueType::String)
     {
-    	THROW_ERROR_EXCEPTION("Invalid schema value type %s", ~FormatEnum(type).Quote());
+        THROW_ERROR_EXCEPTION("Invalid schema value type %Qv", type);
     }       
 }
 

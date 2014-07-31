@@ -108,7 +108,7 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     try {
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid output table switch in YAMR: %s", ~ToString(tableIndex).Quote());
+        THROW_ERROR_EXCEPTION("Invalid output table switch in YAMR: %Qv", tableIndex);
     }
     Consumer->SwitchTable(value);
 }
@@ -331,13 +331,13 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
             BytesToRead = 4;
             State = EState::InsideTableSwitch;
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %s)", ~FormatEnum(State));
+            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %v)", State);
         }
     }
 
     if (BytesToRead > NTableClient::MaxRowWeightLimit) {
         THROW_ERROR_EXCEPTION(
-            "Lenval length is too large (%d > %" PRId64 ")",
+            "Lenval length is too large (%v > %v)",
             BytesToRead,
             NTableClient::MaxRowWeightLimit);
     }

@@ -21,9 +21,9 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , End_(end)
 {
     if (begin >= end) {
-        THROW_ERROR_EXCEPTION("Invalid range [%s,%s]",
-            ~begin.Quote(),
-            ~end.Quote());
+        THROW_ERROR_EXCEPTION("Invalid range [%Qv,%Qv]",
+            begin,
+            end);
     }
 }
 
@@ -340,8 +340,8 @@ void Deserialize(TChannel& channel, INodePtr node)
                     case 1: {
                         auto item = listChild->GetChild(0);
                         if (item->GetType() != ENodeType::String) {
-                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~ToString(item->GetType()).Quote());
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %Qv items",
+                                item->GetType());
                         }
                         channel.AddRange(TRange(item->GetValue<Stroka>()));
                         break;
@@ -350,13 +350,13 @@ void Deserialize(TChannel& channel, INodePtr node)
                     case 2: {
                         auto itemLo = listChild->GetChild(0);
                         if (itemLo->GetType() != ENodeType::String) {
-                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~ToString(itemLo->GetType()).Quote());
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %Qv items",
+                                itemLo->GetType());
                         }
                         auto itemHi = listChild->GetChild(1);
                         if (itemHi->GetType() != ENodeType::String) {
-                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
-                                ~ToString(itemHi->GetType()).Quote());
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %Qv items",
+                                itemHi->GetType());
                         }
                         channel.AddRange(TRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
                         break;
@@ -370,8 +370,8 @@ void Deserialize(TChannel& channel, INodePtr node)
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Channel description cannot contain %s items",
-                    ~ToString(child->GetType()).Quote());
+                THROW_ERROR_EXCEPTION("Channel description cannot contain %Qv items",
+                    child->GetType());
         }
     }
 }

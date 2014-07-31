@@ -86,8 +86,8 @@ void Deserialize(TFormat& value, INodePtr node)
     try {
         type = ParseEnum<EFormatType>(typeStr);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid format name %s",
-            ~typeStr.Quote());
+        THROW_ERROR_EXCEPTION("Invalid format name %Qv",
+            typeStr);
     }
 
     value = TFormat(type, &node->Attributes());
@@ -103,8 +103,8 @@ EYsonType DataTypeToYsonType(EDataType dataType)
         case EDataType::Tabular:
             return EYsonType::ListFragment;
         default:
-            THROW_ERROR_EXCEPTION("Data type %s is not supported by YSON",
-                ~FormatEnum(dataType).Quote());
+            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by YSON",
+                dataType);
     }
 }
 
@@ -149,8 +149,8 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
 
         case EDataType::Binary:
         case EDataType::Null:
-            THROW_ERROR_EXCEPTION("Data type %s is not supported by DSV",
-                ~FormatEnum(dataType).Quote());
+            THROW_ERROR_EXCEPTION("Data type %Qv is not supported by DSV",
+                dataType);
 
         default:
             YUNREACHABLE();
@@ -215,8 +215,8 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
         case EFormatType::SchemafulDsv:
             return CreateConsumerForSchemafulDsv(dataType, format.Attributes(), output);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported output format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported output format %Qv",
+                format.GetType());
     }
 }
 
@@ -250,8 +250,8 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported output format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported output format %Qv",
+                format.GetType());
     }
 }
 
@@ -366,8 +366,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
         case EFormatType::SchemafulDsv:
             return CreateProducerForSchemafulDsv(dataType, format.Attributes(), input);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported input format %Qv",
+                format.GetType());
     }
 }
 
@@ -400,8 +400,8 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             return CreateParserForSchemafulDsv(consumer, config);
         }
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported input format %Qv",
+                format.GetType());
     }
 }
 
