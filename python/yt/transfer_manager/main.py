@@ -608,7 +608,7 @@ DEFAULT_CONFIG = {
             "options": {
                 "server": "cedar00.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/home/ignat/mapreduce",
+                "binary": "/opt/cron/tools/mapreduce",
                 "server_port": 8013,
                 "http_port": 13013,
                 "fastbone": True,
@@ -622,7 +622,7 @@ DEFAULT_CONFIG = {
         "plato": ["cedar", "kant", "smith"],
         "cedar": ["kant", "smith", "plato"]
     },
-    "path": "//home/ignat/transfer_manager_test2",
+    "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
     "token": "93b4cacc08aa4538a79a76c21e99c0fb"}
 
