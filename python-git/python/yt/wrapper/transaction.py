@@ -122,7 +122,7 @@ class PingTransaction(Thread):
 
     def stop(self):
         self.is_running = False
-        timeout = config.http.REQUEST_TIMEOUT
+        timeout = config.http.REQUEST_TIMEOUT / 1000.0
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
         if self.is_alive():
