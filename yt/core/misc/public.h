@@ -31,6 +31,9 @@ class TFakeStringBufStore;
 
 class TStringBuilder;
 
+struct ICheckpointableInputStream;
+struct ICheckpointableOutputStream;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "blob.h"
+#include "public.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
