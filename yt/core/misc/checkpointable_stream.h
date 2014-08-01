@@ -27,8 +27,12 @@ struct ICheckpointableOutputStream
 
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
     TInputStream* underlyingStream);
+std::unique_ptr<ICheckpointableInputStream> CreateFakeCheckpointableInputStream(
+    TInputStream* underlyingStream);
 
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
+    TOutputStream* underlyingStream);
+std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStream(
     TOutputStream* underlyingStream);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -109,6 +109,42 @@ std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFakeCheckpointableInputStream
+    : public ICheckpointableInputStream
+{
+public:
+    explicit TFakeCheckpointableInputStream(TInputStream* underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
+
+    virtual void SkipToCheckpoint() override
+    {
+        YUNREACHABLE();
+    }
+
+    ~TFakeCheckpointableInputStream() throw()
+    { }
+
+private:
+    TInputStream* UnderlyingStream_;
+
+
+    virtual size_t DoRead(void* buf, size_t len) override
+    {
+        return UnderlyingStream_->Read(buf, len);
+    }
+
+};
+
+std::unique_ptr<ICheckpointableInputStream> CreateFakeCheckpointableInputStream(
+    TInputStream* underlyingStream)
+{
+    return std::unique_ptr<ICheckpointableInputStream>(
+        new TFakeCheckpointableInputStream(underlyingStream));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCheckpointableOutputStream
     : public ICheckpointableOutputStream
 {
@@ -146,6 +182,40 @@ std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
 {
     return std::unique_ptr<ICheckpointableOutputStream>(
         new TCheckpointableOutputStream(underlyingStream));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFakeCheckpointableOutputStream
+    : public ICheckpointableOutputStream
+{
+public:
+    explicit TFakeCheckpointableOutputStream(TOutputStream* underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    { }
+
+    virtual void MakeCheckpoint() override
+    { }
+
+    ~TFakeCheckpointableOutputStream() throw()
+    { }
+
+private:
+    TOutputStream* UnderlyingStream_;
+
+
+    virtual void DoWrite(const void* buf, size_t len) override
+    {
+        UnderlyingStream_->Write(buf, len);
+    }
+
+};
+
+std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStream(
+    TOutputStream* underlyingStream)
+{
+    return std::unique_ptr<ICheckpointableOutputStream>(
+        new TFakeCheckpointableOutputStream(underlyingStream));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
