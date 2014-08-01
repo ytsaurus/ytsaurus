@@ -63,7 +63,6 @@ public:
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
     i64 MinPartitionDataSize;
-    int MaxPartitionChunkCount;
 
     int MaxPartitionCount;
 
@@ -100,9 +99,6 @@ public:
             .GreaterThan(0);
         RegisterParameter("min_partition_data_size", MinPartitionDataSize)
             .Default((i64) 16 * 1024 * 1024)
-            .GreaterThan(0);
-        RegisterParameter("max_partition_chunk_count", MaxPartitionChunkCount)
-            .Default(3)
             .GreaterThan(0);
 
         RegisterParameter("max_partition_count", MaxPartitionCount)
