@@ -9,13 +9,17 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IYamrConsumer
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     virtual void ConsumeKey(const TStringBuf& key) = 0;
     virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
     virtual void ConsumeValue(const TStringBuf& value) = 0;
     virtual void SwitchTable(i64 tableIndex) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IYamrConsumer)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TYamrConsumerBase
     : public IYamrConsumer
@@ -25,7 +29,6 @@ public:
     virtual void SwitchTable(i64 tableIndex) override;
 
 protected:
-
     NYson::IYsonConsumer* Consumer;
 
 };

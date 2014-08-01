@@ -1,32 +1,21 @@
 #pragma once
 
 #include <core/misc/common.h>
+#include "config.h"
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonFormatConfig;
-typedef TIntrusivePtr<TYsonFormatConfig> TYsonFormatConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TYsonFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TDsvFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TJsonFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TYamrFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TYamredDsvFormatConfig)
+DECLARE_REFCOUNTED_CLASS(TSchemafulDsvFormatConfig)
 
-class TDsvFormatConfig;
-typedef TIntrusivePtr<TDsvFormatConfig> TDsvFormatConfigPtr;
-
-class TJsonFormatConfig;
-typedef TIntrusivePtr<TJsonFormatConfig> TJsonFormatConfigPtr;
-
-class TYamrFormatConfig;
-typedef TIntrusivePtr<TYamrFormatConfig> TYamrFormatConfigPtr;
-
-class TYamredDsvFormatConfig;
-typedef TIntrusivePtr<TYamredDsvFormatConfig> TYamredDsvFormatConfigPtr;
-
-class TSchemafulDsvFormatConfig;
-typedef TIntrusivePtr<TSchemafulDsvFormatConfig> TSchemafulDsvFormatConfigPtr;
-
-struct IYamrConsumer;
-typedef TIntrusivePtr<IYamrConsumer> IYamrConsumerPtr;
+DECLARE_REFCOUNTED_STRUCT(IYamrConsumer)
 
 struct IParser;
 

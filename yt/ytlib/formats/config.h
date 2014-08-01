@@ -26,6 +26,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TYsonFormatConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDsvFormatConfig
@@ -73,6 +75,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TDsvFormatConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EJsonFormat,
@@ -115,6 +119,8 @@ public:
         MemoryLimit = NTableClient::MaxRowWeightLimit;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -166,6 +172,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TYamrFormatConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamredDsvFormatConfig
@@ -213,6 +221,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TYamredDsvFormatConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulDsvFormatConfig
@@ -255,7 +265,8 @@ public:
             .Default('\\');
 
         RegisterParameter("columns", Columns)
-            .Default();
+            .Default()
+            .NonEmpty();
 
         RegisterParameter("missing_value_mode", MissingValueMode)
             .Default(EMissingValueMode::SkipRow);
@@ -265,20 +276,17 @@ public:
 
         RegisterValidator([&] () {
             yhash_set<Stroka> names;
-
             for (const auto& name : Columns) {
                 if (!names.insert(name).second) {
-                    THROW_ERROR_EXCEPTION(
-                        "Duplicate column name encountered in \"columns\": %Qv",
+                    THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",
                         name);
                 }
-            }
-            if (Columns.empty()) {
-                THROW_ERROR_EXCEPTION("Columns should be non-empty");
             }
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchemafulDsvFormatConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
