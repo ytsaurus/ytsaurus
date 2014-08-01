@@ -106,6 +106,8 @@ public:
 
         REGISTER(TWriteJournalExecutor,      "write_journal"     );
         REGISTER(TReadJournalExecutor,       "read_journal"      );
+
+        REGISTER(TBuildSnapshotExecutor,     "build_snapshot"    );
 #undef REGISTER
     }
 
