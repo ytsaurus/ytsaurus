@@ -16,17 +16,16 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulDsvConsumer::TSchemafulDsvConsumer(
-        TOutputStream* stream,
-        TSchemafulDsvFormatConfigPtr config)
+    TOutputStream* stream,
+    TSchemafulDsvFormatConfigPtr config)
     : Stream_(stream)
     , Config_(config)
     , Table_(Config_)
-    , Keys_(Config_->Columns.begin(), Config_->Columns.end())
-    , ValueCount_(0)
-    , TableIndex_(0)
-    , State_(EState::None)
 {
-    // Initialize Values_ with alive keys
+    const auto& columns = Config_->GetColumnsOrThrow();
+    Keys_.insert(columns.begin(), columns.end());
+
+    // Initialize Values_ with alive keys.
     for (const auto& key: Keys_) {
         Values_[key] = TStringBuf();
     }
@@ -187,7 +186,7 @@ void TSchemafulDsvConsumer::WriteRow()
             Stream_->Write(Config_->FieldSeparator);
         }
         for (int i = 0; i < Keys_.size(); ++i) {
-            auto key = Config_->Columns[i];
+            auto key = (*Config_->Columns)[i];
             TStringBuf value = Values_[key];
             if (!value.IsInited()) {
                 value = Config_->MissingValueSentinel;
@@ -237,16 +236,21 @@ TAsyncError TSchemafulDsvWriter::Open(
     const TTableSchema& schema,
     const TNullable<TKeyColumns>& /*keyColumns*/)
 {
-    for (const auto& name : Config_->Columns) {
-        int id;
-        try {
-            id = schema.GetColumnIndexOrThrow(name);
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
+    if (Config_->Columns) {
+        for (const auto& name : *Config_->Columns) {
+            int id;
+            try {
+                id = schema.GetColumnIndexOrThrow(name);
+            } catch (const std::exception& ex) {
+                return MakeFuture(TError(ex));
+            }
+            ColumnIdMapping_.push_back(id);
         }
-        ColumnIdMapping_.push_back(id);
+    } else {
+        for (int id = 0; id < schema.Columns().size(); ++id) {
+            ColumnIdMapping_.push_back(id);
+        }
     }
-
     return OKFuture;
 }
 

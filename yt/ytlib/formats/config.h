@@ -237,7 +237,7 @@ public:
     bool EnableEscaping;
     char EscapingSymbol;
 
-    std::vector<Stroka> Columns;
+    TNullable<std::vector<Stroka>> Columns;
 
     DECLARE_ENUM(EMissingValueMode,
         (SkipRow)
@@ -248,6 +248,14 @@ public:
     EMissingValueMode MissingValueMode;
     Stroka MissingValueSentinel;
 
+
+    const std::vector<Stroka>& GetColumnsOrThrow() const
+    {
+        if (!Columns) {
+            THROW_ERROR_EXCEPTION("Missing \"columns\" attribute in schemaful DSV format");
+        }
+        return *Columns;
+    }
 
     TSchemafulDsvFormatConfig()
     {
@@ -265,8 +273,7 @@ public:
             .Default('\\');
 
         RegisterParameter("columns", Columns)
-            .Default()
-            .NonEmpty();
+            .Default();
 
         RegisterParameter("missing_value_mode", MissingValueMode)
             .Default(EMissingValueMode::SkipRow);
@@ -275,11 +282,13 @@ public:
             .Default("");
 
         RegisterValidator([&] () {
-            yhash_set<Stroka> names;
-            for (const auto& name : Columns) {
-                if (!names.insert(name).second) {
-                    THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",
-                        name);
+            if (Columns) {
+                yhash_set<Stroka> names;
+                for (const auto& name : *Columns) {
+                    if (!names.insert(name).second) {
+                        THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",
+                            name);
+                    }
                 }
             }
         });

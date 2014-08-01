@@ -54,10 +54,10 @@ private:
 
     std::vector<Stroka> ValueHolder_;
 
-    int ValueCount_;
+    int ValueCount_ = 0;
     TStringBuf CurrentKey_;
 
-    int TableIndex_;
+    int TableIndex_ = 0;
 
     DECLARE_ENUM(EState,
         (None)
@@ -68,7 +68,7 @@ private:
         (ExpectEntity)
     );
 
-    EState State_;
+    EState State_ = EState::None;
 
     NTableClient::EControlAttribute ControlAttribute_;
 

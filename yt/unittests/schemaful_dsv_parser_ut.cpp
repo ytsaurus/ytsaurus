@@ -40,8 +40,9 @@ TEST(TSchemafulDsvParserTest, Simple)
         "100\tmax\\tignat\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns.push_back("a");
-    config->Columns.push_back("b");
+    config->Columns = std::vector<Stroka>();
+    config->Columns->push_back("a");
+    config->Columns->push_back("b");
 
     ParseSchemafulDsv(input, &Mock, config);
 }
@@ -91,7 +92,8 @@ TEST(TSchemafulDsvParserTest, TableIndex)
         "0\tz\n";
 
     auto config = New<TSchemafulDsvFormatConfig>();
-    config->Columns.push_back("a");
+    config->Columns = std::vector<Stroka>();
+    config->Columns->push_back("a");
     config->EnableTableIndex = true;
 
     ParseSchemafulDsv(input, &Mock, config);

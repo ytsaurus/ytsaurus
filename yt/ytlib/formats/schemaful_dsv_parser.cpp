@@ -27,16 +27,17 @@ public:
 private:
     IYsonConsumer* Consumer_;
     TSchemafulDsvFormatConfigPtr Config_;
+    const std::vector<Stroka>& Columns_;
 
     TSchemafulDsvTable Table_;
 
-    bool NewRecordStarted_;
-    bool ExpectingEscapedChar_;
+    bool NewRecordStarted_ = false;
+    bool ExpectingEscapedChar_ = false;
 
-    int RowIndex_;
-    int FieldIndex_;
+    int RowIndex_ = 0;
+    int FieldIndex_ = 0;
 
-    int TableIndex_;
+    int TableIndex_ = 0;
 
     Stroka CurrentToken_;
 
@@ -51,12 +52,8 @@ TSchemafulDsvParser::TSchemafulDsvParser(
         TSchemafulDsvFormatConfigPtr config)
     : Consumer_(consumer)
     , Config_(config)
+    , Columns_(Config_->GetColumnsOrThrow())
     , Table_(Config_)
-    , NewRecordStarted_(false)
-    , ExpectingEscapedChar_(false)
-    , RowIndex_(0)
-    , FieldIndex_(0)
-    , TableIndex_(0)
 { }
 
 void TSchemafulDsvParser::Read(const TStringBuf& data)
@@ -106,15 +103,15 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         }
     }
 
-    Consumer_->OnKeyedItem(Config_->Columns[FieldIndex_++]);
+    Consumer_->OnKeyedItem(Columns_[FieldIndex_++]);
     Consumer_->OnStringScalar(CurrentToken_);
     CurrentToken_.clear();
 
     if (*next == Config_->RecordSeparator) {
-        if (FieldIndex_ != Config_->Columns.size()) {
+        if (FieldIndex_ != Columns_.size()) {
             THROW_ERROR_EXCEPTION("Row %v is incomplete: expected %v fields but found %v",
                 RowIndex_,
-                Config_->Columns.size(),
+                Columns_.size(),
                 FieldIndex_);
         }
         Consumer_->OnEndMap();
