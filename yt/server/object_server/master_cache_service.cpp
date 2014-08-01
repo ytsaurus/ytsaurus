@@ -143,18 +143,18 @@ private:
             if (entry) {
                 if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
                     LOG_DEBUG("Cache hit (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                        ~ToString(key),
-                        ~FormatBool(entry->GetSuccess()),
-                        ~ToString(successExpirationTime),
-                        ~ToString(failureExpirationTime));
+                        key,
+                        entry->GetSuccess(),
+                        successExpirationTime,
+                        failureExpirationTime);
                     return MakeFuture(TErrorOr<TSharedRefArray>(entry->GetResponseMessage()));
                 }
 
                 LOG_DEBUG("Cache entry expired (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
-                    ~ToString(key),
-                    ~FormatBool(entry->GetSuccess()),
-                    ~ToString(successExpirationTime),
-                    ~ToString(failureExpirationTime));
+                    key,
+                    entry->GetSuccess(),
+                    successExpirationTime,
+                    failureExpirationTime);
 
                 Remove(entry);
             }
@@ -165,7 +165,7 @@ private:
 
             if (inserting) {
                 LOG_DEBUG("Populating cache (Key: {%v})",
-                    ~ToString(key));
+                    key);
 
                 TObjectServiceProxy proxy(Owner_->MasterChannel_);
                 auto req = proxy.Execute();
@@ -199,8 +199,8 @@ private:
         {
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry added (Key: {%v}, Success: %v, TotalSpace: %v" ")",
-                ~ToString(key),
-                ~FormatBool(entry->GetSuccess()),
+                key,
+                entry->GetSuccess(),
                 entry->GetTotalSpace());
         }
 
@@ -211,7 +211,7 @@ private:
                 ~key.Path,
                 ~key.Service,
                 ~key.Method,
-                ~FormatBool(entry->GetSuccess()),
+                entry->GetSuccess(),
                 entry->GetTotalSpace());
         }
 
@@ -252,8 +252,8 @@ private:
             auto responseError = FromProto<TError>(responseHeader.error());
 
             LOG_DEBUG("Cache population request succeded (Key: {%v}, Error: %v)",
-                ~ToString(key),
-                ~ToString(responseError));
+                key,
+                responseError);
 
             auto entry = New<TEntry>(
                 cookie->GetKey(),
@@ -300,7 +300,7 @@ private:
         void Invoke()
         {
             LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
-                ~ToString(Context_->GetRequestId()),
+                Context_->GetRequestId(),
                 static_cast<int>(Promises_.size()));
             Request_->Invoke().Subscribe(BIND(&TMasterRequest::OnResponse, MakeStrong(this)));
         }
@@ -317,7 +317,7 @@ private:
         {
             if (!rsp->IsOK()) {
                 LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
-                    ~ToString(Context_->GetRequestId()));
+                    Context_->GetRequestId());
                 for (auto& promise : Promises_) {
                     promise.Set(rsp->GetError());
                 }
@@ -325,7 +325,7 @@ private:
             }
 
             LOG_DEBUG("Cache bypass request succeded (RequestId: %v)",
-                ~ToString(Context_->GetRequestId()));
+                Context_->GetRequestId());
 
             YCHECK(rsp->part_counts_size() == Promises_.size());
 
@@ -388,9 +388,9 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
             }
 
             LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
-                ~ToString(requestId),
+                requestId,
                 subrequestIndex,
-                ~ToString(key));
+                key);
 
             responseCollector->Collect(Cache_->Lookup(
                 key,
@@ -399,9 +399,9 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 TDuration::MilliSeconds(cachingRequestHeaderExt.failure_expiration_time())));
         } else {
             LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
-                ~ToString(requestId),
+                requestId,
                 subrequestIndex,
-                ~ToString(key));
+                key);
 
             if (!masterRequest) {
                 masterRequest = New<TMasterRequest>(MasterChannel_, context);

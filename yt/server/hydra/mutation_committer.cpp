@@ -82,7 +82,7 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation is batched at version %v", ~ToString(currentVersion));
+        LOG_DEBUG("Mutation is batched at version %v", currentVersion);
     }
 
     TAsyncError GetQuorumFlushResult()
@@ -533,8 +533,8 @@ TAsyncError TFollowerCommitter::DoLogMutations(
         return MakeFuture(TError(
             NHydra::EErrorCode::OutOfOrderMutations,
             "Out-of-order mutations received by follower: expected %v but got %v",
-            ~ToString(currentVersion),
-            ~ToString(expectedVersion)));
+            currentVersion,
+            expectedVersion));
     }
 
     TAsyncError localFlushResult;

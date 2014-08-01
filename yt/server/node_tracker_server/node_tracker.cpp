@@ -338,8 +338,8 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 ~node->GetAddress(),
-                ~ToString(node->GetState()),
-                ~ToString(statistics));
+                node->GetState(),
+                statistics);
 
             YCHECK(node->GetState() == ENodeState::Registered);
             UpdateNodeCounters(node, -1);
@@ -374,8 +374,8 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 ~node->GetAddress(),
-                ~ToString(node->GetState()),
-                ~ToString(statistics));
+                node->GetState(),
+                statistics);
 
             YCHECK(node->GetState() == ENodeState::Online);
 
@@ -673,7 +673,7 @@ private:
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
                 ~address,
-                ~ToString(statistics));
+                statistics);
 
             NodeRegistered_.Fire(node);
 

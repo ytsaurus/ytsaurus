@@ -545,14 +545,14 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
         "Approximate: %v, DataSize: %v" " (%v" " local), RowCount: %v" ", ResourceLimits: {%v})",
-        ~ToString(joblet->Job->GetId()),
-        ~ToString(Controller->Operation->GetId()),
-        ~ToString(jobType),
+        joblet->Job->GetId(),
+        Controller->Operation->GetId(),
+        jobType,
         ~context->GetNode()->GetAddress(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
-        ~FormatBool(joblet->InputStripeList->IsApproximate),
+        joblet->InputStripeList->IsApproximate,
         joblet->InputStripeList->TotalDataSize,
         joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
@@ -1169,7 +1169,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     auto operationId = Operation->GetId();
 
     LOG_INFO("Starting async scheduler transaction (OperationId: %v)",
-        ~ToString(operationId));
+        operationId);
 
     TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
@@ -1211,8 +1211,8 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     }
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v, OperationId: %v)",
-        ~ToString(Operation->GetAsyncSchedulerTransaction()->GetId()),
-        ~ToString(operationId));
+        Operation->GetAsyncSchedulerTransaction()->GetId(),
+        operationId);
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
@@ -1220,7 +1220,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     auto operationId = Operation->GetId();
 
     LOG_INFO("Starting sync scheduler transaction (OperationId: %v)",
-        ~ToString(operationId));
+        operationId);
 
     TObjectServiceProxy proxy(AuthenticatedMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
@@ -1262,15 +1262,15 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v, OperationId: %v)",
-        ~ToString(Operation->GetSyncSchedulerTransaction()->GetId()),
-        ~ToString(operationId));
+        Operation->GetSyncSchedulerTransaction()->GetId(),
+        operationId);
 }
 
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
 {
     auto operationId = Operation->GetId();
 
-    LOG_INFO("Starting input transaction (OperationId: %v)", ~ToString(operationId));
+    LOG_INFO("Starting input transaction (OperationId: %v)", operationId);
 
     TObjectServiceProxy proxy(AuthenticatedInputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
@@ -1314,7 +1314,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 {
     auto operationId = Operation->GetId();
 
-    LOG_INFO("Starting output transaction (OperationId: %v)", ~ToString(operationId));
+    LOG_INFO("Starting output transaction (OperationId: %v)", operationId);
 
     TObjectServiceProxy proxy(AuthenticatedOutputMasterClient->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
@@ -1380,7 +1380,7 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
     for (auto& pair : InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
-            LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", ~ToString(pair.first));
+            LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", pair.first);
             for (const auto& inputStripe : chunkDescriptor.InputStripes) {
                 if (inputStripe.Stripe->WaitingChunkCount == 0) {
                     inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
@@ -1687,10 +1687,10 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
-        LOG_WARNING("Intermediate chunk %v has failed", ~ToString(chunkId));
+        LOG_WARNING("Intermediate chunk %v has failed", chunkId);
         OnIntermediateChunkUnavailable(chunkId);
     } else {
-        LOG_WARNING("Input chunk %v has failed", ~ToString(chunkId));
+        LOG_WARNING("Input chunk %v has failed", chunkId);
         OnInputChunkUnavailable(chunkId, it->second);
     }
 }
@@ -1700,7 +1700,7 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     if (descriptor.State != EInputChunkState::Waiting)
         return;
 
-    LOG_TRACE("Input chunk is available (ChunkId: %v)", ~ToString(chunkId));
+    LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
 
     --UnavailableInputChunkCount;
     YCHECK(UnavailableInputChunkCount >= 0);
@@ -1732,14 +1732,14 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     if (descriptor.State != EInputChunkState::Active)
         return;
 
-    LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", ~ToString(chunkId));
+    LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
 
     ++UnavailableInputChunkCount;
 
     switch (Spec->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
             OnOperationFailed(TError("Input chunk %v is unavailable",
-                ~ToString(chunkId)));
+                chunkId));
             break;
 
         case EUnavailableChunkAction::Skip: {
@@ -1794,7 +1794,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
 
     LOG_INFO("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
         ~completedJob->Address,
-        ~ToString(completedJob->JobId),
+        completedJob->JobId,
         ~completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
         completedJob->InputCookie);
@@ -2168,7 +2168,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
                         ~task->GetId(),
-                        ~ToString(deadline));
+                        deadline);
                     delayedTasks.insert(std::make_pair(deadline, task));
                     candidateTasks.erase(it++);
                     continue;
@@ -2735,7 +2735,7 @@ void TOperationControllerBase::RequestOutputObjects()
                 table.OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                 LOG_INFO("Output table prepared for update (Path: %v, ChunkListId: %v)",
                     ~path,
-                    ~ToString(table.OutputChunkListId));
+                    table.OutputChunkListId);
             }
         }
     }
@@ -2992,11 +2992,11 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
                         THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
-                            ~ToString(chunkId));
+                            chunkId);
 
                     case EUnavailableChunkAction::Skip:
                         LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
-                            ~ToString(chunkId));
+                            chunkId);
                         continue;
 
                     case EUnavailableChunkAction::Wait:
@@ -3046,7 +3046,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
 
         LOG_TRACE("Slicing chunk (ChunkId: %v, SliceCount: %v)",
-            ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
+            FromProto<TChunkId>(chunkSpec->chunk_id()),
             static_cast<int>(result.size() - oldSize));
     }
     return result;
@@ -3165,7 +3165,7 @@ void TOperationControllerBase::RegisterOutput(
 
     LOG_DEBUG("Output chunk tree registered (Table: %v, ChunkTreeId: %v, Key: %v)",
         tableIndex,
-        ~ToString(chunkTreeId),
+        chunkTreeId,
         key);
 }
 

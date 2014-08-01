@@ -47,7 +47,7 @@ public:
         Owner_->LeaderCommitter_->Flush();
         Owner_->LeaderCommitter_->SuspendLogging();
 
-        LOG_INFO("Starting distributed changelog rotation at version %v", ~ToString(Version_));
+        LOG_INFO("Starting distributed changelog rotation at version %v", Version_);
 
         Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))

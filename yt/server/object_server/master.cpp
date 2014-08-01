@@ -65,8 +65,8 @@ private:
         auto type = EObjectType(request->type());
 
         context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v, ObjectCount: %v",
-            ~ToString(transactionId),
-            ~ToString(type),
+            transactionId,
+            type,
             request->has_account() ? ~request->account() : "<Null>",
             request->object_count());
 
@@ -100,7 +100,7 @@ private:
             ToProto(response->add_object_ids(), objectId);
 
             if (index == 0) {
-                context->SetResponseInfo("ObjectId: %v", ~ToString(objectId));
+                context->SetResponseInfo("ObjectId: %v", objectId);
             }
         }
         
@@ -116,8 +116,8 @@ private:
         auto objectId = FromProto<TObjectId>(request->object_id());
         bool recursive = request->recursive();
         context->SetRequestInfo("ObjectId: %v, Recursive: %v",
-            ~ToString(objectId),
-            ~FormatBool(recursive));
+            objectId,
+            recursive);
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);

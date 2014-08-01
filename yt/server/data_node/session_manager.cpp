@@ -72,7 +72,7 @@ ISessionPtr TSessionManager::GetSession(const TChunkId& chunkId)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
             "Session %v is invalid or expired",
-            ~ToString(chunkId));
+            chunkId);
     }
     return session;
 }
@@ -153,7 +153,7 @@ void TSessionManager::OnSessionLeaseExpired(ISessionPtr session)
         return;
 
     LOG_INFO("Session lease expired (ChunkId: %v)",
-        ~ToString(session->GetChunkId()));
+        session->GetChunkId());
 
     session->Cancel(TError("Session lease expired"));
 }
@@ -163,7 +163,7 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_INFO("Session finished (ChunkId: %v)",
-        ~ToString(session->GetChunkId()));
+        session->GetChunkId());
 
     UnregisterSession(session);
 }

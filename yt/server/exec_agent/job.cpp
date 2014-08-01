@@ -532,7 +532,7 @@ private:
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
 
             if (IsErasureChunkId(chunkId)) {
-                DoAbort(TError("Cannot download erasure chunk %v", ~ToString(chunkId)));
+                DoAbort(TError("Cannot download erasure chunk %v", chunkId));
                 break;
             }
 
@@ -542,7 +542,7 @@ private:
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
                             "Failed to download chunk %v",
-                            ~ToString(chunkId))
+                            chunkId)
                             << result;
                         this_->DoAbort(wrappedError);
                         return;
@@ -596,7 +596,7 @@ private:
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
             ~fileName,
-            ~ToString(chunkId));
+            chunkId);
 
         auto chunkCache = Bootstrap->GetChunkCache();
         auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));

@@ -711,8 +711,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     }
 
     context->SetRequestInfo("Mode: %v, Waitable: %v",
-        ~ToString(mode),
-        ~FormatBool(waitable));
+        mode,
+        waitable);
 
     ValidateTransaction();
     ValidatePermission(
@@ -729,7 +729,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     ToProto(response->mutable_lock_id(), lockId);
 
     context->SetResponseInfo("LockId: %v",
-        ~ToString(lockId));
+        lockId);
 
     context->Reply();
 }
@@ -742,9 +742,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     const auto& path = GetRequestYPath(context);
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
-        ~ToString(type),
-        ~FormatBool(request->ignore_existing()),
-        ~FormatBool(request->recursive()));
+        type,
+        request->ignore_existing(),
+        request->recursive());
 
     if (path.Empty()) {
         if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
@@ -781,7 +781,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     factory->Commit();
 
-    context->SetResponseInfo("NodeId: %v", ~ToString(newProxy->GetId()));
+    context->SetResponseInfo("NodeId: %v", newProxy->GetId());
 
     context->Reply();
 }
@@ -797,8 +797,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
         ~sourcePath,
-        ~FormatBool(preserveAccount),
-        ~FormatBool(removeSource));
+        preserveAccount,
+        removeSource);
 
     auto sourceProxy = ResolveSourcePath(sourcePath);
 
@@ -854,7 +854,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 
-    context->SetRequestInfo("NodeId: %v", ~ToString(clonedTrunkImpl->GetId()));
+    context->SetRequestInfo("NodeId: %v", clonedTrunkImpl->GetId());
 
     context->Reply();
 }

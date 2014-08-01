@@ -170,8 +170,8 @@ public:
         }
 
         LOG_INFO("Tablet descriptor added (TabletId: %v, CellGuid: %v)",
-            ~ToString(tablet->GetId()),
-            ~ToString(tablet->GetSlot()->GetCellGuid()));
+            tablet->GetId(),
+            tablet->GetSlot()->GetCellGuid());
     }
 
     void UnregisterTablet(TTablet* tablet)
@@ -185,8 +185,8 @@ public:
         }
 
         LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
-            ~ToString(tablet->GetId()),
-            ~ToString(tablet->GetSlot()->GetCellGuid()));
+            tablet->GetId(),
+            tablet->GetSlot()->GetCellGuid());
     }
 
     void UpdateTablet(TTablet* tablet)
@@ -203,8 +203,8 @@ public:
         }
 
         LOG_INFO("Tablet descriptor updated (TabletId: %v, CellGuid: %v)",
-            ~ToString(tablet->GetId()),
-            ~ToString(tablet->GetSlot()->GetCellGuid()));
+            tablet->GetId(),
+            tablet->GetSlot()->GetCellGuid());
     }
 
     void UnregisterTablets(TTabletSlotPtr slot)
@@ -217,8 +217,8 @@ public:
             auto jt = it++;
             if (jt->second->Slot == slot) {
                 LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
-                    ~ToString(jt->first),
-                    ~ToString(slot->GetCellGuid()));
+                    jt->first,
+                    slot->GetCellGuid());
                 TabletIdToDescriptor_.erase(jt);
             }
         }

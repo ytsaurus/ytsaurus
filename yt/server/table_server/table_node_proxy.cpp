@@ -338,7 +338,7 @@ private:
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
             firstTabletIndex,
             lastTabletIndex,
-            ~FormatBool(force));
+            force);
 
         ValidateNoTransaction();
 

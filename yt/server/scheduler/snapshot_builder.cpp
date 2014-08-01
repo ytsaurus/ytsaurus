@@ -82,7 +82,7 @@ TAsyncError TSnapshotBuilder::Run()
         Jobs.push_back(job);
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
     return TSnapshotBuilderBase::Run().Apply(

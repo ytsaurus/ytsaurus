@@ -213,13 +213,13 @@ private:
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
-            ~ToString(node->GetId()),
-            ~ToString(chunkList->GetId()));
+            node->GetId(),
+            chunkList->GetId());
 
         ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
 
         context->SetResponseInfo("ChunkListId: %v",
-            ~ToString(chunkList->GetId()));
+            chunkList->GetId());
 
         context->Reply();
     }

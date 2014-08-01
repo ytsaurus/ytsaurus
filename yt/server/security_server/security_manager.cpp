@@ -503,7 +503,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
                 "No such user %v",
-                ~ToString(id));
+                id);
         }
         return user;
     }
@@ -756,10 +756,10 @@ public:
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
                                     LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
-                                        ~ToString(object->GetId()),
-                                        ~ToString(permission),
+                                        object->GetId(),
+                                        permission,
                                         ~user->GetName(),
-                                        ~ToString(result.Object->GetId()),
+                                        result.Object->GetId(),
                                         ~result.Subject->GetName());
                                     return result;
                                 }
@@ -780,18 +780,18 @@ public:
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
             LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
-                ~ToString(object->GetId()),
-                ~ToString(permission),
+                object->GetId(),
+                permission,
                 ~user->GetName());
             result.Action = ESecurityAction::Deny;
             return result;
         } else {
             YASSERT(result.Action == ESecurityAction::Allow);
             LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
-                ~ToString(object->GetId()),
-                ~ToString(permission),
+                object->GetId(),
+                permission,
                 ~user->GetName(),
-                ~ToString(result.Object->GetId()),
+                result.Object->GetId(),
                 ~result.Subject->GetName());
             return result;
         }
@@ -823,7 +823,7 @@ public:
             }
             error.Attributes().Set("permission", ~FormatEnum(permission));
             error.Attributes().Set("user", user->GetName());
-            error.Attributes().Set("object", ~ToString(object->GetId()));
+            error.Attributes().Set("object", object->GetId());
             if (result.Object) {
                 error.Attributes().Set("denied_by", result.Object->GetId());
             }

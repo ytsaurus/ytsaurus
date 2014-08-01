@@ -240,7 +240,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 EErrorCode::NoSuchOperation,
                 "No such operation %v",
-                ~ToString(id));
+                id);
         }
         return operation;
     }
@@ -334,15 +334,15 @@ public:
         operation->SetState(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, MutationId: %v, User: %v)",
-            ~ToString(type),
-            ~ToString(operationId),
-            ~ToString(transactionId),
-            ~ToString(mutationId),
+            type,
+            operationId,
+            transactionId,
+            mutationId,
             ~user);
 
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
-            ~ToString(operationId),
+            operationId,
             ~FormatResources(GetTotalResourceLimits()));
 
         // Spawn a new fiber where all startup logic will work asynchronously.
@@ -359,21 +359,21 @@ public:
 
         if (operation->IsFinishingState()) {
             LOG_INFO(error, "Operation is already finishing (OperationId: %v, State: %v)",
-                ~ToString(operation->GetId()),
-                ~ToString(operation->GetState()));
+                operation->GetId(),
+                operation->GetState());
             return operation->GetFinished();
         }
 
         if (operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already finished (OperationId: %v, State: %v)",
-                ~ToString(operation->GetId()),
-                ~ToString(operation->GetState()));
+                operation->GetId(),
+                operation->GetState());
             return operation->GetFinished();
         }
 
         LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
-            ~ToString(operation->GetId()),
-            ~ToString(operation->GetState()));
+            operation->GetId(),
+            operation->GetState());
 
         TerminateOperation(
             operation,
@@ -399,7 +399,7 @@ public:
         operation->SetSuspended(true);
 
         LOG_INFO("Operation suspended (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
 
 
         return OKFuture;
@@ -417,7 +417,7 @@ public:
         operation->SetSuspended(false);
 
         LOG_INFO("Operation resumed (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
 
         return OKFuture;
     }
@@ -483,8 +483,8 @@ public:
                 for (auto job : missingJobs) {
                     LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                         ~node->GetAddress(),
-                        ~ToString(job->GetId()),
-                        ~ToString(job->GetOperation()->GetId()));
+                        job->GetId(),
+                        job->GetOperation()->GetId());
                     AbortJob(job, TError("Job vanished"));
                     UnregisterJob(job);
                 }
@@ -619,7 +619,7 @@ public:
         }
 
         LOG_INFO("Committing operation (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation);
@@ -635,7 +635,7 @@ public:
     virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
     {
         LOG_INFO(error, "Operation failed (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
 
         TerminateOperation(
             operation,
@@ -942,7 +942,7 @@ private:
         try {
             // Run async preparation.
             LOG_INFO("Preparing operation (OperationId: %v)",
-                ~ToString(operationId));
+                operationId);
 
             operation->SetState(EOperationState::Preparing);
 
@@ -964,7 +964,7 @@ private:
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         LogOperationProgress(operation);
 
@@ -988,7 +988,7 @@ private:
         auto operationId = operation->GetId();
 
         LOG_INFO("Reviving operation (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         // NB: The operation is being revived, hence it already
         // has a valid node associated with it.
@@ -1000,7 +1000,7 @@ private:
             operation->SetController(controller);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
-                ~ToString(operationId));
+                operationId);
             auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
@@ -1048,7 +1048,7 @@ private:
                 throw TFiberCanceledException();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
-                ~ToString(operation->GetId()));
+                operation->GetId());
             auto wrappedError = TError("Operation has failed to revive") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector_->FlushOperationNode(operation);
@@ -1061,7 +1061,7 @@ private:
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
 
@@ -1076,7 +1076,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node online (Descriptor: %v)", ~ToString(descriptor.GetDefaultAddress()));
+        LOG_INFO("Node online (Descriptor: %v)", descriptor.GetDefaultAddress());
 
         auto node = New<TExecNode>(descriptor);
 
@@ -1110,8 +1110,8 @@ private:
         for (auto job : jobs) {
             LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 ~address,
-                ~ToString(job->GetId()),
-                ~ToString(job->GetOperation()->GetId()));
+                job->GetId(),
+                job->GetOperation()->GetId());
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
@@ -1138,7 +1138,7 @@ private:
             BIND(&TImpl::HandleOperationRuntimeParams, Unretained(this), operation));
 
         LOG_DEBUG("Operation registered (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
     void AbortOperationJobs(TOperationPtr operation)
@@ -1164,7 +1164,7 @@ private:
         OperationUnregistered_.Fire(operation);
 
         LOG_DEBUG("Operation unregistered (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
     void LogOperationProgress(TOperationPtr operation)
@@ -1175,7 +1175,7 @@ private:
         LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
             ~operation->GetController()->GetLoggingProgress(),
             ~Strategy_->GetOperationLoggingProgress(operation),
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
@@ -1193,7 +1193,7 @@ private:
         YCHECK(operation->GetState() == EOperationState::Completing);
 
         LOG_INFO("Committing scheduler transactions (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
 
         auto commitTransaction = [&] (TTransactionPtr transaction) {
             if (!transaction) {
@@ -1211,7 +1211,7 @@ private:
         commitTransaction(operation->GetSyncSchedulerTransaction());
 
         LOG_INFO("Scheduler transactions committed (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
 
         // NB: Never commit async transaction since it's used for writing Live Preview tables.
         operation->GetAsyncSchedulerTransaction()->Abort();
@@ -1258,9 +1258,9 @@ private:
         JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
-            ~ToString(job->GetId()),
-            ~ToString(job->GetType()),
-            ~ToString(operation->GetId()));
+            job->GetId(),
+            job->GetType(),
+            operation->GetId());
     }
 
     void UnregisterJob(TJobPtr job)
@@ -1277,8 +1277,8 @@ private:
         JobFinished_.Fire(job);
 
         LOG_DEBUG("Job unregistered (JobId: %v, OperationId: %v)",
-            ~ToString(job->GetId()),
-            ~ToString(operation->GetId()));
+            job->GetId(),
+            operation->GetId());
     }
 
     void AbortJob(TJobPtr job, const TError& error)
@@ -1302,8 +1302,8 @@ private:
     void PreemptJob(TJobPtr job)
     {
         LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
-            ~ToString(job->GetId()),
-            ~ToString(job->GetOperation()->GetId()));
+            job->GetId(),
+            job->GetOperation()->GetId());
 
         job->GetNode()->ResourceUsage() -= job->ResourceUsage();
         JobUpdated_.Fire(job, -job->ResourceUsage());
@@ -1535,7 +1535,7 @@ private:
         auto operationId = operation->GetId();
 
         LOG_INFO("Completing operation (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         if (operation->GetState() != EOperationState::Completing) {
             throw TFiberCanceledException();
@@ -1565,7 +1565,7 @@ private:
             CommitSchedulerTransactions(operation);
 
             LOG_INFO("Operation transactions committed (OperationId: %v)",
-                ~ToString(operationId));
+                operationId);
 
             YCHECK(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
@@ -1812,8 +1812,8 @@ private:
                 if (jobStatus->has_result()) {
                     const auto& statistics = jobStatus->result().statistics();
                     LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v" ")",
-                        ~ToString(statistics.input()),
-                        ~ToString(statistics.output()),
+                        statistics.input(),
+                        statistics.output(),
                         statistics.time());
                 } else {
                     LOG_INFO("Job completed, removal scheduled");
@@ -1844,9 +1844,9 @@ private:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %v, JobType: %v, JobId: %v, OperationId: %v)",
                         ~jobAddress,
-                        ~ToString(job->GetType()),
-                        ~ToString(jobId),
-                        ~ToString(operation->GetId()));
+                        job->GetType(),
+                        jobId,
+                        operation->GetId());
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {

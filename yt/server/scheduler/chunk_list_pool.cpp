@@ -65,7 +65,7 @@ TChunkListId TChunkListPool::Extract()
     Ids.pop_back();
 
     LOG_DEBUG("Extracted chunk list %v from the pool, %v remaining",
-        ~ToString(id),
+        id,
         static_cast<int>(Ids.size()));
 
     return id;

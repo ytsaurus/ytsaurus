@@ -383,7 +383,7 @@ protected:
         if (tableIndex) {
             chunkSpec->clear_partition_tag();
             LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
-                ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
+                FromProto<TChunkId>(chunkSpec->chunk_id()),
                 CurrentPartitionIndex);
 
             // Place the chunk directly to the output table.
@@ -1219,7 +1219,7 @@ private:
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     globalOpenedSlices.size(),
-                    ~ToString(nextBreakpoint));
+                    nextBreakpoint);
 
                 for (const auto& chunkSpec : globalOpenedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(
@@ -1588,7 +1588,7 @@ private:
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
                 //LOG_DEBUG("Finish current task, flushing %v chunks at key %v",
                 //    openedSlices.size(),
-                //    ~ToString(nextBreakpoint));
+                //    nextBreakpoint);
 
                 for (const auto& chunkSpec : openedSlices) {
                     this->AddPendingChunk(CreateChunkSlice(

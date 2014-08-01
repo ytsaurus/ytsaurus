@@ -113,7 +113,7 @@ public:
 
         auto id = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
-            ~ToString(id));
+            id);
 
         auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
@@ -160,7 +160,7 @@ public:
 
         auto id = operation->GetId();
         LOG_INFO("Resetting reviving operation node (OperationId: %v)",
-            ~ToString(id));
+            id);
 
         auto* list = GetUpdateList(operation);
         auto batchReq = StartBatchRequest(list);
@@ -194,12 +194,12 @@ public:
 
         auto id = operation->GetId();
         LOG_INFO("Flushing operation node (OperationId: %v)",
-            ~ToString(id));
+            id);
 
         auto* list = FindUpdateList(operation);
         if (!list) {
             LOG_INFO("Operation node is not registered, omitting flush (OperationId: %v)",
-                ~ToString(id));
+                id);
             return VoidFuture;
         }
 
@@ -243,9 +243,9 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Attaching live preview chunk tree (OperationId: %v, ChunkListId: %v, ChildId: %v)",
-            ~ToString(operation->GetId()),
-            ~ToString(chunkListId),
-            ~ToString(childId));
+            operation->GetId(),
+            chunkListId,
+            childId);
 
         auto* list = GetUpdateList(operation);
         TLivePreviewRequest request;
@@ -263,8 +263,8 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, ChunkListId: %v, ChildrenCount: %v)",
-            ~ToString(operation->GetId()),
-            ~ToString(chunkListId),
+            operation->GetId(),
+            chunkListId,
             static_cast<int>(childrenIds.size()));
 
         auto* list = GetUpdateList(operation);
@@ -536,7 +536,7 @@ private:
                 auto transactionManager = Owner->Bootstrap->GetMasterClient()->GetTransactionManager();
                 Owner->LockTransaction = transactionManager->Attach(options);
 
-                LOG_INFO("Lock transaction is %v", ~ToString(transactionId));
+                LOG_INFO("Lock transaction is %v", transactionId);
             }
         }
 
@@ -682,8 +682,8 @@ private:
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
                                 LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
-                                    ~ToString(operation->GetId()),
-                                    ~ToString(transaction->GetId()));
+                                    operation->GetId(),
+                                    transaction->GetId());
                             }
                         }));
                 };
@@ -727,7 +727,7 @@ private:
             // Check for missing snapshots.
             if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
                 LOG_INFO("Snapshot does not exist, will use clean start (OperationId: %v)",
-                    ~ToString(operationId));
+                    operationId);
                 return false;
             }
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting snapshot version");
@@ -735,18 +735,18 @@ private:
             int version = ConvertTo<int>(TYsonString(rsp->value()));
 
             LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
-                ~ToString(operationId),
+                operationId,
                 version);
 
             if (!ValidateSnapshotVersion(version)) {
                 LOG_INFO("Snapshot version validation failed, will use clean start (OperationId: %v)",
-                    ~ToString(operationId));
+                    operationId);
                 return false;
             }
 
             if (!Owner->Config->EnableSnapshotLoading) {
                 LOG_INFO("Snapshot loading is disabled in configuration (OperationId: %v)",
-                    ~ToString(operationId));
+                    operationId);
                 return false;
             }
 
@@ -763,7 +763,7 @@ private:
 
             // Everything seems OK.
             LOG_INFO("Operation state will be recovered from snapshot (OperationId: %v)",
-                ~ToString(operationId));
+                operationId);
             return true;
         }
 
@@ -788,7 +788,7 @@ private:
 
                 if (operation->GetCleanStart()) {
                     LOG_INFO("Aborting operation transactions (OperationId: %v)",
-                        ~ToString(operation->GetId()));
+                        operation->GetId());
 
                     // NB: Don't touch user transaction.
                     scheduleAbort(operation->GetSyncSchedulerTransaction());
@@ -801,7 +801,7 @@ private:
                     operation->SetOutputTransaction(nullptr);
                 } else {
                     LOG_INFO("Reusing operation transactions (OperationId: %v)",
-                        ~ToString(operation->GetId()));
+                        operation->GetId());
                 }
             }
 
@@ -1112,8 +1112,8 @@ private:
             }
 
             LOG_INFO("Expired user transaction found (OperationId: %v, TransactionId: %v)",
-                ~ToString(operation->GetId()),
-                ~ToString(transaction->GetId()));
+                operation->GetId(),
+                transaction->GetId());
             return false;
         };
 
@@ -1123,8 +1123,8 @@ private:
             }
 
             LOG_INFO("Expired scheduler transaction found (OperationId: %v, TransactionId: %v)",
-                ~ToString(operation->GetId()),
-                ~ToString(transaction->GetId()));
+                operation->GetId(),
+                transaction->GetId());
             return false;
         };
 
@@ -1150,7 +1150,7 @@ private:
     TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
         LOG_DEBUG("Operation update list registered (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
         TUpdateList list(Bootstrap->GetMasterClient()->GetMasterChannel(), operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetId(), list));
         YCHECK(pair.second);
@@ -1173,7 +1173,7 @@ private:
     void RemoveUpdateList(TOperationPtr operation)
     {
         LOG_DEBUG("Operation update list unregistered (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
         YCHECK(UpdateLists.erase(operation->GetId()));
     }
 
@@ -1219,7 +1219,7 @@ private:
                 finishedOperations.push_back(operation);
             } else {
                 LOG_DEBUG("Updating operation node (OperationId: %v)",
-                    ~ToString(operation->GetId()));
+                    operation->GetId());
 
                 auto batchReq = StartBatchRequest(&list);
                 PrepareOperationUpdate(&list, batchReq);
@@ -1253,7 +1253,7 @@ private:
         }
 
         LOG_DEBUG("Operation node updated (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
     void OnOperationNodesUpdated()
@@ -1464,7 +1464,7 @@ private:
         if (!batchRsp->IsOK()) {
             return TError(
                 "Error updating operation node (OperationId: %v)",
-                ~ToString(operationId))
+                operationId)
                 << batchRsp->GetError();
         }
 
@@ -1474,7 +1474,7 @@ private:
                 if (!rsp->IsOK()) {
                     return TError(
                         "Error updating operation node (OperationId: %v)",
-                        ~ToString(operationId))
+                        operationId)
                         << rsp->GetError();
                 }
             }
@@ -1489,7 +1489,7 @@ private:
                     LOG_WARNING(
                         rsp->GetError(),
                         "Error creating stderr node (OperationId: %v)",
-                        ~ToString(operationId));
+                        operationId);
                 }
             }
         }
@@ -1513,7 +1513,7 @@ private:
                     LOG_WARNING(
                         rsp->GetError(),
                         "Error updating live preview (OperationId: %v)",
-                        ~ToString(operationId));
+                        operationId);
                 }
             }
         }
@@ -1532,14 +1532,14 @@ private:
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Error creating operation node (OperationId: %v)",
-                ~ToString(operationId))
+                operationId)
                 << error;
             LOG_WARNING(wrappedError);
             return wrappedError;
         }
 
         LOG_INFO("Operation node created (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         return TError();
     }
@@ -1557,14 +1557,14 @@ private:
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Error resetting reviving operation node (OperationId: %v)",
-                ~ToString(operationId))
+                operationId)
                 << error;
             LOG_ERROR(wrappedError);
             return wrappedError;
         }
 
         LOG_INFO("Reviving operation node reset (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
 
         return TError();
     }
@@ -1586,7 +1586,7 @@ private:
         }
 
         LOG_INFO("Operation node flushed (OperationId: %v)",
-            ~ToString(operationId));
+            operationId);
     }
 
 
@@ -1663,7 +1663,7 @@ private:
 
         if (!batchRsp->IsOK()) {
             LOG_ERROR(*batchRsp, "Error updating operation watchers (OperationId: %v)",
-                ~ToString(operation->GetId()));
+                operation->GetId());
             return;
         }
 
@@ -1679,7 +1679,7 @@ private:
         }
 
         LOG_INFO("Operation watchers updated (OperationId: %v)",
-            ~ToString(operation->GetId()));
+            operation->GetId());
     }
 
 

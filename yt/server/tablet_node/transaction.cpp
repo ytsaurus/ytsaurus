@@ -191,7 +191,7 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
 void TTransaction::ThrowInvalidState() const
 {
     THROW_ERROR_EXCEPTION("Transaction %v is in %v state",
-        ~ToString(Id_),
+        Id_,
         ~FormatEnum(State_).Quote());
 }
 

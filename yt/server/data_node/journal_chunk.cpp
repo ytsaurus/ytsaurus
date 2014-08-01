@@ -126,7 +126,7 @@ void TJournalChunk::DoReadBlocks(
         auto changelog = dispatcher->OpenChangelog(Location_, Id_, false);
     
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-            ~ToString(Id_),
+            Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             ~Location_->GetId());

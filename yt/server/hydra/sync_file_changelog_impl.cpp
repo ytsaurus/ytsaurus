@@ -317,7 +317,7 @@ void TSyncFileChangelog::TImpl::Open()
 
     LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %v)",
         RecordCount_,
-        ~FormatBool(IsSealed()));
+        IsSealed());
 }
 
 void TSyncFileChangelog::TImpl::Close()

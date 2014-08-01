@@ -114,11 +114,11 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
     if (object->IsLocked()) {
         YCHECK(LockedZombies.insert(object).second);
         LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %v)",
-            ~ToString(object->GetId()));
+            object->GetId());
     } else {
         YCHECK(Zombies.insert(object).second);
         LOG_TRACE("Object is put into zombie queue (ObjectId: %v)",
-            ~ToString(object->GetId()));
+            object->GetId());
     }
 }
 
@@ -132,7 +132,7 @@ void TGarbageCollector::Unlock(TObjectBase* object)
     YCHECK(Zombies.insert(object).second);
     
     LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %v)",
-        ~ToString(object->GetId()));
+        object->GetId());
 }
 
 void TGarbageCollector::UnlockAll()

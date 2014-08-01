@@ -50,7 +50,7 @@ private:
         const auto& resourceUsage = request->resource_usage();
 
         context->SetRequestInfo("Descriptor: %v, ResourceUsage: {%v}",
-            ~ToString(descriptor),
+            descriptor,
             ~FormatResourceUsage(resourceUsage, resourceLimits));
 
         // NB: Don't call ValidateConnected.

@@ -271,7 +271,7 @@ public:
             if (stderrChunkId != NChunkServer::NullChunkId) {
                 auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 ToProto(schedulerResultExt->mutable_stderr_chunk_id(), stderrChunkId);
-                LOG_INFO("Stderr chunk generated (ChunkId: %v)", ~ToString(stderrChunkId));
+                LOG_INFO("Stderr chunk generated (ChunkId: %v)", stderrChunkId);
             }
         }
 
@@ -554,7 +554,7 @@ private:
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
             LOG_DEBUG("Get memory usage (JobId: %v, UsageInBytes: %v" ", MemoryLimit: %v" ")",
-                ~ToString(JobId),
+                JobId,
                 statistics.UsageInBytes,
                 memoryLimit);
 

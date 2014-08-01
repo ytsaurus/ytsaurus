@@ -80,7 +80,7 @@ ETransactionState TTransaction::GetPersistentState() const
 void TTransaction::ThrowInvalidState() const
 {
     THROW_ERROR_EXCEPTION("Transaction %v is in %v state",
-        ~ToString(Id),
+        Id,
         ~FormatEnum(State_).Quote());
 }
 

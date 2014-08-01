@@ -224,7 +224,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto permission = EPermission(request->permission());
     context->SetRequestInfo("User: %v, Permission: %v",
         ~userName,
-        ~ToString(permission));
+        permission);
 
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* user = securityManager->GetUserByNameOrThrow(userName);
@@ -240,9 +240,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     }
 
     context->SetResponseInfo("Action: %v, Object: %v, Subject: %v",
-        ~ToString(permission),
-        result.Object ? ~ToString(result.Object->GetId()) : "<Null>",
-        result.Subject ? ~ToString(result.Subject->GetId()) : "<Null>");
+        permission,
+        result.Object ? ToString(result.Object->GetId()) : "<Null>",
+        result.Subject ? ToString(result.Subject->GetId()) : "<Null>");
     context->Reply();
 }
 

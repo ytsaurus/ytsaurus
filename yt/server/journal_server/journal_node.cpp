@@ -203,8 +203,8 @@ protected:
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Journal node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
-            ~ToString(branchedNode->GetId()),
-            ~ToString(originatingNode->GetChunkList()->GetId()),
+            branchedNode->GetId(),
+            originatingNode->GetChunkList()->GetId(),
             originatingNode->GetReplicationFactor(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum());
@@ -231,8 +231,8 @@ protected:
         LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
-            ~ToString(originatingNode->GetVersionedId()),
-            ~ToString(branchedNode->GetVersionedId()));
+            originatingNode->GetVersionedId(),
+            branchedNode->GetVersionedId());
     }
 
     virtual void DoClone(

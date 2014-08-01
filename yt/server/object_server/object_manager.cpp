@@ -282,7 +282,7 @@ private:
                 NYTree::EErrorCode::ResolveError,
                 "Cannot resolve nontrivial path %v for nonversioned object %v",
                 ~path,
-                ~ToString(proxy->GetId()));
+                proxy->GetId());
         }
 
         auto resolvedNode = GetNodeByYPath(nodeProxy, path);
@@ -422,11 +422,11 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
-            ~ToString(type),
-            ~ToString(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
+            type,
+            MakeSchemaObjectId(type, Bootstrap->GetCellId()));
     } else {
         LOG_INFO("Type registered (Type: %v)",
-            ~ToString(type));
+            type);
     }
 }
 
@@ -486,8 +486,8 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     ++CreatedObjectCount;
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %v, Id: %v)",
-        ~ToString(type),
-        ~ToString(id));
+        type,
+        id);
 
     return id;
 }
@@ -499,7 +499,7 @@ void TObjectManager::RefObject(TObjectBase* object)
 
     int refCounter = object->RefObject();
     LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
-        ~ToString(object->GetId()),
+        object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
 }
@@ -511,7 +511,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 
     int refCounter = object->UnrefObject();
     LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
-        ~ToString(object->GetId()),
+        object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
 
@@ -698,7 +698,7 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
             "No such object %v",
-            ~ToString(id));
+            id);
     }
 
     return object;
@@ -830,7 +830,7 @@ TObjectBase* TObjectManager::CreateObject(
     auto handler = FindHandler(type);
     if (!handler) {
         THROW_ERROR_EXCEPTION("Unknown object type %v",
-            ~ToString(type));
+            type);
     }
 
     auto options = handler->GetCreationOptions();
@@ -953,8 +953,8 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
         ~context->GetService(),
         ~context->GetMethod(),
         ~GetRequestYPath(context),
-        ~ToString(objectId),
-        ~FormatBool(headerExt.mutating()),
+        objectId,
+        headerExt.mutating(),
         ~user->GetName());
 
     NProfiling::TTagIdList tagIds;
@@ -1026,8 +1026,8 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         ++DestroyedObjectCount;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
-            ~ToString(type),
-            ~ToString(id));
+            type,
+            id);
     }
 
     GarbageCollector->CheckEmpty();

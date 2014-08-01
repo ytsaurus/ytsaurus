@@ -119,7 +119,7 @@ public:
             ~manifest->RemoteAddress,
             ~path,
             ~method,
-            ~ToString(outerRequest->GetRequestId()));
+            outerRequest->GetRequestId());
 
         outerRequest->Invoke().Subscribe(
             BIND(
@@ -175,12 +175,12 @@ private:
     {
         if (response->IsOK()) {
             LOG_DEBUG("Orchid request succeded (RequestId: %v)",
-                ~ToString(context->GetRequestId()));
+                context->GetRequestId());
             auto innerResponseMessage = TSharedRefArray(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
             LOG_DEBUG(*response, "Orchid request failed (RequestId: %v)",
-                ~ToString(context->GetRequestId()));
+                context->GetRequestId());
             context->Reply(TError("Error executing an Orchid operation (Path: %v, Method: %v, RemoteAddress: %v, RemoteRoot: %v)",
                 ~path,
                 ~method,

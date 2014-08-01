@@ -85,9 +85,9 @@ void TFollowerTracker::SendPing(TPeerId followerId)
 
     LOG_DEBUG("Sending ping to follower %v (LoggedVersion: %v, CommittedVersion: %v, EpochId: %v)",
         followerId,
-        ~ToString(loggedVersion),
-        ~ToString(committedVersion),
-        ~ToString(EpochContext_->EpochId));
+        loggedVersion,
+        committedVersion,
+        EpochContext_->EpochId);
 
     THydraServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config_->RpcTimeout);
@@ -126,7 +126,7 @@ void TFollowerTracker::OnPingResponse(TPeerId followerId, THydraServiceProxy::TR
     auto state = EPeerState(rsp->state());
     LOG_DEBUG("Ping reply received from follower %v (State: %v)",
         followerId,
-        ~ToString(state));
+        state);
 
     SetFollowerState(followerId, state);
 }
@@ -139,8 +139,8 @@ void TFollowerTracker::SetFollowerState(TPeerId followerId, EPeerState newState)
 
     LOG_INFO("Follower %v state changed: %v -> %v",
         followerId,
-        ~ToString(oldState),
-        ~ToString(newState));
+        oldState,
+        newState);
 
     if (newState == EPeerState::Following && oldState != EPeerState::Following) {
         OnPeerActivated();

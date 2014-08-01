@@ -277,15 +277,15 @@ private:
         auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
         if (chunkReader) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
-                ~ToString(chunkId),
-                ~ToString(lowerBound),
-                ~ToString(upperBound),
+                chunkId,
+                lowerBound,
+                upperBound,
                 timestamp);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
-                ~ToString(chunkId),
-                ~ToString(lowerBound),
-                ~ToString(upperBound),
+                chunkId,
+                lowerBound,
+                upperBound,
                 timestamp);
 
             auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
@@ -348,7 +348,7 @@ private:
         auto hydraManager = slot->GetHydraManager();
         if (hydraManager->GetAutomatonState() != NHydra::EPeerState::Leading) {
             THROW_ERROR_EXCEPTION("Cannot query tablet %v while cell is in %v state",
-                ~ToString(tabletId),
+                tabletId,
                 ~FormatEnum(hydraManager->GetAutomatonState()).Quote());
         }
 
@@ -360,7 +360,7 @@ private:
 
         if (tablet->GetState() != NTabletNode::ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Cannot query tablet %v in %v state",
-                ~ToString(tabletId),
+                tabletId,
                 ~FormatEnum(tablet->GetState()).Quote());
         }
 
@@ -369,10 +369,10 @@ private:
         auto timestamp = GetTimestampFromDataSplit(split);
 
         LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
-            ~ToString(tabletId),
-            ~ToString(slot->GetCellGuid()),
-            ~ToString(lowerBound),
-            ~ToString(upperBound),
+            tabletId,
+            slot->GetCellGuid(),
+            lowerBound,
+            upperBound,
             timestamp);
 
         return CreateSchemafulTabletReader(
@@ -386,7 +386,7 @@ private:
     void ThrowNoSuchTablet(const TTabletId& tabletId)
     {
         THROW_ERROR_EXCEPTION("Tablet %v is not known",
-            ~ToString(tabletId));
+            tabletId);
     }
 
 };

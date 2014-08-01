@@ -61,8 +61,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 
     context->SetRequestInfo("Address: %v, CellGuid: %v, %v",
         ~address,
-        ~ToString(requestCellGuid),
-        ~ToString(statistics));
+        requestCellGuid,
+        statistics);
 
     auto expectedCellGuid = Bootstrap->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
@@ -70,8 +70,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
             NRpc::EErrorCode::PoisonPill,
             "Wrong cell GUID reported by node %v: expected %v, received %v",
             ~address,
-            ~ToString(expectedCellGuid),
-            ~ToString(requestCellGuid));
+            expectedCellGuid,
+            requestCellGuid);
     }
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
@@ -108,7 +108,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
 
     context->SetRequestInfo("NodeId: %v, %v",
         nodeId,
-        ~ToString(statistics));
+        statistics);
     
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -137,7 +137,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 
     context->SetRequestInfo("NodeId: %v, %v",
         nodeId,
-        ~ToString(statistics));
+        statistics);
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);

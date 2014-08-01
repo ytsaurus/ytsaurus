@@ -122,14 +122,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         
         LOG_INFO("Getting chunk from cache (ChunkId: %v)",
-            ~ToString(chunkId));
+            chunkId);
 
         TInsertCookie cookie(chunkId);
         bool inserted = BeginInsert(&cookie);
         auto cookieValue = cookie.GetValue();
         if (inserted) {
             LOG_INFO("Loading chunk into cache (ChunkId: %v)",
-                ~ToString(chunkId));
+                chunkId);
 
             auto invoker = CreateSerializedInvoker(Location_->GetWriteInvoker());
             invoker->Invoke(BIND(
@@ -139,7 +139,7 @@ public:
                 Passed(std::move(cookie))));
         } else {    
             LOG_INFO("Chunk is already cached (ChunkId: %v)",
-                ~ToString(chunkId));
+                chunkId);
         }
 
         return cookieValue.Apply(BIND(&TImpl::OnChunkDownloaded, MakeStrong(this))

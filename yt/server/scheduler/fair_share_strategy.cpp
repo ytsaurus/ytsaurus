@@ -942,7 +942,7 @@ public:
                 node->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %v)",
-                    ~ToString(job->GetId()));
+                    job->GetId());
             }
         }
 
@@ -1145,7 +1145,7 @@ private:
             return ConvertTo<TStrategyOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing spec of pooled operation %v, defaults will be used",
-                ~ToString(operation->GetId()));
+                operation->GetId());
             return New<TStrategyOperationSpec>();
         }
     }
@@ -1183,7 +1183,7 @@ private:
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
-            ~ToString(operation->GetId()),
+            operation->GetId(),
             ~pool->GetId());
     }
 
@@ -1197,7 +1197,7 @@ private:
         IncreasePoolUsage(pool, -operationElement->ResourceUsage());
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
-            ~ToString(operation->GetId()),
+            operation->GetId(),
             ~pool->GetId());
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
@@ -1476,8 +1476,8 @@ private:
         if (!element->GetStarving()) {
             element->SetStarving(true);
             LOG_INFO("Operation starvation timeout (OperationId: %v, Status: %v)",
-                ~ToString(element->GetOperation()->GetId()),
-                ~ToString(status));
+                element->GetOperation()->GetId(),
+                status);
         }
     }
 
@@ -1486,7 +1486,7 @@ private:
         if (element->GetStarving()) {
             element->SetStarving(false);
             LOG_INFO("Operation is no longer starving (OperationId: %v)",
-                ~ToString(element->GetOperation()->GetId()));
+                element->GetOperation()->GetId());
         }
     }
 

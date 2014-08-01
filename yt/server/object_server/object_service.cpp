@@ -218,9 +218,9 @@ private:
                     ~requestHeader.service(),
                     ~requestHeader.method(),
                     ~path,
-                    ~ToString(Context->GetRequestId()),
-                    ~FormatBool(mutating),
-                    ~ToString(mutationId));
+                    Context->GetRequestId(),
+                    mutating,
+                    mutationId);
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
@@ -282,8 +282,8 @@ private:
 
             LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v)",
                 requestIndex,
-                ~ToString(error),
-                ~ToString(Context->GetRequestId()));
+                error,
+                Context->GetRequestId());
 
             if (mutating && error.GetCode() == NRpc::EErrorCode::Unavailable) {
                 // Commit failed -- stop further handling.
@@ -385,13 +385,13 @@ private:
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is missing",
-                ~ToString(transactionId));
+                transactionId);
         }
         if (transaction->GetState() != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is not active",
-                ~ToString(transactionId));
+                transactionId);
         }
         return transaction;
     }
@@ -440,7 +440,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
     bool setReadOnly = request->set_read_only();
 
     context->SetRequestInfo("SetReadOnly: %v",
-        ~FormatBool(setReadOnly));
+        setReadOnly);
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
 

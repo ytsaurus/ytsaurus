@@ -64,9 +64,9 @@ private:
         }
 
         context->SetRequestInfo("Type: %v, TransactionId: %v, MutationId: %v",
-            ~ToString(type),
-            ~ToString(transactionId),
-            ~ToString(mutationId));
+            type,
+            transactionId,
+            mutationId);
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();
@@ -84,7 +84,7 @@ private:
                 auto operation = result.Value();
                 auto id = operation->GetId();
                 ToProto(response->mutable_operation_id(), id);
-                context->SetResponseInfo("OperationId: %v", ~ToString(id));
+                context->SetResponseInfo("OperationId: %v", id);
                 context->Reply();
             }));
     }
@@ -93,7 +93,7 @@ private:
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %v", ~ToString(operationId));
+        context->SetRequestInfo("OperationId: %v", operationId);
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();
@@ -112,7 +112,7 @@ private:
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %v", ~ToString(operationId));
+        context->SetRequestInfo("OperationId: %v", operationId);
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();
@@ -129,7 +129,7 @@ private:
     {
         auto operationId = FromProto<TOperationId>(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %v", ~ToString(operationId));
+        context->SetRequestInfo("OperationId: %v", operationId);
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();

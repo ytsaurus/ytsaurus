@@ -391,7 +391,7 @@ private:
 
         LOG_DEBUG("Received status from peer %v (State: %v, VoteId: %v, Priority: %v)",
             id,
-            ~ToString(state),
+            state,
             vote,
             ~Owner->ElectionCallbacks->FormatPriority(priority));
 
@@ -721,7 +721,7 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
 
     LOG_DEBUG("Voting for another candidate (VoteId: %v, VoteEpochId: %v)",
         VoteId,
-        ~ToString(VoteEpochId));
+        VoteEpochId);
 
     StartVotingRound();
 }
@@ -745,7 +745,7 @@ void TElectionManager::TImpl::StartVoteForSelf()
     LOG_DEBUG("Voting for self (VoteId: %v, Priority: %v, VoteEpochId: %v)",
         VoteId,
         ~ElectionCallbacks->FormatPriority(ElectionCallbacks->GetPriority()),
-        ~ToString(VoteEpochId));
+        VoteEpochId);
 
     StartVotingRound();
 }
@@ -781,7 +781,7 @@ void TElectionManager::TImpl::StartFollowing(
 
     LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
-        ~ToString(EpochContext->EpochId));
+        EpochContext->EpochId);
 
     ElectionCallbacks->OnStartFollowing();
 }
@@ -807,7 +807,7 @@ void TElectionManager::TImpl::StartLeading()
     FollowerPinger->Start();
 
     LOG_INFO("Started leading (EpochId: %v)",
-        ~ToString(EpochContext->EpochId));
+        EpochContext->EpochId);
 
     ElectionCallbacks->OnStartLeading();
 }
@@ -818,7 +818,7 @@ void TElectionManager::TImpl::StopLeading()
     YCHECK(State == EPeerState::Leading);
 
     LOG_INFO("Stopped leading (EpochId: %v)",
-        ~ToString(EpochContext->EpochId));
+        EpochContext->EpochId);
 
     ElectionCallbacks->OnStopLeading();
 
@@ -836,7 +836,7 @@ void TElectionManager::TImpl::StopFollowing()
 
     LOG_INFO("Stopped following (LeaderId: %v, EpochId: %v)",
         EpochContext->LeaderId,
-        ~ToString(EpochContext->EpochId));
+        EpochContext->EpochId);
 
     ElectionCallbacks->OnStopFollowing();
 
@@ -859,8 +859,8 @@ void TElectionManager::TImpl::SetState(EPeerState newState)
 
     // This generic message logged to simplify tracking state changes.
     LOG_INFO("State changed: %v -> %v",
-        ~ToString(State),
-        ~ToString(newState));
+        State,
+        newState);
     State = newState;
 }
 
@@ -892,7 +892,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     auto leaderId = request->leader_id();
 
     context->SetRequestInfo("Epoch: %v, LeaderId: %v",
-        ~ToString(epochId),
+        epochId,
         leaderId);
 
     if (State != EPeerState::Following) {
@@ -907,8 +907,8 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidEpoch,
             "Received ping with invalid epoch: expected %v, received %v",
-            ~ToString(EpochContext->EpochId),
-            ~ToString(epochId));
+            EpochContext->EpochId,
+            epochId);
     }
 
     if (leaderId != EpochContext->LeaderId) {
@@ -945,10 +945,10 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
     response->set_self_id(CellManager->GetSelfId());
 
     context->SetResponseInfo("State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v",
-        ~ToString(State),
+        State,
         VoteId,
         ~ElectionCallbacks->FormatPriority(priority),
-        ~ToString(VoteEpochId));
+        VoteEpochId);
 
     context->Reply();
 }

@@ -1811,7 +1811,7 @@ private:
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %v has starting key %v",
             index,
-            ~ToString(key));
+            key);
 
         YCHECK(PartitionKeys.empty() || CompareRows(PartitionKeys.back(), key) < 0);
 

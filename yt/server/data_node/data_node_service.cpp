@@ -141,10 +141,10 @@ private:
         options.OptimizeForLatency = request->sync_on_close();
 
         context->SetRequestInfo("ChunkId: %v, SessionType: %v, SyncOnClose: %v, OptimizeForLatency: %v",
-            ~ToString(chunkId),
-            ~ToString(options.SessionType),
-            ~FormatBool(options.SyncOnClose),
-            ~FormatBool(options.OptimizeForLatency));
+            chunkId,
+            options.SessionType,
+            options.SyncOnClose,
+            options.OptimizeForLatency);
 
         ValidateNoSession(chunkId);
         ValidateNoChunk(chunkId);
@@ -162,8 +162,8 @@ private:
         auto blockCount = request->has_block_count() ? MakeNullable<int>(request->block_count()) : Null;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
-            ~ToString(chunkId),
-            blockCount ? ~ToString(*blockCount) : "<null>");
+            chunkId,
+            blockCount ? ToString(*blockCount) : "<null>");
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -186,7 +186,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         context->SetRequestInfo("ChunkId: %v",
-            ~ToString(chunkId));
+            chunkId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -201,7 +201,7 @@ private:
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %v", ~ToString(chunkId));
+        context->SetRequestInfo("ChunkId: %v", chunkId);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -230,11 +230,11 @@ private:
         bool flushBlocks = request->flush_blocks();
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %v, FlushBlocks: %v",
-            ~ToString(chunkId),
+            chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            ~FormatBool(enableCaching),
-            ~FormatBool(flushBlocks));
+            enableCaching,
+            flushBlocks);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -271,7 +271,7 @@ private:
         auto target = FromProto<TNodeDescriptor>(request->target());
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, TargetAddress: %v",
-            ~ToString(chunkId),
+            chunkId,
             firstBlockIndex,
             lastBlockIndex,
             ~target.GetDefaultAddress());
@@ -300,7 +300,7 @@ private:
         int blockIndex = request->block_index();
 
         context->SetRequestInfo("BlockId: %v:%v",
-            ~ToString(chunkId),
+            chunkId,
             blockIndex);
 
         auto sessionManager = Bootstrap_->GetSessionManager();
@@ -341,10 +341,10 @@ private:
             auto sessionType = EReadSessionType(request.session_type());
 
             Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
-                ~ToString(chunkId),
+                chunkId,
                 ~JoinToString(request.block_indexes()),
-                ~FormatBool(enableCaching),
-                ~ToString(sessionType));
+                enableCaching,
+                sessionType);
 
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
@@ -366,7 +366,7 @@ private:
                             ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
                         }
                         LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                            ~ToString(blockId),
+                            blockId,
                             static_cast<int>(peers.size()));
                     }
                 }
@@ -380,7 +380,7 @@ private:
                     int blockIndex = request.block_indexes(index);
 
                     LOG_DEBUG("Fetching block (BlockId: %v:%v)",
-                        ~ToString(chunkId),
+                        chunkId,
                         blockIndex);
 
                     Awaiter_->Await(
@@ -449,8 +449,8 @@ private:
             }
 
             Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-                ~FormatBool(response.has_complete_chunk()),
-                ~FormatBool(response.throttling()),
+                response.has_complete_chunk(),
+                response.throttling(),
                 BlocksWithData_.load(),
                 response.peer_descriptors_size(),
                 BlocksSize_.load());
@@ -495,10 +495,10 @@ private:
             int blockCount = request.block_count();
 
             Context_->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
-                ~ToString(chunkId),
+                chunkId,
                 firstBlockIndex,
                 firstBlockIndex + blockCount - 1,
-                ~ToString(sessionType));
+                sessionType);
 
             auto chunkStore = Owner_->Bootstrap_->GetChunkStore();
             auto blockStore = Owner_->Bootstrap_->GetBlockStore();
@@ -552,8 +552,8 @@ private:
             auto& response = Context_->Response();
 
             Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
-                ~FormatBool(response.has_complete_chunk()),
-                ~FormatBool(response.throttling()),
+                response.has_complete_chunk(),
+                response.throttling(),
                 BlocksWithData_,
                 BlocksSize_);
 
@@ -582,10 +582,10 @@ private:
             : Null;
 
         context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %v, ExtensionTags: [%v], PartitionTag: %v",
-            ~ToString(chunkId),
-            ~FormatBool(request->all_extension_tags()),
+            chunkId,
+            request->all_extension_tags(),
             ~JoinToString(extensionTags),
-            ~ToString(partitionTag));
+            partitionTag);
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunk(chunkId);
@@ -1055,7 +1055,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         context->SetRequestInfo("ChunkId: %v",
-            ~ToString(chunkId));
+            chunkId);
 
         Bootstrap_
             ->GetChunkCache()

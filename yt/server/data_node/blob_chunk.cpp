@@ -74,12 +74,12 @@ IChunk::TAsyncGetMetaResult TBlobChunkBase::GetMeta(
         TGuard<TSpinLock> guard(SpinLock_);
         if (Meta_) {
             guard.Release();
-            LOG_DEBUG("Meta cache hit (ChunkId: %v)", ~ToString(Id_));
+            LOG_DEBUG("Meta cache hit (ChunkId: %v)", Id_);
             return MakeFuture(TGetMetaResult(FilterCachedMeta(tags)));
         }
     }
 
-    LOG_DEBUG("Meta cache miss (ChunkId: %v)", ~ToString(Id_));
+    LOG_DEBUG("Meta cache miss (ChunkId: %v)", Id_);
 
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
@@ -153,7 +153,7 @@ void TBlobChunkBase::DoReadBlocks(
         std::vector<TSharedRef> blocks;
 
         LOG_DEBUG("Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-            ~ToString(Id_),
+            Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             ~Location_->GetId());
@@ -166,7 +166,7 @@ void TBlobChunkBase::DoReadBlocks(
         auto readTime = timer.GetElapsed();
 
         LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-            ~ToString(Id_),
+            Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             ~Location_->GetId());
@@ -212,7 +212,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
 {
     auto& Profiler = Location_->Profiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
-        ~ToString(Id_),
+        Id_,
         ~Location_->GetId());
 
     NChunkClient::TFileReaderPtr reader;
@@ -223,7 +223,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
         } catch (const std::exception& ex) {
             ReleaseReadLock();
             LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %v)",
-                ~ToString(Id_));
+                Id_);
             promise.Set(ex);
             return;
         }
@@ -233,7 +233,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
     ReleaseReadLock();
 
     LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
-        ~ToString(Id_),
+        Id_,
         ~Location_->GetId());
 
     promise.Set(TError());
@@ -304,7 +304,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
     auto location = Location_;
     return BIND([=] () {
         LOG_DEBUG("Started removing blob chunk files (ChunkId: %v)",
-            ~ToString(id));
+            id);
 
         try {
             DoSyncRemove(dataFileName);
@@ -314,7 +314,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
         }
 
         LOG_DEBUG("Finished removing blob chunk files (ChunkId: %v)",
-            ~ToString(id));
+            id);
     }).AsyncVia(location->GetWriteInvoker()).Run();
 }
 
@@ -357,7 +357,7 @@ TCachedBlobChunk::~TCachedBlobChunk()
 {
     // This check ensures that we don't remove any chunks from cache upon shutdown.
     if (!ChunkCache_.IsExpired()) {
-        LOG_INFO("Chunk is evicted from cache (ChunkId: %v)", ~ToString(GetId()));
+        LOG_INFO("Chunk is evicted from cache (ChunkId: %v)", GetId());
         EvictFromCache();
         AsyncRemove();
     }
