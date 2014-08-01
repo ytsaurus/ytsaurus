@@ -194,7 +194,7 @@ private:
 
     private:
         TReaderStream UnderlyingInput_;
-        std::unique_ptr<ICheckpointableInputStream> FacadeInput_;;
+        std::unique_ptr<ICheckpointableInputStream> FacadeInput_;
         TSnapshotParams Params_;
 
     };
