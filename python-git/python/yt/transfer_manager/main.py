@@ -170,7 +170,7 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
 
 class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
-                 token="", user="unknown", mr_user="tmp", error=None, finish_time=None, progress=None):
+                 token="", user="unknown", mr_user=None, error=None, finish_time=None, progress=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.destination_cluster = destination_cluster
@@ -445,6 +445,8 @@ class Application(object):
                             spec=task_spec,
                             strategy=strategy))
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "mr":
+                if task.mr_user is None:
+                    task.mr_user = "tmp"
                 export_to_mr(
                     self._clusters[task.source_cluster],
                     self._clusters[task.destination_cluster],
@@ -455,6 +457,8 @@ class Application(object):
                     spec_template=task_spec,
                     message_queue=message_queue)
             if self._clusters[task.source_cluster]._type == "mr" and self._clusters[task.destination_cluster]._type == "yt":
+                if task.mr_user is None:
+                    task.mr_user = "tmp"
                 import_from_mr(
                     self._clusters[task.destination_cluster],
                     self._clusters[task.source_cluster],
