@@ -144,8 +144,8 @@ void TJobController::StartWaitingJobs()
         } else {
             LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: %v, JobResources: %v)",
                 job->GetId(),
-                ~FormatResources(spareResources),
-                ~FormatResources(jobResources));
+                FormatResources(spareResources),
+                FormatResources(jobResources));
         }
     }
 

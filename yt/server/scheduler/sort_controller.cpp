@@ -1234,13 +1234,13 @@ protected:
             LOG_DEBUG("Partition assigned (Index: %v, DataSize: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetTotalDataSize(),
-                ~address);
+                address);
         }
 
         for (auto node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
-                    ~node->Node->GetAddress(),
+                    node->Node->GetAddress(),
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));

@@ -156,7 +156,7 @@ void TBlobChunkBase::DoReadBlocks(
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
-            ~Location_->GetId());
+            Location_->GetId());
             
         NProfiling::TScopedTimer timer;
 
@@ -169,7 +169,7 @@ void TBlobChunkBase::DoReadBlocks(
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
-            ~Location_->GetId());
+            Location_->GetId());
 
         if (!blocksOrError.IsOK()) {
             Location_->Disable();
@@ -213,7 +213,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
     auto& Profiler = Location_->Profiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
-        ~Location_->GetId());
+        Location_->GetId());
 
     NChunkClient::TFileReaderPtr reader;
     PROFILE_TIMING ("/meta_read_time") {
@@ -234,7 +234,7 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
 
     LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,
-        ~Location_->GetId());
+        Location_->GetId());
 
     promise.Set(TError());
 }

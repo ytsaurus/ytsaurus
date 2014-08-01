@@ -127,8 +127,8 @@ void TJobProxy::RetrieveJobSpec()
 
     LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         NScheduler::EJobType(rsp->job_spec().type()),
-        ~FormatResources(ResourceUsage),
-        ~rsp->job_spec().DebugString());
+        FormatResources(ResourceUsage),
+        rsp->job_spec().DebugString());
 
     JobProxyMemoryLimit = rsp->resource_usage().memory();
 }
@@ -378,7 +378,7 @@ void TJobProxy::CheckMemoryUsage()
             "Job proxy memory limit exceeded (MemoryUsage: %v" ", MemoryLimit: %v" ", RefCountedTracker: %v)",
             memoryUsage,
             JobProxyMemoryLimit,
-            ~TRefCountedTracker::Get()->GetDebugInfo(2));
+            TRefCountedTracker::Get()->GetDebugInfo(2));
     }
 }
 

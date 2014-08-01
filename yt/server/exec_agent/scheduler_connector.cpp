@@ -77,7 +77,7 @@ void TSchedulerConnector::SendHeartbeat()
             .Via(ControlInvoker));
 
     LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%v})",
-        ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
+        FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
 void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)

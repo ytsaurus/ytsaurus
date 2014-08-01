@@ -758,9 +758,9 @@ public:
                                     LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         object->GetId(),
                                         permission,
-                                        ~user->GetName(),
+                                        user->GetName(),
                                         result.Object->GetId(),
-                                        ~result.Subject->GetName());
+                                        result.Subject->GetName());
                                     return result;
                                 }
                             }
@@ -782,7 +782,7 @@ public:
             LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
                 object->GetId(),
                 permission,
-                ~user->GetName());
+                user->GetName());
             result.Action = ESecurityAction::Deny;
             return result;
         } else {
@@ -790,9 +790,9 @@ public:
             LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 object->GetId(),
                 permission,
-                ~user->GetName(),
+                user->GetName(),
                 result.Object->GetId(),
-                ~result.Subject->GetName());
+                result.Subject->GetName());
             return result;
         }
     }
@@ -809,11 +809,11 @@ public:
             if (result.Object && result.Subject) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %v permission for %v is denied for %v by ACE at %v",
-                    ~FormatEnum(permission).Quote(),
-                    ~objectManager->GetHandler(object)->GetName(object),
-                    ~result.Subject->GetName().Quote(),
-                    ~objectManager->GetHandler(object)->GetName(result.Object));
+                    "Access denied: %Qv permission for %v is denied for %Qv by ACE at %v",
+                    permission,
+                    objectManager->GetHandler(object)->GetName(object),
+                    result.Subject->GetName(),
+                    objectManager->GetHandler(object)->GetName(result.Object));
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
@@ -854,9 +854,9 @@ public:
 
         user->SetBanned(banned);
         if (banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %v)", ~user->GetName());
+            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %v)", user->GetName());
         } else {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %v)", ~user->GetName());
+            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %v)", user->GetName());
         }
     }
 

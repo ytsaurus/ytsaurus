@@ -214,7 +214,7 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                LOG_WARNING("Found unrecognized file %v", ~fileName.Quote());
+                LOG_WARNING("Found unrecognized file %Qv", fileName);
             }
         }
 

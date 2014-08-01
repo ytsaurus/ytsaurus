@@ -302,7 +302,7 @@ public:
 
         LOG_DEBUG("New voting round started (VoteId: %v, Priority: %v)",
             Owner->VoteId,
-            ~callbacks->FormatPriority(priority));
+            callbacks->FormatPriority(priority));
 
         ProcessVote(
             cellManager->GetSelfId(),
@@ -393,7 +393,7 @@ private:
             id,
             state,
             vote,
-            ~Owner->ElectionCallbacks->FormatPriority(priority));
+            Owner->ElectionCallbacks->FormatPriority(priority));
 
         ProcessVote(id, TStatus(state, vote, priority, epochId));
     }
@@ -744,7 +744,7 @@ void TElectionManager::TImpl::StartVoteForSelf()
 
     LOG_DEBUG("Voting for self (VoteId: %v, Priority: %v, VoteEpochId: %v)",
         VoteId,
-        ~ElectionCallbacks->FormatPriority(ElectionCallbacks->GetPriority()),
+        ElectionCallbacks->FormatPriority(ElectionCallbacks->GetPriority()),
         VoteEpochId);
 
     StartVotingRound();

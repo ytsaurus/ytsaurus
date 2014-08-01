@@ -431,7 +431,7 @@ public:
                     int snapshotId = FromString<int>(name);
                     RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
-                    LOG_WARNING("Found unrecognized file %v", fileName);
+                    LOG_WARNING("Found unrecognized file %Qv", fileName);
                 }
             }
         }

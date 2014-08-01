@@ -89,7 +89,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
-            ~WorkingDirectory);
+            WorkingDirectory);
 
         Process.AddArgument("--job-proxy");
         Process.AddArgument("--config");
@@ -104,7 +104,7 @@ public:
             Process.AddArgument(path);
         }
 
-        LOG_INFO("Spawning a job proxy (Path: %v)", ~ProxyPath);
+        LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 
         auto error = Process.Spawn();
         if (!error.IsOK()) {
@@ -129,7 +129,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", ~group.GetFullPath().Quote());
+        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %Qv)", group.GetFullPath());
 
         SetError(error);
 

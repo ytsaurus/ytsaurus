@@ -208,9 +208,9 @@ private:
         {
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry removed (Path: %v, Method: %v:%v, Success: %v, TotalSpace: %v" ")",
-                ~key.Path,
-                ~key.Service,
-                ~key.Method,
+                key.Path,
+                key.Service,
+                key.Method,
                 entry->GetSuccess(),
                 entry->GetTotalSpace());
         }

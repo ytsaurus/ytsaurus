@@ -609,7 +609,7 @@ private:
         try {
             cgroup.Create();
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Unable to create cgroup %v", ~cgroup.GetFullPath().Quote());
+            LOG_FATAL(ex, "Unable to create cgroup %Qv", cgroup.GetFullPath());
         }
     }
 
@@ -620,7 +620,7 @@ private:
             try {
                 retriever(cgroup);
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %v", ~cgroup.GetFullPath().Quote());
+                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %Qv", cgroup.GetFullPath());
             }
         }
     }
@@ -632,7 +632,7 @@ private:
                 NCGroup::RunKiller(cgroup.GetFullPath());
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to destroy cgroup %v", ~cgroup.GetFullPath().Quote());
+                LOG_FATAL(ex, "Unable to destroy cgroup %Qv", cgroup.GetFullPath());
             }
         }
     }

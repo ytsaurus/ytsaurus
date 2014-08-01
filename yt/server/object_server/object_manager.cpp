@@ -950,12 +950,12 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
     auto objectId = proxy->GetVersionedId();
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
-        ~context->GetService(),
-        ~context->GetMethod(),
-        ~GetRequestYPath(context),
+        context->GetService(),
+        context->GetMethod(),
+        GetRequestYPath(context),
         objectId,
         headerExt.mutating(),
-        ~user->GetName());
+        user->GetName());
 
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));

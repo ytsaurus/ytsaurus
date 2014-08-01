@@ -316,7 +316,7 @@ protected:
         ++CurrentPartitionIndex;
 
         LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v" ")",
-            ~task->GetId(),
+            task->GetId(),
             CurrentTaskDataSize);
 
         CurrentTaskDataSize = 0;
@@ -964,7 +964,7 @@ protected:
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
         LOG_INFO("Adjusted key columns are %v",
-            ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
+            ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
         CalculateSizes();
 

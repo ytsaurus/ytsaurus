@@ -36,7 +36,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     LOG_DEBUG("Updating peer (BlockId: %v, Address: %v, ExpirationTime: %v)",
         blockId,
-        ~peer.Descriptor.GetDefaultAddress(),
+        peer.Descriptor.GetDefaultAddress(),
         peer.ExpirationTime);
 
     SweepAllExpiredPeers();

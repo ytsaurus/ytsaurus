@@ -215,9 +215,9 @@ private:
 
                 LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, MutationId: %v)",
                     CurrentRequestIndex,
-                    ~requestHeader.service(),
-                    ~requestHeader.method(),
-                    ~path,
+                    requestHeader.service(),
+                    requestHeader.method(),
+                    path,
                     Context->GetRequestId(),
                     mutating,
                     mutationId);

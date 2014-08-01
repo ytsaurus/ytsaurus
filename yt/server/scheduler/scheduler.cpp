@@ -338,12 +338,12 @@ public:
             operationId,
             transactionId,
             mutationId,
-            ~user);
+            user);
 
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
             operationId,
-            ~FormatResources(GetTotalResourceLimits()));
+            FormatResources(GetTotalResourceLimits()));
 
         // Spawn a new fiber where all startup logic will work asynchronously.
         BIND(&TImpl::DoStartOperation, MakeStrong(this), operation)
@@ -482,7 +482,7 @@ public:
                 // Check for missing jobs.
                 for (auto job : missingJobs) {
                     LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                        ~node->GetAddress(),
+                        node->GetAddress(),
                         job->GetId(),
                         job->GetOperation()->GetId());
                     AbortJob(job, TError("Job vanished"));
@@ -1099,7 +1099,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node offline (Address: %v)", ~node->GetAddress());
+        LOG_INFO("Node offline (Address: %v)", node->GetAddress());
 
         TotalResourceLimits_ -= node->ResourceLimits();
         TotalResourceUsage_ -= node->ResourceUsage();
@@ -1109,7 +1109,7 @@ private:
         const auto& address = node->GetAddress();
         for (auto job : jobs) {
             LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
-                ~address,
+                address,
                 job->GetId(),
                 job->GetOperation()->GetId());
             AbortJob(job, TError("Node offline"));
@@ -1173,8 +1173,8 @@ private:
             return;
 
         LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
-            ~operation->GetController()->GetLoggingProgress(),
-            ~Strategy_->GetOperationLoggingProgress(operation),
+            operation->GetController()->GetLoggingProgress(),
+            Strategy_->GetOperationLoggingProgress(operation),
             operation->GetId());
     }
 
@@ -1798,11 +1798,11 @@ private:
             } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
                 ToProto(response->add_jobs_to_remove(), jobId);
                 LOG_WARNING("Job status report was expected from %v, removal scheduled",
-                    ~expectedAddress);
+                    expectedAddress);
             } else {
                 ToProto(response->add_jobs_to_abort(), jobId);
                 LOG_WARNING("Job status report was expected from %v, abort scheduled",
-                    ~expectedAddress);
+                    expectedAddress);
             }
             return nullptr;
         }
@@ -1843,7 +1843,7 @@ private:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %v, JobType: %v, JobId: %v, OperationId: %v)",
-                        ~jobAddress,
+                        jobAddress,
                         job->GetType(),
                         jobId,
                         operation->GetId());

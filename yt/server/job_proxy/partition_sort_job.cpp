@@ -194,7 +194,7 @@ public:
 
             LOG_DEBUG(
                 "RefCountedTracker: %v",
-                ~TRefCountedTracker::Get()->GetDebugInfo(2));
+                TRefCountedTracker::Get()->GetDebugInfo(2));
 
             if (!schedulerJobSpecExt.is_approximate()) {
                 YCHECK(totalRowCount == estimatedRowCount);

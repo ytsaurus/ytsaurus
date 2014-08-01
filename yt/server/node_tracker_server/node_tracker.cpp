@@ -149,7 +149,7 @@ public:
         if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", ~node->GetAddress());
+        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", node->GetAddress());
 
         NodeConfigUpdated_.Fire(node);
     }
@@ -206,7 +206,7 @@ public:
         try {
             return ConvertTo<TNodeConfigPtr>(attributes);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing configuration of node %v, defaults will be used", ~address);
+            LOG_WARNING(ex, "Error parsing configuration of node %v, defaults will be used", address);
             return nullptr;
         }
     }
@@ -297,7 +297,7 @@ private:
             auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    ~address,
+                    address,
                     existingNode->GetId());
                 DoUnregisterNode(existingNode);
             }
@@ -337,7 +337,7 @@ private:
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
-                ~node->GetAddress(),
+                node->GetAddress(),
                 node->GetState(),
                 statistics);
 
@@ -352,7 +352,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
-                ~node->GetAddress());
+                node->GetAddress());
 
             FullHeartbeat_.Fire(node, request);
         }
@@ -373,7 +373,7 @@ private:
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
-                ~node->GetAddress(),
+                node->GetAddress(),
                 node->GetState(),
                 statistics);
 
@@ -479,7 +479,7 @@ private:
             if (!node->GetTransaction()) {
                 LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %v, Address: %v)",
                     node->GetId(),
-                    ~node->GetAddress());
+                    node->GetAddress());
                 PostUnregisterCommit(node);
             }
         }
@@ -554,7 +554,7 @@ private:
         auto* node = it->second;
         LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %v, Address: %v)",
             node->GetId(),
-            ~node->GetAddress());
+            node->GetAddress());
 
         UnregisterLeaseTransaction(node);
 
@@ -672,7 +672,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
-                ~address,
+                address,
                 statistics);
 
             NodeRegistered_.Fire(node);
@@ -688,7 +688,7 @@ private:
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
                 nodeId,
-                ~node->GetAddress());
+                node->GetAddress());
 
             auto* transaction = node->GetTransaction();
             UnregisterLeaseTransaction(node);
@@ -741,7 +741,7 @@ private:
     {
         if (node->GetConfig()->Banned) {
             LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %v)",
-                ~node->GetAddress());
+                node->GetAddress());
             if (IsLeader()) {
                 PostUnregisterCommit(node);
             }

@@ -502,8 +502,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
         LOG_DEBUG("Job actual resource demand is not met (Limits: {%v}, Demand: {%v})",
-            ~FormatResources(jobLimits),
-            ~FormatResources(neededResources));
+            FormatResources(jobLimits),
+            FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
@@ -548,7 +548,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->Job->GetId(),
         Controller->Operation->GetId(),
         jobType,
-        ~context->GetNode()->GetAddress(),
+        context->GetNode()->GetAddress(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -556,7 +556,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->TotalDataSize,
         joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
-        ~FormatResources(neededResources));
+        FormatResources(neededResources));
 
     // Prepare chunk lists.
     for (int index = 0; index < chunkListCount; ++index) {
@@ -1553,8 +1553,8 @@ void TOperationControllerBase::CommitResults()
 
         if (table.Options->KeyColumns) {
             LOG_INFO("Table %v will be marked as sorted by %v",
-                ~table.Path.GetPath(),
-                ~ConvertToYsonString(table.Options->KeyColumns.Get(), EYsonFormat::Text).Data());
+                table.Path.GetPath(),
+                ConvertToYsonString(table.Options->KeyColumns.Get(), EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
             SetTransactionId(req, Operation->GetOutputTransaction());
@@ -1793,9 +1793,9 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         return;
 
     LOG_INFO("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
-        ~completedJob->Address,
+        completedJob->Address,
         completedJob->JobId,
-        ~completedJob->SourceTask->GetId(),
+        completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
         completedJob->InputCookie);
 
@@ -1895,12 +1895,12 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
         "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: {%v})",
-        ~task->GetId(),
+        task->GetId(),
         oldPendingJobCount,
         newPendingJobCount,
         oldTotalJobCount,
         newTotalJobCount,
-        ~FormatResources(CachedNeededResources));
+        FormatResources(CachedNeededResources));
 
     task->CheckCompleted();
 }
@@ -1922,7 +1922,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     i64 minMemory = neededResources.memory();
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v" ")",
-        ~task->GetId(),
+        task->GetId(),
         minMemory / (1024 * 1024));
 
 }
@@ -2050,8 +2050,8 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             if (locality <= 0) {
                 localTasks.erase(jt);
                 LOG_TRACE("Task locality hint removed (Task: %v, Address: %v)",
-                    ~task->GetId(),
-                    ~address);
+                    task->GetId(),
+                    address);
                 continue;
             }
 
@@ -2080,10 +2080,10 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v" ", JobLimits: {%v}, "
                 "PendingDataSize: %v" ", PendingJobCount: %v)",
-                ~bestTask->GetId(),
-                ~address,
+                bestTask->GetId(),
+                address,
                 bestLocality,
-                ~FormatResources(jobLimits),
+                FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
             auto job = bestTask->ScheduleJob(context, jobLimits);
@@ -2125,11 +2125,11 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             delayedTasks.erase(it);
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %v)",
-                    ~task->GetId());
+                    task->GetId());
                 YCHECK(nonLocalTasks.erase(task) == 1);
                 UpdateTask(task);
             } else {
-                LOG_DEBUG("Task delay deadline reached (Task: %v)", ~task->GetId());
+                LOG_DEBUG("Task delay deadline reached (Task: %v)", task->GetId());
                 MoveTaskToCandidates(task, candidateTasks);
             }
         }
@@ -2143,7 +2143,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
                 if (task->GetPendingJobCount() == 0) {
-                    LOG_DEBUG("Task pending hint removed (Task: %v)", ~task->GetId());
+                    LOG_DEBUG("Task pending hint removed (Task: %v)", task->GetId());
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
@@ -2167,7 +2167,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 auto deadline = task->GetDelayedTime().Get() + task->GetLocalityTimeout();
                 if (deadline > now) {
                     LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
-                        ~task->GetId(),
+                        task->GetId(),
                         deadline);
                     delayedTasks.insert(std::make_pair(deadline, task));
                     candidateTasks.erase(it++);
@@ -2181,9 +2181,9 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 LOG_DEBUG(
                     "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: {%v}, "
                     "PendingDataSize: %v" ", PendingJobCount: %v)",
-                    ~task->GetId(),
-                    ~address,
-                    ~FormatResources(jobLimits),
+                    task->GetId(),
+                    address,
+                    FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
 
@@ -2601,27 +2601,27 @@ void TOperationControllerBase::RequestInputObjects()
             {
                 auto rsp = lockInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %v",
-                    ~path);
+                    path);
 
                 LOG_INFO("Input table locked (Path: %v)",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = fetchInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %v",
-                    ~path);
+                    path);
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
                 table.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-                    ~path,
+                    path,
                     table.FetchResponse.chunks_size());
             }
             {
                 auto rsp = getInAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for input table %v",
-                    ~path);
+                    path);
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -2629,11 +2629,11 @@ void TOperationControllerBase::RequestInputObjects()
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
                     LOG_INFO("Input table is sorted (Path: %v, KeyColumns: %v)",
-                        ~path,
-                        ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
+                        path,
+                        ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
                 } else {
                     LOG_INFO("Input table is not sorted (Path: %v)",
-                        ~path);
+                        path);
                 }
             }
         }
@@ -2695,15 +2695,15 @@ void TOperationControllerBase::RequestOutputObjects()
             {
                 auto rsp = lockOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking output table %v",
-                    ~path);
+                    path);
 
                 LOG_INFO("Output table %v locked",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = getOutAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for output table %v",
-                    ~path);
+                    path);
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -2715,7 +2715,7 @@ void TOperationControllerBase::RequestOutputObjects()
                 i64 initialRowCount = attributes.Get<i64>("row_count");
                 if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
                     THROW_ERROR_EXCEPTION("Can't append sorted data to non-empty output table %v",
-                        ~table.Path.GetPath());
+                        table.Path.GetPath());
                 }
                 table.Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
                 table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
@@ -2724,17 +2724,17 @@ void TOperationControllerBase::RequestOutputObjects()
                 table.Options->ChunksVital = attributes.Get<bool>("vital");
 
                 LOG_INFO("Output table attributes received (Path: %v, Options: %v)",
-                    ~path,
-                    ~ConvertToYsonString(table.Options, EYsonFormat::Text).Data());
+                    path,
+                    ConvertToYsonString(table.Options, EYsonFormat::Text).Data());
             }
             {
                 auto rsp = prepareForUpdateRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing output table %v for update",
-                    ~path);
+                    path);
 
                 table.OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                 LOG_INFO("Output table prepared for update (Path: %v, ChunkListId: %v)",
-                    ~path,
+                    path,
                     table.OutputChunkListId);
             }
         }
@@ -2841,24 +2841,24 @@ void TOperationControllerBase::RequestFileObjects()
             {
                 auto rsp = lockRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %v",
-                    ~path);
+                    path);
 
                 LOG_INFO("Regular file locked (Path: %v)",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = getRegularFileNameRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     *rsp,
                     "Error getting file name for regular file %v",
-                    ~path);
+                    path);
 
                 file.FileName = rsp->value();
             }
             {
                 auto rsp = getRegularFileAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for regular file %v",
-                    ~path);
+                    path);
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -2867,19 +2867,19 @@ void TOperationControllerBase::RequestFileObjects()
                 file.Executable = attributes.Get<bool>("executable", false);
 
                 LOG_INFO("Regular file attributes received (Path: %v)",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = fetchRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     *rsp,
                     "Error fetching regular file %v",
-                    ~path);
+                    path);
 
                 file.FetchResponse.Swap(rsp.Get());
 
                 LOG_INFO("Regular file fetched (Path: %v)",
-                    ~path);
+                    path);
             }
 
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
@@ -2900,10 +2900,10 @@ void TOperationControllerBase::RequestFileObjects()
             {
                 auto rsp = lockTableFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking table file %v",
-                    ~path);
+                    path);
 
                 LOG_INFO("Table file locked (Path: %v)",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = getTableFileSizeRsps[index];
@@ -2912,7 +2912,7 @@ void TOperationControllerBase::RequestFileObjects()
                 if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
                         "Table file %v exceeds size limit: %v > %v",
-                        ~path,
+                        path,
                         tableSize,
                         Config->MaxTableFileSize);
                 }
@@ -2930,7 +2930,7 @@ void TOperationControllerBase::RequestFileObjects()
 
                 file.FetchResponse.Swap(rsp.Get());
                 LOG_INFO("Table file fetched (Path: %v)",
-                    ~path);
+                    path);
             }
             {
                 auto rsp = getTableFileNameRsps[index];
@@ -2941,10 +2941,10 @@ void TOperationControllerBase::RequestFileObjects()
                 file.Format = file.Path.Attributes().GetYson("format");
 
                 LOG_INFO("Table file attributes received (Path: %v, FileName: %v, Format: %v, ChunkIds: [%v])",
-                    ~path,
-                    ~file.FileName,
-                    ~file.Format.Data(),
-                    ~JoinToString(chunkIds));
+                    path,
+                    file.FileName,
+                    file.Format.Data(),
+                    JoinToString(chunkIds));
             }
 
             validateUserFileName(file);

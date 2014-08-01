@@ -238,9 +238,9 @@ private:
                     lastestSnapshotId = id;
                 }
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %v in remote store %v",
-                    ~key.Quote(),
-                    ~RemotePath_);
+                LOG_WARNING("Unrecognized item %Qv in remote store %v",
+                    key,
+                    RemotePath_);
             }
         }
 

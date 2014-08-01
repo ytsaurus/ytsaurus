@@ -129,7 +129,7 @@ void TJournalChunk::DoReadBlocks(
             Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
-            ~Location_->GetId());
+            Location_->GetId());
 
         NProfiling::TScopedTimer timer;
 

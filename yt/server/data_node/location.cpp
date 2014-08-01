@@ -287,7 +287,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         if (TChunkId::FromString(strippedFileName, &chunkId)) {
             chunkIds.insert(chunkId);
         } else {
-            LOG_ERROR("Unrecognized file %v", fileName);
+            LOG_ERROR("Unrecognized file %Qv", fileName);
         }
     }
 

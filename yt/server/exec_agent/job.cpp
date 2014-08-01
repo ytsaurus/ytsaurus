@@ -595,14 +595,14 @@ private:
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
-            ~fileName,
+            fileName,
             chunkId);
 
         auto chunkCache = Bootstrap->GetChunkCache();
         auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %v",
-            ~fileName.Quote());
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %Qv",
+            fileName);
 
         auto chunk = chunkOrError.Value();
         CachedChunks.push_back(chunk);
@@ -614,13 +614,13 @@ private:
                 descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to create a symlink for %v",
-                ~fileName.Quote())
+                "Failed to create a symlink for %Qv",
+                fileName)
                 << ex;
         }
 
         LOG_INFO("Regular user file prepared successfully (FileName: %v)",
-            ~fileName);
+            fileName);
     }
 
     void PrepareRegularFileViaDownload(const TRegularFileDescriptor& descriptor)
@@ -628,8 +628,8 @@ private:
         const auto& fileName = descriptor.file_name();
 
         LOG_INFO("Preparing regular user file via download (FileName: %v, ChunkCount: %v)",
-            ~fileName,
-            static_cast<int>(descriptor.file().chunks_size()));
+            fileName,
+            descriptor.file().chunks_size());
 
         CheckedWaitFor(DownloadChunks(descriptor.file()));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
@@ -672,21 +672,21 @@ private:
             Slot->MakeFile(fileName, producer, descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to write regular user file %v",
-                ~fileName.Quote())
+                "Failed to write regular user file %Qv",
+                fileName)
                 << ex;
         }
 
         LOG_INFO("Regular user file prepared successfully (FileName: %v)",
-            ~fileName);
+            fileName);
     }
 
 
     void PrepareTableFile(const TTableFileDescriptor& descriptor)
     {
         LOG_INFO("Preparing user table file (FileName: %v, ChunkCount: %v)",
-            ~descriptor.file_name(),
-            static_cast<int>(descriptor.table().chunks_size()));
+            descriptor.file_name(),
+            descriptor.table().chunks_size());
 
         CheckedWaitFor(DownloadChunks(descriptor.table()));
 
@@ -725,13 +725,13 @@ private:
             Slot->MakeFile(fileName, producer);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to write user table file %v",
-                ~fileName.Quote())
+                "Failed to write user table file %Qv",
+                fileName)
                 << ex;
         }
 
         LOG_INFO("User table file prepared successfully (FileName: %v)",
-            ~fileName);
+            fileName);
     }
 
     static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)

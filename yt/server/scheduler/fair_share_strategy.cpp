@@ -1184,7 +1184,7 @@ private:
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
-            ~pool->GetId());
+            pool->GetId());
     }
 
     void OnOperationUnregistered(TOperationPtr operation)
@@ -1198,7 +1198,7 @@ private:
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
-            ~pool->GetId());
+            pool->GetId());
 
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
             UnregisterPool(pool);
@@ -1285,8 +1285,8 @@ private:
         GetPoolParentElement(pool)->AddChild(pool);
 
         LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
-            ~GetPoolId(pool),
-            ~GetPoolId(pool->GetParent()));
+            GetPoolId(pool),
+            GetPoolId(pool->GetParent()));
     }
 
     void UnregisterPool(TPoolPtr pool)
@@ -1296,8 +1296,8 @@ private:
         GetPoolParentElement(pool)->RemoveChild(pool);
 
         LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
-            ~GetPoolId(pool),
-            ~GetPoolId(pool->GetParent()));
+            GetPoolId(pool),
+            GetPoolId(pool->GetParent()));
     }
 
     void SetPoolParent(TPoolPtr pool, TPoolPtr parent)
@@ -1377,10 +1377,10 @@ private:
                         const auto& childNode = pair.second;
                         auto childPath = childNode->GetPath();
                         if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
-                            LOG_ERROR("Pool %v is defined both at %v and %v; skipping second occurrence",
-                                ~childId.Quote(),
-                                ~poolIdToPath[childId],
-                                ~childPath);
+                            LOG_ERROR("Pool %Qv is defined both at %v and %v; skipping second occurrence",
+                                childId,
+                                poolIdToPath[childId],
+                                childPath);
                             continue;
                         }
 
@@ -1390,8 +1390,8 @@ private:
                         try {
                             config = ConvertTo<TPoolConfigPtr>(configNode);
                         } catch (const std::exception& ex) {
-                            LOG_ERROR(ex, "Error parsing configuration of pool %v; using defaults",
-                                ~childPath.Quote());
+                            LOG_ERROR(ex, "Error parsing configuration of pool %Qv; using defaults",
+                                childPath);
                             config = New<TPoolConfig>();
                         }
 

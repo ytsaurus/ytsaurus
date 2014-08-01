@@ -116,9 +116,9 @@ public:
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
-            ~manifest->RemoteAddress,
-            ~path,
-            ~method,
+            manifest->RemoteAddress,
+            path,
+            method,
             outerRequest->GetRequestId());
 
         outerRequest->Invoke().Subscribe(
