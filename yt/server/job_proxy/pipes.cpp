@@ -54,6 +54,7 @@ int SafeDup(int oldFd)
 
             default:
                 THROW_ERROR_EXCEPTION("dup failed")
+                    << TErrorAttribute("oldFd", oldFd)
                     << TError::FromSystem();
             }
         } else {
@@ -74,9 +75,9 @@ void SafeDup2(int oldFd, int newFd)
                 break;
 
             default:
-                THROW_ERROR_EXCEPTION("dup2 failed (OldFd: %d, NewFd: %d)",
-                    oldFd,
-                    newFd)
+                THROW_ERROR_EXCEPTION("dup2 failed")
+                    << TErrorAttribute("oldFd", oldFd)
+                    << TErrorAttribute("newFd", newFd)
                     << TError::FromSystem();
             }
         } else {
@@ -158,9 +159,9 @@ void PrepareUserJobPipe(int fd)
     auto res = chmod(~procPath, permissions);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (Fd: %d, Permissions: %d)",
-            fd,
-            permissions)
+        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor")
+            << TErrorAttribute("Fd", fd)
+            << TErrorAttribute("Permissions", permissions)
             << TError::FromSystem();
     }
 #endif
@@ -313,9 +314,9 @@ void TInputPipe::Finish()
     SafeClose(Pipe.ReadFd);
 
     if (!dataConsumed) {
-        THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process (Fd: %d, JobDescriptor: %d)",
-            Pipe.WriteFd,
-            JobDescriptor);
+        THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
+            << TErrorAttribute("Fd", Pipe.WriteFd)
+            << TErrorAttribute("JobDescriptor", JobDescriptor);
     }
 }
 
