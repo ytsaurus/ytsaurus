@@ -89,7 +89,11 @@ class Dumper(object):
             attributes = self._dump_attributes(obj.attributes)
 
         result = None
-        if isinstance(obj, (int, long, float)):
+        if obj is False:
+            result = "%false"
+        elif obj is True:
+            result = "%true"
+        elif isinstance(obj, (int, long, float)):
             result = str(obj)
         elif isinstance(obj, basestring):
             result = self._dump_string(obj)

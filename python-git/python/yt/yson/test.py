@@ -75,6 +75,12 @@ class YsonParserTestBase(object):
     def test_binary_double(self):
         self.assert_parse('\x03\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
 
+    def test_boolean(self):
+        self.assert_parse('%false', False)
+        self.assert_parse('%true', True)
+        self.assert_parse('\x04', False)
+        self.assert_parse('\x05', True)
+
     def test_empty_list(self):
         self.assert_parse('[ ]', [])
 
@@ -141,6 +147,10 @@ class TestParser(unittest.TestCase, YsonParserTestBase):
 class TestWriter(unittest.TestCase):
     def test_slash(self):
         self.assertEqual(writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
+
+    def test_boolean(self):
+        self.assertEqual(writer.dumps(False), "%false")
+        self.assertEqual(writer.dumps(True), "%true")
 
 if __name__ == "__main__":
     unittest.main()

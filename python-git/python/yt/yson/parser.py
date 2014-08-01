@@ -24,6 +24,8 @@ def _seems_integer(string):
 _STRING_MARKER = chr(1)
 _INT64_MARKER = chr(2)
 _DOUBLE_MARKER = chr(3)
+_FALSE_MARKER = chr(4)
+_TRUE_MARKER = chr(5)
 
 class YsonParserBase(object):
     def __init__(self, stream):
@@ -200,10 +202,21 @@ class YsonParserBase(object):
         elif ch == _DOUBLE_MARKER:
             result = self._parse_binary_double()
 
+        elif ch == _FALSE_MARKER:
+            self._expect_char(ch)
+            result = False
+
+        elif ch == _TRUE_MARKER:
+            self._expect_char(ch)
+            result = True
+
+        elif ch == '%':
+            result = self._parse_boolean()
+
         elif ch == '+' or ch == '-' or ch.isdigit():
             result = self._parse_numeric()
 
-        elif ch == '_' or ch == '"' or ch == '%' or ch.isalpha():
+        elif ch == '_' or ch == '"' or ch.isalpha():
             result = self._parse_string()
 
         else:
@@ -258,6 +271,23 @@ class YsonParserBase(object):
 
     def _parse_entity(self):
         self._expect_char('#')
+        return None
+
+    def _parse_boolean(self):
+        self._expect_char('%')
+        ch = self._peek_char()
+        if ch not in ['f', 't']:
+            raise YsonParseError("Found '%s' while expecting 'f' or 't'")
+        if ch == 'f':
+            str = self._read_binary_chars(5)
+            if str != "false":
+                raise YsonParseError("Incorrect boolean value '%s', expected 'false'" % str)
+            return False
+        if ch == 't':
+            str = self._read_binary_chars(4)
+            if str != "true":
+                raise YsonParseError("Incorrect boolean value '%s', expected 'true'" % str)
+            return True
         return None
 
     def _parse_string(self):
