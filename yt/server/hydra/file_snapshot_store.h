@@ -23,7 +23,7 @@ public:
     ISnapshotReaderPtr CreateReader(int snapshotId);
     ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotCreateParams& params);
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta);
     ISnapshotWriterPtr CreateRawWriter(int snapshotId);
 
     int GetLatestSnapshotId(int maxSnapshotId);
@@ -52,7 +52,7 @@ ISnapshotWriterPtr CreateFileSnapshotWriter(
     const Stroka& fileName,
     NCompression::ECodec codec,
     int snapshotId,
-    const TSnapshotCreateParams& params,
+    const TSharedRef& meta,
     bool isRaw);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -40,11 +40,9 @@ public:
             .Run(snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(
-        int snapshotId,
-        const TSnapshotCreateParams& params) override
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
     {
-        return FileStore_->CreateWriter(snapshotId, params);
+        return FileStore_->CreateWriter(snapshotId, meta);
     }
 
     virtual TFuture<TErrorOr<int>> GetLatestSnapshotId(int maxSnapshotId) override

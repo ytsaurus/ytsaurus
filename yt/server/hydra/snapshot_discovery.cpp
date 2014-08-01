@@ -115,10 +115,10 @@ private:
             if (rsp->snapshot_id() > Params_.SnapshotId) {
                 Params_.PeerId = peerId;
                 Params_.SnapshotId = rsp->snapshot_id();
-                Params_.PrevRecordCount = rsp->prev_record_count();
                 Params_.CompressedLength = rsp->compressed_length();
                 Params_.UncompressedLength = rsp->uncompressed_length();
                 Params_.Checksum = rsp->checksum();
+                Params_.Meta = TSharedRef::FromString(rsp->meta());
             }
         }
     }

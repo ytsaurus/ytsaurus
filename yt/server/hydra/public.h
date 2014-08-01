@@ -18,7 +18,6 @@ DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
 
 struct TSnapshotParams;
-struct TSnapshotCreateParams;
 DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)
 DECLARE_REFCOUNTED_STRUCT(ISnapshotWriter)
 DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)

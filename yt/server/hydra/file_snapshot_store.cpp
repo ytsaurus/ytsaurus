@@ -31,22 +31,22 @@ struct TSnapshotHeader
 {
     static const ui64 ExpectedSignature;
 
-    ui64 Signature;
-    i32 SnapshotId;
-    i32 PrevRecordCount;
-    ui64 CompressedLength;
-    ui64 UncompressedLength;
-    ui64 Checksum;
-    i32 Codec;
+    ui64 Signature = ExpectedSignature;
+    i32 SnapshotId = 0;
+    ui64 CompressedLength = 0;
+    ui64 UncompressedLength = 0;
+    ui64 Checksum = 0;
+    i32 Codec = ECodec::None;
+    i32 MetaSize;
 
     TSnapshotHeader()
         : Signature(ExpectedSignature)
         , SnapshotId(0)
-        , PrevRecordCount(0)
         , CompressedLength(0)
         , UncompressedLength(0)
         , Checksum(0)
         , Codec(ECodec::None)
+        , MetaSize(0)
     { }
 
     void Validate() const
@@ -59,7 +59,7 @@ struct TSnapshotHeader
     }
 };
 
-const ui64 TSnapshotHeader::ExpectedSignature =  0x3230303053535459ull; // YTSS0002
+const ui64 TSnapshotHeader::ExpectedSignature =  0x3330303053535459ull; // YTSS0003
 
 static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has changed.");
 
@@ -98,10 +98,10 @@ public:
     {
         try {
             File_.reset(new TFile(FileName_, OpenExisting | CloseOnExec));
+            TFileInput input(*File_);
 
-            ReadPod(*File_, Header_);
+            ReadPod(input, Header_);
             Header_.Validate();
-
             if (Header_.SnapshotId != SnapshotId_) {
                 THROW_ERROR_EXCEPTION(
                     "Invalid snapshot id in header of %s: expected %d, got %d",
@@ -109,7 +109,6 @@ public:
                     SnapshotId_,
                     Header_.SnapshotId);
             }
-
             if (Header_.CompressedLength != File_->GetLength()) {
                 THROW_ERROR_EXCEPTION(
                     "Invalid compressed length in header of %s: expected %" PRId64 ", got %" PRId64,
@@ -117,6 +116,9 @@ public:
                     File_->GetLength(),
                     Header_.CompressedLength);
             }
+
+            Meta_ = TSharedRef::Allocate(Header_.MetaSize, false);
+            ReadPadded(input, Meta_);
 
             if (IsRaw_) {
                 File_->Seek(offset, sSet);
@@ -156,7 +158,7 @@ public:
     virtual TSnapshotParams GetParams() const override
     {
         TSnapshotParams params;
-        params.PrevRecordCount = Header_.PrevRecordCount;
+        params.Meta = Meta_;
         params.Checksum = Header_.Checksum;
         params.CompressedLength = Header_.CompressedLength;
         params.UncompressedLength = Header_.UncompressedLength;
@@ -176,6 +178,7 @@ private:
     TInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
+    TSharedRef Meta_;
 
 };
 
@@ -203,12 +206,12 @@ public:
         const Stroka& fileName,
         ECodec codec,
         int snapshotId,
-        const TSnapshotCreateParams& params,
+        const TSharedRef& meta,
         bool isRaw)
         : FileName_(fileName)
         , Codec_(codec)
         , SnapshotId_(snapshotId)
-        , Params_(params)
+        , Meta_(meta)
         , IsRaw_(isRaw)
         , FacadeOutput_(nullptr)
     { }
@@ -227,6 +230,7 @@ public:
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
+                WritePadded(*File_, Meta_);
                 File_->Flush();
 
                 ChecksumOutput_.reset(new TChecksumOutput(RawOutput_.get()));
@@ -281,11 +285,11 @@ public:
         if (!IsRaw_) {
             TSnapshotHeader header;
             header.SnapshotId = SnapshotId_;
-            header.PrevRecordCount = Params_.PrevRecordCount;
             header.CompressedLength = File_->GetLength();
             header.UncompressedLength = LengthMeasureOutput_->GetLength();
             header.Checksum = ChecksumOutput_->GetChecksum();
             header.Codec = Codec_;
+            header.MetaSize = Meta_.Size();
             File_->Seek(0, sSet);
             WritePod(*File_, header);
         }
@@ -298,7 +302,7 @@ private:
     Stroka FileName_;
     ECodec Codec_;
     int SnapshotId_;
-    TSnapshotCreateParams Params_;
+    TSharedRef Meta_;
     bool IsRaw_;
 
     std::unique_ptr<TFile> File_;
@@ -314,14 +318,14 @@ ISnapshotWriterPtr CreateFileSnapshotWriter(
     const Stroka& fileName,
     ECodec codec,
     int snapshotId,
-    const TSnapshotCreateParams& params,
+    const TSharedRef& meta,
     bool isRaw)
 {
     auto writer = New<TFileSnapshotWriter>(
         fileName,
         codec,
         snapshotId,
-        params,
+        meta,
         isRaw);
     writer->Open();
     return writer;
@@ -404,13 +408,13 @@ public:
             offset);
     }
 
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotCreateParams& params)
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta)
     {
         return CreateFileSnapshotWriter(
             GetSnapshotPath(snapshotId) + TempFileSuffix,
             Config_->Codec,
             snapshotId,
-            params,
+            meta,
             false);
     }
 
@@ -420,7 +424,7 @@ public:
             GetSnapshotPath(snapshotId) + TempFileSuffix,
             Config_->Codec,
             snapshotId,
-            TSnapshotCreateParams(),
+            TSharedRef(),
             true);
     }
 
@@ -469,13 +473,17 @@ private:
         try {
             TFile file(fileName, OpenExisting|CloseOnExec);
             TFileInput input(file);
+
             TSnapshotHeader header;
             ReadPod(input, header);
             header.Validate();
-            params.PrevRecordCount = header.PrevRecordCount;
+
+            params.Meta = TSharedRef::Allocate(header.MetaSize, false);
             params.Checksum = header.Checksum;
             params.CompressedLength = header.CompressedLength;
             params.UncompressedLength = header.UncompressedLength;
+
+            ReadPadded(input, params.Meta);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error reading header of snapshot %s",
                 ~fileName.Quote());
@@ -539,9 +547,9 @@ ISnapshotReaderPtr TFileSnapshotStore::CreateRawReader(int snapshotId, i64 offse
     return Impl_->CreateRawReader(snapshotId, offset);
 }
 
-ISnapshotWriterPtr TFileSnapshotStore::CreateWriter(int snapshotId, const TSnapshotCreateParams& params)
+ISnapshotWriterPtr TFileSnapshotStore::CreateWriter(int snapshotId, const TSharedRef& meta)
 {
-    return Impl_->CreateWriter(snapshotId, params);
+    return Impl_->CreateWriter(snapshotId, meta);
 }
 
 ISnapshotWriterPtr TFileSnapshotStore::CreateRawWriter(int snapshotId)

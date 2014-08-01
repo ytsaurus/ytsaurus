@@ -18,6 +18,7 @@ namespace NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +78,10 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError);
         const auto& snapshotParams = snapshotParamsOrError.Value();
 
-        auto snapshotVersion = TVersion(snapshotId - 1, snapshotParams.PrevRecordCount);
+        TSnapshotMeta meta;
+        YCHECK(DeserializeFromProto(&meta, snapshotParams.Meta));
+
+        auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
         auto* input = reader->GetStream();
         DecoratedAutomaton_->LoadSnapshot(snapshotVersion, input);
         initialChangelogId = snapshotId;

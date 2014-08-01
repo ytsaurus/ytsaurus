@@ -4,6 +4,11 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TSnapshotMeta
+{
+    required int32 prev_record_count = 1;
+}
+
 message TChangelogMeta
 {
     required int32 prev_record_count = 1;

@@ -13,10 +13,10 @@ message TReqLookupSnapshot
 message TRspLookupSnapshot
 {
     required int32 snapshot_id = 1;
-    required int32 prev_record_count = 2;
-    required int64 compressed_length = 3;
-    required int64 uncompressed_length = 4;
-    required uint64 checksum = 5;
+    required int64 compressed_length = 2;
+    required int64 uncompressed_length = 3;
+    required uint64 checksum = 4;
+    required bytes meta = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

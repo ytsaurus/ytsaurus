@@ -1291,7 +1291,7 @@ std::vector<TSharedRef> TTabletManager::Read(
     TTablet* tablet,
     TTimestamp timestamp,
     const TSharedRef& requestData)
-{
+ {
     return Impl_->Read(
         tablet,
         timestamp,

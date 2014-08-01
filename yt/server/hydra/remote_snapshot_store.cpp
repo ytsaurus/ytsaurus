@@ -24,6 +24,8 @@
 #include <ytlib/api/file_reader.h>
 #include <ytlib/api/file_writer.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -34,6 +36,7 @@ using namespace NElection;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NApi;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,15 +69,13 @@ public:
             .Run(snapshotId);
     }
 
-    virtual ISnapshotWriterPtr CreateWriter(
-        int snapshotId,
-        const TSnapshotCreateParams& params) override
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) override
     {
         return CreateFileSnapshotWriter(
             GetLocalPath(snapshotId),
             NCompression::ECodec::None,
             snapshotId,
-            params,
+            meta,
             false);
     }
 
@@ -259,11 +260,15 @@ private:
 
             LOG_DEBUG("Creating snapshot");
             {
+                TSnapshotMeta meta;
+                YCHECK(DeserializeFromProto(&meta, params.Meta));
+
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("replication_factor", Options_->SnapshotReplicationFactor);
-                attributes->Set("prev_record_count", params.PrevRecordCount);
+                attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = attributes.get();
+
                 auto result = WaitFor(transaction->CreateNode(
                     remotePath,
                     EObjectType::File,
@@ -338,10 +343,13 @@ private:
         auto node = ConvertToNode(resultOrError.Value());
         const auto& attributes = node->Attributes();
 
+        TSnapshotMeta meta;
+        meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
+
         TSnapshotParams params;
-        params.PrevRecordCount = attributes.Get<i64>("prev_record_count");
         params.Checksum = 0;
         params.CompressedLength = params.UncompressedLength = -1;
+        YCHECK(SerializeToProto(meta, &params.Meta));
         return params;
     }
 

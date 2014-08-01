@@ -57,10 +57,10 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
     }
 
     response->set_snapshot_id(snapshotId);
-    response->set_prev_record_count(maybeParams->PrevRecordCount);
     response->set_compressed_length(maybeParams->CompressedLength);
     response->set_uncompressed_length(maybeParams->UncompressedLength);
     response->set_checksum(maybeParams->Checksum);
+    response->set_meta(ToString(maybeParams->Meta));
     
     context->SetResponseInfo("SnapshotId: %v", snapshotId);
     context->Reply();

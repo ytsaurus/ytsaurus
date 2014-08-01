@@ -27,6 +27,7 @@ namespace NHydra {
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NRpc;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,7 +203,10 @@ public:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         SnapshotId_ = Owner_->AutomatonVersion_.SegmentId + 1;
-        SnapshotParams_.PrevRecordCount = Owner_->AutomatonVersion_.RecordId;
+        
+        TSnapshotMeta meta;
+        meta.set_prev_record_count(Owner_->AutomatonVersion_.RecordId);
+        YCHECK(SerializeToProto(meta, &Meta_));
 
         TSnapshotBuilderBase::Run().Subscribe(
             BIND(&TSnapshotBuilder::OnFinished, MakeStrong(this))
@@ -214,7 +218,7 @@ private:
     TPromise<TErrorOr<TRemoteSnapshotParams>> Promise_;
 
     int SnapshotId_;
-    TSnapshotCreateParams SnapshotParams_;
+    TSharedRef Meta_;
 
 
     virtual TDuration GetTimeout() const override
@@ -224,7 +228,7 @@ private:
 
     virtual void Build() override
     {
-        auto writer = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, SnapshotParams_);
+        auto writer = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, Meta_);
         Owner_->SaveSnapshot(writer->GetStream());
         writer->Close();
     }

@@ -45,23 +45,13 @@ DEFINE_REFCOUNTED_TYPE(ISnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Parameters used for creating new snapshots.
-struct TSnapshotCreateParams
-{
-    TSnapshotCreateParams();
-
-    int PrevRecordCount;
-};
-
 //! Parameters of an existing snapshot.
 struct TSnapshotParams
 {
-    TSnapshotParams();
-
-    int PrevRecordCount;
-    TChecksum Checksum;
-    i64 CompressedLength;
-    i64 UncompressedLength;
+    TSharedRef Meta;
+    TChecksum Checksum = 0;
+    i64 CompressedLength = -1;
+    i64 UncompressedLength = -1;
 
 };
 
@@ -74,9 +64,7 @@ struct ISnapshotStore
 
     //! Creates a writer for a given snapshot id.
     //! Runs synchronously since it is typically called from a forked child.
-    virtual ISnapshotWriterPtr CreateWriter(
-        int snapshotId,
-        const TSnapshotCreateParams& params) = 0;
+    virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSharedRef& meta) = 0;
 
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
     //! in the store or #NonexistingSnapshotId if no such snapshot is present.
