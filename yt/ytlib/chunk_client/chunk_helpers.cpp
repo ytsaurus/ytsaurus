@@ -42,7 +42,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     req->set_account(options->Account);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk_ext);
-    if (config->PreferLocalHost) {
+    if (config->PreferLocalHost && options->ErasureCodec == NErasure::ECodec::None) {
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
     reqExt->set_replication_factor(options->ReplicationFactor);
