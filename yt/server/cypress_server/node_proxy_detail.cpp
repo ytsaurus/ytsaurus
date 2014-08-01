@@ -796,7 +796,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto targetPath = GetRequestYPath(context);
 
     context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
-        ~sourcePath,
+        sourcePath,
         preserveAccount,
         removeSource);
 

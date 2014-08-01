@@ -1932,7 +1932,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
     if (task->GetPendingJobCount() > 0) {
         auto group = task->GetGroup();
         if (group->NonLocalTasks.insert(task).second) {
-            LOG_DEBUG("Task pending hint added (Task: %v)", ~task->GetId());
+            LOG_DEBUG("Task pending hint added (Task: %v)", task->GetId());
             MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
@@ -1951,8 +1951,8 @@ void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka
     auto group = task->GetGroup();
     if (group->LocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %v, Address: %v)",
-            ~task->GetId(),
-            ~address);
+            task->GetId(),
+            address);
     }
 }
 
@@ -2443,13 +2443,13 @@ void TOperationControllerBase::GetInputObjectIds()
             {
                 auto rsp = getInIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %v",
-                    ~table.Path.GetPath());
+                    table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
                 auto type = EObjectType(rsp->type());
 
                 if (type != EObjectType::Table) {
                     THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv, actual %Qv",
-                        ~table.Path.GetPath(),
+                        table.Path.GetPath(),
                         EObjectType(EObjectType::Table),
                         type);
                 }
@@ -2483,15 +2483,15 @@ void TOperationControllerBase::GetOutputObjectIds()
             {
                 auto rsp = getOutIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %v",
-                    ~table.Path.GetPath());
+                    table.Path.GetPath());
                 table.ObjectId = FromProto<TObjectId>(rsp->id());
                 auto type = EObjectType(rsp->type());
 
                 if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %v, actual %v",
-                        ~table.Path.GetPath(),
-                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                        ~FormatEnum(type).Quote());
+                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv, actual %Qv",
+                        table.Path.GetPath(),
+                        EObjectType(EObjectType::Table),
+                        type);
                 }
             }
         }
@@ -2525,7 +2525,7 @@ void TOperationControllerBase::ValidateFileTypes()
         auto stage = paths[index].second;
         auto rsp = getFileTypes[index];
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %v",
-            ~path);
+            path);
 
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
         TUserFileBase* file;
@@ -2540,7 +2540,7 @@ void TOperationControllerBase::ValidateFileTypes()
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv or %Qv, actual %Qv",
-                    ~path,
+                    path,
                     EObjectType(EObjectType::File),
                     EObjectType(EObjectType::Table),
                     type);

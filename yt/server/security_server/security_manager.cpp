@@ -298,8 +298,8 @@ public:
         if (FindAccountByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Account %v already exists",
-                ~name.Quote());
+                "Account %Qv already exists",
+                name);
         }
 
         auto objectManager = Bootstrap->GetObjectManager();

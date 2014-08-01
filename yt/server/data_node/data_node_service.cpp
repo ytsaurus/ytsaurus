@@ -274,7 +274,7 @@ private:
             chunkId,
             firstBlockIndex,
             lastBlockIndex,
-            ~target.GetDefaultAddress());
+            target.GetDefaultAddress());
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -342,7 +342,7 @@ private:
 
             Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
                 chunkId,
-                ~JoinToString(request.block_indexes()),
+                JoinToString(request.block_indexes()),
                 enableCaching,
                 sessionType);
 
@@ -584,7 +584,7 @@ private:
         context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %v, ExtensionTags: [%v], PartitionTag: %v",
             chunkId,
             request->all_extension_tags(),
-            ~JoinToString(extensionTags),
+            JoinToString(extensionTags),
             partitionTag);
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();

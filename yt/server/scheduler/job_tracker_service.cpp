@@ -51,7 +51,7 @@ private:
 
         context->SetRequestInfo("Descriptor: %v, ResourceUsage: {%v}",
             descriptor,
-            ~FormatResourceUsage(resourceUsage, resourceLimits));
+            FormatResourceUsage(resourceUsage, resourceLimits));
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.

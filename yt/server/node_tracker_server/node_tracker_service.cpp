@@ -60,7 +60,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
     const auto& address = descriptor.GetDefaultAddress();
 
     context->SetRequestInfo("Address: %v, CellGuid: %v, %v",
-        ~address,
+        address,
         requestCellGuid,
         statistics);
 
