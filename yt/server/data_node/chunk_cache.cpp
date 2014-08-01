@@ -292,8 +292,8 @@ private:
                 &chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {
-            auto error = TError("Error downloading chunk %s into cache",
-                ~ToString(chunkId))
+            auto error = TError("Error downloading chunk %v into cache",
+                chunkId)
                 << ex;
             cookie.Cancel(error);
             LOG_WARNING(error);

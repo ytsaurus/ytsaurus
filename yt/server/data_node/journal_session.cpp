@@ -89,8 +89,8 @@ TFuture<TErrorOr<IChunkPtr>> TJournalSession::DoFinish(
     auto sealResult = OKFuture;
     if (blockCount) {
         if (*blockCount != Changelog_->GetRecordCount()) {
-            THROW_ERROR_EXCEPTION("Block count mismatch in journal session %s: expected %d, got %d",
-                ~ToString(ChunkId_),
+            THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
+                ChunkId_,
                 Changelog_->GetRecordCount(),
                 *blockCount);
         }
@@ -115,15 +115,15 @@ TAsyncError TJournalSession::DoPutBlocks(
     int recordCount = Changelog_->GetRecordCount();
     
     if (startBlockIndex > recordCount) {
-        THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
-            ~ToString(ChunkId_),
+        THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
+            ChunkId_,
             recordCount,
             startBlockIndex - 1);
     }
 
     if (startBlockIndex < recordCount) {
-        LOG_DEBUG("Skipped duplicate blocks %s:%d-%d",
-            ~ToString(ChunkId_),
+        LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
+            ChunkId_,
             startBlockIndex,
             recordCount - 1);
     }
@@ -151,8 +151,8 @@ TAsyncError TJournalSession::DoFlushBlocks(int blockIndex)
     int recordCount = Changelog_->GetRecordCount();
     
     if (blockIndex > recordCount) {
-        THROW_ERROR_EXCEPTION("Missing blocks %s:%d-%d",
-            ~ToString(ChunkId_),
+        THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
+            ChunkId_,
             recordCount - 1,
             blockIndex);
     }

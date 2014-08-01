@@ -95,8 +95,8 @@ TError TMemoryUsageTracker<EMemoryConsumer>::TryAcquire(EMemoryConsumer consumer
     guard.Release();
 
     return TError(
-        "Not enough memory to serve %s request: free %" PRId64 ", requested %" PRId64,
-        ~FormatEnum(consumer).Quote(),
+        "Not enough memory to serve %Qv request: free %v, requested %v",
+        consumer,
         freeMemory,
         size);
 }

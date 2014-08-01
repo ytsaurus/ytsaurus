@@ -41,8 +41,8 @@ IChunkPtr TChunkRegistry::GetChunk(const TChunkId& chunkId)
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
-            "No such chunk %s",
-            ~ToString(chunkId));
+            "No such chunk %v",
+            chunkId);
     }
     return chunk;
 }

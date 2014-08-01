@@ -46,7 +46,7 @@ public:
     {
         auto it = Environments.find(name);
         if (it == Environments.end()) {
-            THROW_ERROR_EXCEPTION("No such environment %s", ~name.Quote());
+            THROW_ERROR_EXCEPTION("No such environment %Qv", name);
         }
         return it->second;
     }

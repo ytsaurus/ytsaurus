@@ -175,8 +175,8 @@ void TBlobChunkBase::DoReadBlocks(
             Location_->Disable();
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::IOError,
-                "Error reading blob chunk %s",
-                ~ToString(Id_))
+                "Error reading blob chunk %v",
+                Id_)
                 << TError(blocksOrError);
         }
 
@@ -196,8 +196,8 @@ void TBlobChunkBase::DoReadBlocks(
 TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
 {
     if (!TryAcquireReadLock()) {
-        return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",
-            ~ToString(Id_)));
+        return MakeFuture(TError("Cannot read meta of chunk %v: chunk is scheduled for removal",
+            Id_));
     }
 
     auto promise = NewPromise<TError>();

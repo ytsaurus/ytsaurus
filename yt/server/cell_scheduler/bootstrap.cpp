@@ -110,9 +110,9 @@ void TBootstrap::DoRun()
         TAddressResolver::Get()->GetLocalHostName(),
         Config->RpcPort);
 
-    LOG_INFO("Starting scheduler (LocalAddress: %s, MasterAddresses: [%s])",
-        ~LocalAddress,
-        ~JoinToString(Config->ClusterConnection->Master->Addresses));
+    LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: [%v])",
+        LocalAddress,
+        JoinToString(Config->ClusterConnection->Master->Addresses));
 
     auto connection = CreateConnection(Config->ClusterConnection);
     MasterClient = connection->CreateClient();

@@ -66,13 +66,13 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!blockCount) {
-        THROW_ERROR_EXCEPTION("Attempt to finish a blob session %s without specifying block count",
-            ~ToString(ChunkId_));
+        THROW_ERROR_EXCEPTION("Attempt to finish a blob session %v without specifying block count",
+            ChunkId_);
     }
 
     if (*blockCount != BlockCount_) {
-        THROW_ERROR_EXCEPTION("Block count mismatch in blob session %s: expected %d, got %d",
-            ~ToString(ChunkId_),
+        THROW_ERROR_EXCEPTION("Block count mismatch in blob session %v: expected %v, got %v",
+            ChunkId_,
             BlockCount_,
             *blockCount);
     }
@@ -82,8 +82,8 @@ TFuture<TErrorOr<IChunkPtr>> TBlobSession::DoFinish(
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::WindowError,
-                "Attempt to finish a session with an unflushed block %s:%d",
-                ~ToString(ChunkId_),
+                "Attempt to finish a session with an unflushed block %v:%v",
+                ChunkId_,
                 blockIndex);
         }
     }
@@ -135,8 +135,8 @@ TAsyncError TBlobSession::DoPutBlocks(
 
             return MakeFuture(TError(
                 NChunkClient::EErrorCode::BlockContentMismatch,
-                "Block %s:%d with a different content already received",
-                ~ToString(ChunkId_),
+                "Block %v:%v with a different content already received",
+                ChunkId_,
                 blockIndex)
                 << TErrorAttribute("window_start", WindowStartBlockIndex_));
         }
@@ -237,8 +237,8 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         TBlockId blockId(ChunkId_, blockIndex);
         SetFailed(TError(
             NChunkClient::EErrorCode::IOError,
-            "Error writing chunk block %s",
-            ~ToString(blockId))
+            "Error writing chunk block %v",
+            blockId)
             << ex);
     }
 
@@ -285,8 +285,8 @@ TAsyncError TBlobSession::DoFlushBlocks(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Attempt to flush an unreceived block %s:%d",
-            ~ToString(ChunkId_),
+            "Attempt to flush an unreceived block %v:%v",
+            ChunkId_,
             blockIndex);
     }
 
@@ -328,8 +328,8 @@ void TBlobSession::DoOpenWriter()
         catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error creating chunk %s",
-                ~ToString(ChunkId_))
+                "Error creating chunk %v",
+                ChunkId_)
                 << ex);
             return;
         }
@@ -363,8 +363,8 @@ TError TBlobSession::DoAbortWriter()
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error aborting chunk %s",
-                ~ToString(ChunkId_))
+                "Error aborting chunk %v",
+                ChunkId_)
                 << ex);
         }
         Writer_.Reset();
@@ -414,8 +414,8 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
         } catch (const std::exception& ex) {
             SetFailed(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error closing chunk %s",
-                ~ToString(ChunkId_))
+                "Error closing chunk %v",
+                ChunkId_)
                 << ex);
         }
     }
@@ -485,8 +485,8 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
     if (!IsInWindow(blockIndex)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Block %s:%d is out of the window",
-            ~ToString(ChunkId_),
+            "Block %v:%v is out of the window",
+            ChunkId_,
             blockIndex);
     }
 }
@@ -518,8 +518,8 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::WindowError,
-            "Trying to retrieve a block %s:%d that is not received yet",
-            ~ToString(ChunkId_),
+            "Trying to retrieve a block %v:%v that is not received yet",
+            ChunkId_,
             blockIndex);
     }
 

@@ -325,13 +325,13 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         auto cellGuidString = cellGuidFile.ReadAll();
         TCellGuid cellGuid;
         if (!TGuid::FromString(cellGuidString, &cellGuid)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cell GUID %s",
-                ~cellGuidString.Quote());
+            THROW_ERROR_EXCEPTION("Failed to parse cell GUID %Qv",
+                cellGuidString);
         }
         if (cellGuid != Bootstrap_->GetCellGuid()) {
-            THROW_ERROR_EXCEPTION("Wrong cell GUID: expected %s, found %s",
-                ~ToString(Bootstrap_->GetCellGuid()),
-                ~ToString(cellGuid));
+            THROW_ERROR_EXCEPTION("Wrong cell GUID: expected %v, found %v",
+                Bootstrap_->GetCellGuid(),
+                cellGuid);
         }
     } else {
         LOG_INFO("Cell GUID file is not found, creating");

@@ -203,8 +203,8 @@ private:
                 int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
                 snapshotIds.push_back(snapshotId);
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %s in snapshot store",
-                    ~fileName.Quote());
+                LOG_WARNING("Unrecognized item %Qv in snapshot store",
+                    fileName);
             }
         }
 
@@ -246,8 +246,8 @@ private:
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 }
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %s in changelog store",
-                    ~fileName.Quote());
+                LOG_WARNING("Unrecognized item %Qv in changelog store",
+                    fileName);
             }
         }
     }

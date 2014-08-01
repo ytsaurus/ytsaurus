@@ -146,8 +146,8 @@ protected:
                 Shutdown();
                 Visitor_->OnError(TError(
                     NRpc::EErrorCode::Unavailable,
-                    "Optimistic locking failed for chunk list %s",
-                    ~ToString(chunkList->GetId())));
+                    "Optimistic locking failed for chunk list %v",
+                    chunkList->GetId()));
                 return;
             }
 

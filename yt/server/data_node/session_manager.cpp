@@ -132,8 +132,8 @@ ISessionPtr TSessionManager::CreateSession(
             break;
     
         default:
-            THROW_ERROR_EXCEPTION("Invalid session chunk type %s",
-                ~FormatEnum(chunkType).Quote());
+            THROW_ERROR_EXCEPTION("Invalid session chunk type %Qv",
+                chunkType);
     }
 
     auto lease = TLeaseManager::CreateLease(

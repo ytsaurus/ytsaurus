@@ -147,8 +147,8 @@ public:
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type %s",
-                ~FormatEnum(type).Quote());
+            THROW_ERROR_EXCEPTION("Unknown object type %Qv",
+                type);
         }
 
         auto* node = cypressManager->CreateNode(
@@ -376,8 +376,8 @@ public:
         auto objectProxy = resolver->ResolvePath(path, Transaction);
         auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
         if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION("Path % points to a nonversioned %s object instead of a node",
-                ~FormatEnum(TypeFromId(objectProxy->GetId())).Quote());
+            THROW_ERROR_EXCEPTION("Path % points to a nonversioned %Qv object instead of a node",
+                TypeFromId(objectProxy->GetId()));
         }
         return nodeProxy;
     }
@@ -618,8 +618,8 @@ TCypressNodeBase* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
     if (!IsObjectAlive(node)) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "No such node %s",
-            ~ToString(id));
+            "No such node %v",
+            id);
     }
 
     return node;
@@ -689,8 +689,8 @@ TError TCypressManager::CheckLock(
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
-        return TError("%s lock requires a transaction",
-            ~FormatEnum(request.Mode).Quote());
+        return TError("%Qv lock requires a transaction",
+            request.Mode);
     }
 
     // Check for conflicts with other transactions.
@@ -713,11 +713,11 @@ TError TCypressManager::CheckLock(
             {
                 return TError(
                     NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                    "Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
-                    ~FormatEnum(request.Mode).Quote(),
-                    ~GetNodePath(trunkNode, transaction),
-                    ~FormatEnum(existingState.Mode).Quote(),
-                    ~ToString(existingTransaction->GetId()));
+                    "Cannot take %Qv lock for node %v since %Qv lock is taken by concurrent transaction %v",
+                    request.Mode,
+                    GetNodePath(trunkNode, transaction),
+                    existingState.Mode,
+                    existingTransaction->GetId());
             }
 
             // For Shared locks we check child and attribute keys.
@@ -727,24 +727,24 @@ TError TCypressManager::CheckLock(
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
-                        ~FormatEnum(request.Mode).Quote(),
-                        ~request.ChildKey.Get().Quote(),
-                        ~GetNodePath(trunkNode, transaction),
-                        ~FormatEnum(existingState.Mode).Quote(),
-                        ~ToString(existingTransaction->GetId()));
+                        "Cannot take %Qv lock for child %Qv of node %v since %Qv lock is taken by concurrent transaction %v",
+                        request.Mode,
+                        request.ChildKey.Get(),
+                        GetNodePath(trunkNode, transaction),
+                        existingState.Mode,
+                        existingTransaction->GetId());
                 }
                 if (request.AttributeKey &&
                     existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
-                        ~FormatEnum(request.Mode).Quote(),
-                        ~request.AttributeKey.Get().Quote(),
-                        ~GetNodePath(trunkNode, transaction),
-                        ~FormatEnum(existingState.Mode).Quote(),
-                        ~ToString(existingTransaction->GetId()));
+                        "Cannot take %Qv lock for attribute %Qv of node %v since %Qv lock is taken by concurrent transaction %v",
+                        request.Mode,
+                        request.AttributeKey.Get(),
+                        GetNodePath(trunkNode, transaction),
+                        existingState.Mode,
+                        existingTransaction->GetId());
                 }
             }
         }
@@ -763,10 +763,10 @@ TError TCypressManager::CheckLock(
             if (existingState.Mode == ELockMode::Snapshot) {
                 return TError(
                     NCypressClient::EErrorCode::SameTransactionLockConflict,
-                    "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
-                    ~FormatEnum(request.Mode).Quote(),
-                    ~GetNodePath(trunkNode, transaction),
-                    ~FormatEnum(existingState.Mode).Quote());
+                    "Cannot take %Qv lock for node %v since %Qv lock is already taken by the same transaction",
+                    request.Mode,
+                    GetNodePath(trunkNode, transaction),
+                    existingState.Mode);
             }
         }
     }
@@ -780,10 +780,10 @@ TError TCypressManager::CheckLock(
     if (request.Mode != ELockMode::Snapshot && checkPending && !trunkNode->PendingLocks().empty()) {
         return TError(
             NCypressClient::EErrorCode::PendingLockConflict,
-            "Cannot take %s lock for node %s since there are %d pending lock(s) for this node",
-            ~FormatEnum(request.Mode).Quote(),
-            ~GetNodePath(trunkNode, transaction),
-            static_cast<int>(trunkNode->PendingLocks().size()));
+            "Cannot take %Qv lock for node %v since there are %v pending lock(s) for this node",
+            request.Mode,
+            GetNodePath(trunkNode, transaction),
+            trunkNode->PendingLocks().size());
     }
 
     return TError();
@@ -847,8 +847,8 @@ TCypressNodeBase* TCypressManager::DoAcquireLock(TLock* lock)
     auto* transaction = lock->GetTransaction();
     const auto& request = lock->Request();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %s)",
-        ~ToString(lock->GetId()));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %v)",
+        lock->GetId());
 
     YCHECK(lock->GetState() == ELockState::Pending);
     lock->SetState(ELockState::Acquired);
@@ -926,17 +926,17 @@ void TCypressManager::UpdateNodeLockState(
         lockState->Mode = request.Mode;
         YCHECK(transaction->LockedNodes().insert(trunkNode).second);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
-            ~ToString(versionedId),
-            ~ToString(request.Mode));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %v, Mode: %v)",
+            versionedId,
+            request.Mode);
     } else {
         lockState = &it->second;
         if (lockState->Mode < request.Mode) {
             lockState->Mode = request.Mode;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
-                ~ToString(versionedId),
-                ~ToString(lockState->Mode));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %v, Mode: %v)",
+                versionedId,
+                lockState->Mode);
         }
     }
 
@@ -944,18 +944,18 @@ void TCypressManager::UpdateNodeLockState(
         lockState->ChildKeys.find(request.ChildKey.Get()) == lockState->ChildKeys.end())
     {
         YCHECK(lockState->ChildKeys.insert(request.ChildKey.Get()).second);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
-            ~ToString(versionedId),
-            ~request.ChildKey.Get());
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node child locked (NodeId: %v, Key: %v)",
+            versionedId,
+            request.ChildKey.Get());
     }
 
     if (request.AttributeKey &&
         lockState->AttributeKeys.find(request.AttributeKey.Get()) == lockState->AttributeKeys.end())
     {
         YCHECK(lockState->AttributeKeys.insert(request.AttributeKey.Get()).second);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
-            ~ToString(versionedId),
-            ~request.AttributeKey.Get());
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %v, Key: %v)",
+            versionedId,
+            request.AttributeKey.Get());
     }
 }
 
@@ -980,10 +980,10 @@ TLock* TCypressManager::DoCreateLock(
     YCHECK(transaction->Locks().insert(lock).second);
     objectManager->RefObject(lock);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %s, Mode: %s, NodeId: %s)",
-        ~ToString(id),
-        ~ToString(request.Mode),
-        ~ToString(TVersionedNodeId(trunkNode->GetId(), transaction->GetId())));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Lock created (LockId: %v, Mode: %v, NodeId: %v)",
+        id,
+        request.Mode,
+        TVersionedNodeId(trunkNode->GetId(), transaction->GetId()));
 
     return lock;
 }
@@ -1203,9 +1203,9 @@ TCypressNodeBase* TCypressManager::BranchNode(
     auto* account = originatingNode->GetAccount();
     securityManager->SetAccount(branchedNode_, account);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %s, Mode: %s)",
-        ~ToString(TVersionedNodeId(id, transaction->GetId())),
-        ~ToString(mode));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %v, Mode: %v)",
+        TVersionedNodeId(id, transaction->GetId()),
+        mode);
 
     return branchedNode_;
 }
@@ -1267,9 +1267,9 @@ void TCypressManager::OnAfterSnapshotLoaded()
             for (const auto& pair2 : mapNode->KeyToChild()) {
                 auto* child = pair2.second;
                 if (child && !child->GetParent()) {
-                    LOG_WARNING("Parent link fixed (ChildId: %s, ParentId: %s)",
-                        ~ToString(child->GetId()),
-                        ~ToString(node->GetId()));
+                    LOG_WARNING("Parent link fixed (ChildId: %v, ParentId: %v)",
+                        child->GetId(),
+                        node->GetId());
                     child->SetParent(node);
                 }
             }
@@ -1358,9 +1358,9 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~ToString(nodeId),
-        ~ToString(TypeFromId(nodeId)));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Type: %v)",
+        nodeId,
+        TypeFromId(nodeId));
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
@@ -1386,8 +1386,8 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     }
 
     for (auto* lock : pendingLocks) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %s)",
-            ~ToString(lock->GetId()));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
+            lock->GetId());
         lock->SetTrunkNode(nullptr);
         auto* transaction = lock->GetTransaction();
         YCHECK(transaction->Locks().erase(lock) == 1);
@@ -1437,9 +1437,9 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
         if (promote && parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
             lock->SetTransaction(parentTransaction);
             YCHECK(parentTransaction->Locks().insert(lock).second);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %s, NewTransactionId: %s)",
-                ~ToString(lock->GetId()),
-                ~ToString(parentTransaction->GetId()));
+            LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %v, NewTransactionId: %v)",
+                lock->GetId(),
+                parentTransaction->GetId());
         } else {
             if (trunkNode) {
                 switch (lock->GetState()) {
@@ -1463,8 +1463,8 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
         YCHECK(trunkNode->LockStateMap().erase(transaction) == 1);
 
         TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
-            ~ToString(versionedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %v)",
+            versionedId);
     }
 
     for (auto* trunkNode : lockedNodes) {
@@ -1561,12 +1561,12 @@ void TCypressManager::MergeNode(
         // Update resource usage.
         securityManager->UpdateAccountNodeUsage(originatingNode);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node merged (NodeId: %v)", branchedId);
     } else {
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %v)", branchedId);
     }
 
     // Drop the implicit reference to the originator.
@@ -1575,7 +1575,7 @@ void TCypressManager::MergeNode(
     // Remove the branched copy.
     NodeMap.Remove(branchedId);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedId);
 }
 
 void TCypressManager::MergeNodes(TTransaction* transaction)
@@ -1602,7 +1602,7 @@ void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
     handler->Destroy(branchedNode);
     NodeMap.Remove(branchedNodeId);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %v)", branchedNodeId);
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)

@@ -143,8 +143,8 @@ void TJournalChunk::DoReadBlocks(
             Location_->Disable();
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::IOError,
-                "Error reading journal chunk %s",
-                ~ToString(Id_))
+                "Error reading journal chunk %v",
+                Id_)
                 << ex;
         }
 
@@ -152,11 +152,11 @@ void TJournalChunk::DoReadBlocks(
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetTotalSize(blocks);
 
-        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %s:%d-%d, LocationId: %s, BlocksReadActually: %d, BytesReadActually: %" PRId64 ")",
-            ~ToString(Id_),
+        LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, BytesReadActually: %v)",
+            Id_,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
-            ~Location_->GetId(),
+            Location_->GetId(),
             blocksRead,
             bytesRead);
 

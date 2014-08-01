@@ -249,9 +249,9 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    LOG_INFO("Starting cell master (CellGuid: %s, CellId: %d)",
-        ~ToString(GetCellGuid()),
-        static_cast<int>(GetCellId()));
+    LOG_INFO("Starting cell master (CellGuid: %v, CellId: %v)",
+        GetCellGuid(),
+        GetCellId());
 
     if (GetCellGuid() == TCellGuid()) {
         LOG_ERROR("No custom cell GUID is set, cluster can only be used for testing purposes");
@@ -278,8 +278,8 @@ void TBootstrap::DoRun()
         std::find(addresses.begin(), addresses.end(), selfAddress));
 
     if (selfId == addresses.size()) {
-        THROW_ERROR_EXCEPTION("Missing self address %s is the peer list",
-            ~selfAddress.Quote());
+        THROW_ERROR_EXCEPTION("Missing self address %Qv is the peer list",
+            selfAddress);
     }
 
     CellManager = New<TCellManager>(

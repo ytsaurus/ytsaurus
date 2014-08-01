@@ -70,8 +70,8 @@ private:
         if (node->GetState() != ENodeState::Online) {
             context->Reply(TError(
                 NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a heartbeat in %s state",
-                ~FormatEnum(node->GetState())));
+                "Cannot process a heartbeat in %v state",
+                node->GetState()));
             return;
         }
 
@@ -101,32 +101,32 @@ private:
                 } else {
                     switch (state) {
                         case EJobState::Completed:
-                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %s)",
-                                ~ToString(jobId));
+                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %v)",
+                                jobId);
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Failed:
-                            LOG_INFO("Unknown job has failed, removal scheduled (JobId: %s)",
-                                ~ToString(jobId));
+                            LOG_INFO("Unknown job has failed, removal scheduled (JobId: %v)",
+                                jobId);
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Aborted:
-                            LOG_INFO("Job aborted, removal scheduled (JobId: %s)",
-                                ~ToString(jobId));
+                            LOG_INFO("Job aborted, removal scheduled (JobId: %v)",
+                                jobId);
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;
 
                         case EJobState::Running:
-                            LOG_WARNING("Unknown job is running, abort scheduled (JobId: %s)",
-                                ~ToString(jobId));
+                            LOG_WARNING("Unknown job is running, abort scheduled (JobId: %v)",
+                                jobId);
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 
                         case EJobState::Waiting:
-                            LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %s)",
-                                ~ToString(jobId));
+                            LOG_WARNING("Unknown job is waiting, abort scheduled (JobId: %v)",
+                                jobId);
                             ToProto(response->add_jobs_to_abort(), jobId);
                             break;
 

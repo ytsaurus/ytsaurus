@@ -706,8 +706,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
     {
-        THROW_ERROR_EXCEPTION("Invalid lock mode %s",
-            ~FormatEnum(mode).Quote());
+        THROW_ERROR_EXCEPTION("Invalid lock mode %Qv",
+            mode);
     }
 
     context->SetRequestInfo("Mode: %s, Waitable: %s",
@@ -1525,8 +1525,8 @@ IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
     auto result = FindTargetProxy();
     if (!result) {
         const auto* impl = GetThisTypedImpl();
-        THROW_ERROR_EXCEPTION("Link target %s does not exist",
-            ~ToString(impl->GetTargetId()));
+        THROW_ERROR_EXCEPTION("Link target %v does not exist",
+            impl->GetTargetId());
     }
     return result;
 }

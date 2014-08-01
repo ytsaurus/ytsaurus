@@ -285,8 +285,8 @@ private:
                 } else {
                     context->Reply(TError(
                         NChunkClient::EErrorCode::PipelineFailed,
-                        "Error putting blocks to %s",
-                        ~target.GetDefaultAddress())
+                        "Error putting blocks to %v",
+                        target.GetDefaultAddress())
                         << error);
                 }
             }));
@@ -626,8 +626,8 @@ private:
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
-                auto error = TError("No such chunk %s",
-                    ~ToString(chunkId));
+                auto error = TError("No such chunk %v",
+                    chunkId);
                 LOG_ERROR(error);
                 ToProto(splittedChunk->mutable_error(), error);
             } else {
@@ -658,8 +658,8 @@ private:
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
         if (!result.IsOK()) {
-            auto error = TError("Error getting meta of chunk %s",
-                ~ToString(chunkId))
+            auto error = TError("Error getting meta of chunk %v",
+                chunkId)
                 << result;
             LOG_WARNING(error);
             ToProto(splittedChunk->mutable_error(), error);
@@ -669,10 +669,10 @@ private:
         const auto& chunkMeta = *result.Value();
 
         if (chunkMeta.type() != EChunkType::Table) {
-            auto error =  TError("Invalid type of chunk %s: expected %s, actual %s",
-                ~ToString(chunkId),
-                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
-                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            auto error =  TError("Invalid type of chunk %v: expected %Qv, actual %Qv",
+                chunkId,
+                EChunkType(EChunkType::Table),
+                EChunkType(chunkMeta.type()));
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
@@ -681,8 +681,8 @@ private:
         // XXX(psushin): implement splitting for new chunks.
         if (chunkMeta.version() != 1) {
             // Only old chunks support splitting now.
-            auto error = TError("Invalid version of chunk %s: expected: 1, actual %d",
-                ~ToString(chunkId),
+            auto error = TError("Invalid version of chunk %v: expected: 1, actual %v",
+                chunkId,
                 chunkMeta.version());
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
@@ -691,8 +691,8 @@ private:
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
         if (!miscExt.sorted()) {
-            auto error =  TError("Chunk %s is not sorted",
-                ~ToString(chunkId));
+            auto error =  TError("Chunk %v is not sorted",
+                chunkId);
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
@@ -700,10 +700,10 @@ private:
 
         auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
         if (keyColumnsExt.names_size() < keyColumns.size()) {
-            auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
-                ~ToString(chunkId),
-                static_cast<int>(keyColumns.size()),
-                static_cast<int>(keyColumnsExt.names_size()));
+            auto error = TError("Not enough key columns in chunk %v: expected %v, actual %v",
+                chunkId,
+                keyColumns.size(),
+                keyColumnsExt.names_size());
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
@@ -712,10 +712,10 @@ private:
         for (int i = 0; i < keyColumns.size(); ++i) {
             const auto& value = keyColumnsExt.names(i);
             if (keyColumns[i] != value) {
-                auto error = TError("Invalid key column in chunk %s: expected %s, actual %s",
-                    ~ToString(chunkId),
-                    ~keyColumns[i].Quote(),
-                    ~value.Quote());
+                auto error = TError("Invalid key column in chunk %v: expected %Qv, actual %Qv",
+                    chunkId,
+                    keyColumns[i],
+                    value);
                 LOG_ERROR(error);
                 ToProto(splittedChunk->mutable_error(), error);
                 return;
@@ -882,8 +882,8 @@ private:
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
-                auto error = TError("No such chunk %s",
-                    ~ToString(chunkId));
+                auto error = TError("No such chunk %v",
+                    chunkId);
                 LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);
                 continue;
@@ -913,8 +913,8 @@ private:
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
         if (!result.IsOK()) {
-            auto error = TError("Error getting meta of chunk %s",
-                ~ToString(chunkId))
+            auto error = TError("Error getting meta of chunk %v",
+                chunkId)
                 << result;
             LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
@@ -923,10 +923,10 @@ private:
 
         const auto& chunkMeta = *result.Value();
         if (chunkMeta.type() != EChunkType::Table) {
-            auto error = TError("Invalid type of chunk %s: expected %s, actual %s",
-                ~ToString(chunkId),
-                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
-                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            auto error = TError("Invalid type of chunk %v: expected %Qv, actual %Qv",
+                chunkId,
+                EChunkType(EChunkType::Table),
+                EChunkType(chunkMeta.type()));
             LOG_WARNING(error);
             ToProto(sampleResponse->mutable_error(), error);
             return;
@@ -942,9 +942,9 @@ private:
                 break;
 
             default:
-                auto error = TError("Invalid version %d of chunk %s",
+                auto error = TError("Invalid version %v of chunk %v",
                     chunkMeta.version(),
-                    ~ToString(chunkId));
+                    chunkId);
                 LOG_WARNING(error);
                 ToProto(sampleResponse->mutable_error(), error);
                 break;
@@ -1029,10 +1029,10 @@ private:
         auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
 
         if (chunkKeyColumns != keyColumns) {
-            auto error = TError("Key columns mismatch in chunk %s: expected [%s], actual [%s]",
-                ~ToString(chunkId),
-                ~JoinToString(keyColumns),
-                ~JoinToString(chunkKeyColumns));
+            auto error = TError("Key columns mismatch in chunk %v: expected [%v], actual [%v]",
+                chunkId,
+                JoinToString(keyColumns),
+                JoinToString(chunkKeyColumns));
             LOG_WARNING(error);
             ToProto(chunkSamples->mutable_error(), error);
             return;
@@ -1066,8 +1066,8 @@ private:
                 } else {
                     context->Reply(TError(
                         NChunkClient::EErrorCode::ChunkPrecachingFailed,
-                        "Error precaching chunk %s",
-                        ~ToString(chunkId))
+                        "Error precaching chunk %v",
+                        chunkId)
                         << result);
                 }
             }));
@@ -1079,9 +1079,9 @@ private:
         auto expirationTime = TInstant(request->peer_expiration_time());
         TPeerInfo peer(descriptor, expirationTime);
 
-        context->SetRequestInfo("Descriptor: %s, ExpirationTime: %s, BlockCount: %d",
-            ~ToString(descriptor),
-            ~ToString(expirationTime),
+        context->SetRequestInfo("Descriptor: %v, ExpirationTime: %v, BlockCount: %v",
+            descriptor,
+            expirationTime,
             request->block_ids_size());
 
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
@@ -1097,8 +1097,8 @@ private:
         if (Bootstrap_->GetSessionManager()->FindSession(chunkId)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::SessionAlreadyExists,
-                "Session %s already exists",
-                ~ToString(chunkId));
+                "Session %v already exists",
+                chunkId);
         }
     }
 
@@ -1107,8 +1107,8 @@ private:
         if (Bootstrap_->GetChunkStore()->FindChunk(chunkId)) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::ChunkAlreadyExists,
-                "Chunk %s already exists",
-                ~ToString(chunkId));
+                "Chunk %v already exists",
+                chunkId);
         }
     }
 

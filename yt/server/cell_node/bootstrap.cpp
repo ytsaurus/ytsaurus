@@ -154,9 +154,9 @@ void TBootstrap::DoRun()
         LocalDescriptor = NNodeTrackerClient::TNodeDescriptor(addresses);
     }
 
-    LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
-        ~ToString(LocalDescriptor),
-        ~JoinToString(Config->ClusterConnection->Master->Addresses));
+    LOG_INFO("Starting node (LocalDescriptor: %v, MasterAddresses: [%v])",
+        LocalDescriptor,
+        JoinToString(Config->ClusterConnection->Master->Addresses));
 
     {
         auto result = MemoryUsageTracker.TryAcquire(

@@ -211,8 +211,8 @@ bool TChunk::IsConfirmed() const
 void TChunk::ValidateConfirmed()
 {
     if (!IsConfirmed()) {
-        THROW_ERROR_EXCEPTION("Chunk %s is not confirmed",
-            ~ToString(Id));
+        THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
+            Id);
     }
 }
 
