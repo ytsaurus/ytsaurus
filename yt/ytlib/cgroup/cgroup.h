@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/cgroup/statistics.pb.h>
 
 #include <util/generic/stroka.h>
@@ -11,8 +13,6 @@ namespace NYT {
 namespace NCGroup {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TMemory;
 
 class TEvent
     : private TNonCopyable
