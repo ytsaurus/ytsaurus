@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import argparse
 import logging
 
-Oper = namedtuple("Oper", ["time", "id", "user", "state", "spec"]);
+Oper = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state", "spec"]);
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
@@ -23,9 +23,10 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
     if robots is None:
         robots = []
 
-    operations = yt.get("//sys/operations", attributes=['state', 'start_time', 'spec', 'authenticated_user'])
+    operations = yt.get("//sys/operations", attributes=['state', 'start_time', 'finish_time', 'spec', 'authenticated_user'])
     operations = [Oper(
         parse(v.attributes["start_time"]).replace(tzinfo=None),
+        v.attributes.get("finish_time", None),
         k,
         v.attributes.get("authenticated_user", "unknown"),
         v.attributes["state"],
@@ -39,18 +40,22 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
     def is_final(state):
         return state in ["completed", "aborted", "failed"]
 
-    operations.sort(key=lambda op: op.time, reverse=True)
+    operations.sort(key=lambda op: op.start_time, reverse=True)
 
     users = {}
     for op in operations:
         if not is_final(op.state):
             continue
 
+        # Ignore just completed operation to avoid conflict with snapshot upload transaction.
+        if datetime.utcnow() - parse(op.finish_time).replace(tzinfo=None) < timedelta(seconds=30):
+            continue
+
         if op.user not in users:
             users[op.user] = 0
         users[op.user] += 1
 
-        time_since = datetime.utcnow() - op.time
+        time_since = datetime.utcnow() - op.start_time
         is_old = (time_since > failed_timeout)
 
         is_regular = (op.user in robots)
