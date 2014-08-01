@@ -14,8 +14,6 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/cgroup/cgroup.h>
-
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/shutdown.h>
@@ -51,6 +49,8 @@
 
 #ifdef _linux_
     #include <core/misc/ioprio.h>
+
+    #include <ytlib/cgroup/cgroup.h>
 #endif
 
 namespace NYT {
@@ -81,20 +81,21 @@ struct TArgsParser
 public:
     TArgsParser()
         : CmdLine("Command line", ' ', GetVersion())
+        , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
+        , Config("", "config", "configuration file", false, "", "FILE")
+        , ConfigTemplate("", "config-template", "print configuration file template")
         , CellNode("", "node", "start cell node")
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
+        , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
+#ifdef _linux_
         , Cleaner("", "cleaner", "start cleaner")
         , Killer("", "killer", "start killer")
         , CloseAllFds("", "close-all-fds", "close all file descriptors")
         , DirToRemove("", "dir-to-remove", "directory to remove (for cleaner mode)", false, "", "DIR")
         , ProcessGroupPath("", "process-group-path", "path to process group to kill (for killer mode)", false, "", "UID")
-        , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , CGroups("", "cgroup", "run in cgroup", false, "")
-        , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
-        , Config("", "config", "configuration file", false, "", "FILE")
-        , ConfigTemplate("", "config-template", "print configuration file template")
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDumps("", "enable-core-dumps", "enable core dumps")
@@ -102,21 +103,23 @@ public:
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
         , EnableIOPrio("", "enable-io-prio", "set low io prio (for executor mode)")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
+#endif
     {
+        CmdLine.add(WorkingDirectory);
+        CmdLine.add(Config);
+        CmdLine.add(ConfigTemplate);
         CmdLine.add(CellNode);
         CmdLine.add(CellMaster);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
+        CmdLine.add(JobId);
+#ifdef _linux_
         CmdLine.add(Cleaner);
         CmdLine.add(Killer);
         CmdLine.add(CloseAllFds);
         CmdLine.add(DirToRemove);
         CmdLine.add(ProcessGroupPath);
-        CmdLine.add(JobId);
         CmdLine.add(CGroups);
-        CmdLine.add(WorkingDirectory);
-        CmdLine.add(Config);
-        CmdLine.add(ConfigTemplate);
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDumps);
@@ -124,26 +127,27 @@ public:
         CmdLine.add(Uid);
         CmdLine.add(EnableIOPrio);
         CmdLine.add(Command);
+#endif
     }
 
     TCLAP::CmdLine CmdLine;
 
+    TCLAP::ValueArg<Stroka> WorkingDirectory;
+    TCLAP::ValueArg<Stroka> Config;
+    TCLAP::SwitchArg ConfigTemplate;
     TCLAP::SwitchArg CellNode;
     TCLAP::SwitchArg CellMaster;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
+    TCLAP::ValueArg<Stroka> JobId;
+
+#ifdef _linux_
     TCLAP::SwitchArg Cleaner;
     TCLAP::SwitchArg Killer;
     TCLAP::SwitchArg CloseAllFds;
-
     TCLAP::ValueArg<Stroka> DirToRemove;
     TCLAP::ValueArg<Stroka> ProcessGroupPath;
-    TCLAP::ValueArg<Stroka> JobId;
     TCLAP::MultiArg<Stroka> CGroups;
-    TCLAP::ValueArg<Stroka> WorkingDirectory;
-    TCLAP::ValueArg<Stroka> Config;
-    TCLAP::SwitchArg ConfigTemplate;
-
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDumps;
@@ -151,6 +155,8 @@ public:
     TCLAP::ValueArg<int> Uid;
     TCLAP::SwitchArg EnableIOPrio;
     TCLAP::ValueArg<Stroka> Command;
+#endif
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,11 +174,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellNode = parser.CellNode.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
+
+#ifdef _linux_
     bool isCleaner = parser.Cleaner.getValue();
     bool isKiller = parser.Killer.getValue();
     bool isExecutor = parser.Executor.getValue();
-
     bool doCloseAllFds = parser.CloseAllFds.getValue();
+#endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
@@ -193,6 +201,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isJobProxy) {
         ++modeCount;
     }
+
+#ifdef _linux_
     if (isCleaner) {
         ++modeCount;
     }
@@ -202,20 +212,24 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isExecutor) {
         ++modeCount;
     }
+#endif
 
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
     }
 
+#ifdef _linux_
     if (doCloseAllFds) {
         CloseAllDescriptors();
     }
+#endif
 
     if (!workingDirectory.empty()) {
         ChDir(workingDirectory);
     }
 
+#ifdef _linux_
     if (isCleaner) {
         Stroka path = parser.DirToRemove.getValue();
         if (path.empty() || path[0] != '/') {
@@ -243,6 +257,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         return EExitCode::OK;
     }
+#endif
 
     INodePtr configNode;
 
@@ -272,6 +287,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NProfiling::TProfilingManager::Get()->Start();
     }
 
+#ifdef _linux_
     auto cgroups = parser.CGroups.getValue();
     for (const auto& path : cgroups) {
         NCGroup::TNonOwningCGroup cgroup(path);
@@ -279,7 +295,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
         cgroup.AddCurrentTask();
     }
 
-#ifdef _linux_
     auto vmLimit = parser.VMLimit.getValue();
     if (vmLimit > 0) {
         struct rlimit rlimit = {vmLimit, RLIM_INFINITY};
@@ -287,8 +302,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         auto res = setrlimit(RLIMIT_AS, &rlimit);
         if (res) {
             fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                    rlimit.rlim_max,
-                    strerror(errno));
+                rlimit.rlim_max,
+                strerror(errno));
             return EExitCode::ExecutorError;
         }
     }
