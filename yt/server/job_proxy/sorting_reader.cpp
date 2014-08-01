@@ -252,7 +252,7 @@ private:
             Sync(Reader.Get(), &TReader::AsyncOpen);
 
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
-            LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
                 EstimatedRowCount,
                 EstimatedBucketCount);
             YCHECK(EstimatedRowCount <= std::numeric_limits<i32>::max());
@@ -335,7 +335,7 @@ private:
                 YCHECK(bucketCount <= EstimatedBucketCount);
             }
 
-            LOG_INFO("Finished reading input (RowCount: %d, BucketCount: %d)",
+            LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
                 TotalRowCount,
                 bucketCount);
         }
@@ -343,13 +343,13 @@ private:
 
     void DoSortBucket(int bucketId)
     {
-        LOG_DEBUG("Started sorting bucket %d", bucketId);
+        LOG_DEBUG("Started sorting bucket %v", bucketId);
 
         int startIndex = BucketStart[bucketId];
         int endIndex = BucketStart[bucketId + 1] - 1;
         std::sort(Buckets.begin() + startIndex, Buckets.begin() + endIndex, SortComparer);
 
-        LOG_DEBUG("Finished sorting bucket %d", bucketId);
+        LOG_DEBUG("Finished sorting bucket %v", bucketId);
     }
 
     void StartMerge()

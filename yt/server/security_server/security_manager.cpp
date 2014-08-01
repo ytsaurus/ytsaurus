@@ -298,7 +298,7 @@ public:
         if (FindAccountByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Account %s already exists",
+                "Account %v already exists",
                 ~name.Quote());
         }
 
@@ -322,7 +322,7 @@ public:
     {
         auto* account = FindAccountByName(name);
         if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
+            THROW_ERROR_EXCEPTION("No such account %v", ~name.Quote());
         }
         return account;
     }
@@ -398,7 +398,7 @@ public:
         if (FindAccountByName(newName)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Account %s already exists",
+                "Account %v already exists",
                 ~newName.Quote());
         }
 
@@ -456,14 +456,14 @@ public:
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "User %s already exists",
+                "User %v already exists",
                 ~name.Quote());
         }
 
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Group %s already exists",
+                "Group %v already exists",
                 ~name.Quote());
         }
 
@@ -490,7 +490,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %s",
+                "No such user %v",
                 ~name.Quote());
         }
         return user;
@@ -502,7 +502,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %s",
+                "No such user %v",
                 ~ToString(id));
         }
         return user;
@@ -526,14 +526,14 @@ public:
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Group %s already exists",
+                "Group %v already exists",
                 ~name.Quote());
         }
 
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "User %s already exists",
+                "User %v already exists",
                 ~name.Quote());
         }
 
@@ -594,7 +594,7 @@ public:
     {
         auto* subject = FindSubjectByName(name);
         if (!IsObjectAlive(subject)) {
-            THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
+            THROW_ERROR_EXCEPTION("No such subject %v", ~name.Quote());
         }
         return subject;
     }
@@ -605,7 +605,7 @@ public:
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) != group->Members().end()) {
-            THROW_ERROR_EXCEPTION("Member %s is already present in group %s",
+            THROW_ERROR_EXCEPTION("Member %v is already present in group %v",
                 ~member->GetName().Quote(),
                 ~group->GetName().Quote());
         }
@@ -613,7 +613,7 @@ public:
         if (member->GetType() == EObjectType::Group) {
             auto* memberGroup = member->AsGroup();
             if (group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
-                THROW_ERROR_EXCEPTION("Adding group %s to group %s would produce a cycle",
+                THROW_ERROR_EXCEPTION("Adding group %v to group %v would produce a cycle",
                     ~memberGroup->GetName().Quote(),
                     ~group->GetName().Quote());
             }
@@ -627,7 +627,7 @@ public:
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) == group->Members().end()) {
-            THROW_ERROR_EXCEPTION("Member %s is not present in group %s",
+            THROW_ERROR_EXCEPTION("Member %v is not present in group %v",
                 ~member->GetName().Quote(),
                 ~group->GetName().Quote());
         }
@@ -644,7 +644,7 @@ public:
         if (FindSubjectByName(newName)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Subject %s already exists",
+                "Subject %v already exists",
                 ~newName.Quote());
         }
 
@@ -755,7 +755,7 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
+                                    LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         ~ToString(object->GetId()),
                                         ~ToString(permission),
                                         ~user->GetName(),
@@ -779,7 +779,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %s, Permission: %s, User: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
                 ~ToString(object->GetId()),
                 ~ToString(permission),
                 ~user->GetName());
@@ -787,7 +787,7 @@ public:
             return result;
         } else {
             YASSERT(result.Action == ESecurityAction::Allow);
-            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
+            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                 ~ToString(object->GetId()),
                 ~ToString(permission),
                 ~user->GetName(),
@@ -809,7 +809,7 @@ public:
             if (result.Object && result.Subject) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %s permission for %s is denied for %s by ACE at %s",
+                    "Access denied: %v permission for %v is denied for %v by ACE at %v",
                     ~FormatEnum(permission).Quote(),
                     ~objectManager->GetHandler(object)->GetName(object),
                     ~result.Subject->GetName().Quote(),
@@ -817,7 +817,7 @@ public:
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %s permission for %s is not allowed by any matching ACE",
+                    "Access denied: %v permission for %v is not allowed by any matching ACE",
                     ~FormatEnum(permission).Quote(),
                     ~objectManager->GetHandler(object)->GetName(object));
             }
@@ -848,15 +848,15 @@ public:
     void SetUserBanned(TUser* user, bool banned)
     {
         if (banned && user == RootUser) {
-            THROW_ERROR_EXCEPTION("User %s cannot be banned",
+            THROW_ERROR_EXCEPTION("User %v cannot be banned",
                 ~user->GetName().Quote());
         }
 
         user->SetBanned(banned);
         if (banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %s)", ~user->GetName());
+            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %v)", ~user->GetName());
         } else {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %s)", ~user->GetName());
+            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %v)", ~user->GetName());
         }
     }
 
@@ -865,14 +865,14 @@ public:
         if (user->GetBanned()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
-                "User %s is banned",
+                "User %v is banned",
                 ~user->GetName().Quote());
         }
 
         if (user != RootUser && GetRequestRate(user) > user->GetRequestRateLimit()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
-                "User %s has exceeded its request rate limit",
+                "User %v has exceeded its request rate limit",
                 ~user->GetName().Quote())
                 << TErrorAttribute("limit", user->GetRequestRateLimit());
         }

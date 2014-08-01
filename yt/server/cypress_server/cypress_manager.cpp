@@ -303,7 +303,7 @@ private:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
-        return Format("node %s", path);
+        return Format("node %v", path);
     }
 
     virtual IObjectProxyPtr DoGetProxy(

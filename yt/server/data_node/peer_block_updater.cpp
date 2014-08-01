@@ -80,7 +80,7 @@ void TPeerBlockUpdater::Update()
     }
 
     for (const auto& pair : requests) {
-        LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
+        LOG_DEBUG("Sending peer block update request (Address: %v, ExpirationTime: %v)",
             ~pair.first,
             ~ToString(expirationTime));
         pair.second->Invoke();

@@ -60,7 +60,7 @@ public:
         auto awaiter = Awaiter;
         auto promise = Promise;
 
-        LOG_INFO("Looking for a replica of changelog %d with at least %d records",
+        LOG_INFO("Looking for a replica of changelog %v with at least %v records",
             ChangelogInfo.ChangelogId,
             MinRecordCount);
 
@@ -69,7 +69,7 @@ public:
             if (!channel)
                 continue;
 
-            LOG_INFO("Requesting changelog info from peer %d", peerId);
+            LOG_INFO("Requesting changelog info from peer %v", peerId);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config->RpcTimeout);
@@ -119,12 +119,12 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!rsp->IsOK()) {
-            LOG_WARNING(rsp->GetError(), "Error looking up changelog at peer %d",
+            LOG_WARNING(rsp->GetError(), "Error looking up changelog at peer %v",
                 peerId);
             return;
         }
 
-        LOG_INFO("Found changelog %d on peer %d with %d record(s)",
+        LOG_INFO("Found changelog %v on peer %v with %v record(s)",
             ChangelogInfo.ChangelogId,
             peerId,
             rsp->record_count());
@@ -147,7 +147,7 @@ private:
         if (ChangelogInfo.ChangelogId == NonexistingSegmentId) {
             LOG_INFO("Changelog lookup failed, no suitable replica found");
         } else {
-            LOG_INFO("Changelog lookup succeeded, found replica on peer %d (RecordCount: %d)",
+            LOG_INFO("Changelog lookup succeeded, found replica on peer %v (RecordCount: %v)",
                 ChangelogInfo.PeerId,
                 ChangelogInfo.RecordCount);
         }

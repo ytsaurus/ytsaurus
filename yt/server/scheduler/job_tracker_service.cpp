@@ -49,7 +49,7 @@ private:
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("Descriptor: %s, ResourceUsage: {%s}",
+        context->SetRequestInfo("Descriptor: %v, ResourceUsage: {%v}",
             ~ToString(descriptor),
             ~FormatResourceUsage(resourceUsage, resourceLimits));
 

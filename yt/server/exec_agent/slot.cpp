@@ -48,7 +48,7 @@ void TSlot::Initialize()
         try {
             ProcessGroup.EnsureExistance();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to create process group %s",
+            THROW_ERROR_EXCEPTION("Failed to create process group %v",
                 ~ProcessGroup.GetFullPath().Quote()) << ex;
         }
 
@@ -57,7 +57,7 @@ void TSlot::Initialize()
             NCGroup::RunKiller(ProcessGroup.GetFullPath());
         } catch (const std::exception& ex) {
             // ToDo(psushin): think about more complex logic of handling fs errors.
-            LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %s)", ~ProcessGroup.GetFullPath().Quote());
+            LOG_FATAL(ex, "Slot user cleanup failed (ProcessGroup: %v)", ~ProcessGroup.GetFullPath().Quote());
         }
 #endif
     }
@@ -67,7 +67,7 @@ void TSlot::Initialize()
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
         DoCleanSandbox();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
+        THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
             ~Path.Quote()) << ex;
     }
 
@@ -131,7 +131,7 @@ void TSlot::DoCleanSandbox()
         }
         IsClean = true;
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Failed to clean sandbox directory %s",
+        auto wrappedError = TError("Failed to clean sandbox directory %v",
             ~SandboxPath.Quote()) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
@@ -145,7 +145,7 @@ void TSlot::DoCleanProcessGroups()
             NCGroup::RemoveAllSubcgroups(path);
         }
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Failed to clean slot subcgroups for slot %d",
+        auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
             SlotIndex) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
@@ -158,7 +158,7 @@ void TSlot::Clean()
         DoCleanProcessGroups();
         DoCleanSandbox();
     } catch (const std::exception& ex) {
-        LOG_FATAL("%s", ex.what());
+        LOG_FATAL("%v", ex.what());
     }
 }
 
@@ -175,10 +175,10 @@ void TSlot::InitSandbox()
     try {
         NFS::ForcePath(SandboxPath, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory %s", ~SandboxPath.Quote());
+        LOG_FATAL(ex, "Failed to create sandbox directory %v", ~SandboxPath.Quote());
     }
 
-    LOG_INFO("Created slot sandbox directory %s", ~SandboxPath.Quote());
+    LOG_INFO("Created slot sandbox directory %v", ~SandboxPath.Quote());
 
     IsClean = false;
 }

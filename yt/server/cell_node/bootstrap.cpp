@@ -361,9 +361,9 @@ void TBootstrap::DoRun()
         OrchidRoot,
         GetControlInvoker()));
 
-    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
 
-    LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
+    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
 
     // Do not start subsystems until everything is initialized.

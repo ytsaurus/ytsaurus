@@ -140,7 +140,7 @@ private:
         options.SyncOnClose = request->sync_on_close();
         options.OptimizeForLatency = request->sync_on_close();
 
-        context->SetRequestInfo("ChunkId: %s, SessionType: %s, SyncOnClose: %s, OptimizeForLatency: %s",
+        context->SetRequestInfo("ChunkId: %v, SessionType: %v, SyncOnClose: %v, OptimizeForLatency: %v",
             ~ToString(chunkId),
             ~ToString(options.SessionType),
             ~FormatBool(options.SyncOnClose),
@@ -161,7 +161,7 @@ private:
         auto& meta = request->chunk_meta();
         auto blockCount = request->has_block_count() ? MakeNullable<int>(request->block_count()) : Null;
 
-        context->SetRequestInfo("ChunkId: %s, BlockCount: %s",
+        context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
             ~ToString(chunkId),
             blockCount ? ~ToString(*blockCount) : "<null>");
 
@@ -185,7 +185,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %s",
+        context->SetRequestInfo("ChunkId: %v",
             ~ToString(chunkId));
 
         auto sessionManager = Bootstrap_->GetSessionManager();
@@ -201,7 +201,7 @@ private:
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
+        context->SetRequestInfo("ChunkId: %v", ~ToString(chunkId));
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
@@ -229,7 +229,7 @@ private:
         bool enableCaching = request->enable_caching();
         bool flushBlocks = request->flush_blocks();
 
-        context->SetRequestInfo("BlockIds: %s:%d-%d, EnableCaching: %s, FlushBlocks: %s",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, EnableCaching: %v, FlushBlocks: %v",
             ~ToString(chunkId),
             firstBlockIndex,
             lastBlockIndex,
@@ -270,7 +270,7 @@ private:
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         auto target = FromProto<TNodeDescriptor>(request->target());
 
-        context->SetRequestInfo("BlockIds: %s:%d-%d, TargetAddress: %s",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, TargetAddress: %v",
             ~ToString(chunkId),
             firstBlockIndex,
             lastBlockIndex,
@@ -299,7 +299,7 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int blockIndex = request->block_index();
 
-        context->SetRequestInfo("BlockId: %s:%d",
+        context->SetRequestInfo("BlockId: %v:%v",
             ~ToString(chunkId),
             blockIndex);
 
@@ -340,7 +340,7 @@ private:
             bool enableCaching = request.enable_caching();
             auto sessionType = EReadSessionType(request.session_type());
 
-            Context_->SetRequestInfo("BlockIds: %s:%s, EnableCaching: %s, SessionType: %s",
+            Context_->SetRequestInfo("BlockIds: %v:%v, EnableCaching: %v, SessionType: %v",
                 ~ToString(chunkId),
                 ~JoinToString(request.block_indexes()),
                 ~FormatBool(enableCaching),
@@ -365,7 +365,7 @@ private:
                         for (const auto& peer : peers) {
                             ToProto(peerDescriptor->add_node_descriptors(), peer.Descriptor);
                         }
-                        LOG_DEBUG("Peers suggested (BlockId: %s, PeerCount: %d)",
+                        LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
                             ~ToString(blockId),
                             static_cast<int>(peers.size()));
                     }
@@ -379,7 +379,7 @@ private:
                 for (int index = 0; index < request.block_indexes().size(); ++index) {
                     int blockIndex = request.block_indexes(index);
 
-                    LOG_DEBUG("Fetching block (BlockId: %s:%d)",
+                    LOG_DEBUG("Fetching block (BlockId: %v:%v)",
                         ~ToString(chunkId),
                         blockIndex);
 
@@ -448,7 +448,7 @@ private:
                 }
             }
 
-            Context_->SetResponseInfo("HasCompleteChunk: %s, Throttling: %s, BlocksWithData: %d, BlocksWithPeers: %d, BlocksSize: %" PRId64,
+            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
                 ~FormatBool(response.has_complete_chunk()),
                 ~FormatBool(response.throttling()),
                 BlocksWithData_.load(),
@@ -494,7 +494,7 @@ private:
             int firstBlockIndex = request.first_block_index();
             int blockCount = request.block_count();
 
-            Context_->SetRequestInfo("BlockIds: %s:%d-%d, SessionType: %s",
+            Context_->SetRequestInfo("BlockIds: %v:%v-%v, SessionType: %v",
                 ~ToString(chunkId),
                 firstBlockIndex,
                 firstBlockIndex + blockCount - 1,
@@ -551,7 +551,7 @@ private:
             const auto& request = Context_->Request();
             auto& response = Context_->Response();
 
-            Context_->SetResponseInfo("HasCompleteChunk: %s, Throttling: %s, BlocksWithData: %d, BlocksSize: %" PRId64,
+            Context_->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
                 ~FormatBool(response.has_complete_chunk()),
                 ~FormatBool(response.throttling()),
                 BlocksWithData_,
@@ -581,7 +581,7 @@ private:
             ? TNullable<int>(request->partition_tag())
             : Null;
 
-        context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: [%s], PartitionTag: %s",
+        context->SetRequestInfo("ChunkId: %v, AllExtensionTags: %v, ExtensionTags: [%v], PartitionTag: %v",
             ~ToString(chunkId),
             ~FormatBool(request->all_extension_tags()),
             ~JoinToString(extensionTags),
@@ -612,7 +612,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
     {
-        context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %" PRId64,
+        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSplitSize: %v",
             request->key_columns_size(),
             request->chunk_specs_size(),
             request->min_split_size());
@@ -869,7 +869,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
-        context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
+        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v",
             request->key_columns_size(),
             request->sample_requests_size());
 
@@ -1054,7 +1054,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-        context->SetRequestInfo("ChunkId: %s",
+        context->SetRequestInfo("ChunkId: %v",
             ~ToString(chunkId));
 
         Bootstrap_
@@ -1130,7 +1130,7 @@ private:
     {
         i64 pendingSize = GetPendingOutSize();
         if (pendingSize > Config_->BusOutThrottlingLimit) {
-            LOG_DEBUG("Outcoming throttling is active: %" PRId64 " > %" PRId64,
+            LOG_DEBUG("Outcoming throttling is active: %v" " > %v",
                 pendingSize,
                 Config_->BusOutThrottlingLimit);
             return true;
@@ -1143,7 +1143,7 @@ private:
     {
         i64 pendingSize = GetPendingInSize();
         if (pendingSize > Config_->BusInThrottlingLimit) {
-            LOG_DEBUG("Incoming throttling is active: %" PRId64 " > %" PRId64,
+            LOG_DEBUG("Incoming throttling is active: %v" " > %v",
                 pendingSize,
                 Config_->BusInThrottlingLimit);
             return true;

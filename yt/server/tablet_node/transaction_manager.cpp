@@ -201,7 +201,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
             transactionId,
             commitTimestamp);
     }

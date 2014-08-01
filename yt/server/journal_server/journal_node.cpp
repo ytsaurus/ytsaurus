@@ -202,7 +202,7 @@ protected:
 
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d, ReadQuorum: %d, WriteQuorum: %d)",
+            "Journal node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
             ~ToString(branchedNode->GetId()),
             ~ToString(originatingNode->GetChunkList()->GetId()),
             originatingNode->GetReplicationFactor(),
@@ -230,7 +230,7 @@ protected:
 
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node merged (OriginatingNodeId: %s, BranchedNodeId: %s)",
+            "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             ~ToString(originatingNode->GetVersionedId()),
             ~ToString(branchedNode->GetVersionedId()));
     }

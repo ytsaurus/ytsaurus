@@ -173,7 +173,7 @@ private:
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        LOG_INFO("Copying chunk %s", ~ToString(inputChunkId));
+        LOG_INFO("Copying chunk %v", ~ToString(inputChunkId));
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         writerOptions->ErasureCodec = erasureCodecId;

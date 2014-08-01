@@ -278,7 +278,7 @@ private:
             MapTask->FinishInput();
             RegisterTask(MapTask);
 
-            LOG_INFO("Inputs processed (JobCount: %d)",
+            LOG_INFO("Inputs processed (JobCount: %v)",
                 jobCount);
         }
 
@@ -307,7 +307,7 @@ private:
     virtual Stroka GetLoggingProgress() const override
     {
         return Format(
-            "Jobs = {T: %v, R: %v, C: %v, P: %d, F: %v, A: %v}, "
+            "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v}, "
             "UnavailableInputChunks: %v",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),

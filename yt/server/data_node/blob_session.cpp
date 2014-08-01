@@ -129,7 +129,7 @@ TAsyncError TBlobSession::DoPutBlocks(
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block, block)) {
-                LOG_WARNING("Skipped duplicate block (Block: %d)", blockIndex);
+                LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
                 continue;
             }
 
@@ -154,7 +154,7 @@ TAsyncError TBlobSession::DoPutBlocks(
         Size_ += block.Size();
         requestSize += block.Size();
 
-        LOG_DEBUG("Block received (Block: %d)", blockIndex);
+        LOG_DEBUG("Block received (Block: %v)", blockIndex);
 
         ++blockIndex;
     }
@@ -222,7 +222,7 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         return Error_;
     }
 
-    LOG_DEBUG("Started writing block %d (BlockSize: %" PRISZT ")",
+    LOG_DEBUG("Started writing block %v (BlockSize: %v)",
         blockIndex,
         block.Size());
 
@@ -244,7 +244,7 @@ TError TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     auto writeTime = timer.GetElapsed();
 
-    LOG_DEBUG("Finished writing block %d", blockIndex);
+    LOG_DEBUG("Finished writing block %v", blockIndex);
 
     auto& locationProfiler = Location_->Profiler();
     locationProfiler.Enqueue("/blob_block_write_size", block.Size());
@@ -404,7 +404,7 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
         return Error_;
     }
 
-    LOG_DEBUG("Started closing chunk writer (ChunkSize: %" PRId64 ")",
+    LOG_DEBUG("Started closing chunk writer (ChunkSize: %v" ")",
         Writer_->GetDataSize());
 
     PROFILE_TIMING ("/blob_chunk_close_time") {
@@ -467,7 +467,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         ++WindowStartBlockIndex_;
     }
 
-    LOG_DEBUG("Released blocks (WindowStart: %d)",
+    LOG_DEBUG("Released blocks (WindowStart: %v)",
         WindowStartBlockIndex_);
 }
 
@@ -523,7 +523,7 @@ TSharedRef TBlobSession::GetBlock(int blockIndex)
             blockIndex);
     }
 
-    LOG_DEBUG("Block retrieved (Block: %d)", blockIndex);
+    LOG_DEBUG("Block retrieved (Block: %v)", blockIndex);
 
     return slot.Block;
 }

@@ -61,7 +61,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 {
     YCHECK(index >= 0 && index < GetOutputCount());
 
-    LOG_DEBUG("Opening output %d", index);
+    LOG_DEBUG("Opening output %v", index);
 
     auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
     const auto& outputSpec = SchedulerJobSpecExt.output_specs(index);

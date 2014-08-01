@@ -142,7 +142,7 @@ private:
             auto entry = Find(key);
             if (entry) {
                 if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
-                    LOG_DEBUG("Cache hit (Key: {%s}, Success: %s, SuccessExpirationTime: %s, FailureExpirationTime: %s)",
+                    LOG_DEBUG("Cache hit (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         ~ToString(key),
                         ~FormatBool(entry->GetSuccess()),
                         ~ToString(successExpirationTime),
@@ -150,7 +150,7 @@ private:
                     return MakeFuture(TErrorOr<TSharedRefArray>(entry->GetResponseMessage()));
                 }
 
-                LOG_DEBUG("Cache entry expired (Key: {%s}, Success: %s, SuccessExpirationTime: %s, FailureExpirationTime: %s)",
+                LOG_DEBUG("Cache entry expired (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                     ~ToString(key),
                     ~FormatBool(entry->GetSuccess()),
                     ~ToString(successExpirationTime),
@@ -164,7 +164,7 @@ private:
             auto result = cookie->GetValue();
 
             if (inserting) {
-                LOG_DEBUG("Populating cache (Key: {%s})",
+                LOG_DEBUG("Populating cache (Key: {%v})",
                     ~ToString(key));
 
                 TObjectServiceProxy proxy(Owner_->MasterChannel_);
@@ -198,7 +198,7 @@ private:
         virtual void OnAdded(TEntry* entry) override
         {
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry added (Key: {%s}, Success: %s, TotalSpace: %" PRId64 ")",
+            LOG_DEBUG("Cache entry added (Key: {%v}, Success: %v, TotalSpace: %v" ")",
                 ~ToString(key),
                 ~FormatBool(entry->GetSuccess()),
                 entry->GetTotalSpace());
@@ -207,7 +207,7 @@ private:
         virtual void OnRemoved(TEntry* entry) override
         {
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry removed (Path: %s, Method: %s:%s, Success: %s, TotalSpace: %" PRId64 ")",
+            LOG_DEBUG("Cache entry removed (Path: %v, Method: %v:%v, Success: %v, TotalSpace: %v" ")",
                 ~key.Path,
                 ~key.Service,
                 ~key.Method,
@@ -251,7 +251,7 @@ private:
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
             auto responseError = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Cache population request succeded (Key: {%s}, Error: %s)",
+            LOG_DEBUG("Cache population request succeded (Key: {%v}, Error: %v)",
                 ~ToString(key),
                 ~ToString(responseError));
 
@@ -299,7 +299,7 @@ private:
 
         void Invoke()
         {
-            LOG_DEBUG("Running cache bypass request (RequestId: %s, SubrequestCount: %d)",
+            LOG_DEBUG("Running cache bypass request (RequestId: %v, SubrequestCount: %v)",
                 ~ToString(Context_->GetRequestId()),
                 static_cast<int>(Promises_.size()));
             Request_->Invoke().Subscribe(BIND(&TMasterRequest::OnResponse, MakeStrong(this)));
@@ -316,7 +316,7 @@ private:
         void OnResponse(TObjectServiceProxy::TRspExecutePtr rsp)
         {
             if (!rsp->IsOK()) {
-                LOG_DEBUG("Cache bypass request failed (RequestId: %s)",
+                LOG_DEBUG("Cache bypass request failed (RequestId: %v)",
                     ~ToString(Context_->GetRequestId()));
                 for (auto& promise : Promises_) {
                     promise.Set(rsp->GetError());
@@ -324,7 +324,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Cache bypass request succeded (RequestId: %s)",
+            LOG_DEBUG("Cache bypass request succeded (RequestId: %v)",
                 ~ToString(Context_->GetRequestId()));
 
             YCHECK(rsp->part_counts_size() == Promises_.size());
@@ -350,7 +350,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 {
     const auto& requestId = context->GetRequestId();
 
-    context->SetRequestInfo("RequestCount: %d",
+    context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
     auto user = FindAuthenticatedUser(context).Get(RootUserName);
@@ -387,7 +387,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
             }
 
-            LOG_DEBUG("Serving subrequest from cache (RequestId: %s, SubrequestIndex: %d, Key: {%s})",
+            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
                 ~ToString(requestId),
                 subrequestIndex,
                 ~ToString(key));
@@ -398,7 +398,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 TDuration::MilliSeconds(cachingRequestHeaderExt.success_expiration_time()),
                 TDuration::MilliSeconds(cachingRequestHeaderExt.failure_expiration_time())));
         } else {
-            LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %s, SubrequestIndex: %d, Key: {%s})",
+            LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
                 ~ToString(requestId),
                 subrequestIndex,
                 ~ToString(key));

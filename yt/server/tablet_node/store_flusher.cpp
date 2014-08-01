@@ -160,9 +160,9 @@ private:
             if (!tabletDesriptor)
                 continue;
 
-            LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %s, "
-                "TotalMemoryUsage: %" PRId64 ", TabletMemoryUsage: %" PRId64 ", "
-                "MemoryLimit: %" PRId64 ")",
+            LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
+                "TotalMemoryUsage: %v" ", TabletMemoryUsage: %v" ", "
+                "MemoryLimit: %v" ")",
                 ~ToString(candidate.TabletId),
                 Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::Tablet),
                 candidate.MemoryUsage,
@@ -189,13 +189,13 @@ private:
         auto storeManager = tablet->GetStoreManager();
 
         if (storeManager->IsPeriodicRotationNeeded()) {
-            LOG_INFO("Scheduling periodic store rotation (TabletId: %s)",
+            LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
                 ~ToString(tablet->GetId()));
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsOverflowRotationNeeded()) {
-            LOG_INFO("Scheduling store rotation due to overflow (TabletId: %s)",
+            LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
                 ~ToString(tablet->GetId()));
             tabletManager->ScheduleStoreRotation(tablet);
         }

@@ -142,7 +142,7 @@ private:
 
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("Children: [%s]",
+        context->SetRequestInfo("Children: [%v]",
             ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();

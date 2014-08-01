@@ -74,7 +74,7 @@ void TSnapshotBuilderBase::RunChild()
 
 void TSnapshotBuilderBase::RunParent()
 {
-    LOG_INFO("Fork success (ChildPid: %d)", ChildPid);
+    LOG_INFO("Fork success (ChildPid: %v)", ChildPid);
 
     Deadline = TInstant::Now() + GetTimeout();
 
@@ -102,9 +102,9 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
-        LOG_INFO("Snapshot child process finished (ChildPid: %d)", ChildPid);
+        LOG_INFO("Snapshot child process finished (ChildPid: %v)", ChildPid);
     } else {
-        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %d)", ChildPid);
+        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %v)", ChildPid);
     }
     Result.Set(error);
 

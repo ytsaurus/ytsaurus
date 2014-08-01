@@ -82,7 +82,7 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation is batched at version %s", ~ToString(currentVersion));
+        LOG_DEBUG("Mutation is batched at version %v", ~ToString(currentVersion));
     }
 
     TAsyncError GetQuorumFlushResult()
@@ -119,7 +119,7 @@ public:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Sending mutations to follower %d", followerId);
+                LOG_DEBUG("Sending mutations to follower %v", followerId);
 
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
@@ -166,18 +166,18 @@ private:
             Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!response->IsOK()) {
-            LOG_WARNING(*response, "Error logging mutations at follower %d",
+            LOG_WARNING(*response, "Error logging mutations at follower %v",
                 followerId);
             return;
         }
 
         if (response->logged()) {
-            LOG_DEBUG("Mutations are flushed by follower %d", followerId);
+            LOG_DEBUG("Mutations are flushed by follower %v", followerId);
 
             ++FlushCount_;
             CheckQuorum();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower %d", followerId);
+            LOG_DEBUG("Mutations are acknowledged by follower %v", followerId);
         }
     }
 
@@ -205,7 +205,7 @@ private:
     {
         SetFailed(TError(
             NHydra::EErrorCode::MaybeCommitted,
-            "Mutations are uncertain: %d out of %d commits were successful",
+            "Mutations are uncertain: %v out of %v commits were successful",
             FlushCount_,
             Owner_->CellManager_->GetQuorumCount()));
     }
@@ -532,7 +532,7 @@ TAsyncError TFollowerCommitter::DoLogMutations(
     if (currentVersion != expectedVersion) {
         return MakeFuture(TError(
             NHydra::EErrorCode::OutOfOrderMutations,
-            "Out-of-order mutations received by follower: expected %s but got %s",
+            "Out-of-order mutations received by follower: expected %v but got %v",
             ~ToString(currentVersion),
             ~ToString(expectedVersion)));
     }

@@ -88,7 +88,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
+        LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
             ~WorkingDirectory);
 
         Process.AddArgument("--job-proxy");
@@ -104,7 +104,7 @@ public:
             Process.AddArgument(path);
         }
 
-        LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);
+        LOG_INFO("Spawning a job proxy (Path: %v)", ~ProxyPath);
 
         auto error = Process.Spawn();
         if (!error.IsOK()) {
@@ -112,7 +112,7 @@ public:
                 << error;
         }
 
-        LOG_INFO("Job proxy started (ProcessId: %d)",
+        LOG_INFO("Job proxy started (ProcessId: %v)",
             Process.GetProcessId());
 
         // Unref is called in the thread.
@@ -129,7 +129,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %s)", ~group.GetFullPath().Quote());
+        LOG_INFO(error, "Killing job in unsafe environment (ProcessGroup: %v)", ~group.GetFullPath().Quote());
 
         SetError(error);
 
@@ -143,7 +143,7 @@ public:
                         // Process group doesn't exist already.
                         return;
                     default:
-                        LOG_FATAL("Failed to kill job proxy: kill failed (errno: %s)", strerror(errno));
+                        LOG_FATAL("Failed to kill job proxy: kill failed (errno: %v)", strerror(errno));
                         break;
                 }
             }

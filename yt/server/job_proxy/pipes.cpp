@@ -210,7 +210,7 @@ TError TOutputPipe::ReadAll()
         try {
             OutputStream->Write(buffer.Begin(), result.Value());
         } catch (const std::exception& ex) {
-            return TError("Failed to write into output (Fd: %d)",
+            return TError("Failed to write into output (Fd: %v)",
                 JobDescriptor) << TError(ex);
         }
     }

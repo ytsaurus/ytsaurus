@@ -271,7 +271,7 @@ public:
             if (stderrChunkId != NChunkServer::NullChunkId) {
                 auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 ToProto(schedulerResultExt->mutable_stderr_chunk_id(), stderrChunkId);
-                LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~ToString(stderrChunkId));
+                LOG_INFO("Stderr chunk generated (ChunkId: %v)", ~ToString(stderrChunkId));
             }
         }
 
@@ -553,7 +553,7 @@ private:
         try {
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId: %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+            LOG_DEBUG("Get memory usage (JobId: %v, UsageInBytes: %v" ", MemoryLimit: %v" ")",
                 ~ToString(JobId),
                 statistics.UsageInBytes,
                 memoryLimit);
@@ -569,7 +569,7 @@ private:
 
             if (statistics.UsageInBytes > MemoryUsage) {
                 i64 delta = statistics.UsageInBytes - MemoryUsage;
-                LOG_INFO("Memory usage increased by %" PRId64, delta);
+                LOG_INFO("Memory usage increased by %v", delta);
 
                 MemoryUsage += delta;
 
@@ -609,7 +609,7 @@ private:
         try {
             cgroup.Create();
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Unable to create cgroup %s", ~cgroup.GetFullPath().Quote());
+            LOG_FATAL(ex, "Unable to create cgroup %v", ~cgroup.GetFullPath().Quote());
         }
     }
 
@@ -620,7 +620,7 @@ private:
             try {
                 retriever(cgroup);
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %s", ~cgroup.GetFullPath().Quote());
+                LOG_FATAL(ex, "Unable to retrieve statistics from cgroup %v", ~cgroup.GetFullPath().Quote());
             }
         }
     }
@@ -632,7 +632,7 @@ private:
                 NCGroup::RunKiller(cgroup.GetFullPath());
                 cgroup.Destroy();
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Unable to destroy cgroup %s", ~cgroup.GetFullPath().Quote());
+                LOG_FATAL(ex, "Unable to destroy cgroup %v", ~cgroup.GetFullPath().Quote());
             }
         }
     }

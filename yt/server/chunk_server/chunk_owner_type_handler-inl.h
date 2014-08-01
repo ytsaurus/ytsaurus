@@ -101,7 +101,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
 
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Chunk owner node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
+        "Chunk owner node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v)",
         ~ToString(branchedNode->GetId()),
         ~ToString(originatingNode->GetChunkList()->GetId()),
         originatingNode->GetReplicationFactor());
@@ -124,9 +124,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Chunk owner node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
-        "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
-        "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
+        "Chunk owner node merged (OriginatingNodeId: %v, OriginatingChunkListId: %v, OriginatingUpdateMode: %v, OriginatingReplicationFactor: %v, "
+        "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedUpdateMode: %v, BranchedReplicationFactor: %v, "
+        "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
         ~ToString(originatingNode->GetVersionedId()),
         ~ToString(originatingChunkListId),
         ~ToString(originatingUpdateMode),

@@ -184,7 +184,7 @@ private:
                 TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
                 TObjectId objectId;
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
-                    THROW_ERROR_EXCEPTION("Error parsing object id %s",
+                    THROW_ERROR_EXCEPTION("Error parsing object id %v",
                         ~objectIdString);
                 }
 
@@ -239,7 +239,7 @@ public:
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
                     THROW_ERROR_EXCEPTION(
                         NYTree::EErrorCode::ResolveError,
-                        "Error parsing object id %s",
+                        "Error parsing object id %v",
                         ~objectIdString);
                 }
 
@@ -280,7 +280,7 @@ private:
         if (!nodeProxy) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Cannot resolve nontrivial path %s for nonversioned object %s",
+                "Cannot resolve nontrivial path %v for nonversioned object %v",
                 ~path,
                 ~ToString(proxy->GetId()));
         }
@@ -421,11 +421,11 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
-        LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
+        LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             ~ToString(type),
             ~ToString(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
     } else {
-        LOG_INFO("Type registered (Type: %s)",
+        LOG_INFO("Type registered (Type: %v)",
             ~ToString(type));
     }
 }
@@ -485,7 +485,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     ++CreatedObjectCount;
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %s, Id: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %v, Id: %v)",
         ~ToString(type),
         ~ToString(id));
 
@@ -498,7 +498,7 @@ void TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         ~ToString(object->GetId()),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -510,7 +510,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         ~ToString(object->GetId()),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -697,7 +697,7 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     if (!IsObjectAlive(object)) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "No such object %s",
+            "No such object %v",
             ~ToString(id));
     }
 
@@ -829,27 +829,27 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto handler = FindHandler(type);
     if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %s",
+        THROW_ERROR_EXCEPTION("Unknown object type %v",
             ~ToString(type));
     }
 
     auto options = handler->GetCreationOptions();
     if (!options) {
-        THROW_ERROR_EXCEPTION("Instances of type %s cannot be created directly",
+        THROW_ERROR_EXCEPTION("Instances of type %v cannot be created directly",
             ~FormatEnum(type).Quote());
     }
 
     switch (options->TransactionMode) {
         case EObjectTransactionMode::Required:
             if (!transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %v outside of a transaction",
                     ~FormatEnum(type).Quote());
             }
             break;
 
         case EObjectTransactionMode::Forbidden:
             if (transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s inside of a transaction",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %v inside of a transaction",
                     ~FormatEnum(type).Quote());
             }
             break;
@@ -864,14 +864,14 @@ TObjectBase* TObjectManager::CreateObject(
     switch (options->AccountMode) {
         case EObjectAccountMode::Required:
             if (!account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %v without an account",
                     ~FormatEnum(type).Quote());
             }
             break;
 
         case EObjectAccountMode::Forbidden:
             if (account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s with an account",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %v with an account",
                     ~FormatEnum(type).Quote());
             }
             break;
@@ -949,7 +949,7 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
     auto objectId = proxy->GetVersionedId();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %s:%s %s (ObjectId: %s, Mutating: %s, User: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
         ~context->GetService(),
         ~context->GetMethod(),
         ~GetRequestYPath(context),
@@ -1025,7 +1025,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         handler->Destroy(object);
         ++DestroyedObjectCount;
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
             ~ToString(type),
             ~ToString(id));
     }

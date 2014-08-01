@@ -87,7 +87,7 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
         initialChangelogId = currentVersion.SegmentId;
     }
 
-    LOG_INFO("Replaying changelogs %d-%d to reach version %v",
+    LOG_INFO("Replaying changelogs %v-%v to reach version %v",
         initialChangelogId,
         targetVersion.SegmentId,
         targetVersion);

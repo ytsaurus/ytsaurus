@@ -114,7 +114,7 @@ public:
         int requestCount = Context->Request().part_counts_size();
         UserName = FindAuthenticatedUser(Context);
 
-        Context->SetRequestInfo("RequestCount: %d", requestCount);
+        Context->SetRequestInfo("RequestCount: %v", requestCount);
 
         auto* user = GetAuthenticatedUser();
 
@@ -213,7 +213,7 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%d] <- %s:%s %s (RequestId: %s, Mutating: %s, MutationId: %s)",
+                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, MutationId: %v)",
                     CurrentRequestIndex,
                     ~requestHeader.service(),
                     ~requestHeader.method(),
@@ -280,7 +280,7 @@ private:
 
             auto error = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
+            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v)",
                 requestIndex,
                 ~ToString(error),
                 ~ToString(Context->GetRequestId()));
@@ -357,7 +357,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: failed to resolve path %s",
+                    "Prerequisite check failed: failed to resolve path %v",
                     ~path)
                     << ex;
             }
@@ -369,7 +369,7 @@ private:
             if (node->GetRevision() != revision) {
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: node %s revision mismatch: expected %" PRId64 ", found %" PRId64,
+                    "Prerequisite check failed: node %v revision mismatch: expected %v" ", found %v",
                     ~path,
                     revision,
                     node->GetRevision());
@@ -384,13 +384,13 @@ private:
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %s is missing",
+                "Prerequisite check failed: transaction %v is missing",
                 ~ToString(transactionId));
         }
         if (transaction->GetState() != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %s is not active",
+                "Prerequisite check failed: transaction %v is not active",
                 ~ToString(transactionId));
         }
         return transaction;
@@ -439,7 +439,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, BuildSnapshot)
 {
     bool setReadOnly = request->set_read_only();
 
-    context->SetRequestInfo("SetReadOnly: %s",
+    context->SetRequestInfo("SetReadOnly: %v",
         ~FormatBool(setReadOnly));
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();

@@ -241,7 +241,7 @@ public:
                 return DoGetTabletReader(split, std::move(context));
 
             default:
-                THROW_ERROR_EXCEPTION("Unsupported data split type %s", 
+                THROW_ERROR_EXCEPTION("Unsupported data split type %v", 
                     ~FormatEnum(TypeFromId(objectId)).Quote());
         }
     }
@@ -276,13 +276,13 @@ private:
 
         auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
         if (chunkReader) {
-            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: %" PRId64 ")",
+            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
                 ~ToString(chunkId),
                 ~ToString(lowerBound),
                 ~ToString(upperBound),
                 timestamp);
         } else {
-            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: %" PRId64 ")",
+            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
                 ~ToString(chunkId),
                 ~ToString(lowerBound),
                 ~ToString(upperBound),
@@ -347,7 +347,7 @@ private:
     {
         auto hydraManager = slot->GetHydraManager();
         if (hydraManager->GetAutomatonState() != NHydra::EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %s while cell is in %s state",
+            THROW_ERROR_EXCEPTION("Cannot query tablet %v while cell is in %v state",
                 ~ToString(tabletId),
                 ~FormatEnum(hydraManager->GetAutomatonState()).Quote());
         }
@@ -359,7 +359,7 @@ private:
         }
 
         if (tablet->GetState() != NTabletNode::ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %s in %s state",
+            THROW_ERROR_EXCEPTION("Cannot query tablet %v in %v state",
                 ~ToString(tabletId),
                 ~FormatEnum(tablet->GetState()).Quote());
         }
@@ -368,7 +368,7 @@ private:
         auto upperBound = GetUpperBoundFromDataSplit(split);
         auto timestamp = GetTimestampFromDataSplit(split);
 
-        LOG_DEBUG("Creating reader for tablet split (TabletId: %s, CellId: %s, LowerBound: {%s}, UpperBound: {%s}, Timestamp: % " PRId64 ")",
+        LOG_DEBUG("Creating reader for tablet split (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
             ~ToString(tabletId),
             ~ToString(slot->GetCellGuid()),
             ~ToString(lowerBound),
@@ -385,7 +385,7 @@ private:
 
     void ThrowNoSuchTablet(const TTabletId& tabletId)
     {
-        THROW_ERROR_EXCEPTION("Tablet %s is not known",
+        THROW_ERROR_EXCEPTION("Tablet %v is not known",
             ~ToString(tabletId));
     }
 

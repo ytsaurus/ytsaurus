@@ -85,7 +85,7 @@ public:
             Put(chunk);
         }
 
-        LOG_INFO("Chunk cache scan completed, %d chunks found",
+        LOG_INFO("Chunk cache scan completed, %v chunks found",
             GetSize());
     }
 
@@ -121,14 +121,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
-        LOG_INFO("Getting chunk from cache (ChunkId: %s)",
+        LOG_INFO("Getting chunk from cache (ChunkId: %v)",
             ~ToString(chunkId));
 
         TInsertCookie cookie(chunkId);
         bool inserted = BeginInsert(&cookie);
         auto cookieValue = cookie.GetValue();
         if (inserted) {
-            LOG_INFO("Loading chunk into cache (ChunkId: %s)",
+            LOG_INFO("Loading chunk into cache (ChunkId: %v)",
                 ~ToString(chunkId));
 
             auto invoker = CreateSerializedInvoker(Location_->GetWriteInvoker());
@@ -138,7 +138,7 @@ public:
                 chunkId,
                 Passed(std::move(cookie))));
         } else {    
-            LOG_INFO("Chunk is already cached (ChunkId: %s)",
+            LOG_INFO("Chunk is already cached (ChunkId: %v)",
                 ~ToString(chunkId));
         }
 
@@ -259,13 +259,13 @@ private:
                 NCompression::ECodec::None);
 
             for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-                LOG_INFO("Downloading block (BlockIndex: %d)",
+                LOG_INFO("Downloading block (BlockIndex: %v)",
                     blockIndex);
 
                 auto blockResult = WaitFor(sequentialReader->AsyncNextBlock());
                 THROW_ERROR_EXCEPTION_IF_FAILED(blockResult);
 
-                LOG_INFO("Writing block (BlockIndex: %d)",
+                LOG_INFO("Writing block (BlockIndex: %v)",
                     blockIndex);
                 // NB: This is always done synchronously.
                 auto block = sequentialReader->GetBlock();

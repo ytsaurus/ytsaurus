@@ -83,7 +83,7 @@ void TFollowerTracker::SendPing(TPeerId followerId)
     auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
     auto committedVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
-    LOG_DEBUG("Sending ping to follower %d (LoggedVersion: %s, CommittedVersion: %s, EpochId: %s)",
+    LOG_DEBUG("Sending ping to follower %v (LoggedVersion: %v, CommittedVersion: %v, EpochId: %v)",
         followerId,
         ~ToString(loggedVersion),
         ~ToString(committedVersion),
@@ -118,13 +118,13 @@ void TFollowerTracker::OnPingResponse(TPeerId followerId, THydraServiceProxy::TR
     SchedulePing(followerId);
 
     if (!rsp->IsOK()) {
-        LOG_WARNING(rsp->GetError(), "Error pinging follower %d",
+        LOG_WARNING(rsp->GetError(), "Error pinging follower %v",
             followerId);
         return;
     }
 
     auto state = EPeerState(rsp->state());
-    LOG_DEBUG("Ping reply received from follower %d (State: %s)",
+    LOG_DEBUG("Ping reply received from follower %v (State: %v)",
         followerId,
         ~ToString(state));
 
@@ -137,7 +137,7 @@ void TFollowerTracker::SetFollowerState(TPeerId followerId, EPeerState newState)
     if (oldState == newState)
         return;
 
-    LOG_INFO("Follower %d state changed: %s -> %s",
+    LOG_INFO("Follower %v state changed: %v -> %v",
         followerId,
         ~ToString(oldState),
         ~ToString(newState));

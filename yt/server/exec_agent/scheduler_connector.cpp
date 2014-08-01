@@ -76,7 +76,7 @@ void TSchedulerConnector::SendHeartbeat()
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
             .Via(ControlInvoker));
 
-    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%s})",
+    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%v})",
         ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 

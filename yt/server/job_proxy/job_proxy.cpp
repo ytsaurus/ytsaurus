@@ -125,7 +125,7 @@ void TJobProxy::RetrieveJobSpec()
     JobSpec = rsp->job_spec();
     ResourceUsage = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %s, ResourceLimits: {%s})\n%s",
+    LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {%v})\n%v",
         ~ToString(NScheduler::EJobType(rsp->job_spec().type())),
         ~FormatResources(ResourceUsage),
         ~rsp->job_spec().DebugString());
@@ -149,7 +149,7 @@ void TJobProxy::Run()
 
     if (Job) {
         auto failedChunkIds = Job->GetFailedChunkIds();
-        LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
+        LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
 
         // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -363,10 +363,10 @@ TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 void TJobProxy::CheckMemoryUsage()
 {
     auto memoryUsage = GetProcessRss();
-    LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+    LOG_DEBUG("Job proxy memory check (MemoryUsage: %v" ", MemoryLimit: %v" ")",
         memoryUsage,
         JobProxyMemoryLimit);
-    LOG_DEBUG("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", Mmapped: %" PRId64 ")",
+    LOG_DEBUG("lf_alloc counters (LargeBlocks: %v" ", SmallBlocks: %v" ", System: %v" ", Used: %v" ", Mmapped: %v" ")",
             NLFAlloc::GetCurrentLargeBlocks(),
             NLFAlloc::GetCurrentSmallBlocks(),
             NLFAlloc::GetCurrentSystem(),
@@ -375,7 +375,7 @@ void TJobProxy::CheckMemoryUsage()
 
     if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
-            "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
+            "Job proxy memory limit exceeded (MemoryUsage: %v" ", MemoryLimit: %v" ", RefCountedTracker: %v)",
             memoryUsage,
             JobProxyMemoryLimit,
             ~TRefCountedTracker::Get()->GetDebugInfo(2));

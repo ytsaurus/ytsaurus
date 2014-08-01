@@ -41,7 +41,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
-    context->SetRequestInfo("JobId: %s", ~ToString(jobId));
+    context->SetRequestInfo("JobId: %v", ~ToString(jobId));
 
     auto jobController = Bootstrap->GetJobController();
     auto job = jobController->GetJobOrThrow(jobId);
@@ -57,7 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     auto jobId = FromProto<TJobId>(request->job_id());
     const auto& result = request->result();
     auto error = FromProto<TError>(result.error());
-    context->SetRequestInfo("JobId: %s, Error: %s",
+    context->SetRequestInfo("JobId: %v, Error: %v",
         ~ToString(jobId),
         ~ToString(error));
 
@@ -75,7 +75,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
     double progress = request->progress();
     const auto& statistics = request->job_statistics();
 
-    context->SetRequestInfo("JobId: %s, Progress: %lf, JobStatistics: %s",
+    context->SetRequestInfo("JobId: %v, Progress: %lf, JobStatistics: %v",
         ~ToString(jobId),
         progress,
         ~statistics.DebugString());
@@ -91,7 +91,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     auto jobId = FromProto<TJobId>(request->job_id());
     const auto& resourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("JobId: %s, ResourceUsage: {%s}",
+    context->SetRequestInfo("JobId: %v, ResourceUsage: {%v}",
         ~ToString(jobId),
         ~FormatResources(resourceUsage));
 

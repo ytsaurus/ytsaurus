@@ -187,7 +187,7 @@ private:
 
         auto mode = EUpdateMode(request->mode());
         if (mode != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %s update mode",
+            THROW_ERROR_EXCEPTION("Journals only support %v update mode",
                 ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
         }
 
@@ -212,13 +212,13 @@ private:
 
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Node is switched to \"append\" mode (NodeId: %s, ChunkListId: %s)",
+            "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
             ~ToString(node->GetId()),
             ~ToString(chunkList->GetId()));
 
         ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
 
-        context->SetResponseInfo("ChunkListId: %s",
+        context->SetResponseInfo("ChunkListId: %v",
             ~ToString(chunkList->GetId()));
 
         context->Reply();

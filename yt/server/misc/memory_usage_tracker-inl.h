@@ -65,7 +65,7 @@ void TMemoryUsageTracker<EMemoryConsumer>::Acquire(EMemoryConsumer consumer, i64
     guard.Release();
 
     if (freeMemory < 0) {
-        LOG_ERROR("Memory overcommit by %" PRId64 " after %s request for %" PRId64,
+        LOG_ERROR("Memory overcommit by %v after %v request for %v",
             -freeMemory,
             ~FormatEnum(consumer).Quote(),
             size);

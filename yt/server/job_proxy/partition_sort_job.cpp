@@ -126,7 +126,7 @@ public:
                 rowPtrBuffer.reserve(estimatedRowCount);
                 rowIndexHeap.reserve(estimatedRowCount);
 
-                LOG_INFO("Estimated row count: %" PRId64, estimatedRowCount);
+                LOG_INFO("Estimated row count: %v", estimatedRowCount);
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -190,10 +190,10 @@ public:
             PROFILE_TIMING_CHECKPOINT("read");
 
             i64 totalRowCount = rowIndexHeap.size();
-            LOG_INFO("Total row count: %" PRId64, totalRowCount);
+            LOG_INFO("Total row count: %v", totalRowCount);
 
             LOG_DEBUG(
-                "RefCountedTracker: %s",
+                "RefCountedTracker: %v",
                 ~TRefCountedTracker::Get()->GetDebugInfo(2));
 
             if (!schedulerJobSpecExt.is_approximate()) {

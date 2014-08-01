@@ -46,7 +46,7 @@ struct TSnapshotHeader
     void Validate() const
     {
         if (Signature != ExpectedSignature) {
-            LOG_FATAL("Invalid signature: expected %" PRIx64 ", found %" PRIx64,
+            LOG_FATAL("Invalid signature: expected %v, found %v",
                 ExpectedSignature,
                 Signature);
         }

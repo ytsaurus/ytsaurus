@@ -285,7 +285,7 @@ private:
         DeclareMutating();
 
         auto keyColumns = FromProto<Stroka>(request->key_columns());
-        context->SetRequestInfo("KeyColumns: %s",
+        context->SetRequestInfo("KeyColumns: %v",
             ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -311,7 +311,7 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->first_tablet_index();
-        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
             firstTabletIndex,
             lastTabletIndex);
 
@@ -335,7 +335,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->first_tablet_index();
         bool force = request->force();
-        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, Force: %s",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, Force: %v",
             firstTabletIndex,
             lastTabletIndex,
             ~FormatBool(force));
@@ -360,7 +360,7 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->first_tablet_index();
-        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
             firstTabletIndex,
             lastTabletIndex);
 
@@ -384,7 +384,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         auto pivotKeys = FromProto<NVersionedTableClient::TOwningKey>(request->pivot_keys());
-        context->SetRequestInfo("FirstTabletIndex: %d, LastTabletIndex: %d, PivotKeyCount: %d",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
             firstTabletIndex,
             lastTabletIndex,
             static_cast<int>(pivotKeys.size()));

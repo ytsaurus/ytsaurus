@@ -76,7 +76,7 @@ private:
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* subject = securityManager->FindSubjectByName(name);
         if (!IsObjectAlive(subject)) {
-            THROW_ERROR_EXCEPTION("No such user or group %s",
+            THROW_ERROR_EXCEPTION("No such user or group %v",
                 ~name.Quote());
         }
         return subject;
@@ -88,7 +88,7 @@ private:
 
         DeclareMutating();
 
-        context->SetResponseInfo("Name: %s",
+        context->SetResponseInfo("Name: %v",
             ~request->name());
 
         auto securityManager = Bootstrap->GetSecurityManager();
@@ -106,7 +106,7 @@ private:
 
         DeclareMutating();
 
-        context->SetResponseInfo("Name: %s",
+        context->SetResponseInfo("Name: %v",
             ~request->name());
 
         auto securityManager = Bootstrap->GetSecurityManager();

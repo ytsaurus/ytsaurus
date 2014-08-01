@@ -238,7 +238,7 @@ private:
                     lastestSnapshotId = id;
                 }
             } catch (const std::exception& ex) {
-                LOG_WARNING("Unrecognized item %s in remote store %s",
+                LOG_WARNING("Unrecognized item %v in remote store %v",
                     ~key.Quote(),
                     ~RemotePath_);
             }
@@ -250,7 +250,7 @@ private:
     TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
         try {
-            LOG_DEBUG("Uploading snapshot %d to remote store", snapshotId);
+            LOG_DEBUG("Uploading snapshot %v to remote store", snapshotId);
 
             auto localPath = GetLocalPath(snapshotId);
             auto remotePath = GetRemotePath(snapshotId);
@@ -342,7 +342,6 @@ private:
     {
         NFS::Remove(GetLocalPath(snapshotId));
     }
-
 
     Stroka GetLocalPath(int snapshotId)
     {

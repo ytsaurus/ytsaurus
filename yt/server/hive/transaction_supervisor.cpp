@@ -195,7 +195,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %v, PrepareTimestamp: %" PRIu64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Simple commit prepared (TransactionId: %v, PrepareTimestamp: %v)",
                 transactionId,
                 prepareTimestamp);
 
@@ -481,7 +481,7 @@ private:
 
     void SetCommitCompleted(TCommit* commit, TTimestamp commitTimestamp)
     {
-        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction commit completed (TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction commit completed (TransactionId: %v, CommitTimestamp: %v)",
             commit->IsDistributed() ? "Distributed" : "Simple",
             commit->GetTransactionId(),
             commitTimestamp);
@@ -598,14 +598,14 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
-            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to prepare distributed commit (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %" PRIu64 ")",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Failed to prepare distributed commit (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %v)",
                 transactionId,
                 coordinatorCellGuid,
                 prepareTimestamp);
             throw;
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Distirbuted commit is prepared by %v (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Distirbuted commit is prepared by %v (TransactionId: %v, CoordinatorCellGuid: %v, PrepareTimestamp: %v)",
             isCoordinator ? "coordinator" : "participant",
             transactionId,
             coordinatorCellGuid,
@@ -625,7 +625,7 @@ private:
             LOG_FATAL(ex, "Error committing prepared transaction");
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction committed %v(TransactionId: %v, CommitTimestamp: %" PRIu64 ")",
+        LOG_DEBUG_UNLESS(IsRecovery(), "%v transaction committed %v(TransactionId: %v, CommitTimestamp: %v)",
             isDistributed ? "Distributed" : "Simple",
             isDistributed ? (isCoordinator ? "by coordinator " : "by participant ") : "",
             transactionId,

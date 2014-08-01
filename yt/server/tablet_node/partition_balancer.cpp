@@ -151,7 +151,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Partition is eligible for split (SplitFactor: %d)",
+        LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
             splitFactor);
 
         try {
@@ -159,7 +159,7 @@ private:
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(Config_->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
-                THROW_ERROR_EXCEPTION("Too few samples fetched: %d < %d",
+                THROW_ERROR_EXCEPTION("Too few samples fetched: %v < %v",
                     sampleCount,
                     minSampleCount);
             }
@@ -247,7 +247,7 @@ private:
         auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
-        LOG_INFO("Sampling partition (DesiredSampleCount: %d)",
+        LOG_INFO("Sampling partition (DesiredSampleCount: %v)",
             config->SamplesPerPartition);
 
         try {

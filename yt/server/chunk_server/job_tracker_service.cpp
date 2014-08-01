@@ -58,7 +58,7 @@ private:
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("NodeId: %d, ResourceUsage: {%s}",
+        context->SetRequestInfo("NodeId: %v, ResourceUsage: {%v}",
             nodeId,
             ~FormatResourceUsage(resourceUsage, resourceLimits));
 

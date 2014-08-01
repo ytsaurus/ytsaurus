@@ -64,13 +64,13 @@ private:
         try {
             auto params = WaitFor(DiscoverSnapshot(Config_, CellManager_, snapshotId));
             if (params.SnapshotId == NonexistingSegmentId) {
-                THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %d",
+                THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
                     snapshotId);
             }
 
             auto writer = FileStore_->CreateRawWriter(snapshotId);
 
-            LOG_INFO("Downloading %" PRId64 " bytes from peer %d",
+            LOG_INFO("Downloading %v" " bytes from peer %v",
                 params.CompressedLength,
                 params.PeerId);
 
@@ -95,13 +95,13 @@ private:
 
                 const auto& block = attachments[0];
                 if (block.Size() != blockSize) {
-                    LOG_WARNING("Snapshot block of wrong size received (Offset: %" PRId64 ", Size: %" PRISZT ", ExpectedSize: %" PRId64 ")",
+                    LOG_WARNING("Snapshot block of wrong size received (Offset: %v" ", Size: %v, ExpectedSize: %v" ")",
                         downloadedLength,
                         block.Size(),
                         blockSize);
                     // Continue anyway.
                 } else {
-                    LOG_DEBUG("Snapshot block received (Offset: %" PRId64 ", Size: %" PRId64 ")",
+                    LOG_DEBUG("Snapshot block received (Offset: %v" ", Size: %v" ")",
                         downloadedLength,
                         blockSize);
                 }
@@ -119,7 +119,7 @@ private:
 
             return TError();
         } catch (const std::exception& ex) {
-            return TError("Error downloading snapshot %d", snapshotId)
+            return TError("Error downloading snapshot %v", snapshotId)
                 << ex;
         }
     }

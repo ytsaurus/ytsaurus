@@ -149,7 +149,7 @@ public:
         if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
             return;
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %s)", ~node->GetAddress());
+        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", ~node->GetAddress());
 
         NodeConfigUpdated_.Fire(node);
     }
@@ -189,7 +189,7 @@ public:
         if (!node) {
             THROW_ERROR_EXCEPTION(
                 NNodeTrackerClient::EErrorCode::NoSuchNode,
-                "Invalid or expired node id %d",
+                "Invalid or expired node id %v",
                 id);
         }
         return node;
@@ -206,7 +206,7 @@ public:
         try {
             return ConvertTo<TNodeConfigPtr>(attributes);
         } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing configuration of node %s, defaults will be used", ~address);
+            LOG_WARNING(ex, "Error parsing configuration of node %v, defaults will be used", ~address);
             return nullptr;
         }
     }
@@ -296,7 +296,7 @@ private:
         {
             auto* existingNode = FindNodeByAddress(descriptor.GetDefaultAddress());
             if (existingNode) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %s, ExistingId: %d)",
+                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
                     ~address,
                     existingNode->GetId());
                 DoUnregisterNode(existingNode);
@@ -335,7 +335,7 @@ private:
             if (!node)
                 return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 ~node->GetAddress(),
                 ~ToString(node->GetState()),
@@ -350,7 +350,7 @@ private:
 
             RenewNodeLease(node);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %d, Address: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
                 ~node->GetAddress());
 
@@ -371,7 +371,7 @@ private:
             if (!node)
                 return;
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 ~node->GetAddress(),
                 ~ToString(node->GetState()),
@@ -477,7 +477,7 @@ private:
         for (const auto& pair : NodeMap) {
             auto* node = pair.second;
             if (!node->GetTransaction()) {
-                LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %d, Address: %s)",
+                LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %v, Address: %v)",
                     node->GetId(),
                     ~node->GetAddress());
                 PostUnregisterCommit(node);
@@ -552,7 +552,7 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %d, Address: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %v, Address: %v)",
             node->GetId(),
             ~node->GetAddress());
 
@@ -670,7 +670,7 @@ private:
                 RegisterNodeInCypress(node);
             }
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %d, Address: %s, %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
                 nodeId,
                 ~address,
                 ~ToString(statistics));
@@ -686,7 +686,7 @@ private:
         PROFILE_TIMING ("/node_unregister_time") {
             auto nodeId = node->GetId();
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %d, Address: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
                 nodeId,
                 ~node->GetAddress());
 
@@ -740,7 +740,7 @@ private:
     void OnNodeConfigUpdated(TNode* node)
     {
         if (node->GetConfig()->Banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %v)",
                 ~node->GetAddress());
             if (IsLeader()) {
                 PostUnregisterCommit(node);

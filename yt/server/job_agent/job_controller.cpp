@@ -64,7 +64,7 @@ IJobPtr TJobController::GetJobOrThrow(const TJobId& jobId)
 {
     auto job = FindJob(jobId);
     if (!job) {
-        THROW_ERROR_EXCEPTION("No such job %s", ~ToString(jobId));
+        THROW_ERROR_EXCEPTION("No such job %v", ~ToString(jobId));
     }
     return job;
 }
@@ -130,7 +130,7 @@ void TJobController::StartWaitingJobs()
             auto error = tracker->TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
-                LOG_INFO("Starting job (JobId: %s)", ~ToString(job->GetId()));
+                LOG_INFO("Starting job (JobId: %v)", ~ToString(job->GetId()));
 
                 job->SubscribeResourcesReleased(
                     BIND(&TJobController::OnResourcesReleased, MakeWeak(this))
@@ -138,11 +138,11 @@ void TJobController::StartWaitingJobs()
 
                 job->Start();
             } else {
-                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %s)",
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %v)",
                     ~ToString(job->GetId()));
             }
         } else {
-            LOG_DEBUG("Not enough resources to start waiting job (JobId: %s, SpareResources: %s, JobResources: %s)",
+            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: %v, JobResources: %v)",
                 ~ToString(job->GetId()),
                 ~FormatResources(spareResources),
                 ~FormatResources(jobResources));
@@ -171,7 +171,7 @@ IJobPtr TJobController::CreateJob(
         resourceLimits,
         std::move(jobSpec));
 
-    LOG_INFO("Job created (JobId: %s, Type: %s)",
+    LOG_INFO("Job created (JobId: %v, Type: %v)",
         ~ToString(jobId),
         ~ToString(type));
 
@@ -193,7 +193,7 @@ void TJobController::ScheduleStart()
 
 void TJobController::AbortJob(IJobPtr job)
 {
-    LOG_INFO("Job abort requested (JobId: %s)",
+    LOG_INFO("Job abort requested (JobId: %v)",
         ~ToString(job->GetId()));
 
     job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
@@ -201,7 +201,7 @@ void TJobController::AbortJob(IJobPtr job)
 
 void TJobController::RemoveJob(IJobPtr job)
 {
-    LOG_INFO("Job removed (JobId: %s)",
+    LOG_INFO("Job removed (JobId: %v)",
         ~ToString(job->GetId()));
 
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);
@@ -252,7 +252,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
     if (!CheckResourceUsageDelta(delta)) {
         job->Abort(TError(
             NExecAgent::EErrorCode::ResourceOverdraft,
-            "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
+            "Failed to increase resource usage (OldUsage: {%v}, NewUsage: {%v})",
             ~FormatResources(oldUsage),
             ~FormatResources(usage)));
         return;
@@ -322,7 +322,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         if (job) {
             RemoveJob(job);
         } else {
-            LOG_WARNING("Requested to remove a non-existing job (JobId: %s)",
+            LOG_WARNING("Requested to remove a non-existing job (JobId: %v)",
                 ~ToString(jobId));
         }
     }
@@ -333,7 +333,7 @@ void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
         if (job) {
             AbortJob(job);
         } else {
-            LOG_WARNING("Requested to abort a non-existing job (JobId: %s)",
+            LOG_WARNING("Requested to abort a non-existing job (JobId: %v)",
                 ~ToString(jobId));
         }
     }

@@ -35,7 +35,7 @@ template <class T>
 void ValidateSignature(const T& header)
 {
     LOG_FATAL_UNLESS(header.Signature == T::ExpectedSignature,
-        "Invalid signature: expected %" PRIx64 ", got %" PRIx64,
+        "Invalid signature: expected %v, got %v",
         T::ExpectedSignature,
         header.Signature);
 }
@@ -78,7 +78,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
 
     auto checksum = GetChecksum(data);
     LOG_FATAL_UNLESS(header.Checksum == checksum,
-        "Incorrect checksum of record %d", header.RecordId);
+        "Incorrect checksum of record %v", header.RecordId);
     return TRecordInfo(header.RecordId, readSize);
 }
 
@@ -308,14 +308,14 @@ void TSyncFileChangelog::TImpl::Open()
 
         if (IsSealed() && SealedRecordCount_ != RecordCount_) {
             THROW_ERROR_EXCEPTION(
-                "Incorrect changelog: number or records (%d) less than sealed number (%d)",
+                "Incorrect changelog: number or records (%v) less than sealed number (%v)",
                 RecordCount_,
                 SealedRecordCount_);
         }
     }
 
 
-    LOG_DEBUG("Changelog opened (RecordCount: %d, Sealed: %s)",
+    LOG_DEBUG("Changelog opened (RecordCount: %v, Sealed: %v)",
         RecordCount_,
         ~FormatBool(IsSealed()));
 }
@@ -344,7 +344,7 @@ void TSyncFileChangelog::TImpl::Append(
     YCHECK(!IsSealed());
     YCHECK(firstRecordId == RecordCount_);
 
-    LOG_DEBUG("Appending %" PRISZT " records to changelog",
+    LOG_DEBUG("Appending %v records to changelog",
         records.size());
 
     {
@@ -379,7 +379,7 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     YCHECK(maxRecords >= 0);
     YCHECK(Open_);
 
-    LOG_DEBUG("Reading up to %d records and up to %" PRId64 " bytes from record %d",
+    LOG_DEBUG("Reading up to %v records and up to %v" " bytes from record %v",
         maxRecords,
         maxBytes,
         firstRecordId);
@@ -449,7 +449,7 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
     YCHECK(!IsSealed());
     YCHECK(recordCount >= 0);
 
-    LOG_DEBUG("Sealing changelog with %d records", recordCount);
+    LOG_DEBUG("Sealing changelog with %v records", recordCount);
     
     auto oldRecordCount = RecordCount_;
 
@@ -554,7 +554,7 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
             WritePod(*IndexFile_, Index_.back());
             UpdateIndexHeader();
         }
-        LOG_DEBUG("Changelog index record added (RecordId: %d, Offset: %" PRId64 ")",
+        LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v" ")",
             recordId,
             CurrentFilePosition_);
     }
@@ -657,11 +657,11 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd(const TChangelogHeader& he
         if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
             // Broken changelog case.
             if (!recordInfo || recordInfo->Id != RecordCount_) {
-                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %v, Offset: %v" ")",
                     RecordCount_,
                     CurrentFilePosition_);
             } else {
-                LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %v, Offset: %v" ")",
                     RecordCount_,
                     CurrentFilePosition_);
             }

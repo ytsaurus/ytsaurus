@@ -71,7 +71,7 @@ ISessionPtr TSessionManager::GetSession(const TChunkId& chunkId)
     if (!session) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
-            "Session %s is invalid or expired",
+            "Session %v is invalid or expired",
             ~ToString(chunkId));
     }
     return session;
@@ -152,7 +152,7 @@ void TSessionManager::OnSessionLeaseExpired(ISessionPtr session)
     if (SessionMap_.find(session->GetChunkId()) == SessionMap_.end())
         return;
 
-    LOG_INFO("Session lease expired (ChunkId: %s)",
+    LOG_INFO("Session lease expired (ChunkId: %v)",
         ~ToString(session->GetChunkId()));
 
     session->Cancel(TError("Session lease expired"));
@@ -162,7 +162,7 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Session finished (ChunkId: %s)",
+    LOG_INFO("Session finished (ChunkId: %v)",
         ~ToString(session->GetChunkId()));
 
     UnregisterSession(session);
@@ -199,7 +199,7 @@ void TSessionManager::UpdatePendingWriteSize(i64 delta)
     VERIFY_THREAD_AFFINITY_ANY();
 
     i64 result = (PendingWriteSize_ += delta);
-    LOG_DEBUG("Pending write size updated (PendingWriteSize: %" PRId64 ", Delta: %" PRId64")",
+    LOG_DEBUG("Pending write size updated (PendingWriteSize: %v" ", Delta: %v"")",
         result,
         delta);
 }

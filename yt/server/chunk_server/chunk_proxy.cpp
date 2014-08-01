@@ -445,7 +445,7 @@ private:
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
         YCHECK(!replicas.empty());
 
-        context->SetRequestInfo("Targets: [%s]",
+        context->SetRequestInfo("Targets: [%v]",
             ~JoinToString(replicas));
 
         auto* chunk = GetThisTypedImpl();

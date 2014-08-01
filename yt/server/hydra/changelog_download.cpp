@@ -61,7 +61,7 @@ private:
     TError DoRun(int changelogId, int recordCount)
     {
         try {
-            LOG_INFO("Requested %d records in changelog %d",
+            LOG_INFO("Requested %v records in changelog %v",
                 recordCount,
                 changelogId);
 
@@ -69,7 +69,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(changelogOrError);
             auto changelog = changelogOrError.Value();
             if (changelog->GetRecordCount() >= recordCount) {
-                LOG_INFO("Local changelog already contains %d records, no download needed",
+                LOG_INFO("Local changelog already contains %v records, no download needed",
                     changelog->GetRecordCount());
                 return TError();
             }
@@ -77,14 +77,14 @@ private:
             auto asyncChangelogInfo = DiscoverChangelog(Config, CellManager, changelogId, recordCount);
             auto changelogInfo = WaitFor(asyncChangelogInfo);
             if (changelogInfo.ChangelogId == NonexistingSegmentId) {
-                THROW_ERROR_EXCEPTION("Unable to find a download source for changelog %d with %d records",
+                THROW_ERROR_EXCEPTION("Unable to find a download source for changelog %v with %v records",
                     changelogId,
                     recordCount);
             }
 
             int downloadedRecordCount = changelog->GetRecordCount();
             
-            LOG_INFO("Downloading records %d-%d from peer %d",
+            LOG_INFO("Downloading records %v-%v from peer %v",
                 changelog->GetRecordCount(),
                 recordCount,
                 changelogInfo.PeerId);
@@ -97,7 +97,7 @@ private:
                     Config->ChangelogDownloader->RecordsPerRequest,
                     recordCount - downloadedRecordCount);
             
-                LOG_DEBUG("Requesting records %d-%d",
+                LOG_DEBUG("Requesting records %v-%v",
                     downloadedRecordCount,
                     downloadedRecordCount + desiredChunkSize - 1);
             
@@ -116,7 +116,7 @@ private:
                 UnpackRefs(rsp->Attachments()[0], &recordsData);
             
                 if (recordsData.empty()) {
-                    THROW_ERROR_EXCEPTION("Peer %d does not have %d records of changelog %d anymore",
+                    THROW_ERROR_EXCEPTION("Peer %v does not have %v records of changelog %v anymore",
                         changelogInfo.PeerId,
                         recordCount,
                         changelogId);
@@ -124,13 +124,13 @@ private:
             
                 int actualChunkSize = static_cast<int>(recordsData.size());
                 if (actualChunkSize != desiredChunkSize) {
-                    LOG_DEBUG("Received records %d-%d while %d records were requested",
+                    LOG_DEBUG("Received records %v-%v while %v records were requested",
                         downloadedRecordCount,
                         downloadedRecordCount + actualChunkSize - 1,
                         desiredChunkSize);
                     // Continue anyway.
                 } else {
-                    LOG_DEBUG("Received records %d-%d",
+                    LOG_DEBUG("Received records %v-%v",
                         downloadedRecordCount,
                         downloadedRecordCount + actualChunkSize - 1);
                 }
@@ -145,7 +145,7 @@ private:
 
             return TError();
         } catch (const std::exception& ex) {
-            return TError("Error downloading changelog %d", changelogId)
+            return TError("Error downloading changelog %v", changelogId)
                 << ex;
         }
     }

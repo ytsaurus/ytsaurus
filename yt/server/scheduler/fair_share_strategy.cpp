@@ -941,7 +941,7 @@ public:
                 }
                 node->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
-                LOG_DEBUG("Job is preemptable (JobId: %s)",
+                LOG_DEBUG("Job is preemptable (JobId: %v)",
                     ~ToString(job->GetId()));
             }
         }
@@ -1045,7 +1045,7 @@ public:
         auto element = GetOperationElement(operation);
         const auto& attributes = element->Attributes();
         return Format(
-            "Scheduling = {Status: %s, DominantResource: %s, Demand: %.4lf, "
+            "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, "
             "Starving: %v, Weight: %v, "
             "PreemptableRunningJobs: %v}",
@@ -1144,7 +1144,7 @@ private:
         try {
             return ConvertTo<TStrategyOperationSpecPtr>(specNode);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
+            LOG_ERROR(ex, "Error parsing spec of pooled operation %v, defaults will be used",
                 ~ToString(operation->GetId()));
             return New<TStrategyOperationSpec>();
         }
@@ -1182,7 +1182,7 @@ private:
         pool->AddChild(operationElement);
         IncreasePoolUsage(pool, operationElement->ResourceUsage());
 
-        LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
+        LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             ~ToString(operation->GetId()),
             ~pool->GetId());
     }
@@ -1196,7 +1196,7 @@ private:
         pool->RemoveChild(operationElement);
         IncreasePoolUsage(pool, -operationElement->ResourceUsage());
 
-        LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
+        LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             ~ToString(operation->GetId()),
             ~pool->GetId());
 
@@ -1284,7 +1284,7 @@ private:
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         GetPoolParentElement(pool)->AddChild(pool);
 
-        LOG_INFO("Pool registered (Pool: %s, Parent: %s)",
+        LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
             ~GetPoolId(pool),
             ~GetPoolId(pool->GetParent()));
     }
@@ -1295,7 +1295,7 @@ private:
         SetPoolParent(pool, nullptr);
         GetPoolParentElement(pool)->RemoveChild(pool);
 
-        LOG_INFO("Pool unregistered (Pool: %s, Parent: %s)",
+        LOG_INFO("Pool unregistered (Pool: %v, Parent: %v)",
             ~GetPoolId(pool),
             ~GetPoolId(pool->GetParent()));
     }
@@ -1377,7 +1377,7 @@ private:
                         const auto& childNode = pair.second;
                         auto childPath = childNode->GetPath();
                         if (!poolIdToPath.insert(std::make_pair(childId, childPath)).second) {
-                            LOG_ERROR("Pool %s is defined both at %s and %s; skipping second occurrence",
+                            LOG_ERROR("Pool %v is defined both at %v and %v; skipping second occurrence",
                                 ~childId.Quote(),
                                 ~poolIdToPath[childId],
                                 ~childPath);
@@ -1390,7 +1390,7 @@ private:
                         try {
                             config = ConvertTo<TPoolConfigPtr>(configNode);
                         } catch (const std::exception& ex) {
-                            LOG_ERROR(ex, "Error parsing configuration of pool %s; using defaults",
+                            LOG_ERROR(ex, "Error parsing configuration of pool %v; using defaults",
                                 ~childPath.Quote());
                             config = New<TPoolConfig>();
                         }
@@ -1475,7 +1475,7 @@ private:
     {
         if (!element->GetStarving()) {
             element->SetStarving(true);
-            LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
+            LOG_INFO("Operation starvation timeout (OperationId: %v, Status: %v)",
                 ~ToString(element->GetOperation()->GetId()),
                 ~ToString(status));
         }
@@ -1485,7 +1485,7 @@ private:
     {
         if (element->GetStarving()) {
             element->SetStarving(false);
-            LOG_INFO("Operation is no longer starving (OperationId: %s)",
+            LOG_INFO("Operation is no longer starving (OperationId: %v)",
                 ~ToString(element->GetOperation()->GetId()));
         }
     }

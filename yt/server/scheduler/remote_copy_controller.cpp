@@ -326,7 +326,7 @@ private:
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {
             OnOperationFailed(TError(
-                "Too many chunks per job (%d > %d), merge input tables before starting Remote Copy",
+                "Too many chunks per job (%v > %v), merge input tables before starting Remote Copy",
                 static_cast<int>(stripes.size() / jobCount),
                 Spec_->MaxChunkCountPerJob));
             return;

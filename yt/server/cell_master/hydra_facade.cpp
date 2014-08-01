@@ -221,7 +221,7 @@ private:
             try {
                 int snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
                 if (snapshotId < thresholdId) {
-                    LOG_INFO("Removing snapshot %d",
+                    LOG_INFO("Removing snapshot %v",
                         snapshotId);
 
                     auto dataFile = NFS::CombinePaths(snapshotsPath, fileName);
@@ -241,7 +241,7 @@ private:
             try {
                 int changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
                 if (changelogId < thresholdId) {
-                    LOG_INFO("Removing changelog %d",
+                    LOG_INFO("Removing changelog %v",
                         changelogId);
                     RemoveChangelogFiles(NFS::CombinePaths(changelogsPath, fileName));
                 }

@@ -121,7 +121,7 @@ void TAccessTracker::OnFlush()
         return;
     }
 
-    LOG_DEBUG("Starting access statistics commit for %d nodes",
+    LOG_DEBUG("Starting access statistics commit for %v nodes",
         UpdateAccessStatisticsRequest_.updates_size());
 
     auto this_ = MakeStrong(this);

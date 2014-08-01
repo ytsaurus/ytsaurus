@@ -268,7 +268,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         i64 minSpace = Config_->MinDiskSpace.Get();
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %" PRId64 ", actual %" PRId64,
+            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %v" ", actual %v",
                 minSpace,
                 totalSpace);
         }
@@ -376,7 +376,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetBlobDescriptor(const TChunkId& chun
         if (metaSize == 0) {
             // EXT4 specific thing.
             // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-            LOG_WARNING("Chunk meta file %v is empty", metaFileName);
+            LOG_WARNING("Chunk meta file %Qv is empty", metaFileName);
             NFS::Remove(dataFileName);
             NFS::Remove(metaFileName);
             return Null;

@@ -64,7 +64,7 @@ TChunkListId TChunkListPool::Extract()
     auto id = Ids.back();
     Ids.pop_back();
 
-    LOG_DEBUG("Extracted chunk list %s from the pool, %d remaining",
+    LOG_DEBUG("Extracted chunk list %v from the pool, %v remaining",
         ~ToString(id),
         static_cast<int>(Ids.size()));
 
@@ -102,7 +102,7 @@ void TChunkListPool::AllocateMore()
         return;
     }
 
-    LOG_INFO("Allocating %d chunk lists for pool", count);
+    LOG_INFO("Allocating %v chunk lists for pool", count);
 
     TObjectServiceProxy objectProxy(MasterChannel);
     auto req = TMasterYPathProxy::CreateObjects();

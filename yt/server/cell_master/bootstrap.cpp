@@ -427,10 +427,10 @@ void TBootstrap::DoRun()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
-    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
+    LOG_INFO("Listening for HTTP requests on port %v", Config->MonitoringPort);
     HttpServer->Start();
 
-    LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
+    LOG_INFO("Listening for RPC requests on port %v", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
     RpcServer->Start();
 }

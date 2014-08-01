@@ -315,7 +315,7 @@ protected:
 
         ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Id: %s, TaskDataSize: %" PRId64 ")",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v" ")",
             ~task->GetId(),
             CurrentTaskDataSize);
 
@@ -382,7 +382,7 @@ protected:
         auto tableIndex = GetTeleportTableIndex();
         if (tableIndex) {
             chunkSpec->clear_partition_tag();
-            LOG_TRACE("Teleport chunk added (ChunkId: %s, Partition: %d)",
+            LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
                 ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
                 CurrentPartitionIndex);
 
@@ -444,7 +444,7 @@ protected:
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %d, JobCount: %" PRISZT ")",
+        LOG_INFO("Inputs processed (DataSize: %v" ", ChunkCount: %v, JobCount: %v)",
             TotalDataSize,
             TotalChunkCount,
             Tasks.size());
@@ -959,11 +959,11 @@ protected:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %s",
+        LOG_INFO("Spec key columns are %v",
             specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
-        LOG_INFO("Adjusted key columns are %s",
+        LOG_INFO("Adjusted key columns are %v",
             ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
         CalculateSizes();
@@ -985,7 +985,7 @@ protected:
 
         CollectEndpoints();
 
-        LOG_INFO("Sorting %d endpoints", static_cast<int>(Endpoints.size()));
+        LOG_INFO("Sorting %v endpoints", static_cast<int>(Endpoints.size()));
         SortEndpoints();
 
         FindTeleportChunks();
@@ -1217,7 +1217,7 @@ private:
                 }
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
-                LOG_TRACE("Finish current task, flushing %" PRISZT " chunks at key %s",
+                LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     globalOpenedSlices.size(),
                     ~ToString(nextBreakpoint));
 
@@ -1459,7 +1459,7 @@ private:
             }
 
             if (teleportOutputCount > 1) {
-                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %d", teleportOutputCount);
+                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v", teleportOutputCount);
             }
         }
 
@@ -1586,7 +1586,7 @@ private:
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
                 auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
-                //LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
+                //LOG_DEBUG("Finish current task, flushing %v chunks at key %v",
                 //    openedSlices.size(),
                 //    ~ToString(nextBreakpoint));
 

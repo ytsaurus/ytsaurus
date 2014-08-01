@@ -169,7 +169,7 @@ public:
             YCHECK(TabletIdToDescriptor_.insert(std::make_pair(tablet->GetId(), descriptor)).second);
         }
 
-        LOG_INFO("Tablet descriptor added (TabletId: %s, CellGuid: %s)",
+        LOG_INFO("Tablet descriptor added (TabletId: %v, CellGuid: %v)",
             ~ToString(tablet->GetId()),
             ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
@@ -184,7 +184,7 @@ public:
             TabletIdToDescriptor_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet descriptor removed (TabletId: %s, CellGuid: %s)",
+        LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
             ~ToString(tablet->GetId()),
             ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
@@ -202,7 +202,7 @@ public:
             it->second = descriptor;
         }
 
-        LOG_INFO("Tablet descriptor updated (TabletId: %s, CellGuid: %s)",
+        LOG_INFO("Tablet descriptor updated (TabletId: %v, CellGuid: %v)",
             ~ToString(tablet->GetId()),
             ~ToString(tablet->GetSlot()->GetCellGuid()));
     }
@@ -216,7 +216,7 @@ public:
         while (it != TabletIdToDescriptor_.end()) {
             auto jt = it++;
             if (jt->second->Slot == slot) {
-                LOG_INFO("Tablet descriptor removed (TabletId: %s, CellGuid: %s)",
+                LOG_INFO("Tablet descriptor removed (TabletId: %v, CellGuid: %v)",
                     ~ToString(jt->first),
                     ~ToString(slot->GetCellGuid()));
                 TabletIdToDescriptor_.erase(jt);

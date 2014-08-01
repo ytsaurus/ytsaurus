@@ -30,7 +30,7 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
             inputSpec.chunks().end());
     }
 
-    LOG_DEBUG("Opening input %d with %d chunks",
+    LOG_DEBUG("Opening input %v with %v chunks",
         index,
         static_cast<int>(chunks.size()));
 

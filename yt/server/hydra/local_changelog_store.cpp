@@ -149,7 +149,7 @@ private:
     {
         TInsertCookie cookie(id);
         if (!BeginInsert(&cookie)) {
-            THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %d",
+            THROW_ERROR_EXCEPTION("Trying to create an already existing changelog %v",
                 id);
         }
 
@@ -160,7 +160,7 @@ private:
             auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error creating changelog %d",
+            LOG_FATAL(ex, "Error creating changelog %v",
                 id);
         }
 
@@ -177,7 +177,7 @@ private:
             if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(
                     NHydra::EErrorCode::NoSuchChangelog,
-                    "No such changelog %d",
+                    "No such changelog %v",
                     id));
             } else {
                 try {
@@ -185,7 +185,7 @@ private:
                     auto cachedChangelog = New<TCachedLocalChangelog>(id, underlyingChangelog);
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening changelog %d",
+                    LOG_FATAL(ex, "Error opening changelog %v",
                         id);
                 }
             }
@@ -214,14 +214,14 @@ private:
                     latestId = id;
                 }
             } catch (const std::exception&) {
-                LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
+                LOG_WARNING("Found unrecognized file %v", ~fileName.Quote());
             }
         }
 
         if (latestId != NonexistingSegmentId) {
             for (int id = initialId; id <= latestId; ++id) {
                 if (ids.find(id) == ids.end()) {
-                    LOG_FATAL("Interim changelog %d is missing",
+                    LOG_FATAL("Interim changelog %v is missing",
                         id);                    
                 }
             }

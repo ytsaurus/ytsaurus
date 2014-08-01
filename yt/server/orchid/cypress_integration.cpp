@@ -115,7 +115,7 @@ public:
         auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Method: %s, RequestId: %s)",
+        LOG_DEBUG("Sending request to the remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
             ~manifest->RemoteAddress,
             ~path,
             ~method,
@@ -174,14 +174,14 @@ private:
         TOrchidServiceProxy::TRspExecutePtr response)
     {
         if (response->IsOK()) {
-            LOG_DEBUG("Orchid request succeded (RequestId: %s)",
+            LOG_DEBUG("Orchid request succeded (RequestId: %v)",
                 ~ToString(context->GetRequestId()));
             auto innerResponseMessage = TSharedRefArray(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            LOG_DEBUG(*response, "Orchid request failed (RequestId: %s)",
+            LOG_DEBUG(*response, "Orchid request failed (RequestId: %v)",
                 ~ToString(context->GetRequestId()));
-            context->Reply(TError("Error executing an Orchid operation (Path: %s, Method: %s, RemoteAddress: %s, RemoteRoot: %s)",
+            context->Reply(TError("Error executing an Orchid operation (Path: %v, Method: %v, RemoteAddress: %v, RemoteRoot: %v)",
                 ~path,
                 ~method,
                 ~manifest->RemoteAddress,

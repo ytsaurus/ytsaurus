@@ -272,7 +272,7 @@ private:
 
         auto changelog = CreateMultiplexedChangelog(newId);
 
-        LOG_INFO("Finished rotating multiplexed changelog %d",
+        LOG_INFO("Finished rotating multiplexed changelog %v",
             oldId);
 
         return changelog;
@@ -312,12 +312,12 @@ private:
         auto cleanDataFileName = dataFileName + "." + CleanExtension;
         NFS::Rename(dataFileName, cleanDataFileName);
         NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
-        LOG_INFO("Multiplexed changelog %d is clean", changelogId);
+        LOG_INFO("Multiplexed changelog %v is clean", changelogId);
     }
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
     {
-        LOG_INFO("Started creating new multiplexed changelog %d",
+        LOG_INFO("Started creating new multiplexed changelog %v",
             id);
 
         auto changelog = ChangelogDispatcher_->CreateChangelog(
@@ -325,7 +325,7 @@ private:
             TSharedRef(),
             Config_->MultiplexedChangelog);
 
-        LOG_INFO("Finished creating new multiplexed changelog %d",
+        LOG_INFO("Finished creating new multiplexed changelog %v",
             id);
 
         return changelog;
@@ -359,7 +359,7 @@ private:
             ids.erase(ids.end() - Config_->MultiplexedChangelog->MaxCleanChangelogsToKeep, ids.end());
 
             for (int id : ids) {
-                LOG_INFO("Removing clean multiplexed changelog %d", id);
+                LOG_INFO("Removing clean multiplexed changelog %v", id);
 
                 auto fileName = GetMultiplexedChangelogPath(id) + "." + CleanExtension;
                 RemoveChangelogFiles(fileName);
@@ -516,12 +516,12 @@ public:
                 extension = ChopExtension(&fileName);
                 if (extension == ChangelogExtension) {
                     int id = ParseChangelogId(fileName, originalFileName);
-                    LOG_INFO("Found clean multiplexed changelog %d", id);
+                    LOG_INFO("Found clean multiplexed changelog %v", id);
                     maxCleanId = std::max(maxCleanId, id);
                 }
             } else if (extension == ChangelogExtension) {
                 int id = ParseChangelogId(fileName, originalFileName);
-                LOG_INFO("Found dirty multiplexed changelog %d", id);
+                LOG_INFO("Found dirty multiplexed changelog %v", id);
                 minDirtyId = std::min(minDirtyId, id);
                 maxDirtyId = std::max(maxDirtyId, id);
             }
@@ -567,7 +567,7 @@ private:
 
     void ReplayChangelog(int changelogId)
     {
-        LOG_INFO("Replaying dirty multiplexed changelog %d", changelogId);
+        LOG_INFO("Replaying dirty multiplexed changelog %v", changelogId);
 
         auto multiplexedChangelogPath = Owner_->GetMultiplexedChangelogPath(changelogId);
         auto multiplexedChangelog = Owner_->ChangelogDispatcher_->OpenChangelog(
@@ -837,7 +837,7 @@ TAsyncError TJournalDispatcher::TImpl::AppendMultiplexedRecord(
     if (MultiplexedChangelog_->GetRecordCount() >= config->MaxRecordCount ||
         MultiplexedChangelog_->GetDataSize() >= config->MaxDataSize)
     {
-        LOG_INFO("Started rotating multiplexed changelog %d",
+        LOG_INFO("Started rotating multiplexed changelog %v",
             MultiplexedChangelogId_);
 
         auto multiplexedFlushResult = MultiplexedChangelog_->Flush();

@@ -228,7 +228,7 @@ void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
 
     int partCount = Load<i32>(context);
 
-    LOG_INFO("Started loading composite automaton with %d parts",
+    LOG_INFO("Started loading composite automaton with %v parts",
         partCount);
 
     for (auto part : Parts) {

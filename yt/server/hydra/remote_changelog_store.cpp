@@ -239,7 +239,7 @@ private:
 
     TYPath GetRemotePath(int id)
     {
-        return Format("%s/%09d", RemotePath_, id);
+        return Format("%v/%09d", RemotePath_, id);
     }
 
 

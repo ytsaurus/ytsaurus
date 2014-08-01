@@ -81,7 +81,7 @@ TAsyncError TSnapshotBuilder::Run()
         job.TempFileName = job.FileName + NFS::TempFileSuffix;
         Jobs.push_back(job);
 
-        LOG_INFO("Snapshot job registered (OperationId: %s)",
+        LOG_INFO("Snapshot job registered (OperationId: %v)",
             ~ToString(operation->GetId()));
     }
 

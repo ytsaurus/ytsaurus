@@ -418,7 +418,7 @@ protected:
                     Controller->AddTaskPendingHint(partition->SortTask);
                 }
             }
-            LOG_DEBUG("Sort data size updated: %v -> %" PRId64,
+            LOG_DEBUG("Sort data size updated: %v -> %v",
                 oldSortDataSize,
                 newSortDataSize);
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
@@ -475,7 +475,7 @@ protected:
                         Controller->OnPartitionCompleted(partition);
                     }
                 } else {
-                    LOG_DEBUG("Partition[%v] = %" PRId64,
+                    LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
                         dataSize);
                 }
@@ -1283,7 +1283,7 @@ protected:
             }
             if (totalInputRowCount != TotalOutputRowCount) {
                 OnOperationFailed(TError(
-                    "Input/output row count mismatch in sort operation: %v != %" PRId64,
+                    "Input/output row count mismatch in sort operation: %v != %v",
                     totalInputRowCount,
                     TotalOutputRowCount));
             }
@@ -1353,7 +1353,7 @@ protected:
         if (averageBufferSize < TChannelWriter::MinUpperReserveLimit) {
             i64 minAppropriateSize = partitionCount * 2 * TChannelWriter::MinUpperReserveLimit;
             THROW_ERROR_EXCEPTION(
-                "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %" PRId64,
+                "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %v",
                 averageBufferSize,
                 minAppropriateSize);
         }

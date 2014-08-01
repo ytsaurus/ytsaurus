@@ -710,7 +710,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
             mode);
     }
 
-    context->SetRequestInfo("Mode: %s, Waitable: %s",
+    context->SetRequestInfo("Mode: %v, Waitable: %v",
         ~ToString(mode),
         ~FormatBool(waitable));
 
@@ -728,7 +728,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     auto lockId = GetObjectId(lock);
     ToProto(response->mutable_lock_id(), lockId);
 
-    context->SetResponseInfo("LockId: %s",
+    context->SetResponseInfo("LockId: %v",
         ~ToString(lockId));
 
     context->Reply();
@@ -741,7 +741,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     const auto& path = GetRequestYPath(context);
 
-    context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
         ~ToString(type),
         ~FormatBool(request->ignore_existing()),
         ~FormatBool(request->recursive()));
@@ -781,7 +781,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     factory->Commit();
 
-    context->SetResponseInfo("NodeId: %s", ~ToString(newProxy->GetId()));
+    context->SetResponseInfo("NodeId: %v", ~ToString(newProxy->GetId()));
 
     context->Reply();
 }
@@ -795,7 +795,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     bool removeSource = request->remove_source();
     auto targetPath = GetRequestYPath(context);
 
-    context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s, RemoveSource: %s",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v",
         ~sourcePath,
         ~FormatBool(preserveAccount),
         ~FormatBool(removeSource));
@@ -854,7 +854,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 
-    context->SetRequestInfo("NodeId: %s", ~ToString(clonedTrunkImpl->GetId()));
+    context->SetRequestInfo("NodeId: %v", ~ToString(clonedTrunkImpl->GetId()));
 
     context->Reply();
 }

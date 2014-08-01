@@ -52,9 +52,9 @@ public:
         auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
 
         if (exactId) {
-            LOG_INFO("Looking for snapshot %d", maxSnapshotId);
+            LOG_INFO("Looking for snapshot %v", maxSnapshotId);
         } else {
-            LOG_INFO("Looking for the latest snapshot up to %d", maxSnapshotId);
+            LOG_INFO("Looking for the latest snapshot up to %v", maxSnapshotId);
         }
 
         for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
@@ -62,7 +62,7 @@ public:
             if (!channel)
                 continue;
 
-            LOG_INFO("Requesting snapshot info from peer %d", peerId);
+            LOG_INFO("Requesting snapshot info from peer %v", peerId);
 
             TSnapshotServiceProxy proxy(CellManager_->GetPeerChannel(peerId));
             proxy.SetDefaultTimeout(Config_->RpcTimeout);
@@ -101,12 +101,12 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!rsp->IsOK()) {
-            LOG_WARNING(rsp->GetError(), "Error looking up snapshots at peer %d",
+            LOG_WARNING(rsp->GetError(), "Error looking up snapshots at peer %v",
                 peerId);
             return;
         }
 
-        LOG_INFO("Found snapshot %d found on peer %d",
+        LOG_INFO("Found snapshot %v found on peer %v",
             rsp->snapshot_id(),
             peerId);
 
@@ -130,7 +130,7 @@ private:
         if (Params_.SnapshotId == NonexistingSegmentId) {
             LOG_INFO("Snapshot lookup failed, no suitable snapshot found");
         } else {
-            LOG_INFO("Snapshot lookup succeeded (PeerId: %d, SnapshotId: %d)",
+            LOG_INFO("Snapshot lookup succeeded (PeerId: %v, SnapshotId: %v)",
                 Params_.PeerId,
                 Params_.SnapshotId);
         }

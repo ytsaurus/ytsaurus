@@ -401,7 +401,7 @@ private:
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to create proxy controller for environment %s",
+                "Failed to create proxy controller for environment %v",
                 ~environmentType.Quote())
                 << ex;
         }
@@ -532,7 +532,7 @@ private:
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
 
             if (IsErasureChunkId(chunkId)) {
-                DoAbort(TError("Cannot download erasure chunk %s", ~ToString(chunkId)));
+                DoAbort(TError("Cannot download erasure chunk %v", ~ToString(chunkId)));
                 break;
             }
 
@@ -541,7 +541,7 @@ private:
                 BIND([=] (NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
-                            "Failed to download chunk %s",
+                            "Failed to download chunk %v",
                             ~ToString(chunkId))
                             << result;
                         this_->DoAbort(wrappedError);
@@ -594,14 +594,14 @@ private:
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         const auto& fileName = descriptor.file_name();
 
-        LOG_INFO("Preparing regular user file via symlink (FileName: %s, ChunkId: %s)",
+        LOG_INFO("Preparing regular user file via symlink (FileName: %v, ChunkId: %v)",
             ~fileName,
             ~ToString(chunkId));
 
         auto chunkCache = Bootstrap->GetChunkCache();
         auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %s",
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %v",
             ~fileName.Quote());
 
         auto chunk = chunkOrError.Value();
@@ -614,12 +614,12 @@ private:
                 descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to create a symlink for %s",
+                "Failed to create a symlink for %v",
                 ~fileName.Quote())
                 << ex;
         }
 
-        LOG_INFO("Regular user file prepared successfully (FileName: %s)",
+        LOG_INFO("Regular user file prepared successfully (FileName: %v)",
             ~fileName);
     }
 
@@ -627,7 +627,7 @@ private:
     {
         const auto& fileName = descriptor.file_name();
 
-        LOG_INFO("Preparing regular user file via download (FileName: %s, ChunkCount: %d)",
+        LOG_INFO("Preparing regular user file via download (FileName: %v, ChunkCount: %v)",
             ~fileName,
             static_cast<int>(descriptor.file().chunks_size()));
 
@@ -672,19 +672,19 @@ private:
             Slot->MakeFile(fileName, producer, descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to write regular user file %s",
+                "Failed to write regular user file %v",
                 ~fileName.Quote())
                 << ex;
         }
 
-        LOG_INFO("Regular user file prepared successfully (FileName: %s)",
+        LOG_INFO("Regular user file prepared successfully (FileName: %v)",
             ~fileName);
     }
 
 
     void PrepareTableFile(const TTableFileDescriptor& descriptor)
     {
-        LOG_INFO("Preparing user table file (FileName: %s, ChunkCount: %d)",
+        LOG_INFO("Preparing user table file (FileName: %v, ChunkCount: %v)",
             ~descriptor.file_name(),
             static_cast<int>(descriptor.table().chunks_size()));
 
@@ -725,12 +725,12 @@ private:
             Slot->MakeFile(fileName, producer);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to write user table file %s",
+                "Failed to write user table file %v",
                 ~fileName.Quote())
                 << ex;
         }
 
-        LOG_INFO("User table file prepared successfully (FileName: %s)",
+        LOG_INFO("User table file prepared successfully (FileName: %v)",
             ~fileName);
     }
 

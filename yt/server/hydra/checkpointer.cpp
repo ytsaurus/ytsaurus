@@ -47,7 +47,7 @@ public:
         Owner_->LeaderCommitter_->Flush();
         Owner_->LeaderCommitter_->SuspendLogging();
 
-        LOG_INFO("Starting distributed changelog rotation at version %s", ~ToString(Version_));
+        LOG_INFO("Starting distributed changelog rotation at version %v", ~ToString(Version_));
 
         Owner_->LeaderCommitter_->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
@@ -114,7 +114,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_DEBUG("Requesting follower %d to build a snapshot", peerId);
+            LOG_DEBUG("Requesting follower %v to build a snapshot", peerId);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->SnapshotTimeout);
@@ -141,12 +141,12 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rsp->IsOK()) {
-            LOG_WARNING(*rsp, "Error building snapshot at follower %d",
+            LOG_WARNING(*rsp, "Error building snapshot at follower %v",
                 id);
             return;
         }
 
-        LOG_INFO("Remote snapshot built by follower %d",
+        LOG_INFO("Remote snapshot built by follower %v",
             id);
 
         SnapshotChecksums_[id] = rsp->checksum();
@@ -184,9 +184,9 @@ private:
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO(babenko): consider killing followers
                     LOG_FATAL(
-                        "Snapshot %d checksum mismatch: "
-                        "peer %d reported %" PRIx64 ", "
-                        "peer %d reported %" PRIx64,
+                        "Snapshot %v checksum mismatch: "
+                        "peer %v reported %v, "
+                        "peer %v reported %v",
                         Version_.SegmentId + 1,
                         id1, *checksum1,
                         id2, *checksum2);
@@ -194,7 +194,7 @@ private:
             }
         }
         
-        LOG_INFO("Distributed snapshot creation finished, %d peers succeeded",
+        LOG_INFO("Distributed snapshot creation finished, %v peers succeeded",
             successCount);
 
         auto owner = Owner_;
@@ -217,7 +217,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_DEBUG("Requesting follower %d to rotate the changelog", peerId);
+            LOG_DEBUG("Requesting follower %v to rotate the changelog", peerId);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->RpcTimeout);
@@ -244,12 +244,12 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rsp->IsOK()) {
-            LOG_WARNING(*rsp, "Error rotating changelog at follower %d",
+            LOG_WARNING(*rsp, "Error rotating changelog at follower %v",
                 id);
             return;
         }
 
-        LOG_INFO("Remote changelog rotated by follower %d",
+        LOG_INFO("Remote changelog rotated by follower %v",
             id);
 
         ++RemoteRotationSuccessCount_;

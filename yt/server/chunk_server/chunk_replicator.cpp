@@ -1112,7 +1112,7 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
+    LOG_DEBUG("Incremental chunk refresh completed, %v chunks processed",
         count);
 }
 
@@ -1136,7 +1136,7 @@ bool TChunkReplicator::IsEnabled()
         int gotOnline = nodeTracker->GetOnlineNodeCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled_ || LastEnabled_.Get()) {
-                LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %d but got %d",
+                LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
                     needOnline,
                     gotOnline);
                 LastEnabled_ = false;
@@ -1311,7 +1311,7 @@ void TChunkReplicator::OnPropertiesUpdate()
         return;
     }
 
-    LOG_DEBUG("Starting properties update for %d chunks", request.updates_size());
+    LOG_DEBUG("Starting properties update for %v chunks", request.updates_size());
 
     auto this_ = MakeStrong(this);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();

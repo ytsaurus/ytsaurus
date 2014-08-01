@@ -113,11 +113,11 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
 
     if (object->IsLocked()) {
         YCHECK(LockedZombies.insert(object).second);
-        LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %s)",
+        LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %v)",
             ~ToString(object->GetId()));
     } else {
         YCHECK(Zombies.insert(object).second);
-        LOG_TRACE("Object is put into zombie queue (ObjectId: %s)",
+        LOG_TRACE("Object is put into zombie queue (ObjectId: %v)",
             ~ToString(object->GetId()));
     }
 }
@@ -131,7 +131,7 @@ void TGarbageCollector::Unlock(TObjectBase* object)
     YCHECK(LockedZombies.erase(object) == 1);
     YCHECK(Zombies.insert(object).second);
     
-    LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %s)",
+    LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %v)",
         ~ToString(object->GetId()));
 }
 
@@ -171,7 +171,7 @@ void TGarbageCollector::OnSweep()
     // Shrink zombies hashtable, if needed.
     if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
         yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
-        LOG_DEBUG("Shrinking zombie set (BucketCount: %" PRISZT "->%" PRISZT ", ZombieCount: %" PRISZT ")",
+        LOG_DEBUG("Shrinking zombie set (BucketCount: %v->%v, ZombieCount: %v)",
             Zombies.bucket_count(),
             newZombies.bucket_count(),
             Zombies.size());
@@ -195,7 +195,7 @@ void TGarbageCollector::OnSweep()
         ToProto(request.add_object_ids(), object->GetId());
     }
 
-    LOG_DEBUG("Starting GC sweep for %d objects",
+    LOG_DEBUG("Starting GC sweep for %v objects",
         request.object_ids_size());
 
     auto this_ = MakeStrong(this);
