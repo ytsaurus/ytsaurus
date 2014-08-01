@@ -6,6 +6,8 @@
 #include "snapshot_discovery.h"
 #include "file_snapshot_store.h"
 
+#include <core/misc/checkpointable_stream.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/logging/log.h>

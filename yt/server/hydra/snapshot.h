@@ -15,7 +15,7 @@ struct ISnapshotReader
     : public virtual TRefCounted
 {
     //! Returns the underlying stream.
-    virtual TInputStream* GetStream() = 0;
+    virtual ICheckpointableInputStream* GetStream() = 0;
 
     //! Returns the snapshot parameters.
     virtual TSnapshotParams GetParams() const = 0;
@@ -31,7 +31,7 @@ struct ISnapshotWriter
     : public virtual TRefCounted
 {
     //! Returns the underlying stream.
-    virtual TOutputStream* GetStream() = 0;
+    virtual ICheckpointableOutputStream* GetStream() = 0;
 
     //! Closes the snapshot.
     /*!
@@ -52,7 +52,6 @@ struct TSnapshotParams
     TChecksum Checksum = 0;
     i64 CompressedLength = -1;
     i64 UncompressedLength = -1;
-
 };
 
 //! Manages a collection snapshots.

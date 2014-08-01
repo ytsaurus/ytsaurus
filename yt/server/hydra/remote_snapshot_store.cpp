@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <core/misc/fs.h>
+#include <core/misc/checkpointable_stream.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -171,18 +172,19 @@ private:
     {
     public:
         TReader(TRemoteSnapshotStorePtr store, int snapshotId, const TSnapshotParams& params)
-            : Stream_(store, snapshotId)
+            : UnderlyingInput_(store, snapshotId)
+            , FacadeInput_(CreateCheckpointableInputStream(&UnderlyingInput_))
             , Params_(params)
         { }
 
         void Open()
         {
-            Stream_.Open();
+            UnderlyingInput_.Open();
         }
 
-        virtual TInputStream* GetStream() override
+        virtual ICheckpointableInputStream* GetStream() override
         {
-            return &Stream_;
+            return FacadeInput_.get();
         }
 
         virtual TSnapshotParams GetParams() const override
@@ -191,7 +193,8 @@ private:
         }
 
     private:
-        TReaderStream Stream_;
+        TReaderStream UnderlyingInput_;
+        std::unique_ptr<ICheckpointableInputStream> FacadeInput_;;
         TSnapshotParams Params_;
 
     };

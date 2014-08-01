@@ -13,8 +13,8 @@ namespace NHydra {
 struct IAutomaton
     : public virtual TRefCounted
 {
-    virtual void SaveSnapshot(TOutputStream* output) = 0;
-    virtual void LoadSnapshot(TInputStream* input) = 0;
+    virtual void SaveSnapshot(ICheckpointableOutputStream* output) = 0;
+    virtual void LoadSnapshot(ICheckpointableInputStream* input) = 0;
 
     virtual void Clear() = 0;
 

@@ -1012,7 +1012,7 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
 {
     for (const auto& protoId : request.object_ids()) {
-        auto id = FromProto<TObjectId>(protoId);
+        auto id  = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
         auto handler = GetHandler(type);
         auto* object = handler->GetObject(id);

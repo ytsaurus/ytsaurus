@@ -8,6 +8,7 @@
 #include <core/misc/fs.h>
 #include <core/misc/serialize.h>
 #include <core/misc/checksum.h>
+#include <core/misc/checkpointable_stream.h>
 
 #include <core/logging/log.h>
 
@@ -128,7 +129,7 @@ public:
 
             auto codec = ECodec(Header_.Codec);
             if (IsRaw_ || codec == ECodec::None) {
-                FacadeInput_ = RawInput_.get();
+                FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
             } else {
                 switch (codec) {
                     case ECodec::Snappy:
@@ -140,9 +141,8 @@ public:
                     default:
                         YUNREACHABLE();
                 }
-                FacadeInput_ = CodecInput_.get();
+                FacadeInput_ = CreateCheckpointableInputStream(CodecInput_.get());
             }
-
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %s for reading",
                 ~FileName_.Quote())
@@ -150,9 +150,9 @@ public:
         }
     }
 
-    virtual TInputStream* GetStream() override
+    virtual ICheckpointableInputStream* GetStream() override
     {
-        return FacadeInput_;
+        return FacadeInput_.get();
     }
 
     virtual TSnapshotParams GetParams() const override
@@ -175,7 +175,7 @@ private:
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TBufferedFileInput> RawInput_;
     std::unique_ptr<TInputStream> CodecInput_;
-    TInputStream* FacadeInput_;
+    std::unique_ptr<ICheckpointableInputStream> FacadeInput_;
 
     TSnapshotHeader Header_;
     TSharedRef Meta_;
@@ -226,7 +226,7 @@ public:
             RawOutput_.reset(new TBufferedFileOutput(*File_));
 
             if (IsRaw_) {
-                FacadeOutput_ = RawOutput_.get();
+                FacadeOutput_ = CreateFakeCheckpointableOutputStream(RawOutput_.get());
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
@@ -250,8 +250,7 @@ public:
                     }
                     LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_.get()));
                 }
-
-                FacadeOutput_ = LengthMeasureOutput_.get();
+                FacadeOutput_ = CreateCheckpointableOutputStream(LengthMeasureOutput_.get());
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %s for writing",
@@ -260,9 +259,9 @@ public:
         }
     }
 
-    virtual TOutputStream* GetStream() override
+    virtual ICheckpointableOutputStream* GetStream() override
     {
-        return FacadeOutput_;
+        return FacadeOutput_.get();
     }
 
     virtual void Close() override
@@ -310,7 +309,7 @@ private:
     std::unique_ptr<TOutputStream> CodecOutput_;
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
-    TOutputStream* FacadeOutput_;
+    std::unique_ptr<ICheckpointableOutputStream> FacadeOutput_;
 
 };
 

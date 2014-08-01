@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <core/misc/serialize.h>
+#include <core/misc/checkpointable_stream.h>
 
 namespace NYT {
 namespace NHydra {
@@ -187,7 +188,7 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
     Parts.push_back(part);
 }
 
-void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
+void TCompositeAutomaton::SaveSnapshot(ICheckpointableOutputStream* output)
 {
     using NYT::Save;
 
@@ -211,13 +212,14 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
     Save(context, static_cast<i32>(infos.size()));
 
     for (const auto& info : infos) {
+        output->MakeCheckpoint();
         Save(context, info.Name);
         Save(context, static_cast<i32>(info.Part->GetCurrentSnapshotVersion()));
         info.Saver.Run();
     }
 }
 
-void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
+void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
 {
     using NYT::Load;
 
@@ -238,17 +240,20 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
         int version = Load<i32>(context);
         
         auto it = Loaders.find(name);
-        LOG_FATAL_IF(it == Loaders.end(), "Unknown snapshot part %s",
-            ~name.Quote());
+        if (it == Loaders.end()) {
+            LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
+                name,
+                version);
+            input->SkipToCheckpoint();
+        } else {
+            LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
+                name,
+                version);
 
-        LOG_INFO("Loading automaton part %s with version %d",
-            ~name.Quote(),
-            version);
-
-        context.SetVersion(version);
-
-        const auto& info = it->second;
-        info.Loader.Run();
+            context.SetVersion(version);
+            const auto& info = it->second;
+            info.Loader.Run();
+        }
     }
 
     for (auto part : Parts) {

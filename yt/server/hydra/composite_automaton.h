@@ -157,8 +157,8 @@ private:
 
 
 
-    virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void LoadSnapshot(TInputStream* input) override;
+    virtual void SaveSnapshot(ICheckpointableOutputStream* output) override;
+    virtual void LoadSnapshot(ICheckpointableInputStream* input) override;
 
     virtual void ApplyMutation(TMutationContext* context) override;
 
