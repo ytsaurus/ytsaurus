@@ -37,7 +37,7 @@ public:
 
     NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
-    NChunkServer::TChunkTreeStatistics GetTabletStatistics(TTablet* tablet);
+    TTabletStatistics GetTabletStatistics(TTablet* tablet);
     
 
     void MountTable(

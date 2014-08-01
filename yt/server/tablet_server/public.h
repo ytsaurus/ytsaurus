@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 class TTabletCell;
 class TTablet;
 
+struct TTabletStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NHydra::TPeerId;

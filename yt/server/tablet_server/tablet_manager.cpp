@@ -357,12 +357,21 @@ public:
         return schema;
     }
 
-    TChunkTreeStatistics GetTabletStatistics(TTablet* tablet)
+    TTabletStatistics GetTabletStatistics(TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
         const auto* rootChunkList = table->GetChunkList();
         const auto* tabletChunkList = rootChunkList->Children()[tablet->GetIndex()]->AsChunkList();
-        return tabletChunkList->Statistics();
+        const auto& treeStatistics = tabletChunkList->Statistics();
+        TTabletStatistics tabletStatistics;
+        tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
+        tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
+        tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
+        tabletStatistics.DiskSpace =
+            treeStatistics.RegularDiskSpace * table->GetReplicationFactor() +
+            treeStatistics.ErasureDiskSpace;
+        tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
+        return tabletStatistics;
     }
 
 
@@ -1614,7 +1623,7 @@ TTableSchema TTabletManager::GetTableSchema(TTableNode* table)
     return Impl_->GetTableSchema(table);
 }
 
-TChunkTreeStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
+TTabletStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
 {
     return Impl_->GetTabletStatistics(tablet);
 }

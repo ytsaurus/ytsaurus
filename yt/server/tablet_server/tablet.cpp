@@ -2,6 +2,8 @@
 #include "tablet.h"
 #include "tablet_cell.h"
 
+#include <core/ytree/fluent.h>
+
 #include <server/table_server/table_node.h>
 
 #include <server/cell_master/serialize.h>
@@ -11,6 +13,21 @@ namespace NTabletServer {
 
 using namespace NTableServer;
 using namespace NCellMaster;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("unmerged_row_count").Value(statistics.UnmergedRowCount)
+            .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
+            .Item("compressed_data_size").Value(statistics.CompressedDataSize)
+            .Item("disk_space").Value(statistics.DiskSpace)
+            .Item("chunk_count").Value(statistics.ChunkCount)
+        .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
