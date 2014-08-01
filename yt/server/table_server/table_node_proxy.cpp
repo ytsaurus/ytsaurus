@@ -81,12 +81,14 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        const auto* node = GetThisTypedImpl();
+        const auto* table = GetThisTypedImpl();
+        bool hasTablets = !table->Tablets().empty();
 
-        attributes->push_back("row_count");
+        attributes->push_back(TAttributeInfo("row_count", !hasTablets));
+        attributes->push_back(TAttributeInfo("unmerged_row_count", hasTablets));
         attributes->push_back("sorted");
         attributes->push_back("key_columns");
-        attributes->push_back(TAttributeInfo("sorted_by", node->GetSorted()));
+        attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
         attributes->push_back(TAttributeInfo("tablets", true, true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
@@ -95,13 +97,20 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetThisTypedImpl();
-
+        const auto* table = GetThisTypedImpl();
+        bool hasTablets = !table->Tablets().empty();
         auto tabletManager = Bootstrap->GetTabletManager();
 
-        if (key == "row_count") {
-            const auto* chunkList = node->GetChunkList();
-            const auto& statistics = chunkList->Statistics();
+        const auto* chunkList = table->GetChunkList();
+        const auto& statistics = chunkList->Statistics();
+
+        if (key == "row_count" && !hasTablets) {
+            BuildYsonFluently(consumer)
+                .Value(statistics.RowCount);
+            return true;
+        }
+
+        if (key == "unmerged_row_count" && hasTablets) {
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
@@ -109,27 +118,27 @@ private:
 
         if (key == "sorted") {
             BuildYsonFluently(consumer)
-                .Value(node->GetSorted());
+                .Value(table->GetSorted());
             return true;
         }
 
         if (key == "key_columns") {
             BuildYsonFluently(consumer)
-                .Value(node->KeyColumns());
+                .Value(table->KeyColumns());
             return true;
         }
 
-        if (node->GetSorted()) {
+        if (table->GetSorted()) {
             if (key == "sorted_by") {
                 BuildYsonFluently(consumer)
-                    .Value(node->KeyColumns());
+                    .Value(table->KeyColumns());
                 return true;
             }
         }
 
         if (key == "tablets") {
             BuildYsonFluently(consumer)
-                .DoListFor(node->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
+                .DoListFor(table->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
                     fluent
                         .Item().BeginMap()
