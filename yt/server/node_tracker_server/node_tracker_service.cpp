@@ -69,7 +69,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::PoisonPill,
             "Wrong cell GUID reported by node %v: expected %v, received %v",
-            ~address,
+            address,
             expectedCellGuid,
             requestCellGuid);
     }
@@ -90,7 +90,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 
     auto config = nodeTracker->FindNodeConfigByAddress(address);
     if (config && config->Banned) {
-        THROW_ERROR_EXCEPTION("Node %v is banned", ~address);
+        THROW_ERROR_EXCEPTION("Node %v is banned", address);
     }
 
     nodeTracker
@@ -116,8 +116,8 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
-            "Cannot process a full heartbeat in %v state",
-            ~FormatEnum(node->GetState()).Quote()));
+            "Cannot process a full heartbeat in %Qv state",
+            node->GetState()));
         return;
     }
 
@@ -146,7 +146,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
             "Cannot process an incremental heartbeat in %v state",
-            ~FormatEnum(node->GetState())));
+            node->GetState()));
         return;
     }
 

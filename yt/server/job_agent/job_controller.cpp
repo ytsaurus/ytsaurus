@@ -253,8 +253,8 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
         job->Abort(TError(
             NExecAgent::EErrorCode::ResourceOverdraft,
             "Failed to increase resource usage (OldUsage: {%v}, NewUsage: {%v})",
-            ~FormatResources(oldUsage),
-            ~FormatResources(usage)));
+            FormatResources(oldUsage),
+            FormatResources(usage)));
         return;
     }
 

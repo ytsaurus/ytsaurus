@@ -185,7 +185,7 @@ private:
                 TObjectId objectId;
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
                     THROW_ERROR_EXCEPTION("Error parsing object id %v",
-                        ~objectIdString);
+                        objectIdString);
                 }
 
                 auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -240,7 +240,7 @@ public:
                     THROW_ERROR_EXCEPTION(
                         NYTree::EErrorCode::ResolveError,
                         "Error parsing object id %v",
-                        ~objectIdString);
+                        objectIdString);
                 }
 
                 auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -281,7 +281,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "Cannot resolve nontrivial path %v for nonversioned object %v",
-                ~path,
+                path,
                 proxy->GetId());
         }
 
@@ -835,22 +835,22 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto options = handler->GetCreationOptions();
     if (!options) {
-        THROW_ERROR_EXCEPTION("Instances of type %v cannot be created directly",
-            ~FormatEnum(type).Quote());
+        THROW_ERROR_EXCEPTION("Instances of type %Qv cannot be created directly",
+            type);
     }
 
     switch (options->TransactionMode) {
         case EObjectTransactionMode::Required:
             if (!transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %v outside of a transaction",
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv outside of a transaction",
+                    type);
             }
             break;
 
         case EObjectTransactionMode::Forbidden:
             if (transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %v inside of a transaction",
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv inside of a transaction",
+                    type);
             }
             break;
 
@@ -864,15 +864,15 @@ TObjectBase* TObjectManager::CreateObject(
     switch (options->AccountMode) {
         case EObjectAccountMode::Required:
             if (!account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %v without an account",
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv without an account",
+                    type);
             }
             break;
 
         case EObjectAccountMode::Forbidden:
             if (account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %v with an account",
-                    ~FormatEnum(type).Quote());
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv with an account",
+                    type);
             }
             break;
 

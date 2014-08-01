@@ -1529,7 +1529,7 @@ void TOperationControllerBase::CommitResults()
                     auto& rightEndpoint = table.Endpoints[2 * outputIndex + 1];
                     if (leftEndpoint.ChunkTreeKey != rightEndpoint.ChunkTreeKey) {
                         auto error = TError("Output table %v is not sorted: job outputs have overlapping key ranges",
-                            ~table.Path.GetPath());
+                            table.Path.GetPath());
 
                         LOG_DEBUG(error);
                         THROW_ERROR error;
@@ -2448,10 +2448,10 @@ void TOperationControllerBase::GetInputObjectIds()
                 auto type = EObjectType(rsp->type());
 
                 if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %v, actual %v",
+                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv, actual %Qv",
                         ~table.Path.GetPath(),
-                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                        ~FormatEnum(type).Quote());
+                        EObjectType(EObjectType::Table),
+                        type);
                 }
             }
         }
@@ -2539,11 +2539,11 @@ void TOperationControllerBase::ValidateFileTypes()
                 file = &TableFiles.back();
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %v or %v, actual %v",
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv or %Qv, actual %Qv",
                     ~path,
-                    ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
-                    ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
-                    ~FormatEnum(type).Quote());
+                    EObjectType(EObjectType::File),
+                    EObjectType(EObjectType::Table),
+                    type);
         }
         file->Stage = stage;
         file->Path = richPath;
@@ -2821,12 +2821,12 @@ void TOperationControllerBase::RequestFileObjects()
         const auto& fileName = userFile.FileName;
         if (fileName.empty()) {
             THROW_ERROR_EXCEPTION("Empty user file name for %v",
-                ~path);
+                path);
         }
         if (!userFileNames[static_cast<int>(userFile.Stage)].insert(fileName).second) {
-            THROW_ERROR_EXCEPTION("Duplicate user file name %v for %v",
-                ~fileName.Quote(),
-                ~path);
+            THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
+                fileName,
+                path);
         }
     };
 
@@ -3059,7 +3059,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     for (const auto& table : InputTables) {
         if (!table.KeyColumns) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
-                ~table.Path.GetPath());
+                table.Path.GetPath());
         }
     }
 
@@ -3067,9 +3067,9 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         for (const auto& table : InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns.Get(), keyColumns.Get())) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible with the requested columns %v",
-                    ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
-                    ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
+                    table.Path.GetPath(),
+                    ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
+                    ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
             }
         }
         return keyColumns.Get();
@@ -3078,10 +3078,10 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v while input table %v is sorted by columns %v",
-                    ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
-                    ~referenceTable.Path.GetPath(),
-                    ~ConvertToYsonString(referenceTable.KeyColumns.Get(), EYsonFormat::Text).Data());
+                    table.Path.GetPath(),
+                    ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
+                    referenceTable.Path.GetPath(),
+                    ConvertToYsonString(referenceTable.KeyColumns.Get(), EYsonFormat::Text).Data());
             }
         }
         return referenceTable.KeyColumns.Get();

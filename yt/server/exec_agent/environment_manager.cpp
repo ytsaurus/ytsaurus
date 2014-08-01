@@ -34,7 +34,7 @@ IProxyControllerPtr TEnvironmentManager::CreateProxyController(
 
     auto it = Builders.find(env->Type);
     if (it == Builders.end()) {
-        THROW_ERROR_EXCEPTION("No such environment type %v", ~env->Type.Quote());
+        THROW_ERROR_EXCEPTION("No such environment type %Qv", env->Type);
     }
 
     return it->second->CreateProxyController(

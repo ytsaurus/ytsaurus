@@ -2223,8 +2223,8 @@ private:
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
             THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
-                ~ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
-                ~ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
+                ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
+                ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }
     }
 

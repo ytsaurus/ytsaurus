@@ -322,7 +322,7 @@ public:
     {
         auto* account = FindAccountByName(name);
         if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %v", ~name.Quote());
+            THROW_ERROR_EXCEPTION("No such account %Qv", name);
         }
         return account;
     }
@@ -398,8 +398,8 @@ public:
         if (FindAccountByName(newName)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Account %v already exists",
-                ~newName.Quote());
+                "Account %Qv already exists",
+                newName);
         }
 
         YCHECK(AccountNameMap.erase(account->GetName()) == 1);
@@ -456,15 +456,15 @@ public:
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "User %v already exists",
-                ~name.Quote());
+                "User %Qv already exists",
+                name);
         }
 
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Group %v already exists",
-                ~name.Quote());
+                "Group %Qv already exists",
+                name);
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
@@ -490,8 +490,8 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %v",
-                ~name.Quote());
+                "No such user %Qv",
+                name);
         }
         return user;
     }
@@ -526,15 +526,15 @@ public:
         if (FindGroupByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Group %v already exists",
-                ~name.Quote());
+                "Group %Qv already exists",
+                name);
         }
 
         if (FindUserByName(name)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "User %v already exists",
-                ~name.Quote());
+                "User %Qv already exists",
+                name);
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
@@ -594,7 +594,7 @@ public:
     {
         auto* subject = FindSubjectByName(name);
         if (!IsObjectAlive(subject)) {
-            THROW_ERROR_EXCEPTION("No such subject %v", ~name.Quote());
+            THROW_ERROR_EXCEPTION("No such subject %Qv", name);
         }
         return subject;
     }
@@ -605,17 +605,17 @@ public:
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) != group->Members().end()) {
-            THROW_ERROR_EXCEPTION("Member %v is already present in group %v",
-                ~member->GetName().Quote(),
-                ~group->GetName().Quote());
+            THROW_ERROR_EXCEPTION("Member %Qv is already present in group %Qv",
+                member->GetName(),
+                group->GetName());
         }
 
         if (member->GetType() == EObjectType::Group) {
             auto* memberGroup = member->AsGroup();
             if (group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
-                THROW_ERROR_EXCEPTION("Adding group %v to group %v would produce a cycle",
-                    ~memberGroup->GetName().Quote(),
-                    ~group->GetName().Quote());
+                THROW_ERROR_EXCEPTION("Adding group %Qv to group %Qv would produce a cycle",
+                    memberGroup->GetName(),
+                    group->GetName());
             }
         }
 
@@ -627,9 +627,9 @@ public:
         ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) == group->Members().end()) {
-            THROW_ERROR_EXCEPTION("Member %v is not present in group %v",
-                ~member->GetName().Quote(),
-                ~group->GetName().Quote());
+            THROW_ERROR_EXCEPTION("Member %Qv is not present in group %Qv",
+                member->GetName(),
+                group->GetName());
         }
 
         DoRemoveMember(group, member);
@@ -644,8 +644,8 @@ public:
         if (FindSubjectByName(newName)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
-                "Subject %v already exists",
-                ~newName.Quote());
+                "Subject %Qv already exists",
+                newName);
         }
 
         switch (subject->GetType()) {
@@ -817,9 +817,9 @@ public:
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %v permission for %v is not allowed by any matching ACE",
-                    ~FormatEnum(permission).Quote(),
-                    ~objectManager->GetHandler(object)->GetName(object));
+                    "Access denied: %Qv permission for %v is not allowed by any matching ACE",
+                    permission,
+                    objectManager->GetHandler(object)->GetName(object));
             }
             error.Attributes().Set("permission", ~FormatEnum(permission));
             error.Attributes().Set("user", user->GetName());
@@ -848,8 +848,8 @@ public:
     void SetUserBanned(TUser* user, bool banned)
     {
         if (banned && user == RootUser) {
-            THROW_ERROR_EXCEPTION("User %v cannot be banned",
-                ~user->GetName().Quote());
+            THROW_ERROR_EXCEPTION("User %Qv cannot be banned",
+                user->GetName());
         }
 
         user->SetBanned(banned);
@@ -865,15 +865,15 @@ public:
         if (user->GetBanned()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
-                "User %v is banned",
-                ~user->GetName().Quote());
+                "User %Qv is banned",
+                user->GetName());
         }
 
         if (user != RootUser && GetRequestRate(user) > user->GetRequestRateLimit()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
-                "User %v has exceeded its request rate limit",
-                ~user->GetName().Quote())
+                "User %Qv has exceeded its request rate limit",
+                user->GetName())
                 << TErrorAttribute("limit", user->GetRequestRateLimit());
         }
 

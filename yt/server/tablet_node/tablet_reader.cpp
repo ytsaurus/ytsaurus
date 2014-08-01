@@ -321,10 +321,10 @@ private:
         for (const auto& column : schema.Columns()) {
             const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
             if (tabletColumn.Type != column.Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of schema column %v: expected %v, actual %v",
-                    ~column.Name.Quote(),
-                    ~FormatEnum(tabletColumn.Type).Quote(),
-                    ~FormatEnum(column.Type).Quote());
+                THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qv, actual %Qv",
+                    column.Name,
+                    tabletColumn.Type,
+                    column.Type);
             }
             columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
         }

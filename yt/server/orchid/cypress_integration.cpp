@@ -182,10 +182,10 @@ private:
             LOG_DEBUG(*response, "Orchid request failed (RequestId: %v)",
                 context->GetRequestId());
             context->Reply(TError("Error executing an Orchid operation (Path: %v, Method: %v, RemoteAddress: %v, RemoteRoot: %v)",
-                ~path,
-                ~method,
-                ~manifest->RemoteAddress,
-                ~manifest->RemoteRoot)
+                path,
+                method,
+                manifest->RemoteAddress,
+                manifest->RemoteRoot)
                 << response->GetError());
         }
     }

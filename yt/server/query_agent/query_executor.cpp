@@ -241,8 +241,8 @@ public:
                 return DoGetTabletReader(split, std::move(context));
 
             default:
-                THROW_ERROR_EXCEPTION("Unsupported data split type %v", 
-                    ~FormatEnum(TypeFromId(objectId)).Quote());
+                THROW_ERROR_EXCEPTION("Unsupported data split type %Qv", 
+                    TypeFromId(objectId));
         }
     }
 
@@ -347,9 +347,9 @@ private:
     {
         auto hydraManager = slot->GetHydraManager();
         if (hydraManager->GetAutomatonState() != NHydra::EPeerState::Leading) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %v while cell is in %v state",
+            THROW_ERROR_EXCEPTION("Cannot query tablet %v while cell is in %Qv state",
                 tabletId,
-                ~FormatEnum(hydraManager->GetAutomatonState()).Quote());
+                hydraManager->GetAutomatonState());
         }
 
         auto tabletManager = slot->GetTabletManager();
@@ -359,9 +359,9 @@ private:
         }
 
         if (tablet->GetState() != NTabletNode::ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Cannot query tablet %v in %v state",
+            THROW_ERROR_EXCEPTION("Cannot query tablet %v in %Qv state",
                 tabletId,
-                ~FormatEnum(tablet->GetState()).Quote());
+                tablet->GetState());
         }
 
         auto lowerBound = GetLowerBoundFromDataSplit(split);

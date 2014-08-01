@@ -358,7 +358,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: failed to resolve path %v",
-                    ~path)
+                    path)
                     << ex;
             }
 
@@ -370,7 +370,7 @@ private:
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                     "Prerequisite check failed: node %v revision mismatch: expected %v" ", found %v",
-                    ~path,
+                    path,
                     revision,
                     node->GetRevision());
             }

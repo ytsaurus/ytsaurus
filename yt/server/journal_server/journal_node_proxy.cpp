@@ -187,8 +187,8 @@ private:
 
         auto mode = EUpdateMode(request->mode());
         if (mode != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %v update mode",
-                ~FormatEnum(EUpdateMode(EUpdateMode::Append)).Quote());
+            THROW_ERROR_EXCEPTION("Journals only support %Qv update mode",
+                EUpdateMode(EUpdateMode::Append));
         }
 
         ValidateTransaction();

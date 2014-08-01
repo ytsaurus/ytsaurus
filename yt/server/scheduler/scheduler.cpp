@@ -392,8 +392,8 @@ public:
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
-                "Cannot suspend operation in %v state",
-                ~FormatEnum(operation->GetState()).Quote()));
+                "Cannot suspend operation in %Qv state",
+                operation->GetState()));
         }
 
         operation->SetSuspended(true);
@@ -411,7 +411,7 @@ public:
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
                 "Operation is not suspended",
-                ~FormatEnum(operation->GetState()).Quote()));
+                operation->GetState()));
         }
 
         operation->SetSuspended(false);

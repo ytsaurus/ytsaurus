@@ -401,8 +401,8 @@ private:
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                "Failed to create proxy controller for environment %v",
-                ~environmentType.Quote())
+                "Failed to create proxy controller for environment %Qv",
+                environmentType)
                 << ex;
         }
     }
