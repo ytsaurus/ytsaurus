@@ -764,11 +764,17 @@ template <class T>
 inline TFuture<void> TFuture<T>::Apply(TCallback<void(T)> mutator)
 {
     auto mutated = NewPromise();
+
     // TODO(sandello): Make cref here.
     Subscribe(BIND([=] (T value) mutable {
         mutator.Run(value);
         mutated.Set();
     }));
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -785,8 +791,12 @@ inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(T)> mutator)
     auto outer = BIND([=] (T outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
-
     Subscribe(outer);
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -795,10 +805,16 @@ template <class R>
 inline TFuture<R> TFuture<T>::Apply(TCallback<R(T)> mutator)
 {
     auto mutated = NewPromise<R>();
+
     // TODO(sandello): Make cref here.
     Subscribe(BIND([=] (T value) mutable {
         mutated.Set(mutator.Run(value));
     }));
+
+    OnCanceled(BIND([=] () mutable {
+       mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -816,19 +832,26 @@ inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> mutator)
     auto outer = BIND([=] (T outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
-
     Subscribe(outer);
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
 template <class T>
 TFuture<void> TFuture<T>::IgnoreResult()
 {
-    auto voidPromise = NewPromise();
+    auto promise = NewPromise();
     Subscribe(BIND([=] (T) mutable {
-        voidPromise.Set();
+        promise.Set();
     }));
-    return voidPromise;
+    OnCanceled(BIND([=] () mutable {
+        promise.Cancel();
+    }));
+    return promise;
 }
 
 template <class T>
@@ -926,10 +949,16 @@ inline bool TFuture<void>::Cancel()
 inline TFuture<void> TFuture<void>::Apply(TCallback<void()> mutator)
 {
     auto mutated = NewPromise();
+
     Subscribe(BIND([=] () mutable {
         mutator.Run();
         mutated.Set();
     }));
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -945,8 +974,12 @@ inline TFuture<void> TFuture<void>::Apply(TCallback<TFuture<void>()> mutator)
     auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
-
     Subscribe(outer);
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -954,10 +987,16 @@ template <class R>
 inline TFuture<R> TFuture<void>::Apply(TCallback<R()> mutator)
 {
     auto mutated = NewPromise<R>();
+
     // TODO(sandello): Make cref here.
     Subscribe(BIND([=] () mutable {
         mutated.Set(mutator.Run());
     }));
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
@@ -974,8 +1013,12 @@ inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
     auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
-
     Subscribe(outer);
+
+    OnCanceled(BIND([=] () mutable {
+        mutated.Cancel();
+    }));
+
     return mutated;
 }
 
