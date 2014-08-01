@@ -139,6 +139,11 @@ const TChunkMeta& TChunkStore::GetChunkMeta() const
     return ChunkMeta_;
 }
 
+void TChunkStore::SetBackingStore(IStorePtr store)
+{
+    BackingStore_ = store;
+}
+
 EStoreType TChunkStore::GetType() const
 {
     return EStoreType::Chunk;
@@ -175,6 +180,14 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    if (BackingStore_) {
+        return BackingStore_->CreateReader(
+            std::move(lowerKey),
+            std::move(upperKey),
+            timestamp,
+            columnFilter);
+    }
+
     if (upperKey < MinKey_ || lowerKey > MaxKey_) {
         return nullptr;
     }
@@ -223,6 +236,10 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    if (BackingStore_) {
+        return BackingStore_->CreateLookuper(timestamp, columnFilter);
+    }
+
     return New<TLookuper>(this, timestamp, columnFilter);
 }
 
@@ -295,7 +312,10 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("min_key").Value(MinKey_)
         .Item("max_key").Value(MaxKey_)
         .Item("min_timestamp").Value(MinTimestamp_)
-        .Item("max_timestamp").Value(MaxTimestamp_);
+        .Item("max_timestamp").Value(MaxTimestamp_)
+        .DoIf(BackingStore_, [&] (TFluentMap fluent) {
+            fluent.Item("backing_store_id").Value(BackingStore_->GetId());
+        });
 }
 
 void TChunkStore::PrecacheProperties()

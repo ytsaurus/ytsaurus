@@ -88,7 +88,7 @@ public:
             EAutomatonThreadQueue::GetDomainNames()))
         , Logger(TabletNodeLogger)
     {
-        VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         SetCellGuid(NullCellGuid);
         ResetEpochInvokers();
@@ -155,14 +155,14 @@ public:
         return Automaton_;
     }
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return AutomatonQueue_->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -170,7 +170,7 @@ public:
         return EpochAutomatonInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -277,7 +277,7 @@ public:
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
+                GetAutomatonInvoker(),
                 Automaton_,
                 rpcServer,
                 CellManager_,
@@ -303,7 +303,7 @@ public:
                 CellGuid_,
                 Config_->HiveManager,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
+                GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_);
 
@@ -321,7 +321,7 @@ public:
 
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
-                GetAutomatonInvoker(EAutomatonThreadQueue::Write),
+                GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_,
                 HiveManager_,
@@ -361,7 +361,7 @@ public:
         // running in the context of the automaton invoker. To save them from crashing we submit
         // a callback whose sole purpose is to hold |this| a bit longer.
         auto this_ = MakeStrong(this);
-        GetAutomatonInvoker(EAutomatonThreadQueue::Read)->Invoke(BIND([this_] () { }));
+        GetAutomatonInvoker()->Invoke(BIND([this_] () { }));
 
         auto rpcServer = Bootstrap_->GetRpcServer();
         if (TransactionSupervisor_) {
@@ -504,7 +504,7 @@ private:
 
         auto cancelableContext = epochContext->CancelableContext;
         auto done = BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
-            .AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read))
+            .AsyncVia(GetGuardedAutomatonInvoker())
             .Run(cancelableContext, consumer)
             .Finally();
         WaitFor(done);

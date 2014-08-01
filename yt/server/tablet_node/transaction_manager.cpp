@@ -55,7 +55,7 @@ public:
         , Config_(config)
         , Logger(TabletNodeLogger)
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         Logger.AddTag("CellId: %v", Slot_->GetCellGuid());
 
@@ -263,7 +263,7 @@ private:
     
     void CreateLeases(TTransaction* transaction, TDuration timeout)
     {
-        auto invoker = Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
+        auto invoker = Slot_->GetEpochAutomatonInvoker();
 
         auto lease = TLeaseManager::CreateLease(
             timeout,

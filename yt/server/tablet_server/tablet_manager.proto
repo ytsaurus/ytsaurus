@@ -31,6 +31,7 @@ message TAddStoreDescriptor
 {
     required NYT.NProto.TGuid store_id = 1;
     optional NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+    required NYT.NProto.TGuid backing_store_id = 3;
 }
 
 message TRemoveStoreDescriptor

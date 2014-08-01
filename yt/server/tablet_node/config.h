@@ -76,6 +76,8 @@ public:
 
     int SamplesPerPartition;
 
+    TDuration BackingStoreReleaseTime;
+
     TTableMountConfig()
     {
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
@@ -128,6 +130,9 @@ public:
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(1)
             .GreaterThanOrEqual(1);
+
+        RegisterParameter("backing_store_release_time", BackingStoreReleaseTime)
+            .Default(TDuration::Seconds(60));
 
         RegisterValidator([&] () {
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {

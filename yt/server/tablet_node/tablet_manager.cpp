@@ -83,7 +83,7 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
-        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write), AutomatonThread);
+        VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         Slot_->GetAutomaton()->RegisterPart(this);
 
@@ -157,9 +157,8 @@ public:
         auto this_ = MakeStrong(this);
         auto callback = BIND([this, this_, store] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-
             store->SetState(store->GetPersistentState());
-        }).Via(store->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
+        }).Via(store->GetTablet()->GetEpochAutomatonInvoker());
 
         TDelayedExecutor::Submit(callback, Config_->ErrorBackoffTime);
     }
@@ -756,6 +755,16 @@ private:
                 YCHECK(descriptor.has_chunk_meta());
                 auto store = CreateChunkStore(tablet, storeId, &descriptor.chunk_meta());
                 storeManager->AddStore(store);
+                TStoreId backingStoreId;
+                if (descriptor.has_backing_store_id()) {
+                    backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
+                    auto backingStore = tablet->GetStore(backingStoreId);
+                    SetBackingStore(tablet, store, backingStore);
+                }
+                LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
+                    tabletId,
+                    storeId,
+                    backingStoreId);
             }
 
             std::vector<TStoreId> removedStoreIds;
@@ -764,6 +773,9 @@ private:
                 removedStoreIds.push_back(storeId);
                 auto store = tablet->GetStore(storeId);
                 storeManager->RemoveStore(store);
+                LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
+                    tabletId,
+                    storeId);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
@@ -1107,7 +1119,7 @@ private:
     void PostTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+        Slot_->GetEpochAutomatonInvoker()->Invoke(BIND(
             IgnoreResult(&TMutation::Commit),
             mutation));
     }
@@ -1157,7 +1169,7 @@ private:
     }
 
 
-    IStorePtr CreateChunkStore(
+    TChunkStorePtr CreateChunkStore(
         TTablet* tablet,
         const TChunkId& chunkId,
         const TChunkMeta* chunkMeta)
@@ -1169,12 +1181,26 @@ private:
             Bootstrap_);
     }
 
-    IStorePtr CreateDynamicMemoryStore(TTablet* tablet, const TStoreId& storeId)
+    TDynamicMemoryStorePtr CreateDynamicMemoryStore(TTablet* tablet, const TStoreId& storeId)
     {
         return New<TDynamicMemoryStore>(
             Config_,
             storeId,
             tablet);
+    }
+
+    void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
+    {
+        auto hydraManager = Slot_->GetHydraManager();
+        auto* mutationContext = hydraManager->GetMutationContext();
+        auto deadline = mutationContext->GetTimestamp() + tablet->GetConfig()->BackingStoreReleaseTime;
+        auto this_ = MakeStrong(this);
+        auto callback = BIND([this, this_, store] () {
+            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            store->SetBackingStore(nullptr);
+            LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+        }).Via(tablet->GetEpochAutomatonInvoker());
+        TDelayedExecutor::Submit(callback, deadline);
     }
 
 

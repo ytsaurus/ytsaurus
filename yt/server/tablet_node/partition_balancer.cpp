@@ -139,7 +139,7 @@ private:
         partition->SetState(EPartitionState::Splitting);
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
-            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
+            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(partition, splitFactor);
     }
 
@@ -233,7 +233,7 @@ private:
         partition->SetState(EPartitionState::Sampling);
 
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this))
-            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write))
+            .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(partition);
     }
 

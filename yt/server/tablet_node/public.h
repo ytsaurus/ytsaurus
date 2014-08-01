@@ -104,6 +104,7 @@ DECLARE_ENUM(EStoreState,
 );
 
 DECLARE_ENUM(EAutomatonThreadQueue,
+    (Default)
     (Read)
     (Write)
 );

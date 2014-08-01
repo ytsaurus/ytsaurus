@@ -149,7 +149,7 @@ private:
             pivotKeys.push_back(partition->GetPivotKey());
         }
 
-        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreCompactor::PartitionEden,
             MakeStrong(this),
             Passed(std::move(guard)),
@@ -186,7 +186,7 @@ private:
 
         partition->SetState(EPartitionState::Compacting);
 
-        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreCompactor::CompactPartition,
             MakeStrong(this),
             Passed(std::move(guard)),

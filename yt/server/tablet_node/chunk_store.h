@@ -37,6 +37,8 @@ public:
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
+    void SetBackingStore(IStorePtr store);
+
     // IStore implementation.
     virtual EStoreType GetType() const override;
 
@@ -82,6 +84,8 @@ private:
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
 
     std::vector<TVersionedRow> PooledRows_;
+
+    IStorePtr BackingStore_;
 
 
     void PrecacheProperties();

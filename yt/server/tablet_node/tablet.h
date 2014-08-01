@@ -101,7 +101,7 @@ public:
 
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue);
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
 private:
     TTableMountConfigPtr Config_;

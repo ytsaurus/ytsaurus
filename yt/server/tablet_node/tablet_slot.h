@@ -46,9 +46,9 @@ public:
 
     // These methods are thread-safe.
     // They may return |nullptr| is the invoker of a requested type is not available.
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     NHive::THiveManagerPtr GetHiveManager() const;
     NHive::TMailbox* GetMasterMailbox();

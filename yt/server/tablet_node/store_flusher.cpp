@@ -169,7 +169,7 @@ private:
                 Config_->MemoryLimit);
 
             auto slot = tabletDesriptor->Slot;
-            auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
+            auto invoker = slot->GetGuardedAutomatonInvoker();
             invoker->Invoke(BIND([slot, tabletId] () {
                 auto tabletManager = slot->GetTabletManager();
                 auto* tablet = tabletManager->FindTablet(tabletId);
@@ -239,7 +239,7 @@ private:
 
         store->SetState(EStoreState::Flushing);
 
-        tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write)->Invoke(BIND(
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreFlusher::FlushStore,
             MakeStrong(this),
             Passed(std::move(guard)),
@@ -270,7 +270,7 @@ private:
             tabletId,
             store->GetId());
 
-        auto automatonInvoker = tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
+        auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
         TObjectServiceProxy proxy(Bootstrap_->GetMasterClient()->GetMasterChannel());
@@ -349,6 +349,7 @@ private:
                 auto* descriptor = updateStoresRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                ToProto(descriptor->mutable_backing_store_id(), store->GetId());
             }
 
             SwitchTo(automatonInvoker);

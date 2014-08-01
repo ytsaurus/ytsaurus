@@ -288,7 +288,7 @@ private:
                 if (!slot)
                     continue;
 
-                auto invoker = slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read);
+                auto invoker = slot->GetGuardedAutomatonInvoker();
                 awaiter->Await(BIND([this, this_, slot] () {
                         Owner_->ScanSlot_.Fire(slot);
                     })
