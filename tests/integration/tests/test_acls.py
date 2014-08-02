@@ -244,9 +244,14 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         with pytest.raises(YtError): create('account_map', '//tmp/accounts', user='u')
 
-    def test_deny_copy(self):
+    def test_deny_copy_src(self):
         create_user('u')
         with pytest.raises(YtError): copy('//sys', '//tmp/sys', user='u')
+
+    def test_deny_copy_dst(self):
+        create_user('u')
+        create('table', '//tmp/t')
+        with pytest.raises(YtError): copy('//tmp/t', '//sys/t', user='u', opt=['/preserve_account=true'])
 
     def test_document1(self):
         create_user('u')
