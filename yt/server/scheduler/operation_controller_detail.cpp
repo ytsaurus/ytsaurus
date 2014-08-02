@@ -478,7 +478,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // Async part.
     auto this_ = MakeStrong(this);
     auto controller = MakeStrong(Controller); // hold the controller
-    auto jobSpecBuilder = BIND([this, this_, joblet, controller] (TJobSpec* jobSpec) {
+    auto operation = MakeStrong(Operation); // hold the operation
+    auto jobSpecBuilder = BIND([this, this_, joblet, controller, operation] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
         Controller->CustomizeJobSpec(joblet, jobSpec);
 
