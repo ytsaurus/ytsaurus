@@ -13,7 +13,7 @@ except AttributeError:
     def _check_output(command, **kwargs):
         return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
 
-class Mr(object):
+class Yamr(object):
     def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="userdata", fastbone=False, opts=""):
         self.binary = binary
         self.server = self._make_address(server, server_port)

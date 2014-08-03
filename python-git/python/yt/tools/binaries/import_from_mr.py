@@ -2,7 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list, CANCEL, REPEAT
 from yt.tools.common import update_args
-from yt.tools.mr import Mr
+from yt.tools.yamr import Yamr
 from yt.wrapper.common import die
 
 import yt.logger as logger
@@ -155,14 +155,14 @@ def import_table(object, args):
         dst = os.path.join(args.destination_dir, src)
         params = args
 
-    mr = Mr(binary=params.mapreduce_binary,
-            server=params.mr_server,
-            server_port=params.mr_server_port,
-            http_port=params.mr_http_port,
-            proxies=params.mr_proxy,
-            proxy_port=params.mr_proxy_port,
-            fetch_info_from_http=params.fetch_info_from_http,
-            mr_user=params.mr_user)
+    mr = Yamr(binary=params.mapreduce_binary,
+              server=params.mr_server,
+              server_port=params.mr_server_port,
+              http_port=params.mr_http_port,
+              proxies=params.mr_proxy,
+              proxy_port=params.mr_proxy_port,
+              fetch_info_from_http=params.fetch_info_from_http,
+              mr_user=params.mr_user)
 
     if mr.is_empty(src):
         logger.info("Source table '%s' is empty", src)
