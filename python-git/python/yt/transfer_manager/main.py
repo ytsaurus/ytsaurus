@@ -385,8 +385,6 @@ class Application(object):
                             message = message_queue.get()
                         except:
                             break
-                        import sys
-                        print >>sys.stderr, "MESSAGE", message
                         if message["type"] == "error":
                             assert not process.is_alive()
                             error = message["error"]
@@ -444,7 +442,7 @@ class Application(object):
                             network_name=self._clusters[task.source_cluster]._network,
                             spec=task_spec,
                             strategy=strategy))
-            if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "mr":
+            elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
                 export_to_mr(
@@ -456,7 +454,7 @@ class Application(object):
                     task.token,
                     spec_template=task_spec,
                     message_queue=message_queue)
-            if self._clusters[task.source_cluster]._type == "mr" and self._clusters[task.destination_cluster]._type == "yt":
+            elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yt":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
                 import_from_mr(
@@ -468,6 +466,10 @@ class Application(object):
                     task.token,
                     spec_template=task_spec,
                     message_queue=message_queue)
+            else:
+                raise Exception("Incorrect cluster types: {} source and {} destination".format(
+                                self._clusters[task.source_cluster]._type,
+                                self._clusters[task.destination_cluster]._type))
             logger.info("Task %s completed", task.id)
         except KeyboardInterrupt:
             pass
@@ -597,15 +599,24 @@ DEFAULT_CONFIG = {
     "clusters": {
         "kant": {
             "type": "yt",
-            "options": {"proxy": "kant.yt.yandex.net"}
+            "options": {
+                "proxy": "kant.yt.yandex.net",
+            },
+            "remote_copy_network": "fastbone"
         },
         "smith": {
             "type": "yt",
-            "options": {"proxy": "smith.yt.yandex.net"}
+            "options": {
+                "proxy": "smith.yt.yandex.net",
+            },
+            "remote_copy_network": "fastbone"
         },
         "plato": {
             "type": "yt",
-            "options": {"proxy": "plato.yt.yandex.net"}
+            "options": {
+                "proxy": "plato.yt.yandex.net"
+            },
+            "remote_copy_network": "fastbone"
         },
         "cedar": {
             "type": "yamr",
