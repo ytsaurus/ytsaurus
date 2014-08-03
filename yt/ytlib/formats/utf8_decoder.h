@@ -14,6 +14,7 @@ public:
 
     TStringBuf Encode(const TStringBuf& str);
     TStringBuf Decode(const TStringBuf& str);
+
 private:
     bool EnableEncoding_;
     std::vector<char> Buffer_;
