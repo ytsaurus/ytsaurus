@@ -2,6 +2,7 @@
 #include "error.h"
 
 #include <core/misc/address.h>
+#include <core/misc/error.pb.h>
 
 #include <core/ytree/convert.h>
 #include <core/ytree/fluent.h>

@@ -4,7 +4,6 @@
 #include "property.h"
 
 #include <core/misc/preprocessor.h>
-#include <core/misc/error.pb.h>
 
 #include <core/actions/callback.h>
 
@@ -21,6 +20,12 @@ template <class T>
 class TErrorOr;
 
 typedef TErrorOr<void> TError;
+
+namespace NProto {
+
+class TError;
+
+}  // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,7 +280,6 @@ Stroka ToString(const TErrorOr<T>& valueOrError)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
 
 #define ERROR_INL_H_
 #include "error-inl.h"
