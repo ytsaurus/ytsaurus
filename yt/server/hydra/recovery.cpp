@@ -74,12 +74,8 @@ void TRecovery::RecoverToVersion(TVersion targetVersion)
         THROW_ERROR_EXCEPTION_IF_FAILED(readerOrError, "Error creating snapshot reader");
         auto reader = readerOrError.Value();
 
-        auto snapshotParamsOrError = WaitFor(SnapshotStore_->GetSnapshotParams(snapshotId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError);
-        const auto& snapshotParams = snapshotParamsOrError.Value();
-
         TSnapshotMeta meta;
-        YCHECK(DeserializeFromProto(&meta, snapshotParams.Meta));
+        YCHECK(DeserializeFromProto(&meta, reader->GetParams().Meta));
 
         auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
         auto* input = reader->GetStream();

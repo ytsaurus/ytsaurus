@@ -75,9 +75,6 @@ struct ISnapshotStore
      */
     virtual TFuture<TErrorOr<TSnapshotParams>> ConfirmSnapshot(int snapshotId) = 0;
 
-    //! Returns the parameters of a given snapshot.
-    virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ISnapshotStore)

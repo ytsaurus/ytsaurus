@@ -20,6 +20,8 @@ public:
 
     ~TFileSnapshotStore();
 
+    bool CheckSnapshotExists(int snapshotId);
+
     ISnapshotReaderPtr CreateReader(int snapshotId);
     ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset);
 
@@ -28,9 +30,7 @@ public:
 
     int GetLatestSnapshotId(int maxSnapshotId);
 
-    TSnapshotParams ConfirmSnapshot(int snapshotId);
-
-    TNullable<TSnapshotParams> FindSnapshotParams(int snapshotId);
+    void ConfirmSnapshot(int snapshotId);
 
 private:
     class TImpl;

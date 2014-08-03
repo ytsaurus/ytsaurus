@@ -52,16 +52,13 @@ DEFINE_RPC_SERVICE_METHOD(TLocalSnapshotService, LookupSnapshot)
         }
     }
 
-    auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
-    if (!maybeParams) {
-        THROW_ERROR_EXCEPTION("No such snapshot %v", snapshotId);
-    }
-
+    auto reader = FileStore_->CreateReader(snapshotId);
+    auto params = reader->GetParams();
     response->set_snapshot_id(snapshotId);
-    response->set_compressed_length(maybeParams->CompressedLength);
-    response->set_uncompressed_length(maybeParams->UncompressedLength);
-    response->set_checksum(maybeParams->Checksum);
-    response->set_meta(ToString(maybeParams->Meta));
+    response->set_compressed_length(params.CompressedLength);
+    response->set_uncompressed_length(params.UncompressedLength);
+    response->set_checksum(params.Checksum);
+    response->set_meta(ToString(params.Meta));
     
     context->SetResponseInfo("SnapshotId: %v", snapshotId);
     context->Reply();

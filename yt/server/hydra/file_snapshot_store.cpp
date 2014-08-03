@@ -12,6 +12,8 @@
 
 #include <core/logging/log.h>
 
+#include <ytlib/hydra/hydra_manager.pb.h>
+
 #include <util/stream/lz.h>
 
 namespace NYT {
@@ -19,6 +21,7 @@ namespace NHydra {
 
 using namespace NFS;
 using namespace NCompression;
+using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,16 +43,6 @@ struct TSnapshotHeader
     i32 Codec = ECodec::None;
     i32 MetaSize;
 
-    TSnapshotHeader()
-        : Signature(ExpectedSignature)
-        , SnapshotId(0)
-        , CompressedLength(0)
-        , UncompressedLength(0)
-        , Checksum(0)
-        , Codec(ECodec::None)
-        , MetaSize(0)
-    { }
-
     void Validate() const
     {
         if (Signature != ExpectedSignature) {
@@ -68,10 +61,32 @@ static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#pragma pack(push, 4)
+
+// COMPAT(babenko)
+struct TSnapshotHeader_0_16
+{
+    static const ui64 ExpectedSignature =  0x3130303053535459ull; // YTSS0001
+
+    ui64 Signature = 0;
+    i32 SnapshotId = 0;
+    TEpochId Epoch;
+    i32 PrevRecordCount = 0;
+    ui64 DataLength = 0;
+    ui64 Checksum = 0;
+};
+
+static_assert(sizeof(TSnapshotHeader_0_16) == 48, "Binary size of TSnapshotHeader_0_16 has changed.");
+
+#pragma pack(pop)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NHydra
 } // namespace NYT
 
 DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader)
+DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_0_16)
 
 namespace NYT {
 namespace NHydra {
@@ -101,51 +116,104 @@ public:
             File_.reset(new TFile(FileName_, OpenExisting | CloseOnExec));
             TFileInput input(*File_);
 
-            ReadPod(input, Header_);
-            Header_.Validate();
-            if (Header_.SnapshotId != SnapshotId_) {
-                THROW_ERROR_EXCEPTION(
-                    "Invalid snapshot id in header of %s: expected %d, got %d",
-                    ~FileName_.Quote(),
-                    SnapshotId_,
-                    Header_.SnapshotId);
-            }
-            if (Header_.CompressedLength != File_->GetLength()) {
-                THROW_ERROR_EXCEPTION(
-                    "Invalid compressed length in header of %s: expected %" PRId64 ", got %" PRId64,
-                    ~FileName_.Quote(),
-                    File_->GetLength(),
-                    Header_.CompressedLength);
-            }
+            ui64 signature;
+            ReadPod(input, signature);
+            File_->Seek(0, sSet);
 
-            Meta_ = TSharedRef::Allocate(Header_.MetaSize, false);
-            ReadPadded(input, Meta_);
+            if (signature == TSnapshotHeader::ExpectedSignature) {
+                ReadPod(input, Header_);
 
-            if (IsRaw_) {
-                File_->Seek(offset, sSet);
-            }
-
-            RawInput_.reset(new TBufferedFileInput(*File_));
-
-            auto codec = ECodec(Header_.Codec);
-            if (IsRaw_ || codec == ECodec::None) {
-                FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
-            } else {
-                switch (codec) {
-                    case ECodec::Snappy:
-                        CodecInput_.reset(new TSnappyDecompress(RawInput_.get()));
-                        break;
-                    case ECodec::Lz4:
-                        CodecInput_.reset(new TLz4Decompress(RawInput_.get()));
-                        break;
-                    default:
-                        YUNREACHABLE();
+                if (Header_.SnapshotId != SnapshotId_) {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid snapshot id in header of %v: expected %v, got %v",
+                        FileName_,
+                        SnapshotId_,
+                        Header_.SnapshotId);
                 }
-                FacadeInput_ = CreateCheckpointableInputStream(CodecInput_.get());
+
+                if (Header_.CompressedLength != File_->GetLength()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid compressed length in header of %v: expected %v, got %v",
+                        FileName_,
+                        File_->GetLength(),
+                        Header_.CompressedLength);
+                }
+
+                Meta_ = TSharedRef::Allocate(Header_.MetaSize, false);
+                ReadPadded(input, Meta_);
+
+                if (IsRaw_) {
+                    File_->Seek(offset, sSet);
+                }
+
+                RawInput_.reset(new TBufferedFileInput(*File_));
+
+                auto codec = ECodec(Header_.Codec);
+                if (IsRaw_ || codec == ECodec::None) {
+                    FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
+                } else {
+                    switch (codec) {
+                        case ECodec::Snappy:
+                            CodecInput_.reset(new TSnappyDecompress(RawInput_.get()));
+                            break;
+                        case ECodec::Lz4:
+                            CodecInput_.reset(new TLz4Decompress(RawInput_.get()));
+                            break;
+                        default:
+                            YUNREACHABLE();
+                    }
+                    FacadeInput_ = CreateCheckpointableInputStream(CodecInput_.get());
+                }
+            } else if (signature == TSnapshotHeader_0_16::ExpectedSignature) {
+                TSnapshotHeader_0_16 legacyHeader;
+                ReadPod(input, legacyHeader);
+
+                Header_.SnapshotId = legacyHeader.SnapshotId;
+                if (Header_.SnapshotId != SnapshotId_) {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid snapshot id in header of %v: expected %v, got %v",
+                        FileName_,
+                        SnapshotId_,
+                        Header_.SnapshotId);
+                }
+
+                Header_.CompressedLength = legacyHeader.DataLength + sizeof (legacyHeader);
+                if (Header_.CompressedLength != File_->GetLength()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Invalid compressed length in header of %v: expected %v, got %v",
+                        ~FileName_.Quote(),
+                        File_->GetLength(),
+                        Header_.CompressedLength);
+                }
+
+                TSnapshotMeta meta;
+                meta.set_prev_record_count(legacyHeader.PrevRecordCount);
+                YCHECK(SerializeToProto(meta, &Meta_));
+
+                Header_.Checksum = legacyHeader.Checksum;
+                Header_.UncompressedLength = Header_.CompressedLength;
+                Header_.Codec = ECodec::Snappy;
+                Header_.MetaSize = Meta_.Size();
+
+                if (IsRaw_) {
+                    File_->Seek(offset, sSet);
+                }
+
+                RawInput_.reset(new TBufferedFileInput(*File_));
+
+                if (IsRaw_) {
+                    FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
+                } else {
+                    CodecInput_.reset(new TSnappyDecompress(RawInput_.get()));
+                    FacadeInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get());
+                }
+            } else {
+                THROW_ERROR_EXCEPTION("Unrecognized snapshot signature %" PRIx64,
+                    signature);
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error opening snapshot %s for reading",
-                ~FileName_.Quote())
+            THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
+                FileName_)
                 << ex;
         }
     }
@@ -253,8 +321,8 @@ public:
                 FacadeOutput_ = CreateCheckpointableOutputStream(LengthMeasureOutput_.get());
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error opening snapshot %s for writing",
-                ~FileName_.Quote())
+            THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
+                FileName_)
                 << ex;
         }
     }
@@ -363,7 +431,7 @@ public:
                     int snapshotId = FromString<int>(name);
                     RegisterSnapshot(snapshotId);
                 } catch (const std::exception&) {
-                    LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
+                    LOG_WARNING("Found unrecognized file %v", fileName);
                 }
             }
         }
@@ -371,25 +439,27 @@ public:
         LOG_INFO("Snapshot scan complete");
     }
 
-    TNullable<TSnapshotParams> FindSnapshotParams(int snapshotId)
+    bool CheckSnapshotExists(int snapshotId)
     {
-        if (!CheckSnapshotExists(snapshotId)) {
-            return Null;
+        auto path = GetSnapshotPath(snapshotId);
+        if (NFS::Exists(path)) {
+            return true;
         }
 
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = SnapshotMap_.find(snapshotId);
-        if (it == SnapshotMap_.end()) {
-            return Null;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (SnapshotIds_.erase(snapshotId) == 1) {
+                LOG_WARNING("Erased orphaned snapshot %v from store", snapshotId);
+            }
         }
 
-        return it->second;
+        return false;
     }
 
     ISnapshotReaderPtr CreateReader(int snapshotId)
     {
         if (!CheckSnapshotExists(snapshotId)) {
-            THROW_ERROR_EXCEPTION("No such snapshot %d", snapshotId);
+            THROW_ERROR_EXCEPTION("No such snapshot %v", snapshotId);
         }
 
         return CreateFileSnapshotReader(
@@ -431,21 +501,21 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        auto it = SnapshotMap_.upper_bound(maxSnapshotId);
-        if (it == SnapshotMap_.begin()) {
+        auto it = SnapshotIds_.upper_bound(maxSnapshotId);
+        if (it == SnapshotIds_.begin()) {
             return NonexistingSegmentId;
         }
 
-        int snapshotId = (--it)->first;
+        int snapshotId = *(--it);
         YCHECK(snapshotId <= maxSnapshotId);
         return snapshotId;
     }
 
-    TSnapshotParams ConfirmSnapshot(int snapshotId)
+    void ConfirmSnapshot(int snapshotId)
     {
         auto path = GetSnapshotPath(snapshotId);
         NFS::Rename(path + TempFileSuffix, path);
-        return RegisterSnapshot(snapshotId);
+        RegisterSnapshot(snapshotId);
     }
 
 private:
@@ -454,7 +524,7 @@ private:
     NLog::TLogger Logger;
 
     TSpinLock SpinLock_;
-    std::map<int, TSnapshotParams> SnapshotMap_;
+    std::set<int> SnapshotIds_;
 
 
 
@@ -465,59 +535,11 @@ private:
             Format("%09d.%v", snapshotId, SnapshotExtension));
     }
 
-    TSnapshotParams ReadSnapshotParams(int snapshotId)
+    void RegisterSnapshot(int snapshotId)
     {
-        auto fileName = GetSnapshotPath(snapshotId);
-        TSnapshotParams params;
-        try {
-            TFile file(fileName, OpenExisting|CloseOnExec);
-            TFileInput input(file);
-
-            TSnapshotHeader header;
-            ReadPod(input, header);
-            header.Validate();
-
-            params.Meta = TSharedRef::Allocate(header.MetaSize, false);
-            params.Checksum = header.Checksum;
-            params.CompressedLength = header.CompressedLength;
-            params.UncompressedLength = header.UncompressedLength;
-
-            ReadPadded(input, params.Meta);
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error reading header of snapshot %s",
-                ~fileName.Quote());
-        }
-        return params;
-    }
-
-    bool CheckSnapshotExists(int snapshotId)
-    {
-        auto path = GetSnapshotPath(snapshotId);
-        if (NFS::Exists(path)) {
-            return true;
-        }
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (SnapshotMap_.erase(snapshotId) == 1) {
-                LOG_WARNING("Erased orphaned snapshot %d from store", snapshotId);
-            }
-        }
-
-        return false;
-    }
-
-    TSnapshotParams RegisterSnapshot(int snapshotId)
-    {
-        auto params = ReadSnapshotParams(snapshotId);
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(SnapshotMap_.insert(std::make_pair(snapshotId, params)).second);
-        }
-
-        LOG_INFO("Registered snapshot %d", snapshotId);
-        return params;
+        TGuard<TSpinLock> guard(SpinLock_);
+        YCHECK(SnapshotIds_.insert(snapshotId).second);
+        LOG_INFO("Registered snapshot %v", snapshotId);
     }
 
 };
@@ -534,6 +556,11 @@ TFileSnapshotStore::~TFileSnapshotStore()
 void TFileSnapshotStore::Initialize()
 {
     Impl_->Initialize();
+}
+
+bool TFileSnapshotStore::CheckSnapshotExists(int snapshotId)
+{
+    return Impl_->CheckSnapshotExists(snapshotId);
 }
 
 ISnapshotReaderPtr TFileSnapshotStore::CreateReader(int snapshotId)
@@ -561,14 +588,9 @@ int TFileSnapshotStore::GetLatestSnapshotId(int maxSnapshotId)
     return Impl_->GetLatestSnapshotId(maxSnapshotId);
 }
 
-TSnapshotParams TFileSnapshotStore::ConfirmSnapshot(int snapshotId)
+void TFileSnapshotStore::ConfirmSnapshot(int snapshotId)
 {
-    return Impl_->ConfirmSnapshot(snapshotId);
-}
-
-TNullable<TSnapshotParams> TFileSnapshotStore::FindSnapshotParams(int snapshotId)
-{
-    return Impl_->FindSnapshotParams(snapshotId);
+    Impl_->ConfirmSnapshot(snapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

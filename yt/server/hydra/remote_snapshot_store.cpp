@@ -96,14 +96,6 @@ public:
             .Run(snapshotId);
     }
 
-    virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) override
-    {
-        return BIND(&TRemoteSnapshotStore::DoGetSnapshotParams, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
-    }
-
 private:
     TRemoteSnapshotStoreConfigPtr Config_;
     TRemoteSnapshotStoreOptionsPtr Options_;
@@ -202,7 +194,29 @@ private:
 
     ISnapshotReaderPtr DoCreateReader(int snapshotId)
     {
-        auto params = DoGetSnapshotParams(snapshotId);
+        LOG_DEBUG("Requesting parameters for snapshot %d from remote store",
+            snapshotId);
+
+        auto remotePath = GetRemotePath(snapshotId);
+
+        TGetNodeOptions options;
+        options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+        options.AttributeFilter.Keys.push_back("prev_record_count");
+        auto resultOrError = WaitFor(MasterClient_->GetNode(remotePath, options));
+        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
+        LOG_DEBUG("Snapshot parameters received");
+
+        auto node = ConvertToNode(resultOrError.Value());
+        const auto& attributes = node->Attributes();
+
+        TSnapshotMeta meta;
+        meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
+
+        TSnapshotParams params;
+        params.Checksum = 0;
+        params.CompressedLength = params.UncompressedLength = -1;
+        YCHECK(SerializeToProto(meta, &params.Meta));
+
         auto reader = New<TReader>(this, snapshotId, params);
         reader->Open();
         return reader;
@@ -327,33 +341,6 @@ private:
     void DoCleanupSnapshot(int snapshotId)
     {
         NFS::Remove(GetLocalPath(snapshotId));
-    }
-
-    TSnapshotParams DoGetSnapshotParams(int snapshotId)
-    {
-        LOG_DEBUG("Requesting parameters for snapshot %d from remote store",
-            snapshotId);
-
-        auto remotePath = GetRemotePath(snapshotId);
-
-        TGetNodeOptions options;
-        options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-        options.AttributeFilter.Keys.push_back("prev_record_count");
-        auto resultOrError = WaitFor(MasterClient_->GetNode(remotePath, options));
-        THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-        LOG_DEBUG("Snapshot parameters received");
-
-        auto node = ConvertToNode(resultOrError.Value());
-        const auto& attributes = node->Attributes();
-
-        TSnapshotMeta meta;
-        meta.set_prev_record_count(attributes.Get<i64>("prev_record_count"));
-
-        TSnapshotParams params;
-        params.Checksum = 0;
-        params.CompressedLength = params.UncompressedLength = -1;
-        YCHECK(SerializeToProto(meta, &params.Meta));
-        return params;
     }
 
 

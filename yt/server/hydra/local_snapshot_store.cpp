@@ -61,14 +61,6 @@ public:
             .Run(snapshotId);
     }
 
-    virtual TFuture<TErrorOr<TSnapshotParams>> GetSnapshotParams(int snapshotId) override
-    {
-        return BIND(&TLocalSnapshotStore::DoGetSnapshotParams, MakeStrong(this))
-            .Guarded()
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(snapshotId);
-    }
-
 private:
     TDistributedHydraManagerConfigPtr Config_;
     TCellManagerPtr CellManager_;
@@ -77,8 +69,7 @@ private:
 
     ISnapshotReaderPtr DoCreateReader(int snapshotId)
     {
-        auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
-        if (!maybeParams) {
+        if (!FileStore_->CheckSnapshotExists(snapshotId)) {
             auto downloadResult = WaitFor(DownloadSnapshot(
                 Config_,
                 CellManager_,
@@ -98,16 +89,10 @@ private:
 
     TSnapshotParams DoConfirmSnapshot(int snapshotId)
     {
-        return FileStore_->ConfirmSnapshot(snapshotId);
-    }
-
-    TSnapshotParams DoGetSnapshotParams(int snapshotId)
-    {
-        auto maybeParams = FileStore_->FindSnapshotParams(snapshotId);
-        if (!maybeParams) {
-            THROW_ERROR_EXCEPTION("No such snapshot %d", snapshotId);
-        }
-        return *maybeParams;
+        FileStore_->ConfirmSnapshot(snapshotId);
+        
+        auto reader = FileStore_->CreateReader(snapshotId);
+        return reader->GetParams();
     }
 
 };
