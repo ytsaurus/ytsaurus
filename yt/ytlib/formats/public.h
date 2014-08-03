@@ -1,7 +1,6 @@
 #pragma once
 
 #include <core/misc/common.h>
-#include "config.h"
 
 namespace NYT {
 namespace NFormats {
