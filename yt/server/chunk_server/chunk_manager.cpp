@@ -444,8 +444,8 @@ public:
     void ConfirmChunk(
         TChunk* chunk,
         const std::vector<NChunkClient::TChunkReplica>& replicas,
-        NChunkClient::NProto::TChunkInfo* chunkInfo,
-        NChunkClient::NProto::TChunkMeta* chunkMeta)
+        TChunkInfo* chunkInfo,
+        TChunkMeta* chunkMeta)
     {
         YCHECK(!chunk->IsConfirmed());
 
@@ -684,7 +684,7 @@ public:
     }
 
 
-    void SealChunk(TChunk* chunk, i64 rowCount)
+    void SealChunk(TChunk* chunk, const TMiscExt& info)
     {
         if (!chunk->IsJournal()) {
             THROW_ERROR_EXCEPTION("Not a journal chunk");
@@ -698,18 +698,19 @@ public:
             THROW_ERROR_EXCEPTION("Chunk is already sealed");
         }
 
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
-        TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.RowCount = rowCount - miscExt.row_count(); // the latter is usually 0
-        statisticsDelta.Sealed = true;
-        
-        chunk->Seal(rowCount);
-
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
+        chunk->Seal(info);
 
         // Go upwards and apply delta.
+        YCHECK(chunk->Parents().size() == 1);
+        auto* chunkList = chunk->Parents()[0];
+        
+        TChunkTreeStatistics statisticsDelta;
+        statisticsDelta.Sealed = true;
+        statisticsDelta.RowCount = info.row_count();
+        statisticsDelta.UncompressedDataSize = info.uncompressed_data_size();
+        statisticsDelta.CompressedDataSize = info.compressed_data_size();
+        statisticsDelta.RegularDiskSpace = info.compressed_data_size();
+
         VisitUniqueAncestors(
             chunkList,
             [&] (TChunkList* current) {
@@ -720,12 +721,19 @@ public:
         if (IsLeader()) {
             ScheduleChunkRefresh(chunk);
         }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            chunk->GetId(),
+            info.row_count(),
+            info.uncompressed_data_size(),
+            info.compressed_data_size());
     }
 
-    TFuture<TErrorOr<i64>> GetChunkQuorumRowCount(TChunk* chunk)
+    TFuture<TErrorOr<TMiscExt>> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
-            return MakeFuture<TErrorOr<i64>>(chunk->GetSealedRowCount());
+            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+            return MakeFuture<TErrorOr<TMiscExt>>(miscExt);
         }
 
         std::vector<NNodeTrackerClient::TNodeDescriptor> replicas;
@@ -734,7 +742,7 @@ public:
             replicas.push_back(node->GetDescriptor());
         }
 
-        return ComputeQuorumRowCount(
+        return ComputeQuorumInfo(
             chunk->GetId(),
             replicas,
             Config_->JournalRpcTimeout,
@@ -1577,8 +1585,8 @@ TChunkList* TChunkManager::CreateChunkList()
 void TChunkManager::ConfirmChunk(
     TChunk* chunk,
     const std::vector<NChunkClient::TChunkReplica>& replicas,
-    NChunkClient::NProto::TChunkInfo* chunkInfo,
-    NChunkClient::NProto::TChunkMeta* chunkMeta)
+    TChunkInfo* chunkInfo,
+    TChunkMeta* chunkMeta)
 {
     Impl_->ConfirmChunk(
         chunk,
@@ -1711,14 +1719,14 @@ EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
     return Impl_->ComputeChunkStatus(chunk);
 }
 
-void TChunkManager::SealChunk(TChunk* chunk, i64 rowCount)
+void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
 {
-    Impl_->SealChunk(chunk, rowCount);
+    Impl_->SealChunk(chunk, info);
 }
 
-TFuture<TErrorOr<i64>> TChunkManager::GetChunkQuorumRowCount(TChunk* chunk)
+TFuture<TErrorOr<TMiscExt>> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
-    return Impl_->GetChunkQuorumRowCount(chunk);
+    return Impl_->GetChunkQuorumInfo(chunk);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)

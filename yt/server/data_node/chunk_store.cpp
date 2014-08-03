@@ -133,23 +133,23 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
             }
 
             case EObjectType::JournalChunk: {
-                auto longerInfo = chunk->GetInfo();
-                auto shorterInfo = oldChunk->GetInfo();
+                auto longerRowCount = chunk->AsJournalChunk()->GetRowCount();
+                auto shorterRowCount = oldChunk->AsJournalChunk()->GetRowCount();
 
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;
 
-                if (longerInfo.row_count() < shorterInfo.row_count()) {
-                    std::swap(longerInfo, shorterInfo);
+                if (longerRowCount < shorterRowCount) {
+                    std::swap(longerRowCount, shorterRowCount);
                     std::swap(longerChunk, shorterChunk);
                 }
 
                 // Remove shorter replica.
                 LOG_WARNING("Removing shorter journal chunk: %v (%v rows) vs %v (%v rows)",
                     shorterChunk->GetFileName(),
-                    shorterInfo.row_count(),
+                    shorterRowCount,
                     longerChunk->GetFileName(),
-                    longerInfo.row_count());
+                    longerRowCount);
                 shorterChunk->SyncRemove();
                 break;
             }
@@ -386,22 +386,19 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
                 return New<TStoredBlobChunk>(
                     Bootstrap_,
                     location,
-                    descriptor.Id,
-                    descriptor.Info);
+                    descriptor);
             } else {
                 return New<TCachedBlobChunk>(
                     Bootstrap_,
                     location,
-                    descriptor.Id,
-                    descriptor.Info);
+                    descriptor);
             }
 
         case EObjectType::JournalChunk:
             return New<TJournalChunk>(
                 Bootstrap_,
                 location,
-                descriptor.Id,
-                descriptor.Info);
+                descriptor);
 
         default:
             YUNREACHABLE();

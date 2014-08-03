@@ -133,8 +133,8 @@ public:
     //! Returns the number of rows in a sealed chunk.
     i64 GetSealedRowCount() const;
 
-    //! Marks the chunk as sealed, i.e. sets its ultimate row count.
-    void Seal(i64 rowCount);
+    //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
+    void Seal(const NChunkClient::NProto::TMiscExt& info);
 
     TChunkProperties GetChunkProperties() const;
 

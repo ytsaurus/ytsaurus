@@ -14,6 +14,7 @@ namespace NProto {
 
 class TChunkSpec;
 class TChunkMeta;
+class TMiscExt;
 
 class TReqFetch;
 

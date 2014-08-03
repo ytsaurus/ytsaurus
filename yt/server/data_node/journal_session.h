@@ -30,10 +30,12 @@ private:
     NHydra::IChangelogPtr Changelog_;
     TAsyncError LastAppendResult_;
 
-    mutable NChunkClient::NProto::TChunkInfo ChunkInfo_;
+    mutable i64 CachedRowCount_ = 0;
+    mutable i64 CachedDataSize_ = 0;
+    mutable bool CachedSealed_ = false;
 
 
-    void UpdateChunkInfo() const;
+    void UpdateCachedParams() const;
 
     virtual void DoStart() override;
 

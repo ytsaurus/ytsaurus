@@ -5,15 +5,12 @@ package NYT.NChunkClient.NProto;
 message TChunkInfo
 {
     // Exact full size (data size plus meta size).
-    // For erasure chunks this is the sum for all parts.
-    // For journal chunks this is zero.
+    // For erasure chunks at master this is the sum of disk space occupied by all parts.
+    // For journal chunks this is an approximation.
     optional int64 disk_space = 1 [default = 0];
 
     // For journal chunks only.
-    optional int64 row_count = 2 [default = 0];
-
-    // For journal chunks only.
-    optional bool sealed = 3 [default = false];
+    optional bool sealed = 2 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

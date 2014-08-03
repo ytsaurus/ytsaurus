@@ -40,6 +40,7 @@ using namespace NObjectClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NCellMaster;
 
@@ -243,15 +244,17 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
 
-        int rowCount;
+        auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
         {
-            auto result = WaitFor(ComputeQuorumRowCount(
+            auto result = WaitFor(ComputeQuorumInfo(
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum()));
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            rowCount = result.Value();
+            auto* info = req->mutable_info();
+            *info = result.Value();
+            info->set_sealed(true);
         }
 
         // NB: Double-check.
@@ -261,8 +264,6 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto rootService = objectManager->GetRootService();
         auto chunkProxy = objectManager->GetProxy(chunk);
-        auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
-        req->set_row_count(rowCount);
         auto rsp = WaitFor(ExecuteVerb(rootService, req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 

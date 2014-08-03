@@ -13,8 +13,18 @@ namespace NDataNode {
 //! Chunk properties that can be obtained during the filesystem scan.
 struct TChunkDescriptor
 {
+    TChunkDescriptor()
+    { }
+
+    explicit TChunkDescriptor(const TChunkId& id)
+        : Id(id)
+    { }
+
     TChunkId Id;
-    NChunkClient::NProto::TChunkInfo Info;
+    i64 DiskSpace = 0;
+    // For journal chunks only.
+    i64 RowCount = 0;
+    bool Sealed = false;
 };
 
 //! A base for any IChunk implementation.
@@ -24,7 +34,6 @@ class TChunkBase
 public:
     virtual const TChunkId& GetId() const override;
     virtual TLocationPtr GetLocation() const override;
-    virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const override;
     virtual Stroka GetFileName() const override;
 
     virtual int GetVersion() const override;
@@ -40,7 +49,6 @@ protected:
     NCellNode::TBootstrap* Bootstrap_;
     TLocationPtr Location_;
     TChunkId Id_;
-    mutable NChunkClient::NProto::TChunkInfo Info_;
 
     int Version_ = 0;
 
@@ -54,8 +62,7 @@ protected:
     TChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info);
+        const TChunkId& id);
 
     void StartAsyncRemove();
     virtual void EvictFromCache() = 0;

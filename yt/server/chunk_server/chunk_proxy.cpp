@@ -389,11 +389,11 @@ private:
         auto* chunk = GetThisTypedImpl();
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto rowCountResult = chunkManager->GetChunkQuorumRowCount(chunk);
-            return rowCountResult.Apply(BIND([=] (TErrorOr<i64> result) -> TError {
+            auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
+            return rowCountResult.Apply(BIND([=] (TErrorOr<TMiscExt> result) -> TError {
                 if (result.IsOK()) {
                     BuildYsonFluently(consumer)
-                        .Value(result.Value());
+                        .Value(result.Value().row_count());
                 }
                 return TError(result);
             }));
@@ -472,12 +472,14 @@ private:
 
         DeclareMutating();
 
-        context->SetRequestInfo("RowCount: %d",
-            request->row_count());
+        context->SetRequestInfo();
+
+        const auto& info = request->info();
+        YCHECK(info.sealed());
 
         auto* chunk = GetThisTypedImpl();
         auto chunkManager = Bootstrap->GetChunkManager();
-        chunkManager->SealChunk(chunk, request->row_count());
+        chunkManager->SealChunk(chunk, info);
 
         context->Reply();
     }

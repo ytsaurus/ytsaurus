@@ -81,8 +81,7 @@ public:
             auto chunk = New<TCachedBlobChunk>(
                 Bootstrap_,
                 Location_,
-                descriptor.Id,
-                descriptor.Info);
+                descriptor);
             Put(chunk);
         }
 
@@ -283,11 +282,13 @@ private:
             LOG_INFO("Chunk is closed");
 
             LOG_INFO("Chunk is downloaded into cache");
+            TChunkDescriptor descriptor;
+            descriptor.Id = chunkId;
+            descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
             auto chunk = New<TCachedBlobChunk>(
                 Bootstrap_,
                 Location_,
-                chunkId,
-                chunkWriter->GetChunkInfo(),
+                descriptor,
                 &chunkMeta);
             cookie.EndInsert(chunk);
         } catch (const std::exception& ex) {

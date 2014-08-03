@@ -247,8 +247,9 @@ private:
             TChunkId ChunkId;
             std::vector<TNodePtr> Nodes;
             i64 RowCount = 0;
-            i64 FlushedRowCount = 0;
             i64 DataSize = 0;
+            i64 FlushedRowCount = 0;
+            i64 FlushedDataSize = 0;
         };
 
         typedef TIntrusivePtr<TChunkSession> TChunkSessionPtr;
@@ -650,7 +651,11 @@ private:
                 session->FlushedRowCount);
             {
                 auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
-                req->set_row_count(session->FlushedRowCount);
+                auto* info = req->mutable_info();
+                info->set_sealed(true);
+                info->set_row_count(session->FlushedRowCount);
+                info->set_uncompressed_data_size(session->FlushedDataSize);
+                info->set_compressed_data_size(session->FlushedDataSize);
                 auto rsp = WaitFor(Proxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %v",
                     session->ChunkId);
@@ -895,6 +900,7 @@ private:
 
                 front->FlushedPromise.Set(TError());
                 session->FlushedRowCount += front->Rows.size();
+                session->FlushedDataSize += front->DataSize;
                 PendingBatches_.pop_front();
 
                 LOG_DEBUG("Rows are flushed by quorum (Rows: %v-%v)",

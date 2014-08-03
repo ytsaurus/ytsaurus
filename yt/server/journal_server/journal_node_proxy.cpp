@@ -12,6 +12,7 @@ namespace NYT {
 namespace NJournalServer {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NYTree;
@@ -159,14 +160,15 @@ private:
             i64 penultimateRowCount = chunkList->RowCountSums().empty() ? 0 : chunkList->RowCountSums().back();
 
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto rowCountResult = chunkManager->GetChunkQuorumRowCount(chunk);
-            return rowCountResult.Apply(BIND([=] (TErrorOr<i64> result) -> TError {
-                if (result.IsOK()) {
-                    BuildYsonFluently(consumer)
-                        .Value(penultimateRowCount + result.Value());
-                }
-                return TError(result);
-            }));
+            return chunkManager
+                ->GetChunkQuorumInfo(chunk)
+                .Apply(BIND([=] (TErrorOr<TMiscExt> result) -> TError {
+                    if (result.IsOK()) {
+                        BuildYsonFluently(consumer)
+                            .Value(penultimateRowCount + result.Value().row_count());
+                    }
+                    return TError(result);
+                }));
         }
 
         return TBase::GetBuiltinAttributeAsync(key, consumer);

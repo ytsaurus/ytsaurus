@@ -369,15 +369,25 @@ i64 TChunk::GetSealedRowCount() const
     return miscExt.row_count();
 }
 
-void TChunk::Seal(i64 rowCount)
+void TChunk::Seal(const TMiscExt& info)
 {
     YASSERT(IsConfirmed());
 
     auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-    YASSERT(!miscExt.sealed());
+
+    // NB: Just a sanity check.
+    YCHECK(!miscExt.sealed());
+    YCHECK(miscExt.row_count() == 0);
+    YCHECK(miscExt.uncompressed_data_size() == 0);
+    YCHECK(miscExt.compressed_data_size() == 0);
+    YCHECK(ChunkInfo_.disk_space() == 0);
+
     miscExt.set_sealed(true);
-    miscExt.set_row_count(rowCount);
+    miscExt.set_row_count(info.row_count());
+    miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
+    miscExt.set_compressed_data_size(info.compressed_data_size());
     SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
+    ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
 TChunkProperties TChunk::GetChunkProperties() const

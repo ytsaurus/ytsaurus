@@ -34,15 +34,15 @@ static NProfiling::TRateCounter DiskBlobReadThroughputCounter("/disk_blob_read_t
 TBlobChunkBase::TBlobChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id,
-    const TChunkInfo& info,
+    const TChunkDescriptor& descriptor,
     const TChunkMeta* meta)
     : TChunkBase(
         bootstrap,
         location,
-        id,
-        info)
+        descriptor.Id)
 {
+    Info_.set_disk_space(descriptor.DiskSpace);
+
     if (meta) {
         InitializeCachedMeta(*meta);
     }
@@ -54,6 +54,11 @@ TBlobChunkBase::~TBlobChunkBase()
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
         tracker->Release(EMemoryConsumer::ChunkMeta, Meta_->SpaceUsed());
     }
+}
+
+TChunkInfo TBlobChunkBase::GetInfo() const
+{
+    return Info_;
 }
 
 bool TBlobChunkBase::IsActive() const
@@ -323,14 +328,12 @@ void TBlobChunkBase::DoSyncRemove(const Stroka& dataFileName)
 TStoredBlobChunk::TStoredBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id,
-    const TChunkInfo& info,
+    const TChunkDescriptor& descriptor,
     const TChunkMeta* meta)
     : TBlobChunkBase(
         bootstrap,
         location,
-        id,
-        info,
+        descriptor,
         meta)
 { }
 
@@ -339,14 +342,12 @@ TStoredBlobChunk::TStoredBlobChunk(
 TCachedBlobChunk::TCachedBlobChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id,
-    const TChunkInfo& info,
+    const TChunkDescriptor& descriptor,
     const TChunkMeta* meta)
     : TBlobChunkBase(
         bootstrap,
         location,
-        id,
-        info,
+        descriptor,
         meta)
     , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
     , ChunkCache_(Bootstrap_->GetChunkCache())

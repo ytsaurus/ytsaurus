@@ -287,8 +287,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         if (TChunkId::FromString(strippedFileName, &chunkId)) {
             chunkIds.insert(chunkId);
         } else {
-            LOG_ERROR("Unrecognized file %s",
-                ~fileName.Quote());
+            LOG_ERROR("Unrecognized file %v", fileName);
         }
     }
 
@@ -307,9 +306,9 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
                 break;
 
             default:
-                LOG_WARNING("Invalid type %s of chunk %s, skipped",
-                    ~FormatEnum(chunkType).Quote(),
-                    ~ToString(chunkId));
+                LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
+                    chunkType,
+                    chunkId);
                 break;
         }
 
@@ -318,7 +317,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         }
     }
 
-    LOG_INFO("Done, %" PRISZT " chunks found", descriptors.size());
+    LOG_INFO("Done, %v chunks found", descriptors.size());
 
     auto cellGuidPath = NFS::CombinePaths(path, CellGuidFileName);
     if (NFS::Exists(cellGuidPath)) {
@@ -377,8 +376,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetBlobDescriptor(const TChunkId& chun
         if (metaSize == 0) {
             // EXT4 specific thing.
             // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-            LOG_WARNING("Chunk meta file %s is empty",
-                ~metaFileName.Quote());
+            LOG_WARNING("Chunk meta file %v is empty", metaFileName);
             NFS::Remove(dataFileName);
             NFS::Remove(metaFileName);
             return Null;
@@ -386,16 +384,14 @@ TNullable<TChunkDescriptor> TLocation::TryGetBlobDescriptor(const TChunkId& chun
 
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
-        descriptor.Info.set_disk_space(dataSize + metaSize);
+        descriptor.DiskSpace = dataSize + metaSize;
         return descriptor;
     }  if (!hasMeta && hasData) {
-        LOG_WARNING("Missing meta file, removing data file %s",
-            ~dataFileName.Quote());
+        LOG_WARNING("Missing meta file, removing data file %v", dataFileName);
         NFS::Remove(dataFileName);
         return Null;
     } else if (!hasData && hasMeta) {
-        LOG_WARNING("Missing data file, removing meta file %s",
-            ~dataFileName.Quote());
+        LOG_WARNING("Missing data file, removing meta file %v", dataFileName);
         NFS::Remove(metaFileName);
         return Null;
     } else {
@@ -410,8 +406,7 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
     if (!NFS::Exists(fileName)) {
         auto indexFileName = fileName + "." + NHydra::ChangelogIndexExtension;
         if (NFS::Exists(indexFileName)) {
-            LOG_WARNING("Missing data file, removing index file %s",
-                ~indexFileName.Quote());
+            LOG_WARNING("Missing data file, removing index file %v", indexFileName);
             NFS::Remove(indexFileName);
         }
         return Null;
@@ -422,8 +417,8 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
 
     TChunkDescriptor descriptor;
     descriptor.Id = chunkId;
-    descriptor.Info.set_row_count(changelog->GetRecordCount());
-    descriptor.Info.set_sealed(changelog->IsSealed());
+    descriptor.DiskSpace = changelog->GetDataSize();
+    descriptor.Sealed = changelog->IsSealed();
     return descriptor;
 }
 

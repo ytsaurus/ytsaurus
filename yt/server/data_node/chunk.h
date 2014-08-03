@@ -36,7 +36,7 @@ struct IChunk
 {
     virtual const TChunkId& GetId() const = 0;
     virtual TLocationPtr GetLocation() const = 0;
-    virtual const NChunkClient::NProto::TChunkInfo& GetInfo() const = 0;
+    virtual NChunkClient::NProto::TChunkInfo GetInfo() const = 0;
 
     virtual int GetVersion() const = 0;
     virtual void IncrementVersion() = 0;

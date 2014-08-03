@@ -15,6 +15,8 @@ class TBlobChunkBase
     : public TChunkBase
 {
 public:
+    virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
+
     virtual bool IsActive() const override;
 
     virtual TAsyncGetMetaResult GetMeta(
@@ -32,8 +34,7 @@ protected:
     TBlobChunkBase(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info,
+        const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta);
     ~TBlobChunkBase();
 
@@ -41,6 +42,10 @@ protected:
     virtual TFuture<void> AsyncRemove() override;
 
 private:
+    NChunkClient::NProto::TChunkInfo Info_;
+    NChunkClient::NProto::TBlocksExt BlocksExt_;
+
+
     void DoSyncRemove(const Stroka& dataFileName);
 
     TAsyncError ReadMeta(i64 priority);
@@ -59,8 +64,6 @@ private:
         TPromise<TErrorOr<std::vector<TSharedRef>>> promise);
 
 
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,8 +76,7 @@ public:
     TStoredBlobChunk(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info,
+        const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta = nullptr);
 
 };
@@ -92,8 +94,7 @@ public:
     TCachedBlobChunk(
         NCellNode::TBootstrap* bootstrap,
         TLocationPtr location,
-        const TChunkId& id,
-        const NChunkClient::NProto::TChunkInfo& info,
+        const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta = nullptr);
 
     ~TCachedBlobChunk();

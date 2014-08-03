@@ -156,7 +156,7 @@ public:
         , Logger(JournalClientLogger)
     { }
 
-    TFuture<TErrorOr<i64>> Run()
+    TFuture<TErrorOr<TMiscExt>> Run()
     {
         BIND(&TComputeQuorumRowCountSession::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
@@ -170,10 +170,10 @@ private:
     TDuration Timeout_;
     int Quorum_;
 
-    std::vector<i64> RowCounts_;
+    std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
 
-    TPromise<TErrorOr<i64>> Promise_ = NewPromise<TErrorOr<i64>>();
+    TPromise<TErrorOr<TMiscExt>> Promise_ = NewPromise<TErrorOr<TMiscExt>>();
 
     NLog::TLogger Logger;
 
@@ -181,7 +181,7 @@ private:
     void DoRun()
     {
         if (Replicas_.size() < Quorum_) {
-            auto error = TError("Unable to compute quorum row count for journal chunk %v: too few replicas known, %v given, %v needed",
+            auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,
                 Replicas_.size(),
                 Quorum_);
@@ -189,7 +189,7 @@ private:
             return;
         }
 
-        LOG_INFO("Computing quorum row count for journal chunk (ChunkId: %v, Addresses: [%v])",
+        LOG_INFO("Computing quorum info for journal chunk (ChunkId: %v, Addresses: [%v])",
             ChunkId_,
             JoinToString(Replicas_));
 
@@ -214,18 +214,19 @@ private:
     {
         if (rsp->IsOK()) {
             auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
-            i64 rowCount = miscExt.row_count();
-            RowCounts_.push_back(rowCount);
+            Infos_.push_back(miscExt);
 
-            LOG_INFO("Received row count for journal chunk (ChunkId: %v, Address: %v, RowCount: %v)",
+            LOG_INFO("Received info for journal chunk (ChunkId: %v, Address: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress(),
-                rowCount);
+                miscExt.row_count(),
+                miscExt.uncompressed_data_size(),
+                miscExt.compressed_data_size());
         } else {
             auto error = rsp->GetError();
             InnerErrors_.push_back(error);
 
-            LOG_WARNING(error, "Failed to get journal chunk row count (ChunkId: %v, Address: %v)",
+            LOG_WARNING(error, "Failed to get journal info (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
            
@@ -234,29 +235,37 @@ private:
 
     void OnComplete()
     {
-        if (RowCounts_.size() < Quorum_) {
-            auto error = TError("Unable to compute quorum row count for journal chunk %v: too few replicas alive, %v found, %v needed",
+        if (Infos_.size() < Quorum_) {
+            auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
                 ChunkId_,
-                RowCounts_.size(),
+                Infos_.size(),
                 Quorum_)
                 << InnerErrors_;
             Promise_.Set(error);
             return;
         }
 
-        std::sort(RowCounts_.begin(), RowCounts_.end());
-        int quorumRowCount = RowCounts_[Quorum_ - 1];
+        std::sort(
+            Infos_.begin(),
+            Infos_.end(),
+            [] (const TMiscExt& lhs, const TMiscExt& rhs) {
+                return lhs.row_count() < rhs.row_count();
+            });
 
-        LOG_INFO("Quorum row count for journal chunk computed successfully (ChunkId: %v, QuorumRowCount: %v)",
+        const auto& quorumInfo = Infos_[Quorum_ - 1];
+
+        LOG_INFO("Quorum info for journal chunk computed successfully (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             ChunkId_,
-            quorumRowCount);
+            quorumInfo.row_count(),
+            quorumInfo.uncompressed_data_size(),
+            quorumInfo.compressed_data_size());
 
-        Promise_.Set(quorumRowCount);
+        Promise_.Set(quorumInfo);
     }
 
 };
 
-TFuture<TErrorOr<i64>> ComputeQuorumRowCount(
+TFuture<TErrorOr<TMiscExt>> ComputeQuorumInfo(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,

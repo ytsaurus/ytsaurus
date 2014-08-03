@@ -659,8 +659,7 @@ private:
         auto chunk = New<TJournalChunk>(
             Owner_->Bootstrap_,
             location,
-            chunkId,
-            TChunkInfo());
+            TChunkDescriptor(chunkId));
         chunkStore->RegisterNewChunk(chunk);
 
         Owner_->DoCreateChangelog(chunk);

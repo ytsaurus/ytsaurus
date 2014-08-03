@@ -437,11 +437,13 @@ TErrorOr<IChunkPtr> TBlobSession::OnWriterClosed(TError error)
         return error;
     }
 
+    TChunkDescriptor descriptor;
+    descriptor.Id = ChunkId_;
+    descriptor.DiskSpace = Writer_->GetChunkInfo().disk_space();
     auto chunk = New<TStoredBlobChunk>(
         Bootstrap_,
         Location_,
-        ChunkId_,
-        Writer_->GetChunkInfo(),
+        descriptor,
         &Writer_->GetChunkMeta());
 
     auto chunkStore = Bootstrap_->GetChunkStore();

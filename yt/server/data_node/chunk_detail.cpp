@@ -24,12 +24,10 @@ static const auto& Logger = DataNodeLogger;
 TChunkBase::TChunkBase(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id,
-    const TChunkInfo& info)
+    const TChunkId& id)
     : Bootstrap_(bootstrap)
     , Location_(location)
     , Id_(id)
-    , Info_(info)
 { }
 
 const TChunkId& TChunkBase::GetId() const
@@ -40,11 +38,6 @@ const TChunkId& TChunkBase::GetId() const
 TLocationPtr TChunkBase::GetLocation() const
 {
     return Location_;
-}
-
-const TChunkInfo& TChunkBase::GetInfo() const
-{
-    return Info_;
 }
 
 Stroka TChunkBase::GetFileName() const

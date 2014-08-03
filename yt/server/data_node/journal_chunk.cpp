@@ -39,14 +39,16 @@ static NProfiling::TRateCounter DiskJournalReadThroughputCounter("/disk_journal_
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TLocationPtr location,
-    const TChunkId& id,
-    const TChunkInfo& info)
+    const TChunkDescriptor& descriptor)
     : TChunkBase(
         bootstrap,
         location,
-        id,
-        info)
+        descriptor.Id)
 {
+    CachedSealed_ = descriptor.Sealed;
+    CachedRowCount_ = descriptor.RowCount;
+    CachedDataSize_ = descriptor.DiskSpace;
+
     Meta_ = New<TRefCountedChunkMeta>();
     Meta_->set_type(EChunkType::Journal);
     Meta_->set_version(0);
@@ -62,21 +64,27 @@ bool TJournalChunk::IsActive() const
     return Active_;
 }
 
-const TChunkInfo& TJournalChunk::GetInfo() const
+TChunkInfo TJournalChunk::GetInfo() const
 {
-    UpdateInfo();
-    return TChunkBase::GetInfo();
+    UpdateCachedParams();
+
+    TChunkInfo info;
+    info.set_sealed(CachedSealed_);
+    info.set_disk_space(CachedDataSize_);
+    return info;
 }
 
 IChunk::TAsyncGetMetaResult TJournalChunk::GetMeta(
     i64 /*priority*/,
     const std::vector<int>* tags /*= nullptr*/)
 {
-    const auto& info = GetInfo();
+    UpdateCachedParams();
 
     TMiscExt miscExt;
-    miscExt.set_row_count(info.row_count());
-    miscExt.set_sealed(info.sealed());
+    miscExt.set_row_count(CachedRowCount_);
+    miscExt.set_uncompressed_data_size(CachedDataSize_);
+    miscExt.set_compressed_data_size(CachedDataSize_);
+    miscExt.set_sealed(CachedSealed_);
     SetProtoExtension(Meta_->mutable_extensions(), miscExt);
 
     return MakeFuture<TGetMetaResult>(FilterCachedMeta(tags));
@@ -164,11 +172,12 @@ void TJournalChunk::DoReadBlocks(
     }
 }
 
-void TJournalChunk::UpdateInfo() const
+void TJournalChunk::UpdateCachedParams() const
 {
     if (Changelog_) {
-        Info_.set_row_count(Changelog_->GetRecordCount());
-        Info_.set_sealed(Changelog_->IsSealed());
+        CachedRowCount_ = Changelog_->GetRecordCount();
+        CachedDataSize_ = Changelog_->GetDataSize();
+        CachedSealed_ = Changelog_->IsSealed();
     }
 }
 
@@ -200,18 +209,24 @@ void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
     YCHECK(!Changelog_);
     Changelog_ = changelog;
 
-    UpdateInfo();
+    UpdateCachedParams();
 }
 
 void TJournalChunk::DetachChangelog()
 {
-    UpdateInfo();
+    UpdateCachedParams();
     Changelog_.Reset();
 }
 
 bool TJournalChunk::HasAttachedChangelog() const
 {
     return Changelog_ != nullptr;
+}
+
+i64 TJournalChunk::GetRowCount() const
+{
+    UpdateCachedParams();
+    return CachedRowCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,15 +35,20 @@ TJournalSession::TJournalSession(
 
 TChunkInfo TJournalSession::GetChunkInfo() const
 {
-    UpdateChunkInfo();
-    return ChunkInfo_;
+    UpdateCachedParams();
+
+    TChunkInfo info;
+    info.set_disk_space(CachedDataSize_);
+    info.set_sealed(CachedSealed_);
+    return info;
 }
 
-void TJournalSession::UpdateChunkInfo() const
+void TJournalSession::UpdateCachedParams() const
 {
     if (Changelog_) {
-        ChunkInfo_.set_row_count(Changelog_->GetRecordCount());
-        ChunkInfo_.set_sealed(Changelog_->IsSealed());
+        CachedRowCount_ = Changelog_->GetRecordCount();
+        CachedDataSize_ = Changelog_->GetDataSize();
+        CachedSealed_ = Changelog_->IsSealed();
     }
 }
 
@@ -52,8 +57,7 @@ void TJournalSession::DoStart()
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
         Location_,
-        ChunkId_,
-        TChunkInfo());
+        TChunkDescriptor(ChunkId_));
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     Changelog_ = dispatcher->CreateChangelog(Chunk_, Options_.OptimizeForLatency);
@@ -67,7 +71,7 @@ void TJournalSession::DoStart()
 
 void TJournalSession::DoCancel()
 {
-    UpdateChunkInfo();
+    UpdateCachedParams();
 
     Chunk_->DetachChangelog();
     Chunk_->SetActive(false);

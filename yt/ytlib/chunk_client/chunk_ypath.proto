@@ -21,7 +21,7 @@ message TRspConfirm
 
 message TReqSeal
 {
-    required int32 row_count = 1;
+    required TMiscExt info = 1;
 }
 
 message TRspSeal
