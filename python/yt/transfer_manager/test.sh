@@ -31,6 +31,22 @@ run_task() {
          -d "$1"
 }
 
+abort_task() {
+    local id="$1"
+    log "Aborting task $id"
+    curl -X POST -s -k -L "http://localhost:5010/tasks/$id/abort/" \
+         -H "Content-Type: application/json" \
+         -H "Authorization: OAuth $YT_TOKEN"
+}
+
+restart_task() {
+    local id="$1"
+    log "Restarting task $id"
+    curl -X POST -s -k -L "http://localhost:5010/tasks/$id/restart/" \
+         -H "Content-Type: application/json" \
+         -H "Authorization: OAuth $YT_TOKEN"
+}
+
 wait_task() {
     local id="$1"
     log "Waiting task $id"
@@ -48,6 +64,7 @@ wait_task() {
     done
 }
 
+# Different transfers
 echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy kant.yt.yandex.net
 
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/test_table", "destination_cluster": "cedar"}')
@@ -57,6 +74,17 @@ id=$(run_task '{"source_table": "tmp/test_table", "source_cluster": "cedar", "de
 wait_task $id
 
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
+wait_task $id
+
+check \
+    "$(yt2 read //tmp/test_table --proxy kant.yt.yandex.net --format yamr)" \
+    "$(yt2 read //tmp/test_table_from_plato --proxy kant.yt.yandex.net --format yamr)"
+
+# Abort, restart
+yt2 remove //tmp/test_table_from_plato --proxy kant.yt.yandex.net --force
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
+abort_task $id
+restart_task $id
 wait_task $id
 
 check \
