@@ -21,6 +21,9 @@ from collections import defaultdict
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
+class IncorrectTokenError(Exception):
+    pass
+
 class AsyncStrategy(object):
     def process_operation(self, type, operation, finalize, client=None):
         self.type = type
@@ -46,6 +49,14 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
                             }})
     strategy.wait()
 
+def create_pool(yt_client, destination_cluster_name):
+    pool_name = "transfer_" + destination_cluster_name
+    pool_path = "//sys/pools/transfer_manager/" + pool_name
+    if not yt_client.exists(pool_path):
+        yt_client.create("map_node", pool_path, recursive=True, ignore_existing=True)
+    yt_client.set(pool_path + "/@resource_limits", {"user_slots": 200})
+    yt_client.set(pool_path + "/@mode", "fifo")
+    return pool_path
 
 def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, message_queue=None):
     yt_client = deepcopy(yt_client)
@@ -61,7 +72,9 @@ def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, 
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 2 * 1024 * yt.config.MB
-    if yt_client._export_pool is not None:
+    if yt_client._export_pool is None:
+        spec["pool"] = create_pool(yt_client, mr_client._name)
+    else:
         spec["pool"] = yt_client._export_pool
 
     write_command = mr_client.get_write_command(dst)
@@ -119,7 +132,9 @@ def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
-    if yt_client._import_pool is not None:
+    if yt_client._import_pool is None:
+        spec["pool"] = create_pool(yt_client, mr_client._name)
+    else:
         spec["pool"] = yt_client._import_pool
 
     temp_yamr_table = "tmp/yt/" + generate_uuid()
@@ -218,6 +233,9 @@ class Application(object):
             raise yt.YtError("Cannot take lock " + self._lock_path)
         self._yt.set_attribute(config["path"], "address", socket.getfqdn())
 
+        self._acl_path = os.path.join(config["path"], "acl")
+        self._yt.create("map_node", self._acl_path, ignore_existing=True)
+
         self._load_config(config)
 
         self._add_rule("/", 'main', methods=["GET"])
@@ -280,7 +298,6 @@ class Application(object):
 
             if type == "yt":
                 self._clusters[name] = Yt(token=config["token"], **options)
-                self._clusters[name]._name = name
                 self._clusters[name]._export_pool = cluster_description.get("mr_export_pool")
                 self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
@@ -291,7 +308,7 @@ class Application(object):
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
-            # Hacky :(
+            self._clusters[name]._name = name
             self._clusters[name]._type = type
 
         for name in config["availability_graph"]:
@@ -341,6 +358,17 @@ class Application(object):
         if len(words) != 2 or words[0].lower() != "oauth":
             return None
         return words[1]
+
+    def _get_token_and_user(self, authorization_header):
+        token = self._get_token(request.headers.get("Authorization", ""))
+        if token is None or token == "undefined":
+            user = "guest"
+            token = ""
+        else:
+            user = self._yt.get_user_name(token)
+            if not user:
+                raise IncorrectTokenError("Authorization token is incorrect: " + token)
+        return token, user
 
     def _precheck(self, task):
         if task.source_cluster not in self._clusters:
@@ -515,14 +543,10 @@ class Application(object):
             if not set(params) >= required_parameters:
                 return "All required parameters ({}) must be presented Incorrect parameters".format(", ".join(required_parameters)), 400
 
-            token = self._get_token(request.headers.get("Authorization", ""))
-            if token is None or token == "undefined":
-                user = "guest"
-                token = ""
-            else:
-                user = self._yt.get_user_name(token)
-                if not user:
-                    return "Authorization token is incorrect: " + token, 400
+            try:
+                token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+            except IncorrectTokenError as err:
+                return err.message, 400
 
             try:
                 task = Task(id=generate_uuid(), creation_time=now(), user=user, token=token, state="pending", **params)
@@ -550,6 +574,11 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
+        _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+        if self._tasks[id].user != user and \
+           self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
+            return "There is no permission to abort task.", 400
+
         if id in self._task_processes:
             process, _ = self._task_processes[id]
             process.aborted = True
@@ -568,6 +597,12 @@ class Application(object):
     def restart(self, id):
         if id not in self._tasks:
             return "Unknown task " + id, 400
+
+        _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+        if self._tasks[id].user != user and \
+           self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
+            return "There is no permission to abort task.", 400
+
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
             return "Cannot restart task in state " + self._tasks[id].state, 400
 
@@ -602,21 +637,25 @@ DEFAULT_CONFIG = {
             "options": {
                 "proxy": "kant.yt.yandex.net",
             },
-            "remote_copy_network": "fastbone"
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
         },
         "smith": {
             "type": "yt",
             "options": {
                 "proxy": "smith.yt.yandex.net",
             },
-            "remote_copy_network": "fastbone"
+            # TODO: support it by client, move to options.
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
         },
         "plato": {
             "type": "yt",
             "options": {
                 "proxy": "plato.yt.yandex.net"
             },
-            "remote_copy_network": "fastbone"
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
         },
         "cedar": {
             "type": "yamr",
