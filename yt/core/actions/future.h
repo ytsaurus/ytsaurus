@@ -27,6 +27,12 @@ namespace NDetail {
 template <class T>
 class TPromiseState;
 
+//! Internal state holding the value.
+template <>
+class TPromiseState<void>;
+void Ref(TPromiseState<void>* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+void Unref(TPromiseState<void>* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +40,10 @@ class TPromiseState;
 //! Creates an empty (unset) promise.
 template <class T>
 TPromise<T> NewPromise();
+
+//! Creates an empty (unset) void promise.
+template <>
+TPromise<void> NewPromise<>();
 
 //! Creates an empty (unset) void promise.
 TPromise<void> NewPromise();
@@ -420,7 +430,6 @@ private:
 
     template <class U>
     friend TPromise<U> NewPromise();
-    friend TPromise<void> NewPromise();
     template <class U>
     friend TPromise<typename NMpl::TDecay<U>::TType> MakePromise(U&& value);
 
@@ -536,7 +545,6 @@ private:
 
     template <class U>
     friend TPromise<U> NewPromise();
-    friend TPromise<void> NewPromise();
     friend TPromise<void> MakePromise();
 
     template <class U>
