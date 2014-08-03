@@ -2,7 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list, REPEAT, CANCEL
 from yt.tools.common import update_args
-from yt.tools.mr import Mr
+from yt.tools.yamr import Yamr
 from yt.wrapper.common import die
 
 import yt.logger as logger
@@ -29,15 +29,15 @@ def export_table(object, args):
         src = object
         dst = os.path.join(params.destination_dir, src.strip("/"))
 
-    mr = Mr(binary=params.mapreduce_binary,
-            server=params.mr_server,
-            server_port=params.mr_server_port,
-            http_port=params.mr_http_port,
-            proxies=params.mr_proxy,
-            proxy_port=params.mr_proxy_port,
-            fetch_info_from_http=params.fetch_info_from_http,
-            cache=False,
-            mr_user=params.mr_user)
+    mr = Yamr(binary=params.mapreduce_binary,
+              server=params.mr_server,
+              server_port=params.mr_server_port,
+              http_port=params.mr_http_port,
+              proxies=params.mr_proxy,
+              proxy_port=params.mr_proxy_port,
+              fetch_info_from_http=params.fetch_info_from_http,
+              cache=False,
+              mr_user=params.mr_user)
 
     try:
         logger.info("Exporting '%s' to '%s'", src, dst)

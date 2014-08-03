@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import yt.logger as logger
-from yt.tools.mr import Mr
+from yt.tools.yamr import Yamr
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid
 import yt.wrapper as yt
@@ -284,10 +284,10 @@ class Application(object):
                 self._clusters[name]._export_pool = cluster_description.get("mr_export_pool")
                 self._clusters[name]._import_pool = cluster_description.get("mr_import_pool")
                 self._clusters[name]._network = cluster_description.get("remote_copy_network")
-            elif type == "mr":
+            elif type == "yamr":
                 if "viewer" in options:
                     del options["viewer"]
-                self._clusters[name] = Mr(**options)
+                self._clusters[name] = Yamr(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
@@ -608,7 +608,7 @@ DEFAULT_CONFIG = {
             "options": {"proxy": "plato.yt.yandex.net"}
         },
         "cedar": {
-            "type": "mr",
+            "type": "yamr",
             "options": {
                 "server": "cedar00.search.yandex.net",
                 "opts": "MR_NET_TABLE=ipv6",
