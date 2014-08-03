@@ -338,6 +338,16 @@ template <bool W, class U, class... TArgs>
 struct TAsyncViaHelper<W, U(TArgs...)>
     : public TAsyncViaHelperBase<U, TArgs...>
 {
+    typedef TAsyncViaHelperBase<U, TArgs...> TBase;
+
+    typedef typename TBase::R R;
+    typedef typename TBase::FR FR;
+    typedef typename TBase::PR PR;
+
+    typedef typename TBase::TSourceCallback TSourceCallback;
+    typedef typename TBase::TTargetCallback TTargetCallback;
+
+
     static void Inner(const TSourceCallback& this_, PR promise, TArgs... args)
     {
         RegisterFiberCancelation(promise);
@@ -348,7 +358,7 @@ struct TAsyncViaHelper<W, U(TArgs...)>
     {
         auto promise = NewPromise<R>();
         auto future = promise.ToFuture();
-        auto canceler = BIND(&Canceler, future);
+        auto canceler = BIND(&TBase::Canceler, future);
         auto inner = BIND(&Inner, this_, promise, std::forward<TArgs>(args)...);
         GuardedInvoke(std::move(invoker), std::move(inner), std::move(canceler));
         return future;
@@ -364,6 +374,16 @@ template <bool W, class... TArgs>
 struct TAsyncViaHelper<W, void(TArgs...)>
     : public TAsyncViaHelperBase<void, TArgs...>
 {
+    typedef TAsyncViaHelperBase<void, TArgs...> TBase;
+
+    typedef typename TBase::R R;
+    typedef typename TBase::FR FR;
+    typedef typename TBase::PR PR;
+
+    typedef typename TBase::TSourceCallback TSourceCallback;
+    typedef typename TBase::TTargetCallback TTargetCallback;
+    
+
     static void Inner(const TSourceCallback& this_, PR promise, TArgs... args)
     {
         RegisterFiberCancelation(promise);
@@ -375,7 +395,7 @@ struct TAsyncViaHelper<W, void(TArgs...)>
     {
         auto promise = NewPromise<R>();
         auto future = promise.ToFuture();
-        auto canceler = BIND(&Canceler, future);
+        auto canceler = BIND(&TBase::Canceler, future);
         auto inner = BIND(&Inner, this_, promise, std::forward<TArgs>(args)...);
         GuardedInvoke(std::move(invoker), std::move(inner), std::move(canceler));
         return future;
@@ -391,6 +411,13 @@ template <class U, class... TArgs>
 struct TAsyncViaHelper<true, U(TArgs...)>
     : public TAsyncViaHelperBase<U, TArgs...>
 {
+    typedef TAsyncViaHelperBase<U, TArgs...> TBase;
+    typedef typename TBase::R R;
+    typedef typename TBase::FR FR;
+    typedef typename TBase::PR PR;
+    typedef typename TBase::TSourceCallback TSourceCallback;
+    typedef typename TBase::TTargetCallback TTargetCallback;
+
     static void Inner(const TSourceCallback& this_, PR promise, TArgs... args)
     {
         RegisterFiberCancelation(promise);
@@ -403,7 +430,7 @@ struct TAsyncViaHelper<true, U(TArgs...)>
     {
         auto promise = NewPromise<R>();
         auto future = promise.ToFuture();
-        auto canceler = BIND(&Canceler, future);
+        auto canceler = BIND(&TBase::Canceler, future);
         auto inner = BIND(&Inner, this_, promise, std::forward<TArgs>(args)...);
         GuardedInvoke(std::move(invoker), std::move(inner), std::move(canceler));
         return future;
