@@ -5,8 +5,8 @@
 #include "response.h"
 #include "buffered_stream.h"
 #include "descriptor.h"
-#include "shutdown.h"
 
+#include <core/misc/at_exit_manager.h>
 #include <core/misc/intrusive_ptr.h>
 
 #include <core/concurrency/async_stream.h>
@@ -274,7 +274,6 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-
 class driver_module
     : public Py::ExtensionModule<driver_module>
 {
@@ -285,7 +284,9 @@ public:
     {
         PyEval_InitThreads();
 
-        RegisterShutdown();
+        YCHECK(!AtExitManager_);
+        AtExitManager_ = new TAtExitManager();
+        Py_AtExit([] () { delete AtExitManager_; });
 
         TDriver::InitType();
         TBufferedStreamWrap::InitType();
@@ -301,6 +302,9 @@ public:
         moduleDict["Driver"] = TDriver::type();
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
     }
+
+    virtual ~driver_module()
+    { }
 
     Py::Object ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
@@ -334,9 +338,11 @@ public:
         return Py::None();
     }
 
-    virtual ~driver_module()
-    { }
+private:
+    static TAtExitManager* AtExitManager_;
 };
+
+TAtExitManager* driver_module::AtExitManager_ = nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////
 
