@@ -108,7 +108,8 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     try {
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid output table switch in YAMR: %Qv", tableIndex);
+        THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
+            tableIndex);
     }
     Consumer->SwitchTable(value);
 }
@@ -188,7 +189,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         CurrentToken.append(begin, next);
         if (CurrentToken.length() > NTableClient::MaxRowWeightLimit) {
             THROW_ERROR_EXCEPTION(
-                "Current token is too large (%d > %" PRId64 ")",
+                "YAMR token length limit exceeded: %v > %v",
                 CurrentToken.length(),
                 NTableClient::MaxRowWeightLimit);
         }
@@ -239,7 +240,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
-    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %s, found %s (%s)",
+    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %v, found %v (%v)",
         ~Stroka(FieldSeparator).Quote(),
         ~Stroka(RecordSeparator).Quote(),
         ~GetDebugInfo());
@@ -337,7 +338,7 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
 
     if (BytesToRead > NTableClient::MaxRowWeightLimit) {
         THROW_ERROR_EXCEPTION(
-            "Lenval length is too large (%v > %v)",
+            "YAMR lenval length limit exceeded: %v > %v",
             BytesToRead,
             NTableClient::MaxRowWeightLimit);
     }
