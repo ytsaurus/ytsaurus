@@ -13,15 +13,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(__GNUC__) || defined(__clang__)
-namespace __cxxabiv1 {
-    extern "C" __cxa_eh_globals* __cxa_get_globals() CXXABIv1_NOTHROW;
-    extern "C" __cxa_eh_globals* __cxa_get_globals_fast() CXXABIv1_NOTHROW;
-} // namespace __cxxabiv1
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NConcurrency {
 

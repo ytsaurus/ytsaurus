@@ -2,7 +2,7 @@
 
 #include <util/system/defaults.h>
 
-////////////////////////////////////////////////////////////////////////////////
+#include <config.h>
 
 // MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
 // For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
@@ -11,11 +11,6 @@
 #   define CXXABIv1
 #   ifdef HAVE_CXXABI_H
 #       include <cxxabi.h>
-#   endif
-#   ifdef _GLIBCXX_NOTHROW
-#       define CXXABIv1_NOTHROW _GLIBCXX_NOTHROW
-#   else
-#       define CXXABIv1_NOTHROW throw()
 #   endif
 namespace __cxxabiv1 {
     // We do not care about actual type here, so erase it.
@@ -26,8 +21,6 @@ namespace __cxxabiv1 {
     };
 } // namespace __cxxabiv1
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NConcurrency {

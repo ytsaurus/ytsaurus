@@ -76,13 +76,16 @@ set(CUSTOM_CMAKE_CXX_FLAGS
 
 # Now configure compiler options for g++ and clang.
 if(CMAKE_COMPILER_IS_GNUCXX)
-  set(WARNINGS_FLAGS "-Wall")
+  set(DIAGNOSTIC_FLAGS "-Wall")
 
   if(CMAKE_COMPILER_IS_CLANG)
     # Do not yell about unused arguments.
-    set(WARNINGS_FLAGS "${WARNINGS_FLAGS} -Qunused-arguments")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Qunused-arguments")
+    if (CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
+      set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
+    endif()
   else()
-    set(WARNINGS_FLAGS "${WARNINGS_FLAGS} -Wno-sign-compare -Wno-parentheses -Wno-unused-local-typedefs")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-sign-compare -Wno-parentheses -Wno-unused-local-typedefs")
   endif()
 
   if(NOT CMAKE_COMPILER_IS_CLANG)
@@ -100,9 +103,9 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     set(ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strstr")
   endif()
 
-  set(CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -fPIC ${WARNINGS_FLAGS} ${ARCH_FLAGS}"
+  set(CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set(CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -fPIC ${WARNINGS_FLAGS} ${ARCH_FLAGS}"
+  set(CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -fPIC ${DIAGNOSTIC_FLAGS} ${ARCH_FLAGS}"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # Use libc++ on Mac OS X.

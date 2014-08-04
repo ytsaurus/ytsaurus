@@ -156,7 +156,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
 {
     typedef TIntrusivePtr<U>& T;
     T T_;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(T x)
         : T_(x)
     { }
     inline T Lock() const
@@ -170,7 +170,7 @@ struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
 {
     typedef const TIntrusivePtr<U>& T;
     T T_;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(T x)
         : T_(x)
     { }
     inline T Lock() const
@@ -196,7 +196,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U>& >
 {
     typedef TWeakPtr<U>& T;
     T T_;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(T x)
         : T_(x)
     { }
     inline TIntrusivePtr<U> Lock() const
@@ -210,7 +210,7 @@ struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 {
     typedef const TWeakPtr<U>& T;
     T T_;
-    inline TMaybeLockHelper(const T& x)
+    inline TMaybeLockHelper(T x)
         : T_(x)
     { }
     inline TIntrusivePtr<U> Lock() const
