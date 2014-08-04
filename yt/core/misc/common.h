@@ -4,6 +4,7 @@
 #include <set>
 #include <vector>
 #include <list>
+#include <queue>
 
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>

@@ -67,7 +67,7 @@ void* SwitchExecutionContext(
     void* opaque)
 {
 #ifdef CXXABIv1
-    auto* eh = __cxxabiv1::__cxa_get_globals_fast();
+    auto* eh = __cxxabiv1::__cxa_get_globals();
     caller->EH_ = *eh;
     *eh = target->EH_;
 #endif

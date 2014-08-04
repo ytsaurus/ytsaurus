@@ -140,7 +140,7 @@ public:
                 symbol.c_str(),
                 Module_);
 
-            it = CachedRoutines_.emplace(symbol, routine).first;
+            it = CachedRoutines_.insert(std::make_pair(symbol, routine)).first;
         }
 
         YCHECK(it->second->getFunctionType() == type);
@@ -222,6 +222,10 @@ private:
 
     static void DiagnosticHandler(const llvm::DiagnosticInfo& info, void* /*opaque*/)
     {
+        if (info.getSeverity() != llvm::DS_Error && info.getSeverity() != llvm::DS_Warning) {
+            return;
+        }
+
         std::string what;
         llvm::raw_string_ostream os(what);
         llvm::DiagnosticPrinterRawOStream printer(os);
@@ -266,8 +270,6 @@ private:
                 return "DS_Error";
             case llvm::DS_Warning:
                 return "DS_Warning";
-            case llvm::DS_Remark:
-                return "DS_Remark";
             case llvm::DS_Note:
                 return "DS_Note";
             default:
@@ -284,7 +286,7 @@ private:
 
     TCgFunction CompiledBody_;
 
-    mutable std::unordered_map<Stroka, llvm::Function*> CachedRoutines_;
+    mutable yhash_map<Stroka, llvm::Function*> CachedRoutines_;
 
 };
 
