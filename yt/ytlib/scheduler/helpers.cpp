@@ -39,6 +39,21 @@ TYPath GetStderrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
+TYPath GetFailContextRootPath(const TOperationId& operationId, const TJobId& jobId)
+{
+    return
+        GetJobPath(operationId, jobId)
+        + "/fail_contexts";
+}
+
+TYPath GetFailContextPath(const TOperationId& operationId, const TJobId& jobId, size_t index)
+{
+    return
+        GetFailContextRootPath(operationId, jobId)
+        + "/"
+        + ToString(index);
+}
+
 TYPath GetSnapshotPath(const TOperationId& operationId)
 {
     return

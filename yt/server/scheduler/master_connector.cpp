@@ -213,20 +213,24 @@ public:
     }
 
 
-    void CreateJobNode(TJobPtr job, const TChunkId& stderrChunkId)
+    void CreateJobNode(TJobPtr job,
+        const NChunkClient::TChunkId& stderrChunkId,
+        const std::vector<TChunkId>& failContextChunkIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
+        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s, FailContextChunkIds: %s)",
             ~ToString(job->GetOperation()->GetId()),
             ~ToString(job->GetId()),
-            ~ToString(stderrChunkId));
+            ~ToString(stderrChunkId),
+            ~JoinToString(failContextChunkIds));
 
         auto* list = GetUpdateList(job->GetOperation());
         TJobRequest request;
         request.Job = job;
         request.StderrChunkId = stderrChunkId;
+        request.FailContextChunkIds = failContextChunkIds;
         list->JobRequests.push_back(request);
     }
 
@@ -330,6 +334,7 @@ private:
     {
         TJobPtr Job;
         TChunkId StderrChunkId;
+        std::vector<TChunkId> FailContextChunkIds;
     };
 
     struct TLivePreviewRequest
@@ -1369,6 +1374,48 @@ private:
 
                     batchReq->AddRequest(req, "create_stderr");
                 }
+
+                bool existNotNullFailContext = false;
+                for (const auto& failContextChunkId : request.FailContextChunkIds) {
+                    if (failContextChunkId != NChunkServer::NullChunkId) {
+                        existNotNullFailContext = true;
+                    }
+                }
+
+                if (existNotNullFailContext) {
+                    {
+                        auto failContextRootPath = GetFailContextRootPath(operation->GetId(), job->GetId());
+                        auto req = TYPathProxy::Set(failContextRootPath);
+                        req->set_value(BuildYsonStringFluently()
+                            .BeginMap()
+                            .EndMap()
+                            .Data());
+                        batchReq->AddRequest(req, "update_op_node");
+                    }
+
+                    size_t index = 0;
+                    for (const auto& failContextChunkId : request.FailContextChunkIds) {
+                        if (failContextChunkId != NChunkServer::NullChunkId) {
+                            auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId(), index);
+
+                            auto req = TCypressYPathProxy::Create(failContextPath);
+                            GenerateMutationId(req);
+                            req->set_type(EObjectType::File);
+
+                            auto attributes = CreateEphemeralAttributes();
+                            attributes->Set("vital", false);
+                            attributes->Set("replication_factor", 1);
+                            attributes->Set("account", TmpAccountName);
+                            ToProto(req->mutable_node_attributes(), *attributes);
+
+                            auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
+                            ToProto(reqExt->mutable_chunk_id(), failContextChunkId);
+
+                            batchReq->AddRequest(req, "create_fail_context");
+                        }
+                        ++index;
+                    }
+                }
             }
             requests.clear();
         }
@@ -1442,6 +1489,18 @@ private:
                     LOG_WARNING(
                         rsp->GetError(),
                         "Error creating stderr node (OperationId: %s)",
+                        ~ToString(operationId));
+                }
+            }
+        }
+
+        {
+            auto rsps = batchRsp->GetResponses("create_fail_context");
+            for (const auto& rsp: rsps) {
+                if (!rsp->IsOK()) {
+                    LOG_WARNING(
+                        rsp->GetError(),
+                        "Error creating fail context node (OperationId: %s)",
                         ~ToString(operationId));
                 }
             }
@@ -1737,9 +1796,12 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
     return Impl->FlushOperationNode(operation);
 }
 
-void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stderrChunkId)
+void TMasterConnector::CreateJobNode(
+    TJobPtr job,
+    const TChunkId& stderrChunkId,
+    const std::vector<TChunkId>& failContextChunkIds)
 {
-    return Impl->CreateJobNode(job, stderrChunkId);
+    return Impl->CreateJobNode(job, stderrChunkId, failContextChunkIds);
 }
 
 void TMasterConnector::AttachToLivePreview(

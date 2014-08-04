@@ -89,6 +89,7 @@ message TSchedulerJobResultExt
     // List of input chunks the job was unable to read.
     repeated NYT.NProto.TGuid failed_chunk_ids = 5;
 
+    repeated NYT.NProto.TGuid fail_context_chunk_ids = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -287,6 +287,7 @@ TError TInputPipe::WriteAll()
             RETURN_IF_ERROR(error);
         }
 
+        swap(*Buffer, PreviousBuffer);
         Buffer->Clear();
     }
 
@@ -323,6 +324,14 @@ void TInputPipe::Finish()
 TJobPipe TInputPipe::GetJobPipe() const
 {
     return TJobPipe{JobDescriptor, Pipe.ReadFd, Pipe.WriteFd};
+}
+
+TBlob TInputPipe::GetFailContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer.Blob()));
+    result.Append(TRef::FromBlob(Buffer->Blob()));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -516,7 +516,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // Async part.
     auto this_ = MakeStrong(this);
     auto controller = MakeStrong(Controller); // hold the controller
-    auto jobSpecBuilder = BIND([this, this_, joblet, controller] (TJobSpec* jobSpec) {
+    auto operation = MakeStrong(Controller->Operation); // hold the operation
+    auto jobSpecBuilder = BIND([this, this_, joblet, controller, operation] (TJobSpec* jobSpec) {
         BuildJobSpec(joblet, jobSpec);
         Controller->CustomizeJobSpec(joblet, jobSpec);
 
@@ -1096,9 +1097,11 @@ TError TOperationControllerBase::DoPrepare()
 
         SuspendUnavailableInputStripes();
 
-        InitInputChunkScratcher();
-
         AddAllTaskPendingHints();
+
+        // Input chunk scratcher initialization should be the last step to avoid races,
+        // because input chunk scratcher works in control thread.
+        InitInputChunkScratcher();
 
         return TError();
     } catch (const std::exception& ex) {
@@ -1145,9 +1148,10 @@ void TOperationControllerBase::DoRevive()
 
     AbortAllJoblets();
 
-    InitInputChunkScratcher();
-
     AddAllTaskPendingHints();
+
+    // Input chunk scratcher initialization should be the last step to avoid races.
+    InitInputChunkScratcher();
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1578,7 +1582,8 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(job->GetId())
-        .Item("resource_limits").Value(job->ResourceUsage());
+        .Item("operation_id").Value(job->GetOperation()->GetId())
+        .Item("resource_limits").Value(job->ResourceLimits());
 
     JobCounter.Start(1);
 }
@@ -3558,8 +3563,10 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
 
     return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
+        .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
+        .Item("resource_limits").Value(job->ResourceLimits())
         .Item("statistics").Value(statistics);
 }
 

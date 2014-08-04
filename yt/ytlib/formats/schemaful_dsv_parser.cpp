@@ -103,6 +103,10 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
         }
     }
 
+    if (FieldIndex_ == Columns_.size()) {
+        THROW_ERROR_EXCEPTION("Too many fields in row (expected %v)", Columns_.size());
+    }
+
     Consumer_->OnKeyedItem(Columns_[FieldIndex_++]);
     Consumer_->OnStringScalar(CurrentToken_);
     CurrentToken_.clear();

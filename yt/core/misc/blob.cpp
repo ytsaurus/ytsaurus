@@ -151,6 +151,15 @@ void TBlob::Reset()
     Size_ = Capacity_ = 0;
 }
 
+void swap(TBlob& left, TBlob& right)
+{
+    if (&left != &right) {
+        std::swap(left.Begin_, right.Begin_);
+        std::swap(left.Size_, right.Size_);
+        std::swap(left.Capacity_, right.Capacity_);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

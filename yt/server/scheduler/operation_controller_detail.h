@@ -398,7 +398,7 @@ protected:
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
 
-        int GetTotalJobCount() const;
+        virtual int GetTotalJobCount() const;
         int GetTotalJobCountDelta();
 
         virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;

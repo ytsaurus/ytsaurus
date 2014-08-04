@@ -145,6 +145,15 @@ std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
         maxSize));
 }
 
+std::unique_ptr<TErrorOutput> TUserJobIO::CreateFailContextOutput(
+    const TTransactionId& transactionId) const
+{
+    return std::unique_ptr<TErrorOutput>(new TErrorOutput(
+        IOConfig->ErrorFileWriter,
+        Host->GetMasterChannel(),
+        transactionId));
+}
+
 std::vector<TChunkId> TUserJobIO::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;

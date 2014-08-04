@@ -171,4 +171,35 @@ describe("ApplicationAuth", function() {
         }, done).end();
     });
 
+    it("should respond with an error on GET /login request", function(done) {
+        ask("GET", "/login", {}, function(rsp) {
+            rsp.should.be.http4xx;
+        }, done).end();
+    });
+
+    it("should respond with an error on empty POST /login request", function(done) {
+        ask("POST", "/login", {}, function(rsp) {
+            rsp.should.be.http4xx;
+        }, done).end();
+    });
+
+    it("should respond with an login & realm on proper POST /login request", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=foobar")
+            .reply(200, {
+                error: "OK",
+                login: "donkey",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            });
+        ask("POST", "/login", {}, function(rsp) {
+            rsp.should.be.http2xx;
+            expect(rsp.json.login).to.eql("donkey");
+            expect(rsp.json.realm).to.eql("blackbox-ytrealm-key");
+            mock.done();
+        }, done).end(qs.stringify({
+            token: "foobar"
+        }));
+    });
+
+
 });

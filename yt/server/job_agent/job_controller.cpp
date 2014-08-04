@@ -215,6 +215,30 @@ void TJobController::OnResourcesReleased()
     ScheduleStart();
 }
 
+bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
+{
+    // Do this check in the first place in order to avoid weird behavior
+    // when decreasing resource usage leads to job abortion because of 
+    // other memory consuming subsystems (e.g. ChunkMeta),
+    if (Dominates(delta, ZeroNodeResources())) {
+        return true;
+    }
+
+    if (!Dominates(GetResourceLimits(), GetResourceUsage(false) + delta)) {
+        return false;
+    }
+
+    if (delta.memory() > 0) {
+        auto* tracker = Bootstrap->GetMemoryUsageTracker();
+        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
+        if (!error.IsOK()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& usage)
 {
     if (job->GetState() != EJobState::Running) {
@@ -225,7 +249,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
     auto oldUsage = job->GetResourceUsage();
     auto delta = usage - oldUsage;
 
-    if (!Dominates(GetResourceLimits(), GetResourceUsage(false) + delta)) {
+    if (!CheckResourceUsageDelta(delta)) {
         job->Abort(TError(
             NExecAgent::EErrorCode::ResourceOverdraft,
             "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
@@ -233,22 +257,6 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
             ~FormatResources(usage)));
         return;
     }
-
-    if (delta.memory() > 0) {
-        auto* tracker = Bootstrap->GetMemoryUsageTracker();
-        auto error = tracker->TryAcquire(EMemoryConsumer::Job, delta.memory());
-        if (!error.IsOK()) {
-            job->Abort(TError(
-                NExecAgent::EErrorCode::ResourceOverdraft,
-                "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
-                ~FormatResources(oldUsage),
-                ~FormatResources(usage))
-                << error);
-            return;
-        }
-    }
-
-    job->SetResourceUsage(usage);
 
     if (!Dominates(delta, ZeroNodeResources())) {
         OnResourcesReleased();

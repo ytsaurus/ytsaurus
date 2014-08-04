@@ -106,7 +106,6 @@ def configure(options):
         "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
         "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
-        "-DYT_BUILD_ENABLE_NODEJS:BOOL=ON",
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),

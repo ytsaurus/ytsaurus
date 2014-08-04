@@ -84,8 +84,10 @@ ISessionPtr TSessionManager::StartSession(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (static_cast<int>(SessionMap_.size()) >= Config_->MaxWriteSessions) {
-        THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %d has been reached",
+        TError error("Maximum concurrent write session limit %d has been reached",
             Config_->MaxWriteSessions);
+        LOG_ERROR(error);
+        THROW_ERROR(error);
     }
     
     auto session = CreateSession(chunkId, options);

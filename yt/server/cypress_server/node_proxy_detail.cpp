@@ -819,6 +819,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
     ValidatePermission(
         trunkSourceImpl,
         EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),

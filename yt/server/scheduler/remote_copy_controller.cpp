@@ -25,6 +25,7 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkServer;
@@ -54,6 +55,14 @@ public:
         : TOperationControllerBase(config, spec, host, operation)
         , Spec_(spec)
     { }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TOperationControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("cluster_name").Value(Spec_->ClusterName)
+            .Item("network_name").Value(Spec_->NetworkName);
+    }
 
     // Persistence.
 

@@ -38,6 +38,17 @@ TErrorOutput::TErrorOutput(
     , IsClosed(false)
 { }
 
+TErrorOutput::TErrorOutput(
+    TFileWriterConfigPtr config,
+    IChannelPtr masterChannel,
+    const TTransactionId& transactionId)
+    : TErrorOutput(
+        config,
+        masterChannel,
+        transactionId,
+        std::numeric_limits<i64>::max())
+{ }
+
 TErrorOutput::~TErrorOutput() throw()
 { }
 
@@ -73,7 +84,7 @@ void TErrorOutput::DoFinish()
         return;
 
     FileWriter->Finish();
-    IsClosed = true;;
+    IsClosed = true;
 }
 
 TChunkId TErrorOutput::GetChunkId() const

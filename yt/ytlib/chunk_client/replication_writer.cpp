@@ -800,6 +800,10 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
     YCHECK(!IsClosing_);
     YCHECK(!State_.IsClosed());
 
+    if (!State_.IsActive()) {
+        return false;
+    }
+
     WindowSlots_.Acquire(GetTotalSize(blocks));
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
         BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));

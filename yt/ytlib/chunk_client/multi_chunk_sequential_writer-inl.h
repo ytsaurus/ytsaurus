@@ -250,7 +250,7 @@ TAsyncError TOldMultiChunkSequentialWriter<TProvider>::FinishCurrentSession()
         NChunkClient::NProto::TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), CurrentSession.ChunkId);
 
-        int chunkIndex;
+        int chunkIndex = -1;
         {
             TGuard<TSpinLock> guard(WrittenChunksGuard);
             chunkIndex = WrittenChunks.size();

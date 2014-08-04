@@ -669,7 +669,7 @@ private:
                 }
             };
 
-            Slot->MakeFile(fileName, producer);
+            Slot->MakeFile(fileName, producer, descriptor.executable());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Failed to write regular user file %s",

@@ -46,8 +46,11 @@ public:
     //! Creates a symbolic link in the sandbox.
     void MakeLink(const Stroka& linkName, const Stroka& targetPath, bool isExecutable);
 
-    //! Creates a file named #fileName in the sandbox, fills it with data obtained from #dataProducer.
-    void MakeFile(const Stroka& fileName, std::function<void (TOutputStream*)> dataProducer);
+    //! Writes data from producer to #fileName.
+    void MakeFile(
+        const Stroka& fileName, 
+        std::function<void (TOutputStream*)> dataProducer, 
+        bool isExecutable = false);
 
     const Stroka& GetWorkingDirectory() const;
 

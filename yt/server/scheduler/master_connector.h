@@ -43,7 +43,9 @@ public:
     TAsyncError ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
-    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stderrChunkId);
+    void CreateJobNode(TJobPtr job,
+        const NChunkClient::TChunkId& stderrChunkId,
+        const std::vector<NChunkClient::TChunkId>& failContexts);
     
     void AttachToLivePreview(
         TOperationPtr operation,
