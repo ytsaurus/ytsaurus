@@ -182,9 +182,11 @@ void TNonOwningCGroup::AddCurrentTask()
 
 void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
 {
+#ifdef _linux_
     auto path = NFS::CombinePaths(FullPath_, name);
     TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
+#endif
 }
 
 std::vector<int> TNonOwningCGroup::GetTasks() const
@@ -298,7 +300,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
         jiffies[i] = FromString<i64>(values[2 * i + 1]);
     }
 
-    for (int i = 0; i < 2; ++ i) {
+    for (int i = 0; i < 2; ++i) {
         if (type[i] == "user") {
             result.UserTime = FromJiffies(jiffies[i]);
         } else if (type[i] == "system") {
@@ -403,6 +405,51 @@ TMemory::TStatistics TMemory::GetStatistics()
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
+}
+
+bool TMemory::IsHierarchyEnabled() const
+{
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.use_hierarchy");
+    auto isHierarchyEnabled = FromString<int>(TFileInput(filename).ReadAll());
+    YCHECK((isHierarchyEnabled == 0) || (isHierarchyEnabled == 1));
+
+    return (isHierarchyEnabled == 1);
+#else
+    return false;
+#endif
+}
+
+void TMemory::EnableHierarchy() const
+{
+    Set("memory.use_hierarchy", "1");
+}
+
+bool TMemory::IsOomEnabled() const
+{
+#ifdef _linux_
+    const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
+    auto values = ReadAllValues(path);
+    if (values.size() != 4) {
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~path.Quote(), values.size());
+    }
+    for (int i = 0; i < 2; ++i) {
+        if (values[2 * i] == "oom_kill_disable") {
+            const auto& isDisabled = values[2 * i + 1];
+            if (isDisabled == "0") {
+                return true;
+            } else if (isDisabled == "1") {
+                return false;
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable. Expected '0' or '1'. Got: %s",
+                    ~isDisabled.Quote());
+            }
+        }
+    }
+    THROW_ERROR_EXCEPTION("Unable to find 'oom_kill_disable' in %s", ~path.Quote());
+#else
+    return false;
+#endif
 }
 
 void TMemory::DisableOom() const

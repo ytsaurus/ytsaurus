@@ -149,6 +149,11 @@ public:
     TStatistics GetStatistics();
 
     void SetLimitInBytes(i64 bytes) const;
+
+    bool IsHierarchyEnabled() const;
+    void EnableHierarchy() const;
+
+    bool IsOomEnabled() const;
     void DisableOom() const;
     TEvent GetOomEvent() const;
 };

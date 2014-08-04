@@ -179,6 +179,55 @@ TEST(CGroup, GetMemoryStats)
     group.Destroy();
 }
 
+TEST(CGroup, OomEnabledByDefault)
+{
+    TMemory group("some");
+    group.Create();
+
+    EXPECT_TRUE(group.IsOomEnabled());
+
+    group.Destroy();
+}
+
+TEST(CGroup, DisableOom)
+{
+    TMemory group("some");
+    group.Create();
+    group.DisableOom();
+
+    EXPECT_FALSE(group.IsOomEnabled());
+
+    group.Destroy();
+}
+
+TEST(CGroup, OomSettingsIsInherited)
+{
+    TMemory group("parent");
+    group.Create();
+    group.DisableOom();
+
+    TMemory child("parent/child");
+    child.Create();
+    EXPECT_FALSE(child.IsOomEnabled());
+
+    child.Destroy();
+    group.Destroy();
+}
+
+TEST(CGroup, UnableToDisableOom)
+{
+    TMemory group("parent");
+    group.Create();
+    group.EnableHierarchy();
+
+    TMemory child("parent/child");
+    child.Create();
+    EXPECT_THROW(group.DisableOom(), std::exception);
+
+    child.Destroy();
+    group.Destroy();
+}
+
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;
