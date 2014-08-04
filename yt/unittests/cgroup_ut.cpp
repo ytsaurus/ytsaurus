@@ -228,6 +228,13 @@ TEST(CGroup, UnableToDisableOom)
     group.Destroy();
 }
 
+TEST(CGroup, GetOomEventIfOomIsEnabled)
+{
+    TMemory group("some");
+    group.Create();
+    auto event = group.GetOomEvent();
+}
+
 TEST(CurrentProcessCGroup, Empty)
 {
     std::vector<char> empty;
