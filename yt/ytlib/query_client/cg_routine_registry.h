@@ -42,8 +42,8 @@ private:
         TTypeBuilder typeBuilder);
 
 private:
-    std::unordered_map<Stroka, uint64_t> SymbolToAddress_;
-    std::unordered_map<Stroka, TTypeBuilder> SymbolToTypeBuilder_;
+    yhash_map<Stroka, uint64_t> SymbolToAddress_;
+    yhash_map<Stroka, TTypeBuilder> SymbolToTypeBuilder_;
 
 };
 

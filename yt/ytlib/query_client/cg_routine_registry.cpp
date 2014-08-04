@@ -20,12 +20,15 @@ TRoutineRegistry* TRoutineRegistry::Get()
 uint64_t TRoutineRegistry::GetAddress(const Stroka& symbol) const
 {
     auto it = SymbolToAddress_.find(symbol);
-    return it != SymbolToAddress_.end() ? it->second : 0;
+    YCHECK(it != SymbolToAddress_.end());
+    return it->second;
 }
 
 TRoutineRegistry::TTypeBuilder TRoutineRegistry::GetTypeBuilder(const Stroka& symbol) const
 {
-    return SymbolToTypeBuilder_.at(symbol);
+    auto it = SymbolToTypeBuilder_.find(symbol);
+    YCHECK(it != SymbolToTypeBuilder_.end());
+    return it->second;
 }
 
 bool TRoutineRegistry::RegisterRoutineImpl(
@@ -33,8 +36,8 @@ bool TRoutineRegistry::RegisterRoutineImpl(
     uint64_t address,
     TTypeBuilder typeBuilder)
 {
-    YCHECK(SymbolToAddress_.emplace(symbol, std::move(address)).second);
-    YCHECK(SymbolToTypeBuilder_.emplace(symbol, std::move(typeBuilder)).second);
+    YCHECK(SymbolToAddress_.insert(std::make_pair(Stroka(symbol), std::move(address))).second);
+    YCHECK(SymbolToTypeBuilder_.insert(std::make_pair(Stroka(symbol), std::move(typeBuilder))).second);
     return true;
 }
 
