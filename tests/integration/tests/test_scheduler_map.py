@@ -689,3 +689,4 @@ print row + table_index
 
         with pytest.raises(YtError):
             map(in_='//tmp/t_in', out='//tmp/t_out', command='cat',
+                opt=['/spec/mapper/memory_limit=1000000000000'])
