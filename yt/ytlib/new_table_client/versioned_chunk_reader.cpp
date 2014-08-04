@@ -81,7 +81,7 @@ private:
     int GetBeginBlockIndex() const;
     int GetEndBlockIndex() const;
 
-    TError DoOpen();
+    void DoOpen();
     void DoSwitchBlock();
     TBlockReader* NewBlockReader();
 
@@ -129,6 +129,7 @@ template <class TBlockReader>
 TAsyncError TVersionedChunkReader<TBlockReader>::Open()
 {
     return BIND(&TVersionedChunkReader<TBlockReader>::DoOpen, MakeStrong(this))
+        .Guarded()
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -295,21 +296,18 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 }
 
 template <class TBlockReader>
-TError TVersionedChunkReader<TBlockReader>::DoOpen()
+void TVersionedChunkReader<TBlockReader>::DoOpen()
 {
     // Check sensible lower limit.
     if (LowerLimit_.HasKey()) {
         auto maxKey = NYT::FromProto<TOwningKey>(CachedChunkMeta_->BoundaryKeys().max());
-        if (LowerLimit_.GetKey() > maxKey) {
-            return TError();
-        }
+        if (LowerLimit_.GetKey() > maxKey)
+            return;
     }
 
     if (LowerLimit_.HasRowIndex() &&
         LowerLimit_.GetRowIndex() >= CachedChunkMeta_->Misc().row_count())
-    {
-        return TError();
-    }
+        return;
 
     CurrentBlockIndex_ = GetBeginBlockIndex();
     auto endBlockIndex = GetEndBlockIndex();
@@ -325,9 +323,8 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
         blocks.push_back(blockInfo);
     }
 
-    if (blocks.empty()) {
-        return TError();
-    }
+    if (blocks.empty())
+        return;
 
     SequentialReader_ = New<TSequentialReader>(
         Config_,
@@ -335,8 +332,10 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
         ChunkReader_,
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
-    auto error = WaitFor(SequentialReader_->AsyncNextBlock());
-    RETURN_IF_ERROR(error);
+    {
+        auto error = WaitFor(SequentialReader_->AsyncNextBlock());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
 
     BlockReader_.reset(NewBlockReader());
 
@@ -347,8 +346,6 @@ TError TVersionedChunkReader<TBlockReader>::DoOpen()
     if (LowerLimit_.HasKey()) {
         YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
     }
-
-    return TError();
 }
 
 template <class TBlockReader>
