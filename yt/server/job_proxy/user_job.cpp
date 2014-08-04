@@ -122,7 +122,10 @@ public:
             CreateCGroup(Memory);
 
             Memory.SetLimitInBytes(UserJobSpec.memory_limit());
-            Memory.DisableOom();
+            if (Memory.IsOomEnabled()) {
+                LOG_WARNING("OOM is enabled for %s. Trying to disable it", ~Memory.GetFullPath().Quote());
+                Memory.DisableOom();
+            }
             OomEvent = Memory.GetOomEvent();
         }
 
