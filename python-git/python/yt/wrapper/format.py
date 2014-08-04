@@ -375,7 +375,10 @@ class YamrFormat(Format):
             if not fields:
                 break
             if len(fields) == 1:
-                table_index = int(fields[0])
+                try:
+                    table_index = int(fields[0])
+                except ValueError:
+                    raise YtFormatError("Invalid table switch '{0}'".format(fields[0]))
                 continue
             yield Record(*fields, tableIndex=table_index)
 
