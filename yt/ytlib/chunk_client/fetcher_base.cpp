@@ -121,8 +121,10 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetDefaultAddress());
-    return CreateRetryingChannel(Config_->NodeChannel, channel);
+    return CreateRetryingChannel(
+        Config_->NodeChannel,
+        GetLightNodeChannelFactory()->CreateChannel(
+            descriptor.GetDefaultAddress()));
 }
 
 void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex)

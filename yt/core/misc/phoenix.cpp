@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "phoenix.h"
 
+#include "singleton.h"
+
 namespace NYT {
 namespace NPhoenix {
 
@@ -9,9 +11,12 @@ namespace NPhoenix {
 TRegistry::TRegistry()
 { }
 
+TRegistry::~TRegistry()
+{ }
+
 TRegistry* TRegistry::Get()
 {
-    return Singleton<TRegistry>();
+    return TSingleton::Get();
 }
 
 ui32 TRegistry::GetTag(const std::type_info& typeInfo)

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
+#include <core/misc/public.h>
 
-#include <util/generic/singleton.h>
+#include <core/ytree/public.h>
 
 namespace NYT {
 namespace NTracing {
@@ -19,8 +19,6 @@ public:
     void Configure(NYTree::INodePtr node, const NYPath::TYPath& path = "");
     void Configure(const Stroka& fileName, const NYPath::TYPath& path);
 
-    void Shutdown();
-
     void Enqueue(
         const NTracing::TTraceContext& context,
         const Stroka& serviceName,
@@ -32,14 +30,16 @@ public:
         const Stroka& annotationKey,
         const Stroka& annotationValue);
 
+    DECLARE_SINGLETON_MIXIN(TTraceManager, TStaticInstanceMixin);
+    DECLARE_SINGLETON_PRIORITY(TTraceManager, 10);
+
 private:
     TTraceManager();
 
-    DECLARE_SINGLETON_FRIEND(TTraceManager);
+    ~TTraceManager();
 
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

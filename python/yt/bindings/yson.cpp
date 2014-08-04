@@ -2,8 +2,8 @@
 #include "common.h"
 #include "stream.h"
 #include "serialize.h"
-#include "shutdown.h"
 
+#include <core/misc/at_exit_manager.h>
 #include <core/ytree/convert.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
@@ -124,7 +124,9 @@ public:
     {
         PyEval_InitThreads();
 
-        RegisterShutdown();
+        YCHECK(!AtExitManager_);
+        AtExitManager_ = new TAtExitManager();
+        Py_AtExit([] () { delete AtExitManager_; });
 
         TYsonIterator::InitType();
 
@@ -136,6 +138,9 @@ public:
 
         initialize("Yson python bindings");
     }
+
+    virtual ~yson_module()
+    { }
 
     Py::Object Load(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
@@ -172,10 +177,9 @@ public:
         return Py::String(~result, result.Size());
     }
 
-    virtual ~yson_module()
-    { }
-
 private:
+    static TAtExitManager* AtExitManager_;
+
     Py::Object LoadImpl(
         const Py::Tuple& args_,
         const Py::Dict& kwargs_,
@@ -334,6 +338,8 @@ private:
         }
     }
 };
+
+TAtExitManager* yson_module::AtExitManager_ = nullptr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

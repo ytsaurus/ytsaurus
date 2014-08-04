@@ -4,6 +4,8 @@
 
 #include <core/misc/lazy_ptr.h>
 
+#include <core/misc/public.h>
+
 #include <core/concurrency/action_queue.h>
 
 namespace NYT {
@@ -14,8 +16,6 @@ namespace NDriver {
 class TDispatcher
 {
 public:
-    TDispatcher();
-
     static TDispatcher* Get();
 
     void Configure(int heavyPoolSize);
@@ -23,9 +23,13 @@ public:
     IInvokerPtr GetLightInvoker();
     IInvokerPtr GetHeavyInvoker();
 
-    void Shutdown();
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TDispatcher);
 
 private:
+    TDispatcher();
+
+    ~TDispatcher();
+
     int HeavyPoolSize;
 
     /*!

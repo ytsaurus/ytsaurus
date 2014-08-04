@@ -57,18 +57,6 @@ class TDelayedExecutor::TImpl
     : public TEVSchedulerThread
 {
 public:
-    TImpl()
-        : TEVSchedulerThread(
-            "DelayedExecutor",
-            false)
-        , PeriodicWatcher_(EventLoop)
-    {
-        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
-        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
-
-        Start();
-    }
-
     TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
     {
         return Submit(std::move(callback), delay.ToDeadLine());
@@ -102,7 +90,29 @@ public:
         entry.Reset();
     }
 
+    static TImpl* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TImpl, TRefCountedInstanceMixin);
+
 private:
+    TImpl()
+        : TEVSchedulerThread("DelayedExecutor", false)
+        , PeriodicWatcher_(EventLoop)
+    {
+        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
+        PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
+
+        Start();
+    }
+
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
     ev::periodic PeriodicWatcher_;
 
     //! Only touched from the dedicated thread.
@@ -168,27 +178,22 @@ private:
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), delay);
+    return TImpl::Get()->Submit(std::move(callback), delay);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    return RefCountedSingleton<TImpl>()->Submit(std::move(callback), deadline);
+    return TImpl::Get()->Submit(std::move(callback), deadline);
 }
 
 void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
-    RefCountedSingleton<TImpl>()->Cancel(std::move(entry));
+    TImpl::Get()->Cancel(std::move(entry));
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    RefCountedSingleton<TImpl>()->CancelAndClear(entry);
-}
-
-void TDelayedExecutor::Shutdown()
-{
-    RefCountedSingleton<TImpl>()->Shutdown();
+    TImpl::Get()->CancelAndClear(entry);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

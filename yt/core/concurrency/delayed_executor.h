@@ -31,14 +31,9 @@ public:
      */
     static void CancelAndClear(TDelayedExecutorCookie& cookie);
 
-    //! Terminates the scheduler thread.
-    /*!
-     *  All subsequent #Submit calls are silently ignored.
-     */
-    static void Shutdown();
-
 private:
     TDelayedExecutor();
+    ~TDelayedExecutor();
 
     class TImpl;
 

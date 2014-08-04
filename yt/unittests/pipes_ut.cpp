@@ -4,10 +4,13 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/scheduler.h>
 
+#include <core/misc/at_exit_manager.h>
+
 #include <ytlib/pipes/io_dispatcher.h>
 #include <ytlib/pipes/non_block_reader.h>
 #include <ytlib/pipes/async_reader.h>
 #include <ytlib/pipes/async_writer.h>
+
 #include <server/job_proxy/pipes.h>
 
 #include <random>
@@ -23,8 +26,9 @@ using namespace NConcurrency;
 
 TEST(TIODispatcher, StartStop)
 {
-    TIODispatcher dispatcher;
-    dispatcher.Shutdown();
+    TShadowingAtExitManager manager;
+    (void)TIODispatcher::Get(); // Do not use return value, just force instance creation.
+    manager.FireAtExit();
 }
 
 void SafeMakeNonblockingPipes(int fds[2])

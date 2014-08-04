@@ -37,11 +37,18 @@ public:
         return InvalidThreadId;
     }
 #endif
+
+    static TSyncInvoker* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TSyncInvoker, TRefCountedInstanceMixin);
 };
 
 IInvokerPtr GetSyncInvoker()
 {
-    return RefCountedSingleton<TSyncInvoker>();
+    return TSyncInvoker::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,11 +71,18 @@ public:
         return InvalidThreadId;
     }
 #endif
+
+    static TNullInvoker* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TNullInvoker, TRefCountedInstanceMixin);
 };
 
 IInvokerPtr GetNullInvoker()
 {
-    return RefCountedSingleton<TNullInvoker>();
+    return TNullInvoker::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

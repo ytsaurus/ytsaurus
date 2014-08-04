@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "private.h"
 
-#include <core/rpc/channel.h>
-#include <core/rpc/caching_channel_factory.h>
-#include <core/rpc/bus_channel.h>
+#include <core/rpc/caching_bus_channel_factory-inl.h>
+
+#include <core/misc/singleton.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -12,11 +12,18 @@ namespace NChunkClient {
 
 NLog::TLogger ChunkClientLogger("ChunkClient");
 
-NRpc::IChannelFactoryPtr LightNodeChannelFactory(
-    NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+struct THeavyNodeTag;
+struct TLightNodeTag;
 
-NRpc::IChannelFactoryPtr HeavyNodeChannelFactory(
-    NRpc::CreateCachingChannelFactory(NRpc::GetBusChannelFactory()));
+NRpc::IChannelFactoryPtr GetHeavyNodeChannelFactory()
+{
+    return NRpc::GetCachingBusChannelFactory<THeavyNodeTag>();
+}
+
+NRpc::IChannelFactoryPtr GetLightNodeChannelFactory()
+{
+    return NRpc::GetCachingBusChannelFactory<TLightNodeTag>();
+}
 
 const char* const ChunkMetaSuffix = ".meta";
 

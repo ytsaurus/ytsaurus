@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/public.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -36,14 +38,15 @@ class TTcpDispatcher
 public:
     static TTcpDispatcher* Get();
 
-    void Shutdown();
-
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
+
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TTcpDispatcher);
 
 private:
     TTcpDispatcher();
 
-    DECLARE_SINGLETON_FRIEND(TTcpDispatcher);
+    ~TTcpDispatcher();
+
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
     friend class TTcpBusServerBase;

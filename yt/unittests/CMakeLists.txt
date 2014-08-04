@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
   ${BASE}/file_changelog_ut.cpp
+  ${BASE}/at_exit_ut.cpp
   ${BASE}/future_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp
@@ -44,6 +45,7 @@ set( SRCS
   ${BASE}/statistics_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
+  ${BASE}/singleton_ut.cpp
   ${BASE}/string_ut.cpp
   ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp

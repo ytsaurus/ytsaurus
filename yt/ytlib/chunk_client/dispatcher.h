@@ -14,8 +14,6 @@ namespace NChunkClient {
 class TDispatcher
 {
 public:
-    TDispatcher();
-
     static TDispatcher* Get();
 
     void Configure(TDispatcherConfigPtr config);
@@ -25,9 +23,13 @@ public:
     IInvokerPtr GetCompressionPoolInvoker();
     IInvokerPtr GetErasurePoolInvoker();
 
-    void Shutdown();
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TDispatcher);
 
 private:
+    TDispatcher();
+
+    ~TDispatcher();
+
     int CompressionPoolSize_;
     int ErasurePoolSize_;
 

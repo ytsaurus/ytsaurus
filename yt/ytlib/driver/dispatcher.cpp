@@ -1,6 +1,8 @@
 #include "config.h"
 #include "dispatcher.h"
 
+#include <core/misc/singleton.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -18,9 +20,20 @@ TDispatcher::TDispatcher()
         "DriverHeavy"))
 { }
 
+TDispatcher::~TDispatcher()
+{
+    if (DriverThread.HasValue()) {
+        DriverThread->Shutdown();
+    }
+
+    if (HeavyThreadPool.HasValue()) {
+        HeavyThreadPool->Shutdown();
+    }
+}
+
 TDispatcher* TDispatcher::Get()
 {
-    return Singleton<TDispatcher>();
+    return TSingleton::Get();
 }
 
 void TDispatcher::Configure(int heavyPoolSize)
@@ -46,17 +59,6 @@ IInvokerPtr TDispatcher::GetLightInvoker()
 IInvokerPtr TDispatcher::GetHeavyInvoker()
 {
     return HeavyThreadPool->GetInvoker();
-}
-
-void TDispatcher::Shutdown()
-{
-    if (DriverThread.HasValue()) {
-        DriverThread->Shutdown();
-    }
-
-    if (HeavyThreadPool.HasValue()) {
-        HeavyThreadPool->Shutdown();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

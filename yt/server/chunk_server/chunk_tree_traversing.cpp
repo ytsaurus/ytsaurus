@@ -559,11 +559,19 @@ public:
     virtual void OnShutdown(const std::vector<TChunkTree*>& /*nodes*/) override
     { }
 
+    static TNonpreemptableChunkTraverserCallbacks* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(
+        TNonpreemptableChunkTraverserCallbacks,
+        TRefCountedInstanceMixin);
 };
 
 IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks()
 {
-    return RefCountedSingleton<TNonpreemptableChunkTraverserCallbacks>();
+    return TNonpreemptableChunkTraverserCallbacks::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

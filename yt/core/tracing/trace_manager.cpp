@@ -250,14 +250,10 @@ private:
 
     NProto::TEndpoint GetLocalEndpoint()
     {
-        auto* addressResolver = TAddressResolver::Get();
-        auto addressOrError = addressResolver->Resolve(addressResolver->GetLocalHostName()).Get();
-        if (!addressOrError.IsOK()) {
-            LOG_FATAL(addressOrError, "Error determining local endpoint address");
-        }
+        auto address = TAddressResolver::Get()->GetLocalHostAddress();
 
         NProto::TEndpoint endpoint;
-        const auto& sockAddr = addressOrError.Value().GetSockAddr();
+        const auto& sockAddr = address.GetSockAddr();
         switch (sockAddr->sa_family) {
             case AF_INET: {
                 auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
@@ -267,15 +263,14 @@ private:
             }
             case AF_INET6: {
                 auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
-                // hack: ipv6 -> ipv4 :)
+                // Hack: IPv6 -> IPv4. :)
                 const ui32* fake = reinterpret_cast<const ui32*>(typedAddr->sin6_addr.s6_addr + 12);
                 endpoint.set_address(LittleToBig(*fake));
                 endpoint.set_port(Config_->EndpointPort);
                 break;
             }
-
             default:
-                LOG_FATAL("Neither v4 nor v6 address is known for local endpoint");
+                LOG_FATAL("Neither v4 nor v6 address is known for local endpoint; reported local address is %v", address);
         }
 
         return endpoint;
@@ -287,6 +282,11 @@ private:
 TTraceManager::TTraceManager()
     : Impl_(new TImpl())
 { }
+
+TTraceManager::~TTraceManager()
+{
+    Impl_->Shutdown();
+}
 
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
@@ -300,12 +300,7 @@ void TTraceManager::Configure(const Stroka& fileName, const NYPath::TYPath& path
 
 TTraceManager* TTraceManager::Get()
 {
-    return Singleton<TTraceManager>();
-}
-
-void TTraceManager::Shutdown()
-{
-    Impl_->Shutdown();
+    return TSingleton::Get();
 }
 
 void TTraceManager::Enqueue(

@@ -14,7 +14,7 @@ namespace NDataNode {
 extern NLog::TLogger DataNodeLogger;
 extern NProfiling::TProfiler DataNodeProfiler;
 
-extern NRpc::IChannelFactoryPtr ChannelFactory;
+NRpc::IChannelFactoryPtr GetDataNodeChannelFactory();
 
 extern Stroka CellIdFileName;
 

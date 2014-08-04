@@ -678,7 +678,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    channel = HeavyNodeChannelFactory->CreateChannel(currentAddress);
+                    channel = GetHeavyNodeChannelFactory()->CreateChannel(currentAddress);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -932,7 +932,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    channel = HeavyNodeChannelFactory->CreateChannel(currentAddress);
+                    channel = GetHeavyNodeChannelFactory()->CreateChannel(currentAddress);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -1139,7 +1139,7 @@ private:
 
         IChannelPtr channel;
         try {
-            channel = LightNodeChannelFactory->CreateChannel(address);
+            channel = GetLightNodeChannelFactory()->CreateChannel(address);
         } catch (const std::exception& ex) {
             OnGetChunkMetaFailed(address, ex);
             return;

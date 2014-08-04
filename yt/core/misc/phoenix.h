@@ -134,6 +134,10 @@ public:
     template <class T>
     void Register(ui32 tag);
 
+    DECLARE_SINGLETON_MIXIN(TRegistry, TStaticInstanceMixin);
+    DECLARE_SINGLETON_DELETE_AT_EXIT(TRegistry, false);
+    DECLARE_SINGLETON_RESET_AT_FORK(TRegistry, false);
+
 private:
     struct TEntry
         : public TIntrinsicRefCounted
@@ -145,18 +149,18 @@ private:
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    yhash_map<const std::type_info*, TEntryPtr> TypeInfoToEntry;
-    yhash_map<ui32, TEntryPtr> TagToEntry;
-
     TRegistry();
+
+    ~TRegistry();
 
     const TEntry& GetEntry(ui32 tag);
     const TEntry& GetEntry(const std::type_info& typeInfo);
 
     template <class T>
-    static void* DoInstantiate();;
+    static void* DoInstantiate();
 
-    DECLARE_SINGLETON_FRIEND(TRegistry)
+    yhash_map<const std::type_info*, TEntryPtr> TypeInfoToEntry;
+    yhash_map<ui32, TEntryPtr> TagToEntry;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

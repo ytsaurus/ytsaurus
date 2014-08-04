@@ -103,11 +103,18 @@ public:
     {
         return TSharedRef();
     }
+
+    static TNullBlockCache* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TNullBlockCache, TRefCountedInstanceMixin);
 };
 
 IBlockCachePtr GetNullBlockCache()
 {
-    return RefCountedSingleton<TNullBlockCache>();
+    return TNullBlockCache::Get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "attribute_helpers.h"
 
-#include <core/misc/error.h>
+#include <core/misc/singleton.h>
 
 namespace NYT {
 namespace NYTree {
@@ -103,11 +103,20 @@ public:
     {
         return false;
     }
+
+    static TEmptyAttributeDictionary* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TEmptyAttributeDictionary);
+    DECLARE_SINGLETON_DELETE_AT_EXIT(TEmptyAttributeDictionary, false);
+    DECLARE_SINGLETON_RESET_AT_FORK(TEmptyAttributeDictionary, false);
 };
 
 const IAttributeDictionary& EmptyAttributes()
 {
-    return *Singleton<TEmptyAttributeDictionary>();
+    return *TEmptyAttributeDictionary::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

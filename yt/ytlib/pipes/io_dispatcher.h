@@ -10,14 +10,15 @@ namespace NPipes {
 class TIODispatcher
 {
 public:
-    TIODispatcher();
-    ~TIODispatcher();
-
     static TIODispatcher* Get();
 
-    void Shutdown();
+    DECLARE_SINGLETON_DEFAULT_MIXIN(TIODispatcher);
 
 private:
+    TIODispatcher();
+
+    ~TIODispatcher();
+
     friend class TAsyncIOBase;
 
     TAsyncError AsyncRegister(IFDWatcherPtr watcher);

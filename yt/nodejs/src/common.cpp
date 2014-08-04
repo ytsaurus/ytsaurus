@@ -7,10 +7,9 @@
 #include <core/tracing/trace_manager.h>
 
 #include <core/misc/address.h>
+#include <core/misc/at_exit_manager.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
-
-#include <ytlib/shutdown.h>
 
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
@@ -119,24 +118,16 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     return Undefined();
 }
 
-Handle<Value> ShutdownSingletons(const Arguments& args)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    YASSERT(args.Length());
-
-    Shutdown();
-
-    return Undefined();
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeCommon(Handle<Object> target)
 {
+    node::AtExit([] (void* opaque) {
+        delete reinterpret_cast<NYT::TAtExitManager*>(opaque);
+    }, new NYT::TAtExitManager());
+
     target->Set(
         String::NewSymbol("GetEioInformation"),
         FunctionTemplate::New(GetEioInformation)->GetFunction());
@@ -146,9 +137,6 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ConfigureSingletons"),
         FunctionTemplate::New(ConfigureSingletons)->GetFunction());
-    target->Set(
-        String::NewSymbol("ShutdownSingletons"),
-        FunctionTemplate::New(ShutdownSingletons)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

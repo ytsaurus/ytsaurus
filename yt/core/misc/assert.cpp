@@ -34,7 +34,7 @@ void AssertTrapImpl(
     auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
     (void)unused;
 
-    NLog::TLogManager::Get()->Shutdown();
+    NLog::TLogManager::Shutdown();
 
     BUILTIN_TRAP();
 }

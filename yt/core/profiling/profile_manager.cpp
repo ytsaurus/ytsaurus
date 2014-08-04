@@ -382,19 +382,19 @@ TProfileManager::TProfileManager()
     : Impl_(new TImpl())
 { }
 
+TProfileManager::~TProfileManager()
+{
+    Impl_->Shutdown();
+}
+
 TProfileManager* TProfileManager::Get()
 {
-    return Singleton<TProfileManager>();
+    return TSingleton::Get();
 }
 
 void TProfileManager::Start()
 {
     Impl_->Start();
-}
-
-void TProfileManager::Shutdown()
-{
-    Impl_->Shutdown();
 }
 
 void TProfileManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)

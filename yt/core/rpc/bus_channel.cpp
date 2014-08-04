@@ -580,15 +580,21 @@ public:
     virtual IChannelPtr CreateChannel(const Stroka& address) override
     {
         auto config = New<TTcpBusClientConfig>(address);
-        auto client = CreateTcpBusClient(config);
-        return CreateBusChannel(client);
+        auto client = CreateTcpBusClient(std::move(config));
+        return CreateBusChannel(std::move(client));
     }
 
+    static TBusChannelFactory* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TBusChannelFactory, TRefCountedInstanceMixin);
 };
 
 IChannelFactoryPtr GetBusChannelFactory()
 {
-    return RefCountedSingleton<TBusChannelFactory>();
+    return TBusChannelFactory::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

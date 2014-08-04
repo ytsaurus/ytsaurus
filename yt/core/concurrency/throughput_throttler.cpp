@@ -154,11 +154,18 @@ public:
 
         return VoidFuture;
     }
+
+    static TUnlimitedThroughtputThrottler* Get()
+    {
+        return TSingleton::Get();
+    }
+
+    DECLARE_SINGLETON_MIXIN(TUnlimitedThroughtputThrottler, TRefCountedInstanceMixin);
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
 {
-    return RefCountedSingleton<TUnlimitedThroughtputThrottler>();
+    return TUnlimitedThroughtputThrottler::Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

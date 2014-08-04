@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
+  ${BASE}/at_exit_manager.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
@@ -46,6 +47,7 @@ set( HDRS
   ${BASE}/address.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
+  ${BASE}/at_exit_manager.h
   ${BASE}/backtrace.h
   ${BASE}/bitmap.h
   ${BASE}/blob.h

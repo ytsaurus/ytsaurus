@@ -66,7 +66,7 @@ void TPeerBlockUpdater::Update()
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(ChannelFactory->CreateChannel(sourceAddress));
+                TProxy proxy(GetDataNodeChannelFactory()->CreateChannel(sourceAddress));
                 request = proxy.UpdatePeer();
                 ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
