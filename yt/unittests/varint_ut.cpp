@@ -27,7 +27,7 @@ TEST_P(TWriteVarIntTest, Serialization)
     Stroka rightAnswer = get<1>(GetParam());
 
     TStringStream outputStream;
-    WriteVarUInt64(&outputStream, value);
+    WriteVarUint64(&outputStream, value);
     EXPECT_EQ(rightAnswer, outputStream.Str());
 }
 
@@ -43,7 +43,7 @@ TEST_P(TReadVarIntTest, Serialization)
 
     TStringInput inputStream(input);
     ui64 value;
-    ReadVarUInt64(&inputStream, &value);
+    ReadVarUint64(&inputStream, &value);
     EXPECT_EQ(rightAnswer, value);
 }
 
@@ -52,7 +52,7 @@ TEST(TReadVarIntTest, Overflow)
     Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
     TStringInput inputStream(input);
     ui64 value;
-    EXPECT_ANY_THROW(ReadVarUInt64(&inputStream, &value));
+    EXPECT_ANY_THROW(ReadVarUint64(&inputStream, &value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

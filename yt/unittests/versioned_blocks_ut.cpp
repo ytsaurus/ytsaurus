@@ -70,8 +70,8 @@ protected:
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
-        row.BeginValues()[0] = MakeVersionedIntegerValue(8, 11, 3);
-        row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 3);
+        row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
+        row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
         row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
@@ -108,7 +108,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
-    row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 4);
+    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 4);
     row.BeginTimestamps()[0] = 3 | IncrementalTimestampMask;
 
     std::vector<TVersionedRow> rows;

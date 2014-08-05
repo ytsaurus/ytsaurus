@@ -67,6 +67,11 @@ void TYamredDsvConsumer::OnInt64Scalar(i64 value)
     State = EState::ExpectEndAttributes;
 }
 
+void TYamredDsvConsumer::OnUint64Scalar(ui64 value)
+{
+    THROW_ERROR_EXCEPTION("Uint64 values are not supported by YAMRed DSV");
+}
+
 void TYamredDsvConsumer::OnDoubleScalar(double value)
 {
     THROW_ERROR_EXCEPTION("Double values are not supported by YAMRed DSV");

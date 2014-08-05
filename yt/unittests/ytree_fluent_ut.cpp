@@ -52,13 +52,13 @@ INSTANTIATE_TYPED_TEST_CASE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TYTreeFluentIntegerScalarTest
+class TYTreeFluentIntScalarTest
     : public ::testing::Test
 {
 };
 
-TYPED_TEST_CASE_P(TYTreeFluentIntegerScalarTest);
-TYPED_TEST_P(TYTreeFluentIntegerScalarTest, Ok)
+TYPED_TEST_CASE_P(TYTreeFluentIntScalarTest);
+TYPED_TEST_P(TYTreeFluentIntScalarTest, Ok)
 {
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
@@ -70,11 +70,43 @@ TYPED_TEST_P(TYTreeFluentIntegerScalarTest, Ok)
         .Value(passedScalar);
 }
 
-typedef Types<i8, ui8, i16, ui16, i32, ui32, i64>
-    TYTreeFluentIntegerScalarTestTypes;
-REGISTER_TYPED_TEST_CASE_P(TYTreeFluentIntegerScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentIntegerScalarTest,
-    TYTreeFluentIntegerScalarTestTypes
+typedef Types<i8, i16, i32, i64>
+    TYTreeFluentIntScalarTestTypes;
+REGISTER_TYPED_TEST_CASE_P(TYTreeFluentIntScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentIntScalarTest,
+    TYTreeFluentIntScalarTestTypes
+);
+
+////////////////////////////////////////////////////////////////////////////////
+// }}}
+
+// Uint64-like Scalars {{{
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TYTreeFluentUintScalarTest
+    : public ::testing::Test
+{
+};
+
+TYPED_TEST_CASE_P(TYTreeFluentUintScalarTest);
+TYPED_TEST_P(TYTreeFluentUintScalarTest, Ok)
+{
+    StrictMock<TMockYsonConsumer> mock;
+    InSequence dummy;
+
+    EXPECT_CALL(mock, OnUint64Scalar(42));
+
+    TypeParam passedScalar = 42;
+    BuildYsonFluently(&mock)
+        .Value(passedScalar);
+}
+
+typedef Types<ui8, ui16, ui32, ui64>
+    TYTreeFluentUintScalarTestTypes;
+REGISTER_TYPED_TEST_CASE_P(TYTreeFluentUintScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentUintScalarTest,
+    TYTreeFluentUintScalarTestTypes
 );
 
 ////////////////////////////////////////////////////////////////////////////////

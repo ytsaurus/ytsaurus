@@ -90,6 +90,11 @@ public:
         return CreateNode(EObjectType::Int64Node)->AsInt64();
     }
 
+    virtual IUint64NodePtr CreateUint64() override
+    {
+        return CreateNode(EObjectType::Uint64Node)->AsUint64();
+    }
+
     virtual IDoubleNodePtr CreateDouble() override
     {
         return CreateNode(EObjectType::DoubleNode)->AsDouble();
@@ -431,6 +436,7 @@ TCypressManager::TCypressManager(
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TInt64NodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TUint64NodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));

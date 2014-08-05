@@ -14,6 +14,7 @@ DECLARE_ENUM(ETokenType,
 
     (String)
     (Int64)
+    (Uint64)
     (Double)
     (Boolean)
 
@@ -55,9 +56,10 @@ public:
 
     TToken();
     TToken(ETokenType type); // for special types
-    explicit TToken(const TStringBuf& stringValue); // for strings
-    explicit TToken(i64 int64Value); // for integers
-    explicit TToken(double doubleValue); // for doubles
+    explicit TToken(const TStringBuf& stringValue); // for string values
+    explicit TToken(i64 int64Value); // for int64 values
+    explicit TToken(ui64 int64Value); // for uint64 values
+    explicit TToken(double doubleValue); // for double values
     explicit TToken(bool booleanValue); // for booleans
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
@@ -65,6 +67,7 @@ public:
     bool IsEmpty() const;
     const TStringBuf& GetStringValue() const;
     i64 GetInt64Value() const;
+    ui64 GetUint64Value() const;
     double GetDoubleValue() const;
     bool GetBooleanValue() const;
 
@@ -77,6 +80,7 @@ private:
 
     TStringBuf StringValue;
     i64 Int64Value;
+    ui64 Uint64Value;
     double DoubleValue;
     bool BooleanValue;
 };

@@ -78,53 +78,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
-            TYsonString(yson, EYsonType::MapFragment));
-
-        TUnversionedOwningRowBuilder rowBuilder;
-        auto addValue = [&] (int id, INodePtr value) {
-            switch (value->GetType()) {
-                case ENodeType::Int64:
-                    rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                    break;
-                case ENodeType::Double:
-                    rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                    break;
-                case ENodeType::String:
-                    rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
-                    break;
-                default:
-                    rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
-                    break;
-            }
-        };
-
-        // Key
-        for (int id = 0; id < static_cast<int>(Tablet->KeyColumns().size()); ++id) {
-            auto it = rowParts.find(NameTable->GetName(id));
-            YCHECK(it != rowParts.end());
-            addValue(id, it->second);
-        }
-
-        // Fixed values
-        for (int id = static_cast<int>(Tablet->KeyColumns().size()); id < static_cast<int>(Tablet->Schema().Columns().size()); ++id) {
-            auto it = rowParts.find(NameTable->GetName(id));
-            if (it != rowParts.end()) {
-                addValue(id, it->second);
-            } else if (treatMissingAsNull) {
-                rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
-            }
-        }
-
-        // Variable values
-        for (const auto& pair : rowParts) {
-            int id = NameTable->GetIdOrRegisterName(pair.first);
-            if (id >= Tablet->Schema().Columns().size()) {
-                addValue(id, pair.second);
-            }
-        }
-
-        return rowBuilder.GetRowAndReset();
+        return NVersionedTableClient::BuildRow(yson, Tablet->KeyColumns(), Tablet->Schema(), treatMissingAsNull);
     }
 
 
@@ -183,6 +137,13 @@ protected:
                     ASSERT_EQ(
                         it->second->GetValue<i64>(),
                         value.Data.Int64);
+                    break;
+
+                case EValueType::Uint64:
+                    ASSERT_TRUE(it != expectedRowParts.end());
+                    ASSERT_EQ(
+                        it->second->GetValue<ui64>(),
+                        value.Data.Uint64);
                     break;
 
                 case EValueType::Double:

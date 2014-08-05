@@ -256,6 +256,7 @@ protected:
 
     virtual void OnMyStringScalar(const TStringBuf& value) override;
     virtual void OnMyInt64Scalar(i64 value) override;
+    virtual void OnMyUint64Scalar(ui64 value) override;
     virtual void OnMyDoubleScalar(double value) override;
     virtual void OnMyBooleanScalar(bool value) override;
     virtual void OnMyEntity() override;
@@ -310,6 +311,7 @@ class TNodeSetter
 
 DECLARE_SCALAR_TYPE(String, Stroka);
 DECLARE_SCALAR_TYPE(Int64,  i64);
+DECLARE_SCALAR_TYPE(Uint64,  ui64);
 DECLARE_SCALAR_TYPE(Double, double);
 DECLARE_SCALAR_TYPE(Boolean, bool);
 

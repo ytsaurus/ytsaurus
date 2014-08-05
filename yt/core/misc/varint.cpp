@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TWriteCallback>
-int WriteVarUInt64Impl(TWriteCallback doWrite, ui64 value)
+int WriteVarUint64Impl(TWriteCallback doWrite, ui64 value)
 {
     bool stop = false;
     int bytesWritten = 0;
@@ -30,16 +30,16 @@ int WriteVarUInt64Impl(TWriteCallback doWrite, ui64 value)
 }
 
 // These are optimized versions of these Read/Write functions in protobuf/io/coded_stream.cc.
-int WriteVarUInt64(TOutputStream* output, ui64 value)
+int WriteVarUint64(TOutputStream* output, ui64 value)
 {
-    return WriteVarUInt64Impl([&] (ui8 byte) {
+    return WriteVarUint64Impl([&] (ui8 byte) {
         output->Write(byte);
     }, value);
 }
 
-int WriteVarUInt64(char* output, ui64 value)
+int WriteVarUint64(char* output, ui64 value)
 {
-    return WriteVarUInt64Impl([&] (ui8 byte) {
+    return WriteVarUint64Impl([&] (ui8 byte) {
         *output = byte;
         ++output;
     }, value);
@@ -48,19 +48,19 @@ int WriteVarUInt64(char* output, ui64 value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOutput>
-int WriteVarUInt32Impl(TOutput output, ui32 value)
+int WriteVarUint32Impl(TOutput output, ui32 value)
 {
-    return WriteVarUInt64(output, static_cast<ui64>(value));
+    return WriteVarUint64(output, static_cast<ui64>(value));
 }
 
-int WriteVarUInt32(TOutputStream* output, ui32 value)
+int WriteVarUint32(TOutputStream* output, ui32 value)
 {
-    return WriteVarUInt32Impl(output, value);
+    return WriteVarUint32Impl(output, value);
 }
 
-int WriteVarUInt32(char* output, ui32 value)
+int WriteVarUint32(char* output, ui32 value)
 {
-    return WriteVarUInt32Impl(output, value);
+    return WriteVarUint32Impl(output, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +68,7 @@ int WriteVarUInt32(char* output, ui32 value)
 template <class TOutput>
 int WriteVarInt32Impl(TOutput output, i32 value)
 {
-    return WriteVarUInt64(output, static_cast<ui64>(ZigZagEncode32(value)));
+    return WriteVarUint64(output, static_cast<ui64>(ZigZagEncode32(value)));
 }
 
 int WriteVarInt32(TOutputStream* output, i32 value)
@@ -86,7 +86,7 @@ int WriteVarInt32(char* output, i32 value)
 template <class TOutput>
 int WriteVarInt64Impl(TOutput output, i64 value)
 {
-    return WriteVarUInt64(output, static_cast<ui64>(ZigZagEncode64(value)));
+    return WriteVarUint64(output, static_cast<ui64>(ZigZagEncode64(value)));
 }
 
 int WriteVarInt64(TOutputStream* output, i64 value)
@@ -102,7 +102,7 @@ int WriteVarInt64(char* output, i64 value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReadCallback>
-int ReadVarUInt64Impl(TReadCallback doRead, ui64* value)
+int ReadVarUint64Impl(TReadCallback doRead, ui64* value)
 {
     size_t count = 0;
     ui64 result = 0;
@@ -121,9 +121,9 @@ int ReadVarUInt64Impl(TReadCallback doRead, ui64* value)
     return count;
 }
 
-int ReadVarUInt64(TInputStream* input, ui64* value)
+int ReadVarUint64(TInputStream* input, ui64* value)
 {
-    return ReadVarUInt64Impl([&] () {
+    return ReadVarUint64Impl([&] () {
         char byte;
         if (input->Read(&byte, 1) != 1) {
             THROW_ERROR_EXCEPTION("Premature end of stream while reading ui64");
@@ -132,9 +132,9 @@ int ReadVarUInt64(TInputStream* input, ui64* value)
     }, value);
 }
 
-int ReadVarUInt64(const char* input, ui64* value)
+int ReadVarUint64(const char* input, ui64* value)
 {
-    return ReadVarUInt64Impl([&] () {
+    return ReadVarUint64Impl([&] () {
         char byte = *input;
         ++input;
         return byte;
@@ -144,10 +144,10 @@ int ReadVarUInt64(const char* input, ui64* value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TInput>
-int ReadVarUInt32Impl(TInput input, ui32* value)
+int ReadVarUint32Impl(TInput input, ui32* value)
 {
     ui64 varInt;
-    int bytesRead = ReadVarUInt64(input, &varInt);
+    int bytesRead = ReadVarUint64(input, &varInt);
     if (varInt > std::numeric_limits<ui32>::max()) {
         THROW_ERROR_EXCEPTION("Value is too big for ui32");
     }
@@ -155,14 +155,14 @@ int ReadVarUInt32Impl(TInput input, ui32* value)
     return bytesRead;
 }
 
-int ReadVarUInt32(TInputStream* input, ui32* value)
+int ReadVarUint32(TInputStream* input, ui32* value)
 {
-    return ReadVarUInt32Impl(input, value);
+    return ReadVarUint32Impl(input, value);
 }
 
-int ReadVarUInt32(const char* input, ui32* value)
+int ReadVarUint32(const char* input, ui32* value)
 {
-    return ReadVarUInt32Impl(input, value);
+    return ReadVarUint32Impl(input, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +171,7 @@ template <class TInput>
 int ReadVarInt32Impl(TInput input, i32* value)
 {
     ui64 varInt;
-    int bytesRead = ReadVarUInt64(input, &varInt);
+    int bytesRead = ReadVarUint64(input, &varInt);
     if (varInt > std::numeric_limits<ui32>::max()) {
         THROW_ERROR_EXCEPTION("Value is too big for i32");
     }
@@ -195,7 +195,7 @@ template <class TInput>
 int ReadVarInt64Impl(TInput input, i64* value)
 {
     ui64 varInt;
-    int bytesRead = ReadVarUInt64(input, &varInt);
+    int bytesRead = ReadVarUint64(input, &varInt);
     *value = ZigZagDecode64(varInt);
     return bytesRead;
 }

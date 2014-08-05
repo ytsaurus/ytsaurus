@@ -282,7 +282,11 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 
     switch (type) {
         case EValueType::Int64:
-            ReadInteger(value, ptr);
+            ReadInt64(value, ptr);
+            break;
+
+        case EValueType::Uint64:
+            ReadUint64(value, ptr);
             break;
 
         case EValueType::Double:
@@ -323,7 +327,11 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
     switch (type) {
         case EValueType::Int64:
-            ReadInteger(value, ptr);
+            ReadInt64(value, ptr);
+            break;
+
+        case EValueType::Uint64:
+            ReadUint64(value, ptr);
             break;
 
         case EValueType::Double:
@@ -344,9 +352,14 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
     }
 }
 
-void TSimpleVersionedBlockReader::ReadInteger(TUnversionedValue* value, char* ptr)
+void TSimpleVersionedBlockReader::ReadInt64(TUnversionedValue* value, char* ptr)
 {
     value->Data.Int64 = *reinterpret_cast<i64*>(ptr);
+}
+
+void TSimpleVersionedBlockReader::ReadUint64(TUnversionedValue* value, char* ptr)
+{
+    value->Data.Uint64 = *reinterpret_cast<ui64*>(ptr);
 }
 
 void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, char* ptr)

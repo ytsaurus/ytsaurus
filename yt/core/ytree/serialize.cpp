@@ -24,20 +24,34 @@ NYson::EYsonType GetYsonType(const TYsonProducer& producer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// integers
+// signed integers
 #define SERIALIZE(type) \
     void Serialize(type value, NYson::IYsonConsumer* consumer) \
     { \
         consumer->OnInt64Scalar(CheckedStaticCast<i64>(value)); \
     }
 
+SERIALIZE(signed char)
 SERIALIZE(short)
-SERIALIZE(unsigned short)
 SERIALIZE(int)
-SERIALIZE(unsigned)
 SERIALIZE(long)
-SERIALIZE(unsigned long)
 SERIALIZE(long long)
+
+
+#undef SERIALIZE
+
+
+// unsigned integers
+#define SERIALIZE(type) \
+    void Serialize(type value, NYson::IYsonConsumer* consumer) \
+    { \
+        consumer->OnUint64Scalar(CheckedStaticCast<ui64>(value)); \
+    }
+
+SERIALIZE(unsigned char)
+SERIALIZE(unsigned short)
+SERIALIZE(unsigned)
+SERIALIZE(unsigned long)
 SERIALIZE(unsigned long long)
 
 #undef SERIALIZE
@@ -104,20 +118,38 @@ void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// integers
+// signed integers
 #define DESERIALIZE(type) \
     void Deserialize(type& value, INodePtr node) \
     { \
         value = CheckedStaticCast<type>(node->AsInt64()->GetValue()); \
     }
 
+DESERIALIZE(signed char)
 DESERIALIZE(short)
-DESERIALIZE(unsigned short)
 DESERIALIZE(int)
-DESERIALIZE(unsigned)
 DESERIALIZE(long)
-DESERIALIZE(unsigned long)
 DESERIALIZE(long long)
+
+
+#undef DESERIALIZE
+
+// unsigned integers
+// Allow integer nodes to be deserialized into unsigned integers for compatibility.
+#define DESERIALIZE(type) \
+    void Deserialize(type& value, INodePtr node) \
+    { \
+        if (node->GetType() == ENodeType::Int64) { \
+            value = CheckedStaticCast<type>(node->AsInt64()->GetValue()); \
+        } else if (node->GetType() == ENodeType::Uint64) { \
+            value = CheckedStaticCast<type>(node->AsUint64()->GetValue()); \
+        } \
+    }
+
+DESERIALIZE(unsigned char)
+DESERIALIZE(unsigned short)
+DESERIALIZE(unsigned)
+DESERIALIZE(unsigned long)
 DESERIALIZE(unsigned long long)
 
 #undef DESERIALIZE
@@ -128,6 +160,8 @@ void Deserialize(double& value, INodePtr node)
     // Allow integer nodes to be serialized into doubles.
     if (node->GetType() == ENodeType::Int64) {
         value = node->AsInt64()->GetValue();
+    } else if (node->GetType() == ENodeType::Uint64) {
+        value = node->AsUint64()->GetValue();
     } else {
         value = node->AsDouble()->GetValue();
     }

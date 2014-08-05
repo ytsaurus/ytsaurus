@@ -22,6 +22,9 @@ TUnversionedValue MakeKeyPart(const TStringBuf& yson, NYson::TStatelessLexer& le
         case NYson::ETokenType::Int64:
             return MakeUnversionedInt64Value(token.GetInt64Value());
 
+        case NYson::ETokenType::Uint64:
+            return MakeUnversionedUint64Value(token.GetUint64Value());
+
         case NYson::ETokenType::Double:
             return MakeUnversionedDoubleValue(token.GetDoubleValue());
 
@@ -55,10 +58,25 @@ int CompareKeyParts(const NChunkClient::NProto::TKeyPart& lhs, const NChunkClien
     }
 
     if (lhs.has_int64_value()) {
-
         if (lhs.int64_value() > rhs.int64_value())
             return 1;
         if (lhs.int64_value() < rhs.int64_value())
+            return -1;
+        return 0;
+    }
+
+    if (lhs.has_uint64_value()) {
+        if (lhs.uint64_value() > rhs.uint64_value())
+            return 1;
+        if (lhs.uint64_value() < rhs.uint64_value())
+            return -1;
+        return 0;
+    }
+
+    if (lhs.has_boolean_value()) {
+        if (lhs.boolean_value() > rhs.boolean_value())
+            return 1;
+        if (lhs.boolean_value() < rhs.boolean_value())
             return -1;
         return 0;
     }
@@ -111,6 +129,11 @@ void ToProto(NChunkClient::NProto::TKey* protoKey, NVersionedTableClient::TUnver
             case NVersionedTableClient::EValueType::Int64:
                 keyPart->set_type(EKeyPartType::Int64);
                 keyPart->set_int64_value(row[i].Data.Int64);
+                break;
+
+            case NVersionedTableClient::EValueType::Uint64:
+                keyPart->set_type(EKeyPartType::Uint64);
+                keyPart->set_uint64_value(row[i].Data.Uint64);
                 break;
 
             case NVersionedTableClient::EValueType::Double:

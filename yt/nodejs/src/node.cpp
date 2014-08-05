@@ -110,8 +110,10 @@ void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
         TUtf8Transcoder utf8Decoder;
         builder->OnStringScalar(utf8Decoder.Decode(string));
     } else if (value->IsNumber()) {
-        if (value->IsInt32() || value->IsUint32()) {
+        if (value->IsInt32()) {
             builder->OnInt64Scalar(value->IntegerValue());
+        } else if (value->IsUint32()) {
+            builder->OnUint64Scalar(value->IntegerValue());
         } else {
             builder->OnDoubleScalar(value->NumberValue());
         }
@@ -154,6 +156,9 @@ Handle<Value> ProduceV8(const INodePtr& node)
         }
         case ENodeType::Int64: {
             return Integer::New(node->GetValue<i64>());
+        }
+        case ENodeType::Uint64: {
+            return Integer::NewFromUnsigned(node->GetValue<ui64>());
         }
         case ENodeType::Double: {
             return Number::New(node->GetValue<double>());

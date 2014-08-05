@@ -31,6 +31,7 @@ public:
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity() override;
@@ -98,7 +99,8 @@ public:
 
 private:
     void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
-    static char* WriteIntegerReversed(char* ptr, i64 value);
+    static char* WriteInt64Reversed(char* ptr, i64 value);
+    static char* WriteUint64Reversed(char* ptr, ui64 value);
 
     void WriteRaw(const TStringBuf& str);
     void WriteRaw(char ch);

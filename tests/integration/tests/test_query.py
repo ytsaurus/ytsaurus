@@ -62,14 +62,15 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t")
 
         format = yson.loads("<boolean_as_string=false;format=text>yson")
-        write("//tmp/t", '{a=10;b=%false;c="hello"};{a=20;b=%true;c="world"};', input_format=format, is_raw=True)
+        write("//tmp/t", '{a=10;b=%false;c="hello";d=32u};{a=20;b=%true;c="world";d=64u};', input_format=format, is_raw=True)
 
-        sort(in_="//tmp/t", out="//tmp/t", sort_by=["a", "b", "c"])
+        sort(in_="//tmp/t", out="//tmp/t", sort_by=["a", "b", "c", "d"])
         set("//tmp/t/@schema", [
             {"name": "a", "type": "int64"},
             {"name": "b", "type": "boolean"},
-            {"name": "c", "type": "string"}
+            {"name": "c", "type": "string"},
+            {"name": "d", "type": "uint64"},
         ])
 
-        assert select('a, b, c from [//tmp/t] where c="hello"', output_format=format) == \
-                '{"a"=10;"b"=%false;"c"="hello"};\n'
+        assert select('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
+                '{"a"=10;"b"=%false;"c"="hello";"d"=32u};\n'

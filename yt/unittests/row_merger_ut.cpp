@@ -53,6 +53,9 @@ protected:
                 case ENodeType::Int64:
                     builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
                     break;
+                case ENodeType::Uint64:
+                    builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), keyId));
+                    break;
                 case ENodeType::Double:
                     builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), keyId));
                     break;
@@ -75,7 +78,10 @@ protected:
                     builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id));
                     break;
                 case ENodeType::Int64:
-                    builder.AddValue(MakeVersionedIntegerValue(value->GetValue<i64>(), timestamp, id));
+                    builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id));
+                    break;
+                case ENodeType::Uint64:
+                    builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id));
                     break;
                 case ENodeType::Double:
                     builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id));
@@ -109,6 +115,9 @@ protected:
                     break;
                 case ENodeType::Int64:
                     builder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
+                    break;
+                case ENodeType::Uint64:
+                    builder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
                     break;
                 case ENodeType::Double:
                     builder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));

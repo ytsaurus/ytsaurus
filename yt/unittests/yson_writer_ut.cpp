@@ -28,53 +28,52 @@ public:
     void Run()
     {
         Stream.Flush();
-
         ParseYson(TYsonInput(&Stream), &Mock);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonWriterTest, BinaryString)
+#define TEST_SCALAR(value, type) \
+    { \
+        InSequence dummy; \
+        EXPECT_CALL(Mock, On##type##Scalar(value)); \
+        TYsonWriter writer(&Stream, EYsonFormat::Binary); \
+        writer.On##type##Scalar(value); \
+        Run(); \
+    } \
+        \
+    { \
+        InSequence dummy; \
+        EXPECT_CALL(Mock, On##type##Scalar(value)); \
+        TYsonWriter writer(&Stream, EYsonFormat::Text); \
+        writer.On##type##Scalar(value); \
+        Run(); \
+    } \
+
+
+TEST_F(TYsonWriterTest, String)
 {
     Stroka value = "YSON";
-
-    InSequence dummy;
-    EXPECT_CALL(Mock, OnStringScalar(value));
-
-    TYsonWriter writer(&Stream, EYsonFormat::Binary);
-
-    writer.OnStringScalar(value);
-
-    Run();
+    TEST_SCALAR(value, String)
 }
 
-TEST_F(TYsonWriterTest, BinaryInt64)
+TEST_F(TYsonWriterTest, Int64)
 {
     i64 value = 100500424242ll;
-
-    InSequence dummy;
-    EXPECT_CALL(Mock, OnInt64Scalar(value));
-
-    TYsonWriter writer(&Stream, EYsonFormat::Binary);
-
-    writer.OnInt64Scalar(value);
-
-    Run();
+    TEST_SCALAR(value, Int64)
 }
 
-TEST_F(TYsonWriterTest, BinaryBoolean)
+TEST_F(TYsonWriterTest, Uint64)
+{
+    ui64 value = 100500424242llu;
+    TEST_SCALAR(value, Uint64)
+}
+
+TEST_F(TYsonWriterTest, Boolean)
 {
     bool value = true;
-
-    InSequence dummy;
-    EXPECT_CALL(Mock, OnBooleanScalar(value));
-
-    TYsonWriter writer(&Stream, EYsonFormat::Binary);
-
-    writer.OnBooleanScalar(value);
-
-    Run();
+    TEST_SCALAR(value, Boolean)
 }
 
 TEST_F(TYsonWriterTest, EmptyMap)

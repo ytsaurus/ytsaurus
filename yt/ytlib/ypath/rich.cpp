@@ -242,6 +242,11 @@ void ParseKeyPart(
             break;
         }
 
+        case NYson::ETokenType::Uint64: {
+            value = MakeUnversionedUint64Value(tokenizer.CurrentToken().GetUint64Value());
+            break;
+        }
+
         case NYson::ETokenType::Double: {
             value = MakeUnversionedDoubleValue(tokenizer.CurrentToken().GetDoubleValue());
             break;

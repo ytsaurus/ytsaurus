@@ -29,7 +29,7 @@ void TChannelReader::SetBlock(const TSharedRef& block)
     columnSizes.reserve(bufferCount);
     for (int columnIndex = 0; columnIndex < bufferCount; ++columnIndex) {
         ui64 size;
-        ReadVarUInt64(&input, &size);
+        ReadVarUint64(&input, &size);
         YASSERT(size <= static_cast<ui64>(std::numeric_limits<size_t>::max()));
         columnSizes.push_back(static_cast<size_t>(size));
     }

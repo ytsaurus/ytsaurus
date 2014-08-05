@@ -224,6 +224,18 @@ void TYsonWriter::OnInt64Scalar(i64 value)
     EndNode();
 }
 
+void TYsonWriter::OnUint64Scalar(ui64 value)
+{
+    if (Format == EYsonFormat::Binary) {
+        Stream->Write(NDetail::Uint64Marker);
+        WriteVarUint64(Stream, value);
+    } else {
+        Stream->Write(::ToString(value));
+        Stream->Write("u");
+    }
+    EndNode();
+}
+
 void TYsonWriter::OnDoubleScalar(double value)
 {
     if (Format == EYsonFormat::Binary) {

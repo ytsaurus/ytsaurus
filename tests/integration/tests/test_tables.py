@@ -572,3 +572,9 @@ class TestTables(YTEnvSetup):
         format = yson.loads("<boolean_as_string=false;format=text>yson")
         write('//tmp/t', '{x=%false};{x=%true};{x=false};', input_format=format, is_raw=True)
         assert '{"x"=%false};\n{"x"=%true};\n{"x"="false"};\n' == read('//tmp/t', output_format=format)
+
+    def test_uint64(self):
+        create('table', '//tmp/t')
+        format = yson.loads("<format=text>yson")
+        write('//tmp/t', '{x=1u};{x=4u};{x=9u};', input_format=format, is_raw=True)
+        assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read('//tmp/t', output_format=format)

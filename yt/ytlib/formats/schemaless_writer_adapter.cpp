@@ -44,6 +44,9 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
                     case EValueType::Int64:
                         Consumer_->OnInt64Scalar(value.Data.Int64);
                         break;
+                    case EValueType::Uint64:
+                        Consumer_->OnUint64Scalar(value.Data.Uint64);
+                        break;
                     case EValueType::Double:
                         Consumer_->OnDoubleScalar(value.Data.Double);
                         break;

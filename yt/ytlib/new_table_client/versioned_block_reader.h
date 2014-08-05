@@ -80,7 +80,8 @@ private:
     TTimestamp ReadValueTimestamp(int valueIndex, int id);
     void ReadKeyValue(TUnversionedValue* value, int id);
     
-    void ReadInteger(TUnversionedValue* value, char* ptr);
+    void ReadInt64(TUnversionedValue* value, char* ptr);
+    void ReadUint64(TUnversionedValue* value, char* ptr);
     void ReadDouble(TUnversionedValue* value, char* ptr);
     void ReadBoolean(TUnversionedValue* value, char* ptr);
     void ReadStringLike(TUnversionedValue* value, char* ptr);

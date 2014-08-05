@@ -56,6 +56,8 @@ const char DoubleMarker = '\x03';
 //! Marks true and false values of boolean.
 const char FalseMarker = '\x04';
 const char TrueMarker = '\x05';
+//! Marks the beginning of a binary ui64 literal.
+const char Uint64Marker = '\x06';
 
 template <bool EnableLinePositionInfo>
 class TPositionInfo;
@@ -379,19 +381,27 @@ public:
 protected:
     /// Lexer routines
 
-    // Returns true if double, false if integer
+    DECLARE_ENUM(ENumericResult,
+        ((Int64)                 (0))
+        ((Uint64)                (1))
+        ((Double)                (2))
+    );
+
     template <bool AllowFinish>
-    bool ReadNumeric(TStringBuf* value)
+    ENumericResult ReadNumeric(TStringBuf* value)
     {
         Buffer_.clear();
-        bool isDouble = false;
+        ENumericResult result = ENumericResult::Int64;
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
                 Buffer_.push_back(ch);
             } else if (ch == '.' || ch == 'e' || ch == 'E') {
                 Buffer_.push_back(ch);
-                isDouble = true;
+                result = ENumericResult::Double;
+            } else if (ch == 'u') {
+                Buffer_.push_back(ch);
+                result = ENumericResult::Uint64;
             } else if (isalpha(ch)) {
                 THROW_ERROR_EXCEPTION("Unexpected %Qv in numeric literal",
                     ch)
@@ -404,7 +414,7 @@ protected:
         }
 
         *value = TStringBuf(Buffer_.data(), Buffer_.size());
-        return isDouble;
+        return result;
     }
 
     void ReadQuotedString(TStringBuf* value)
@@ -551,6 +561,16 @@ protected:
                 << *this;
         }
         *result = ZigZagDecode64(uvalue);
+    }
+
+    void ReadBinaryUint64(ui64* result)
+    {
+        ui64 uvalue;
+        if (!TBaseStream::ReadVarint64(&uvalue)) {
+            THROW_ERROR_EXCEPTION("Error parsing varint value")
+                << *this;
+        }
+        *result = uvalue;
     }
 
     void ReadBinaryDouble(double* value)

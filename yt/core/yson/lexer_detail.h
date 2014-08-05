@@ -46,6 +46,7 @@ private:
         ((BinaryDouble)                 (5))    // =   101b
         ((BinaryFalse)                  (9))    // =  1001b
         ((BinaryTrue)                   (13))   // =  1101b
+        ((BinaryUint64)                 (17))   // = 10001b
 
         ((Quote)                        (3))    // = 00011b
         ((DigitOrMinus)                 (7))    // = 00111b
@@ -64,6 +65,7 @@ private:
 #define BD EReadStartCase::BinaryDouble
 #define BF EReadStartCase::BinaryFalse
 #define BT EReadStartCase::BinaryTrue
+#define BU EReadStartCase::BinaryUint64
         //EReadStartCase::Space
 #define SP NN
 #define DM EReadStartCase::DigitOrMinus
@@ -74,7 +76,7 @@ private:
 
         static const ui8 lookupTable[] =
         {
-            NN,BS,BI,BD,BF,BT,NN,NN,NN,SP,SP,SP,SP,SP,NN,NN,
+            NN,BS,BI,BD,BF,BT,BU,NN,NN,SP,SP,SP,SP,SP,NN,NN,
             NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
 
             // 32
@@ -204,6 +206,10 @@ public:
                     i64 value;
                     TBase::ReadBinaryInt64(&value);
                     *token = TToken(value);
+                } else if (state == EReadStartCase::BinaryUint64) {
+                    ui64 value;
+                    TBase::ReadBinaryUint64(&value);
+                    *token = TToken(value);
                 } else if (state == EReadStartCase::BinaryFalse) {
                     *token = TToken(false);
                 } else if (state == EReadStartCase::BinaryTrue) {
@@ -226,13 +232,15 @@ public:
         }
     }
 
+    typedef typename TBase::ENumericResult ENumericResult;
+
     template <bool AllowFinish>
     void ReadNumeric(TToken* token)
     {
         TStringBuf valueBuffer;
-        bool isDouble = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
+        ENumericResult numericResult = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
 
-        if (isDouble) {
+        if (numericResult == ENumericResult::Double) {
             try {
                 *token = TToken(FromString<double>(valueBuffer));
             } catch (const std::exception& ex) {
@@ -241,11 +249,20 @@ public:
                     << *this
                     << ex;
             }
-        } else {
+        } else if (numericResult == ENumericResult::Int64) {
             try {
                 *token = TToken(FromString<i64>(valueBuffer));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing integer literal %Qv",
+                THROW_ERROR_EXCEPTION("Error parsing int64 literal %Qv",
+                    valueBuffer)
+                    << *this
+                    << ex;
+            }
+        } else if (numericResult == ENumericResult::Uint64) {
+            try {
+                *token = TToken(FromString<ui64>(valueBuffer.SubStr(0, valueBuffer.size() - 1)));
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error parsing uint64 literal %Qv",
                     valueBuffer)
                     << *this
                     << ex;

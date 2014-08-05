@@ -37,9 +37,16 @@ inline TVersionedValue MakeVersionedSentinelValue(EValueType type, TTimestamp ti
     return result;
 }
 
-inline TVersionedValue MakeVersionedIntegerValue(i64 value, TTimestamp timestamp, int id = 0)
+inline TVersionedValue MakeVersionedInt64Value(i64 value, TTimestamp timestamp, int id = 0)
 {
     auto result = MakeInt64Value<TVersionedValue>(value, id);
+    result.Timestamp = timestamp;
+    return result;
+}
+
+inline TVersionedValue MakeVersionedUint64Value(ui64 value, TTimestamp timestamp, int id = 0)
+{
+    auto result = MakeUint64Value<TVersionedValue>(value, id);
     result.Timestamp = timestamp;
     return result;
 }

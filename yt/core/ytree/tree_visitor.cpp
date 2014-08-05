@@ -60,6 +60,7 @@ private:
         switch (node->GetType()) {
             case ENodeType::String:
             case ENodeType::Int64:
+            case ENodeType::Uint64:
             case ENodeType::Double:
             case ENodeType::Boolean:
                 VisitScalar(node);
@@ -91,6 +92,10 @@ private:
 
             case ENodeType::Int64:
                 Consumer->OnInt64Scalar(node->GetValue<i64>());
+                break;
+
+            case ENodeType::Uint64:
+                Consumer->OnUint64Scalar(node->GetValue<ui64>());
                 break;
 
             case ENodeType::Double:

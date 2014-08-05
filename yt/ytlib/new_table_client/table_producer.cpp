@@ -26,6 +26,9 @@ void ProduceRow(NYson::IYsonConsumer* consumer, TUnversionedRow row, TNameTableP
             case EValueType::Int64:
                 consumer->OnInt64Scalar(value.Data.Int64);
                 break;
+            case EValueType::Uint64:
+                consumer->OnUint64Scalar(value.Data.Uint64);
+                break;
             case EValueType::Double:
                 consumer->OnDoubleScalar(value.Data.Double);
                 break;

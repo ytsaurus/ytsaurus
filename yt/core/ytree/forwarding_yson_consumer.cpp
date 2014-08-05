@@ -75,6 +75,16 @@ void TForwardingYsonConsumer::OnInt64Scalar(i64 value)
     }
 }
 
+void TForwardingYsonConsumer::OnUint64Scalar(ui64 value)
+{
+    if (!CheckForwarding()) {
+        OnMyUint64Scalar(value);
+    } else {
+        ForwardingConsumer->OnUint64Scalar(value);
+        UpdateDepth(0);
+    }
+}
+
 void TForwardingYsonConsumer::OnDoubleScalar(double value)
 {
     if (!CheckForwarding()) {
@@ -203,6 +213,13 @@ void TForwardingYsonConsumer::OnMyStringScalar(const TStringBuf& value)
 }
 
 void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value)
+{
+    UNUSED(value);
+
+    YUNREACHABLE();
+}
+
+void TForwardingYsonConsumer::OnMyUint64Scalar(ui64 value)
 {
     UNUSED(value);
 

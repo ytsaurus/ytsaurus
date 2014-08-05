@@ -127,6 +127,13 @@ public:
                 Consumer->OnInt64Scalar(value);
                 break;
             }
+            case Uint64Marker:{
+                TBase::Advance(1);
+                ui64 value;
+                TBase::ReadBinaryUint64(&value);
+                Consumer->OnUint64Scalar(value);
+                break;
+            }
             case DoubleMarker: {
                 TBase::Advance(1);
                 double value;
@@ -266,13 +273,15 @@ public:
         ParseListFragment<false>(endSymbol);
     }
     
+    typedef typename TBase::ENumericResult ENumericResult;
+
     template <bool AllowFinish>
     void ReadNumeric()
     {
         TStringBuf valueBuffer;
-        bool isDouble = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
+        ENumericResult numericResult = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
 
-        if (isDouble) {
+        if (numericResult == ENumericResult::Double) {
             double value;
             try {
                 value = FromString<double>(valueBuffer);
@@ -284,18 +293,30 @@ public:
                     << ex;
             }
             Consumer->OnDoubleScalar(value);
-        } else {
+        } else if (numericResult == ENumericResult::Int64) {
             i64 value;
             try {
                 value = FromString<i64>(valueBuffer);
             } catch (const std::exception& ex) {
                 // This exception is wrapped in parser.
-                THROW_ERROR_EXCEPTION("Failed to parse integer literal %Qv",
+                THROW_ERROR_EXCEPTION("Failed to parse int64 literal %Qv",
                     valueBuffer)
                     << *this
                     << ex;
             }
             Consumer->OnInt64Scalar(value);
+        } else if (numericResult == ENumericResult::Uint64) {
+            ui64 value;
+            try {
+                value = FromString<ui64>(valueBuffer.SubStr(0, valueBuffer.size() - 1));
+            } catch (const std::exception& ex) {
+                // This exception is wrapped in parser.
+                THROW_ERROR_EXCEPTION("Failed to parse uint64 literal %Qv",
+                    valueBuffer)
+                    << *this
+                    << ex;
+            }
+            Consumer->OnUint64Scalar(value);
         }
     } 
 };

@@ -38,6 +38,16 @@ TValue MakeInt64Value(i64 value, int id = 0)
 }
 
 template <class TValue>
+TValue MakeUint64Value(ui64 value, int id = 0)
+{
+    TValue result;
+    result.Id = id;
+    result.Type = EValueType::Uint64;
+    result.Data.Int64 = value;
+    return result;
+}
+
+template <class TValue>
 TValue MakeDoubleValue(double value, int id = 0)
 {
     TValue result;

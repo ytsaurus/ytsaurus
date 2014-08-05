@@ -28,6 +28,7 @@ struct TTestSubconfig
     : public TYsonSerializable
 {
     int MyInt;
+    unsigned int MyUint;
     bool MyBool;
     std::vector<Stroka> MyStringList;
     ETestEnum MyEnum;
@@ -35,6 +36,7 @@ struct TTestSubconfig
     TTestSubconfig()
     {
         RegisterParameter("my_int", MyInt).Default(100).InRange(95, 205);
+        RegisterParameter("my_uint", MyUint).Default(50).InRange(31, 117);
         RegisterParameter("my_bool", MyBool).Default(false);
         RegisterParameter("my_string_list", MyStringList).Default();
         RegisterParameter("my_enum", MyEnum).Default(ETestEnum::Value1);
@@ -75,6 +77,7 @@ typedef TIntrusivePtr<TTestConfig> TTestConfigPtr;
 void TestCompleteSubconfig(TTestSubconfig* subconfig)
 {
     EXPECT_EQ(99, subconfig->MyInt);
+    EXPECT_EQ(101, subconfig->MyUint);
     EXPECT_TRUE(subconfig->MyBool);
     EXPECT_EQ(3, subconfig->MyStringList.size());
     EXPECT_EQ("ListItem0", subconfig->MyStringList[0]);
@@ -90,6 +93,7 @@ TEST(TYsonSerializableTest, Complete)
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
                 .Item("my_int").Value(99)
+                .Item("my_uint").Value(101)
                 .Item("my_bool").Value(true)
                 .Item("my_enum").Value("value2")
                 .Item("my_string_list").BeginList()
@@ -101,6 +105,7 @@ TEST(TYsonSerializableTest, Complete)
             .Item("sub_list").BeginList()
                 .Item().BeginMap()
                     .Item("my_int").Value(99)
+                    .Item("my_uint").Value(101)
                     .Item("my_bool").Value(true)
                     .Item("my_enum").Value("value2")
                     .Item("my_string_list").BeginList()
@@ -111,6 +116,7 @@ TEST(TYsonSerializableTest, Complete)
                 .EndMap()
                 .Item().BeginMap()
                     .Item("my_int").Value(99)
+                    .Item("my_uint").Value(101)
                     .Item("my_bool").Value(true)
                     .Item("my_enum").Value("value2")
                     .Item("my_string_list").BeginList()
@@ -123,6 +129,7 @@ TEST(TYsonSerializableTest, Complete)
             .Item("sub_map").BeginMap()
                 .Item("sub1").BeginMap()
                     .Item("my_int").Value(99)
+                    .Item("my_uint").Value(101)
                     .Item("my_bool").Value(true)
                     .Item("my_enum").Value("value2")
                     .Item("my_string_list").BeginList()
@@ -133,6 +140,7 @@ TEST(TYsonSerializableTest, Complete)
                 .EndMap()
                 .Item("sub2").BeginMap()
                     .Item("my_int").Value(99)
+                    .Item("my_uint").Value(101)
                     .Item("my_bool").Value(true)
                     .Item("my_enum").Value("value2")
                     .Item("my_string_list").BeginList()
@@ -364,12 +372,14 @@ TEST(TYsonSerializableTest, Save)
         "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=200;"
+        "\"my_uint\"=50u;"
         "\"my_string_list\"=[]}";
 
     Stroka subconfigYsonOrigin =
         "{\"my_bool\"=%false;"
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=100;"
+        "\"my_uint\"=50u;"
         "\"my_string_list\"=[]}";
 
     Stroka expectedYson;

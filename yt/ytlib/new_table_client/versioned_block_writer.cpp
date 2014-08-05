@@ -130,6 +130,11 @@ void TSimpleVersionedBlockWriter::WriteValue(
             nullFlags.Append(false);
             break;
 
+        case EValueType::Uint64:
+            WritePod(stream, value.Data.Uint64);
+            nullFlags.Append(false);
+            break;
+
         case EValueType::Double:
             WritePod(stream, value.Data.Double);
             nullFlags.Append(false);

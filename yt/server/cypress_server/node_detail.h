@@ -245,6 +245,13 @@ struct TCypressScalarTypeTraits<i64>
 };
 
 template <>
+struct TCypressScalarTypeTraits<ui64>
+    : NYTree::NDetail::TScalarTypeTraits<ui64>
+{
+    static const NObjectClient::EObjectType::EDomain ObjectType;
+};
+
+template <>
 struct TCypressScalarTypeTraits<double>
     : NYTree::NDetail::TScalarTypeTraits<double>
 {
@@ -293,6 +300,7 @@ public:
 
 typedef TScalarNode<Stroka> TStringNode;
 typedef TScalarNode<i64>    TInt64Node;
+typedef TScalarNode<ui64>   TUint64Node;
 typedef TScalarNode<double> TDoubleNode;
 typedef TScalarNode<bool>   TBooleanNode;
 
@@ -356,6 +364,7 @@ protected:
 
 typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
 typedef TScalarNodeTypeHandler<i64>    TInt64NodeTypeHandler;
+typedef TScalarNodeTypeHandler<ui64>   TUint64NodeTypeHandler;
 typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 typedef TScalarNodeTypeHandler<bool>   TBooleanNodeTypeHandler;
 

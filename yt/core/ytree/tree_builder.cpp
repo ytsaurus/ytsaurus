@@ -59,6 +59,13 @@ public:
         AddNode(node, false);
     }
 
+    virtual void OnMyUint64Scalar(ui64 value) override
+    {
+        auto node = Factory->CreateUint64();
+        node->SetValue(value);
+        AddNode(node, false);
+    }
+
     virtual void OnMyDoubleScalar(double value) override
     {
         auto node = Factory->CreateDouble();

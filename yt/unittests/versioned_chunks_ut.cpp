@@ -100,8 +100,8 @@ protected:
             FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
 
             // v1
-            row.BeginValues()[0] = MakeVersionedIntegerValue(8, 11, 3);
-            row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 3);
+            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
+            row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
             // v2
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
@@ -115,9 +115,9 @@ protected:
             FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
             // v1
-            row.BeginValues()[0] = MakeVersionedIntegerValue(2, 1, 3);
+            row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
             // v2
-            row.BeginValues()[1] = MakeVersionedIntegerValue(100, 10, 4);
+            row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
             row.BeginTimestamps()[0] = 1;
@@ -128,9 +128,9 @@ protected:
             FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
 
             // v1
-            row.BeginValues()[0] = MakeVersionedIntegerValue(9, 15, 3);
-            row.BeginValues()[1] = MakeVersionedIntegerValue(8, 12, 3);
-            row.BeginValues()[2] = MakeVersionedIntegerValue(7, 3, 3);
+            row.BeginValues()[0] = MakeVersionedInt64Value(9, 15, 3);
+            row.BeginValues()[1] = MakeVersionedInt64Value(8, 12, 3);
+            row.BeginValues()[2] = MakeVersionedInt64Value(7, 3, 3);
             // v2
             row.BeginValues()[3] = MakeVersionedSentinelValue(EValueType::Null, 12, 4);
             row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 8, 4);
@@ -165,8 +165,8 @@ protected:
             FillKey(row, MakeNullable(A), MakeNullable(startIndex + i), Null);
 
             // v1
-            row.BeginValues()[0] = MakeVersionedIntegerValue(8, 11, 3);
-            row.BeginValues()[1] = MakeVersionedIntegerValue(7, 3, 3);
+            row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
+            row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
             // v2
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
@@ -240,7 +240,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
 
         // v1
-        row.BeginValues()[0] = MakeVersionedIntegerValue(8, 11, 3);
+        row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
         row.BeginTimestamps()[0] = 11;
 
         expected.push_back(row);
@@ -249,9 +249,9 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v1
-        row.BeginValues()[0] = MakeVersionedIntegerValue(2, 1, 3);
+        row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
         // v2
-        row.BeginValues()[1] = MakeVersionedIntegerValue(100, 10, 4);
+        row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
 
         row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
 
@@ -297,7 +297,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v1
-        row.BeginValues()[0] = MakeVersionedIntegerValue(2, 1, 3);
+        row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
         row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
 
         expected.push_back(row);
@@ -343,7 +343,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v2
-        row.BeginValues()[0] = MakeVersionedIntegerValue(100, 10, 3);
+        row.BeginValues()[0] = MakeVersionedInt64Value(100, 10, 3);
 
         row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
 

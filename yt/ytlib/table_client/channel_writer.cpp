@@ -96,7 +96,7 @@ void TChannelWriter::EndRow()
 
     if (WriteRangeSizes) {
         auto capacity = RangeSizes.GetCapacity();
-        CurrentSize += WriteVarUInt64(&RangeSizes, RangeColumns.GetSize() - RangeOffset);
+        CurrentSize += WriteVarUint64(&RangeSizes, RangeColumns.GetSize() - RangeOffset);
         Capacity += RangeSizes.GetCapacity() - capacity;
         RangeOffset = RangeColumns.GetSize();
     }
@@ -119,9 +119,9 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
     TBlobOutput sizeOutput(8 * (FixedColumns.size() + 1));
 
     for (const auto& column : FixedColumns) {
-        WriteVarUInt64(&sizeOutput, column.GetSize());
+        WriteVarUint64(&sizeOutput, column.GetSize());
     }
-    WriteVarUInt64(&sizeOutput, RangeColumns.GetSize());
+    WriteVarUint64(&sizeOutput, RangeColumns.GetSize());
 
     std::vector<TSharedRef> result;
     result.reserve(FixedColumns.size() + 3);

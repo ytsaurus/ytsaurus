@@ -702,6 +702,9 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
         case ENodeType::Int64:
             return lhs->GetValue<i64>() == rhs->GetValue<i64>();
 
+        case ENodeType::Uint64:
+            return lhs->GetValue<ui64>() == rhs->GetValue<ui64>();
+
         case ENodeType::Double:
             return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
 

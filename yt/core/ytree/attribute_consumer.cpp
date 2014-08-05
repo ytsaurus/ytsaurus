@@ -55,6 +55,12 @@ void TAttributeConsumer::OnMyInt64Scalar(i64 value)
     ThrowMapExpected();
 }
 
+void TAttributeConsumer::OnMyUint64Scalar(ui64 value)
+{
+    UNUSED(value);
+    ThrowMapExpected();
+}
+
 void TAttributeConsumer::OnMyDoubleScalar(double value)
 {
     UNUSED(value);

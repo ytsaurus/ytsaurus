@@ -905,6 +905,11 @@ void TNodeSetterBase::OnMyInt64Scalar(i64 /*value*/)
     ThrowInvalidType(ENodeType::Int64);
 }
 
+void TNodeSetterBase::OnMyUint64Scalar(ui64 /*value*/)
+{
+    ThrowInvalidType(ENodeType::Uint64);
+}
+
 void TNodeSetterBase::OnMyDoubleScalar(double /*value*/)
 {
     ThrowInvalidType(ENodeType::Double);

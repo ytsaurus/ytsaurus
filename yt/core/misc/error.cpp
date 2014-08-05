@@ -252,6 +252,9 @@ void AppendError(TStringBuilder* builder, const TError& error, int indent)
             case ETokenType::Int64:
                 AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetInt64Value()), indent);
                 break;
+            case ETokenType::Uint64:
+                AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetUint64Value()), indent);
+                break;
             case ETokenType::Double:
                 AppendAttribute(builder, key, ToString(tokenizer.CurrentToken().GetDoubleValue()), indent);
                 break;

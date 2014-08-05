@@ -79,6 +79,7 @@ DECLARE_ENUM(EObjectType,
     // Static nodes
     ((StringNode)                 (300))
     ((Int64Node)                  (301))
+    ((Uint64Node)                 (306))
     ((DoubleNode)                 (302))
     ((MapNode)                    (303))
     ((ListNode)                   (304))

@@ -25,8 +25,10 @@ namespace NVersionedTableClient {
 // NB: Wire protocol readers/writer rely on this fixed layout.
 union TUnversionedValueData
 {
-    //! Integral value.
+    //! Int64 value.
     i64 Int64;
+    //! Uint64 value.
+    ui64 Uint64;
     //! Floating-point value.
     double Double;
     //! Boolean value.
@@ -65,6 +67,11 @@ inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 
 inline TUnversionedValue MakeUnversionedInt64Value(i64 value, int id = 0)
 {
     return MakeInt64Value<TUnversionedValue>(value, id);
+}
+
+inline TUnversionedValue MakeUnversionedUint64Value(ui64 value, int id = 0)
+{
+    return MakeUint64Value<TUnversionedValue>(value, id);
 }
 
 inline TUnversionedValue MakeUnversionedDoubleValue(double value, int id = 0)
@@ -129,11 +136,6 @@ bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
 //! Computes succeeding value.
 TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuffer);
-
-//! Checks that two given values form a valid predecessor-successor pair.
-bool IsValueSuccessor(
-    const TUnversionedValue& value,
-    const TUnversionedValue& successor);
 
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
@@ -558,6 +560,14 @@ private:
     void Reset();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRow BuildRow(
+    const Stroka& yson,
+    const TKeyColumns& keyColumns,
+    const TTableSchema& tableSchema,
+    bool treatMissingAsNull = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

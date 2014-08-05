@@ -26,14 +26,14 @@ int GetDataWeight(const TVersionedValue& value)
 int ReadValue(const char* input, TVersionedValue* value)
 {
     int result = ReadValue(input, static_cast<TUnversionedValue*>(value));
-    result += ReadVarUInt64(input + result, &value->Timestamp);
+    result += ReadVarUint64(input + result, &value->Timestamp);
     return result;
 }
 
 int WriteValue(char* output, const TVersionedValue& value)
 {
     int result = WriteValue(output, static_cast<TUnversionedValue>(value));
-    result += WriteVarUInt64(output + result, value.Timestamp);
+    result += WriteVarUint64(output + result, value.Timestamp);
     return result;
 }
 

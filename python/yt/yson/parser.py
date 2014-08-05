@@ -14,11 +14,17 @@ class YsonParseError(ValueError):
 def _format_message(message, line_index, position, offset):
     return "%s (Line: %d, Poisition: %d, Offset: %d)" % (message, line_index, position, offset)
 
-def _seems_integer(string):
+_SEEMS_INT64 = chr(0)
+_SEEMS_UINT64 = chr(1)
+_SEEMS_DOUBLE = chr(2)
+
+def _get_numeric_type(string):
     for ch in string:
         if ch == 'E' or ch == 'e' or ch == '.':
-            return False
-    return True
+            return _SEEMS_DOUBLE
+        elif ch == 'u':
+            return _SEEMS_UINT64
+    return _SEEMS_INT64
 
 # Binary literals markers
 _STRING_MARKER = chr(1)
@@ -26,6 +32,10 @@ _INT64_MARKER = chr(2)
 _DOUBLE_MARKER = chr(3)
 _FALSE_MARKER = chr(4)
 _TRUE_MARKER = chr(5)
+_UINT64_MARKER = chr(6)
+
+def _zig_zag_decode(value):
+    return (value >> 1) ^ -(value & 1)
 
 class YsonParserBase(object):
     def __init__(self, stream):
@@ -104,7 +114,7 @@ class YsonParserBase(object):
 
     def _read_binary_string(self):
         self._expect_char(_STRING_MARKER)
-        length = self._read_varint()
+        length = _zig_zag_decode(self._read_varint())
         return self._read_binary_chars(length)
 
     def _read_varint(self):
@@ -126,7 +136,6 @@ class YsonParserBase(object):
             count += 1
             read_next = byte & 0x80 != 0
 
-        result = (result >> 1) ^ -(result & 1)
         return result
 
     def _read_quoted_string(self):
@@ -163,7 +172,7 @@ class YsonParserBase(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not ch.isdigit() and ch not in "+-.eE":
+            if not ch or not ch.isdigit() and ch not in "+-.eEu":
                 break
             self._read_char()
             result += ch
@@ -198,6 +207,9 @@ class YsonParserBase(object):
 
         elif ch == _INT64_MARKER:
             result = self._parse_binary_int64()
+
+        elif ch == _UINT64_MARKER:
+            result = self._parse_binary_uint64()
 
         elif ch == _DOUBLE_MARKER:
             result = self._parse_binary_double()
@@ -296,6 +308,11 @@ class YsonParserBase(object):
 
     def _parse_binary_int64(self):
         self._expect_char(_INT64_MARKER)
+        result = _zig_zag_decode(self._read_varint())
+        return result
+
+    def _parse_binary_uint64(self):
+        self._expect_char(_UINT64_MARKER)
         result = self._read_varint()
         return result
 
@@ -307,7 +324,8 @@ class YsonParserBase(object):
 
     def _parse_numeric(self):
         string = self._read_numeric()
-        if _seems_integer(string):
+        numeric_type = _get_numeric_type(string)
+        if numeric_type == _SEEMS_INT64:
             try:
                 result = int(string)
                 if result > 2 ** 63 - 1 or result < -(2 ** 63):
@@ -315,6 +333,15 @@ class YsonParserBase(object):
             except ValueError:
                 raise YsonParseError(
                     "Failed to parse Int64 literal %s in Yson" % string,
+                    self._get_position_info())
+        elif numeric_type == _SEEMS_UINT64:
+            try:
+                result = long(string)
+                if result > 2 ** 64 - 1:
+                    raise ValueError()
+            except ValueError:
+                raise YsonParseError(
+                    "Failed to parse Uint64 literal %s in Yson" % string,
                     self._get_position_info())
         else:
             try:

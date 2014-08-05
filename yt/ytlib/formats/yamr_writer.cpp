@@ -65,6 +65,17 @@ void TYamrConsumer::OnInt64Scalar(i64 value)
     State = EState::ExpectEndAttributes;
 }
 
+void TYamrConsumer::OnUint64Scalar(ui64 value)
+{
+    YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
+    if (State == EState::ExpectValue) {
+        StringStorage_.push_back(::ToString(value));
+        OnStringScalar(StringStorage_.back());
+        return;
+    }
+    THROW_ERROR_EXCEPTION("Uint64 attributes are not supported by YAMR");
+}
+
 void TYamrConsumer::OnDoubleScalar(double value)
 {
     YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);

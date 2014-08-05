@@ -69,6 +69,22 @@ void TTableConsumer::OnInt64Scalar(i64 value)
     }
 }
 
+void TTableConsumer::OnUint64Scalar(ui64 value)
+{
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
+        ThrowInvalidControlAttribute("be a uint64 value");
+    }
+
+    YCHECK(ControlState == EControlState::None);
+
+    if (Depth == 0) {
+        ThrowMapExpected();
+    } else {
+        ValueWriter.OnUint64Scalar(value);
+    }
+}
+
 void TTableConsumer::OnDoubleScalar(double value)
 {
     if (ControlState == EControlState::ExpectControlAttributeValue) {
@@ -421,6 +437,23 @@ void TTableConsumerBase::OnInt64Scalar(i64 value)
         ThrowMapExpected();
     } else {
         WriteValue(MakeInt64Value<TUnversionedValue>(value, ColumnIndex_));
+    }
+}
+
+void TTableConsumerBase::OnUint64Scalar(ui64 value)
+{
+    if (ControlState_ == EControlState::ExpectValue) {
+        YASSERT(Depth_ == 1);
+        ThrowInvalidControlAttribute("be a uint64 value");
+        return;
+    }
+
+    YASSERT(ControlState_ == EControlState::None);
+
+    if (Depth_ == 0) {
+        ThrowMapExpected();
+    } else {
+        WriteValue(MakeUint64Value<TUnversionedValue>(value, ColumnIndex_));
     }
 }
 

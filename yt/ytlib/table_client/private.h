@@ -35,6 +35,8 @@ DECLARE_ENUM(EKeyPartType,
     ((Composite)(4))
     // Boolean value.
     ((Boolean)(5))
+    // Uint64 value.
+    ((Uint64)(6))
 
     // A special sentinel used by #GetKeyPrefixSuccessor.
     ((MaxSentinel)(100))

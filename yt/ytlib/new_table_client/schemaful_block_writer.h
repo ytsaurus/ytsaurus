@@ -26,7 +26,8 @@ public:
 
     TBlockWriter(const std::vector<int> columnSizes);
 
-    void WriteInteger(const TUnversionedValue& value, int index);
+    void WriteInt64(const TUnversionedValue& value, int index);
+    void WriteUint64(const TUnversionedValue& value, int index);
     void WriteDouble(const TUnversionedValue& value, int index);
     void WriteBoolean(const TUnversionedValue& value, int index);
     void WriteString(const TUnversionedValue& value, int index);

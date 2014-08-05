@@ -453,6 +453,14 @@ i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 break;
             }
 
+            case ETokenType::Uint64: {
+                auto* keyPart = part->mutable_key_part();
+                keyPart->set_type(EKeyPartType::Uint64);
+                keyPart->set_uint64_value(token.GetUint64Value());
+                size += sizeof(ui64);
+                break;
+            }
+
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
                 keyPart->set_type(EKeyPartType::String);

@@ -109,6 +109,17 @@ TEST_F(TStatelessLexerTest, Int64Values)
     TestToken("\x02\x80\x80\x80\x02", ETokenType::Int64, ToString(1ull << 21));
 }
 
+TEST_F(TStatelessLexerTest, Uint64Values)
+{
+    TestToken("123u", ETokenType::Uint64, "123");
+    TestToken("0u", ETokenType::Uint64, "0");
+
+    TestToken(Stroka("\x06\x00", 2), ETokenType::Uint64, "0");
+    TestToken("\x06\x02", ETokenType::Uint64, "2");
+    TestToken("\x06\x04", ETokenType::Uint64, "4");
+    TestToken("\x06\x80\x80\x80\x02", ETokenType::Uint64, ToString(1ull << 22));
+}
+
 TEST_F(TStatelessLexerTest, DoubleValues)
 {
     const double x = 3.1415926;

@@ -56,15 +56,20 @@ const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EValueType,
-    ((Min)         (0))
-    ((TheBottom)   (1))
-    ((Null)        (2))
-    ((Int64)       (3))
-    ((Double)      (4))
-    ((String)      (5))
-    ((Any)         (6))
-    ((Boolean)     (7))
-    ((Max)        (64))
+    ((Min)         (0x00))
+
+    ((TheBottom)   (0x01))
+    ((Null)        (0x02))
+
+    ((Int64)       (0x03))
+    ((Uint64)      (0x04))
+    ((Double)      (0x05))
+    ((Boolean)     (0x06))
+
+    ((String)      (0x10))
+    ((Any)         (0x11))
+
+    ((Max)         (0xef))
 );
 
 DECLARE_ENUM(ETableChunkFormat,

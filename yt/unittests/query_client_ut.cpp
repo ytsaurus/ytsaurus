@@ -1441,56 +1441,9 @@ TUnversionedOwningRow BuildRow(
 {
     auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
-    auto nameTable = NVersionedTableClient::TNameTable::FromSchema(tableSchema);
 
-    auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
-        TYsonString(yson, EYsonType::MapFragment));
-
-    TUnversionedOwningRowBuilder rowBuilder;
-    auto addValue = [&] (int id, INodePtr value) {
-        switch (value->GetType()) {
-            case ENodeType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                break;
-            case ENodeType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                break;
-            case ENodeType::String:
-                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
-                break;
-            default:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
-                break;
-        }
-    };
-
-    // Key
-    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
-        auto it = rowParts.find(nameTable->GetName(id));
-        if (it != rowParts.end()) {
-            addValue(id, it->second);
-        }
-    }
-
-    // Fixed values
-    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
-        auto it = rowParts.find(nameTable->GetName(id));
-        if (it != rowParts.end()) {
-            addValue(id, it->second);
-        } else if (treatMissingAsNull) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
-        }
-    }
-
-    // Variable values
-    for (const auto& pair : rowParts) {
-        int id = nameTable->GetIdOrRegisterName(pair.first);
-        if (id >= tableSchema.Columns().size()) {
-            addValue(id, pair.second);
-        }
-    }
-
-    return rowBuilder.GetRowAndReset();
+    return NVersionedTableClient::BuildRow(
+            yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
 class TQueryEvaluateTest

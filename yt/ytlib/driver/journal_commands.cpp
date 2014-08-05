@@ -140,6 +140,11 @@ private:
         ThrowMalformedData();
     }
 
+    virtual void OnUint64Scalar(ui64 /*value*/) override
+    {
+        ThrowMalformedData();
+    }
+
     virtual void OnDoubleScalar(double /*value*/) override
     {
         ThrowMalformedData();

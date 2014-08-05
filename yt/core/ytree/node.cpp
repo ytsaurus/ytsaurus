@@ -15,6 +15,7 @@ namespace NDetail {
 
 const ENodeType::EDomain TScalarTypeTraits<Stroka>::NodeType = ENodeType::String;
 const ENodeType::EDomain TScalarTypeTraits<i64>::NodeType = ENodeType::Int64;
+const ENodeType::EDomain TScalarTypeTraits<ui64>::NodeType = ENodeType::Uint64;
 const ENodeType::EDomain TScalarTypeTraits<double>::NodeType = ENodeType::Double;
 const ENodeType::EDomain TScalarTypeTraits<bool>::NodeType = ENodeType::Boolean;
 

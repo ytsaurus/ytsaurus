@@ -31,9 +31,9 @@ int TValue::Save(TOutputStream* out)
     YASSERT(out);
 
     if (IsNull()) {
-        return WriteVarUInt64(out, 0);
+        return WriteVarUint64(out, 0);
     } else {
-        int bytesWritten = WriteVarUInt64(out, Data.Size() + 1);
+        int bytesWritten = WriteVarUint64(out, Data.Size() + 1);
         bytesWritten += static_cast<int>(Data.Size());
         out->Write(Data.Begin(), Data.Size());
         return bytesWritten;
@@ -45,7 +45,7 @@ TValue TValue::Load(TMemoryInput* input)
     YASSERT(input);
 
     ui64 size;
-    ReadVarUInt64(input, &size);
+    ReadVarUint64(input, &size);
     if (size == 0) {
         return TValue();
     }

@@ -46,6 +46,7 @@ public:
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity() override;
@@ -94,6 +95,7 @@ public:
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity() override;

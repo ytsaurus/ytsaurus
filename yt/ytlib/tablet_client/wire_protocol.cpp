@@ -232,6 +232,7 @@ private:
         UnsafeWriteInt64(rawValue[0]);
         switch (value.Type) {
             case EValueType::Int64:
+            case EValueType::Uint64:
             case EValueType::Double:
             case EValueType::Boolean:
                 UnsafeWriteInt64(rawValue[1]);
@@ -530,6 +531,7 @@ private:
 
         switch (value->Type) {
             case EValueType::Int64:
+            case EValueType::Uint64:
             case EValueType::Double:
             case EValueType::Boolean:
                 rawValue[1] = ReadInt64();

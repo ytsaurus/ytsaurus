@@ -141,7 +141,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
     TMemoryInput input(Blocks.back().Begin(), Blocks.back().Size());
 
     ui64 dataSize;
-    ReadVarUInt64(&input, &dataSize);
+    ReadVarUint64(&input, &dataSize);
     YCHECK(dataSize > 0);
 
     RowPointer_ = input.Buf();
@@ -158,7 +158,7 @@ bool TPartitionChunkReader::NextRow()
 {
     if (SizeBuffer.Avail() > 0) {
         RowPointer_ = RowPointer_ + SizeToNextRow;
-        ReadVarUInt64(&SizeBuffer, &SizeToNextRow);
+        ReadVarUint64(&SizeBuffer, &SizeToNextRow);
 
         DataBuffer.Reset(RowPointer_, SizeToNextRow);
 

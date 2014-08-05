@@ -27,6 +27,9 @@ typedef TIntrusivePtr<IStringNode> IStringNodePtr;
 struct IInt64Node;
 typedef TIntrusivePtr<IInt64Node> IInt64NodePtr;
 
+struct IUint64Node;
+typedef TIntrusivePtr<IUint64Node> IUint64NodePtr;
+
 struct IDoubleNode;
 typedef TIntrusivePtr<IDoubleNode> IDoubleNodePtr;
 
@@ -82,8 +85,10 @@ using NYPath::TYPath;
 DECLARE_ENUM(ENodeType,
     // Node contains a string (Stroka).
     (String)
-    // Node contains an integer number (i64).
+    // Node contains an int64 number (i64).
     (Int64)
+    // Node contains an uint64 number (ui64).
+    (Uint64)
     // Node contains an FP number (double).
     (Double)
     // Node contains an boolean (bool).

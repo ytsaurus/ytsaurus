@@ -21,6 +21,7 @@ public:
 protected:
     virtual void OnMyStringScalar(const TStringBuf& value) override;
     virtual void OnMyInt64Scalar(i64 value) override;
+    virtual void OnMyUint64Scalar(ui64 value) override;
     virtual void OnMyDoubleScalar(double value) override;
     virtual void OnMyBooleanScalar(bool value) override;
     virtual void OnMyEntity() override;

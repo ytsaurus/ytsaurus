@@ -24,6 +24,11 @@ class TNullYsonConsumer
         UNUSED(value);
     }
 
+    virtual void OnUint64Scalar(ui64 value) override
+    {
+        UNUSED(value);
+    }
+
     virtual void OnDoubleScalar(double value) override
     {
         UNUSED(value);

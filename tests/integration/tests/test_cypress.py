@@ -668,3 +668,9 @@ class TestCypress(YTEnvSetup):
         set("//tmp/boolean", "%true", is_raw=True)
         assert get("//tmp/boolean/@type") == "boolean_node"
         assert get("//tmp/boolean", output_format=yson_format) == True
+
+    def test_uint64(self):
+        yson_format = yson.loads("yson")
+        set("//tmp/my_uint", "123456u", is_raw=True)
+        assert get("//tmp/my_uint/@type") == "uint64_node"
+        assert get("//tmp/my_uint", output_format=yson_format) == 123456

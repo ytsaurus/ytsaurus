@@ -42,7 +42,7 @@ void TBlockWriter::WriteTimestamp(TTimestamp value, bool deleted, int index)
     column.Stream.DoWrite(&value, sizeof(TTimestamp));
 }
 
-void TBlockWriter::WriteInteger(const TUnversionedValue& value, int index)
+void TBlockWriter::WriteInt64(const TUnversionedValue& value, int index)
 {
     YASSERT(index < FixedColumns.size());
     auto& column = FixedColumns[index];
@@ -53,6 +53,20 @@ void TBlockWriter::WriteInteger(const TUnversionedValue& value, int index)
     } else {
         column.NullBitmap.Push(true);
         column.Stream.DoWrite(&value.Data.Int64, sizeof(i64));
+    }
+}
+
+void TBlockWriter::WriteUint64(const TUnversionedValue& value, int index)
+{
+    YASSERT(index < FixedColumns.size());
+    auto& column = FixedColumns[index];
+    YASSERT(column.ValueSize == 8);
+    if (value.Type == EValueType::Null) {
+        column.NullBitmap.Push(false);
+        column.Stream.DoWrite(&ZeroInteger, sizeof(ui64));
+    } else {
+        column.NullBitmap.Push(true);
+        column.Stream.DoWrite(&value.Data.Uint64, sizeof(ui64));
     }
 }
 
@@ -94,7 +108,7 @@ void TBlockWriter::WriteString(const TUnversionedValue& value, int index)
         column.NullBitmap.Push(false);
     } else {
         ui32 offset = FixedBuffer.GetSize();
-        FixedBuffer.Advance(WriteVarUInt64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
+        FixedBuffer.Advance(WriteVarUint64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
         FixedBuffer.DoWrite(value.Data.String, value.Length);
 
         column.Stream.DoWrite(&offset, sizeof(ui32));
@@ -121,7 +135,7 @@ TStringBuf TBlockWriter::WriteKeyString(const TUnversionedValue& value, int inde
         ui32 offset = FixedBuffer.GetSize();
         column.Stream.DoWrite(&offset, sizeof(ui32));
 
-        FixedBuffer.Advance(WriteVarUInt64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
+        FixedBuffer.Advance(WriteVarUint64(FixedBuffer.Preallocate(MaxVarInt64Size), value.Length));
         char* pos = FixedBuffer.Preallocate(value.Length);
         std::copy(value.Data.String, value.Data.String + value.Length, pos);
         FixedBuffer.Advance(value.Length);
@@ -134,13 +148,13 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
     ++VariableColumnCount;
 
     // Index in name table.
-    VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), nameTableIndex));
+    VariableBuffer.Advance(WriteVarUint64(VariableBuffer.Preallocate(MaxVarInt64Size), nameTableIndex));
 
     if (value.Type == EValueType::Null) {
-       VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), 0));
+       VariableBuffer.Advance(WriteVarUint64(VariableBuffer.Preallocate(MaxVarInt64Size), 0));
     } else if (value.Type == EValueType::Any) {
         // Length
-        VariableBuffer.Advance(WriteVarUInt64(VariableBuffer.Preallocate(MaxVarInt64Size), value.Length));
+        VariableBuffer.Advance(WriteVarUint64(VariableBuffer.Preallocate(MaxVarInt64Size), value.Length));
         // Yson
         VariableBuffer.DoWrite(value.Data.String, value.Length);
     } else {
@@ -150,6 +164,9 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
         switch (value.Type) {
             case EValueType::Int64:
                 writer.OnInt64Scalar(value.Data.Int64);
+                break;
+            case EValueType::Uint64:
+                writer.OnUint64Scalar(value.Data.Uint64);
                 break;
             case EValueType::Double:
                 writer.OnDoubleScalar(value.Data.Double);
@@ -165,7 +182,7 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
         }
 
         // Length
-        VariableBuffer.Advance(WriteVarUInt64(
+        VariableBuffer.Advance(WriteVarUint64(
             VariableBuffer.Preallocate(MaxVarInt64Size),
             IntermediateBuffer.Size()));
         // Yson

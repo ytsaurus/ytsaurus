@@ -991,6 +991,9 @@ private:
                         case EKeyPartType::Int64:
                             keyPart = MakeUnversionedInt64Value(it->key_part().int64_value());
                             break;
+                        case EKeyPartType::Uint64:
+                            keyPart = MakeUnversionedUint64Value(it->key_part().uint64_value());
+                            break;
                         case EKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;

@@ -23,6 +23,7 @@ namespace NDetail {
 
 const EObjectType::EDomain TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
 const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
+const EObjectType::EDomain TCypressScalarTypeTraits<ui64>::ObjectType = EObjectType::Uint64Node;
 const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
 const EObjectType::EDomain TCypressScalarTypeTraits<bool>::ObjectType = EObjectType::BooleanNode;
 

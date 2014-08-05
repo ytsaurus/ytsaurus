@@ -71,6 +71,7 @@ private:
 
         union {
             i64 Int64;
+            ui64 Uint64;
             double Double;
             bool Boolean;
             struct {
@@ -171,7 +172,7 @@ void TChunkWriter::Open(
         Schema.Columns().end(),
         [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
             auto isFront = [] (const TColumnSchema& schema) {
-                return schema.Type == EValueType::Int64 || schema.Type == EValueType::Double;
+                return schema.Type == EValueType::Int64 || schema.Type == EValueType::Uint64 || schema.Type == EValueType::Double;
             };
             if (isFront(lhs) && !isFront(rhs)) {
                 return true;
@@ -245,7 +246,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
     switch (columnDescriptor.Type) {
         case EValueType::Int64:
             YASSERT(value.Type == EValueType::Int64 || value.Type == EValueType::Null);
-            CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
+            CurrentBlock->WriteInt64(value, columnDescriptor.IndexInBlock);
             if (columnDescriptor.IsKeyPart) {
                 if (value.Data.Int64 != columnDescriptor.PreviousValue.Int64) {
                     IsNewKey = true;
@@ -253,6 +254,18 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
                 columnDescriptor.PreviousValue.Int64 = value.Data.Int64;
             }
             break;
+
+        case EValueType::Uint64:
+            YASSERT(value.Type == EValueType::Uint64 || value.Type == EValueType::Null);
+            CurrentBlock->WriteUint64(value, columnDescriptor.IndexInBlock);
+            if (columnDescriptor.IsKeyPart) {
+                if (value.Data.Uint64 != columnDescriptor.PreviousValue.Uint64) {
+                    IsNewKey = true;
+                }
+                columnDescriptor.PreviousValue.Uint64 = value.Data.Uint64;
+            }
+            break;
+
 
         case EValueType::Double:
             YASSERT(value.Type == EValueType::Double || value.Type == EValueType::Null);

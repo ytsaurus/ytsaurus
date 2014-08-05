@@ -14,6 +14,8 @@
 #include <ytlib/table_client/private.h>
 
 #include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <cmath>
 
@@ -29,7 +31,7 @@ using namespace NYson;
 
 int GetByteSize(const TUnversionedValue& value)
 {
-    int result = MaxVarUInt32Size * 2; // id and type
+    int result = MaxVarUint32Size * 2; // id and type
 
     switch (value.Type) {
         case EValueType::Null:
@@ -39,6 +41,7 @@ int GetByteSize(const TUnversionedValue& value)
             break;
 
         case EValueType::Int64:
+        case EValueType::Uint64:
             result += MaxVarInt64Size;
             break;
 
@@ -52,7 +55,7 @@ int GetByteSize(const TUnversionedValue& value)
 
         case EValueType::String:
         case EValueType::Any:
-            result += MaxVarUInt32Size + value.Length;
+            result += MaxVarUint32Size + value.Length;
             break;
 
         default:
@@ -72,6 +75,7 @@ int GetDataWeight(const TUnversionedValue& value)
             return 0;
 
         case EValueType::Int64:
+        case EValueType::Uint64:
             return sizeof(i64);
 
         case EValueType::Double:
@@ -93,8 +97,8 @@ int WriteValue(char* output, const TUnversionedValue& value)
 {
     char* current = output;
 
-    current += WriteVarUInt32(current, value.Id);
-    current += WriteVarUInt32(current, value.Type);
+    current += WriteVarUint32(current, value.Id);
+    current += WriteVarUint32(current, value.Type);
 
     switch (value.Type) {
         case EValueType::Null:
@@ -105,6 +109,10 @@ int WriteValue(char* output, const TUnversionedValue& value)
 
         case EValueType::Int64:
             current += WriteVarInt64(current, value.Data.Int64);
+            break;
+
+        case EValueType::Uint64:
+            current += WriteVarUint64(current, value.Data.Uint64);
             break;
 
         case EValueType::Double:
@@ -118,7 +126,7 @@ int WriteValue(char* output, const TUnversionedValue& value)
 
         case EValueType::String:
         case EValueType::Any:
-            current += WriteVarUInt32(current, value.Length);
+            current += WriteVarUint32(current, value.Length);
             ::memcpy(current, value.Data.String, value.Length);
             current += value.Length;
             break;
@@ -135,11 +143,11 @@ int ReadValue(const char* input, TUnversionedValue* value)
     const char* current = input;
 
     ui32 id;
-    current += ReadVarUInt32(current, &id);
+    current += ReadVarUint32(current, &id);
     value->Id = static_cast<ui16>(id);
 
     ui32 type;
-    current += ReadVarUInt32(current, &type);
+    current += ReadVarUint32(current, &type);
     value->Type = static_cast<ui16>(type);
 
     switch (value->Type) {
@@ -151,6 +159,10 @@ int ReadValue(const char* input, TUnversionedValue* value)
 
         case EValueType::Int64:
             current += ReadVarInt64(current, &value->Data.Int64);
+            break;
+
+        case EValueType::Uint64:
+            current += ReadVarUint64(current, &value->Data.Uint64);
             break;
 
         case EValueType::Double:
@@ -165,7 +177,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
 
         case EValueType::String:
         case EValueType::Any:
-            current += ReadVarUInt32(current, &value->Length);
+            current += ReadVarUint32(current, &value->Length);
             value->Data.String = current;
             current += value->Length;
             break;
@@ -223,6 +235,9 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Int64:
             return Format("%vi", value.Data.Int64);
 
+        case EValueType::Uint64:
+            return Format("%vu", value.Data.Uint64);
+
         case EValueType::Double:
             return Format("%v", value.Data.Double);
 
@@ -249,6 +264,18 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         case EValueType::Int64: {
             auto lhsValue = lhs.Data.Int64;
             auto rhsValue = rhs.Data.Int64;
+            if (lhsValue < rhsValue) {
+                return -1;
+            } else if (lhsValue > rhsValue) {
+                return +1;
+            } else {
+                return 0;
+            }
+        }
+
+        case EValueType::Uint64: {
+            auto lhsValue = lhs.Data.Uint64;
+            auto rhsValue = rhs.Data.Uint64;
             if (lhsValue < rhsValue) {
                 return -1;
             } else if (lhsValue > rhsValue) {
@@ -361,6 +388,17 @@ TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuff
             break;
         }
 
+        case EValueType::Uint64: {
+            auto& inner = value.Data.Uint64;
+            const auto maximum = std::numeric_limits<ui64>::max();
+            if (LIKELY(inner != maximum)) {
+                ++inner;
+            } else {
+                value.Type = EValueType::Max;
+            }
+            break;
+        }
+
         case EValueType::Double: {
             auto& inner = value.Data.Double;
             const auto maximum = std::numeric_limits<double>::max();
@@ -395,58 +433,6 @@ TUnversionedValue GetValueSuccessor(TUnversionedValue value, TRowBuffer* rowBuff
     }
 
     return value;
-}
-
-bool IsValueSuccessor(
-    const TUnversionedValue& value,
-    const TUnversionedValue& successor)
-{
-    switch (value.Type) {
-        case EValueType::Int64: {
-            const auto& inner = value.Data.Int64;
-            const auto maximum = std::numeric_limits<i64>::max();
-            if (LIKELY(inner != maximum)) {
-                return
-                    successor.Type == EValueType::Int64 &&
-                    successor.Data.Int64 == inner + 1;
-            } else {
-                return
-                    successor.Type == EValueType::Max;
-            }
-            break;
-        }
-
-        case EValueType::Double: {
-            const auto& inner = value.Data.Double;
-            const auto maximum = std::numeric_limits<double>::max();
-            if (LIKELY(inner != maximum)) {
-                return
-                    successor.Type == EValueType::Double &&
-                    successor.Data.Double == std::nextafter(inner, maximum);
-            } else {
-                return
-                    successor.Type == EValueType::Max;
-            }
-        }
-
-        case EValueType::Boolean: {
-            const auto& inner = value.Data.Boolean;
-            if (inner) {
-                return successor.Type == EValueType::Max;
-            } else {
-                return successor.Type == EValueType::Boolean && successor.Data.Boolean;
-            }
-        }
-
-        case EValueType::String:
-            return
-                successor.Type == EValueType::String &&
-                successor.Length == value.Length + 1 &&
-                successor.Data.String[successor.Length - 1] == 0 &&
-                ::memcmp(successor.Data.String, value.Data.String, value.Length) == 0;
-        default:
-            YUNREACHABLE();
-    }
 }
 
 int CompareRows(
@@ -566,8 +552,9 @@ size_t GetHash(const TUnversionedValue& value)
             return TStringBuf(value.Data.String, value.Length).hash();
 
         case EValueType::Int64:
+        case EValueType::Uint64:
         case EValueType::Double:
-            // Int64 and Double are aliased.
+            // These types are aliased.
             return (value.Data.Int64 & 0xffff) + 17 * (value.Data.Int64 >> 32);
 
         case EValueType::Boolean:
@@ -864,7 +851,7 @@ static Stroka SerializedNullRow("");
 
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    int size = 2 * MaxVarUInt32Size; // header size
+    int size = 2 * MaxVarUint32Size; // header size
     for (auto* it = begin; it != end; ++it) {
         size += GetByteSize(*it);
     }
@@ -873,8 +860,8 @@ Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue
     buffer.resize(size);
 
     char* current = const_cast<char*>(buffer.data());
-    current += WriteVarUInt32(current, 0); // format version
-    current += WriteVarUInt32(current, static_cast<ui32>(std::distance(begin, end)));
+    current += WriteVarUint32(current, 0); // format version
+    current += WriteVarUint32(current, static_cast<ui32>(std::distance(begin, end)));
 
     for (auto* it = begin; it != end; ++it) {
         current += WriteValue(current, *it);
@@ -901,11 +888,11 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     const char* current = data.data();
 
     ui32 version;
-    current += ReadVarUInt32(current, &version);
+    current += ReadVarUint32(current, &version);
     YCHECK(version == 0);
 
     ui32 valueCount;
-    current += ReadVarUInt32(current, &valueCount);
+    current += ReadVarUint32(current, &valueCount);
 
     size_t fixedSize = GetUnversionedRowDataSize(valueCount);
     auto rowData = TSharedRef::Allocate<TOwningRowTag>(fixedSize, false);
@@ -979,6 +966,10 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
                 rowBuilder.AddValue(MakeUnversionedInt64Value(keyPart.int64_value(), id));
                 break;
 
+            case EKeyPartType::Uint64:
+                rowBuilder.AddValue(MakeUnversionedUint64Value(keyPart.uint64_value(), id));
+                break;
+
             case EKeyPartType::Double:
                 rowBuilder.AddValue(MakeUnversionedDoubleValue(keyPart.double_value(), id));
                 break;
@@ -1013,6 +1004,10 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
         switch (type) {
             case EValueType::Int64:
                 consumer->OnInt64Scalar(value.Data.Int64);
+                break;
+
+            case EValueType::Uint64:
+                consumer->OnUint64Scalar(value.Data.Uint64);
                 break;
 
             case EValueType::Double:
@@ -1062,6 +1057,10 @@ void Deserialize(TOwningKey& key, INodePtr node)
                 builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
                 break;
 
+            case ENodeType::Uint64:
+                builder.AddValue(MakeUnversionedUint64Value(item->GetValue<ui64>(), id));
+                break;
+            
             case ENodeType::Double:
                 builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
                 break;
@@ -1257,6 +1256,71 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
             }
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedOwningRow BuildRow(
+    const Stroka& yson,
+    const TKeyColumns& keyColumns,
+    const TTableSchema& tableSchema,
+    bool treatMissingAsNull /*= true*/)
+{
+    auto nameTable = TNameTable::FromSchema(tableSchema);
+
+    auto rowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
+        TYsonString(yson, EYsonType::MapFragment));
+
+    TUnversionedOwningRowBuilder rowBuilder;
+    auto addValue = [&] (int id, INodePtr value) {
+        switch (value->GetType()) {
+            case ENodeType::Int64:
+                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
+                break;
+            case ENodeType::Uint64:
+                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
+                break;
+            case ENodeType::Double:
+                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
+                break;
+            case ENodeType::Boolean:
+                rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
+                break;
+            case ENodeType::String:
+                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<Stroka>(), id));
+                break;
+            default:
+                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).Data(), id));
+                break;
+        }
+    };
+
+    // Key
+    for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        YCHECK(it != rowParts.end());
+        addValue(id, it->second);
+    }
+
+    // Fixed values
+    for (int id = static_cast<int>(keyColumns.size()); id < static_cast<int>(tableSchema.Columns().size()); ++id) {
+        auto it = rowParts.find(nameTable->GetName(id));
+        if (it != rowParts.end()) {
+            addValue(id, it->second);
+        } else if (treatMissingAsNull) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+        }
+    }
+
+    // Variable values
+    for (const auto& pair : rowParts) {
+        int id = nameTable->GetIdOrRegisterName(pair.first);
+        if (id >= tableSchema.Columns().size()) {
+            addValue(id, pair.second);
+        }
+    }
+
+    return rowBuilder.GetRowAndReset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

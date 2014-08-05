@@ -29,6 +29,7 @@ public:
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
     virtual void OnDoubleScalar(double value) override;
     virtual void OnBooleanScalar(bool value) override;
     virtual void OnEntity() override;
@@ -55,6 +56,7 @@ private:
     Py::Callable YsonList;
     Py::Callable YsonString;
     Py::Callable YsonInt64;
+    Py::Callable YsonUint64;
     Py::Callable YsonDouble;
     Py::Callable YsonBoolean;
     Py::Callable YsonEntity;

@@ -31,6 +31,22 @@ TSchemafulDsvConsumer::TSchemafulDsvConsumer(
     }
 }
 
+void TSchemafulDsvConsumer::OnUint64Scalar(ui64 value)
+{
+    if (State_ == EState::None) {
+        return;         
+    }
+
+    if (State_ == EState::ExpectValue) {
+        ValueHolder_.push_back(::ToString(value));
+        Values_[CurrentKey_] = ValueHolder_.back();
+        State_ = EState::None;
+        ValueCount_ += 1;
+    } else {
+        YCHECK(State_ == EState::None);
+    }
+}
+
 void TSchemafulDsvConsumer::OnDoubleScalar(double value)
 {
     if (State_ == EState::None) {
@@ -299,7 +315,7 @@ static ui16 DigitPairs[100] = {
     14640,  14641,  14642,  14643,  14644,  14645,  14646,  14647,  14648,  14649
 };
 
-char* TSchemafulDsvWriter::WriteIntegerReversed(char* ptr, i64 value)
+char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
 {
     if (value == 0) {
         *ptr++ = '0';
@@ -331,16 +347,36 @@ char* TSchemafulDsvWriter::WriteIntegerReversed(char* ptr, i64 value)
     return ptr;
 }
 
+char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
+{
+    while (value >= 10) {
+        i64 rem = value % 100;
+        i64 quot = value / 100;
+        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
+        ptr += 2;
+        value = quot;
+    }
+
+    if (value >= 0) {
+        *ptr++ = ('0' + value);
+    }
+
+    return ptr;
+}
+
 void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:
             break;
 
-        case EValueType::Int64: {
+        case EValueType::Int64:
+        case EValueType::Uint64: {
             char buf[64];
             char* begin = buf;
-            char* end = WriteIntegerReversed(begin, value.Data.Int64);
+            char* end = EValueType::Int64
+                ? WriteInt64Reversed(begin, value.Data.Int64)
+                : WriteUint64Reversed(begin, value.Data.Uint64);
             size_t length = end - begin;
 
             Buffer_.Resize(Buffer_.Size() + length, false);

@@ -75,6 +75,7 @@ struct INode
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
     DECLARE_AS_METHODS(Int64)
+    DECLARE_AS_METHODS(Uint64)
     DECLARE_AS_METHODS(Double)
     DECLARE_AS_METHODS(Boolean)
     DECLARE_AS_METHODS(List)
@@ -130,7 +131,7 @@ struct IScalarNode
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) = 0;
 };
 
-// Define the actual scalar node types: IStringNode, IInt64Node, IDoubleNode, IBooleanNode.
+// Define the actual scalar node types: IStringNode, IInt64Node, IUint64Node, IDoubleNode, IBooleanNode.
 #define DECLARE_SCALAR_TYPE(name, type) \
     struct I##name##Node \
         : IScalarNode<type> \
@@ -167,6 +168,7 @@ struct IScalarNode
 // Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "node.cpp".
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Uint64, ui64)
 DECLARE_SCALAR_TYPE(Double, double)
 DECLARE_SCALAR_TYPE(Boolean, bool)
 
@@ -331,8 +333,11 @@ struct INodeFactory
     //! Creates a string node.
     virtual IStringNodePtr CreateString() = 0;
 
-    //! Creates an integer node.
+    //! Creates an int64 node.
     virtual IInt64NodePtr CreateInt64() = 0;
+
+    //! Creates an uint64 node.
+    virtual IUint64NodePtr CreateUint64() = 0;
 
     //! Creates an FP number node.
     virtual IDoubleNodePtr CreateDouble() = 0;

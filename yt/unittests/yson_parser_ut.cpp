@@ -52,6 +52,14 @@ TEST_F(TYsonParserTest, Int64)
     Run("   100500  ");
 }
 
+TEST_F(TYsonParserTest, Uint64)
+{
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnUint64Scalar(100500));
+
+    Run("   100500u  ");
+}
+
 TEST_F(TYsonParserTest, Double)
 {
     InSequence dummy;
@@ -97,8 +105,27 @@ TEST_F(TYsonParserTest, BinaryInt64)
     {
         EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21));
 
-        //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
+        //Uint64Marker + (1 << 21) as VarInt ZigZagEncoded
         std::vector<Stroka> parts = {Stroka("\x02"), Stroka("\x80\x80\x80\x02")};
+        Run(parts);
+    }
+}
+
+TEST_F(TYsonParserTest, BinaryUint64)
+{
+    InSequence dummy;
+    {
+        EXPECT_CALL(Mock, OnUint64Scalar(1ull << 22));
+
+        //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
+        Run(Stroka(" \x06\x80\x80\x80\x02  ", 1 + 5 + 2));
+    }
+
+    {
+        EXPECT_CALL(Mock, OnUint64Scalar(1ull << 22));
+
+        //Uint64Marker + (1 << 21) as VarInt ZigZagEncoded
+        std::vector<Stroka> parts = {Stroka("\x06"), Stroka("\x80\x80\x80\x02")};
         Run(parts);
     }
 }
@@ -217,6 +244,9 @@ TEST_F(TYsonParserTest, SeveralElementsList)
     EXPECT_CALL(Mock, OnInt64Scalar(42));
 
     EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnUint64Scalar(36u));
+
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(1000)));
 
     EXPECT_CALL(Mock, OnListItem());
@@ -234,7 +264,7 @@ TEST_F(TYsonParserTest, SeveralElementsList)
 
     EXPECT_CALL(Mock, OnEndList());
 
-    Run("  [  42    ; 1e3   ; nosy_111 ; %false; \"nosy is the best format ever!\"; { } ; ]   ");
+    Run("  [  42    ; 36u  ; 1e3   ; nosy_111 ; %false; \"nosy is the best format ever!\"; { } ; ]   ");
 }
 
 TEST_F(TYsonParserTest, MapWithAttributes)

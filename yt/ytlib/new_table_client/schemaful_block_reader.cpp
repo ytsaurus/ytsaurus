@@ -25,13 +25,13 @@ bool TVariableIterator::ParseNext(TUnversionedValue* value)
     }
 
     ui64 id;
-    Opaque += ReadVarUInt64(Opaque, &id);
+    Opaque += ReadVarUint64(Opaque, &id);
     YASSERT(id <= std::numeric_limits<ui16>::max());
 
     value->Id = static_cast<ui16>(id);
 
     ui64 length;
-    Opaque += ReadVarUInt64(Opaque, &length);
+    Opaque += ReadVarUint64(Opaque, &length);
     YASSERT(length <= std::numeric_limits<ui32>::max());
 
     if (length != 0) {
@@ -81,7 +81,7 @@ TBlockReader::TBlockReader(
             Columns.push_back(column);
 
             int columnWidth =
-                column.Type == EValueType::Int64 || column.Type == EValueType::Double
+                column.Type == EValueType::Int64 || column.Type == EValueType::Uint64 || column.Type == EValueType::Double
                 ? 8
                 : 4;
             input.Skip(columnWidth * GetRowCount());
@@ -144,6 +144,9 @@ TUnversionedValue TBlockReader::Read(int index) const
             case EValueType::Int64:
                 value.Data.Int64 = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
                 break;
+            case EValueType::Uint64:
+                value.Data.Uint64 = *reinterpret_cast<const ui64*>(column.Begin + sizeof(ui64) * RowIndex);
+                break;
             case EValueType::Double:
                 value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);
                 break;
@@ -154,7 +157,7 @@ TUnversionedValue TBlockReader::Read(int index) const
             case EValueType::Any: {
                 ui32 offset = *reinterpret_cast<const ui32*>(column.Begin + sizeof(ui32) * RowIndex);
                 ui64 length;
-                value.Data.String = FixedBuffer + offset + ReadVarUInt64(FixedBuffer + offset, &length);
+                value.Data.String = FixedBuffer + offset + ReadVarUint64(FixedBuffer + offset, &length);
                 value.Length = static_cast<ui32>(length);
                 break;
             }

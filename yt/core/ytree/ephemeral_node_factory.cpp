@@ -166,6 +166,7 @@ private:
 
 DECLARE_SCALAR_TYPE(String, Stroka)
 DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Uint64, ui64)
 DECLARE_SCALAR_TYPE(Double, double)
 DECLARE_SCALAR_TYPE(Boolean, bool)
 
@@ -468,6 +469,11 @@ public:
     virtual IInt64NodePtr CreateInt64() override
     {
         return New<TInt64Node>();
+    }
+
+    virtual IUint64NodePtr CreateUint64() override
+    {
+        return New<TUint64Node>();
     }
 
     virtual IDoubleNodePtr CreateDouble() override

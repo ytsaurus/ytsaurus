@@ -24,6 +24,11 @@ void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TSta
         keyPart.Value.Int64 = token.GetInt64Value();
         break;
 
+    case NYson::ETokenType::Uint64:
+        keyPart.Type = EValueType::Uint64;
+        keyPart.Value.Uint64 = token.GetUint64Value();
+        break;
+
     case NYson::ETokenType::Double:
         keyPart.Type = EValueType::Double;
         keyPart.Value.Double = token.GetDoubleValue();
@@ -62,6 +67,13 @@ int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs)
             return -1;
         return 0;
 
+    case EValueType::Uint64:
+        if (lhs.Value.Uint64 > rhs.Value.Uint64)
+            return 1;
+        if (lhs.Value.Uint64 < rhs.Value.Uint64)
+            return -1;
+        return 0;
+
     case EValueType::Double:
         if (lhs.Value.Double > rhs.Value.Double)
             return 1;
@@ -95,6 +107,9 @@ TUnversionedValue MakeKeyPart(const TSmallKeyPart& keyPart)
     switch (keyPart.Type) {
     case EValueType::Int64:
         return MakeUnversionedInt64Value(keyPart.Value.Int64);
+
+    case EValueType::Uint64:
+        return MakeUnversionedUint64Value(keyPart.Value.Uint64);
 
     case EValueType::Double:
         return MakeUnversionedDoubleValue(keyPart.Value.Double);

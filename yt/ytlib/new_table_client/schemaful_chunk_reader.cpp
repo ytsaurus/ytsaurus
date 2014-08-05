@@ -440,6 +440,13 @@ bool TTableChunkReaderAdapter::Read(std::vector<TUnversionedRow>* rows)
                         value.Data.Int64 = token.GetInt64Value();
                         break;
 
+                    case EValueType::Uint64:
+                        if (token.GetType() != ETokenType::Uint64) {
+                            ThrowIncompatibleType(schemaColumn);
+                        }
+                        value.Data.Uint64 = token.GetUint64Value();
+                        break;
+
                     case EValueType::Double:
                         if (token.GetType() != ETokenType::Double) {
                             ThrowIncompatibleType(schemaColumn);

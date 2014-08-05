@@ -63,6 +63,7 @@ const TToken TToken::EndOfStream;
 TToken::TToken()
     : Type_(ETokenType::EndOfStream)
     , Int64Value(0)
+    , Uint64Value(0)
     , DoubleValue(0.0)
     , BooleanValue(false)
 { }
@@ -70,12 +71,14 @@ TToken::TToken()
 TToken::TToken(ETokenType type)
     : Type_(type)
     , Int64Value(0)
+    , Uint64Value(0)
     , DoubleValue(0.0)
     , BooleanValue(false)
 {
     switch (type) {
         case ETokenType::String:
         case ETokenType::Int64:
+        case ETokenType::Uint64:
         case ETokenType::Double:
         case ETokenType::Boolean:
             YUNREACHABLE();
@@ -88,6 +91,7 @@ TToken::TToken(const TStringBuf& stringValue)
     : Type_(ETokenType::String)
     , StringValue(stringValue)
     , Int64Value(0)
+    , Uint64Value(0)
     , DoubleValue(0.0)
     , BooleanValue(false)
 { }
@@ -95,6 +99,14 @@ TToken::TToken(const TStringBuf& stringValue)
 TToken::TToken(i64 int64Value)
     : Type_(ETokenType::Int64)
     , Int64Value(int64Value)
+    , Uint64Value(0)
+    , DoubleValue(0.0)
+{ }
+
+TToken::TToken(ui64 uint64Value)
+    : Type_(ETokenType::Uint64)
+    , Int64Value(0)
+    , Uint64Value(uint64Value)
     , DoubleValue(0.0)
     , BooleanValue(false)
 { }
@@ -102,6 +114,7 @@ TToken::TToken(i64 int64Value)
 TToken::TToken(double doubleValue)
     : Type_(ETokenType::Double)
     , Int64Value(0)
+    , Uint64Value(0)
     , DoubleValue(doubleValue)
     , BooleanValue(false)
 { }
@@ -128,6 +141,12 @@ i64 TToken::GetInt64Value() const
 {
     CheckType(ETokenType::Int64);
     return Int64Value;
+}
+
+ui64 TToken::GetUint64Value() const
+{
+    CheckType(ETokenType::Uint64);
+    return Uint64Value;
 }
 
 double TToken::GetDoubleValue() const
@@ -179,6 +198,7 @@ void TToken::Reset()
 {
     Type_ = ETokenType::EndOfStream;
     Int64Value = 0;
+    Uint64Value = 0;
     DoubleValue = 0.0;
     StringValue = TStringBuf();
     BooleanValue = false;
@@ -195,6 +215,9 @@ Stroka ToString(const TToken& token)
 
         case ETokenType::Int64:
             return ::ToString(token.GetInt64Value());
+
+        case ETokenType::Uint64:
+            return ::ToString(token.GetUint64Value());
 
         case ETokenType::Double:
             return ::ToString(token.GetDoubleValue());

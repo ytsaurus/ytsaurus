@@ -175,13 +175,6 @@ public:
     typedef TypeBuilder<double, Cross> TDouble;
     typedef TypeBuilder<const char*, Cross> TString;
 
-    enum Fields
-    {
-        Int64,
-        Double,
-        String
-    };
-
     static Type* get(LLVMContext& context)
     {
         enum

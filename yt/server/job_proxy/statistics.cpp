@@ -145,14 +145,19 @@ void TStatisticsConverter::OnInt64Scalar(i64 value)
     TreeBuilder_->OnInt64Scalar(value);
 }
 
+void TStatisticsConverter::OnUint64Scalar(ui64 value)
+{
+    THROW_ERROR_EXCEPTION("Statistics cannot contain Uint64. Use int64.");
+}
+
 void TStatisticsConverter::OnBooleanScalar(bool value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain booleans. Use integer.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain booleans. Use int64.");
 }
 
 void TStatisticsConverter::OnDoubleScalar(double value)
 {
-    THROW_ERROR_EXCEPTION("Statistics cannot contain float numbers. Use integer.");
+    THROW_ERROR_EXCEPTION("Statistics cannot contain float numbers. Use int64.");
 }
 
 void TStatisticsConverter::OnEntity()

@@ -53,6 +53,8 @@ template <class T>
 void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer);
 
 // integers
+void Serialize(signed char value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned char value, NYson::IYsonConsumer* consumer);
 void Serialize(short value, NYson::IYsonConsumer* consumer);
 void Serialize(unsigned short value, NYson::IYsonConsumer* consumer);
 void Serialize(int value, NYson::IYsonConsumer* consumer);
@@ -128,6 +130,8 @@ template <class T>
 void Deserialize(std::unique_ptr<T>& value, INodePtr node);
 
 // integers
+void Deserialize(signed char& value, INodePtr node);
+void Deserialize(unsigned char& value, INodePtr node);
 void Deserialize(short& value, INodePtr node);
 void Deserialize(unsigned short& value, INodePtr node);
 void Deserialize(int& value, INodePtr node);

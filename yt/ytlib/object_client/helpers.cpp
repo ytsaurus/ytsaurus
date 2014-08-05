@@ -21,6 +21,7 @@ bool IsVersionedType(EObjectType type)
     return
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||
+        type == EObjectType::Uint64Node ||
         type == EObjectType::DoubleNode ||
         type == EObjectType::BooleanNode ||
         type == EObjectType::MapNode ||
@@ -60,6 +61,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::ChunkList ||
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||
+        type == EObjectType::Uint64Node ||
         type == EObjectType::DoubleNode ||
         type == EObjectType::BooleanNode ||
         type == EObjectType::MapNode ||

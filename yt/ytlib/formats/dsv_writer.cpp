@@ -79,6 +79,29 @@ void TDsvTabularConsumer::OnInt64Scalar(i64 value)
     State = EState::ExpectAttributeName;
 }
 
+void TDsvTabularConsumer::OnUint64Scalar(ui64 value)
+{
+    switch (State) {
+        case EState::ExpectColumnValue:
+            Stream->Write(::ToString(value));
+            State = EState::ExpectColumnName;
+            break;
+
+        case EState::ExpectAttributeValue:
+            State = EState::ExpectAttributeName;
+            break;
+
+        case EState::None:
+        case EState::ExpectAttributeName:
+        case EState::ExpectFirstColumnName:
+        case EState::ExpectColumnName:
+        case EState::ExpectEntity:
+        default:
+            YUNREACHABLE();
+
+    };
+}
+
 void TDsvTabularConsumer::OnDoubleScalar(double value)
 {
     switch (State) {
@@ -290,6 +313,11 @@ void TDsvNodeConsumer::OnStringScalar(const TStringBuf& value)
 }
 
 void TDsvNodeConsumer::OnInt64Scalar(i64 value)
+{
+    Stream->Write(::ToString(value));
+}
+
+void TDsvNodeConsumer::OnUint64Scalar(ui64 value)
 {
     Stream->Write(::ToString(value));
 }
