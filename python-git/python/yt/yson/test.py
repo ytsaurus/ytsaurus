@@ -63,6 +63,9 @@ class YsonParserTestBase(object):
     def test_int(self):
         self.assert_parse('64', 64)
 
+    def test_uint(self):
+        self.assert_parse('64u', 64)
+
     def test_binary_int(self):
         self.assert_parse('\x02\x81\x40', -(2 ** 12) - 1)
 
