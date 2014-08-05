@@ -148,6 +148,10 @@ def exists(path, **kwargs):
     res = command('exists', kwargs)
     return yson.loads(res) == 'true'
 
+def ls(path, **kwargs):
+    kwargs["path"] = path
+    return yson.loads(command('list', kwargs))
+
 def execute_command_with_output_format(command_name, kwargs):
     has_output_format = "output_format" in kwargs
     if not has_output_format:
@@ -159,10 +163,23 @@ def execute_command_with_output_format(command_name, kwargs):
     else:
         return output.getvalue()
 
-
 def read(path, **kwargs):
     kwargs["path"] = path
-    return execute_command_with_output_format("read", kwargs)
+    return execute_command_with_output_format("read_table", kwargs)
+
+def write(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        if not isinstance(value, list):
+            value = [value]
+        value = yson.dumps(value)
+        # remove surrounding [ ]
+        value = value[1:-1]
+
+    attributes = {}
+    if "sorted_by" in kwargs:
+        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    return command("write_table", kwargs, input_stream=StringIO(value))
 
 def select(query, **kwargs):
     kwargs["query"] = query
@@ -203,7 +220,7 @@ def reshard_table(path, pivot_keys, **kwargs):
 
 def upload(path, data, **kwargs):
     kwargs["path"] = path
-    return command('upload', kwargs, input_stream=StringIO(data))
+    return command('write_file', kwargs, input_stream=StringIO(data))
 
 def upload_file(path, file_name, **kwargs):
     with open(file_name, 'rt') as f:
@@ -212,8 +229,24 @@ def upload_file(path, file_name, **kwargs):
 def download(path, **kwargs):
     kwargs["path"] = path
     output = StringIO()
-    command('download', kwargs, output_stream=output)
+    command('read_file', kwargs, output_stream=output)
     return output.getvalue();
+
+def read_journal(path, **kwargs):
+    kwargs["path"] = path
+    kwargs["output_format"] = yson.loads("yson")
+    output = StringIO()
+    command("read_journal", kwargs, output_stream=output)
+    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
+
+def write_journal(path, value, is_raw=False, **kwargs):
+    if not isinstance(value, list):
+        value = [value]
+    value = yson.dumps(value)
+    # remove surrounding [ ]
+    value = value[1:-1]
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    return command('write_journal', kwargs, input_stream=StringIO(value))
 
 def track_op(op_id):
     counter = 0
@@ -358,26 +391,6 @@ def create_tablet_cell(size):
 def remove_tablet_cell(id):
     remove('//sys/tablet_cells/' + id)
     gc_collect()
-
-#########################################
-
-def ls(path, **kwargs):
-    kwargs["path"] = path
-    return yson.loads(command('list', kwargs))
-
-def write(path, value, is_raw=False, **kwargs):
-    if not is_raw:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
-
-    attributes = {}
-    if "sorted_by" in kwargs:
-        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
-    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
-    return command('write', kwargs, input_stream=StringIO(value))
 
 #########################################
 # Helpers:
