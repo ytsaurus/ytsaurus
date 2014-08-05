@@ -245,7 +245,7 @@ def write_journal(path, value, is_raw=False, **kwargs):
     value = yson.dumps(value)
     # remove surrounding [ ]
     value = value[1:-1]
-    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    kwargs["path"] = path
     return command('write_journal', kwargs, input_stream=StringIO(value))
 
 def track_op(op_id):
