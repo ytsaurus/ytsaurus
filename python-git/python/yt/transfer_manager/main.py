@@ -2,6 +2,11 @@
 
 import yt.logger as logger
 from yt.tools.yamr import Yamr
+from yt.tools.import_tools import \
+    copy_yamr_to_yt_pull, \
+    copy_yt_to_yamr_pull, \
+    copy_yt_to_yamr_push, \
+    run_operation_and_notify
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid
 import yt.wrapper as yt
@@ -24,30 +29,8 @@ from multiprocessing import Process, Queue
 class IncorrectTokenError(Exception):
     pass
 
-class AsyncStrategy(object):
-    def process_operation(self, type, operation, finalize, client=None):
-        self.type = type
-        self.operation_id = operation
-        self.finalize = finalize
-        self.client = client
-
-    def wait(self):
-        yt.WaitStrategy().process_operation(self.type, self.operation_id, self.finalize, self.client)
-
-
 def now():
     return str(datetime.utcnow().isoformat() + "Z")
-
-def run_operation_and_notify(message_queue, yt_client, run_operation):
-    strategy = AsyncStrategy()
-    run_operation(yt_client, strategy)
-    if message_queue:
-        message_queue.put({"type": "operation_started",
-                           "operation": {
-                               "id": strategy.operation_id,
-                               "cluster_name": yt_client._name
-                            }})
-    strategy.wait()
 
 def create_pool(yt_client, destination_cluster_name):
     pool_name = "transfer_" + destination_cluster_name
@@ -58,130 +41,11 @@ def create_pool(yt_client, destination_cluster_name):
     yt_client.set(pool_path + "/@mode", "fifo")
     return pool_path
 
-def export_to_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, message_queue=None):
-    yt_client = deepcopy(yt_client)
-    mr_client = deepcopy(mr_client)
-
-    mr_client.mr_user = mr_user
-    if not mr_client.is_empty(dst):
-        mr_client.drop(dst)
-
-    yt_client.token = token
-
-    record_count = yt_client.records_count(src)
-
-    spec = deepcopy(spec_template)
-    spec["data_size_per_job"] = 2 * 1024 * yt.config.MB
-    if yt_client._export_pool is None:
-        spec["pool"] = create_pool(yt_client, mr_client._name)
-    else:
-        spec["pool"] = yt_client._export_pool
-
-    write_command = mr_client.get_write_command(dst)
-    logger.info("Running map '%s'", write_command)
-
-    run_operation_and_notify(
-        message_queue,
-        yt_client,
-        lambda client, strategy:
-            client.run_map(write_command, src, yt_client.create_temp_table(),
-                           files=mr_client.binary,
-                           format=yt.YamrFormat(has_subkey=True, lenval=True),
-                           memory_limit=2500 * yt.config.MB,
-                           spec=spec,
-                           strategy=strategy))
-
-    result_record_count = mr_client.records_count(dst)
-    if record_count != result_record_count:
-        mr_client.drop(dst)
-        error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-        logger.error(error)
-        raise yt.YtError(error)
-
-def import_from_mr(yt_client, mr_client, src, dst, mr_user, token, spec_template, message_queue=None):
-    yt_client = deepcopy(yt_client)
-    mr_client = deepcopy(mr_client)
-
-    mr_client.mr_user = mr_user
-    yt_client.token = token
-    portion_size = 1024 ** 3
-
-    proxies = mr_client.proxies
-    if not proxies:
-        proxies = [mr_client.server]
-
-    record_count = mr_client.records_count(src, allow_cache=True)
-    sorted = mr_client.is_sorted(src, allow_cache=True)
-
-    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
-
-    yt_client.create_table(dst, recursive=True, ignore_existing=True)
-
-    ranges = []
-    record_threshold = max(1, record_count * portion_size / mr_client.data_size(src))
-    for i in xrange((record_count - 1) / record_threshold + 1):
-        server = proxies[i % len(proxies)]
-        start = i * record_threshold
-        end = min(record_count, (i + 1) * record_threshold)
-        ranges.append((server, start, end))
-
-    temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
-    yt_client.write_table(temp_table,
-                          ["\t".join(map(str, range)) + "\n" for range in ranges],
-                          format=yt.YamrFormat(lenval=False, has_subkey=True))
-
-    spec = deepcopy(spec_template)
-    spec["data_size_per_job"] = 1
+def get_import_pool(mr_client, yt_client):
     if yt_client._import_pool is None:
-        spec["pool"] = create_pool(yt_client, mr_client._name)
+        return create_pool(yt_client, mr_client._name)
     else:
-        spec["pool"] = yt_client._import_pool
-
-    temp_yamr_table = "tmp/yt/" + generate_uuid()
-    mr_client.copy(src, temp_yamr_table)
-    src = temp_yamr_table
-
-    read_command = mr_client.get_read_range_command(src)
-    command = 'while true; do '\
-                  'IFS="\t" read -r server start end; '\
-                  'if [ "$?" != "0" ]; then break; fi; '\
-                  'set -e; '\
-                  '{0}; '\
-                  'set +e; '\
-              'done;'\
-                  .format(read_command)
-    logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
-    try:
-        run_operation_and_notify(
-            message_queue,
-            yt_client,
-            lambda client, strategy:
-                client.run_map(
-                    command,
-                    temp_table,
-                    dst,
-                    input_format=yt.YamrFormat(lenval=False, has_subkey=True),
-                    output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                    files=mr_client.binary,
-                    memory_limit = 2500 * yt.config.MB,
-                    spec=spec,
-                    strategy=strategy))
-
-        if sorted:
-            logger.info("Sorting '%s'", dst)
-            run_operation_and_notify(
-                message_queue,
-                yt_client,
-                lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
-
-        result_record_count = yt.records_count(dst)
-        if yt.records_count(dst) != record_count:
-            error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
-            logger.error(error)
-            raise yt.YtError(error)
-
-    finally:
-        mr_client.drop(temp_yamr_table)
+        return yt_client._import_pool
 
 class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
@@ -473,25 +337,25 @@ class Application(object):
             elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
-                export_to_mr(
+                copy_yt_to_yamr_push(
                     self._clusters[task.source_cluster],
                     self._clusters[task.destination_cluster],
                     task.source_table,
                     task.destination_table,
-                    task.mr_user,
-                    task.token,
+                    mr_user=task.mr_user,
                     spec_template=task_spec,
+                    token=task.token,
                     message_queue=message_queue)
             elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yt":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
-                import_from_mr(
-                    self._clusters[task.destination_cluster],
+                task_spec["pool"] = get_import_pool(self._clusters[task.source_cluster], self._clusters[task.destination_cluster])
+                copy_yamr_to_yt_pull(
                     self._clusters[task.source_cluster],
+                    self._clusters[task.destination_cluster],
                     task.source_table,
                     task.destination_table,
-                    task.mr_user,
-                    task.token,
+                    token=task.token,
                     spec_template=task_spec,
                     message_queue=message_queue)
             else:
@@ -669,17 +533,31 @@ DEFAULT_CONFIG = {
                 "fastbone": True,
                 "viewer": "https://specto.yandex.ru/cedar-viewer/"
             }
+        },
+        "betula": {
+            "type": "yamr",
+            "options": {
+                "server": "betula00.yandex.ru",
+                "binary": "/opt/cron/tools/betula/mapreduce",
+                "server_port": 8013,
+                "http_port": 13013,
+                "fastbone": True,
+                "viewer": "https://specto.yandex.ru/betula-viewer/"
+            }
         }
     },
     "availability_graph": {
-        "kant": ["cedar", "smith", "plato"],
-        "smith": ["cedar", "kant", "plato"],
-        "plato": ["cedar", "kant", "smith"],
-        "cedar": ["kant", "smith", "plato"]
+        "kant": ["cedar", "betula", "smith", "plato"],
+        "smith": ["cedar", "betula", "kant", "plato"],
+        "plato": ["cedar", "betula", "kant", "smith"],
+        "cedar": ["kant", "smith", "plato"],
+        "betula": ["kant", "smith", "plato"]
     },
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
-    "token": "93b4cacc08aa4538a79a76c21e99c0fb"}
+    "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+    "port": 5010
+}
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
@@ -692,7 +570,7 @@ def main():
         config = DEFAULT_CONFIG
 
     app = Application(config)
-    app.run(host="localhost", port=5010, debug=True, use_reloader=False)
+    app.run(host="localhost", port=config["port"], debug=True, use_reloader=False)
 
 if __name__ == "__main__":
     main()

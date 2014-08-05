@@ -67,10 +67,10 @@ wait_task() {
 # Different transfers
 echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy kant.yt.yandex.net
 
-id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/test_table", "destination_cluster": "cedar"}')
+id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
 wait_task $id
 
-id=$(run_task '{"source_table": "tmp/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
 wait_task $id
 
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
