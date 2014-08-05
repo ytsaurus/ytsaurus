@@ -38,8 +38,7 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
     var self = this;
     self.logger.debug("Auth call on '" + req.url + "'");
 
-    return Q
-    .when(self._captureBody(req, rsp))
+    return self._captureBody(req, rsp)
     .then(function(body) {
         switch (url.parse(req.url).pathname) {
             case "/":
@@ -123,15 +122,14 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
         throw new YtError("Expected body to have a `token` field");
     }
 
-    return Q
-    .when(self.authority.authenticate(logger, origin, body.token))
+    return self.authority.authenticate(logger, origin, body.token)
     .then(function(result) {
         return utils.dispatchJson(rsp, {
             login: result.login,
             realm: result.realm
         });
     })
-    .fail(function(err) {
+    .catch(function(err) {
         return Q.reject(YtError.ensureWrapped(
             err, "Failed to authenticate by token"));
     });

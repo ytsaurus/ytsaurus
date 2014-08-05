@@ -54,7 +54,7 @@ function stubDriver(echo)
         "proxy": {
             "driver": {
                 "master": {
-                    "addresses": [ "localhost:0" ]
+                    "addresses": [ ]
                 }
             },
             "tracing": {

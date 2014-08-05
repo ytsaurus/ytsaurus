@@ -196,7 +196,7 @@ describe("ApplicationAuth", function() {
             expect(rsp.json.login).to.eql("donkey");
             expect(rsp.json.realm).to.eql("blackbox-ytrealm-key");
             mock.done();
-        }, done).end(qs.stringify({
+        }, done).end(querystring.stringify({
             token: "foobar"
         }));
     });
