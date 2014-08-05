@@ -6,7 +6,7 @@ from yt_commands import *
 
 ##################################################################
 
-class TestFileCommands(YTEnvSetup):
+class TestFiles(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
 

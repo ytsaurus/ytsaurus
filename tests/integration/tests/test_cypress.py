@@ -8,7 +8,7 @@ from yt.yson import to_yson_type
 
 ##################################################################
 
-class TestCypressCommands(YTEnvSetup):
+class TestCypress(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 

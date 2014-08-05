@@ -7,7 +7,7 @@ from time import sleep
 
 ##################################################################
 
-class TestTxCommands(YTEnvSetup):
+class TestTransactions(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
