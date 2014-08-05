@@ -28,13 +28,13 @@ deb:
 	$(MAKE) deb_without_test
 
 egg:
-	EGG=1 $(PYTHON) setup.py bdist_egg
+	$(PYTHON) setup.py bdist_egg
 	cp dist/*.egg .
 
 deb_without_test: deb_clean
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
-	$(PYTHON) setup.py sdist --dist-dir=../
+	DEB=1 $(PYTHON) setup.py sdist --dist-dir=../
 	# build the package
 	dpkg-buildpackage -i -I -rfakeroot
 
