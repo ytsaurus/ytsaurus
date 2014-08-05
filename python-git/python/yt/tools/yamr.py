@@ -14,7 +14,7 @@ except AttributeError:
         return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="userdata", fastbone=False, opts=""):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user=None, fastbone=False, opts=""):
         self.binary = binary
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
@@ -103,16 +103,31 @@ class Yamr(object):
             return 0
         return int(obj)
 
+    def write(self, table, data):
+        command = "MR_USER={0} {1} -server {2} -write {3}".format(self.mr_user, self.binary, self.server, table)
+        proc = subprocess.Popen(command, stdin=subprocess.PIPE, shell=True)
+        proc.communicate(data)
+        if proc.returncode != 0:
+            raise subprocess.CalledProcessError("Command '{0}' return non-zero exit status {1}".format(command, proc.returncode))
+
     def get_read_range_command(self, table):
         if self.proxies:
             return 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
             fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
             shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
-            return '{0} USER=yt MR_USER={1} ./mapreduce -server $server {2} -read {3}:[$start,$end] -lenval -subkey {4}'\
+            return '{0} USER=yt ./mapreduce -server $server {2} -read {3}:[$start,$end] -lenval -subkey {4}'\
                         .format(self.opts, self.mr_user, fastbone_str, table, shared_tx_str)
 
     def get_write_command(self, table):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
         return "{0} USER=yt MR_USER={1} ./mapreduce -server {2} {3} -append -lenval -subkey -write {4}"\
                 .format(self.opts, self.mr_user, self.server, fastbone_str, table)
+
+    def run_map(self, command, src, dst, files=None, opts=""):
+        if files is None:
+            files = []
+        shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} {6} {7}"\
+            .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
+        subprocess.check_call(shell_command, shell=True)
+
