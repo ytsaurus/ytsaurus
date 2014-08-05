@@ -114,6 +114,7 @@ TPlanFragment TPrepareController::Run()
     ParseSource();
     CheckDepth();
     GetInitialSplits();
+    FillSelectAll();
     MoveAggregateExpressions();
     CheckAndPruneReferences();
     TypecheckExpressions();
@@ -283,6 +284,31 @@ void TPrepareController::TypecheckExpressions()
     });
 
     Head_->GetTableSchema();
+}
+
+void TPrepareController::FillSelectAll()
+{
+    // Extract aggregate functions from projections and delegate
+    // aggregation to the group operator.
+    Head_ = Apply(
+        Context_.Get(),
+        Head_,
+        [&] (TPlanContext* context, const TOperator* op) -> const TOperator* {
+            auto* projectOp = op->As<TProjectOperator>();
+            if (!projectOp || projectOp->Projections().size() != 0) {
+                return op;
+            }
+
+            auto* newProjectOp = context->TrackedNew<TProjectOperator>(projectOp->GetSource());
+            auto& newProjections = newProjectOp->Projections();
+            auto tableSchema = projectOp->GetSource()->GetTableSchema();
+
+            for (auto column : tableSchema.Columns()) {
+                newProjections.push_back(TNamedExpression(context->TrackedNew<TReferenceExpression>(NullSourceLocation, column.Name), column.Name));
+            }
+            
+            return newProjectOp;
+    });
 }
 
 void TPrepareController::MoveAggregateExpressions()

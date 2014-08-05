@@ -161,6 +161,10 @@ select-clause
             $$ = context->TrackedNew<TProjectOperator>(nullptr);
             $$->Projections().assign($projections.begin(), $projections.end());
         }
+    | Asterisk 
+        {
+            $$ = context->TrackedNew<TProjectOperator>(nullptr);
+        }
 ;
 
 from-clause

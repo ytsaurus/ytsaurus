@@ -654,7 +654,7 @@ namespace NYT { namespace NQueryClient {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const signed char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const signed char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -769,10 +769,10 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 63,           //< Last index in yytable_.
+      yylast_ = 73,           //< Last index in yytable_.
       yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 22, //< Termination state number.
+      yyfinal_ = 23, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
       yyntokens_ = 32    //< Number of tokens.

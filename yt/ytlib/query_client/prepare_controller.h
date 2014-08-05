@@ -29,6 +29,7 @@ private:
     void CheckAndPruneReferences();
     void TypecheckExpressions();
     void MoveAggregateExpressions();
+    void FillSelectAll();
 
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;

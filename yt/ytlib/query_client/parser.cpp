@@ -1460,82 +1460,88 @@ namespace NYT { namespace NQueryClient {
 
   case 8:
     {
+            yylhs.value.as< TProjectOperator* > () = context->TrackedNew<TProjectOperator>(nullptr);
+        }
+    break;
+
+  case 9:
+    {
             context->SetTablePath(Stroka(~yystack_[0].value.as< TStringBuf > (), +yystack_[0].value.as< TStringBuf > ()));
 
             yylhs.value.as< TScanOperator* > () = context->TrackedNew<TScanOperator>();
         }
     break;
 
-  case 9:
+  case 10:
     {
             yylhs.value.as< TFilterOperator* > () = context->TrackedNew<TFilterOperator>(nullptr);
             yylhs.value.as< TFilterOperator* > ()->SetPredicate(yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 10:
+  case 11:
     {
             yylhs.value.as< TGroupOperator* > () = context->TrackedNew<TGroupOperator>(nullptr);
             yylhs.value.as< TGroupOperator* > ()->GroupItems().assign(yystack_[0].value.as< TNamedExpressionList > ().begin(), yystack_[0].value.as< TNamedExpressionList > ().end());
         }
     break;
 
-  case 11:
+  case 12:
     {
             yylhs.value.as< TNamedExpressionList > ().swap(yystack_[2].value.as< TNamedExpressionList > ());
             yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
         }
     break;
 
-  case 12:
+  case 13:
     {
             yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
         }
     break;
 
-  case 13:
+  case 14:
     {
             yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[0].value.as< TReferenceExpression* > (), yystack_[0].value.as< TReferenceExpression* > ()->GetColumnName());
         }
     break;
 
-  case 14:
+  case 15:
     {
             yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[2].value.as< TExpression* > (), Stroka(yystack_[0].value.as< TStringBuf > ()));
         }
     break;
 
-  case 15:
+  case 16:
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
-  case 16:
+  case 17:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::Or, yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 17:
+  case 18:
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
-  case 18:
+  case 19:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 19:
+  case 20:
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
-  case 20:
+  case 21:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 21:
+  case 22:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, 
                 context->TrackedNew<TBinaryOpExpression>(yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as< TExpression* > (), yystack_[2].value.as< TExpression* > ()), 
@@ -1543,7 +1549,7 @@ namespace NYT { namespace NQueryClient {
         }
     break;
 
-  case 22:
+  case 23:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, MakeUnversionedBooleanValue(false));
 
@@ -1557,86 +1563,80 @@ namespace NYT { namespace NQueryClient {
         }
     break;
 
-  case 23:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-    break;
-
   case 24:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
   case 25:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
     break;
 
   case 26:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
     break;
 
   case 27:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
     break;
 
   case 28:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
     break;
 
   case 29:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
     break;
 
   case 30:
-    {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
-        }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
     break;
 
   case 31:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
-    break;
-
-  case 32:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
-    break;
-
-  case 33:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
-    break;
-
-  case 34:
     {
             yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 35:
+  case 32:
     { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
+  case 33:
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
+    break;
+
+  case 34:
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
+    break;
+
+  case 35:
+    {
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpression* > (), yystack_[0].value.as< TExpression* > ());
+        }
+    break;
+
   case 36:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TExpression* > (); }
     break;
 
   case 37:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
     break;
 
   case 38:
-    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
     break;
 
   case 39:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TReferenceExpression* > (); }
+    { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
     break;
 
   case 40:
-    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TReferenceExpression* > (); }
     break;
 
   case 41:
-    {
-            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, yystack_[0].value.as< TUnversionedValue > ());
-        }
+    { yylhs.value.as< TExpression* > () = yystack_[0].value.as< TFunctionExpression* > (); }
     break;
 
   case 42:
@@ -1659,31 +1659,37 @@ namespace NYT { namespace NQueryClient {
 
   case 45:
     {
-            yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > ();
+            yylhs.value.as< TExpression* > () = context->TrackedNew<TLiteralExpression>(yylhs.location, yystack_[0].value.as< TUnversionedValue > ());
         }
     break;
 
   case 46:
     {
-            yylhs.value.as< TReferenceExpression* > () = context->TrackedNew<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
+            yylhs.value.as< TExpression* > () = yystack_[1].value.as< TExpression* > ();
         }
     break;
 
   case 47:
+    {
+            yylhs.value.as< TReferenceExpression* > () = context->TrackedNew<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
+        }
+    break;
+
+  case 48:
     {
             yylhs.value.as< TFunctionExpression* > () = context->TrackedNew<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > ());
             yylhs.value.as< TFunctionExpression* > ()->Arguments().assign(yystack_[1].value.as< TFunctionExpression::TArguments > ().begin(), yystack_[1].value.as< TFunctionExpression::TArguments > ().end());
         }
     break;
 
-  case 48:
+  case 49:
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().swap(yystack_[2].value.as< TFunctionExpression::TArguments > ());
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
     break;
 
-  case 49:
+  case 50:
     {
             yylhs.value.as< TFunctionExpression::TArguments > ().push_back(yystack_[0].value.as< TExpression* > ());
         }
@@ -1946,107 +1952,111 @@ namespace NYT { namespace NQueryClient {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -36;
+  const signed char TParser::yypact_ninf_ = -38;
 
-  const signed char TParser::yytable_ninf_ = -14;
+  const signed char TParser::yytable_ninf_ = -15;
 
   const signed char
   TParser::yypact_[] =
   {
-       0,     9,    18,    10,   -36,   -36,   -36,   -36,     9,   -36,
-      26,    21,   -36,    40,    23,    41,    11,    25,    -4,    -3,
-       7,   -36,   -36,     9,    -5,   -36,    38,    13,     9,    42,
-       9,     9,   -36,   -36,   -36,   -36,   -36,   -36,     9,   -36,
-     -36,     9,   -36,   -36,   -36,     9,     9,    15,   -36,    -7,
-     -36,   -36,     9,     9,    46,   -36,   -36,   -36,    41,    11,
-      25,   -36,    -4,   -36,    45,     9,   -36,     9,    23,    21,
-     -36,     9,    12,   -36,   -36,   -36
+       8,     2,    13,     7,   -38,   -38,   -38,   -38,    23,   -38,
+     -38,    26,    10,   -38,    24,    33,    39,    28,    -2,     9,
+      -4,     6,   -38,   -38,    23,    -6,   -38,    37,    18,    23,
+      38,    23,    23,   -38,   -38,   -38,   -38,   -38,   -38,    23,
+     -38,   -38,    23,   -38,   -38,   -38,    23,    23,    41,   -38,
+      21,   -38,   -38,    23,    23,    54,   -38,   -38,   -38,    39,
+      28,    -2,   -38,     9,   -38,    53,    23,   -38,    23,    33,
+      10,   -38,    23,    29,   -38,   -38,   -38
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
-       0,     0,     0,    46,    41,    42,    43,    44,     0,     2,
-       0,     7,    12,     0,    15,    17,    19,    23,    31,    35,
-      39,    40,     1,     0,     0,    39,     0,     3,     0,     0,
-       0,     0,    26,    27,    24,    25,    28,    29,     0,    32,
-      33,     0,    38,    36,    37,     0,     0,     0,    49,     0,
-      45,     8,     0,     0,     4,     6,    11,    14,    16,    18,
-      20,    35,    30,    34,     0,     0,    47,     0,     9,    10,
-       5,     0,     0,    48,    21,    22
+       0,     0,     0,    47,    42,    43,    44,    45,     0,     8,
+       2,     0,     7,    13,     0,    16,    18,    20,    24,    32,
+      36,    40,    41,     1,     0,     0,    40,     0,     3,     0,
+       0,     0,     0,    27,    28,    25,    26,    29,    30,     0,
+      33,    34,     0,    39,    37,    38,     0,     0,     0,    50,
+       0,    46,     9,     0,     0,     4,     6,    12,    15,    17,
+      19,    21,    36,    31,    35,     0,     0,    48,     0,    10,
+      11,     5,     0,     0,    49,    22,    23
   };
 
   const signed char
   TParser::yypgoto_[] =
   {
-     -36,   -36,   -36,   -36,   -36,   -36,     2,     4,    30,   -22,
-      -6,    29,    31,   -36,    22,   -36,    20,   -36,   -35,    -1,
-     -36,    -2
+     -38,   -38,   -38,   -38,   -38,   -38,    11,    14,    34,   -21,
+      -7,    36,    32,   -38,    30,   -38,    31,   -38,   -37,    -1,
+     -38,     4
   };
 
   const signed char
   TParser::yydefgoto_[] =
   {
-      -1,     2,     9,    10,    27,    54,    55,    11,    12,    13,
-      14,    15,    16,    38,    17,    41,    18,    45,    19,    25,
-      21,    49
+      -1,     2,    10,    11,    28,    55,    56,    12,    13,    14,
+      15,    16,    17,    39,    18,    42,    19,    46,    20,    26,
+      22,    50
   };
 
   const signed char
   TParser::yytable_[] =
   {
-      20,    48,    24,    61,     1,    30,    61,   -13,    46,    47,
-      63,    64,   -13,    66,    42,    50,    67,    43,    22,    52,
-      53,    44,     3,     4,     5,     6,     7,    20,     8,    23,
-     -13,    26,    75,    30,    65,    67,    74,    32,    33,    34,
-      35,    36,    37,    48,    28,    73,    68,    39,    29,    40,
-      31,    51,    20,    53,    71,    57,    70,    69,    56,    58,
-      60,    62,    59,    72
+      21,    25,    62,    49,    31,    62,   -14,    47,    48,    64,
+      65,   -14,     1,    23,    51,     3,     4,     5,     6,     7,
+      40,     8,    41,     9,    53,    54,    24,    43,    21,   -14,
+      44,    27,    30,    29,    45,    75,     3,     4,     5,     6,
+       7,    67,     8,    31,    68,    49,    69,    74,    32,    76,
+      52,    58,    68,    21,    33,    34,    35,    36,    37,    38,
+      66,    54,    72,    57,    60,     0,    71,    59,    70,    61,
+      73,     0,     0,    63
   };
 
-  const unsigned char
+  const signed char
   TParser::yycheck_[] =
   {
-       1,    23,     8,    38,     4,    10,    41,     0,    11,    12,
-      45,    46,     5,    20,    18,    20,    23,    21,     0,     6,
-       7,    25,    13,    14,    15,    16,    17,    28,    19,    19,
-      23,     5,    20,    10,    19,    23,    71,    26,    27,    28,
-      29,    30,    31,    65,    23,    67,    52,    22,     8,    24,
-       9,    13,    53,     7,     9,    13,    54,    53,    28,    30,
-      38,    41,    31,    65
+       1,     8,    39,    24,    10,    42,     0,    11,    12,    46,
+      47,     5,     4,     0,    20,    13,    14,    15,    16,    17,
+      22,    19,    24,    21,     6,     7,    19,    18,    29,    23,
+      21,     5,     8,    23,    25,    72,    13,    14,    15,    16,
+      17,    20,    19,    10,    23,    66,    53,    68,     9,    20,
+      13,    13,    23,    54,    26,    27,    28,    29,    30,    31,
+      19,     7,     9,    29,    32,    -1,    55,    31,    54,    39,
+      66,    -1,    -1,    42
   };
 
   const unsigned char
   TParser::yystos_[] =
   {
-       0,     4,    33,    13,    14,    15,    16,    17,    19,    34,
-      35,    39,    40,    41,    42,    43,    44,    46,    48,    50,
-      51,    52,     0,    19,    42,    51,     5,    36,    23,     8,
-      10,     9,    26,    27,    28,    29,    30,    31,    45,    22,
-      24,    47,    18,    21,    25,    49,    11,    12,    41,    53,
-      20,    13,     6,     7,    37,    38,    40,    13,    43,    44,
-      46,    50,    48,    50,    50,    19,    20,    23,    42,    39,
-      38,     9,    53,    41,    50,    20
+       0,     4,    33,    13,    14,    15,    16,    17,    19,    21,
+      34,    35,    39,    40,    41,    42,    43,    44,    46,    48,
+      50,    51,    52,     0,    19,    42,    51,     5,    36,    23,
+       8,    10,     9,    26,    27,    28,    29,    30,    31,    45,
+      22,    24,    47,    18,    21,    25,    49,    11,    12,    41,
+      53,    20,    13,     6,     7,    37,    38,    40,    13,    43,
+      44,    46,    50,    48,    50,    50,    19,    20,    23,    42,
+      39,    38,     9,    53,    41,    50,    20
   };
 
   const unsigned char
   TParser::yyr1_[] =
   {
-       0,    32,    33,    34,    34,    34,    34,    35,    36,    37,
-      38,    39,    39,    40,    40,    41,    42,    42,    43,    43,
-      44,    44,    44,    44,    45,    45,    45,    45,    45,    45,
-      46,    46,    47,    47,    48,    48,    49,    49,    49,    50,
-      50,    50,    50,    50,    50,    50,    51,    52,    53,    53
+       0,    32,    33,    34,    34,    34,    34,    35,    35,    36,
+      37,    38,    39,    39,    40,    40,    41,    42,    42,    43,
+      43,    44,    44,    44,    44,    45,    45,    45,    45,    45,
+      45,    46,    46,    47,    47,    48,    48,    49,    49,    49,
+      50,    50,    50,    50,    50,    50,    50,    51,    52,    53,
+      53
   };
 
   const unsigned char
   TParser::yyr2_[] =
   {
-       0,     2,     2,     2,     3,     4,     3,     1,     2,     2,
-       2,     3,     1,     1,     3,     1,     3,     1,     3,     1,
-       3,     5,     5,     1,     1,     1,     1,     1,     1,     1,
-       3,     1,     1,     1,     3,     1,     1,     1,     1,     1,
-       1,     1,     1,     1,     1,     3,     1,     4,     3,     1
+       0,     2,     2,     2,     3,     4,     3,     1,     1,     2,
+       2,     2,     3,     1,     1,     3,     1,     3,     1,     3,
+       1,     3,     5,     5,     1,     1,     1,     1,     1,     1,
+       1,     3,     1,     1,     1,     3,     1,     1,     1,     1,
+       1,     1,     1,     1,     1,     1,     3,     1,     4,     3,
+       1
   };
 
 
@@ -2076,11 +2086,12 @@ namespace NYT { namespace NQueryClient {
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   125,   125,   132,   137,   143,   150,   159,   167,   176,
-     184,   192,   197,   204,   208,   215,   220,   224,   229,   233,
-     238,   242,   248,   260,   265,   267,   269,   271,   273,   275,
-     280,   284,   289,   291,   296,   300,   305,   307,   309,   314,
-     316,   318,   322,   326,   330,   334,   341,   348,   356,   361
+       0,   125,   125,   132,   137,   143,   150,   159,   164,   171,
+     180,   188,   196,   201,   208,   212,   219,   224,   228,   233,
+     237,   242,   246,   252,   264,   269,   271,   273,   275,   277,
+     279,   284,   288,   293,   295,   300,   304,   309,   311,   313,
+     318,   320,   322,   326,   330,   334,   338,   345,   352,   360,
+     365
   };
 
   // Print the state stack on the debug stream.
