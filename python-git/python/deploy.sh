@@ -4,14 +4,18 @@ PACKAGE=$1
 
 rm -rf debian setup.py
 
-ln -s $PACKAGE/debian debian
-ln -s $PACKAGE/setup.py setup.py
+# NB: Symbolic links doesn't work correctly with `sdist upload`
+cp -r $PACKAGE/debian $PACKAGE/setup.py .
+if [ -f "$PACKAGE/MANIFEST.in" ]; then
+    cp $PACKAGE/MANIFEST.in .
+fi
 
 python setup.py clean
 sudo make -f debian/rules clean
 
 YT="yt/wrapper/yt"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+echo "$VERSION" >VERSION
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     make version
     make docs
@@ -61,4 +65,4 @@ fi
 
 python setup.py clean
 sudo make -f debian/rules clean
-rm -rf debian setup.py
+rm -rf debian setup.py VERSION MANIFEST.in

@@ -38,7 +38,7 @@ def main():
 
 
     scripts, data_files = prepare_files(["yt/wrapper/mapreduce-yt", "yt/wrapper/yt2"])
-    if "EGG" not in os.environ:
+    if "DEB" in os.environ:
         data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
     
     find_packages("yt/packages")
