@@ -171,7 +171,9 @@ template <bool Cross>
 class TypeBuilder<TValueData, Cross>
 {
 public:
-    typedef TypeBuilder<i64, Cross> TInteger;
+    typedef TypeBuilder<char, Cross> TBoolean;
+    typedef TypeBuilder<i64, Cross> TInt64;
+    typedef TypeBuilder<ui64, Cross> TUint64;
     typedef TypeBuilder<double, Cross> TDouble;
     typedef TypeBuilder<const char*, Cross> TString;
 

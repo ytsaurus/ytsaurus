@@ -58,12 +58,11 @@ typedef std::function<void(TCGIRBuilder& builder, Value* row)> TCodegenConsumer;
 
 static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
 
+typedef TypeBuilder<TValue, false> TTypeBuilder;
+typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
+
 class TCGValue
 {
-public:
-    typedef TypeBuilder<TValue, false> TTypeBuilder;
-    typedef TypeBuilder<TValueData, false> TDataTypeBuilder;
-
 private:
     TCGIRBuilder& Builder_;
     Value* Type_;
@@ -135,12 +134,14 @@ public:
         Twine name = Twine())
     {
         if (data) {
+            auto targetType = TDataTypeBuilder::get(builder.getContext());
+
             if (data->getType()->isPointerTy()) {
-                data = builder.CreatePtrToInt(data,
-                    TDataTypeBuilder::get(builder.getContext()));
+                data = builder.CreatePtrToInt(data, targetType);
+            } else if (data->getType()->isFloatingPointTy()) {
+                data = builder.CreateBitCast(data, targetType);
             } else {
-                data = builder.CreateBitCast(data,
-                    TDataTypeBuilder::get(builder.getContext()));
+                data = builder.CreateIntCast(data, targetType, false);
             }
         }
 
@@ -176,8 +177,8 @@ public:
         return TCGValue(
             builder,
             builder.getInt16(EValueType::Null),
-            llvm::UndefValue::get(TCGValue::TTypeBuilder::TLength::get(builder.getContext())),
-            llvm::UndefValue::get(TCGValue::TTypeBuilder::TData::get(builder.getContext())),
+            llvm::UndefValue::get(TTypeBuilder::TLength::get(builder.getContext())),
+            llvm::UndefValue::get(TTypeBuilder::TData::get(builder.getContext())),
             name);
     }
 
@@ -245,8 +246,14 @@ public:
         Type* targetType;
 
         switch (type) {
+            case EValueType::Boolean:
+                targetType = TDataTypeBuilder::TBoolean::get(Builder_.getContext());
+                break;
             case EValueType::Int64:
-                targetType = TDataTypeBuilder::TInteger::get(Builder_.getContext());
+                targetType = TDataTypeBuilder::TInt64::get(Builder_.getContext());
+                break;
+            case EValueType::Uint64:
+                targetType = TDataTypeBuilder::TUint64::get(Builder_.getContext());
                 break;
             case EValueType::Double:
                 targetType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
@@ -262,9 +269,14 @@ public:
             return Builder_.CreateIntToPtr(Data_,
                 targetType,
                 Twine(Name_) + ".data");
-        } else {
+        } else if (targetType->isFloatingPointTy()) {
             return Builder_.CreateBitCast(Data_,
                 targetType,
+                Twine(Name_) + ".data");        
+        } else {
+            return Builder_.CreateIntCast(Data_,
+                targetType,
+                false,
                 Twine(Name_) + ".data");
         }
     }
@@ -291,6 +303,39 @@ public:
             TDataTypeBuilder::get(Builder_.getContext()),
             Twine(Name_) + ".data");
         return *this;
+    }
+
+    TCGValue Cast(EValueType source, EValueType dest)
+    {
+        if (dest == source) {
+            return *this;
+        }
+
+        auto value = GetData(source);
+
+        Value* result;
+        if (dest == EValueType::Double) {
+            auto destType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
+
+            if (source == EValueType::Uint64) {
+                result = Builder_.CreateUIToFP(value, destType);
+            } else if (source == EValueType::Int64) {
+                result = Builder_.CreateSIToFP(value, destType);
+            } else {
+                YUNREACHABLE();
+            }
+        } else if (dest == EValueType::Uint64) {
+            auto destType = TDataTypeBuilder::TUint64::get(Builder_.getContext());
+            if (source == EValueType::Int64) {
+                result = Builder_.CreateIntCast(value, destType, true);
+            } else {
+                YUNREACHABLE();
+            }
+        } else {
+            YUNREACHABLE();
+        }
+
+        return CreateFromValue(Builder_, GetType(), GetLength(), result);
     }
 };
 
@@ -522,24 +567,70 @@ void CodegenAggregateFunction(
             Value* aggregateData = aggregateValue.GetData(type);
             Value* resultData = nullptr;
 
+            // TODO(lukyan): support other types
+
             switch (aggregateFunction) {
                 case EAggregateFunctions::Sum:
-                    resultData = builder.CreateAdd(
-                        aggregateData,
-                        newData);
+                    switch (type) {
+                        case EValueType::Int64:
+                        case EValueType::Uint64:
+                            resultData = builder.CreateAdd(
+                                aggregateData,
+                                newData);
+                            break;
+                        case EValueType::Double:
+                            resultData = builder.CreateFAdd(
+                                aggregateData,
+                                newData);
+                            break;
+                        default:
+                            YUNIMPLEMENTED();
+                    }
                     break;
-                case EAggregateFunctions::Min:
+                case EAggregateFunctions::Min:{
+                    Value* compareResult = nullptr;
+                    switch (type) {
+                        case EValueType::Int64:
+                            compareResult = builder.CreateICmpSLE(aggregateData, newData);
+                            break;
+                        case EValueType::Uint64:
+                            compareResult = builder.CreateICmpULE(aggregateData, newData);
+                            break;
+                        case EValueType::Double:
+                            compareResult = builder.CreateFCmpULE(aggregateData, newData);
+                            break;
+                        default:
+                            YUNIMPLEMENTED();
+                    }
+
                     resultData = builder.CreateSelect(
-                        builder.CreateICmpSLE(aggregateData, newData),
+                        compareResult,
                         aggregateData,
                         newData);
                     break;
-                case EAggregateFunctions::Max:
+                }
+                case EAggregateFunctions::Max:{
+                    Value* compareResult = nullptr;
+                    switch (type) {
+                        case EValueType::Int64:
+                            compareResult = builder.CreateICmpSGE(aggregateData, newData);
+                            break;
+                        case EValueType::Uint64:
+                            compareResult = builder.CreateICmpUGE(aggregateData, newData);
+                            break;
+                        case EValueType::Double:
+                            compareResult = builder.CreateFCmpUGE(aggregateData, newData);
+                            break;
+                        default:
+                            YUNIMPLEMENTED();
+                    }
+
                     resultData = builder.CreateSelect(
-                        builder.CreateICmpSGE(aggregateData, newData),
+                        compareResult,
                         aggregateData,
                         newData);
                     break;
+                }
                 default:
                     YUNIMPLEMENTED();
             }
@@ -608,8 +699,8 @@ TCGValue TCGContext::CodegenFunctionExpr(
         const TExpression* thenExpr = expr->Arguments()[1];
         const TExpression* elseExpr = expr->Arguments()[2];
 
-        YCHECK(thenExpr->GetType(schema) == type);
-        YCHECK(elseExpr->GetType(schema) == type);
+        auto thenType = thenExpr->GetType(schema);
+        auto elseType = elseExpr->GetType(schema);
 
         auto condition = CodegenExpr(builder, condExpr, schema, row);
 
@@ -620,12 +711,12 @@ TCGValue TCGContext::CodegenFunctionExpr(
         }, [&] (TCGIRBuilder& builder) {
             return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
                 return builder.CreateICmpNE(
-                    builder.CreateZExtOrBitCast(condition.GetData(EValueType::Int64), builder.getInt64Ty()),
+                    builder.CreateZExtOrBitCast(condition.GetData(EValueType::Boolean), builder.getInt64Ty()),
                     builder.getInt64(0));            
             }, [&] (TCGIRBuilder& builder) {
-                return CodegenExpr(builder, thenExpr, schema, row);
+                return CodegenExpr(builder, thenExpr, schema, row).Cast(thenType, type);
             }, [&] (TCGIRBuilder& builder) {
-                return CodegenExpr(builder, elseExpr, schema, row);
+                return CodegenExpr(builder, elseExpr, schema, row).Cast(elseType, type);
             }, type);
         }, type, nameTwine);
     } else if (functionName == "is_prefix") {
@@ -675,11 +766,8 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
 {
     auto name = "{" + expr->GetName() + "}";
     auto type = expr->GetType(schema);
-
-    auto nameTwine = Twine(name.c_str());
-
     
-
+    auto nameTwine = Twine(name.c_str());
     auto lhsValue = CodegenExpr(builder, expr->GetLhs(), schema, row);
 
     return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
@@ -694,12 +782,17 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
             }, [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder);
             }, [&] (TCGIRBuilder& builder) {
-                auto operandType = expr->GetLhs()->GetType(schema);
-                YCHECK(operandType == expr->GetRhs()->GetType(schema));
+                auto lhsType = expr->GetLhs()->GetType(schema);
+                auto rhsType = expr->GetRhs()->GetType(schema);
 
-                Value* lhsData = lhsValue.GetData(operandType);
-                Value* rhsData = rhsValue.GetData(operandType);
-                Value* evalData = nullptr;                
+                auto commonType = InferCommonType(lhsType, rhsType, expr->GetSource());
+
+                lhsValue = lhsValue.Cast(lhsType, commonType);
+                rhsValue = rhsValue.Cast(rhsType, commonType);
+                
+                Value* lhsData = lhsValue.GetData(commonType);
+                Value* rhsData = rhsValue.GetData(commonType);
+                Value* evalData = nullptr;
 
                 #define OP(opcode, optype) \
                     case EBinaryOp::opcode: \
@@ -710,10 +803,12 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                     case EBinaryOp::opcode: \
                         evalData = builder.CreateZExtOrBitCast( \
                             builder.Create##optype(lhsData, rhsData), \
-                            builder.getInt64Ty()); \
+                            TDataTypeBuilder::TBoolean::get(builder.getContext())); \
                         break;
 
-                switch (operandType) {
+                switch (commonType) {
+
+                    case EValueType::Boolean:
                     case EValueType::Int64:
                         switch (expr->GetOpcode()) {
                             OP(Plus, Add)
@@ -729,6 +824,25 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                             CMP_OP(LessOrEqual, ICmpSLE)
                             CMP_OP(Greater, ICmpSGT)
                             CMP_OP(GreaterOrEqual, ICmpSGE)
+                            default:
+                                YUNREACHABLE();
+                        }
+                        break;
+                    case EValueType::Uint64:
+                        switch (expr->GetOpcode()) {
+                            OP(Plus, Add)
+                            OP(Minus, Sub)
+                            OP(Multiply, Mul)
+                            OP(Divide, UDiv)
+                            OP(Modulo, URem)
+                            OP(And, And)
+                            OP(Or, Or)
+                            CMP_OP(Equal, ICmpEQ)
+                            CMP_OP(NotEqual, ICmpNE)
+                            CMP_OP(Less, ICmpULT)
+                            CMP_OP(LessOrEqual, ICmpULE)
+                            CMP_OP(Greater, ICmpUGT)
+                            CMP_OP(GreaterOrEqual, ICmpUGE)
                             default:
                                 YUNREACHABLE();
                         }
@@ -918,7 +1032,7 @@ void TCGContext::CodegenFilterOp(
                 row);
 
             Value* result = innerBuilder.CreateZExtOrBitCast(
-                predicateResult.GetData(EValueType::Int64),
+                predicateResult.GetData(EValueType::Boolean),
                 builder.getInt64Ty());
 
             auto* ifBB = innerBuilder.CreateBBHere("if");
@@ -1039,9 +1153,6 @@ void TCGContext::CodegenGroupOp(
 
             auto id = nameTable->GetId(name);
             auto type = expr->GetType(sourceTableSchema);
-
-            // TODO(sandello): Others are unsupported.
-            YCHECK(type == EValueType::Int64);
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .SetTypeIfNotNull(type)

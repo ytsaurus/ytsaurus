@@ -20,6 +20,8 @@
     #include "plan_node.h"
 
     namespace NYT { namespace NQueryClient {
+        using namespace NVersionedTableClient;
+
         class TLexer;
         class TParser;
     } }
@@ -68,9 +70,10 @@
 
 %token <TStringBuf> Identifier "identifier"
 
-%token <i64> IntegerLiteral "integer literal"
-%token <double> DoubleLiteral "double literal"
-%token <TStringBuf> StringLiteral "string literal"
+%token <TUnversionedValue> Int64Literal "int64 literal"
+%token <TUnversionedValue> Uint64Literal "uint64 literal"
+%token <TUnversionedValue> DoubleLiteral "double literal"
+%token <TUnversionedValue> StringLiteral "string literal"
 
 %token OpModulo 37 "`%`"
 
@@ -244,7 +247,7 @@ relational-op-expr
         }
     | atomic-expr[expr] KwIn LeftParenthesis function-expr-args[args] RightParenthesis
         {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, i64(0));
+            $$ = context->TrackedNew<TLiteralExpression>(@$, MakeUnversionedBooleanValue(false));
 
             for (const TExpression* current : $args) {
                 $$ = context->TrackedNew<TBinaryOpExpression>(
@@ -312,7 +315,11 @@ atomic-expr
         { $$ = $1; }
     | function-expr
         { $$ = $1; }
-    | IntegerLiteral[value]
+    | Int64Literal[value]
+        {
+            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
+        }
+    | Uint64Literal[value]
         {
             $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
         }

@@ -169,15 +169,12 @@ void TFoldingProfiler::Profile(const TOperator* op)
 
 void TFoldingProfiler::Profile(const TExpression* expr)
 {
-    using NVersionedTableClient::MakeInt64Value;
-    using NVersionedTableClient::MakeDoubleValue;
-    using NVersionedTableClient::MakeStringValue;
-
     switch (expr->GetKind()) {
 
         case EExpressionKind::Literal: {
             const auto* literalExpr = expr->As<TLiteralExpression>();
             Id_.AddInteger(EFoldingObjectType::LiteralExpr);
+            Id_.AddInteger(literalExpr->GetValue().Type);
 
             int index = Variables_.ConstantArray.size();
             Variables_.ConstantArray.push_back(literalExpr->GetValue());

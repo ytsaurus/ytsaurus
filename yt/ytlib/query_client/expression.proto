@@ -21,6 +21,7 @@ message TLiteralExpression
     optional uint64 uint64_value = 3;
     optional double double_value = 4;
     optional string string_value = 5;
+    optional bool boolean_value = 6;
 }
 
 message TReferenceExpression

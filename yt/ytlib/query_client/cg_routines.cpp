@@ -202,7 +202,7 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 IsPrefix(
+char IsPrefix(
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,
@@ -212,7 +212,7 @@ i64 IsPrefix(
         std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
 }
 
-i64 Equal(
+char Equal(
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,
@@ -221,7 +221,7 @@ i64 Equal(
     return lhsLength == rhsLength && std::equal(lhsData, lhsData + lhsLength, rhsData);
 }
 
-i64 NotEqual(
+char NotEqual(
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,
@@ -230,7 +230,7 @@ i64 NotEqual(
     return !Equal(lhsData, lhsLength, rhsData, rhsLength);
 }
 
-i64 LexicographicalCompare(
+char LexicographicalCompare(
     const char* lhsData,
     ui32 lhsLength,
     const char* rhsData,

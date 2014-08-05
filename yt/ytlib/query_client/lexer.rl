@@ -36,7 +36,8 @@ typedef TParser::token_type TToken;
     fltexp = [Ee] [+\-]? digit+;
     fltdot = (digit* '.' digit+) | (digit+ '.' digit*);
 
-    integer_literal = digit+;
+    int64_literal = digit+;
+    uint64_literal = digit+ 'u';
     double_literal = fltdot fltexp?;
     string_literal = '"' ( [^"\\] | /\\./ )* '"';
 
@@ -74,19 +75,24 @@ typedef TParser::token_type TToken;
             value->build(Context_->Capture(ts, te));
             fbreak;
         };
-        integer_literal => {
-            type = TToken::IntegerLiteral;
-            value->build(FromString<i64>(ts, te - ts));
+        int64_literal => {
+            type = TToken::Int64Literal;
+            value->build(MakeUnversionedInt64Value(FromString<i64>(ts, te - ts)));
+            fbreak;
+        };        
+        uint64_literal => {
+            type = TToken::Uint64Literal;
+            value->build(MakeUnversionedUint64Value(FromString<ui64>(ts, te - ts - 1)));
             fbreak;
         };
         double_literal => {
             type = TToken::DoubleLiteral;
-            value->build(FromString<double>(ts, te - ts));
+            value->build(MakeUnversionedDoubleValue(FromString<double>(ts, te - ts)));
             fbreak;
         };
         string_literal => {
             type = TToken::StringLiteral;
-            value->build(Context_->Capture(UnescapeC(ts + 1, te - ts - 2)));
+            value->build(MakeUnversionedStringValue(Context_->Capture(UnescapeC(ts + 1, te - ts - 2))));
             fbreak;
         };
 

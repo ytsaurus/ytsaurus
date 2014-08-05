@@ -29,6 +29,32 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsIntegralType(EValueType type)
+{
+    return type == EValueType::Int64 || type == EValueType::Uint64;
+}
+
+bool IsArithmeticType(EValueType type)
+{
+    return IsIntegralType(type) || type == EValueType::Double;
+}
+
+EValueType InferCommonType(EValueType lhsType, EValueType rhsType, TStringBuf expression /*= TStringBuf()*/)
+{
+    if (lhsType == rhsType) {
+        return lhsType;
+    } else if (IsArithmeticType(lhsType) && IsArithmeticType(rhsType)) {
+        return std::max(lhsType, rhsType);
+    } else {
+        THROW_ERROR_EXCEPTION("Types in expression %Qv are incompatible", expression)
+            << TErrorAttribute("lhs_type", ToString(lhsType))
+            << TErrorAttribute("rhs_type", ToString(rhsType));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 int GetByteSize(const TUnversionedValue& value)
 {
     int result = MaxVarUint32Size * 2; // id and type

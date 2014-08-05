@@ -89,25 +89,9 @@ public:
     TLiteralExpression(
         TPlanContext* context,
         const TSourceLocation& sourceLocation,
-        i64 value)
+        NVersionedTableClient::TUnversionedValue value)
         : TExpression(context, EExpressionKind::Literal, sourceLocation)
-        , Value_(NVersionedTableClient::MakeUnversionedInt64Value(value))
-    { }
-
-    TLiteralExpression(
-        TPlanContext* context,
-        const TSourceLocation& sourceLocation,
-        double value)
-        : TExpression(context, EExpressionKind::Literal, sourceLocation)
-        , Value_(NVersionedTableClient::MakeUnversionedDoubleValue(value))
-    { }
-
-    TLiteralExpression(
-        TPlanContext* context,
-        const TSourceLocation& sourceLocation,
-        const TStringBuf& value)
-        : TExpression(context, EExpressionKind::Literal, sourceLocation)
-        , Value_(NVersionedTableClient::MakeUnversionedStringValue(value))
+        , Value_(value)
     { }
 
     TLiteralExpression(

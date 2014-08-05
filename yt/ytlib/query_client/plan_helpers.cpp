@@ -265,7 +265,13 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
             functionName.to_lower();
 
             if (functionName == "if") {
-                CHECK(typedExpr->GetArgumentCount() == 3);
+                if (typedExpr->GetArgumentCount() != 3) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression \"if\" expects 3 arguments, but %v provided",
+                        typedExpr->GetArgumentCount())
+                        << TErrorAttribute("expression", typedExpr->GetSource());
+                }
+
                 const TExpression* conditionExpr = typedExpr->Arguments()[0];
                 const TExpression* thenExpr = typedExpr->Arguments()[1];
                 const TExpression* elseExpr = typedExpr->Arguments()[2];
@@ -274,76 +280,110 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 EValueType thenType = thenExpr->GetType(sourceSchema);
                 EValueType elseType = elseExpr->GetType(sourceSchema);
 
-                YCHECK(conditionType == EValueType::Int64);
-                YCHECK(thenType == elseType);
-                
-                return thenType;
+                if (conditionType != EValueType::Boolean) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expected boolean type in condition %Qv",
+                        typedExpr->GetSource())
+                        << TErrorAttribute("condition_type", ToString(conditionType));
+                }
+
+                return InferCommonType(thenType, elseType, typedExpr->GetSource());
             } else if (functionName == "is_prefix") {
-                CHECK(typedExpr->GetArgumentCount() == 2);
+                if (typedExpr->GetArgumentCount() != 2) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression \"is_prefix\" expects 2 arguments, but %v provided",
+                        typedExpr->GetArgumentCount())
+                        << TErrorAttribute("expression", typedExpr->GetSource());
+                }
+
                 const TExpression* lhsExpr = typedExpr->Arguments()[0];
                 const TExpression* rhsExpr = typedExpr->Arguments()[1];
 
-                YCHECK(lhsExpr->GetType(sourceSchema) == EValueType::String);
-                YCHECK(rhsExpr->GetType(sourceSchema) == EValueType::String);
+                auto lhsType = InferType(lhsExpr, sourceSchema);
+                auto rhsType = InferType(rhsExpr, sourceSchema);
 
-                return EValueType::Int64;
+                if (lhsType != EValueType::String || rhsType != EValueType::String) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression %s is not supported for this types",
+                        ~typedExpr->GetSource().Quote())
+                        << TErrorAttribute("lhs_type", ToString(lhsType))
+                        << TErrorAttribute("rhs_type", ToString(rhsType));
+                }
+
+                return EValueType::Boolean;
             }
-            YUNIMPLEMENTED();
+
+            THROW_ERROR_EXCEPTION(
+                "Unknown function in expression %Qv",
+                typedExpr->GetSource())
+                << TErrorAttribute("function_name", functionName);
         }
             
         case EExpressionKind::BinaryOp: {
             auto* typedExpr = expr->As<TBinaryOpExpression>();
             auto lhsType = InferType(typedExpr->GetLhs(), sourceSchema);
             auto rhsType = InferType(typedExpr->GetRhs(), sourceSchema);
-            if (lhsType != rhsType) {
-                THROW_ERROR_EXCEPTION(
-                    "Type mismatch between left- and right-hand sides in expression %Qv",
-                    typedExpr->GetSource())
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
-            }
 
-            switch (lhsType) {
-                case EValueType::Int64:
-                    return EValueType::Int64;
-                case EValueType::Double:
-                    switch (typedExpr->GetOpcode()) {
-                        case EBinaryOp::Plus:
-                        case EBinaryOp::Minus:
-                        case EBinaryOp::Multiply:
-                        case EBinaryOp::Divide:
-                            return EValueType::Double;
-                        case EBinaryOp::Equal:
-                        case EBinaryOp::NotEqual:
-                        case EBinaryOp::Less:
-                        case EBinaryOp::LessOrEqual:
-                        case EBinaryOp::Greater:
-                        case EBinaryOp::GreaterOrEqual:
-                            return EValueType::Int64;
-                        default:
-                             THROW_ERROR_EXCEPTION(
-                                "Expression %Qv is not supported",
-                                typedExpr->GetSource())
-                                << TErrorAttribute("lhs_type", ToString(lhsType))
-                                << TErrorAttribute("rhs_type", ToString(rhsType));
+            switch (typedExpr->GetOpcode()) {
+                case EBinaryOp::Plus:
+                case EBinaryOp::Minus:
+                case EBinaryOp::Multiply:
+                case EBinaryOp::Divide: {
+                    if (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType)) {
+                        THROW_ERROR_EXCEPTION(
+                            "Expression %Qv require either integral or floating-point operands",
+                            typedExpr->GetSource())
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
                     }
-                    break;
-                case EValueType::String: {
-                    switch (typedExpr->GetOpcode()) {
-                        case EBinaryOp::Equal:
-                        case EBinaryOp::NotEqual:
-                        case EBinaryOp::Less:
-                        case EBinaryOp::Greater:
-                            return EValueType::Int64;
-                        default:
-                            THROW_ERROR_EXCEPTION(
-                                "Expression %Qv is not supported",
-                                typedExpr->GetSource())
-                                << TErrorAttribute("lhs_type", ToString(lhsType))
-                                << TErrorAttribute("rhs_type", ToString(rhsType));
+                    return std::max(lhsType, rhsType);
+                }
+
+                case EBinaryOp::Modulo: {
+                    if (!IsIntegralType(lhsType) || !IsIntegralType(rhsType)) {
+                        THROW_ERROR_EXCEPTION(
+                            "Expression %s require integral operands",
+                            typedExpr->GetSource())
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
                     }
-                    break;   
-                }                    
+                    return std::max(lhsType, rhsType);
+                }
+
+                case EBinaryOp::And:
+                case EBinaryOp::Or: {
+                    if (lhsType != EValueType::Boolean || rhsType != EValueType::Boolean) {
+                        THROW_ERROR_EXCEPTION(
+                            "Expression %Qv require boolean operands",
+                            typedExpr->GetSource())
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
+                    }
+                    return EValueType::Boolean;
+                }
+
+                case EBinaryOp::Equal:
+                case EBinaryOp::NotEqual:
+                case EBinaryOp::Less:
+                case EBinaryOp::Greater:
+                    if (lhsType != rhsType && (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType))) {
+                        THROW_ERROR_EXCEPTION("Types in expression %Qv are incompatible",
+                            typedExpr->GetSource())
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
+                    }
+                    return EValueType::Boolean;
+                case EBinaryOp::LessOrEqual:
+                case EBinaryOp::GreaterOrEqual: {
+                    if (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType)) {
+                        THROW_ERROR_EXCEPTION(
+                            "Expression %Qv require either integral or floating-point operands",
+                            typedExpr->GetSource())
+                            << TErrorAttribute("lhs_type", ToString(lhsType))
+                            << TErrorAttribute("rhs_type", ToString(rhsType));
+                    }
+                    return EValueType::Boolean;
+                }
                 default:
                     YUNREACHABLE();
             }

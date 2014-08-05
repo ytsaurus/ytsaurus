@@ -113,6 +113,11 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
                     break;
                 }
 
+                case EValueType::Uint64: {
+                    proto->set_uint64_value(data.Uint64);
+                    break;
+                }
+                
                 case EValueType::Double: {
                     proto->set_double_value(data.Double);
                     break;
@@ -120,6 +125,11 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
 
                 case EValueType::String: {
                     proto->set_string_value(data.String, value.Length);
+                    break;
+                }
+
+                case EValueType::Boolean: {
+                    proto->set_boolean_value(data.Boolean);
                     break;
                 }
 
@@ -158,6 +168,7 @@ void ToProto(NProto::TExpression* serialized, const TExpression* original)
 
 const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext* context)
 {
+    using namespace NVersionedTableClient;
     TExpression* result = nullptr;
 
     switch (EExpressionKind(serialized.kind())) {
@@ -173,7 +184,15 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                     typedResult = new (context) TLiteralExpression(
                         context,
                         NullSourceLocation,
-                        data.int64_value());
+                        MakeUnversionedInt64Value(data.int64_value()));
+                    break;
+                }
+
+                case EValueType::Uint64: {
+                    typedResult = new (context) TLiteralExpression(
+                        context,
+                        NullSourceLocation,
+                        MakeUnversionedUint64Value(data.uint64_value()));
                     break;
                 }
 
@@ -181,7 +200,7 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                     typedResult = new (context) TLiteralExpression(
                         context,
                         NullSourceLocation,
-                        data.double_value());
+                        MakeUnversionedDoubleValue(data.double_value()));
                     break;
                 }
 
@@ -189,7 +208,15 @@ const TExpression* FromProto(const NProto::TExpression& serialized, TPlanContext
                     typedResult = new (context) TLiteralExpression(
                         context,
                         NullSourceLocation,
-                        context->Capture(data.string_value()));
+                        MakeUnversionedStringValue(context->Capture(data.string_value())));
+                    break;
+                }
+
+                case EValueType::Boolean: {
+                    typedResult = new (context) TLiteralExpression(
+                        context,
+                        NullSourceLocation,
+                        MakeUnversionedBooleanValue(data.boolean_value()));
                     break;
                 }
 

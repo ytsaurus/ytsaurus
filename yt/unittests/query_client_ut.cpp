@@ -181,6 +181,20 @@ MATCHER_P(HasUpperBound, encodedUpperBound, "")
     return true;
 }
 
+MATCHER_P(HasSchema, expectedSchema, "")
+{
+    auto schema = GetTableSchemaFromDataSplit(arg);
+
+    if (schema != expectedSchema) {
+        //*result_listener
+        //    << "actual counter id is " << schema << " while "
+        //    << "expected counter id is " << expectedSchema;
+        return false;
+    }
+
+    return true;
+}
+
 TKeyColumns GetSampleKeyColumns()
 {
     TKeyColumns keyColumns;
@@ -348,8 +362,8 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
-        "k from [//t] where a > 3.1415926",
-        ContainsRegex("Type mismatch .* in expression \"a > 3.1415926\""));
+        "k from [//t] where a > \"xyz\"",
+        ContainsRegex("Types in expression .* are incompatible"));
 }
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
@@ -611,7 +625,7 @@ TEST_P(TRefineKeyRangeTest, Basic)
             testCase.GetInitialRightBound()),
         Make<TBinaryOpExpression>(testCase.ConstraintOpcode,
             Make<TReferenceExpression>(testCase.ConstraintColumnName),
-            Make<TLiteralExpression>(testCase.ConstraintValue)));
+            Make<TLiteralExpression>(MakeUnversionedInt64Value(testCase.ConstraintValue))));
 
     if (testCase.ResultIsEmpty) {
         ExpectIsEmpty(result);
@@ -1008,10 +1022,10 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(90)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(10)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1025,10 +1039,10 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1043,13 +1057,13 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1066,10 +1080,10 @@ TEST_F(TRefineKeyRangeTest, Range1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(0)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(0)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(100)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(100)));
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -1087,10 +1101,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(10)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(90)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1105,16 +1119,16 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(10)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(90)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1132,10 +1146,10 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1150,19 +1164,19 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(75)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(75)));
     auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::And, conj4, conj5);
 
@@ -1194,18 +1208,18 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(40)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(60)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
 
     auto conj5 = Make<TBinaryOpExpression>(
         EBinaryOp::And,
@@ -1240,13 +1254,13 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(40)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(60)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
 
     auto disj1 = Make<TBinaryOpExpression>(
         EBinaryOp::Or,
@@ -1255,13 +1269,13 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(40)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
     auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(60)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
 
     auto disj2 = Make<TBinaryOpExpression>(
         EBinaryOp::Or,
@@ -1317,13 +1331,13 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(1)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(1)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(2)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(2)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(3)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(3)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -1340,16 +1354,16 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(i64(50)));
+        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
 
     auto conj4 = Make<TFunctionExpression>("is_prefix",
-        Make<TLiteralExpression>("abc"),
+        Make<TLiteralExpression>(MakeUnversionedStringValue("abc")),
         Make<TReferenceExpression>("s"));
 
     auto result = RefineKeyRange(
@@ -1452,8 +1466,7 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-            .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+        
 
         ReaderMock_ = New<StrictMock<TReaderMock>>();
         WriterMock_ = New<StrictMock<TWriterMock>>();
@@ -1468,6 +1481,7 @@ protected:
 
     void Evaluate(
         const Stroka& query,
+        const TDataSplit& dataSplit,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
@@ -1478,6 +1492,7 @@ protected:
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(
                 query,
+                dataSplit,
                 owningSource,
                 owningResult,
                 inputRowLimit,
@@ -1488,6 +1503,7 @@ protected:
 
     void DoEvaluate(
         const Stroka& query,
+        const TDataSplit& dataSplit,
         const std::vector<TUnversionedOwningRow>& owningSource,
         const std::vector<TUnversionedOwningRow>& owningResult,
         i64 inputRowLimit,
@@ -1517,8 +1533,11 @@ protected:
 
             iter += writeSize;
         }
-        
-        EXPECT_CALL(EvaluateMock_, GetReader(_, _))
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillOnce(Return(WrapInFuture(dataSplit)));
+
+        EXPECT_CALL(EvaluateMock_, GetReader(HasSchema(GetTableSchemaFromDataSplit(dataSplit)), _))
             .WillOnce(Return(ReaderMock_));
 
         EXPECT_CALL(*ReaderMock_, Open(_))
@@ -1561,7 +1580,6 @@ TEST_F(TQueryEvaluateTest, Simple)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
@@ -1572,7 +1590,7 @@ TEST_F(TQueryEvaluateTest, Simple)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t]", source, result);
+    Evaluate("a, b FROM [//t]", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
@@ -1580,7 +1598,6 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
@@ -1591,7 +1608,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a between 9 and 11", source, result);
+    Evaluate("a, b FROM [//t] where a between 9 and 11", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleIn)
@@ -1599,7 +1616,6 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
@@ -1611,7 +1627,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a in (4, 10)", source, result);
+    Evaluate("a, b FROM [//t] where a in (4, 10)", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -1632,7 +1648,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
     result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
     result.push_back(BuildRow("a=16", simpleSplit, true));
 
-    Evaluate("a, b, c FROM [//t] where a > 3", source, result);
+    Evaluate("a, b, c FROM [//t] where a > 3", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull2)
@@ -1662,7 +1678,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
     result.push_back(BuildRow("a=5;", resultSplit, true));
     result.push_back(BuildRow("a=7;", resultSplit, true));
 
-    Evaluate("a, b + c as x FROM [//t] where a < 10", source, result);
+    Evaluate("a, b + c as x FROM [//t] where a < 10", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings)
@@ -1683,7 +1699,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
     result.push_back(BuildRow("s=bar", resultSplit, true));
     result.push_back(BuildRow("s=baz", resultSplit, true));
 
-    Evaluate("s FROM [//t]", source, result);
+    Evaluate("s FROM [//t]", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings2)
@@ -1705,7 +1721,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
     result.push_back(BuildRow("s=foo; u=x", resultSplit, true));
     result.push_back(BuildRow("s=baz; u=x", resultSplit, true));
 
-    Evaluate("s, u FROM [//t] where u = \"x\"", source, result);
+    Evaluate("s, u FROM [//t] where u = \"x\"", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, HasPrefixStrings)
@@ -1724,7 +1740,7 @@ TEST_F(TQueryEvaluateTest, HasPrefixStrings)
     std::vector<TUnversionedOwningRow> result;
     result.push_back(BuildRow("s=foobar", resultSplit, true));
 
-    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", source, result);
+    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, Complex)
@@ -1732,7 +1748,6 @@ TEST_F(TQueryEvaluateTest, Complex)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -1756,7 +1771,7 @@ TEST_F(TQueryEvaluateTest, Complex)
     result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", simpleSplit, source, result);
 
     SUCCEED();
 }
@@ -1766,7 +1781,6 @@ TEST_F(TQueryEvaluateTest, Complex2)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -1796,7 +1810,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
     result.push_back(BuildRow("x=0;q=0;t=200", resultSplit, false));
     result.push_back(BuildRow("x=1;q=0;t=241", resultSplit, false));
 
-    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", source, result);
+    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", simpleSplit, source, result);
 
     SUCCEED();
 }
@@ -1806,7 +1820,6 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     std::vector<TUnversionedOwningRow> source;
@@ -1820,7 +1833,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), simpleSplit, false));
     }
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", simpleSplit, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
@@ -1828,7 +1841,6 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -1863,10 +1875,11 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
     result.push_back(BuildRow("y=6", resultSplit, true));
 
-    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", source, result);
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", simpleSplit, source, result);
 
     SUCCEED();
 }
+
 
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
@@ -1906,7 +1919,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
     result.push_back(BuildRow("t=199", resultSplit, true));
     result.push_back(BuildRow("x=z;t=160", resultSplit, true));
 
-    Evaluate("x, sum(b) as t FROM [//t] where b > 10 group by s as x", source, result);
+    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", simpleSplit, source, result);
 
     SUCCEED();
 }
@@ -1916,7 +1929,6 @@ TEST_F(TQueryEvaluateTest, TestIf)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -1937,10 +1949,10 @@ TEST_F(TQueryEvaluateTest, TestIf)
     }
 
     std::vector<TUnversionedOwningRow> result;
-    result.push_back(BuildRow("x=b;t=250", simpleSplit, false));
-    result.push_back(BuildRow("x=a;t=200", simpleSplit, false));
+    result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
+    result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     
-    Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b) as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", source, result);
+    Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", simpleSplit, source, result);
 
     SUCCEED();
 }
@@ -1950,7 +1962,6 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -1974,7 +1985,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
     result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, 3);
+    Evaluate("a, b FROM [//t] where a > 1u and a < 9u", simpleSplit, source, result, 3);
 
     SUCCEED();
 }
@@ -1984,7 +1995,6 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     std::vector<TColumnSchema> columns;
     columns.emplace_back("a", EValueType::Int64);
     columns.emplace_back("b", EValueType::Int64);
-    columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
     const char* sourceRowsData[] = {
@@ -2009,7 +2019,40 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
     result.push_back(BuildRow("a=4;b=40", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", source, result, std::numeric_limits<i64>::max(), 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", simpleSplit, source, result, std::numeric_limits<i64>::max(), 3);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestTypeInference)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Int64);
+    columns.emplace_back("b", EValueType::Int64);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, false));
+    }
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
+    result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
+    
+    Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b * 1u) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4u, 5.0) as x", simpleSplit, source, result);
 
     SUCCEED();
 }

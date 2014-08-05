@@ -56,6 +56,16 @@ static_assert(
 static_assert(
     std::is_pod<TUnversionedValue>::value,
     "TUnversionedValue must be a POD type.");
+static_assert(
+    EValueType::Int64 < EValueType::Uint64 &&
+    EValueType::Uint64 < EValueType::Double,
+    "Incorrect type order.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsIntegralType(EValueType type);
+bool IsArithmeticType(EValueType type);
+EValueType InferCommonType(EValueType lhsType, EValueType rhsType, TStringBuf expression = TStringBuf());
 
 ////////////////////////////////////////////////////////////////////////////////
 
