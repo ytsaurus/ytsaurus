@@ -411,7 +411,7 @@ class Application(object):
                         message = None
                         try:
                             message = message_queue.get()
-                        except:
+                        except Queue.Empty:
                             break
                         if message["type"] == "error":
                             assert not process.is_alive()
@@ -566,6 +566,7 @@ class Application(object):
                 self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
 
         except Exception as error:
+            logger.exception(error)
             return "Unknown error: " + error.message, 502
 
         return task.id
