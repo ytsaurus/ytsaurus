@@ -114,7 +114,13 @@ def read_content(response, raw, format, response_type):
 
 def get_hosts(client=None):
     proxy = get_proxy_url(None, client)
-    return make_get_request_with_retries("http://{0}/{1}".format(proxy, config.HOSTS))
+    hosts = None
+    if client is not None:
+        hosts = client.hosts
+    if hosts is None:
+        hosts = config.HOSTS
+
+    return make_get_request_with_retries("http://{0}/{1}".format(proxy, hosts))
 
 def get_host_for_heavy_operation(client=None):
     client = get_value(client, config.CLIENT)
