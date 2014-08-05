@@ -753,6 +753,41 @@ TCGValue TCGContext::CodegenFunctionExpr(
                 return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
             }, type);
         }, type, nameTwine);
+    } else if (functionName == "lower") {
+        YCHECK(expr->GetArgumentCount() == 1);
+        const TExpression* argExpr = expr->Arguments()[0];
+
+        auto argValue = CodegenExpr(builder, argExpr, schema, row);
+
+        return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
+            return argValue.IsNull();
+        }, [&] (TCGIRBuilder& builder) {
+            return TCGValue::CreateNull(builder);
+        }, [&] (TCGIRBuilder& builder) {
+            Value* argData = argValue.GetData(EValueType::String);
+            Value* argLength = argValue.GetLength();
+
+            Value* result = builder.CreateCall3(
+                Fragment_.GetRoutine("ToLower"),
+                GetExecutionContextPtr(builder),
+                argData,
+                argLength);
+
+            return TCGValue::CreateFromValue(builder, builder.getInt16(type), argLength, result);
+        }, type, nameTwine);
+    } else if (functionName == "is_null") {
+        YCHECK(expr->GetArgumentCount() == 1);
+        const TExpression* argExpr = expr->Arguments()[0];
+
+        auto argValue = CodegenExpr(builder, argExpr, schema, row);
+
+        return TCGValue::CreateFromValue(
+            builder,
+            builder.getInt16(type),
+            nullptr,            
+            builder.CreateZExtOrBitCast(
+                argValue.IsNull(),
+                TDataTypeBuilder::TBoolean::get(builder.getContext())));
     }
 
     YUNIMPLEMENTED();

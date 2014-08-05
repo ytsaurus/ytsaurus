@@ -311,6 +311,35 @@ EValueType InferType(const TExpression* expr, const TTableSchema& sourceSchema)
                 }
 
                 return EValueType::Boolean;
+            } else if (functionName == "lower") {
+                if (typedExpr->GetArgumentCount() != 1) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression \"lower\" expects 1 argument, but %v provided",
+                        typedExpr->GetArgumentCount())
+                        << TErrorAttribute("expression", typedExpr->GetSource());
+                }
+
+                const TExpression* argExpr = typedExpr->Arguments()[0];
+
+                auto argType = InferType(argExpr, sourceSchema);
+
+                if (argType != EValueType::String) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression %s is not supported for this type",
+                        ~typedExpr->GetSource().Quote())
+                        << TErrorAttribute("arg_type", ToString(argType));
+                }
+
+                return EValueType::String;
+            } else if (functionName == "is_null") {
+                if (typedExpr->GetArgumentCount() != 1) {
+                    THROW_ERROR_EXCEPTION(
+                        "Expression \"isnull\" expects 1 argument, but %v provided",
+                        typedExpr->GetArgumentCount())
+                        << TErrorAttribute("expression", typedExpr->GetSource());
+                }
+
+                return EValueType::Boolean;
             }
 
             THROW_ERROR_EXCEPTION(

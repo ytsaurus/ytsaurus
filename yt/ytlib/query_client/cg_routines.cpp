@@ -239,6 +239,20 @@ char LexicographicalCompare(
     return std::lexicographical_compare(lhsData, lhsData + lhsLength, rhsData, rhsData + rhsLength);
 }
 
+char* ToLower(
+    TExecutionContext* executionContext,
+    const char* data,
+    ui32 length)
+{
+    char* result = executionContext->RowBuffer->GetUnalignedPool()->AllocateUnaligned(length);
+
+    for (ui32 index = 0; index < length; ++index) {
+        result[index] = tolower(data[index]);
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -261,6 +275,7 @@ void RegisterCGRoutinesImpl()
     REGISTER_ROUTINE(Equal);
     REGISTER_ROUTINE(NotEqual);
     REGISTER_ROUTINE(LexicographicalCompare);
+    REGISTER_ROUTINE(ToLower);
 #undef REGISTER_ROUTINE
 }
 

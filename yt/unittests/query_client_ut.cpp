@@ -1881,6 +1881,43 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
 }
 
 
+TEST_F(TQueryEvaluateTest, IsNull)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::Int64);
+    columns.emplace_back("b", EValueType::Int64);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=9;b=90",
+        "a=10",
+        "b=1",
+        "b=2",
+        "b=3"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, true));
+    }
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("b", EValueType::Int64);
+    auto resultSplit = MakeSplit(resultColumns);
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("b=1", resultSplit, true));
+    result.push_back(BuildRow("b=2", resultSplit, true));
+    result.push_back(BuildRow("b=3", resultSplit, true));
+
+    Evaluate("b FROM [//t] where is_null(a)", simpleSplit, source, result);
+
+    SUCCEED();
+}
+
+
 TEST_F(TQueryEvaluateTest, ComplexStrings)
 {
     std::vector<TColumnSchema> columns;
@@ -1920,6 +1957,42 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
     result.push_back(BuildRow("x=z;t=160", resultSplit, true));
 
     Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", simpleSplit, source, result);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, ComplexStringsLower)
+{
+    std::vector<TColumnSchema> columns;
+    columns.emplace_back("a", EValueType::String);
+    columns.emplace_back("s", EValueType::String);
+    auto simpleSplit = MakeSplit(columns);
+
+    const char* sourceRowsData[] = {
+        "a=XyZ;s=one",
+        "a=aB1C;s=two",
+        "a=cs1dv;s=three",
+        "a=HDs;s=four",
+        "a=kIu;s=five",
+        "a=trg1t;s=six"
+    };
+
+    std::vector<TUnversionedOwningRow> source;
+    for (auto row : sourceRowsData) {
+        source.push_back(BuildRow(row, simpleSplit, true));
+    }
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.emplace_back("s", EValueType::String);
+    auto resultSplit = MakeSplit(resultColumns);
+
+    std::vector<TUnversionedOwningRow> result;
+    result.push_back(BuildRow("s=one", resultSplit, true));
+    result.push_back(BuildRow("s=two", resultSplit, true));
+    result.push_back(BuildRow("s=four", resultSplit, true));
+    result.push_back(BuildRow("s=five", resultSplit, true));
+
+    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", simpleSplit, source, result);
 
     SUCCEED();
 }
