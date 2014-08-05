@@ -104,6 +104,7 @@ TPythonObjectBuilder::TPythonObjectBuilder()
     , YsonList(GetYsonType("YsonList"))
     , YsonString(GetYsonType("YsonString"))
     , YsonInt64(GetYsonType("YsonInt64"))
+    , YsonUint64(GetYsonType("YsonUint64"))
     , YsonDouble(GetYsonType("YsonDouble"))
     , YsonBoolean(GetYsonType("YsonBoolean"))
     , YsonEntity(GetYsonType("YsonEntity"))
@@ -117,6 +118,11 @@ void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
     AddObject(Py::Int(value), YsonInt64);
+}
+
+void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
+{
+    AddObject(Py::Long(value), YsonUint64);
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
@@ -258,6 +264,8 @@ void Deserialize(Py::Object& obj, INodePtr node)
         obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
     } else if (type == ENodeType::Int64) {
         obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
+    } else if (type == ENodeType::Uint64) {
+        obj = CreateYsonObject("YsonUint64", Py::Long(node->AsUint64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
         obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
