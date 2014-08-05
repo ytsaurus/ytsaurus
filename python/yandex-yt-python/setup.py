@@ -32,7 +32,7 @@ def build_documentation_files(source, target):
     return result
 
 def main():
-    requires =["simplejson"]
+    requires =["simplejson", "dateutil"]
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
