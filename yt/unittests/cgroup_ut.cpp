@@ -210,6 +210,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
 
     auto statistics = group.GetStatistics();
     EXPECT_TRUE(statistics.UsageInBytes >= memoryUsage);
+    EXPECT_TRUE(statistics.MaxUsageInBytes >= memoryUsage);
 
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
 

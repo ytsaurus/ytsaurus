@@ -411,9 +411,17 @@ TMemory::TStatistics TMemory::GetStatistics()
 {
     TMemory::TStatistics result;
 #ifdef _linux_
-    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-    auto rawData = TFileInput(filename).ReadAll();
-    result.UsageInBytes = FromString<i64>(strip(rawData));
+    {
+        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+        auto rawData = TFileInput(filename).ReadAll();
+        result.UsageInBytes = FromString<i64>(strip(rawData));
+    }
+
+    {
+        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
+        auto rawData = TFileInput(filename).ReadAll();
+        result.MaxUsageInBytes = FromString<i64>(strip(rawData));
+    }
 #endif
     return result;
 }
@@ -494,6 +502,7 @@ TEvent TMemory::GetOomEvent() const
 
 TMemory::TStatistics::TStatistics()
     : UsageInBytes(0)
+    , MaxUsageInBytes(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
