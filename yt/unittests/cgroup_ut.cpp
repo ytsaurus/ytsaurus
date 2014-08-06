@@ -294,6 +294,8 @@ TEST(CGroup, OomEventFiredIfOomIsEnabled)
     EXPECT_TRUE(WIFSIGNALED(status));
 
     EXPECT_TRUE(event.Fired());
+    EXPECT_EQ(1, event.GetLastValue());
+    EXPECT_GE(group.GetFailCount(), 1);
 
     group.Destroy();
 
@@ -423,6 +425,8 @@ TEST(CGroup, ParentLimitTwoChildren)
     EXPECT_TRUE(oomEvents[index].Fired());
     EXPECT_TRUE(oomEvents[1 - index].Fired());
     EXPECT_TRUE(parentOom.Fired());
+
+    EXPECT_TRUE(children[index].GetStatistics().MaxUsageInBytes < limit);
 
     EXPECT_EQ(pids[1 - index], waitpid(pids[1 - index], nullptr, 0));
 }

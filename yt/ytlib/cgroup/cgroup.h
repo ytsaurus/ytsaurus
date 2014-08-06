@@ -30,6 +30,8 @@ public:
 
     TEvent& operator=(TEvent&& other);
 
+    i64 GetLastValue() const;
+
 protected:
     TEvent(int eventFd, int fd = -1);
 
@@ -39,6 +41,7 @@ private:
     int EventFd_;
     int Fd_;
     bool Fired_;
+    i64 LastValue_;
 
     friend TMemory;
 };
@@ -160,6 +163,8 @@ public:
     bool IsOomEnabled() const;
     void DisableOom() const;
     TEvent GetOomEvent() const;
+
+    int GetFailCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

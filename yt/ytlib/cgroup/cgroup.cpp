@@ -87,8 +87,7 @@ bool TEvent::Fired()
         return true;
     }
 
-    i64 value;
-    auto bytesRead = ::read(EventFd_, &value, sizeof(value));
+    auto bytesRead = ::read(EventFd_, &LastValue_, sizeof(LastValue_));
 
     if (bytesRead < 0) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -96,7 +95,7 @@ bool TEvent::Fired()
         }
         THROW_ERROR_EXCEPTION() << TError::FromSystem();
     }
-    YCHECK(bytesRead == sizeof(value));
+    YCHECK(bytesRead == sizeof(LastValue_));
     Fired_ = true;
     return true;
 }
@@ -118,6 +117,11 @@ void TEvent::Destroy()
         ::close(Fd_);
     }
     Fd_ = InvalidFd;
+}
+
+i64 TEvent::GetLastValue() const
+{
+    return LastValue_;
 }
 
 void TEvent::Swap(TEvent& other)
@@ -498,6 +502,16 @@ TEvent TMemory::GetOomEvent() const
 #else
     return TEvent();
 #endif
+}
+
+int TMemory::GetFailCount() const
+{
+    int failCount = 0;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.failcnt");
+    failCount = FromString<int>(Strip(TFileInput(filename).ReadAll()));
+#endif
+    return failCount;
 }
 
 TMemory::TStatistics::TStatistics()
