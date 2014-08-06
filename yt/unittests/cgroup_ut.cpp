@@ -197,7 +197,10 @@ TEST(CGroup, UsageInBytesWithoutLimit)
     auto pid = fork();
     if (pid == 0) {
         group.AddCurrentTask();
-        char* data = new char[memoryUsage];
+        volatile char* data = new char[memoryUsage];
+        for (int i = 0; i < memoryUsage; ++i) {
+            data[i] = 0;
+        }
 
         YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
         YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
@@ -284,7 +287,10 @@ TEST(CGroup, OomEventFiredIfOomIsEnabled)
     auto pid = fork();
     if (pid == 0) {
         group.AddCurrentTask();
-        char* data = new char[limit + 1];
+        volatile char* data = new char[limit + 1];
+        for (int i = 0; i < limit + 1; ++i) {
+            data[i] = 0;
+        }
         delete[] data;
         _exit(1);
     }
@@ -312,7 +318,10 @@ TEST(CGroup, OomEventMissingEvent)
     auto pid = fork();
     if (pid == 0) {
         group.AddCurrentTask();
-        char* data = new char[limit + 1];
+        volatile char* data = new char[limit + 1];
+        for (int i = 0; i < limit; ++i) {
+            data[i] = 0;
+        }
         delete[] data;
         _exit(1);
     }
@@ -344,7 +353,10 @@ TEST(CGroup, ParentLimit)
     auto pid = fork();
     if (pid == 0) {
         child.AddCurrentTask();
-        char* data = new char[limit + 1];
+        volatile char* data = new char[limit + 1];
+        for (int i = 0; i < limit; ++i) {
+            data[i] = 0;
+        }
         delete[] data;
         _exit(1);
     }
@@ -391,7 +403,10 @@ TEST(CGroup, ParentLimitTwoChildren)
         if (pids[i] == 0) {
             children[i].AddCurrentTask();
 
-            char* data = new char[limit / 2 + 1];
+            volatile char* data = new char[limit / 2 + 1];
+            for (int i = 0; i < limit / 2; ++i) {
+                data[i] = 0;
+            }
 
             i64 num = 1;
             YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
