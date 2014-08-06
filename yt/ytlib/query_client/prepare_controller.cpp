@@ -304,7 +304,10 @@ void TPrepareController::FillSelectAll()
             auto tableSchema = projectOp->GetSource()->GetTableSchema();
 
             for (auto column : tableSchema.Columns()) {
-                newProjections.push_back(TNamedExpression(context->TrackedNew<TReferenceExpression>(NullSourceLocation, column.Name), column.Name));
+                newProjections.push_back(
+                    TNamedExpression(
+                        context->TrackedNew<TReferenceExpression>(NullSourceLocation, column.Name),
+                        column.Name));
             }
             
             return newProjectOp;
