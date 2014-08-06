@@ -12,6 +12,8 @@
   #include <sys/eventfd.h>
 #endif
 
+#include <array>
+
 namespace NYT {
 namespace NCGroup {
 namespace {
@@ -179,6 +181,41 @@ TEST(CGroup, GetMemoryStats)
     group.Destroy();
 }
 
+TEST(CGroup, UsageInBytesWithoutLimit)
+{
+    const i64 memoryUsage = 8 * 1024 * 1024;
+    TMemory group("some");
+    group.Create();
+    auto event = group.GetOomEvent();
+
+    i64 num = 1;
+    auto exitBarier = ::eventfd(0, 0);
+    EXPECT_TRUE(exitBarier > 0);
+    auto initBarier = ::eventfd(0, 0);
+    EXPECT_TRUE(initBarier > 0);
+
+    auto pid = fork();
+    if (pid == 0) {
+        group.AddCurrentTask();
+        char* data = new char[memoryUsage];
+
+        YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+        YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
+
+        delete[] data;
+        _exit(1);
+    }
+
+    EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
+
+    auto statistics = group.GetStatistics();
+    EXPECT_TRUE(statistics.UsageInBytes >= memoryUsage);
+
+    EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
+
+    EXPECT_EQ(pid, waitpid(pid, nullptr, 0));
+}
+
 TEST(CGroup, OomEnabledByDefault)
 {
     TMemory group("some");
@@ -233,6 +270,160 @@ TEST(CGroup, GetOomEventIfOomIsEnabled)
     TMemory group("some");
     group.Create();
     auto event = group.GetOomEvent();
+}
+
+TEST(CGroup, OomEventFiredIfOomIsEnabled)
+{
+    const i64 limit = 8 * 1024 * 1024;
+    TMemory group("some");
+    group.Create();
+    group.SetLimitInBytes(limit);
+    auto event = group.GetOomEvent();
+
+    auto pid = fork();
+    if (pid == 0) {
+        group.AddCurrentTask();
+        char* data = new char[limit + 1];
+        delete[] data;
+        _exit(1);
+    }
+
+    int status;
+    auto waitedpid = waitpid(pid, &status, 0);
+    EXPECT_TRUE(WIFSIGNALED(status));
+
+    EXPECT_TRUE(event.Fired());
+
+    group.Destroy();
+
+    ASSERT_EQ(pid, waitedpid);
+}
+
+TEST(CGroup, OomEventMissingEvent)
+{
+    const i64 limit = 8 * 1024 * 1024;
+    TMemory group("some");
+    group.Create();
+    group.SetLimitInBytes(limit);
+
+    auto pid = fork();
+    if (pid == 0) {
+        group.AddCurrentTask();
+        char* data = new char[limit + 1];
+        delete[] data;
+        _exit(1);
+    }
+
+    int status;
+    auto waitedpid = waitpid(pid, &status, 0);
+    EXPECT_TRUE(WIFSIGNALED(status));
+
+    auto event = group.GetOomEvent();
+    EXPECT_FALSE(event.Fired());
+
+    group.Destroy();
+
+    ASSERT_EQ(pid, waitedpid);
+}
+
+TEST(CGroup, ParentLimit)
+{
+    const i64 limit = 8 * 1024 * 1024;
+    TMemory parent("parent");
+    parent.Create();
+    parent.EnableHierarchy();
+    parent.SetLimitInBytes(limit);
+
+    TMemory child("parent/child");
+    child.Create();
+    auto childOom = child.GetOomEvent();
+
+    auto pid = fork();
+    if (pid == 0) {
+        child.AddCurrentTask();
+        char* data = new char[limit + 1];
+        delete[] data;
+        _exit(1);
+    }
+
+    int status;
+    waitpid(pid, &status, 0);
+    EXPECT_TRUE(WIFSIGNALED(status));
+
+    EXPECT_TRUE(childOom.Fired());
+}
+
+TEST(CGroup, ParentLimitTwoChildren)
+{
+    const i64 limit = 8 * 1024 * 1024;
+    TMemory parent("parent");
+    parent.Create();
+    parent.EnableHierarchy();
+    parent.SetLimitInBytes(limit);
+    TEvent parentOom = parent.GetOomEvent();
+
+    auto exitBarier = ::eventfd(0, EFD_SEMAPHORE);
+    EXPECT_TRUE(exitBarier > 0);
+
+    auto initBarier = ::eventfd(0, EFD_SEMAPHORE);
+    EXPECT_TRUE(initBarier > 0);
+
+    std::array<TMemory, 2> children = {
+        TMemory("parent/child"),
+        TMemory("parent/other_child")
+    };
+
+    std::array<TEvent, 2> oomEvents;
+
+    for (auto i = 0; i < children.size(); ++i) {
+        children[i].Create();
+        oomEvents[i] = children[i].GetOomEvent();
+    }
+
+    std::array<int, 2> pids;
+    for (auto i = 0; i < children.size(); ++i) {
+        pids[i] = fork();
+        EXPECT_TRUE(pids[i] >= 0);
+
+        if (pids[i] == 0) {
+            children[i].AddCurrentTask();
+
+            char* data = new char[limit / 2 + 1];
+
+            i64 num = 1;
+            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+
+            YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
+            delete[] data;
+            _exit(1);
+        }
+
+        if (i == 0) {
+            i64 num;
+            EXPECT_EQ(sizeof(num), ::read(initBarier, &num, sizeof(num)));
+        }
+    }
+
+    int status;
+    auto pid = wait(&status);
+    EXPECT_TRUE(WIFSIGNALED(status));
+
+    i64 num;
+    num = 2;
+    EXPECT_EQ(sizeof(num), ::write(exitBarier, &num, sizeof(num)));
+
+    int index;
+    if (pids[0] == pid) {
+        index = 0;
+    } else {
+        index = 1;
+    }
+
+    EXPECT_TRUE(oomEvents[index].Fired());
+    EXPECT_TRUE(oomEvents[1 - index].Fired());
+    EXPECT_TRUE(parentOom.Fired());
+
+    EXPECT_EQ(pids[1 - index], waitpid(pids[1 - index], nullptr, 0));
 }
 
 TEST(CurrentProcessCGroup, Empty)

@@ -167,6 +167,10 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
     : FullPath_(NFS::CombinePaths(NFS::CombinePaths(NFS::CombinePaths(CGroupRootPath,  type), GetParentFor(type)), name))
 { }
 
+TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
+    : FullPath_(std::move(other.FullPath_))
+{ }
+
 // This method SHOULD work fine in forked process
 // So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddCurrentTask()
@@ -222,6 +226,13 @@ TCGroup::TCGroup(const Stroka& type, const Stroka& name)
     : TNonOwningCGroup(type, name)
     , Created_(false)
 { }
+
+TCGroup::TCGroup(TCGroup&& other)
+    : TNonOwningCGroup(std::move(other))
+    , Created_(other.Created_)
+{
+    other.Created_ = false;
+}
 
 TCGroup::~TCGroup()
 {
@@ -390,6 +401,11 @@ void ToProto(NProto::TBlockIOStatistics* protoStats, const TBlockIO::TStatistics
 TMemory::TMemory(const Stroka& name)
     : TCGroup("memory", name)
 { }
+
+TMemory::TMemory(TMemory&& other)
+    : TCGroup(std::move(other))
+{ }
+
 
 TMemory::TStatistics TMemory::GetStatistics()
 {

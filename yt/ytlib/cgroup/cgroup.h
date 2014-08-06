@@ -57,6 +57,7 @@ class TNonOwningCGroup
 public:
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
+    TNonOwningCGroup(TNonOwningCGroup&& other);
 
     void AddCurrentTask();
 
@@ -78,6 +79,7 @@ class TCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
+    TCGroup(TCGroup&& other);
 
 public:
     ~TCGroup();
@@ -146,6 +148,7 @@ public:
     };
 
     explicit TMemory(const Stroka& name);
+    TMemory(TMemory&& other);
     TStatistics GetStatistics();
 
     void SetLimitInBytes(i64 bytes) const;
