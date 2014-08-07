@@ -1,20 +1,34 @@
 import yt.logger as logger
+from yt.common import YtError
 
 import sh
+import shlex
 import subprocess
 import simplejson as json
 from urllib import quote_plus
+
+class YamrError(YtError):
+    pass
 
 try:
     _check_output = subprocess.check_output
 except AttributeError:
     # There is no check_output function in python2.6 :(
-    import shlex
     def _check_output(command, **kwargs):
         return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
 
+def check_call(command, **kwargs):
+    logger.debug("Executing command '{}'".format(command))
+    proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
+    proc.communicate()
+    if proc.returncode != 0:
+        error = YamrError("Command '{0}' failed".format(command))
+        error.inner_errors = [RuntimeError(proc.stderr, proc.returncode)]
+        raise error
+    logger.debug("Command '{}' successfully executed".format(command))
+
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user=None, fastbone=False, opts=""):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts=""):
         self.binary = binary
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
@@ -34,7 +48,7 @@ class Yamr(object):
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
-    
+
     def _make_address(self, address, port):
         if ":" in address and address.rsplit(":", 1)[1].isdigit():
             address = address.rsplit(":", 1)[0]
@@ -59,10 +73,10 @@ class Yamr(object):
                 self.cache[table] = table_info[0]
             else:
                 self.cache[table] = None
-        
+
         if self.cache[table] is None:
             return None
-        
+
         return self.cache[table].get(field, None)
 
     def records_count(self, table, allow_cache=False):
@@ -70,7 +84,7 @@ class Yamr(object):
             return int(self.get_field_from_page(table, "Records"))
         else:
             return self._as_int(self.get_field_from_server(table, "records", allow_cache=allow_cache))
-    
+
     def data_size(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Size"))
@@ -82,7 +96,7 @@ class Yamr(object):
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
         else:
             return self.get_field_from_server(table, "sorted", allow_cache=allow_cache) == 1
-    
+
     def is_empty(self, table, allow_cache=False):
         if not self.fetch_info_from_http:
             count = self.get_field_from_server(table, "records", allow_cache=allow_cache)
@@ -93,10 +107,10 @@ class Yamr(object):
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        subprocess.check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
+        check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
 
     def copy(self, src, dst):
-        subprocess.check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
+        check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
 
     def _as_int(self, obj):
         if obj is None:
@@ -129,5 +143,5 @@ class Yamr(object):
             files = []
         shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} {6} {7}"\
             .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
-        subprocess.check_call(shell_command, shell=True)
+        check_call(shell_command, shell=True)
 
