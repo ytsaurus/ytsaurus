@@ -233,7 +233,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isCleaner) {
         Stroka path = parser.DirToRemove.getValue();
         if (path.empty() || path[0] != '/') {
-            THROW_ERROR_EXCEPTION("A path should be absolute. Path: %s", ~path);
+            THROW_ERROR_EXCEPTION("A path should be absolute. Path: %v", ~path);
         }
         int counter = 0;
         size_t nextSlash = 0;
@@ -243,7 +243,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         if (counter <= 3) {
-            THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %s", ~path);
+            THROW_ERROR_EXCEPTION("A path should contain at least 4 slashes. Path: %v", ~path);
         }
 
         RemoveDirAsRoot(path);

@@ -81,7 +81,7 @@ public:
             if (errno != EAGAIN) {
                 LOG_ERROR(
                     TError::FromSystem(errno),
-                    "Unable to poll inotify() descriptor %d",
+                    "Unable to poll inotify() descriptor %v",
                     Fd_);
             }
         } else if (rv > 0) {
@@ -90,17 +90,17 @@ public:
 
             if (event->mask & IN_ATTRIB) {
                 LOG_TRACE(
-                    "Watch %d has triggered metadata change (IN_ATTRIB)",
+                    "Watch %v has triggered metadata change (IN_ATTRIB)",
                     event->wd);
             }
             if (event->mask & IN_DELETE_SELF) {
                 LOG_TRACE(
-                    "Watch %d has triggered a deletion (IN_DELETE_SELF)",
+                    "Watch %v has triggered a deletion (IN_DELETE_SELF)",
                     event->wd);
             }
             if (event->mask & IN_MOVE_SELF) {
                 LOG_TRACE(
-                    "Watch %d has triggered a movement (IN_MOVE_SELF)",
+                    "Watch %v has triggered a movement (IN_MOVE_SELF)",
                     event->wd);
             }
 
@@ -338,7 +338,7 @@ public:
         EventCount_.Notify();
 
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
-            LOG_WARNING("Backlog size has exceeded high watermark %d, logging suspended",
+            LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
                 Config_->HighBacklogWatermark);
             Suspended_ = true;
         }
@@ -435,7 +435,7 @@ private:
         int backlogSize = LoggingProfiler.Increment(BacklogCounter_, -eventsWritten);
         if (Suspended_ && backlogSize < Config_->LowBacklogWatermark) {
             Suspended_ = false;
-            LOG_INFO("Backlog size has dropped below low watermark %d, logging resumed",
+            LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
                 Config_->LowBacklogWatermark);
         }
 

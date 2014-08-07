@@ -33,7 +33,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         ++pos;
 
         if (pos >= pattern.size() || pattern[pos] != LeftParen) {
-            THROW_ERROR_EXCEPTION("Expected \"%c\" at position %d",
+            THROW_ERROR_EXCEPTION("Expected \"%c\" at position %v",
                 LeftParen,
                 static_cast<int>(pos));
         }
@@ -52,7 +52,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         }
 
         if (!foundRightParen) {
-            THROW_ERROR_EXCEPTION("Cannot find a matching \"%c\" for \"%c\" at position %d",
+            THROW_ERROR_EXCEPTION("Cannot find a matching \"%c\" for \"%c\" at position %v",
                 RightParen,
                 LeftParen,
                 static_cast<int>(startProperty) - 1);

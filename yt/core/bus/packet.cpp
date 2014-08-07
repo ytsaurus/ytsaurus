@@ -98,7 +98,7 @@ bool TPacketDecoder::EndHeaderPhase()
 bool TPacketDecoder::EndPartCountPhase()
 {
     if (PartCount < 0 || PartCount > MaxPacketPartCount) {
-        LOG_ERROR("Invalid part count %d", PartCount);
+        LOG_ERROR("Invalid part count %v", PartCount);
         return false;
     }
 
@@ -117,7 +117,7 @@ bool TPacketDecoder::EndPartSizesPhase()
     for (int index = 0; index < PartCount; ++index) {
         i32 partSize = PartSizes[index];
         if (partSize < 0 || partSize > MaxPacketPartSize) {
-            LOG_ERROR("Invalid size %d of part %d",
+            LOG_ERROR("Invalid size %v of part %v",
                 partSize,
                 index);
             return false;
@@ -228,7 +228,7 @@ bool TPacketEncoder::Start(
         PartCount = message.Size();
 
         if (PartCount > MaxPacketPartCount) {
-            LOG_ERROR("Invalid part count %d", PartCount);
+            LOG_ERROR("Invalid part count %v", PartCount);
             return false;
         }
 
@@ -236,7 +236,7 @@ bool TPacketEncoder::Start(
             const auto& part = message[index];
             int partSize = static_cast<int>(part.Size());
             if (partSize > MaxPacketPartSize) {
-                LOG_ERROR("Invalid size %d of part %d",
+                LOG_ERROR("Invalid size %v of part %v",
                     partSize,
                     index);
                 return false;

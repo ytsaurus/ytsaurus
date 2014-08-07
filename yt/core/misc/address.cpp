@@ -429,7 +429,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
             << TError::FromSystem();
     }
 
-    LOG_INFO("Localhost reported by gethostname: %s", hostName);
+    LOG_INFO("Localhost reported by gethostname: %v", hostName);
 
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -462,7 +462,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
         if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
             (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
         {
-            LOG_INFO("Localhost FQDN reported by getaddrinfo: %s", canonname);
+            LOG_INFO("Localhost FQDN reported by getaddrinfo: %v", canonname);
             return Stroka(canonname);
         }
     }

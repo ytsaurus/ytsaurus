@@ -251,8 +251,8 @@ void TServiceBase::OnRequest(
             "One-way flag mismatch for method %v:%v: expected %v, actual %v",
             ServiceId_.ServiceName,
             method,
-            FormatBool(runtimeInfo->Descriptor.OneWay),
-            FormatBool(oneWay))
+            runtimeInfo->Descriptor.OneWay,
+            oneWay)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!header->one_way()) {
@@ -266,7 +266,7 @@ void TServiceBase::OnRequest(
     if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
         auto error = TError(
             EErrorCode::Unavailable,
-            "Request queue limit %d reached",
+            "Request queue limit %v reached",
             runtimeInfo->Descriptor.MaxQueueSize)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
@@ -543,9 +543,9 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
     response->set_up(IsUp());
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
 
-    context->SetResponseInfo("Up: %s, SuggestedAddresses: [%s]",
-        ~FormatBool(response->up()),
-        ~JoinToString(response->suggested_addresses()));
+    context->SetResponseInfo("Up: %v, SuggestedAddresses: [%v]",
+        response->up(),
+        JoinToString(response->suggested_addresses()));
 
     context->Reply();
 }

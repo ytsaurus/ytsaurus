@@ -47,9 +47,9 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     bool ignoreOpaque = request->ignore_opaque();
 
-    context->SetRequestInfo("AttributeFilterMode: %s, IgnoreOpaque: %s",
-        ~ToString(attributeFilter.Mode),
-        ~FormatBool(ignoreOpaque));
+    context->SetRequestInfo("AttributeFilterMode: %v, IgnoreOpaque: %v",
+        attributeFilter.Mode,
+        ignoreOpaque);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -95,7 +95,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
             YUNREACHABLE();
     }
 
-    context->SetResponseInfo("Key: %s", ~key);
+    context->SetResponseInfo("Key: %v", ~key);
     response->set_value(key);
 
     context->Reply();
@@ -204,7 +204,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
     if (tokenizer.GetToken() == WildcardToken) {
         if (method != "Remove") {
-            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove method",
+            THROW_ERROR_EXCEPTION("%Qv is only allowed for Remove method",
                 WildcardToken);
         }
 

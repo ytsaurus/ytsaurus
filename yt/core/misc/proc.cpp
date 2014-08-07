@@ -61,7 +61,7 @@ void RunCleaner(const Stroka& path)
 
     auto throwError = [=] (const TError& error) {
         THROW_ERROR_EXCEPTION(
-            "Failed to remove directory %Qs: %s",
+            "Failed to remove directory %Qv",
             path) << error;
     };
 
@@ -82,7 +82,7 @@ void RemoveDirAsRoot(const Stroka& path)
     YCHECK(setuid(0) == 0);
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
-    THROW_ERROR_EXCEPTION("Failed to remove directory %Qs: execl failed",
+    THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
         path) << TError::FromSystem();
 }
 
@@ -92,15 +92,15 @@ TError StatusToError(int status)
         return TError();
     } else if (WIFSIGNALED(status)) {
         int signalNumber = WTERMSIG(status);
-        return TError(EExitStatus::SignalBase + signalNumber, "Process terminated by signal %d", signalNumber);
+        return TError(EExitStatus::SignalBase + signalNumber, "Process terminated by signal %v", signalNumber);
     } else if (WIFSTOPPED(status)) {
         int signalNumber = WSTOPSIG(status);
-        return TError(EExitStatus::SignalBase + signalNumber, "Process stopped by signal %d", signalNumber);
+        return TError(EExitStatus::SignalBase + signalNumber, "Process stopped by signal %v", signalNumber);
     } else if (WIFEXITED(status)) {
         int exitCode = WEXITSTATUS(status);
-        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with code %d", exitCode);
+        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with code %v", exitCode);
     } else {
-        return TError("Unknown status %d", status);
+        return TError("Unknown status %v", status);
     }
 }
 

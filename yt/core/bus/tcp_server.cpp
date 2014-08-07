@@ -339,7 +339,7 @@ private:
             serverAddress.sin6_port = htons(Config->Port);
             if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
                 CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %d", Config->Port)
+                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config->Port)
                     << TError::FromSystem();
             }
         }

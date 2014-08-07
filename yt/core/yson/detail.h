@@ -366,7 +366,7 @@ private:
     {
         if (MemoryLimit_ && Buffer_.capacity() > *MemoryLimit_) {
             THROW_ERROR_EXCEPTION(
-                "Memory limit exceeded while parsing YSON stream: allocated %" PRId64 ", limit %" PRId64,
+                "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
                 Buffer_.capacity(),
                 *MemoryLimit_);
         }
@@ -486,7 +486,7 @@ protected:
 
         i32 length = ZigZagDecode32(ulength);
         if (length < 0) {
-            THROW_ERROR_EXCEPTION("Negative binary string literal length %" PRId64,
+            THROW_ERROR_EXCEPTION("Negative binary string literal length %v",
                 length)
                 << *this;
         }

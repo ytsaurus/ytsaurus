@@ -538,12 +538,12 @@ void TTcpConnection::OnSocketRead()
         // Check if the decoder is expecting a chunk of large enough size.
         auto decoderChunk = Decoder_.GetFragment();
         size_t decoderChunkSize = decoderChunk.Size();
-        LOG_TRACE("Decoder needs %" PRISZT " bytes", decoderChunkSize);
+        LOG_TRACE("Decoder needs %v bytes", decoderChunkSize);
 
         if (decoderChunkSize >= MinBatchReadSize) {
             // Read directly into the decoder buffer.
             size_t bytesToRead = std::min(decoderChunkSize, MaxBatchReadSize);
-            LOG_TRACE("Reading %" PRISZT " bytes into decoder", bytesToRead);
+            LOG_TRACE("Reading %v bytes into decoder", bytesToRead);
             size_t bytesRead;
             if (!ReadSocket(decoderChunk.Begin(), bytesToRead, &bytesRead)) {
                 break;
@@ -555,7 +555,7 @@ void TTcpConnection::OnSocketRead()
             }
         } else {
             // Read a chunk into the read buffer.
-            LOG_TRACE("Reading %" PRISZT " bytes into buffer", ReadBuffer_.Size());
+            LOG_TRACE("Reading %v bytes into buffer", ReadBuffer_.Size());
             size_t bytesRead;
             if (!ReadSocket(ReadBuffer_.Begin(), ReadBuffer_.Size(), &bytesRead)) {
                 break;
@@ -569,7 +569,7 @@ void TTcpConnection::OnSocketRead()
                 decoderChunk = Decoder_.GetFragment();
                 decoderChunkSize = decoderChunk.Size();
                 size_t bytesToCopy = std::min(recvRemaining, decoderChunkSize);
-                LOG_TRACE("Decoder chunk size is %" PRISZT " bytes, copying %" PRISZT " bytes",
+                LOG_TRACE("Decoder chunk size is %v bytes, copying %v bytes",
                     decoderChunkSize,
                     bytesToCopy);
                 std::copy(recvBegin, recvBegin + bytesToCopy, decoderChunk.Begin());
@@ -583,7 +583,7 @@ void TTcpConnection::OnSocketRead()
         }
     }
 
-    LOG_TRACE("Finished serving read request, %" PRISZT " bytes read total", bytesReadTotal);
+    LOG_TRACE("Finished serving read request, %v bytes read total", bytesReadTotal);
 }
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
@@ -605,7 +605,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     Profiler.Increment(InThroughputCounter, *bytesRead);
     Profiler.Aggregate(ReceiveSize, *bytesRead);
 
-    LOG_TRACE("%" PRISZT " bytes read", *bytesRead);
+    LOG_TRACE("%v bytes read", *bytesRead);
 
 #if !defined(_win_) && !defined(__APPLE__)
     if (Config_->EnableQuickAck) {
@@ -780,7 +780,7 @@ void TTcpConnection::OnSocketWrite()
         }
     }
 
-    LOG_TRACE("Finished serving write request, %" PRISZT " bytes written total", bytesWrittenTotal);
+    LOG_TRACE("Finished serving write request, %v bytes written total", bytesWrittenTotal);
 }
 
 bool TTcpConnection::HasUnsentData() const
@@ -790,7 +790,7 @@ bool TTcpConnection::HasUnsentData() const
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
-    LOG_TRACE("Writing fragments, %" PRISZT " encoded", EncodedFragments_.size());
+    LOG_TRACE("Writing fragments, %v encoded", EncodedFragments_.size());
 
     auto fragmentIt = EncodedFragments_.begin();
     auto fragmentEnd = EncodedFragments_.end();
@@ -838,7 +838,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
     Profiler.Increment(OutThroughputCounter, *bytesWritten);
     Profiler.Aggregate(SendSize, *bytesWritten);
 
-    LOG_TRACE("%" PRISZT " bytes written", *bytesWritten);
+    LOG_TRACE("%v bytes written", *bytesWritten);
 
     return CheckWriteError(result);
 }
@@ -846,7 +846,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 {
     size_t bytesToFlush = bytesWritten;
-    LOG_TRACE("Flushing fragments, %" PRISZT " bytes written", bytesWritten);
+    LOG_TRACE("Flushing fragments, %v bytes written", bytesWritten);
 
     while (bytesToFlush != 0) {
         YASSERT(!EncodedFragments_.empty());
@@ -854,14 +854,14 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 
         if (fragment.Size() > bytesToFlush) {
             size_t bytesRemaining = fragment.Size() - bytesToFlush;
-            LOG_TRACE("Partial write (Size: %" PRISZT ", RemainingSize: %" PRISZT ")",
+            LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
                 fragment.Size(),
                 bytesRemaining);
             fragment = TRef(fragment.End() - bytesRemaining, bytesRemaining);
             break;
         }
 
-        LOG_TRACE("Full write (Size: %" PRISZT ")", fragment.Size());
+        LOG_TRACE("Full write (Size: %v)", fragment.Size());
 
         bytesToFlush -= fragment.Size();
         EncodedFragments_.pop();
@@ -871,7 +871,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
 {
     size_t bytesToFlush = bytesWritten;
-    LOG_TRACE("Flushing packets, %" PRISZT " bytes written", bytesWritten);
+    LOG_TRACE("Flushing packets, %v bytes written", bytesWritten);
 
     while (bytesToFlush != 0) {
         YASSERT(!EncodedPacketSizes_.empty());
@@ -879,14 +879,14 @@ void TTcpConnection::FlushWrittenPackets(size_t bytesWritten)
 
         if (packetSize > bytesToFlush) {
             size_t bytesRemaining = packetSize - bytesToFlush;
-            LOG_TRACE("Partial write (Size: %" PRISZT ", RemainingSize: %" PRISZT ")",
+            LOG_TRACE("Partial write (Size: %v, RemainingSize: %v)",
                 packetSize,
                 bytesRemaining);
             packetSize = bytesRemaining;
             break;
         }
 
-        LOG_TRACE("Full write (Size: %" PRISZT ")", packetSize);
+        LOG_TRACE("Full write (Size: %v)", packetSize);
 
         bytesToFlush -= packetSize;
         OnPacketSent();
@@ -957,7 +957,7 @@ bool TTcpConnection::MaybeEncodeFragments()
                 flushCoalesced();
                 EncodedFragments_.push(fragment);
             }
-            LOG_TRACE("Fragment encoded (Size: %" PRISZT ")", fragment.Size());
+            LOG_TRACE("Fragment encoded (Size: %v)", fragment.Size());
             Encoder_.NextFragment();
         } while (!Encoder_.IsFinished());
 

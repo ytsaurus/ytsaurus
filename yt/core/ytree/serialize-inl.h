@@ -181,7 +181,7 @@ template <class T, class S>
 T CheckedStaticCast(S value)
 {
     if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
-        THROW_ERROR_EXCEPTION("Argument value %" PRId64 " is out of expected range",
+        THROW_ERROR_EXCEPTION("Argument value %v is out of expected range",
             value);
     }
     return static_cast<T>(value);

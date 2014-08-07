@@ -93,7 +93,7 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
         stream.avail_out = output->Size() - currentPos;
         returnCode = inflate(&stream, Z_NO_FLUSH);
         if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
-            THROW_ERROR_EXCEPTION("Zlib decompression failed: %s", stream.msg);
+            THROW_ERROR_EXCEPTION("Zlib decompression failed: %v", stream.msg);
         }
 
         source->Skip(available - stream.avail_in);
