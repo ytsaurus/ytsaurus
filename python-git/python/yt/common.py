@@ -5,7 +5,24 @@ import os
 
 class YtError(Exception):
     """Base of all YT errors"""
-    pass
+    def __init__(self, message="", code=1, inner_errors=None):
+        self.message = message
+        self.code = code
+        if inner_errors is not None:
+            self.inner_errors = inner_errors
+
+    def simplify(self):
+        """ Transform error (with inner errors) to standard python dict """
+        result = {"message": self.message, "code": self.code}
+        if hasattr(self, "attributes"):
+            result["attributes"] = self.attributes
+        if hasattr(self, "inner_errors"):
+            result["inner_errors"] = []
+            for error in self.inner_errors:
+                result["inner_errors"].append(
+                    error.simplify() if isinstance(error, YtError) else
+                    error)
+        return result
 
 def which(name, flags=os.X_OK):
     """ Return list of files in system paths with given name. """
