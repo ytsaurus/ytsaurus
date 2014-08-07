@@ -1,0 +1,63 @@
+{
+    "clusters": {
+        "kant": {
+            "type": "yt",
+            "options": {
+                "proxy": "kant.yt.yandex.net"
+            },
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
+        },
+        "smith": {
+            "type": "yt",
+            "options": {
+                "proxy": "smith.yt.yandex.net"
+            },
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
+        },
+        "plato": {
+            "type": "yt",
+            "options": {
+                "proxy": "plato.yt.yandex.net"
+            },
+            "remote_copy_network": "fastbone",
+            "mr_import_pool": "import_restricted"
+        },
+        "cedar": {
+            "type": "yamr",
+            "options": {
+                "server": "cedar00.search.yandex.net",
+                "opts": "MR_NET_TABLE=ipv6",
+                "binary": "/opt/cron/tools/mapreduce",
+                "server_port": 8013,
+                "http_port": 13013,
+                "fastbone": true,
+                "viewer": "https://specto.yandex.ru/cedar-viewer/"
+            }
+        },
+        "betula": {
+            "type": "yamr",
+            "options": {
+                "server": "betula00.yandex.ru",
+                "binary": "/opt/cron/tools/betula/mapreduce",
+                "server_port": 8013,
+                "http_port": 13013,
+                "fastbone": true,
+                "viewer": "https://specto.yandex.ru/betula-viewer/"
+            }
+        }
+    },
+    "availability_graph": {
+        "kant": ["cedar", "betula", "smith", "plato"],
+        "smith": ["cedar", "betula", "kant", "plato"],
+        "plato": ["cedar", "betula", "kant", "smith"],
+        "cedar": ["kant", "smith", "plato"],
+        "betula": ["kant", "smith", "plato"]
+    },
+    "path": "//home/ignat/transfer_manager",
+    "proxy": "kant.yt.yandex.net",
+    "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+    "port": 5000
+}
+
