@@ -651,6 +651,13 @@ YtCommand.prototype._captureParameters = function() {
 
     try {
         from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
+
+        // XXX(sandello): Once user overrided format specification,
+        // we cannot do really much to infer MIME.
+        if (typeof(from_url.output_format) !== "undefined") {
+            this.mime_type = "application/octet-stream";
+        }
+
         from_url = new binding.TNodeWrap(from_url);
     } catch (err) {
         throw new YtError("Unable to parse parameters from the query string.", err);
