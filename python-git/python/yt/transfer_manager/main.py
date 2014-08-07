@@ -2,7 +2,7 @@
 
 import yt.logger as logger
 from yt.tools.yamr import Yamr
-from yt.tools.import_tools import \
+from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
     copy_yt_to_yamr_pull, \
     copy_yt_to_yamr_push, \
