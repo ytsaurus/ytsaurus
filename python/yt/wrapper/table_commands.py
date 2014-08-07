@@ -837,12 +837,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     source_table = _prepare_source_tables(source_table, client=client)
     for table in source_table:
         require(exists(table.name), YtError("Table %s should exist" % table))
-    if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
-        #(TODO) Hack detected: make something with it
-        if len(source_table) > 0:
-            run_merge(source_table, destination_table, "sorted",
-                      strategy=strategy, table_writer=table_writer, spec=spec, client=client)
-        return
 
     if destination_table is None:
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
@@ -851,6 +845,13 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         destination_table = source_table[0]
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
+
+    if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
+        #(TODO) Hack detected: make something with it
+        if len(source_table) > 0:
+            run_merge(source_table, destination_table, "sorted",
+                      strategy=strategy, table_writer=table_writer, spec=spec, client=client)
+        return
 
     if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables([destination_table], client=client)
