@@ -127,7 +127,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template,
     finally:
         yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, type=None, mr_user=None, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, mr_user=None, message_queue=None):
     lenval_to_nums_script = """
 import sys
 import struct
@@ -208,18 +208,23 @@ done;
         logger.error(error)
         raise yt.YtError(error)
 
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token, spec_template, mr_user=None, message_queue=None):
+def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token=None, spec_template=None, mr_user=None, message_queue=None):
     yt_client = deepcopy(yt_client)
     yamr_client = deepcopy(yamr_client)
 
-    yamr_client.mr_user = mr_user
+    if mr_user is not None:
+        yamr_client.mr_user = mr_user
+    if token is not None:
+        yt_client.token = token
+
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
 
-    yt_client.token = token
 
     record_count = yt_client.records_count(src)
 
+    if spec_template is None:
+        spec_template = {}
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 2 * 1024 * yt.config.MB
 
@@ -233,7 +238,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, token, spec_template,
             client.run_map(write_command, src, yt_client.create_temp_table(),
                            files=yamr_client.binary,
                            format=yt.YamrFormat(has_subkey=True, lenval=True),
-                           memory_limit=2500 * yt.config.MB,
+                           memory_limit=2000 * yt.config.MB,
                            spec=spec,
                            strategy=strategy))
 
