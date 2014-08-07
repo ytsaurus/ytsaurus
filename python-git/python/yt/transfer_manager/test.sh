@@ -17,7 +17,7 @@ check() {
 
 get_task() {
     local id="$1"
-    curl -X GET -s -k -L "http://localhost:5010/tasks/$id/" \
+    curl -X GET -s -k -L -f "http://localhost:5010/tasks/$id/" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN"
 }
@@ -25,7 +25,7 @@ get_task() {
 run_task() {
     local body="$1"
     log "Running task $body"
-    curl -X POST -s -k -L "http://localhost:5010/tasks/" \
+    curl -X POST -s -k -L -f "http://localhost:5010/tasks/" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN" \
          -d "$1"
@@ -34,7 +34,7 @@ run_task() {
 abort_task() {
     local id="$1"
     log "Aborting task $id"
-    curl -X POST -s -k -L "http://localhost:5010/tasks/$id/abort/" \
+    curl -X POST -s -k -L -f "http://localhost:5010/tasks/$id/abort/" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN"
 }
@@ -42,7 +42,7 @@ abort_task() {
 restart_task() {
     local id="$1"
     log "Restarting task $id"
-    curl -X POST -s -k -L "http://localhost:5010/tasks/$id/restart/" \
+    curl -X POST -s -k -L -f "http://localhost:5010/tasks/$id/restart/" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN"
 }
@@ -53,13 +53,13 @@ wait_task() {
     while true; do
         description=$(get_task $id)
         state=$(echo "$description" | jq '.state')
+        echo "STATE: $state"
         if [ "$state" = '"failed"' ] || [ "$state" = '"aborted"' ]; then
             die "Task $id $state"
         fi
         if [ "$state" = '"completed"' ]; then
             break
         fi
-        echo "STATE: $state"
         sleep 1.0
     done
 }
@@ -67,12 +67,15 @@ wait_task() {
 # Different transfers
 echo -e "a\tb" | yt2 write //tmp/test_table --format yamr --proxy kant.yt.yandex.net
 
+echo "Importing from Kant to Cedar"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
 wait_task $id
 
+echo "Importing from Cedar to Plato"
 id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
 wait_task $id
 
+echo "Importing from Plato to Kant"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
 wait_task $id
 
@@ -82,7 +85,9 @@ check \
 
 # Abort, restart
 yt2 remove //tmp/test_table_from_plato --proxy kant.yt.yandex.net --force
+echo "Importing from Plato to Kant"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "kant"}')
+echo "Aborting, than restarting task"
 abort_task $id
 restart_task $id
 wait_task $id

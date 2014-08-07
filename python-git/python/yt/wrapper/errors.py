@@ -20,13 +20,8 @@ class YtResponseError(YtError):
         self.url = url
         self.headers = headers
         self.error = error
-
-    def __str__(self):
-        return "Response to request {0} with headers {1} contains error:\n{2}".\
-                  format(self.url, self.headers, format_error(self.error))
-
-    def __repr__(self):
-        return self.__str__()
+        self.message = "Response to request {0} with headers {1} contains error.".format(self.url, self.headers)
+        self.inner_errors = [self.error]
 
     def is_resolve_error(self):
         """Resolving error."""
@@ -78,6 +73,9 @@ def pretty_format(error, indent=0):
     def format_attribute(name, value):
         return (" " * (indent + 4)) + "%-15s %s" % (name, value)
 
+    if isinstance(error, YtError):
+        error = error.simplify()
+
     lines = []
     if "message" in error:
         lines.append(error["message"])
@@ -85,7 +83,7 @@ def pretty_format(error, indent=0):
     if "code" in error and int(error["code"]) != 1:
         lines.append(format_attribute("code", error["code"]))
 
-    attributes = error["attributes"]
+    attributes = error.get("attributes", {})
 
     origin_keys = ["host", "datetime", "pid", "tid"]
     if all(key in attributes for key in origin_keys):

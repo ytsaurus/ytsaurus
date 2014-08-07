@@ -26,7 +26,10 @@ from collections import defaultdict
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
-class IncorrectTokenError(Exception):
+class RequestFailed(yt.YtError):
+    pass
+
+class IncorrectTokenError(RequestFailed):
     pass
 
 def now():
@@ -118,7 +121,7 @@ class Application(object):
 
     def _add_rule(self, rule, endpoint, methods):
         methods.append("OPTIONS")
-        self._daemon.add_url_rule(rule, endpoint, self._process_cors(Application.__dict__[endpoint], methods), methods=methods)
+        self._daemon.add_url_rule(rule, endpoint, self._process_exception(self._process_cors(Application.__dict__[endpoint], methods)), methods=methods)
 
     def _process_cors(self, func, methods):
         def decorator(*args, **kwargs):
@@ -136,6 +139,19 @@ class Application(object):
 
         return decorator
 
+    def _process_exception(self, func):
+        def decorator(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except RequestFailed as error:
+                logger.exception(yt.errors.format_error(error))
+                return yt.errors.format_error(error), 400
+            except Exception as error:
+                logger.exception(error)
+                return "Unknown error: " + error.message, 502
+
+        return decorator
+
     def _take_lock(self, message_queue):
         try:
             with self._yt.PingableTransaction():
@@ -143,7 +159,7 @@ class Application(object):
                     self._yt.lock(self._lock_path)
                     message_queue.put(True)
                 except Exception as err:
-                    logger.exception(err)
+                    logger.exception(yt.errors.format_error(err))
                     message_queue.put(True)
                     return
 
@@ -244,11 +260,11 @@ class Application(object):
 
         source_client = self._clusters[task.source_cluster]
         destination_client = self._clusters[task.destination_cluster]
-        if source_client._type == "mr" and source_client.is_empty(task.source_table) or \
+        if source_client._type == "yamr" and source_client.is_empty(task.source_table) or \
            source_client._type == "yt" and (not source_client.exists(task.source_table) or source_client.get_attribute(task.source_table, "row_count") == 0):
             raise yt.YtError("Source table {} is empty".format(task.source_table))
 
-        if source_client._type == "yt" and destination_client._type == "mr":
+        if source_client._type == "yt" and destination_client._type == "yamr":
             keys = list(source_client.read_table(yt.TablePath(task.source_table, end_index=1, simplify=False), format=yt.JsonFormat(), raw=False).next())
             if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                 raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
@@ -315,6 +331,7 @@ class Application(object):
     def _execute_task(self, task, message_queue):
         logger.info("Executing task %s", task.id)
         try:
+            logger.info("Making precheck")
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
@@ -323,6 +340,7 @@ class Application(object):
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yt":
                 client = deepcopy(self._clusters[task.destination_cluster])
                 client.token = task.token
+                logger.info("Running YT -> YT remote copy operation")
                 run_operation_and_notify(
                     message_queue,
                     client,
@@ -337,6 +355,14 @@ class Application(object):
             elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
+                logger.info("Running YT -> YAMR remote copy")
+                #copy_yt_to_yamr_pull(
+                #    self._clusters[task.source_cluster],
+                #    self._clusters[task.destination_cluster],
+                #    task.source_table,
+                #    task.destination_table,
+                #    mr_user=task.mr_user,
+                #    message_queue=message_queue)
                 copy_yt_to_yamr_push(
                     self._clusters[task.source_cluster],
                     self._clusters[task.destination_cluster],
@@ -350,6 +376,7 @@ class Application(object):
                 if task.mr_user is None:
                     task.mr_user = "tmp"
                 task_spec["pool"] = get_import_pool(self._clusters[task.source_cluster], self._clusters[task.destination_cluster])
+                logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
                     self._clusters[task.source_cluster],
                     self._clusters[task.destination_cluster],
@@ -365,13 +392,21 @@ class Application(object):
             logger.info("Task %s completed", task.id)
         except KeyboardInterrupt:
             pass
-        except Exception as err:
-            logger.exception(err)
-            logger.info("Task %s failed with error '%s'", task.id, err.message)
+        except yt.YtError as error:
+            logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
                 "type": "error",
                 "error": {
-                    "message": err.message[:Application.ERROR_BUFFER_SIZE],
+                    "message": error.simplify(),
+                    "code": 1
+                }
+            })
+        except Exception as error:
+            logger.exception("Task {} failed with error {}".format(task.id, error.message))
+            message_queue.put({
+                "type": "error",
+                "error": {
+                    "message": error.message,
                     "code": 1
                 }
             })
@@ -394,55 +429,47 @@ class Application(object):
 
     # Url handlers
     def main(self):
-        return "This is YT import/export daemon"
+        return "This is YT transfer manager"
 
     def add(self):
         try:
-            try:
-                params = json.loads(request.data)
-            except ValueError:
-                return "Cannot parse json from body '{}'".format(request.data), 400
+            params = json.loads(request.data)
+        except ValueError as error:
+            raise RequestFailed("Cannot parse json from body '{}'".format(request.data), inner_errors=[error])
 
-            required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
-            if not set(params) >= required_parameters:
-                return "All required parameters ({}) must be presented Incorrect parameters".format(", ".join(required_parameters)), 400
+        required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
+        if not set(params) >= required_parameters:
+            raise RequestFailed("All required parameters ({}) must be presented Incorrect parameters".format(", ".join(required_parameters)))
 
-            try:
-                token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
-            except IncorrectTokenError as err:
-                return err.message, 400
+        token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
 
-            try:
-                task = Task(id=generate_uuid(), creation_time=now(), user=user, token=token, state="pending", **params)
-            except TypeError:
-                return "Cannot create task", 400
+        try:
+            task = Task(id=generate_uuid(), creation_time=now(), user=user, token=token, state="pending", **params)
+        except TypeError as error:
+            raise RequestFailed("Cannot create task", inner_errors=[error])
 
-            try:
-                self._precheck(task)
-            except yt.YtError as error:
-                return "Precheck failed: " + error.message, 400
+        try:
+            self._precheck(task)
+        except yt.YtError as error:
+            raise RequestFailed("Precheck failed", inner_errors=[error])
 
-            if not request.args.get("dry_run", False):
-                with self._mutex:
-                    self._tasks[task.id] = task
-                    self._pending_tasks.append(task.id)
+        if not request.args.get("dry_run", False):
+            with self._mutex:
+                self._tasks[task.id] = task
+                self._pending_tasks.append(task.id)
 
-                self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
-
-        except Exception as error:
-            logger.exception(error)
-            return "Unknown error: " + error.message, 502
+            self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
 
         return task.id
 
     def abort(self, id):
         if id not in self._tasks:
-            return "Unknown task " + id, 400
+            raise RequestFailed("Unknown task " + id)
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
            self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
-            return "There is no permission to abort task.", 400
+            raise RequestFailed("There is no permission to abort task.")
 
         if id in self._task_processes:
             process, _ = self._task_processes[id]
@@ -457,26 +484,26 @@ class Application(object):
             with self._mutex:
                 self._change_task_state(id, "aborted")
 
-        return "OK"
+        return ""
 
     def restart(self, id):
         if id not in self._tasks:
-            return "Unknown task " + id, 400
+            raise RequestFailed("Unknown task " + id)
 
         _, user = self._get_token_and_user(request.headers.get("Authorization", ""))
         if self._tasks[id].user != user and \
            self._yt.check_permission(user, "administer", self._acl_path)["action"] != "allow":
-            return "There is no permission to abort task.", 400
+            raise RequestFailed("There is no permission to abort task.")
 
         if self._tasks[id].state not in ["completed", "aborted", "failed"]:
-            return "Cannot restart task in state " + self._tasks[id].state, 400
+            raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
         self._tasks[id].state = "pending"
         self._tasks[id].creation_time = now()
         self._tasks[id].error = None
         self._pending_tasks.append(id)
 
-        return "OK"
+        return ""
 
     def get_task(self, id):
         if id not in self._tasks:

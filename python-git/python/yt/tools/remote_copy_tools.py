@@ -145,9 +145,9 @@ while True:
     else:
         sys.stdout.write('\\t')
 
-    count += 1    
+    count += 1
 """
-    
+
     read_from_yt_script = """
 #!/bin/bash -eux
 
@@ -171,7 +171,7 @@ done;
     read_from_yt_file = os.path.join(tmp_dir, "read_from_yt.sh")
     with open(read_from_yt_file, "w") as fout:
         fout.write(read_from_yt_script)
-        
+
     yt_client = deepcopy(yt_client)
     yamr_client = deepcopy(yamr_client)
     if mr_user is not None:
@@ -200,7 +200,7 @@ done;
     yamr_client.run_map(command, temp_yamr_table, dst,
                       files=[dateutil_file, yt_file, lenval_to_nums_file, read_from_yt_file],
                       opts="-subkey -lenval -jobcount 500 -opt cpu.intensive.mode=1")
-    
+
     result_row_count = yamr_client.records_count(dst)
     if row_count != result_row_count:
         yamr_client.drop(dst)
