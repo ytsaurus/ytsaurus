@@ -523,12 +523,14 @@ public:
 
     void UnstageChunkList(TChunkList* chunkList, bool recursive)
     {
-        if (!recursive)
-            return;
+        chunkList->SetStagingTransaction(nullptr);
+        chunkList->SetStagingAccount(nullptr);
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        for (auto* child : chunkList->Children()) {
-            transactionManager->UnstageObject(child, true);
+        if (recursive) {
+            auto transactionManager = Bootstrap->GetTransactionManager();
+            for (auto* child : chunkList->Children()) {
+                transactionManager->UnstageObject(child, recursive);
+            }
         }
     }
 
