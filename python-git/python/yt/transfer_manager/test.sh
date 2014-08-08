@@ -71,8 +71,12 @@ echo "Importing from Kant to Cedar"
 id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "kant", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
 wait_task $id
 
-echo "Importing from Cedar to Plato"
-id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
+echo "Importing from Cedar to Betula"
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "tmp/yt/test_table", "destination_cluster": "betula", "mr_user": "userdata"}')
+wait_task $id
+
+echo "Importing from Betula to Plato"
+id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
 wait_task $id
 
 echo "Importing from Plato to Kant"
