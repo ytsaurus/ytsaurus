@@ -166,7 +166,7 @@ def make_request(command_name, params,
 
     # Get command description
     require(command_name in commands,
-            YtError("There is no command {0} in {1}".format(command_name, api_path)))
+            YtError("Command {0} is not supported by {1}".format(command_name, api_path)))
     command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
