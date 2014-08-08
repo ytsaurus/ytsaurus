@@ -383,8 +383,17 @@ class Application(object):
                     task.source_table,
                     task.destination_table,
                     token=task.token,
+                    mr_user=task.mr_user,
                     spec_template=task_spec,
                     message_queue=message_queue)
+            elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yamr":
+                if task.mr_user is None:
+                    task.mr_user = "tmp"
+                self._clusters[task.destination_cluster].remote_copy(
+                    self._clusters[task.source_cluster].server,
+                    task.source_table,
+                    task.destination_table,
+                    task.mr_user)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 self._clusters[task.source_cluster]._type,
@@ -435,7 +444,7 @@ class Application(object):
         try:
             params = json.loads(request.data)
         except ValueError as error:
-            raise RequestFailed("Cannot parse json from body '{}'".format(request.data), inner_errors=[error])
+            raise RequestFailed("Cannot parse json from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
 
         required_parameters = set(["source_cluster", "source_table", "destination_cluster", "destination_table"])
         if not set(params) >= required_parameters:
@@ -446,7 +455,7 @@ class Application(object):
         try:
             task = Task(id=generate_uuid(), creation_time=now(), user=user, token=token, state="pending", **params)
         except TypeError as error:
-            raise RequestFailed("Cannot create task", inner_errors=[error])
+            raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
         try:
             self._precheck(task)
@@ -577,8 +586,8 @@ DEFAULT_CONFIG = {
         "kant": ["cedar", "betula", "smith", "plato"],
         "smith": ["cedar", "betula", "kant", "plato"],
         "plato": ["cedar", "betula", "kant", "smith"],
-        "cedar": ["kant", "smith", "plato"],
-        "betula": ["kant", "smith", "plato"]
+        "cedar": ["betula", "kant", "smith", "plato"],
+        "betula": ["cedar", "kant", "smith", "plato"]
     },
     "path": "//home/ignat/transfer_manager_test",
     "proxy": "kant.yt.yandex.net",
