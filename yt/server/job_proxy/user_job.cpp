@@ -126,10 +126,6 @@ public:
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
             CreateCGroup(Memory);
-
-            Memory.SetLimitInBytes(UserJobSpec.memory_limit());
-            Memory.DisableOom();
-            OomEvent = Memory.GetOomEvent();
         }
 
         ProcessStartTime = TInstant::Now();
@@ -262,7 +258,6 @@ public:
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
-            OomEvent.Destroy();
             DestroyCGroup(Memory);
         }
 
@@ -558,9 +553,9 @@ private:
                 statistics.UsageInBytes,
                 memoryLimit);
 
-            if (OomEvent.Fired()) {
-                SetError(TError(NJobProxy::EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
-                    << TErrorAttribute("time_since_start", TInstant::Now() - ProcessStartTime)
+            if (statistics.UsageInBytes > memoryLimit) {
+                SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
+                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
                     << TErrorAttribute("limit", memoryLimit));
                 NCGroup::RunKiller(Memory.GetFullPath());
@@ -672,8 +667,6 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
-    NCGroup::TEvent OomEvent;
-
     TStatistics Statistics;
 };
 

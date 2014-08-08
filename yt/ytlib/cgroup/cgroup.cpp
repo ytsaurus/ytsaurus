@@ -104,8 +104,7 @@ bool TEvent::Fired()
         return true;
     }
 
-    i64 value;
-    auto bytesRead = ::read(EventFd_, &value, sizeof(value));
+    auto bytesRead = ::read(EventFd_, &LastValue_, sizeof(LastValue_));
 
     if (bytesRead < 0) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -113,7 +112,7 @@ bool TEvent::Fired()
         }
         THROW_ERROR_EXCEPTION() << TError::FromSystem();
     }
-    YCHECK(bytesRead == sizeof(value));
+    YCHECK(bytesRead == sizeof(LastValue_));
     Fired_ = true;
     return true;
 }
@@ -135,6 +134,11 @@ void TEvent::Destroy()
         ::close(Fd_);
     }
     Fd_ = InvalidFd;
+}
+
+i64 TEvent::GetLastValue() const
+{
+    return LastValue_;
 }
 
 void TEvent::Swap(TEvent& other)
@@ -256,6 +260,10 @@ TNonOwningCGroup::TNonOwningCGroup(const Stroka& type, const Stroka& name)
         name))
 { }
 
+TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
+    : FullPath_(std::move(other.FullPath_))
+{ }
+
 // This method SHOULD work fine in forked process
 // So we cannot use out logging|profiling framework
 void TNonOwningCGroup::AddTask(int pid)
@@ -288,6 +296,7 @@ void TNonOwningCGroup::Set(const Stroka& name, const Stroka& value) const
     TFileOutput output(TFile(path, OpenMode::WrOnly));
     output << value;
 #endif
+
 }
 
 bool TNonOwningCGroup::IsNull() const
@@ -332,6 +341,13 @@ TCGroup::TCGroup(const Stroka& type, const Stroka& name)
     : TNonOwningCGroup(type, name)
     , Created_(false)
 { }
+
+TCGroup::TCGroup(TCGroup&& other)
+    : TNonOwningCGroup(std::move(other))
+    , Created_(other.Created_)
+{
+    other.Created_ = false;
+}
 
 TCGroup::~TCGroup()
 {
@@ -398,7 +414,7 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics()
         jiffies[i] = FromString<i64>(values[2 * i + 1]);
     }
 
-    for (int i = 0; i < 2; ++ i) {
+    for (int i = 0; i < 2; ++i) {
         if (type[i] == "user") {
             result.UserTime = FromJiffies(jiffies[i]);
         } else if (type[i] == "system") {
@@ -491,13 +507,26 @@ TMemory::TMemory(const Stroka& name)
     : TCGroup("memory", name)
 { }
 
+TMemory::TMemory(TMemory&& other)
+    : TCGroup(std::move(other))
+{ }
+
+
 TMemory::TStatistics TMemory::GetStatistics()
 {
     TMemory::TStatistics result;
 #ifdef _linux_
-    auto fileName = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-    auto rawData = TFileInput(fileName).ReadAll();
-    result.UsageInBytes = FromString<i64>(strip(rawData));
+    {
+        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+        auto rawData = TFileInput(filename).ReadAll();
+        result.UsageInBytes = FromString<i64>(strip(rawData));
+    }
+
+    {
+        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
+        auto rawData = TFileInput(filename).ReadAll();
+        result.MaxUsageInBytes = FromString<i64>(strip(rawData));
+    }
 #endif
     return result;
 }
@@ -505,6 +534,51 @@ TMemory::TStatistics TMemory::GetStatistics()
 void TMemory::SetLimitInBytes(i64 bytes) const
 {
     Set("memory.limit_in_bytes", ToString(bytes));
+}
+
+bool TMemory::IsHierarchyEnabled() const
+{
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.use_hierarchy");
+    auto isHierarchyEnabled = FromString<int>(TFileInput(filename).ReadAll());
+    YCHECK((isHierarchyEnabled == 0) || (isHierarchyEnabled == 1));
+
+    return (isHierarchyEnabled == 1);
+#else
+    return false;
+#endif
+}
+
+void TMemory::EnableHierarchy() const
+{
+    Set("memory.use_hierarchy", "1");
+}
+
+bool TMemory::IsOomEnabled() const
+{
+#ifdef _linux_
+    const auto path = NFS::CombinePaths(GetFullPath(), "memory.oom_control");
+    auto values = ReadAllValues(path);
+    if (values.size() != 4) {
+        THROW_ERROR_EXCEPTION("Unable to parse %s: expected 4 values, got %d", ~path.Quote(), values.size());
+    }
+    for (int i = 0; i < 2; ++i) {
+        if (values[2 * i] == "oom_kill_disable") {
+            const auto& isDisabled = values[2 * i + 1];
+            if (isDisabled == "0") {
+                return true;
+            } else if (isDisabled == "1") {
+                return false;
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected value for oom_kill_disable. Expected '0' or '1'. Got: %s",
+                    ~isDisabled.Quote());
+            }
+        }
+    }
+    THROW_ERROR_EXCEPTION("Unable to find 'oom_kill_disable' in %s", ~path.Quote());
+#else
+    return false;
+#endif
 }
 
 void TMemory::DisableOom() const
@@ -531,8 +605,19 @@ TEvent TMemory::GetOomEvent() const
 #endif
 }
 
+int TMemory::GetFailCount() const
+{
+    int failCount = 0;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.failcnt");
+    failCount = FromString<int>(Strip(TFileInput(filename).ReadAll()));
+#endif
+    return failCount;
+}
+
 TMemory::TStatistics::TStatistics()
     : UsageInBytes(0)
+    , MaxUsageInBytes(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

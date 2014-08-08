@@ -30,6 +30,8 @@ public:
 
     TEvent& operator=(TEvent&& other);
 
+    i64 GetLastValue() const;
+
 protected:
     TEvent(int eventFd, int fd = -1);
 
@@ -39,6 +41,7 @@ private:
     int EventFd_;
     int Fd_;
     bool Fired_;
+    i64 LastValue_;
 
     friend TMemory;
 };
@@ -62,6 +65,7 @@ public:
     TNonOwningCGroup();
     explicit TNonOwningCGroup(const Stroka& fullPath);
     TNonOwningCGroup(const Stroka& type, const Stroka& name);
+    TNonOwningCGroup(TNonOwningCGroup&& other);
 
     void AddTask(int pid);
     void AddCurrentTask();
@@ -85,6 +89,7 @@ class TCGroup
 {
 protected:
     TCGroup(const Stroka& type, const Stroka& name);
+    TCGroup(TCGroup&& other);
 
 public:
     ~TCGroup();
@@ -150,14 +155,23 @@ public:
         TStatistics();
 
         i64 UsageInBytes;
+        i64 MaxUsageInBytes;
     };
 
     explicit TMemory(const Stroka& name);
+    TMemory(TMemory&& other);
     TStatistics GetStatistics();
 
     void SetLimitInBytes(i64 bytes) const;
+
+    bool IsHierarchyEnabled() const;
+    void EnableHierarchy() const;
+
+    bool IsOomEnabled() const;
     void DisableOom() const;
     TEvent GetOomEvent() const;
+
+    int GetFailCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

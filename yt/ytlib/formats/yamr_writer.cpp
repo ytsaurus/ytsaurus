@@ -254,6 +254,8 @@ void TYamrConsumer::WriteRow()
         }
         WriteInLenvalMode(value);
     }
+
+    StringStorage_.clear();
 }
 
 void TYamrConsumer::WriteInLenvalMode(const TStringBuf& value)
