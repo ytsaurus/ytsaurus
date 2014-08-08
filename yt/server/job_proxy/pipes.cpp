@@ -54,7 +54,7 @@ int SafeDup(int oldFd)
 
             default:
                 THROW_ERROR_EXCEPTION("dup failed")
-                    << TErrorAttribute("oldFd", oldFd)
+                    << TErrorAttribute("old_fd", oldFd)
                     << TError::FromSystem();
             }
         } else {
@@ -76,8 +76,8 @@ void SafeDup2(int oldFd, int newFd)
 
             default:
                 THROW_ERROR_EXCEPTION("dup2 failed")
-                    << TErrorAttribute("oldFd", oldFd)
-                    << TErrorAttribute("newFd", newFd)
+                    << TErrorAttribute("old_fd", oldFd)
+                    << TErrorAttribute("new_fd", newFd)
                     << TError::FromSystem();
             }
         } else {
@@ -160,8 +160,8 @@ void PrepareUserJobPipe(int fd)
 
     if (res == -1) {
         THROW_ERROR_EXCEPTION("Failed to chmod job descriptor")
-            << TErrorAttribute("Fd", fd)
-            << TErrorAttribute("Permissions", permissions)
+            << TErrorAttribute("fd", fd)
+            << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
 #endif
@@ -210,8 +210,9 @@ TError TOutputPipe::ReadAll()
         try {
             OutputStream->Write(buffer.Begin(), result.Value());
         } catch (const std::exception& ex) {
-            return TError("Failed to write into output (Fd: %v)",
-                JobDescriptor) << TError(ex);
+            return TError("Failed to write into output")
+                << TErrorAttribute("fd", JobDescriptor)
+                << TError(ex);
         }
     }
     return TError();
@@ -316,8 +317,8 @@ void TInputPipe::Finish()
 
     if (!dataConsumed) {
         THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
-            << TErrorAttribute("Fd", Pipe.WriteFd)
-            << TErrorAttribute("JobDescriptor", JobDescriptor);
+            << TErrorAttribute("fd", Pipe.WriteFd)
+            << TErrorAttribute("job_descriptor", JobDescriptor);
     }
 }
 
