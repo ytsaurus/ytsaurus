@@ -102,7 +102,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     """
 
     def upload_with_check(path):
-        require(not exists(path),
+        require(not exists(path, client=client),
                 YtError("Cannot upload file to '{0}', node already exists".format(path)))
         upload_file(open(filename), path, client=client)
 
@@ -130,7 +130,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     else:
         if placement_strategy in ["hash", "random"]:
             raise YtError("Destination should not be specified if strategy is hash or random")
-        mkdir(os.path.dirname(destination), recursive=True)
+        mkdir(os.path.dirname(destination), recursive=True, client=client)
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 

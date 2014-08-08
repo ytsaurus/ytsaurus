@@ -47,9 +47,12 @@ def run_operation_and_notify(message_queue, yt_client, run_operation):
                             }})
     strategy.wait()
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template, mr_user=None, message_queue=None):
     yt_client = deepcopy(yt_client)
     yamr_client = deepcopy(yamr_client)
+
+    if mr_user is not None:
+        yamr_client.mr_user = mr_user
 
     yt_client.token = token
     portion_size = 1024 ** 3

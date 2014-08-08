@@ -20,10 +20,10 @@ except AttributeError:
 def check_call(command, **kwargs):
     logger.debug("Executing command '{}'".format(command))
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
-    proc.communicate()
+    _, stderrdata = proc.communicate()
     if proc.returncode != 0:
         error = YamrError("Command '{0}' failed".format(command))
-        error.inner_errors = [RuntimeError(proc.stderr, proc.returncode)]
+        error.inner_errors = [YamrError(stderrdata, proc.returncode)]
         raise error
     logger.debug("Command '{}' successfully executed".format(command))
 
@@ -145,3 +145,10 @@ class Yamr(object):
             .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
         check_call(shell_command, shell=True)
 
+    def remote_copy(self, remote_server, src, dst, mr_user=None):
+        if mr_user is None:
+            mr_user = self.mr_user
+        fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
+        shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
+            .format(mr_user, self.binary, remote_server, self.server, src, dst, fastbone_str)
+        check_call(shell_command, shell=True)
