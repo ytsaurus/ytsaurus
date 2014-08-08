@@ -165,6 +165,8 @@ def make_request(command_name, params,
     api_path = client_provider.API_PATH
 
     # Get command description
+    require(command_name in commands,
+            YtError("There is no command {0} in {1}".format(command_name, api_path)))
     command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
