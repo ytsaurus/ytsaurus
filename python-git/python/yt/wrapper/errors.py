@@ -23,6 +23,9 @@ class YtResponseError(YtError):
         self.message = "Response to request {0} with headers {1} contains error.".format(self.url, self.headers)
         self.inner_errors = [self.error]
 
+    def __str__(self):
+        return format_error(self)
+
     def is_resolve_error(self):
         """Resolving error."""
         return int(self.error["code"]) == 500

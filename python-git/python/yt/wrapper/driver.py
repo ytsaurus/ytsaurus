@@ -68,6 +68,8 @@ class ResponseStream(object):
 
             result.append(self._buffer[self._pos:])
             if not self._fetch():
+                self._buffer = ""
+                self._pos = 0
                 break
         return "".join(result)
 
