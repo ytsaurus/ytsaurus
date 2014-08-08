@@ -28,6 +28,7 @@ namespace NObjectServer {
 
 class TStagedObject
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
 
