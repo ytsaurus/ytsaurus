@@ -24,6 +24,10 @@ class YtError(Exception):
                     error)
         return result
 
+    def __str__(self):
+        return self.message
+
+
 def which(name, flags=os.X_OK):
     """ Return list of files in system paths with given name. """
     # TODO: check behavior when dealing with symlinks
