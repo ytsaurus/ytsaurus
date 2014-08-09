@@ -519,8 +519,8 @@ protected:
 
     bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
-        YCHECK(IsTrivial(chunkSpec.upper_limit()));
         YCHECK(IsTrivial(chunkSpec.lower_limit()));
+        YCHECK(IsTrivial(chunkSpec.upper_limit()));
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
 
@@ -1108,7 +1108,7 @@ private:
 
             if (currentPartitionTag != DefaultPartitionTag) {
                 if (chunkSpec->partition_tag() == currentPartitionTag) {
-                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
+                    if (endpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->upper_limit())) {
                         currentPartitionTag = DefaultPartitionTag;
                         auto completeChunk = CreateCompleteChunk(chunkSpec);
 
@@ -1132,7 +1132,7 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->upper_limit())) {
+            if (endpoint.Type == EEndpointType::Left && IsTrivial(chunkSpec->lower_limit())) {
                 currentPartitionTag = chunkSpec->partition_tag();
                 startTeleportIndex = i;
             }
@@ -1492,7 +1492,7 @@ private:
             if (currentPartitionTag != DefaultPartitionTag) {
                 auto& previousEndpoint = Endpoints[i - 1];
                 auto& chunkSpec = previousEndpoint.ChunkSpec;
-                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->lower_limit())) {
+                if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->upper_limit())) {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
                     }
@@ -1505,7 +1505,7 @@ private:
             // No current Teleport candidate.
             auto& chunkSpec = endpoint.ChunkSpec;
             if (endpoint.Type == EEndpointType::Left &&
-                IsTrivial(chunkSpec->upper_limit()) &&
+                IsTrivial(chunkSpec->lower_limit()) &&
                 IsTeleportInputTable(chunkSpec->table_index()) &&
                 openedSlicesCount == 1)
             {
@@ -1519,7 +1519,7 @@ private:
             auto& previousEndpoint = Endpoints.back();
             auto& chunkSpec = previousEndpoint.ChunkSpec;
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
-            if (IsTrivial(chunkSpec->lower_limit())) {
+            if (IsTrivial(chunkSpec->upper_limit())) {
                 for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }
