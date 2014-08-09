@@ -129,8 +129,12 @@ def process_stream(stream, input_type, sorted, reduce_by):
             hash = calculate_hash(extract_md5(stream, input_type), SortedHash)
         else:
             stream, another_stream = itertools.tee(stream)
-            key = extract_key(another_stream.next(), input_type, reduce_by)
-            del another_stream
+            try:
+                key = extract_key(another_stream.next(), input_type, reduce_by)
+                del another_stream
+            except StopIteration:
+                # Empty input case
+                return ""
 
             group_hashes = calculate_hash_of_groups(stream, input_type, reduce_by)
             hash = calculate_hash(itertools.imap(lambda hash: hash.md5(), group_hashes), SortedHash)
