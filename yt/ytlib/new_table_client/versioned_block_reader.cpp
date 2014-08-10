@@ -140,8 +140,11 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(int index)
     ValueOffset_ = *reinterpret_cast<i64*>(KeyDataPtr_);
     KeyDataPtr_ += sizeof(i64);
 
-    TimestampCount_ = *reinterpret_cast<ui32*>(KeyDataPtr_);
-    KeyDataPtr_ += sizeof(ui32);
+    WriteTimestampCount_ = *reinterpret_cast<ui16*>(KeyDataPtr_);
+    KeyDataPtr_ += sizeof(ui16);
+
+    DeleteTimestampCount_ = *reinterpret_cast<ui16*>(KeyDataPtr_);
+    KeyDataPtr_ += sizeof(ui16);
 
     return true;
 }
@@ -168,13 +171,19 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
         memoryPool,
         KeyColumnCount_,
         GetColumnValueCount(Schema_.Columns().size() - 1),
-        TimestampCount_);
+        WriteTimestampCount_,
+        DeleteTimestampCount_);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
 
-    auto* beginTimestamps = row.BeginTimestamps();
-    for (int i = 0; i < TimestampCount_; ++i) {
-        beginTimestamps[i] = ReadTimestamp(TimestampOffset_ + i);
+    auto* beginWriteTimestamps = row.BeginWriteTimestamps();
+    for (int i = 0; i < WriteTimestampCount_; ++i) {
+        beginWriteTimestamps[i] = ReadTimestamp(TimestampOffset_ + i);
+    }
+
+    auto* beginDeleteTimestamps = row.BeginDeleteTimestamps();
+    for (int i = 0; i < DeleteTimestampCount_; ++i) {
+        beginDeleteTimestamps[i] = ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + i);
     }
 
     auto* beginValues = row.BeginValues();
@@ -202,37 +211,56 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* mem
 
 TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryPool* memoryPool)
 {
-    int timestampIndex = LowerBound(0, TimestampCount_, [&] (int index) {
-        auto timestamp = ReadTimestamp(TimestampOffset_ + index);
-        return (timestamp & TimestampValueMask) > Timestamp_;
+    int writeTimestampIndex = LowerBound(0, WriteTimestampCount_, [&] (int index) {
+        return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
     });
 
-    if (timestampIndex == TimestampCount_) {
+    int deleteTimestampIndex = LowerBound(0, DeleteTimestampCount_, [&] (int index) {
+        return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
+    });
+
+    bool hasWriteTimestamp = writeTimestampIndex < WriteTimestampCount_;
+    bool hasDeleteTimestamp = deleteTimestampIndex < DeleteTimestampCount_;
+
+    if (!hasWriteTimestamp & !hasDeleteTimestamp) {
         // Row didn't exist at given timestamp.
         return TVersionedRow();
     }
+
+    TTimestamp writeTimestamp = hasWriteTimestamp 
+        ? ReadTimestamp(TimestampOffset_ + writeTimestampIndex)
+        : NullTimestamp;
+    TTimestamp deleteTimestamp = hasDeleteTimestamp
+        ? ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + deleteTimestampIndex)
+        : NullTimestamp;
+
+    if (deleteTimestamp > writeTimestamp) {
+        // Row has been deleted at given timestamp.
+        auto row = TVersionedRow::Allocate(
+            memoryPool,
+            KeyColumnCount_,
+            0, // no values
+            0, // no write timestamps
+            1);
+        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
+        return row;
+    }
+
+    YCHECK(hasWriteTimestamp);
 
     auto row = TVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
         SchemaIdMapping_.size(),
-        1);
+        1,
+        hasDeleteTimestamp ? 1 : 0);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-
-    auto timestamp = ReadTimestamp(TimestampOffset_ + timestampIndex);
-    auto timestampValue = timestamp & TimestampValueMask;
-
-    auto* beginTimestamps = row.BeginTimestamps();
-    beginTimestamps[0] = timestamp;
-
-    if (TombstoneTimestampMask & timestamp) {
-        row.GetHeader()->ValueCount = 0;
-        return row;
-    }
-
-    if (timestampIndex == TimestampCount_ - 1) {
-        beginTimestamps[0] |= IncrementalTimestampMask;
+    
+    row.BeginWriteTimestamps()[0] = writeTimestamp;
+    if (hasDeleteTimestamp) {
+        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
     }
 
     auto* beginValues = row.BeginValues();
@@ -251,7 +279,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
         if (valueIndex < columnValueCount) {
             ReadValue(currentValue, ValueOffset_ + valueIndex, valueId, chunkSchemaId);
-            if (currentValue->Timestamp >= timestampValue) {
+            if (currentValue->Timestamp > deleteTimestamp) {
                 // Check that value didn't come from the previous incarnation of this row.
                 ++currentValue;
             }

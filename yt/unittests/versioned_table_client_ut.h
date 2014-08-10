@@ -77,9 +77,15 @@ protected:
         }
 
         EXPECT_EQ(0, CompareRows(expected.BeginKeys(), expected.EndKeys(), actual.BeginKeys(), actual.EndKeys()));
-        EXPECT_EQ(expected.GetTimestampCount(), actual.GetTimestampCount());
-        for (int i = 0; i < expected.GetTimestampCount(); ++i) {
-            EXPECT_EQ(expected.BeginTimestamps()[i], actual.BeginTimestamps()[i]);
+
+        EXPECT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
+        for (int i = 0; i < expected.GetWriteTimestampCount(); ++i) {
+            EXPECT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
+        }
+
+        EXPECT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
+        for (int i = 0; i < expected.GetDeleteTimestampCount(); ++i) {
+            EXPECT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
         }
 
         EXPECT_EQ(expected.GetValueCount(), actual.GetValueCount());

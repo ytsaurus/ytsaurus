@@ -96,7 +96,7 @@ protected:
     {
         std::vector<TVersionedRow> rows;
         {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3);
+            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
             FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
 
             // v1
@@ -105,13 +105,15 @@ protected:
             // v2
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-            row.BeginTimestamps()[0] = 11;
-            row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
-            row.BeginTimestamps()[2] = 3;
+            row.BeginWriteTimestamps()[2] = 3;
+            row.BeginWriteTimestamps()[1] = 5;
+            row.BeginWriteTimestamps()[0] = 11;
+
+            row.BeginDeleteTimestamps()[0] = 9;
 
             rows.push_back(row);
         } {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 1);
+            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 0);
             FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
             // v1
@@ -120,11 +122,13 @@ protected:
             row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-            row.BeginTimestamps()[0] = 1;
+            row.BeginWriteTimestamps()[2] = 1;
+            row.BeginWriteTimestamps()[1] = 5;
+            row.BeginWriteTimestamps()[0] = 10;
 
             rows.push_back(row);
         } {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 5, 3);
+            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 5, 4, 2);
             FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
 
             // v1
@@ -135,9 +139,13 @@ protected:
             row.BeginValues()[3] = MakeVersionedSentinelValue(EValueType::Null, 12, 4);
             row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 8, 4);
 
-            row.BeginTimestamps()[0] = 20 | TombstoneTimestampMask;
-            row.BeginTimestamps()[1] = 3;
-            row.BeginTimestamps()[2] = 2 | TombstoneTimestampMask;
+            row.BeginWriteTimestamps()[3] = 3;
+            row.BeginWriteTimestamps()[2] = 8;
+            row.BeginWriteTimestamps()[1] = 12;
+            row.BeginWriteTimestamps()[0] = 15;
+
+            row.BeginDeleteTimestamps()[1] = 2;
+            row.BeginDeleteTimestamps()[0] = 20;
 
             rows.push_back(row);
         }
@@ -161,7 +169,7 @@ protected:
     {
         const int N = 100000;
         for (int i = 0; i < N; ++i) {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3);
+            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
             FillKey(row, MakeNullable(A), MakeNullable(startIndex + i), Null);
 
             // v1
@@ -170,9 +178,11 @@ protected:
             // v2
             row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-            row.BeginTimestamps()[0] = 11;
-            row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
-            row.BeginTimestamps()[2] = 3;
+            row.BeginWriteTimestamps()[2] = 3;
+            row.BeginWriteTimestamps()[1] = 5;
+            row.BeginWriteTimestamps()[0] = 11;
+
+            row.BeginDeleteTimestamps()[0] = 9;
 
             rows->push_back(row);
         }
@@ -236,16 +246,17 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 1);
         FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
-        row.BeginTimestamps()[0] = 11;
+        row.BeginWriteTimestamps()[0] = 11;
+        row.BeginDeleteTimestamps()[0] = 9;
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v1
@@ -253,13 +264,13 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
         // v2
         row.BeginValues()[1] = MakeVersionedInt64Value(100, 10, 4);
 
-        row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
+        row.BeginWriteTimestamps()[0] = 10;
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-        row.BeginTimestamps()[0] = 20 | TombstoneTimestampMask;
+        row.BeginDeleteTimestamps()[0] = 20;
 
         expected.push_back(row);
     }
@@ -293,18 +304,18 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v1
         row.BeginValues()[0] = MakeVersionedInt64Value(2, 1, 3);
-        row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
+        row.BeginWriteTimestamps()[0] = 1;
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-        row.BeginTimestamps()[0] = 2 | TombstoneTimestampMask;
+        row.BeginDeleteTimestamps()[0] = 2;
 
         expected.push_back(row);
     }
@@ -339,19 +350,19 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v2
         row.BeginValues()[0] = MakeVersionedInt64Value(100, 10, 3);
 
-        row.BeginTimestamps()[0] = 1 | IncrementalTimestampMask;
+        row.BeginWriteTimestamps()[0] = 10;
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
-        row.BeginTimestamps()[0] = 20 | TombstoneTimestampMask;
+        row.BeginDeleteTimestamps()[0] = 20;
 
         expected.push_back(row);
     }

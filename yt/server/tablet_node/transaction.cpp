@@ -70,7 +70,7 @@ void TTransaction::Save(TSaveContext& context) const
             auto list = rowRef.Row.GetFixedValueList(listIndex, tablet->GetKeyColumnCount());
             if (list) {
                 const auto& value = list.Back();
-                if ((value.Timestamp & TimestampValueMask) == UncommittedTimestamp) {
+                if (value.Timestamp == UncommittedTimestamp) {
                     NVersionedTableClient::Save(context, TUnversionedValue(value));
                 }
             }

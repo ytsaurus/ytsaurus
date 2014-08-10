@@ -204,6 +204,11 @@ DECLARE_ENUM(ERowLockMode,
     (Delete)
 );
 
+DECLARE_ENUM(ETimestampListKind,
+    (Write)
+    (Delete)
+);
+
 //! A lightweight wrapper around TDynamicRowHeader*.
 class TDynamicRow
 {
@@ -221,11 +226,13 @@ public:
         int keyCount,
         int schemaColumnCount)
     {
+        // One list per each non-key schema column
+        // plus write timestamps
+        // plus delete timestamp.
         int listCount =
-            // one list per each non-key schema column +
-            // timestamps list
             schemaColumnCount -
-            keyCount + 1;
+            keyCount +
+            ETimestampListKind::GetDomainSize();
         auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->Allocate(
             sizeof (TDynamicRowHeader) +
             keyCount * sizeof (TUnversionedValue) +
@@ -340,23 +347,23 @@ public:
 
     TValueList GetFixedValueList(int index, int keyCount) const
     {
-        return TValueList(GetLists(keyCount)[index + 1]);
+        return TValueList(GetLists(keyCount)[index + ETimestampListKind::GetDomainSize()]);
     }
 
     void SetFixedValueList(int index, TValueList list, int keyCount)
     {
-        GetLists(keyCount)[index + 1] = list.Header_;
+        GetLists(keyCount)[index + ETimestampListKind::GetDomainSize()] = list.Header_;
     }
 
 
-    TTimestampList GetTimestampList(int keyCount) const
+    TTimestampList GetTimestampList(ETimestampListKind kind, int keyCount) const
     {
-        return TTimestampList(GetLists(keyCount)[0]);
+        return TTimestampList(GetLists(keyCount)[static_cast<int>(kind)]);
     }
 
-    void SetTimestampList(TTimestampList list, int keyCount)
+    void SetTimestampList(TTimestampList list, ETimestampListKind kind, int keyCount)
     {
-        GetLists(keyCount)[0] = list.Header_;
+        GetLists(keyCount)[static_cast<int>(kind)] = list.Header_;
     }
 
 

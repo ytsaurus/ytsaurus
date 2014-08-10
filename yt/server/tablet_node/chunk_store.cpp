@@ -279,9 +279,9 @@ TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)
     }
 
     auto row = PooledRows_[0];
-    YASSERT(row.BeginTimestamps() != row.EndTimestamps());
-    auto latestTimestamp = *(row.EndTimestamps() - 1);
-    return latestTimestamp;
+    auto timestamp = row.GetLatestTimestamp();
+    YASSERT(timestamp != NullTimestamp);
+    return timestamp;
 }
 
 void TChunkStore::Save(TSaveContext& context) const

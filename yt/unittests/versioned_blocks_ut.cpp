@@ -64,7 +64,7 @@ protected:
 
         TSimpleVersionedBlockWriter blockWriter(Schema, KeyColumns);
 
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3);
+        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
         row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -75,9 +75,11 @@ protected:
         // v2
         row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-        row.BeginTimestamps()[0] = 11;
-        row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
-        row.BeginTimestamps()[2] = 3;
+        row.BeginWriteTimestamps()[2] = 3;
+        row.BeginWriteTimestamps()[1] = 5;
+        row.BeginWriteTimestamps()[0] = 11;
+
+        row.BeginDeleteTimestamps()[0] = 9;
 
         blockWriter.WriteRow(row, nullptr, nullptr);
 
@@ -103,13 +105,13 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         schemaIdMapping,
         7);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1);
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 2, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
     row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 4);
-    row.BeginTimestamps()[0] = 3 | IncrementalTimestampMask;
+    row.BeginWriteTimestamps()[0] = 5;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -129,11 +131,11 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         schemaIdMapping,
         9);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginTimestamps()[0] = 9 | TombstoneTimestampMask;
+    row.BeginDeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -153,11 +155,12 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         schemaIdMapping,
         LastCommittedTimestamp);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1);
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
-    row.BeginTimestamps()[0] = 11;
+    row.BeginWriteTimestamps()[0] = 11;
+    row.BeginDeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
@@ -178,7 +181,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         schemaIdMapping,
         AllCommittedTimestamp);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3);
+    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -186,9 +189,11 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
     // v2
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
 
-    row.BeginTimestamps()[0] = 11;
-    row.BeginTimestamps()[1] = 9 | TombstoneTimestampMask;
-    row.BeginTimestamps()[2] = 3;
+    row.BeginWriteTimestamps()[2] = 3;
+    row.BeginWriteTimestamps()[1] = 5;
+    row.BeginWriteTimestamps()[0] = 11;
+
+    row.BeginDeleteTimestamps()[0] = 9;
 
     std::vector<TVersionedRow> rows;
     rows.push_back(row);

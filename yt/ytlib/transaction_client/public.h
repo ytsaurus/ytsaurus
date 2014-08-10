@@ -32,10 +32,9 @@ using NObjectClient::NullTransactionId;
 //! used for implementing MVCC paradigm.
 /*!
  *  Timestamp is represented as a 64-bit unsigned integer of the following structure:
- *  bits 0-29:   auto-incrementing counter (allowing up to ~10^9 timestamps per second)
+ *  bits  0-29:  auto-incrementing counter (allowing up to ~10^9 timestamps per second)
  *  bits 30-61:  Unix time in seconds (from 1 Jan 1970)
- *  bit  62:     incremental flag (see #IncrementalTimestampMask)
- *  bit  63:     tombstone flag (see #TombstoneTimestampMask)
+ *  bits 62-63:  reserved
  */
 typedef ui64 TTimestamp;
 
@@ -55,10 +54,7 @@ const TTimestamp UncommittedTimestamp   = 0x3fffffffffffff02ULL;
 const TTimestamp AllCommittedTimestamp  = 0x3fffffffffffff03ULL;
 
 // Masks.
-const TTimestamp TimestampValueMask       = 0x3fffffffffffffffULL;
 const TTimestamp TimestampCounterMask     = 0x000000003fffffffULL;
-const TTimestamp TombstoneTimestampMask   = 0x8000000000000000ULL;
-const TTimestamp IncrementalTimestampMask = 0x4000000000000000ULL;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -43,11 +43,23 @@ void TSimpleVersionedBlockWriter::WriteRow(
 
     WritePod(KeyStream_, TimestampCount_);
     WritePod(KeyStream_, ValueCount_);
-    WritePod(KeyStream_, static_cast<ui32>(row.GetTimestampCount()));
+    WritePod(KeyStream_, static_cast<ui16>(row.GetWriteTimestampCount()));
+    WritePod(KeyStream_, static_cast<ui16>(row.GetDeleteTimestampCount()));
 
-    TimestampCount_ += row.GetTimestampCount();
-    for (auto* it = row.BeginTimestamps(); it != row.EndTimestamps(); ++it) {
+    TimestampCount_ += row.GetWriteTimestampCount();
+    for (auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
         WritePod(TimestampsStream_, *it);
+
+        MaxTimestamp_ = std::max(MaxTimestamp_, *it);
+        MinTimestamp_ = std::min(MinTimestamp_, *it);
+    }
+
+    TimestampCount_ += row.GetDeleteTimestampCount();
+    for (auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+        WritePod(TimestampsStream_, *it);
+
+        MaxTimestamp_ = std::max(MaxTimestamp_, *it);
+        MinTimestamp_ = std::min(MinTimestamp_, *it);
     }
 
     ValueCount_ += row.GetValueCount();
@@ -65,10 +77,6 @@ void TSimpleVersionedBlockWriter::WriteRow(
             WritePod(ValueStream_, value.Timestamp);
             ++valueCount;
         }
-
-        auto timestamp = value.Timestamp & TimestampValueMask;
-        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
-        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
     }
 
     while (lastId < SchemaColumnCount_) {
@@ -181,8 +189,9 @@ i64 TSimpleVersionedBlockWriter::GetRowCount() const
 int TSimpleVersionedBlockWriter::GetKeySize(int keyColumnCount, int schemaColumnCount)
 {
     // 8 bytes for each key column + timestamp offset + value offset
-    // 4 bytes for value count for each non-key column + timestamp count
-    return 8 * (keyColumnCount + 2) + 4 * (schemaColumnCount - keyColumnCount + 1);
+    // 4 bytes for value count for each non-key column 
+    // 2 bytes for write timestamp count and delete timestamp count
+    return 8 * (keyColumnCount + 2) + 4 * (schemaColumnCount - keyColumnCount) + 2 * 2;
 }
 
 int TSimpleVersionedBlockWriter::GetPaddedKeySize(int keyColumnCount, int schemaColumnCount)

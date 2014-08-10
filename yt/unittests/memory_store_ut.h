@@ -181,9 +181,9 @@ protected:
             return TUnversionedOwningRow();
         }
 
-        EXPECT_EQ(row.GetTimestampCount(), 1);
-        auto rowTimestamp = row.BeginTimestamps()[0];
-        if (rowTimestamp & NTransactionClient::TombstoneTimestampMask) {
+        EXPECT_LE(row.GetWriteTimestampCount(), 1);
+        EXPECT_LE(row.GetDeleteTimestampCount(), 1);
+        if (row.GetWriteTimestampCount() == 0) {
             return TUnversionedOwningRow();
         }
 
@@ -210,7 +210,6 @@ protected:
 
         return builder.GetRowAndReset();
     }
-
 
     TTimestamp CurrentTimestamp;
     TNameTablePtr NameTable;

@@ -22,7 +22,7 @@ void SetTransactionId(IClientRequestPtr request, TTransactionPtr transaction)
 
 std::pair<TInstant, TInstant> TimestampToInstant(TTimestamp timestamp)
 {
-    auto lo = TInstant::Seconds((timestamp & TimestampValueMask) >> TimestampCounterWidth);
+    auto lo = TInstant::Seconds(timestamp >> TimestampCounterWidth);
     auto hi = lo + TDuration::Seconds(1);
     return std::make_pair(lo, hi);
 }

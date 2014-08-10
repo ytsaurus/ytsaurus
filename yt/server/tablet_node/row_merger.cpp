@@ -43,7 +43,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
         int id = ColumnIds_[index];
         if (id >= KeyColumnCount_) {
-            ColumnIdToIndex_[id] = index;            
+            ColumnIdToIndex_[id] = index;
         }
     }
 
@@ -53,7 +53,8 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
 {
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
-    YASSERT(row.GetTimestampCount() == 1);
+    YASSERT(row.GetWriteTimestampCount() <= 1);
+    YASSERT(row.GetDeleteTimestampCount() <= 1);
 
     if (!Started_) {
         if (!MergedRow_) {
@@ -79,19 +80,17 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
         Started_ = true;
     }
 
-    auto rowTimestamp = row.BeginTimestamps()[0];
-    auto rowTimestampValue = rowTimestamp & TimestampValueMask;
-    
-    if (rowTimestampValue < LatestDelete_)
-        return;
+    if (row.GetDeleteTimestampCount() > 0) {
+        auto deleteTimestamp = row.BeginDeleteTimestamps()[0];
+        LatestDelete_ = std::max(LatestDelete_, deleteTimestamp);
+    }
 
-    if (rowTimestamp & TombstoneTimestampMask) {
-        LatestDelete_ = std::max(LatestDelete_, rowTimestampValue);
-    } else {
-        LatestWrite_ = std::max(LatestWrite_, rowTimestampValue);
+    if (row.GetWriteTimestampCount() > 0) {
+        auto writeTimestamp = row.BeginWriteTimestamps()[0];
+        LatestWrite_ = std::max(LatestWrite_, writeTimestamp);
 
-        if (!(rowTimestamp & IncrementalTimestampMask)) {
-            LatestDelete_ = std::max(LatestDelete_, rowTimestampValue);
+        if (writeTimestamp < LatestDelete_ ) {
+            return;
         }
 
         const auto* partialValuesBegin = row.BeginValues();
@@ -169,15 +168,15 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         std::copy(row.BeginKeys(), row.EndKeys(), Keys_.data());
     }
 
-    PartialValues_.insert(PartialValues_.end(), row.BeginValues(), row.EndValues());
+    PartialValues_.insert(
+        PartialValues_.end(),
+        row.BeginValues(),
+        row.EndValues());
 
-    // TODO(babenko): refactor this
-    for (auto it = row.BeginTimestamps(); it != row.EndTimestamps(); ++it) {
-        auto timestamp = *it;
-        if (timestamp & TombstoneTimestampMask) {
-            DeleteTimestamps_.push_back(timestamp & TimestampValueMask);
-        }
-    }
+    PartialDeleteTimestamps_.insert(
+        PartialDeleteTimestamps_.end(),
+        row.BeginDeleteTimestamps(),
+        row.EndDeleteTimestamps());
 }
 
 TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
@@ -186,9 +185,11 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         return TVersionedRow();
     }
 
-    // Clear everything.
-    MergedValues_.clear();
-    MergedTimestamps_.clear();
+    // Sort delete timestamps and remove duplicates.
+    std::sort(PartialDeleteTimestamps_.begin(), PartialDeleteTimestamps_.end());
+    PartialDeleteTimestamps_.erase(
+        std::unique(PartialDeleteTimestamps_.begin(), PartialDeleteTimestamps_.end()),
+        PartialDeleteTimestamps_.end());
 
     // Sort input values by (id, timestamp).
     std::sort(
@@ -222,10 +223,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         }
 
         // Merge with delete timestamps and put result into ColumnValues_.
-        // Delete timestamps are represented by null sentinels.
+        // Delete timestamps are represented by TheBottom sentinels.
         {
-            auto timestampBeginIt = DeleteTimestamps_.begin();
-            auto timestampEndIt = DeleteTimestamps_.end();
+            auto timestampBeginIt = PartialDeleteTimestamps_.begin();
+            auto timestampEndIt = PartialDeleteTimestamps_.end();
             ColumnValues_.clear();
             auto columnValueIt = columnBeginIt;
             auto timestampIt = timestampBeginIt;
@@ -235,10 +236,9 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
                 {
                     ColumnValues_.push_back(*columnValueIt++);
                 } else {
-                    TVersionedValue value;
-                    value.Timestamp = (*timestampIt++) | TombstoneTimestampMask;
-                    value.Type = EValueType::Null;
+                    auto value = MakeVersionedSentinelValue(EValueType::TheBottom, *timestampIt);
                     ColumnValues_.push_back(value);
+                    ++timestampIt;
                 } 
             }
         }
@@ -246,9 +246,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
 #ifndef NDEBUG
         // Validate merged list.
         for (auto it = ColumnValues_.begin(); it != ColumnValues_.end(); ++it) {
-            YASSERT(
-                it + 1 == ColumnValues_.end() ||
-                (it->Timestamp & TimestampValueMask) <= ((it + 1)->Timestamp & TimestampValueMask));
+            YASSERT(it + 1 == ColumnValues_.end() || (it->Timestamp <= (it + 1)->Timestamp));
         }
 #endif
 
@@ -260,7 +258,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
 
         // Adjust safety limit by min_ttl.
         while (safetyEndIt != ColumnValues_.begin()) {
-            auto timestamp = (safetyEndIt - 1)->Timestamp & TimestampValueMask;
+            auto timestamp = (safetyEndIt - 1)->Timestamp;
             if (timestamp < CurrentTimestamp_ &&
                 TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MinDataTtl)
             {
@@ -275,7 +273,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
             if (std::distance(retentionBeginIt, ColumnValues_.end()) >= Config_->MaxDataVersions)
                 break;
 
-            auto timestamp = (retentionBeginIt - 1)->Timestamp & TimestampValueMask;
+            auto timestamp = (retentionBeginIt - 1)->Timestamp;
             if (timestamp < CurrentTimestamp_ &&
                 TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
                 break;
@@ -286,8 +284,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         // Save output values and timestamps.
         for (auto it = retentionBeginIt; it != ColumnValues_.end(); ++it) {
             const auto& value = *it;
-            MergedTimestamps_.push_back(value.Timestamp);
-            if (!(value.Timestamp & TombstoneTimestampMask)) {
+            if (value.Type == EValueType::TheBottom) {
+                DeleteTimestamps_.push_back(value.Timestamp);
+            } else {
+                WriteTimestamps_.push_back(value.Timestamp);
                 MergedValues_.push_back(*it);
             }
         }
@@ -295,58 +295,41 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         partialValueIt = columnEndIt;
     }
 
-    // Sort MergedTimestamps_, remove duplicates.
-    std::sort(
-        MergedTimestamps_.begin(),
-        MergedTimestamps_.end(),
-        [] (TTimestamp lhs, TTimestamp rhs) {
-            return (lhs & TimestampValueMask) < (rhs & TimestampValueMask);
-        });
+    // Delete duplicate timestamps.
+    std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), std::greater<TTimestamp>());
+    DeleteTimestamps_.erase(
+        std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
+        DeleteTimestamps_.end());
+
+    std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
+    WriteTimestamps_.erase(
+        std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
+        WriteTimestamps_.end());
 
     // Delete redundant tombstones preceding major timestamp.
-    // Delete duplicate timestamps.
     {
-        // NB: This facilitates dropping the leading tombstones.
-        auto prevTimestamp = TombstoneTimestampMask;
-        auto it = MergedTimestamps_.begin();
-        auto jt = it;
-        while (it != MergedTimestamps_.end()) {
-            auto timestamp = *it;
-
-            bool keep = true;
-            
-            if ((timestamp & TimestampValueMask) < MajorTimestamp_ &&
-                (timestamp & TombstoneTimestampMask) &&
-                (prevTimestamp & TombstoneTimestampMask))
-            {
-                keep = false;
-            }
-
-            if (timestamp == prevTimestamp) {
-                keep = false;
-            }
-
-            if (keep) {
-                *jt++ = prevTimestamp = timestamp;
-            }
-
+        auto latestWriteTimestamp = WriteTimestamps_.empty()
+            ? MaxTimestamp
+            : WriteTimestamps_.back();
+        auto it = DeleteTimestamps_.begin();
+        while (it != DeleteTimestamps_.end() && (*it > latestWriteTimestamp || *it >= MajorTimestamp_)) {
             ++it;
         }
-        MergedTimestamps_.erase(jt, MergedTimestamps_.end());
+        DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
     }
 
-    if (MergedValues_.empty() && MergedTimestamps_.empty()) {
+    if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Reset();
         return TVersionedRow();
     }
 
-    // TODO(babenko): get rid of this
-    if (!(MergedTimestamps_.front() & TombstoneTimestampMask)) {
-        MergedTimestamps_.front() |= IncrementalTimestampMask;
-    }
-
     // Construct output row.
-    auto row = TVersionedRow::Allocate(Pool_, KeyColumnCount_, MergedValues_.size(), MergedTimestamps_.size());
+    auto row = TVersionedRow::Allocate(
+        Pool_,
+        KeyColumnCount_,
+        MergedValues_.size(),
+        WriteTimestamps_.size(),
+        DeleteTimestamps_.size());
 
     // Construct output keys.
     std::copy(Keys_.begin(), Keys_.end(), row.BeginKeys());
@@ -355,7 +338,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
     std::copy(MergedValues_.begin(), MergedValues_.end(), row.BeginValues());
 
     // Construct output timestamps.
-    std::copy(MergedTimestamps_.begin(), MergedTimestamps_.end(), row.BeginTimestamps());
+    std::copy(WriteTimestamps_.begin(), WriteTimestamps_.end(), row.BeginWriteTimestamps());
+    std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Reset();
     return row;
@@ -364,7 +348,13 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
 void TVersionedRowMerger::Reset()
 {
     PartialValues_.clear();
+    MergedValues_.clear();
+    ColumnValues_.clear();
+
+    PartialDeleteTimestamps_.clear();
+    WriteTimestamps_.clear();
     DeleteTimestamps_.clear();
+
     Started_ = false;
 }
 

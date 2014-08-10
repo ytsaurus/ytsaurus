@@ -142,8 +142,8 @@ private:
         int listIndex,
         const TUnversionedValue& value);
 
-    void AddTimestamp(TDynamicRow row, TTimestamp timestamp);
-    void AddUncommittedTimestamp(TDynamicRow row, TTimestamp timestamp);
+    void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
+    void AddUncommittedTimestamp(TDynamicRow row, ETimestampListKind kind);
 
     void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
     void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);

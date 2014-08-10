@@ -29,11 +29,13 @@ struct IVersionedReader
     /*!
      *  Depending on implementation, rows may come in two different flavors.
      *  (A) Rows containing no more than one versioned value for each cell, 
-     *      and exactly one timestamp, either tombstone or last committed (for merging).
-     *  (B) Rows containing all available versions and a list of timestamps (for compactions).
+     *      no more than one write timestamp (the last one), and no more than one
+     *      delete timestamp (for merging).
+     *  (B) Rows containing all available versions and two lists of timestamps: write and delete
+     *      (for compactions).
      *
      *  Value ids correspond to column indexes in schema.
-     *  Values are sorted in ascending order by ids, and then in descending order by timestamps.
+     *  Values are sorted in ascending order by ids, and then in ascending order by timestamps.
      *
      *  If |false| is returned then the end of the rowset is reached.
      *  If |true| is returned but |rows| is empty then no more data is available at the moment.
@@ -41,14 +43,10 @@ struct IVersionedReader
      *  The latter may indicate an error occurred while fetching more data.
      *
      *  In Case A above row timestamps have the following meaning:
-     *  1. If the row is found and is known to be deleted then the deletion
-     *     timestamp combined with |TombstoneTimestampMask| is provided.
-     *  2. If the row is found and is known to exist then the earliest modification
+     *  1. If the row is found and is known to be deleted then only the deletion
      *     timestamp is provided.
-     *  3. If the store has no tombstone for |key| (up to |timestamp|)
-     *     then the timestamp is combined with |IncrementalTimestampMask|
-     *     to indicate that the client may potentially need to consult other stores
-     *     to get the full set of column values.
+     *  2. If the row is found and is known to exist then the last write
+     *     timestamp and the last deleted timestamp (if exists) are provided.
      */
     virtual bool Read(std::vector<TVersionedRow>* rows) = 0;
 

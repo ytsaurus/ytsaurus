@@ -69,7 +69,8 @@ private:
     char* KeyDataPtr_;
     i64 TimestampOffset_;
     i64 ValueOffset_;
-    ui32 TimestampCount_;
+    ui16 WriteTimestampCount_;
+    ui16 DeleteTimestampCount_;
 
     bool JumpToRowIndex(int index);
     TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);

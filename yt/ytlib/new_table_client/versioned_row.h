@@ -84,9 +84,10 @@ inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp
 //! Header which precedes row values in memory layout.
 struct TVersionedRowHeader
 {
-    ui32 ValueCount;
+    ui16 ValueCount;
     ui16 KeyCount;
-    ui16 TimestampCount;
+    ui16 WriteTimestampCount;
+    ui16 DeleteTimestampCount;
 };
 
 static_assert(
@@ -108,78 +109,105 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount = 1);
+size_t GetVersionedRowDataSize(
+    int keyCount,
+    int valueCount,
+    int writeTimestampCount,
+    int deleteTimestampCount);
 
 class TVersionedRow
 {
 public:
     TVersionedRow()
-        : Header(nullptr)
+        : Header_(nullptr)
     { }
 
     explicit TVersionedRow(TVersionedRowHeader* header)
-        : Header(header)
+        : Header_(header)
     { }
 
     static TVersionedRow Allocate(
         TChunkedMemoryPool* pool, 
         int keyCount,
         int valueCount,
-        int timestampCount)
+        int writeTimestampCount,
+        int deleteTimestampCount)
     {
         auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->Allocate(GetVersionedRowDataSize(
             keyCount,
             valueCount,
-            timestampCount)));
+            writeTimestampCount,
+            deleteTimestampCount)));
         header->KeyCount = keyCount;
         header->ValueCount = valueCount;
-        header->TimestampCount = timestampCount;
+        header->WriteTimestampCount = writeTimestampCount;
+        header->DeleteTimestampCount = deleteTimestampCount;
         return TVersionedRow(header);
     }
 
     explicit operator bool()
     {
-        return Header != nullptr;
+        return Header_ != nullptr;
     }
 
     TVersionedRowHeader* GetHeader()
     {
-        return Header;
+        return Header_;
     }
 
     const TVersionedRowHeader* GetHeader() const
     {
-        return Header;
+        return Header_;
     }
 
-    const TTimestamp* BeginTimestamps() const
+    const TTimestamp* BeginWriteTimestamps() const
     {
-        return reinterpret_cast<const TTimestamp*>(Header + 1);
+        return reinterpret_cast<const TTimestamp*>(Header_ + 1);
     }
 
-    TTimestamp* BeginTimestamps()
+    TTimestamp* BeginWriteTimestamps()
     {
-        return reinterpret_cast<TTimestamp*>(Header + 1);
+        return reinterpret_cast<TTimestamp*>(Header_ + 1);
     }
 
-    const TTimestamp* EndTimestamps() const
+    const TTimestamp* EndWriteTimestamps() const
     {
-        return BeginTimestamps() + GetTimestampCount();
+        return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
 
-    TTimestamp* EndTimestamps()
+    TTimestamp* EndWriteTimestamps()
     {
-        return BeginTimestamps() + GetTimestampCount();
+        return BeginWriteTimestamps() + GetWriteTimestampCount();
+    }
+
+    const TTimestamp* BeginDeleteTimestamps() const
+    {
+        return EndWriteTimestamps();
+    }
+
+    TTimestamp* BeginDeleteTimestamps()
+    {
+        return EndWriteTimestamps();
+    }
+
+    const TTimestamp* EndDeleteTimestamps() const
+    {
+        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TTimestamp* EndDeleteTimestamps()
+    {
+        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
     }
 
     const TUnversionedValue* BeginKeys() const
     {
-        return reinterpret_cast<const TUnversionedValue*>(EndTimestamps());
+        return reinterpret_cast<const TUnversionedValue*>(EndDeleteTimestamps());
     }
 
     TUnversionedValue* BeginKeys()
     {
-        return reinterpret_cast<TUnversionedValue*>(EndTimestamps());
+        return reinterpret_cast<TUnversionedValue*>(EndDeleteTimestamps());
     }
 
     const TUnversionedValue* EndKeys() const
@@ -214,21 +242,33 @@ public:
 
     int GetKeyCount() const
     {
-        return Header->KeyCount;
+        return Header_->KeyCount;
     }
 
     int GetValueCount() const
     {
-        return Header->ValueCount;
+        return Header_->ValueCount;
     }
 
-    int GetTimestampCount() const
+    int GetWriteTimestampCount() const
     {
-        return Header->TimestampCount;
+        return Header_->WriteTimestampCount;
+    }
+
+    int GetDeleteTimestampCount() const
+    {
+        return Header_->DeleteTimestampCount;
+    }
+
+    TTimestamp GetLatestTimestamp() const
+    {
+        auto deleteTimestamp = GetDeleteTimestampCount() == 0 ? NullTimestamp : EndDeleteTimestamps()[-1];
+        auto writeTimestamp = GetWriteTimestampCount() == 0 ? NullTimestamp : EndWriteTimestamps()[-1];
+        return std::max(deleteTimestamp, writeTimestamp);
     }
 
 private:
-    TVersionedRowHeader* Header;
+    TVersionedRowHeader* Header_;
 
 };
 
@@ -266,7 +306,8 @@ private:
 
     std::vector<TUnversionedValue> Keys_;
     std::vector<TVersionedValue> Values_;
-    std::vector<TTimestamp> Timestamps_;
+    std::vector<TTimestamp> WriteTimestamps_;
+    std::vector<TTimestamp> DeleteTimestamps_;
 
 };
 
@@ -308,34 +349,54 @@ public:
         return Data_ ? reinterpret_cast<const TVersionedRowHeader*>(Data_.Begin()) : nullptr;
     }
 
-    const TTimestamp* BeginTimestamps() const
+    const TTimestamp* BeginWriteTimestamps() const
     {
         return reinterpret_cast<const TTimestamp*>(GetHeader() + 1);
     }
 
-    TTimestamp* BeginTimestamps()
+    TTimestamp* BeginWriteTimestamps()
     {
         return reinterpret_cast<TTimestamp*>(GetHeader() + 1);
     }
 
-    const TTimestamp* EndTimestamps() const
+    const TTimestamp* EndWriteTimestamps() const
     {
-        return BeginTimestamps() + GetTimestampCount();
+        return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
 
-    TTimestamp* EndTimestamps()
+    TTimestamp* EndWriteTimestamps()
     {
-        return BeginTimestamps() + GetTimestampCount();
+        return BeginWriteTimestamps() + GetWriteTimestampCount();
+    }
+
+    const TTimestamp* BeginDeleteTimestamps() const
+    {
+        return EndWriteTimestamps();
+    }
+
+    TTimestamp* BeginDeleteTimestamps()
+    {
+        return EndWriteTimestamps();
+    }
+
+    const TTimestamp* EndDeleteTimestamps() const
+    {
+        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TTimestamp* EndDeleteTimestamps()
+    {
+        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
     }
 
     const TUnversionedValue* BeginKeys() const
     {
-        return reinterpret_cast<const TUnversionedValue*>(EndTimestamps());
+        return reinterpret_cast<const TUnversionedValue*>(EndDeleteTimestamps());
     }
 
     TUnversionedValue* BeginKeys()
     {
-        return reinterpret_cast<TUnversionedValue*>(EndTimestamps());
+        return reinterpret_cast<TUnversionedValue*>(EndDeleteTimestamps());
     }
 
     const TUnversionedValue* EndKeys() const
@@ -378,9 +439,14 @@ public:
         return GetHeader()->ValueCount;
     }
 
-    int GetTimestampCount() const
+    int GetWriteTimestampCount() const
     {
-        return GetHeader()->TimestampCount;
+        return GetHeader()->WriteTimestampCount;
+    }
+
+    int GetDeleteTimestampCount() const
+    {
+        return GetHeader()->DeleteTimestampCount;
     }
 
 

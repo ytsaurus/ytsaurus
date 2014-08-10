@@ -58,12 +58,17 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetVersionedRowDataSize(int keyCount, int valueCount, int timestampCount)
+size_t GetVersionedRowDataSize(
+    int keyCount,
+    int valueCount,
+    int writeTimestampCount,
+    int deleteTimestampCount)
 {
     return sizeof(TVersionedRowHeader) +
         sizeof(TVersionedValue) * valueCount +
         sizeof(TUnversionedValue) * keyCount +
-        sizeof(TTimestamp) * timestampCount;
+        sizeof(TTimestamp) * writeTimestampCount +
+        sizeof(TTimestamp) + deleteTimestampCount;
 }
 
 i64 GetDataWeight(TVersionedRow row)
@@ -85,7 +90,8 @@ i64 GetDataWeight(TVersionedRow row)
             return GetDataWeight(value) + x;
         });
 
-    result += row.GetTimestampCount() * sizeof(TTimestamp);
+    result += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+    result += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
 
     return result;
 }
@@ -133,13 +139,22 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs)
         }
     }
 
-    if (lhs.GetTimestampCount() != rhs.GetTimestampCount()) {
+    if (lhs.GetWriteTimestampCount() != rhs.GetWriteTimestampCount()) {
         return false;
     }
 
-    for (int i = 0; i < lhs.GetTimestampCount(); ++i) {
-        // TODO(babenko): get rid of IncrementalTimestampMask
-        if ((lhs.BeginTimestamps()[i] & ~IncrementalTimestampMask) != (rhs.BeginTimestamps()[i] & ~IncrementalTimestampMask)) {
+    for (int i = 0; i < lhs.GetWriteTimestampCount(); ++i) {
+        if (lhs.BeginWriteTimestamps()[i] != rhs.BeginWriteTimestamps()[i]) {
+            return false;
+        }
+    }
+
+    if (lhs.GetDeleteTimestampCount() != rhs.GetDeleteTimestampCount()) {
+        return false;
+    }
+
+    for (int i = 0; i < lhs.GetDeleteTimestampCount(); ++i) {
+        if (lhs.BeginDeleteTimestamps()[i] != rhs.BeginDeleteTimestamps()[i]) {
             return false;
         }
     }
@@ -165,16 +180,13 @@ void TVersionedRowBuilder::AddKey(const TUnversionedValue& value)
 
 void TVersionedRowBuilder::AddValue(const TVersionedValue& value)
 {
-    // TODO(babenko): get rid of IncrementalTimestampMask
-    Timestamps_.push_back(value.Timestamp | IncrementalTimestampMask);
-    YASSERT((value.Timestamp & TimestampValueMask) == value.Timestamp);
+    WriteTimestamps_.push_back(value.Timestamp);
     Values_.push_back(Buffer_->Capture(value));
 }
 
 void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)
 {
-    YASSERT((timestamp & TimestampValueMask) == timestamp);
-    Timestamps_.push_back(timestamp | TombstoneTimestampMask);
+    DeleteTimestamps_.push_back(timestamp);
 }
 
 TVersionedRow TVersionedRowBuilder::GetRowAndReset()
@@ -198,25 +210,31 @@ TVersionedRow TVersionedRowBuilder::GetRowAndReset()
             return false;
         });
 
-    std::sort(
-        Timestamps_.begin(),
-        Timestamps_.end(),
-        [] (TTimestamp lhs, TTimestamp rhs) {
-            return (lhs & TimestampValueMask) < (rhs & TimestampValueMask);
-        });
+    std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
+    WriteTimestamps_.erase(
+        std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
+        WriteTimestamps_.end());
 
-    Timestamps_.erase(
-        std::unique(Timestamps_.begin(), Timestamps_.end()),
-        Timestamps_.end());
+    std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), std::greater<TTimestamp>());
+    DeleteTimestamps_.erase(
+        std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
+        DeleteTimestamps_.end());
 
-    auto row = TVersionedRow::Allocate(Buffer_->GetAlignedPool(), Keys_.size(), Values_.size(), Timestamps_.size());
+    auto row = TVersionedRow::Allocate(
+        Buffer_->GetAlignedPool(), Keys_.size(), 
+        Values_.size(), 
+        WriteTimestamps_.size(), 
+        DeleteTimestamps_.size());
+
     memcpy(row.BeginKeys(), Keys_.data(), sizeof (TUnversionedValue) * Keys_.size());
     memcpy(row.BeginValues(), Values_.data(), sizeof (TVersionedValue)* Values_.size());
-    memcpy(row.BeginTimestamps(), Timestamps_.data(), sizeof (TTimestamp) * Timestamps_.size());
+    memcpy(row.BeginWriteTimestamps(), WriteTimestamps_.data(), sizeof (TTimestamp) * WriteTimestamps_.size());
+    memcpy(row.BeginDeleteTimestamps(), DeleteTimestamps_.data(), sizeof (TTimestamp) * DeleteTimestamps_.size());
 
     Keys_.clear();
     Values_.clear();
-    Timestamps_.clear();
+    WriteTimestamps_.clear();
+    DeleteTimestamps_.clear();
 
     return row;
 }
@@ -231,7 +249,8 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
     size_t fixedSize = GetVersionedRowDataSize(
         other.GetKeyCount(),
         other.GetValueCount(),
-        other.GetTimestampCount());
+        other.GetWriteTimestampCount(),
+        other.GetDeleteTimestampCount());
 
     size_t variableSize = 0;
     auto adjustVariableSize = [&] (const TUnversionedValue& value) {
@@ -253,7 +272,8 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
     ::memcpy(BeginKeys(), other.BeginKeys(), sizeof (TUnversionedValue) * other.GetKeyCount());
     ::memcpy(BeginValues(), other.BeginValues(), sizeof (TVersionedValue) * other.GetValueCount());
-    ::memcpy(BeginTimestamps(), other.BeginTimestamps(), sizeof (TTimestamp) * other.GetTimestampCount());
+    ::memcpy(BeginWriteTimestamps(), other.BeginWriteTimestamps(), sizeof (TTimestamp) * other.GetWriteTimestampCount());
+    ::memcpy(BeginDeleteTimestamps(), other.BeginDeleteTimestamps(), sizeof (TTimestamp) * other.GetDeleteTimestampCount());
 
     if (variableSize > 0) {
         char* current = Data_.Begin() + fixedSize;
