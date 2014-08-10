@@ -97,6 +97,8 @@ public:
     i64 GetMemoryUsage() const;
 
     DEFINE_SIGNAL(void(i64 delta), MemoryUsageUpdated)
+    
+    DEFINE_SIGNAL(void(TDynamicRow row), RowBlocked)
 
 private:
     class TFetcherBase;
@@ -104,6 +106,7 @@ private:
     class TLookuper;
 
     TTabletManagerConfigPtr Config_;
+
     int KeyColumnCount_;
     int SchemaColumnCount_;
 

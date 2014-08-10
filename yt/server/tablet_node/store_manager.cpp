@@ -2,6 +2,7 @@
 #include "store_manager.h"
 #include "tablet.h"
 #include "dynamic_memory_store.h"
+#include "chunk_store.h"
 #include "transaction.h"
 #include "config.h"
 #include "tablet_slot.h"
@@ -64,17 +65,21 @@ TStoreManager::TStoreManager(
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
     }
+}
 
+void TStoreManager::Initialize()
+{
     for (const auto& pair : Tablet_->Stores()) {
-        const auto& store = pair.second;
-        if (store->GetType() == EStoreType::DynamicMemory && store != Tablet_->GetActiveStore()) {
-            YCHECK(PassiveStores_.insert(store->AsDynamicMemory()).second);
+        auto store = pair.second;
+        if (store->GetType() == EStoreType::DynamicMemory) {
+            if (store != Tablet_->GetActiveStore()) {
+                YCHECK(PassiveStores_.insert(store->AsDynamicMemory()).second);
+            }
+        } else {
+            LatestTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
         }
     }
 }
-
-TStoreManager::~TStoreManager()
-{ }
 
 TTablet* TStoreManager::GetTablet() const
 {
@@ -480,13 +485,9 @@ void TStoreManager::RemoveStore(IStorePtr store)
         LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %v, StoreId: %v)",
             Tablet_->GetId(),
             store->GetId());
-    }
-
-    auto latestTimestamp = store->GetMaxTimestamp();
-    // Dynamic store returns MaxTimestamp.
-    if (latestTimestamp != MaxTimestamp) {
-        auto range = LatestTimestampToStore_.equal_range(latestTimestamp);
+    } else {
         // The range is likely to have one element.
+        auto range = LatestTimestampToStore_.equal_range(store->GetMaxTimestamp());
         for (auto it = range.first; it != range.second; ++it) {
             if (it->second == store) {
                 LatestTimestampToStore_.erase(it);
@@ -500,15 +501,37 @@ void TStoreManager::CreateActiveStore()
 {
     auto* slot = Tablet_->GetSlot();
     // NB: For tests mostly.
-    auto id = slot ? slot->GenerateId(EObjectType::DynamicMemoryTabletStore) : TStoreId::Create();
- 
-    auto store = New<TDynamicMemoryStore>(
-        Config_,
-        id,
-        Tablet_);
-
+    auto storeId = slot ? slot->GenerateId(EObjectType::DynamicMemoryTabletStore) : TStoreId::Create();
+    auto store = CreateDynamicMemoryStore(storeId);
     Tablet_->AddStore(store);
     Tablet_->SetActiveStore(store);
+}
+
+TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& storeId)
+{
+    auto store = New<TDynamicMemoryStore>(
+        Config_,
+        storeId,
+        Tablet_);
+    
+    // NB: Slot can be null in tests.
+    if (Tablet_->GetSlot()) {
+        store->SubscribeRowBlocked(BIND(&TStoreManager::OnRowBlocked, MakeWeak(this)));
+    }
+
+    return store;
+}
+
+TChunkStorePtr TStoreManager::CreateChunkStore(
+    NCellNode::TBootstrap* bootstrap,
+    const TChunkId& chunkId,
+    const TChunkMeta* chunkMeta)
+{
+    return New<TChunkStore>(
+        chunkId,
+        Tablet_,
+        chunkMeta,
+        bootstrap);
 }
 
 bool TStoreManager::IsStoreLocked(TDynamicMemoryStorePtr store) const
@@ -526,6 +549,21 @@ bool TStoreManager::IsRecovery() const
     auto slot = Tablet_->GetSlot();
     // NB: Slot can be null in tests.
     return slot ? slot->GetHydraManager()->IsRecovery() : false;
+}
+
+void TStoreManager::OnRowBlocked(TDynamicRow row)
+{
+    WaitFor(BIND(&TStoreManager::WaitForBlockedRow, row)
+        .AsyncVia(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
+        .Run());
+}
+
+void TStoreManager::WaitForBlockedRow(TDynamicRow row)
+{
+    auto* transaction = row.GetTransaction();
+    if (transaction) {
+        WaitFor(transaction->GetFinished());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

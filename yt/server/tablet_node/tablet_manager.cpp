@@ -81,6 +81,7 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
+        , TabletMap_(TTabletTraits(this))
         , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -243,13 +244,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto storeManager = tablet->GetStoreManager();
         switch (TypeFromId(storeId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return CreateChunkStore(tablet, storeId, nullptr);
+                return storeManager->CreateChunkStore(Bootstrap_, storeId, nullptr);
 
             case EObjectType::DynamicMemoryTabletStore:
-                return CreateDynamicMemoryStore(tablet, storeId);
+                return storeManager->CreateDynamicMemoryStore(storeId);
 
             default:
                 YUNREACHABLE();
@@ -292,11 +294,31 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
+    class TTabletTraits
+    {
+    public:
+        explicit TTabletTraits(TImpl* owner)
+            : Owner_(owner)
+        { }
+
+        std::unique_ptr<TTablet> Create(const TTabletId& id)
+        {
+            auto tablet = std::make_unique<TTablet>(id);
+            auto storeManager = New<TStoreManager>(Owner_->Config_, tablet.get());
+            tablet->SetStoreManager(storeManager);
+            return tablet;
+        }
+
+    private:
+        TImpl* Owner_;
+
+    };
+
     TTabletManagerConfigPtr Config_;
 
     ICodec* ChangelogCodec_;
 
-    NHydra::TEntityMap<TTabletId, TTablet> TabletMap_;
+    TEntityMap<TTabletId, TTablet, TTabletTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
     TRingQueue<TDynamicRowRef> PrelockedRows_;
@@ -356,7 +378,7 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            InitializeTablet(tablet);
+            tablet->GetStoreManager()->Initialize();
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
@@ -464,9 +486,10 @@ private:
             pivotKey,
             nextPivotKey);
         tablet->CreateInitialPartition();
-        InitializeTablet(tablet);
 
-        auto storeManager = tablet->GetStoreManager();
+        auto storeManager = New<TStoreManager>(Config_, tablet);
+        tablet->SetStoreManager(storeManager);
+        storeManager->Initialize();
         storeManager->CreateActiveStore();
         StartMemoryUsageTracking(tablet);
         tablet->SetState(ETabletState::Mounted);
@@ -475,7 +498,7 @@ private:
         for (const auto& descriptor : request.chunk_stores()) {
             YCHECK(descriptor.has_chunk_meta());
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
-            auto store = CreateChunkStore(tablet, chunkId, &descriptor.chunk_meta());
+            auto store = storeManager->CreateChunkStore(Bootstrap_, chunkId, &descriptor.chunk_meta());
             storeManager->AddStore(store);
         }
 
@@ -753,7 +776,7 @@ private:
                 auto storeId = FromProto<TChunkId>(descriptor.store_id());
                 addedStoreIds.push_back(storeId);
                 YCHECK(descriptor.has_chunk_meta());
-                auto store = CreateChunkStore(tablet, storeId, &descriptor.chunk_meta());
+                auto store = storeManager->CreateChunkStore(Bootstrap_, storeId, &descriptor.chunk_meta());
                 storeManager->AddStore(store);
                 TStoreId backingStoreId;
                 if (descriptor.has_backing_store_id()) {
@@ -1131,13 +1154,6 @@ private:
     }
 
 
-    void InitializeTablet(TTablet* tablet)
-    {
-        auto storeManager = New<TStoreManager>(Config_, tablet);
-        tablet->SetStoreManager(storeManager);
-    }
-
-
     void StartTabletEpoch(TTablet* tablet)
     {
         tablet->StartEpoch(Slot_);
@@ -1168,26 +1184,6 @@ private:
         tabletSlotManager->UnregisterTablet(tablet);
     }
 
-
-    TChunkStorePtr CreateChunkStore(
-        TTablet* tablet,
-        const TChunkId& chunkId,
-        const TChunkMeta* chunkMeta)
-    {
-        return New<TChunkStore>(
-            chunkId,
-            tablet,
-            chunkMeta,
-            Bootstrap_);
-    }
-
-    TDynamicMemoryStorePtr CreateDynamicMemoryStore(TTablet* tablet, const TStoreId& storeId)
-    {
-        return New<TDynamicMemoryStore>(
-            Config_,
-            storeId,
-            tablet);
-    }
 
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {

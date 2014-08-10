@@ -167,27 +167,10 @@ protected:
     TChunkedMemoryPool Pool_;
     
 
-    void WaitOnRow(TDynamicRow dynamicRow)
-    {
-        WaitFor(
-            BIND(&TFetcherBase::DoWaitOnRow, dynamicRow)
-                .AsyncVia(Store_->Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
-                .Run());
-    }
-
-    static void DoWaitOnRow(TDynamicRow dynamicRow)
-    {
-        auto* transaction = dynamicRow.GetTransaction();
-        if (transaction) {
-            WaitFor(transaction->GetFinished());
-        }
-    }
-
-
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
-        if (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
-            WaitOnRow(dynamicRow);
+        while (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
+            Store_->RowBlocked_.Fire(dynamicRow);
         }
 
         auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_);

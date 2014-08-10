@@ -13,6 +13,8 @@
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -26,7 +28,7 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet);
 
-    ~TStoreManager();
+    void Initialize();
 
     TTablet* GetTablet() const;
 
@@ -70,7 +72,14 @@ public:
 
     void AddStore(IStorePtr store);
     void RemoveStore(IStorePtr store);
+
     void CreateActiveStore();
+
+    TDynamicMemoryStorePtr CreateDynamicMemoryStore(const TStoreId& storeId);
+    TChunkStorePtr CreateChunkStore(
+        NCellNode::TBootstrap* bootstrap,
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta* chunkMeta);
 
     bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
     const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
@@ -105,6 +114,9 @@ private:
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
+
+    void OnRowBlocked(TDynamicRow row);
+    static void WaitForBlockedRow(TDynamicRow row);
 
 };
 
