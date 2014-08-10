@@ -414,8 +414,7 @@ TEST_F(TDynamicMemoryStoreTest, WriteWriteConflict2)
     });
 }
 
-#if 0
-TEST_F(TDynamicMemoryStoreTest, ReadNotPostponed)
+TEST_F(TDynamicMemoryStoreTest, ReadNotBlocked)
 {
     auto key = BuildKey("1");
 
@@ -426,17 +425,19 @@ TEST_F(TDynamicMemoryStoreTest, ReadNotPostponed)
     PrepareTransaction(transaction.get());
     PrepareRow(row);
 
-    auto fiber = New<TFiber>(BIND([&] () {
-        // Not postponed because of timestamp.
-        CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
-        CompareRows(LookupRow(key, transaction->GetPrepareTimestamp()), Null);
+    bool blocked = false;
+    Store->SubscribeRowBlocked(BIND([&] (TDynamicRow) {
+        blocked = true;
     }));
 
-    fiber->Run();
-    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
+    // Not blocked.
+    CompareRows(LookupRow(key, LastCommittedTimestamp), Null);
+    CompareRows(LookupRow(key, transaction->GetPrepareTimestamp()), Null);
+
+    EXPECT_FALSE(blocked);
 }
 
-TEST_F(TDynamicMemoryStoreTest, ReadPostpostedAbort)
+TEST_F(TDynamicMemoryStoreTest, ReadBlockedAbort)
 {
     auto key = BuildKey("1");
 
@@ -447,22 +448,20 @@ TEST_F(TDynamicMemoryStoreTest, ReadPostpostedAbort)
     PrepareTransaction(transaction.get());
     PrepareRow(row);
 
-    auto fiber = New<TFiber>(BIND([&] () {
-        // Postponed, old value is read.
-        CompareRows(LookupRow(key, MaxTimestamp), Null);
+    bool blocked = false;
+    Store->SubscribeRowBlocked(BIND([&] (TDynamicRow) {
+        AbortTransaction(transaction.get());
+        AbortRow(row);
+        blocked = true;
     }));
 
-    fiber->Run();
-    ASSERT_EQ(fiber->GetState(), EFiberState::Suspended);
+    // Blocked, old value is read.
+    CompareRows(LookupRow(key, MaxTimestamp), Null);
 
-    AbortTransaction(transaction.get());
-    AbortRow(row);
-
-    fiber->Run();
-    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
+    EXPECT_TRUE(blocked);
 }
 
-TEST_F(TDynamicMemoryStoreTest, ReadPostponedCommit)
+TEST_F(TDynamicMemoryStoreTest, ReadBlockedCommit)
 {
     auto key = BuildKey("1");
 
@@ -473,21 +472,18 @@ TEST_F(TDynamicMemoryStoreTest, ReadPostponedCommit)
     PrepareTransaction(transaction.get());
     PrepareRow(row);
 
-    auto fiber = New<TFiber>(BIND([&] () {
-        // Postponed, new value is read.
-        CompareRows(LookupRow(key, MaxTimestamp), Stroka("key=1;a=1"));
+    bool blocked = false;
+    Store->SubscribeRowBlocked(BIND([&] (TDynamicRow) {
+        CommitTransaction(transaction.get());
+        CommitRow(row);
+        blocked = true;
     }));
 
-    fiber->Run();
-    ASSERT_EQ(fiber->GetState(), EFiberState::Suspended);
+    // Blocked, new value is read.
+    CompareRows(LookupRow(key, MaxTimestamp), Stroka("key=1;a=1"));
 
-    CommitTransaction(transaction.get());
-    CommitRow(row);
-
-    fiber->Run();
-    ASSERT_EQ(fiber->GetState(), EFiberState::Terminated);
+    EXPECT_TRUE(blocked);
 }
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
