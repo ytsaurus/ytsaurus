@@ -74,9 +74,9 @@ void TFetcherBase::StartFetchingRound()
         }
         if (!chunkAvailable) {
             FetchingResult_.Set(TError(
-                "Unable to fetch info for chunk %s from any of nodes [%s]",
-                ~ToString(chunkId),
-                ~JoinToString(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
+                "Unable to fetch info for chunk %v from any of nodes [%v]",
+                chunkId,
+                JoinToString(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
             return;
         }
     }

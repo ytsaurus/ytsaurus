@@ -220,11 +220,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s, FailContextChunkIds: %s)",
-            ~ToString(job->GetOperation()->GetId()),
-            ~ToString(job->GetId()),
-            ~ToString(stderrChunkId),
-            ~JoinToString(failContextChunkIds));
+        LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StdErrChunkId: %v, FailContextChunkIds: %v)",
+            job->GetOperation()->GetId(),
+            job->GetId(),
+            stderrChunkId,
+            JoinToString(failContextChunkIds));
 
         auto* list = GetUpdateList(job->GetOperation());
         TJobRequest request;
@@ -1500,8 +1500,8 @@ private:
                 if (!rsp->IsOK()) {
                     LOG_WARNING(
                         rsp->GetError(),
-                        "Error creating fail context node (OperationId: %s)",
-                        ~ToString(operationId));
+                        "Error creating fail context node (OperationId: %v)",
+                        operationId);
                 }
             }
         }

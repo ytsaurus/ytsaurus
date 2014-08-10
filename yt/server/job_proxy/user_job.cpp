@@ -240,7 +240,9 @@ public:
                     ToProto(schedulerResultExt->add_fail_context_chunk_ids(), contextChunkId);
 
                     if (contextChunkId != NChunkServer::NullChunkId) {
-                        LOG_INFO("Fail context chunk generated (ChunkId: %s, PipeIndex: %d)", ~ToString(contextChunkId), pipeIndex);
+                        LOG_INFO("Fail context chunk generated (ChunkId: %v, PipeIndex: %v)",
+                            contextChunkId,
+                            pipeIndex);
                     }
                     ++pipeIndex;
                 }
