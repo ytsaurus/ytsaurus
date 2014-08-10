@@ -439,7 +439,7 @@ void TTablet::StopEpoch()
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 {
-    return EpochAutomatonInvokers_.empty() ? nullptr : EpochAutomatonInvokers_[queue];
+    return EpochAutomatonInvokers_[queue];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
