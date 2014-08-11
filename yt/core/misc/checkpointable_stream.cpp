@@ -69,7 +69,7 @@ private:
                 break;
             }
             i64 size = std::min(BlockLength_ - Offset_, static_cast<i64>(len) - pos);
-            YCHECK(UnderlyingStream_->Read(buf + pos, size) == size);
+            YCHECK(UnderlyingStream_->Load(buf + pos, size) == size);
             pos += size;
             Offset_ += size;
             if (Offset_ == BlockLength_) {
