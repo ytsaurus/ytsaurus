@@ -37,12 +37,14 @@
 #include <server/tablet_node/tablet_slot.h>
 #include <server/tablet_node/tablet.h>
 #include <server/tablet_node/tablet_reader.h>
+#include <server/tablet_node/config.h>
 
 #include <server/hydra/hydra_manager.h>
 
 #include <server/data_node/local_chunk_reader.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -294,7 +296,7 @@ private:
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
             chunkReader = CreateReplicationReader(
-                Config_->Reader,
+                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
                 std::move(blockCache),
                 std::move(masterChannel),
                 std::move(nodeDirectory),
@@ -303,7 +305,7 @@ private:
         }
 
         return CreateSchemafulChunkReader(
-            Config_->Reader,
+            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             split.chunk_meta(),
             lowerBound,

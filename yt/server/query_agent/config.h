@@ -6,21 +6,8 @@
 
 #include <core/compression/public.h>
 
-#include <ytlib/new_table_client/config.h>
-
-#include <ytlib/chunk_client/config.h>
-
 namespace NYT {
 namespace NQueryAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TQueryChunkReaderConfig
-    : public NVersionedTableClient::TChunkReaderConfig
-    , public NChunkClient::TReplicationReaderConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TQueryChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +20,6 @@ public:
 
     NCompression::ECodec LookupResponseCodec;
     NCompression::ECodec SelectResponseCodec;
-
-    TIntrusivePtr<TQueryChunkReaderConfig> Reader;
 
     TQueryAgentConfig()
     {
@@ -49,9 +34,6 @@ public:
             .Default(NCompression::ECodec::Lz4);
         RegisterParameter("select_response_codec", SelectResponseCodec)
             .Default(NCompression::ECodec::Lz4);
-
-        RegisterParameter("reader", Reader)
-            .DefaultNew();
     }
 };
 

@@ -199,7 +199,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     if (!chunkReader) {
         // TODO(babenko): provide seed replicas
         chunkReader = CreateReplicationReader(
-            Bootstrap_->GetConfig()->QueryAgent->Reader,
+            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             Bootstrap_->GetBlockStore()->GetBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
@@ -223,7 +223,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     upperLimit.SetKey(std::move(upperKey));
 
     return CreateVersionedChunkReader(
-        Bootstrap_->GetConfig()->QueryAgent->Reader,
+        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         chunkReader,
         CachedMeta_,
         lowerLimit,

@@ -298,6 +298,15 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletChunkReaderConfig
+    : public NVersionedTableClient::TChunkReaderConfig
+    , public NChunkClient::TReplicationReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTabletChunkReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -331,6 +340,7 @@ public:
     TStoreCompactorConfigPtr StoreCompactor;
     TPartitionBalancerConfigPtr PartitionBalancer;
 
+    TTabletChunkReaderConfigPtr ChunkReader;
     NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
 
     TTabletNodeConfig()
@@ -367,6 +377,8 @@ public:
         RegisterParameter("partition_balancer", PartitionBalancer)
             .DefaultNew();
 
+        RegisterParameter("chunk_reader", ChunkReader)
+            .DefaultNew();
         RegisterParameter("chunk_writer", ChunkWriter)
             .DefaultNew();
     }
