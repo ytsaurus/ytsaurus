@@ -1121,46 +1121,48 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
         for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
             auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_);
             if (topList) {
-                int valueCount = topList.GetSize() + topList.GetSuccessorsSize();
-                if (topList && topList.Back().Timestamp == UncommittedTimestamp) {
-                    --valueCount;
-                }
-                Save(context, valueCount);
+                Save(context, static_cast<int>(0));
+                continue;
+            }
 
-                EnumerateListsAndReverse(topList, &valueLists);
-                for (auto list : valueLists) {
-                    for (const auto* valueIt = list.Begin(); valueIt != list.End(); ++valueIt) {
-                        const auto& value = *valueIt;
-                        if (value.Timestamp != UncommittedTimestamp) {
-                            NVersionedTableClient::Save(context, *valueIt);
-                        }
+            int valueCount = topList.GetSize() + topList.GetSuccessorsSize();
+            if (topList && topList.Back().Timestamp == UncommittedTimestamp) {
+                --valueCount;
+            }
+            Save(context, valueCount);
+
+            EnumerateListsAndReverse(topList, &valueLists);
+            for (auto list : valueLists) {
+                for (const auto* valueIt = list.Begin(); valueIt != list.End(); ++valueIt) {
+                    const auto& value = *valueIt;
+                    if (value.Timestamp != UncommittedTimestamp) {
+                        NVersionedTableClient::Save(context, *valueIt);
                     }
                 }
-            } else {
-                Save(context, static_cast<int>(0));
             }
         }
 
         auto saveTimestamps = [&] (ETimestampListKind kind) {
             auto topList = row.GetTimestampList(kind, KeyColumnCount_);
-            if (topList) {
-                int timestampCount = topList.GetSize() + topList.GetSuccessorsSize();
-                if (topList && topList.Back() == UncommittedTimestamp) {
-                    --timestampCount;
-                }
-                Save(context, timestampCount);
+            if (!topList) {
+                Save(context, static_cast<int>(0));
+                return;
+            }
 
-                EnumerateListsAndReverse(topList, &timestampLists);
-                for (auto list : timestampLists) {
-                    for (const auto* timestampIt = list.Begin(); timestampIt != list.End(); ++timestampIt) {
-                        auto timestamp = *timestampIt;
-                        if (timestamp != UncommittedTimestamp) {
-                            Save(context, timestamp);
-                        }
+            int timestampCount = topList.GetSize() + topList.GetSuccessorsSize();
+            if (topList && topList.Back() == UncommittedTimestamp) {
+                --timestampCount;
+            }
+            Save(context, timestampCount);
+
+            EnumerateListsAndReverse(topList, &timestampLists);
+            for (auto list : timestampLists) {
+                for (const auto* timestampIt = list.Begin(); timestampIt != list.End(); ++timestampIt) {
+                    auto timestamp = *timestampIt;
+                    if (timestamp != UncommittedTimestamp) {
+                        Save(context, timestamp);
                     }
                 }
-            } else {
-                Save(context, static_cast<int>(0));
             }
         };
         saveTimestamps(ETimestampListKind::Write);
