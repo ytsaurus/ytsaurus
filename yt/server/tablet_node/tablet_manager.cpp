@@ -175,6 +175,9 @@ public:
         ValidateTabletMounted(tablet);
         ValidateReadTimestamp(timestamp);
 
+        // Protect from tablet disposal.
+        TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
+
         TWireProtocolReader reader(requestData);
         TWireProtocolWriter writer;
 
@@ -200,6 +203,9 @@ public:
         if (transaction->GetState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
+
+        // Protect from tablet disposal.
+        TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         int commandsSucceded = 0;
         int prelockedRowCountBefore = PrelockedRows_.size();

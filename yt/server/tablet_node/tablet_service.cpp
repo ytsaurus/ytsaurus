@@ -42,7 +42,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetHydraManager(),
-            slot->GetAutomatonInvoker(EAutomatonThreadQueue::Write),
+            slot->GetAutomatonInvoker(),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellGuid()),
             TabletNodeLogger)
         , Slot_(slot)
@@ -54,7 +54,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
             .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Read)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
+            .SetInvoker(Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
 
 private:
@@ -70,7 +71,7 @@ private:
         auto startTimestamp = TTimestamp(request->start_timestamp());
         auto timeout = request->has_timeout() ? MakeNullable(TDuration::MilliSeconds(request->timeout())) : Null;
 
-        // Compute actual timeout and update request.
+        // Compute the actual timeout and update request.
         auto transactionManager = Slot_->GetTransactionManager();
         auto actualTimeout = transactionManager->GetActualTimeout(timeout);
         request->set_timeout(actualTimeout.MilliSeconds());
