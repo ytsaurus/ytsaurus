@@ -87,6 +87,8 @@ public:
 
         if (IsSealNeeded(chunk)) {
             EnqueueChunk(chunk);
+        } else {
+            LOG_DEBUG("IsSealNeeded = false (ChunkId: %v)", chunk->GetId());
         }
     }
 
@@ -115,10 +117,12 @@ private:
             auto nodes = GetOwningNodes(parent);
             for (auto* node : nodes) {
                 if (node->GetUpdateMode() != EUpdateMode::None) {
+                    LOG_DEBUG("IsLocked = true (ChunkId: %v)", chunk->GetId());
                     return true;
                 }
             }
         }
+        LOG_DEBUG("IsLocked = false (ChunkId: %v)", chunk->GetId());
         return false;
     }
 
@@ -146,14 +150,18 @@ private:
 
     void EnqueueChunk(TChunk* chunk)
     {
-        if (chunk->GetSealScheduled())
+        if (chunk->GetSealScheduled()) {
+            LOG_DEBUG("GetSealScheduled = true (ChunkId: %v)", chunk->GetId());
             return;
+        }
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(chunk);
 
         SealQueue_.push_back(chunk);
         chunk->SetSealScheduled(true);
+
+        LOG_DEBUG("EnqueueChunk (ChunkId: %v)", chunk->GetId());
     }
 
     TChunk* BeginDequeueChunk()
@@ -164,11 +172,13 @@ private:
         auto* chunk = SealQueue_.front();
         SealQueue_.pop_front();
         chunk->SetSealScheduled(false);
+        LOG_DEBUG("BeginDequeueChunk (ChunkId: %v)", chunk->GetId());
         return chunk;
     }
 
     void EndDequeueChunk(TChunk* chunk)
     {
+        LOG_DEBUG("EndDequeueChunk (ChunkId: %v)", chunk->GetId());
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakUnrefObject(chunk);
     }
@@ -224,8 +234,10 @@ private:
 
     void GuardedSealChunk(TChunk* chunk)
     {
-        if (!CanSeal(chunk))
+        if (!CanSeal(chunk)) {
+            LOG_DEBUG("CanSeal = false (ChunkId: %v)", chunk->GetId());
             return;
+        }
 
         LOG_INFO("Sealing journal chunk (ChunkId: %v)", chunk->GetId());
 
