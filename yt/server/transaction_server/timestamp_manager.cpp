@@ -74,8 +74,6 @@ public:
             Config_->CalibrationPeriod);
         CalibrationExecutor_->Start();
 
-        automaton->RegisterPart(this);
-
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
             .SetInvoker(TimestampInvoker_));
 

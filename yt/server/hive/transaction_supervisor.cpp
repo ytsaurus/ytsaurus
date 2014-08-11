@@ -100,8 +100,6 @@ public:
             ESerializationPriority::Values,
             "TransactionSupervisor.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
-
-        Automaton->RegisterPart(this);
     }
 
     IServicePtr GetRpcService()

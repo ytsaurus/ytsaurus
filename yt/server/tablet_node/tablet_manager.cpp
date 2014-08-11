@@ -86,8 +86,6 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
-        Slot_->GetAutomaton()->RegisterPart(this);
-
         RegisterLoader(
             "TabletManager.Keys",
             BIND(&TImpl::LoadKeys, Unretained(this)));

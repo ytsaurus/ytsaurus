@@ -59,8 +59,6 @@ public:
 
         Logger.AddTag("CellId: %v", Slot_->GetCellGuid());
 
-        Slot_->GetAutomaton()->RegisterPart(this);
-
         RegisterLoader(
             "TransactionManager.Keys",
             BIND(&TImpl::LoadKeys, Unretained(this)));

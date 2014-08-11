@@ -76,8 +76,6 @@ public:
         , Config_(config)
         , CellDirectory_(cellDirectory)
     {
-        Automaton->RegisterPart(this);
-
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
 
