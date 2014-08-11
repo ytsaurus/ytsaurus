@@ -100,29 +100,30 @@ private:
         ++ResponseCounter_;
         // NB: Missing session is also OK.
         if (rsp->IsOK() || rsp->GetError().GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
+            ++SuccessCounter_;
             LOG_INFO("Journal chunk session aborted successfully (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
 
-            if (++SuccessCounter_ == Quorum_) {
-                LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %v)",
-                    ChunkId_);
-                Promise_.TrySet(TError());
-            }
         } else {
             auto error = rsp->GetError();
             InnerErrors_.push_back(error);
-
             LOG_WARNING(error, "Failed to abort journal chunk session (ChunkId: %v, Address: %v)",
                 ChunkId_,
                 descriptor.GetDefaultAddress());
-           
-            if (ResponseCounter_ == Replicas_.size()) {
-                auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
-                    ChunkId_)
-                    << InnerErrors_;
-                Promise_.TrySet(combinedError);
-            }
+        }
+
+        if (SuccessCounter_ == Quorum_) {
+            LOG_INFO("Journal chunk session quroum aborted successfully (ChunkId: %v)",
+                ChunkId_);
+            Promise_.TrySet(TError());
+        }
+        
+        if (ResponseCounter_ == Replicas_.size()) {
+            auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
+                ChunkId_)
+                << InnerErrors_;
+            Promise_.TrySet(combinedError);
         }
     }
 
