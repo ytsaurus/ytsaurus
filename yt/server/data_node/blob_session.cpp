@@ -404,7 +404,7 @@ TError TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
         return Error_;
     }
 
-    LOG_DEBUG("Started closing chunk writer (ChunkSize: %v" ")",
+    LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
         Writer_->GetDataSize());
 
     PROFILE_TIMING ("/blob_chunk_close_time") {

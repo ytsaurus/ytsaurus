@@ -278,13 +278,13 @@ private:
 
         auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
         if (chunkReader) {
-            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
+            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,
                 lowerBound,
                 upperBound,
                 timestamp);
         } else {
-            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v" ")",
+            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,
                 lowerBound,
                 upperBound,

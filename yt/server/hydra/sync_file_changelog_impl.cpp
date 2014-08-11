@@ -379,7 +379,7 @@ std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
     YCHECK(maxRecords >= 0);
     YCHECK(Open_);
 
-    LOG_DEBUG("Reading up to %v records and up to %v" " bytes from record %v",
+    LOG_DEBUG("Reading up to %v records and up to %v bytes from record %v",
         maxRecords,
         maxBytes,
         firstRecordId);
@@ -554,7 +554,7 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
             WritePod(*IndexFile_, Index_.back());
             UpdateIndexHeader();
         }
-        LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v" ")",
+        LOG_DEBUG("Changelog index record added (RecordId: %v, Offset: %v)",
             recordId,
             CurrentFilePosition_);
     }
@@ -657,11 +657,11 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd(const TChangelogHeader& he
         if (!recordInfo || recordInfo->Id != RecordCount_ || RecordCount_ == SealedRecordCount_) {
             // Broken changelog case.
             if (!recordInfo || recordInfo->Id != RecordCount_) {
-                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %v, Offset: %v" ")",
+                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
             } else {
-                LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %v, Offset: %v" ")",
+                LOG_ERROR("Excess records found, sealed changelog trimmed (RecordId: %v, Offset: %v)",
                     RecordCount_,
                     CurrentFilePosition_);
             }

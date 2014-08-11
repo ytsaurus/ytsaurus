@@ -70,7 +70,7 @@ private:
 
             auto writer = FileStore_->CreateRawWriter(snapshotId);
 
-            LOG_INFO("Downloading %v" " bytes from peer %v",
+            LOG_INFO("Downloading %v bytes from peer %v",
                 params.CompressedLength,
                 params.PeerId);
 
@@ -95,13 +95,13 @@ private:
 
                 const auto& block = attachments[0];
                 if (block.Size() != blockSize) {
-                    LOG_WARNING("Snapshot block of wrong size received (Offset: %v" ", Size: %v, ExpectedSize: %v" ")",
+                    LOG_WARNING("Snapshot block of wrong size received (Offset: %v, Size: %v, ExpectedSize: %v)",
                         downloadedLength,
                         block.Size(),
                         blockSize);
                     // Continue anyway.
                 } else {
-                    LOG_DEBUG("Snapshot block received (Offset: %v" ", Size: %v" ")",
+                    LOG_DEBUG("Snapshot block received (Offset: %v, Size: %v)",
                         downloadedLength,
                         blockSize);
                 }

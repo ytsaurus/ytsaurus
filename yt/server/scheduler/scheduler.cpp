@@ -1811,7 +1811,7 @@ private:
             case EJobState::Completed: {
                 if (jobStatus->has_result()) {
                     const auto& statistics = jobStatus->result().statistics();
-                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v" ")",
+                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v}, Time: %v)",
                         statistics.input(),
                         statistics.output(),
                         statistics.time());

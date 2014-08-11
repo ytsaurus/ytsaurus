@@ -544,7 +544,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v" " (%v" " local), RowCount: %v" ", ResourceLimits: {%v})",
+        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, ResourceLimits: {%v})",
         joblet->Job->GetId(),
         Controller->Operation->GetId(),
         jobType,
@@ -637,7 +637,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
         const auto& statistics = joblet->Job->Result().statistics();
         if (statistics.input().row_count() != statistics.output().row_count()) {
             Controller->OnOperationFailed(TError(
-                "Input/output row count mismatch in completed job: %v" " != %v",
+                "Input/output row count mismatch in completed job: %v != %v",
                 statistics.input().row_count(),
                 statistics.output().row_count())
                 << TErrorAttribute("task", GetId()));
@@ -1921,7 +1921,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     task->CheckResourceDemandSanity(neededResources);
     i64 minMemory = neededResources.memory();
     candidateTasks.insert(std::make_pair(minMemory, task));
-    LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v" ")",
+    LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
         task->GetId(),
         minMemory / (1024 * 1024));
 
@@ -2078,8 +2078,8 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
 
         if (bestTask) {
             LOG_DEBUG(
-                "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v" ", JobLimits: {%v}, "
-                "PendingDataSize: %v" ", PendingJobCount: %v)",
+                "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: {%v}, "
+                "PendingDataSize: %v, PendingJobCount: %v)",
                 bestTask->GetId(),
                 address,
                 bestLocality,
@@ -2180,7 +2180,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 LOG_DEBUG(
                     "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: {%v}, "
-                    "PendingDataSize: %v" ", PendingJobCount: %v)",
+                    "PendingDataSize: %v, PendingJobCount: %v)",
                     task->GetId(),
                     address,
                     FormatResources(jobLimits),
@@ -2970,7 +2970,7 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    LOG_INFO("Input totals collected (ChunkCount: %v, DataSize: %v" ", RowCount: %v" ", ValueCount: %v" ")",
+    LOG_INFO("Input totals collected (ChunkCount: %v, DataSize: %v, RowCount: %v, ValueCount: %v)",
         TotalInputChunkCount,
         TotalInputDataSize,
         TotalInputRowCount,

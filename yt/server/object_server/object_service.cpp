@@ -369,7 +369,7 @@ private:
             if (node->GetRevision() != revision) {
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: node %v revision mismatch: expected %v" ", found %v",
+                    "Prerequisite check failed: node %v revision mismatch: expected %v, found %v",
                     path,
                     revision,
                     node->GetRevision());

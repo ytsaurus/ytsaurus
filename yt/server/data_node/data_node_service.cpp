@@ -1130,7 +1130,7 @@ private:
     {
         i64 pendingSize = GetPendingOutSize();
         if (pendingSize > Config_->BusOutThrottlingLimit) {
-            LOG_DEBUG("Outcoming throttling is active: %v" " > %v",
+            LOG_DEBUG("Outcoming throttling is active: %v > %v",
                 pendingSize,
                 Config_->BusOutThrottlingLimit);
             return true;
@@ -1143,7 +1143,7 @@ private:
     {
         i64 pendingSize = GetPendingInSize();
         if (pendingSize > Config_->BusInThrottlingLimit) {
-            LOG_DEBUG("Incoming throttling is active: %v" " > %v",
+            LOG_DEBUG("Incoming throttling is active: %v > %v",
                 pendingSize,
                 Config_->BusInThrottlingLimit);
             return true;

@@ -363,19 +363,20 @@ TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 void TJobProxy::CheckMemoryUsage()
 {
     auto memoryUsage = GetProcessRss();
-    LOG_DEBUG("Job proxy memory check (MemoryUsage: %v" ", MemoryLimit: %v" ")",
+    
+    LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,
         JobProxyMemoryLimit);
-    LOG_DEBUG("lf_alloc counters (LargeBlocks: %v" ", SmallBlocks: %v" ", System: %v" ", Used: %v" ", Mmapped: %v" ")",
-            NLFAlloc::GetCurrentLargeBlocks(),
-            NLFAlloc::GetCurrentSmallBlocks(),
-            NLFAlloc::GetCurrentSystem(),
-            NLFAlloc::GetCurrentUsed(),
-            NLFAlloc::GetCurrentMmapped());
+
+    LOG_DEBUG("LFAlloc counters (LargeBlocks: %v, SmallBlocks: %v, System: %v, Used: %v, Mmapped: %v)",
+        NLFAlloc::GetCurrentLargeBlocks(),
+        NLFAlloc::GetCurrentSmallBlocks(),
+        NLFAlloc::GetCurrentSystem(),
+        NLFAlloc::GetCurrentUsed(),
+        NLFAlloc::GetCurrentMmapped());
 
     if (memoryUsage > JobProxyMemoryLimit) {
-        LOG_FATAL(
-            "Job proxy memory limit exceeded (MemoryUsage: %v" ", MemoryLimit: %v" ", RefCountedTracker: %v)",
+        LOG_FATAL("Job proxy memory limit exceeded (MemoryUsage: %v, MemoryLimit: %v, RefCountedTracker: %v)",
             memoryUsage,
             JobProxyMemoryLimit,
             TRefCountedTracker::Get()->GetDebugInfo(2));

@@ -161,8 +161,8 @@ private:
                 continue;
 
             LOG_INFO("Scheduling store rotation due to memory pressure condition (TabletId: %v, "
-                "TotalMemoryUsage: %v" ", TabletMemoryUsage: %v" ", "
-                "MemoryLimit: %v" ")",
+                "TotalMemoryUsage: %v, TabletMemoryUsage: %v, "
+                "MemoryLimit: %v)",
                 candidate.TabletId,
                 Bootstrap_->GetMemoryUsageTracker()->GetUsed(NCellNode::EMemoryConsumer::Tablet),
                 candidate.MemoryUsage,

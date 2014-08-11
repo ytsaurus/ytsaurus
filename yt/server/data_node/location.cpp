@@ -268,7 +268,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
         i64 minSpace = Config_->MinDiskSpace.Get();
         i64 totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %v" ", actual %v",
+            THROW_ERROR_EXCEPTION("Min disk space requirement is not met: required %v, actual %v",
                 minSpace,
                 totalSpace);
         }

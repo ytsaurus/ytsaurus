@@ -315,7 +315,7 @@ protected:
 
         ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v" ")",
+        LOG_DEBUG("Task finished (Id: %v, TaskDataSize: %v)",
             task->GetId(),
             CurrentTaskDataSize);
 
@@ -444,7 +444,7 @@ protected:
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %v" ", ChunkCount: %v, JobCount: %v)",
+        LOG_INFO("Inputs processed (DataSize: %v, ChunkCount: %v, JobCount: %v)",
             TotalDataSize,
             TotalChunkCount,
             Tasks.size());

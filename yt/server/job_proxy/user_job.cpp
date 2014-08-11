@@ -550,7 +550,7 @@ private:
         try {
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId: %v, UsageInBytes: %v" ", MemoryLimit: %v" ")",
+            LOG_DEBUG("Get memory usage (JobId: %v, UsageInBytes: %v, MemoryLimit: %v)",
                 JobId,
                 statistics.UsageInBytes,
                 memoryLimit);
