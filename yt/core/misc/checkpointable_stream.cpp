@@ -220,5 +220,53 @@ std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStrea
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBufferedCheckpointableOutputStream
+    : public ICheckpointableOutputStream
+{
+public:
+    TBufferedCheckpointableOutputStream(
+        ICheckpointableOutputStream* underlyingStream,
+        size_t bufferSize)
+        : UnderlyingStream_(underlyingStream)
+        , BufferedOutput_(UnderlyingStream_)
+    { }
+
+    virtual void MakeCheckpoint()  override
+    {
+        BufferedOutput_.Flush();
+        UnderlyingStream_->MakeCheckpoint();
+    }
+
+private:
+    ICheckpointableOutputStream* UnderlyingStream_;
+    TBufferedOutput BufferedOutput_;
+
+    virtual void DoWrite(const void* buf, size_t len) override
+    {
+        BufferedOutput_.Write(buf, len);
+    }
+
+    virtual void DoFlush() override
+    {
+        BufferedOutput_.Flush();
+    }
+
+    virtual void DoFinish() override
+    {
+        BufferedOutput_.Finish();
+    }
+
+};
+
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
+    ICheckpointableOutputStream* underlyingStream,
+    size_t bufferSize)
+{
+    return std::unique_ptr<ICheckpointableOutputStream>(
+        new TBufferedCheckpointableOutputStream(underlyingStream, bufferSize));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 

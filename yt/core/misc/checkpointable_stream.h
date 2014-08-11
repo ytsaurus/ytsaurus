@@ -34,6 +34,9 @@ std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
     TOutputStream* underlyingStream);
 std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStream(
     TOutputStream* underlyingStream);
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
+    ICheckpointableOutputStream* underlyingStream,
+    size_t bufferSize = 8192);
 
 ////////////////////////////////////////////////////////////////////////////////
 
