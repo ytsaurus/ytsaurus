@@ -105,7 +105,6 @@ public:
         , SnapshotId_(snapshotId)
         , IsRaw_(isRaw)
         , Logger(HydraLogger)
-        , FacadeInput_(nullptr)
     {
         Logger.AddTag("FileName: %v", FileName_);
     }
@@ -146,23 +145,23 @@ public:
                     File_->Seek(offset, sSet);
                 }
 
-                RawInput_.reset(new TBufferedFileInput(*File_));
+                FileInput_.reset(new TBufferedFileInput(*File_));
 
                 auto codec = ECodec(Header_.Codec);
                 if (IsRaw_ || codec == ECodec::None) {
-                    FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
+                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
                 } else {
                     switch (codec) {
                         case ECodec::Snappy:
-                            CodecInput_.reset(new TSnappyDecompress(RawInput_.get()));
+                            CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
                             break;
                         case ECodec::Lz4:
-                            CodecInput_.reset(new TLz4Decompress(RawInput_.get()));
+                            CodecInput_.reset(new TLz4Decompress(FileInput_.get()));
                             break;
                         default:
                             YUNREACHABLE();
                     }
-                    FacadeInput_ = CreateCheckpointableInputStream(CodecInput_.get());
+                    CheckpointableInput_ = CreateCheckpointableInputStream(CodecInput_.get());
                 }
             } else if (signature == TSnapshotHeader_0_16::ExpectedSignature) {
                 TSnapshotHeader_0_16 legacyHeader;
@@ -199,13 +198,13 @@ public:
                     File_->Seek(offset, sSet);
                 }
 
-                RawInput_.reset(new TBufferedFileInput(*File_));
+                FileInput_.reset(new TBufferedFileInput(*File_));
 
                 if (IsRaw_) {
-                    FacadeInput_ = CreateFakeCheckpointableInputStream(RawInput_.get());
+                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
                 } else {
-                    CodecInput_.reset(new TSnappyDecompress(RawInput_.get()));
-                    FacadeInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get());
+                    CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
+                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get());
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unrecognized snapshot signature %" PRIx64,
@@ -220,7 +219,7 @@ public:
 
     virtual ICheckpointableInputStream* GetStream() override
     {
-        return FacadeInput_.get();
+        return CheckpointableInput_.get();
     }
 
     virtual TSnapshotParams GetParams() const override
@@ -241,9 +240,9 @@ private:
     NLog::TLogger Logger;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TBufferedFileInput> RawInput_;
+    std::unique_ptr<TBufferedFileInput> FileInput_;
     std::unique_ptr<TInputStream> CodecInput_;
-    std::unique_ptr<ICheckpointableInputStream> FacadeInput_;
+    std::unique_ptr<ICheckpointableInputStream> CheckpointableInput_;
 
     TSnapshotHeader Header_;
     TSharedRef Meta_;
@@ -281,7 +280,7 @@ public:
         , SnapshotId_(snapshotId)
         , Meta_(meta)
         , IsRaw_(isRaw)
-        , FacadeOutput_(nullptr)
+        , CheckpointableOutput_(nullptr)
     { }
 
     void Open()
@@ -291,17 +290,17 @@ public:
         try {
             File_.reset(new TFile(FileName_, CreateAlways | CloseOnExec));
 
-            RawOutput_.reset(new TBufferedFileOutput(*File_));
+            FileOutput_.reset(new TFileOutput(*File_));
 
             if (IsRaw_) {
-                FacadeOutput_ = CreateFakeCheckpointableOutputStream(RawOutput_.get());
+                CheckpointableOutput_ = CreateFakeCheckpointableOutputStream(FileOutput_.get());
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
                 WritePadded(*File_, Meta_);
                 File_->Flush();
 
-                ChecksumOutput_.reset(new TChecksumOutput(RawOutput_.get()));
+                ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
 
                 if (Codec_ == ECodec::None) {
                     LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(ChecksumOutput_.get()));
@@ -318,8 +317,10 @@ public:
                     }
                     LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_.get()));
                 }
-                FacadeOutput_ = CreateCheckpointableOutputStream(LengthMeasureOutput_.get());
+                CheckpointableOutput_ = CreateCheckpointableOutputStream(LengthMeasureOutput_.get());
             }
+
+            BufferedOutput_ = CreateBufferedCheckpointableOutputStream(CheckpointableOutput_.get());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
@@ -329,7 +330,7 @@ public:
 
     virtual ICheckpointableOutputStream* GetStream() override
     {
-        return FacadeOutput_.get();
+        return BufferedOutput_.get();
     }
 
     virtual void Close() override
@@ -337,7 +338,8 @@ public:
         // NB: Avoid logging here, this might be the forked child process.
 
         // NB: Some calls might be redundant.
-        FacadeOutput_->Finish();
+        BufferedOutput_->Finish();
+        CheckpointableOutput_->Finish();
         if (LengthMeasureOutput_) {
             LengthMeasureOutput_->Finish();
         }
@@ -347,7 +349,7 @@ public:
         if (ChecksumOutput_) {
             ChecksumOutput_->Finish();
         }
-        RawOutput_->Finish();
+        FileOutput_->Finish();
 
         if (!IsRaw_) {
             TSnapshotHeader header;
@@ -373,11 +375,12 @@ private:
     bool IsRaw_;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<TBufferedFileOutput> RawOutput_;
+    std::unique_ptr<TFileOutput> FileOutput_;
     std::unique_ptr<TOutputStream> CodecOutput_;
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
-    std::unique_ptr<ICheckpointableOutputStream> FacadeOutput_;
+    std::unique_ptr<ICheckpointableOutputStream> CheckpointableOutput_;
+    std::unique_ptr<ICheckpointableOutputStream> BufferedOutput_;
 
 };
 
