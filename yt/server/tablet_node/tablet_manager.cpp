@@ -785,7 +785,7 @@ private:
                 auto store = storeManager->CreateChunkStore(Bootstrap_, storeId, &descriptor.chunk_meta());
                 storeManager->AddStore(store);
                 TStoreId backingStoreId;
-                if (descriptor.has_backing_store_id()) {
+                if (!IsRecovery() && descriptor.has_backing_store_id()) {
                     backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
                     auto backingStore = tablet->GetStore(backingStoreId);
                     SetBackingStore(tablet, store, backingStore);
@@ -1193,16 +1193,13 @@ private:
 
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {
-        auto hydraManager = Slot_->GetHydraManager();
-        auto* mutationContext = hydraManager->GetMutationContext();
-        auto deadline = mutationContext->GetTimestamp() + tablet->GetConfig()->BackingStoreReleaseTime;
         auto this_ = MakeStrong(this);
         auto callback = BIND([this, this_, store] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
         }).Via(tablet->GetEpochAutomatonInvoker());
-        TDelayedExecutor::Submit(callback, deadline);
+        TDelayedExecutor::Submit(callback, tablet->GetConfig()->BackingStoreReleaseTime);
     }
 
 
