@@ -13,12 +13,21 @@
 #       include <cxxabi.h>
 #   endif
 namespace __cxxabiv1 {
-    // We do not care about actual type here, so erase it.
-    typedef void __untyped_cxa_exception;
-    struct __cxa_eh_globals {
-        __untyped_cxa_exception* caughtExceptions;
-        unsigned int uncaughtExceptions;
-    };
+
+// We do not care about actual type here, so erase it.
+typedef void __untyped_cxa_exception;
+struct __cxa_eh_globals
+{
+    __untyped_cxa_exception* caughtExceptions;
+    unsigned int uncaughtExceptions;
+};
+
+// TODO(babenko): investigate
+#ifdef _darwin_
+extern "C" __cxa_eh_globals* __cxa_get_globals();
+extern "C" __cxa_eh_globals* __cxa_get_globals_fast();
+#endif
+
 } // namespace __cxxabiv1
 #endif
 
