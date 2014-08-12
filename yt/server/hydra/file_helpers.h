@@ -24,7 +24,7 @@ public:
     void Append(const void* buffer, size_t length);
     void Write(const void* buffer, size_t length);
     size_t Pread(void* buffer, size_t length, i64 offset);
-    size_t Read(void* buffer, size_t length);
+    size_t Load(void* buffer, size_t length);
     void Skip(size_t length);
     size_t GetPosition();
     size_t GetLength();
@@ -48,7 +48,7 @@ class TCheckedReader
 public:
     explicit TCheckedReader(T& underlying);
 
-    size_t Read(void* buffer, size_t length);
+    size_t Load(void* buffer, size_t length);
     void Skip(size_t length);
     bool Success() const;
 

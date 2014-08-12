@@ -43,10 +43,11 @@ size_t TBufferedFile::Pread(void* buffer, size_t length, i64 offset)
     return File_.Pread(buffer, length, offset);
 }
 
-size_t TBufferedFile::Read(void* buffer, size_t length)
+size_t TBufferedFile::Load(void* buffer, size_t length)
 {
     FileOutput_.Flush();
-    return File_.Read(buffer, length);
+    File_.Load(buffer, length);
+    return length;
 }
 
 void TBufferedFile::Skip(size_t length)

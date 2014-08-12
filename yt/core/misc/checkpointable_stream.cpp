@@ -83,12 +83,12 @@ private:
     {
         if (!BlockStarted_) {
             TBlockHeader header;
-            i64 len = ReadPod(*UnderlyingStream_, header);
+            size_t len = UnderlyingStream_->Load(&header, sizeof(header));
+            YCHECK(len == 0 || len == sizeof(TBlockHeader));
+
             if (len == 0) {
                 return false;
             }
-
-            YCHECK(len == sizeof(TBlockHeader));
 
             BlockStarted_ = true;
             BlockLength_ = header.Length;

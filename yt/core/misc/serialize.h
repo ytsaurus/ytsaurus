@@ -63,7 +63,7 @@ void Append(TOutput& output, const TRef& ref)
 template <class TInput>
 size_t Read(TInput& input, TRef& ref)
 {
-    return input.Read(ref.Begin(), ref.Size());
+    return input.Load(ref.Begin(), ref.Size());
 }
 
 template <class TOutput, class T>
@@ -84,7 +84,7 @@ template <class TInput, class T>
 size_t ReadPod(TInput& input, T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return input.Read(&obj, sizeof(obj));
+    return input.Load(&obj, sizeof(obj));
 }
 
 template <class TOutput>
@@ -113,7 +113,7 @@ size_t AppendPadded(TOutput& output, const TRef& ref)
 template <class TInput>
 size_t ReadPadded(TInput& input, const TRef& ref)
 {
-    input.Read(ref.Begin(), ref.Size());
+    input.Load(ref.Begin(), ref.Size());
     input.Skip(GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }

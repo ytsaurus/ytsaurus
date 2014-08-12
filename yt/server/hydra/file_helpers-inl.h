@@ -17,13 +17,13 @@ TCheckedReader<T>::TCheckedReader(T& underlying)
 { }
 
 template <class T>
-size_t TCheckedReader<T>::Read(void* buffer, size_t length)
+size_t TCheckedReader<T>::Load(void* buffer, size_t length)
 {
     if (!Check(length)) {
         return 0;
     }
 
-    size_t bytesRead = Underlying_.Read(buffer, length);
+    size_t bytesRead = Underlying_.Load(buffer, length);
     CurrentOffset_ += bytesRead;
     return bytesRead;
 }
