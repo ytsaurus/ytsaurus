@@ -1120,7 +1120,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
         for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
             auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_);
-            if (topList) {
+            if (!topList) {
                 Save(context, static_cast<int>(0));
                 continue;
             }
