@@ -165,10 +165,12 @@ protected:
         {
             TChangelogHeader header;
             TFile file(TemporaryFile->Name(), RdWr);
-            ReadPod(file, header);
+            TFileInput input(file);
+            TFileOutput output(file);
+            ReadPod(input, header);
             header.SealedRecordCount = sealedRecordCount;
             file.Seek(0, sSet);
-            WritePod(file, header);
+            WritePod(output, header);
         }
 
         auto changelog = OpenChangelog();
