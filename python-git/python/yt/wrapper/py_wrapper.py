@@ -85,7 +85,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
 
                 zip.write(file, relpath)
 
-    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module")[1] + ".py"
+    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
     config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
