@@ -308,7 +308,7 @@ private:
         std::unique_ptr<TTablet> Create(const TTabletId& id)
         {
             auto tablet = std::make_unique<TTablet>(id);
-            auto storeManager = New<TStoreManager>(Owner_->Config_, tablet.get());
+            auto storeManager = Owner_->CreateStoreManager(tablet.get());
             tablet->SetStoreManager(storeManager);
             return tablet;
         }
@@ -490,13 +490,15 @@ private:
             pivotKey,
             nextPivotKey);
         tablet->CreateInitialPartition();
+        tablet->SetState(ETabletState::Mounted);
 
-        auto storeManager = New<TStoreManager>(Config_, tablet);
+        auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
         storeManager->Initialize();
         storeManager->CreateActiveStore();
+
         StartMemoryUsageTracking(tablet);
-        tablet->SetState(ETabletState::Mounted);
+
         TabletMap_.Insert(tabletId, tablet);
 
         for (const auto& descriptor : request.chunk_stores()) {
@@ -1269,6 +1271,15 @@ private:
         if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
             THROW_ERROR_EXCEPTION("Out of tablet memory, all writes disabled");
         }
+    }
+
+
+    TStoreManagerPtr CreateStoreManager(TTablet* tablet)
+    {
+        return New<TStoreManager>(
+            Config_,
+            tablet,
+            Bootstrap_->GetQueryWorkerInvoker());
     }
 
 };

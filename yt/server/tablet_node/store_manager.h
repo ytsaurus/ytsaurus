@@ -3,8 +3,6 @@
 #include "public.h"
 #include "dynamic_memory_store_bits.h"
 
-#include <core/misc/chunked_memory_pool.h>
-
 #include <core/logging/log.h>
 
 #include <ytlib/tablet_client/public.h>
@@ -26,7 +24,8 @@ class TStoreManager
 public:
     TStoreManager(
         TTabletManagerConfigPtr config,
-        TTablet* tablet);
+        TTablet* tablet,
+        IInvokerPtr readWorkerInvoker = nullptr);
 
     void Initialize();
 
@@ -87,6 +86,7 @@ public:
 private:
     TTabletManagerConfigPtr Config_;
     TTablet* Tablet_;
+    IInvokerPtr ReadWorkerInvoker_;
 
     bool RotationScheduled_;
     TInstant LastRotated_;
@@ -95,10 +95,6 @@ private:
     yhash_set<TDynamicMemoryStorePtr> PassiveStores_;
 
     std::multimap<TTimestamp, IStorePtr> LatestTimestampToStore_;
-
-    TChunkedMemoryPool LookupMemoryPool_;
-    std::vector<TUnversionedRow> PooledKeys_;
-    std::vector<TUnversionedRow> UnversionedPooledRows_;
 
     NLog::TLogger Logger;
 

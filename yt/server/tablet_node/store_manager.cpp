@@ -10,6 +10,7 @@
 #include "private.h"
 
 #include <core/misc/small_vector.h>
+#include <core/misc/object_pool.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_collector.h>
@@ -45,18 +46,169 @@ using NVersionedTableClient::TKey;
 
 static const size_t MaxRowsPerRead = 1024;
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLookupPoolTag { };
+
+class TLookupExecutor
+{
+public:
+    TLookupExecutor()
+        : MemoryPool_(TLookupPoolTag())
+        , RunCallback_(BIND(&TLookupExecutor::DoRun, this).Guarded())
+    { }
+
+    void Prepare(
+        TTablet* tablet,
+        TTimestamp timestamp,
+        TWireProtocolReader* reader)
+    {
+        Tablet_ = tablet;
+        KeyColumnCount_ = Tablet_->GetKeyColumnCount();
+        SchemaColumnCount_ = Tablet_->GetSchemaColumnCount();
+
+        ColumnFilter_ = reader->ReadColumnFilter();
+
+        SmallVector<bool, TypicalColumnCount> columnFilterFlags(SchemaColumnCount_);
+        if (ColumnFilter_.All) {
+            for (int id = 0; id < SchemaColumnCount_; ++id) {
+                columnFilterFlags[id] = true;
+            }
+        } else {
+            for (int index : ColumnFilter_.Indexes) {
+                if (index < 0 || index >= SchemaColumnCount_) {
+                    THROW_ERROR_EXCEPTION("Invalid index %v in column filter",
+                        index);
+                }
+                columnFilterFlags[index] = true;
+            }
+        }
+
+        for (const auto& pair : Tablet_->Stores()) {
+            const auto& store = pair.second;
+            auto lookuper = store->CreateLookuper(timestamp, ColumnFilter_);
+            Lookupers_.push_back(lookuper);
+        }
+
+        reader->ReadUnversionedRowset(&LookupKeys_);
+    }
+
+    TAsyncError Run(IInvokerPtr invoker, TWireProtocolWriter* writer)
+    {
+        if (invoker) {
+            return RunCallback_.AsyncVia(invoker).Run(writer);
+        } else {
+            return MakeFuture(RunCallback_.Run(writer));
+        }
+    }
+
+    void Clean()
+    {
+        MemoryPool_.Clear();
+        LookupKeys_.clear();
+        ResultRows_.clear();
+        Lookupers_.clear();
+    }
+
+private:
+    TChunkedMemoryPool MemoryPool_;
+    std::vector<TUnversionedRow> LookupKeys_;
+    std::vector<TUnversionedRow> ResultRows_;
+    std::vector<IVersionedLookuperPtr> Lookupers_;
+    
+    TTablet* Tablet_;
+    int KeyColumnCount_;
+    int SchemaColumnCount_;
+    TColumnFilter ColumnFilter_;
+
+    TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
+
+
+    void DoRun(TWireProtocolWriter* writer)
+    {
+        TUnversionedRowMerger rowMerger(
+            &MemoryPool_,
+            SchemaColumnCount_,
+            KeyColumnCount_,
+            ColumnFilter_);
+
+        TKeyComparer keyComparer(KeyColumnCount_);
+
+        for (auto key : LookupKeys_) {
+            ValidateServerKey(key, KeyColumnCount_);
+
+            // Create lookupers, send requests, collect sync responses.
+            TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
+            SmallVector<TVersionedRow, TypicalStoreCount> partialRows;
+            for (const auto& lookuper : Lookupers_) {
+                auto futureRowOrError = lookuper->Lookup(key);
+                auto maybeRowOrError = futureRowOrError.TryGet();
+                if (maybeRowOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
+                    partialRows.push_back(maybeRowOrError->Value());
+                } else {
+                    if (!collector) {
+                        collector = New<TParallelCollector<TVersionedRow>>();
+                    }
+                    collector->Collect(futureRowOrError);
+                }
+            }
+
+            // Wait for async responses.
+            if (collector) {
+                auto result = WaitFor(collector->Complete());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                partialRows.insert(partialRows.end(), result.Value().begin(), result.Value().end());
+            }
+
+            // Merge partial rows.
+            for (auto row : partialRows) {
+                if (row) {
+                    rowMerger.AddPartialRow(row);
+                }
+            }
+
+            ResultRows_.push_back(rowMerger.BuildMergedRowAndReset());
+        }
+
+        writer->WriteUnversionedRowset(ResultRows_);
+    }
+
+};
+
+} // namespace NTabletNode
+} // namespace NYT
+
+namespace NYT {
+
+template <>
+struct TPooledObjectTraits<NTabletNode::TLookupExecutor, void>
+    : public TPooledObjectTraitsBase
+{
+    static void Clean(NTabletNode::TLookupExecutor* executor)
+    {
+        executor->Clean();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
+namespace NYT {
+namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreManager::TStoreManager(
     TTabletManagerConfigPtr config,
-    TTablet* Tablet_)
+    TTablet* Tablet_,
+    IInvokerPtr readPoolInvoker)
     : Config_(config)
     , Tablet_(Tablet_)
+    , ReadWorkerInvoker_(readPoolInvoker)
     , RotationScheduled_(false)
     , LastRotated_(TInstant::Now())
-    , LookupMemoryPool_(TLookupPoolTag())
     , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
@@ -113,89 +265,13 @@ bool TStoreManager::HasUnflushedStores() const
 
 void TStoreManager::LookupRows(
     TTimestamp timestamp,
-    NTabletClient::TWireProtocolReader* reader,
-    NTabletClient::TWireProtocolWriter* writer)
+    TWireProtocolReader* reader,
+    TWireProtocolWriter* writer)
 {
-    auto columnFilter = reader->ReadColumnFilter();
-
-    int keyColumnCount = Tablet_->GetKeyColumnCount();
-    int schemaColumnCount = Tablet_->GetSchemaColumnCount();
-
-    SmallVector<bool, TypicalColumnCount> columnFilterFlags(schemaColumnCount);
-    if (columnFilter.All) {
-        for (int id = 0; id < schemaColumnCount; ++id) {
-            columnFilterFlags[id] = true;
-        }
-    } else {
-        for (int index : columnFilter.Indexes) {
-            if (index < 0 || index >= schemaColumnCount) {
-                THROW_ERROR_EXCEPTION("Invalid index %v in column filter",
-                    index);
-            }
-            columnFilterFlags[index] = true;
-        }
-    }
-
-    PooledKeys_.clear();
-    reader->ReadUnversionedRowset(&PooledKeys_);
-
-    SmallVector<IVersionedLookuperPtr, TypicalStoreCount> lookupers;
-    for (const auto& pair : Tablet_->Stores()) {
-        const auto& store = pair.second;
-        auto lookuper = store->CreateLookuper(timestamp, columnFilter);
-        lookupers.push_back(lookuper);
-    }
-
-    UnversionedPooledRows_.clear();
-    LookupMemoryPool_.Clear();
-
-    TUnversionedRowMerger rowMerger(
-        &LookupMemoryPool_,
-        schemaColumnCount,
-        keyColumnCount,
-        columnFilter);
-
-    TKeyComparer keyComparer(keyColumnCount);
-
-    for (auto key : PooledKeys_) {
-        ValidateServerKey(key, keyColumnCount);
-
-        // Create lookupers, send requests, collect sync responses.
-        TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
-        SmallVector<TVersionedRow, TypicalStoreCount> partialRows;
-        for (const auto& lookuper : lookupers) {
-            auto futureRowOrError = lookuper->Lookup(key);
-            auto maybeRowOrError = futureRowOrError.TryGet();
-            if (maybeRowOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(*maybeRowOrError);
-                partialRows.push_back(maybeRowOrError->Value());
-            } else {
-                if (!collector) {
-                    collector = New<TParallelCollector<TVersionedRow>>();
-                }
-                collector->Collect(futureRowOrError);
-            }
-        }
-
-        // Wait for async responses.
-        if (collector) {
-            auto result = WaitFor(collector->Complete());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            partialRows.insert(partialRows.end(), result.Value().begin(), result.Value().end());
-        }
-
-        // Merge partial rows.
-        for (auto row : partialRows) {
-            if (row) {
-                rowMerger.AddPartialRow(row);
-            }
-        }
-
-        auto mergedRow = rowMerger.BuildMergedRowAndReset();
-        UnversionedPooledRows_.push_back(mergedRow);
-    }
-    
-    writer->WriteUnversionedRowset(UnversionedPooledRows_);
+    auto executor = ObjectPool<TLookupExecutor>().Allocate();
+    executor->Prepare(Tablet_, timestamp, reader);
+    auto result = WaitFor(executor->Run(ReadWorkerInvoker_, writer));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 TDynamicRowRef TStoreManager::WriteRow(
@@ -570,3 +646,4 @@ void TStoreManager::WaitForBlockedRow(TDynamicRow row)
 
 } // namespace NTabletNode
 } // namespace NYT
+
