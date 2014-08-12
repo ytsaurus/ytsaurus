@@ -321,7 +321,7 @@ private:
         for (const auto& column : schema.Columns()) {
             const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
             if (tabletColumn.Type != column.Type) {
-                THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qv, actual %Qv",
+                THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
                     column.Name,
                     tabletColumn.Type,
                     column.Type);

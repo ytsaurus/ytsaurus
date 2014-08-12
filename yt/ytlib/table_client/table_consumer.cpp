@@ -566,7 +566,7 @@ void TTableConsumerBase::ThrowCompositesNotSupported()
 
 void TTableConsumerBase::ThrowInvalidSchemaColumnType(int columnId, NVersionedTableClient::EValueType actualType)
 {
-    THROW_ERROR AttachLocationAttributes(TError("Invalid type of schema column %Qv: expected %Qv, actual %Qv",
+    THROW_ERROR AttachLocationAttributes(TError("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
         NameTable_->GetName(columnId),
         SchemaColumnDescriptors_[columnId].Type,
         actualType));
