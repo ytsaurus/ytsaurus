@@ -30,7 +30,7 @@ def unlist_destination_tables(tables):
     elif len(tables) == 1:
         return tables[0]
     else:
-        die("Multiple desitnation tables are forbidden")
+        die("Multiple destination tables are forbidden")
 
 def calculate_if_function(obj):
     if hasattr(obj, '__call__'):
@@ -122,7 +122,7 @@ def main():
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
         description="Shell utility to work with YT system.\n"
-                    "This utitlity is back-compatible with mapreduce for Yamr.",
+                    "This utility is back-compatible with mapreduce for Yamr.",
         epilog=
 """
 Examples:
