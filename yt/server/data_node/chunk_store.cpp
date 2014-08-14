@@ -333,7 +333,7 @@ int TChunkStore::GetChunkCount() const
     return static_cast<int>(ChunkMap_.size());
 }
 
-void TChunkStore::OnLocationDisabled(TLocationPtr location)
+void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -372,7 +372,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
     masterConnector->RegisterAlert(Format("Chunk store %Qv (%v) is disabled\n%v",
         location->GetId(),
         location->GetPath(),
-        location->GetDisableReason()));
+        reason));
     masterConnector->ForceRegister();
 }
 

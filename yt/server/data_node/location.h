@@ -113,14 +113,11 @@ public:
     //! Marks the location as disabled.
     void Disable(TError reason);
 
-    //! Returns the reason while location was disabled.
-    const TError& GetDisableReason();
-
     //! Raised when the location gets disabled.
     /*!
      *  Raised at most once in Control thread.
      */
-    DEFINE_SIGNAL(void(), Disabled);
+    DEFINE_SIGNAL(void(const TError&), Disabled);
 
     //! The profiler tagged with location id.
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
@@ -132,7 +129,6 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     std::atomic<bool> Enabled_;
-    TError DisableReason_;
 
     mutable i64 AvailableSpace_;
     i64 UsedSpace_;

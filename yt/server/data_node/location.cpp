@@ -241,13 +241,7 @@ void TLocation::DoDisable(TError reason)
     SessionCount_ = 0;
     ChunkCount_ = 0;
 
-    DisableReason_ = std::move(reason);
-    Disabled_.Fire();
-}
-
-const TError& TLocation::GetDisableReason()
-{
-    return DisableReason_;
+    Disabled_.Fire(reason);
 }
 
 std::vector<TChunkDescriptor> TLocation::Initialize()

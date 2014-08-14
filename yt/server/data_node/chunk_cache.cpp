@@ -195,7 +195,7 @@ private:
         ChunkRemoved_.Fire(value);
     }
 
-    void OnLocationDisabled()
+    void OnLocationDisabled(const TError& reason)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -205,7 +205,8 @@ private:
         // Register an alert and
         // schedule an out-of-order heartbeat to notify the master about the disaster.
         auto masterConnector = Bootstrap_->GetMasterConnector();
-        masterConnector->RegisterAlert("Chunk cache is disabled");
+        masterConnector->RegisterAlert(Format("Chunk cache is disabled\n%v",
+            reason));
         masterConnector->ForceRegister();
     }
 
