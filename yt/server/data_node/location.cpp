@@ -106,9 +106,9 @@ i64 TLocation::GetAvailableSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         AvailableSpace_ = statistics.AvailableSpace;
     } catch (const std::exception& ex) {
-        auto message = "Failed to compute available space";
-        LOG_ERROR(ex, message);
-        const_cast<TLocation*>(this)->Disable(TError(message) << ex);
+        auto error = TError("Failed to compute available space") << ex;
+        LOG_ERROR(error);
+        const_cast<TLocation*>(this)->Disable(error);
         AvailableSpace_ = 0;
         return 0;
     }
@@ -126,9 +126,9 @@ i64 TLocation::GetTotalSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         return statistics.TotalSpace;
     } catch (const std::exception& ex) {
-        auto message = "Failed to compute total space";
-        LOG_ERROR(ex, message);
-        const_cast<TLocation*>(this)->Disable(TError(message) << ex);
+        auto error = TError("Failed to compute total space") << ex;
+        LOG_ERROR(error);
+        const_cast<TLocation*>(this)->Disable(error);
         return 0;
     }
 }
@@ -246,16 +246,16 @@ void TLocation::DoDisable(const TError& reason)
 
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
+    std::vector<TChunkDescriptor> result;
     try {
-        auto descriptors = DoInitialize();
+        result = DoInitialize();
         Enabled_.store(true);
-        return descriptors;
     } catch (const std::exception& ex) {
-        auto message = "Location has failed to initialize";
-        LOG_ERROR(ex, message);
-        ScheduleDisable(TError(message) << ex);
-        return std::vector<TChunkDescriptor>();
+        auto error = TError("Location has failed to initialize") << ex;
+        LOG_ERROR(error);
+        ScheduleDisable(error);
     }
+    return result;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoInitialize()

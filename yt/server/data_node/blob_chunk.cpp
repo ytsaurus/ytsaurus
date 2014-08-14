@@ -310,9 +310,9 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
         try {
             DoSyncRemove(dataFileName);
         } catch (const std::exception& ex) {
-            auto message = "Error removing blob chunk files";
-            LOG_ERROR(ex, message);
-            location->Disable(TError(message) << ex);
+            auto error = TError("Error removing blob chunk files") << ex;
+            LOG_ERROR(error);
+            location->Disable(error);
         }
 
         LOG_DEBUG("Finished removing blob chunk files (ChunkId: %v)",
