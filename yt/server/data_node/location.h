@@ -111,7 +111,10 @@ public:
     bool IsEnabled() const;
 
     //! Marks the location as disabled.
-    void Disable();
+    void Disable(TError reason);
+
+    //! Returns the reason while location was disabled.
+    const TError& GetDisableReason();
 
     //! Raised when the location gets disabled.
     /*!
@@ -129,6 +132,7 @@ private:
     NCellNode::TBootstrap* Bootstrap_;
 
     std::atomic<bool> Enabled_;
+    TError DisableReason_;
 
     mutable i64 AvailableSpace_;
     i64 UsedSpace_;
@@ -151,9 +155,9 @@ private:
     TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
 
-    void OnHealthCheckFailed();
-    void ScheduleDisable();
-    void DoDisable();
+    void OnHealthCheckFailed(TError error);
+    void ScheduleDisable(TError reason);
+    void DoDisable(TError reason);
 
 };
 

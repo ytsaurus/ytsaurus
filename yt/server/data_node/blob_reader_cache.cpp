@@ -78,8 +78,8 @@ public:
                         chunkId)
                         << ex;
                     cookie.Cancel(error);
-                    chunk->GetLocation()->Disable();
-                    THROW_ERROR_EXCEPTION(error);
+                    chunk->GetLocation()->Disable(error);
+                    THROW_ERROR error;
                 }
             }
 

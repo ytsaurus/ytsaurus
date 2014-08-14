@@ -561,7 +561,7 @@ void TBlobSession::SetFailed(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
-    Location_->Disable();
+    Location_->Disable(TError("Session failed") << Error_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
