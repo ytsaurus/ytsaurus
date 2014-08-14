@@ -36,7 +36,7 @@ public:
 
     void Start();
 
-    DEFINE_SIGNAL(void(TError), Failed);
+    DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
     TDiskHealthCheckerConfigPtr Config_;

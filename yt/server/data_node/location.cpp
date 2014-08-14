@@ -219,20 +219,20 @@ bool TLocation::IsEnabled() const
     return Enabled_.load();
 }
 
-void TLocation::Disable(TError reason)
+void TLocation::Disable(const TError& reason)
 {
     if (Enabled_.exchange(false)) {
-        ScheduleDisable(std::move(reason));
+        ScheduleDisable(reason);
     }
 }
 
-void TLocation::ScheduleDisable(TError reason)
+void TLocation::ScheduleDisable(const TError& reason)
 {
     Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TLocation::DoDisable, MakeStrong(this), Passed(std::move(reason))));
+        BIND(&TLocation::DoDisable, MakeStrong(this), reason));
 }
 
-void TLocation::DoDisable(TError reason)
+void TLocation::DoDisable(const TError& reason)
 {
     LOG_ERROR(reason, "Location disabled");
 
@@ -425,11 +425,11 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
     return descriptor;
 }
 
-void TLocation::OnHealthCheckFailed(TError error)
+void TLocation::OnHealthCheckFailed(const TError& error)
 {
     switch (Type_) {
         case ELocationType::Store:
-            Disable(std::move(error));
+            Disable(error);
             break;
         case ELocationType::Cache:
             LOG_FATAL(error, "Cache location has failed");

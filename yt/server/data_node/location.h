@@ -111,7 +111,7 @@ public:
     bool IsEnabled() const;
 
     //! Marks the location as disabled.
-    void Disable(TError reason);
+    void Disable(const TError& reason);
 
     //! Raised when the location gets disabled.
     /*!
@@ -151,9 +151,9 @@ private:
     TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
 
-    void OnHealthCheckFailed(TError error);
-    void ScheduleDisable(TError reason);
-    void DoDisable(TError reason);
+    void OnHealthCheckFailed(const TError& error);
+    void ScheduleDisable(const TError& reason);
+    void DoDisable(const TError& reason);
 
 };
 
