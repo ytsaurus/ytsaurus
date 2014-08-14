@@ -24,8 +24,7 @@ def md5sum(filename):
     return h.hexdigest()
 
 def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
-    """
-    Download file from path in Cypress.
+    """Download file from path in Cypress to local machine.
 
     :param path: (string of `TablePath`) path to file in Cypress
     :param response_type: (string) Deprecated! It means the output format. By default it is line generator.
@@ -52,9 +51,7 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     return read_content(response, raw=True, format=None, response_type=response_type)
 
 def upload_file(stream, destination, file_writer=None, client=None):
-    """
-    Simply uploads data from `stream` to `destination` and
-    set 'file_name' attribute if yt_filename is specified
+    """Upload file to destination path from stream on local machine.
 
     :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param destination: (string or `TablePath`) destination path in Cypress
@@ -79,7 +76,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
     """
-    Upload file specified by 'filename' to destination path with custom placement strategy.
+    Upload file to destination path with custom placement strategy.
 
     :param filename: (string) path to file on local machine
     :param destination: (string) desired file path in Cypress,

@@ -16,12 +16,11 @@ from copy import deepcopy
 import __builtin__
 
 def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, client=None):
-    """
-    Get Cypress node content (attribute tree).
+    """Get Cypress node content (attribute tree).
 
     :param path: (string or `yt.wrapper.table.TablePath`) path to tree, it must exist!
     :param attributes: (list) desired node attributes in the response.
-    :param format: (string or descendant of `yt.wrapper.format.Format` output format \
+    :param format: (string or descendant of `yt.wrapper.format.Format`) output format \
         (by default python dict automatically parsed from YSON).
     :param ignore_opaque: (bool)
     :param spec: (dict)
@@ -41,8 +40,7 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
         client=client)
 
 def set(path, value, client=None):
-    """
-    Set new value to Cypress node.
+    """Set new value to Cypress node.
 
     :param path: (string or `yt.wrapper.table.TablePath`)
     :param value: json-able object.
@@ -107,16 +105,15 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, client=
 
 
 def list(path, max_size=1000, format=None, absolute=False, attributes=None, client=None):
-    """
-    List all children of Cypress node.
+    """List directory (map_node) content.
 
-    Node type should be 'map_node'.
-    In case of 'map_node' it returns keys of the node.
+    Node type must be 'map_node'.
     :param path: (string or `TablePath`)
     :param max_size: (int)
     :param attributes: (list) desired node attributes in the response.
-    :param format: (descendant of `Format`)
-    :param absolute: (bool)
+    :param format: (descendant of `Format`) command response format, by default - YSON
+    :param absolute: (bool) convert relative paths to absolute. Works only if format isn't specified.
+    :return: raw YSON (string) by default, parsed YSON or JSON if format is specified.
     .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#list>`_
     """
     def join(elem):
@@ -238,14 +235,13 @@ def get_type(path, client=None):
     return get_attribute(path, "type", client=client)
 
 def find_free_subpath(path, client=None):
-    """
-    Generate some free random subpath.
+    """Generate some free random subpath.
 
     :param path: (string)
     :return: (string)
     """
     # Temporary comment it because of race condition while uploading file
-    # TODO(ignat): Uncomment it with apperance of proper locking
+    # TODO(ignat): Uncomment it with appearance of proper locking
     #if not path.endswith("/") and not exists(path):
     #    return path
     LENGTH = 10
@@ -256,11 +252,9 @@ def find_free_subpath(path, client=None):
             return name
 
 def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
-    """
-    Search all objects in root directory that have specified node types,
-    satisfy path and object filters.
+    """Search for some nodes in Cypress subtree.
 
-    :param root: (string or `TablePath`)
+    :param root: (string or `TablePath`) path to search
     :param node_type: (list of string)
     :param object_filter: (predicate)
     :param attributes: (list of string) these attributes will be added to result objects

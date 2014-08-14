@@ -375,8 +375,7 @@ def create_temp_table(path=None, prefix=None, client=None):
 
 def write_table(table, input_stream, format=None, table_writer=None,
                 replication_factor=None, compression_codec=None, client=None):
-    """
-    Write rows from input_stream to table.
+    """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
@@ -450,8 +449,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
         _remove_tables([table], client=client)
 
 def read_table(table, format=None, table_reader=None, response_type=None, raw=True, client=None):
-    """
-    Download file from path.
+    """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
     :param table_reader: (dict) spec of "read" operation
@@ -571,8 +569,7 @@ def _are_nodes(source_tables, destination_table):
            not destination_table.append
 
 def copy_table(source_table, destination_table, replace=True, client=None):
-    """
-    Copy table(s).
+    """Copy table(s).
 
     :param source_table: string, `TablePath` or list of them
     :param destination_table: string or `TablePath`
@@ -603,8 +600,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         run_merge(source_tables, destination_table, mode, client=client)
 
 def move_table(source_table, destination_table, replace=True, client=None):
-    """
-    Move table.
+    """Move table.
 
     :param source_table: string, `TablePath` or list of them
     :param destination_table: string or `TablePath`
@@ -659,7 +655,7 @@ def get_sorted_by(table, default=None, client=None):
 
     :param table: string or `TablePath`
     :param default: whatever
-    :return: string of list of string
+    :return: string or list of string
     """
     if default is None:
         default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
@@ -678,7 +674,8 @@ def is_sorted(table, client=None):
                           "sorted", default="false", client=client))
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """
+    """Mount table (or a part of it).
+
     description is coming with tablets
     TODO
     """
@@ -692,7 +689,8 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=No
     make_request("mount_table", params, client=client)
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
-    """
+    """Unmount table (or a part of it).
+
     description is coming with tablets
     TODO
     """
@@ -707,7 +705,8 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     make_request("unmount_table", params, client=client)
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """
+    """Remount table (or a part of it).
+
     description is coming with tablets
     TODO
     """
@@ -720,7 +719,8 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     make_request("remount_table", params, client=client)
 
 def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
-    """
+    """Change pivot keys separating tablets of a given table.
+
     description is coming with tablets
     TODO
     """
@@ -734,9 +734,9 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
     make_request("reshard_table", params, client=client)
 
 def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
-    """
-    Execute a SQL-like query in accordance with the \
-    `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+    """Execute a SQL-like query.
+
+    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
     :param query: (string) for example \"<columns> [as <alias>], ... from \[<table>\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\"
@@ -765,13 +765,12 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
 # Operations.
 
 def run_erase(table, spec=None, strategy=None, client=None):
-    """
-    Erase table.
+    """Erase table or part of it.
 
     It differs from remove command.
     `Erase` only remove given content. You can erase range of records in the table.
 
-    :param table: (string of `TablePath`)
+    :param table: (string or `TablePath`)
     :param spec: (dict)
     :param strategy: standard operation parameter
 
@@ -788,8 +787,7 @@ def run_merge(source_table, destination_table, mode=None,
               strategy=None, table_writer=None,
               replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
-    """
-    Merge source tables and write it to destination table.
+    """Merge source tables to destination table.
 
     :param source_table: list of string or `TablePath`, list tables names to merge
     :param destination_table: string or `TablePath`, path to result table
@@ -827,8 +825,7 @@ def run_merge(source_table, destination_table, mode=None,
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
-    """
-    Sort source table to destination table.
+    """Sort source tables to destination table.
 
     If destination table is not specified, than it equals to source table.
 
@@ -870,8 +867,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     _make_operation_request("sort", spec, strategy, finalizer=None, client=client)
 
 class Finalizer(object):
-    """
-    Entity for operation finalizing: checking size of result chunks, deleting of \
+    """Entity for operation finalizing: checking size of result chunks, deleting of \
     empty output tables and uploaded files.
     """
     def __init__(self, files, output_tables, client=None):
@@ -940,20 +936,18 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_combiner_local_files=None, reduce_combiner_yt_files=None,
                    reduce_combiner_memory_limit=None,
                    client=None):
-    """
-    Apply `mapper` to `source_table`, sort result by `sort_by` and apply `reducer` and \
-    `reduce_combiner`.
+    """Run map (optionally), sort, reduce and reduce-combine (optionally) operations.
 
     :param mapper: (python generator, callable object-generator or string (with bash commands)).
     :param reducer: (python generator, callable object-generator or string (with bash commands)).
     :param source_table: (string, `TablePath` or list of them) input tables
     :param destination_table: (string, `TablePath` or list of them) output tables
-    :param format: (string of descendant of `yt.wrapper.format.Format`) common format of input, \
+    :param format: (string or descendant of `yt.wrapper.format.Format`) common format of input, \
                     intermediate and output data. More specific formats will override it.
-    :param map_input_format: (string of descendant of `yt.wrapper.format.Format`)
-    :param map_output_format: (string of descendant of `yt.wrapper.format.Format`)
-    :param reduce_input_format: (string of descendant of `yt.wrapper.format.Format`)
-    :param reduce_output_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param map_input_format: (string or descendant of `yt.wrapper.format.Format`)
+    :param map_output_format: (string or descendant of `yt.wrapper.format.Format`)
+    :param reduce_input_format: (string or descendant of `yt.wrapper.format.Format`)
+    :param reduce_output_format: (string or descendant of `yt.wrapper.format.Format`)
     :param strategy:  standard operation parameter
     :param table_writer: (dict) standard operation parameter
     :param spec: (dict) standard operation parameter
@@ -974,8 +968,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_by: (list of strings, string) list of columns for grouping by
     :param reduce_combiner: (python generator, callable object-generator or string \
                             (with bash commands)).
-    :param reduce_combiner_input_format: (string of descendant of `yt.wrapper.format.Format`)
-    :param reduce_combiner_output_format: (string of descendant of `yt.wrapper.format.Format`)
+    :param reduce_combiner_input_format: (string or descendant of `yt.wrapper.format.Format`)
+    :param reduce_combiner_output_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_combiner_files: Deprecated!
     :param reduce_combiner_file_paths: Deprecated!
     :param reduce_combiner_local_files: (string or list  of string) \
@@ -1050,8 +1044,7 @@ def _run_operation(binary, source_table, destination_table,
                   op_name=None,
                   reduce_by=None,
                   client=None):
-    """
-    Run script operation.
+    """Run script operation.
 
     :param binary: (python generator, callable object-generator or string (with bash commands))
     :param files: Deprecated!
@@ -1129,14 +1122,14 @@ def _run_operation(binary, source_table, destination_table,
                             client=client)
 
 def run_map(binary, source_table, destination_table, **kwargs):
-    """
+    """Run map operation.
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "map"
     _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
-    """
+    """Run reduce operation.
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
@@ -1144,7 +1137,7 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
 
 def run_remote_copy(source_table, destination_table, cluster_name,
                     network_name=None, spec=None, copy_attributes=False, strategy=None, client=None):
-    """Copy `source_table` from remote cluster to `destination_table` of current cluster.
+    """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
     :param destination_table: (string, `TablePath`)
