@@ -284,8 +284,7 @@ class WaitStrategy(object):
         self.timeout = timeout
 
     def process_operation(self, type, operation, finalize=None, client=None):
-        """
-        Wait for final state of running operation.
+        """Track running operation.
 
         If timeout occurred, raise `YtTimeoutError`.
         If operation failed, raise `YtOperationFailedError`.

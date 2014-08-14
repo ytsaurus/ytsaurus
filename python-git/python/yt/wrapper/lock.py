@@ -10,8 +10,7 @@ import simplejson as json
 from datetime import timedelta, datetime
 
 def lock(path, mode=None, waitable=False, wait_for=None, client=None):
-    """
-    Try to lock the path.
+    """Try to lock the path.
 
     :param mode: (optional) blocking type ["snapshot", "shared" or "exclusive" (default)]
     :param waitable: (bool) wait for lock if node under blocking
