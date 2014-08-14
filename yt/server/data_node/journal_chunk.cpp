@@ -199,7 +199,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
     return dispatcher->RemoveChangelog(this)
         .Apply(BIND([=] (TError error) {
             if (!error.IsOK()) {
-                location->Disable(std::move(error));
+                location->Disable(error);
             }
         }));
 }
