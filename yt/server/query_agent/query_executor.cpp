@@ -127,10 +127,13 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Coordinator_(CreateCoordinator(
-            Bootstrap_->GetQueryWorkerInvoker(),
+            // NB: Don't bound concurrency here.
+            // Doing otherwise may lead to deadlock and makes no sense since coordination
+            // is cheap.
+            Bootstrap_->GetQueryInvoker(),
             this))
         , Evaluator_(CreateEvaluator(
-            Bootstrap_->GetQueryWorkerInvoker(),
+            Bootstrap_->GetBoundedConcurrencyQueryInvoker(),
             this))
     { }
 
@@ -219,7 +222,7 @@ public:
         const TDataSplit& /*collocatedSplit*/) override
     {
         auto pipe = New<TSchemafulPipe>();
-        TFuture<TErrorOr<TQueryStatistics>> result = Evaluator_->Execute(fragment, pipe->GetWriter());
+        auto result = Evaluator_->Execute(fragment, pipe->GetWriter());
         result.Subscribe(BIND([pipe] (TErrorOr<TQueryStatistics> result) {
             if (!result.IsOK()) {
                 pipe->Fail(result);

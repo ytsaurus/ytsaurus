@@ -1279,7 +1279,7 @@ private:
         return New<TStoreManager>(
             Config_,
             tablet,
-            Bootstrap_->GetQueryWorkerInvoker());
+            Bootstrap_->GetBoundedConcurrencyQueryInvoker());
     }
 
 };

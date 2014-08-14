@@ -171,11 +171,11 @@ void TBootstrap::DoRun()
     auto clusterConnection = CreateConnection(Config->ClusterConnection);
     MasterClient = clusterConnection->CreateClient();
 
-    QueryWorkerPool = New<TThreadPool>(
+    QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
-    QueryWorkerInvoker = CreateBoundedConcurrencyInvoker(
-        QueryWorkerPool->GetInvoker(),
+    BoundedConcurrencyQueryInvoker = CreateBoundedConcurrencyInvoker(
+        QueryThreadPool->GetInvoker(),
         Config->QueryAgent->MaxConcurrentRequests);
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
@@ -395,9 +395,14 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetQueryWorkerInvoker() const
+IInvokerPtr TBootstrap::GetQueryInvoker() const
 {
-    return QueryWorkerInvoker;
+    return QueryThreadPool->GetInvoker();
+}
+
+IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryInvoker() const
+{
+    return BoundedConcurrencyQueryInvoker;
 }
 
 IClientPtr TBootstrap::GetMasterClient() const
