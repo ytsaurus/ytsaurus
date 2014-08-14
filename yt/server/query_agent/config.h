@@ -17,6 +17,7 @@ class TQueryAgentConfig
 public:
     int ThreadPoolSize;
     int MaxConcurrentRequests;
+    int MaxSubsplitsPerTablet;
 
     NCompression::ECodec LookupResponseCodec;
     NCompression::ECodec SelectResponseCodec;
@@ -27,6 +28,9 @@ public:
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("max_concurrent_requests", MaxConcurrentRequests)
+            .GreaterThan(0)
+            .Default(4);
+        RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
             .GreaterThan(0)
             .Default(4);
 

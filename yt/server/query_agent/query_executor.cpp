@@ -183,19 +183,31 @@ public:
                     return lhs < rhs;
                 }) - 1;
 
+            auto endIt = std::lower_bound(
+                tabletDescriptor->SplitKeys.begin(),
+                tabletDescriptor->SplitKeys.end(),
+                upperBound,
+                [] (const TOwningKey& lhs, const TOwningKey& rhs) {
+                    return lhs < rhs;
+                });
+
+            int totalSplitCount = std::distance(startIt, endIt);
+            int adjustedSplitCount = std::min(totalSplitCount, Config_->MaxSubsplitsPerTablet);
+
             std::vector<TDataSplit> subsplits;
-            for (auto it = startIt; it != tabletDescriptor->SplitKeys.end(); ++it) {
-                const auto& splitKey = *it;
-                auto nextSplitKey = (it + 1 == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *(it + 1);
-                if (upperBound <= splitKey)
-                    break;
+            for (int index = 0; index < adjustedSplitCount; ++index) {
+                auto thisIt = startIt + index * totalSplitCount / adjustedSplitCount;
+                auto nextIt = startIt + (index + 1) * totalSplitCount / adjustedSplitCount;
+
+                const auto& thisKey = *thisIt;
+                auto nextKey = (nextIt == tabletDescriptor->SplitKeys.end()) ? MaxKey() : *nextIt;
 
                 TDataSplit subsplit;
                 SetObjectId(&subsplit, tabletId);
                 SetKeyColumns(&subsplit, keyColumns);
                 SetTableSchema(&subsplit, schema);
-                SetLowerBound(&subsplit, std::max(lowerBound, splitKey));
-                SetUpperBound(&subsplit, std::min(upperBound, nextSplitKey));
+                SetLowerBound(&subsplit, std::max(lowerBound, thisKey));
+                SetUpperBound(&subsplit, std::min(upperBound, nextKey));
                 SetTimestamp(&subsplit, context->GetTimestamp());
                 subsplits.push_back(std::move(subsplit));
             }
