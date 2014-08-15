@@ -405,10 +405,7 @@ class Application(object):
             logger.exception("Task {} failed with error {}".format(task.id, yt.errors.format_error(error)))
             message_queue.put({
                 "type": "error",
-                "error": {
-                    "message": error.simplify(),
-                    "code": 1
-                }
+                "error": error.simplify()
             })
         except Exception as error:
             logger.exception("Task {} failed with error {}".format(task.id, error.message))
