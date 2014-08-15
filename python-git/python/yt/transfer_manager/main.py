@@ -121,7 +121,7 @@ class Application(object):
 
     def _add_rule(self, rule, endpoint, methods):
         methods.append("OPTIONS")
-        self._daemon.add_url_rule(rule, endpoint, self._process_exception(self._process_cors(Application.__dict__[endpoint], methods)), methods=methods)
+        self._daemon.add_url_rule(rule, endpoint, self._process_cors(self._process_exception(Application.__dict__[endpoint]), methods), methods=methods)
 
     def _process_cors(self, func, methods):
         def decorator(*args, **kwargs):
