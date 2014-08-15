@@ -201,7 +201,7 @@ void TChunkReader::DoOpen()
         
         if (chunkColumn->Type != column.Type) {
             State.Finish(TError(
-                "Chunk schema column %Qv has incompatible type: expected %v, actual %v",
+                "Chunk schema column %Qv has incompatible type: expected %Qlv, actual %Qlv",
                 column.Name,
                 column.Type,
                 chunkColumn->Type));
