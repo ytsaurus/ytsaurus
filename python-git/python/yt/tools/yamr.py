@@ -43,6 +43,9 @@ class Yamr(object):
         self.opts = opts
         self.fastbone = fastbone
 
+        # Check that binary exists and supports help
+        check_call("{0} --help".format(self.binary, shell=True))
+
         self.supports_shared_transactions = \
             subprocess.call("{0} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
 
