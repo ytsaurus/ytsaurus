@@ -28,25 +28,25 @@ public:
     void Shutdown();
 
 private:
-    int CompressionPoolSize;
-    int ErasurePoolSize;
+    int CompressionPoolSize_;
+    int ErasurePoolSize_;
 
     /*!
      * This thread is used for background operations in #TRemoteChunkReader
      * #TSequentialChunkReader, #TTableChunkReader and #TableReader
      */
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread;
+    TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread_;
 
     /*!
      *  This thread is used for background operations in
      *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and
      *  #NTableClient::TChunkSetReader
      */
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread;
+    TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread_;
 
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionThreadPool;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionThreadPool_;
 
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasureThreadPool;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasureThreadPool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
