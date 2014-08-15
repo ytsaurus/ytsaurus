@@ -52,7 +52,7 @@ def get_import_pool(mr_client, yt_client):
 
 class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
-                 token="", user="unknown", mr_user=None, error=None, finish_time=None, progress=None):
+                 token="", user="unknown", mr_user=None, error=None, finish_time=None, progress=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.destination_cluster = destination_cluster
@@ -67,6 +67,9 @@ class Task(object):
         self.error = error
         self.token = token
         self.progress = progress
+
+        # Special field to store meta-information for web-interface
+        self.meta = meta
 
     def get_queue_id(self):
         return self.source_cluster, self.destination_cluster
