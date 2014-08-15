@@ -35,6 +35,10 @@ else
 fi
 dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 
+if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
+    python setup.py bdist_wheel upload -r yandex
+fi
+
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
     # Upload egg
     export YT_PROXY=kant.yt.yandex.net
