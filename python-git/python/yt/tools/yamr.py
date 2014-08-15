@@ -17,7 +17,7 @@ except AttributeError:
     def _check_output(command, **kwargs):
         return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
 
-def check_call(command, **kwargs):
+def _check_call(command, **kwargs):
     logger.debug("Executing command '{}'".format(command))
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, **kwargs)
     _, stderrdata = proc.communicate()
@@ -44,7 +44,7 @@ class Yamr(object):
         self.fastbone = fastbone
 
         # Check that binary exists and supports help
-        check_call("{0} --help".format(self.binary, shell=True))
+        _check_output("{0} --help".format(self.binary), shell=True)
 
         self.supports_shared_transactions = \
             subprocess.call("{0} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
@@ -110,10 +110,10 @@ class Yamr(object):
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
+        _check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
 
     def copy(self, src, dst):
-        check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
+        _check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
 
     def _as_int(self, obj):
         if obj is None:
@@ -146,7 +146,7 @@ class Yamr(object):
             files = []
         shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} {6} {7}"\
             .format(self.mr_user, self.binary, self.server, command, src, dst, " ".join("-file " + file for file in files), opts)
-        check_call(shell_command, shell=True)
+        _check_call(shell_command, shell=True)
 
     def remote_copy(self, remote_server, src, dst, mr_user=None):
         if mr_user is None:
@@ -154,4 +154,4 @@ class Yamr(object):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
             .format(mr_user, self.binary, remote_server, self.server, src, dst, fastbone_str)
-        check_call(shell_command, shell=True)
+        _check_call(shell_command, shell=True)
