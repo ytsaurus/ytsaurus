@@ -91,6 +91,8 @@ class Application(object):
         self._yt = Yt(config["proxy"])
         self._yt.token = config["token"]
 
+        self._load_config(config)
+
         message_queue = Queue()
         self._lock_path = os.path.join(config["path"], "lock")
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
@@ -102,8 +104,6 @@ class Application(object):
 
         self._acl_path = os.path.join(config["path"], "acl")
         self._yt.create("map_node", self._acl_path, ignore_existing=True)
-
-        self._load_config(config)
 
         self._add_rule("/", 'main', methods=["GET"])
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
