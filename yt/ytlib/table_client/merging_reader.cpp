@@ -51,8 +51,7 @@ public:
     virtual void Open() override
     {
         // Open all readers in parallel and wait until all of them are opened.
-        auto awaiter = New<TParallelAwaiter>(
-            TDispatcher::Get()->GetReaderInvoker());
+        auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
 
         for (auto reader : Readers) {

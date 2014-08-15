@@ -181,7 +181,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
             &TOldMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
             MakeWeak(this),
             session)
-        .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
+            .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 }
 
 template <class TChunkReader>

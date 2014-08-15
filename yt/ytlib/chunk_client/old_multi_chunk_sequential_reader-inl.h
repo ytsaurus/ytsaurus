@@ -51,7 +51,7 @@ TAsyncError TOldMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
         State.StartOperation();
         Sessions[CurrentReaderIndex].Subscribe(
             BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
-            .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
+                .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
     return State.GetOperationError();
@@ -110,7 +110,7 @@ bool TOldMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 
             Sessions[CurrentReaderIndex].Subscribe(
                 BIND(&TOldMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
-                .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
+                    .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
             return false;
         }
     }

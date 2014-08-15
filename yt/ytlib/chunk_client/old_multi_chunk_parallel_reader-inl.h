@@ -156,7 +156,7 @@ bool TOldMultiChunkParallelReader<TChunkReader>::FetchNext()
             BIND(&TOldMultiChunkParallelReader<TChunkReader>::OnReaderReady,
                 MakeWeak(this),
                 CurrentSession)
-            .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
+                .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
     TGuard<TSpinLock> guard(SpinLock);

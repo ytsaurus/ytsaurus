@@ -597,8 +597,8 @@ TAsyncError TRepairReader::RepairIfNeeded()
     }
 
     return collector->Complete().Apply(
-            BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
-                .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+        BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
+            .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
 
 TError TRepairReader::OnGotMeta(IReader::TGetMetaResult metaOrError)

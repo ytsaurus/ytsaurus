@@ -207,7 +207,7 @@ void TSequentialReader::RequestBlocks(
         BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),
             firstIndex)
-        .Via(TDispatcher::Get()->GetReaderInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
 
     TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
         &TSequentialReader::FetchNextGroup,

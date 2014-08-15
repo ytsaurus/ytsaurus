@@ -62,8 +62,8 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     extensionTags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
-    ChunkReader->GetMeta(PartitionTag, &extensionTags).Subscribe(
-        BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
+    ChunkReader->GetMeta(PartitionTag, &extensionTags)
+        .Subscribe(BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();

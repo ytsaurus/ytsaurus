@@ -202,7 +202,7 @@ public:
 
         ChunkReader->GetMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
-            .Via(TDispatcher::Get()->GetReaderInvoker()));
+                .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
 private:
@@ -536,7 +536,7 @@ private:
                     &TRegularInitializer::OnStartingBlockReceived,
                     MakeWeak(this),
                     selectedChannelIndex)
-                .Via(TDispatcher::Get()->GetReaderInvoker()));
+                    .Via(TDispatcher::Get()->GetReaderInvoker()));
         } else {
             // Create current row.
             LOG_DEBUG("All starting blocks received");
@@ -652,8 +652,7 @@ public:
         LOG_INFO("Requesting chunk meta");
 
         ChunkReader->GetMeta(chunkReader->PartitionTag, &tags)
-            .Subscribe(
-                BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
+            .Subscribe(BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
