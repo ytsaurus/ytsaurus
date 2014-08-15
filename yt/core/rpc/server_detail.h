@@ -203,12 +203,13 @@ protected:
     std::atomic<bool> Started_;
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
+    TServerConfigPtr Config_;
     yhash_map<TServiceId, IServicePtr> ServiceMap_;
 
     virtual void DoStart();
     virtual void DoStop();
 
-    std::vector<IServicePtr> FindServices(const Stroka& serviceName);
+    std::vector<IServicePtr> DoFindServices(const Stroka& serviceName);
 
 };
 

@@ -430,7 +430,15 @@ void TServerBase::UnregisterService(IServicePtr service)
 
     {
         TWriterGuard guard(ServicesLock_);
+
         YCHECK(ServiceMap_.erase(serviceId) == 1);
+
+        if (Config_) {
+            auto it = Config_->Services.find(serviceId.ServiceName);
+            if (it != Config_->Services.end()) {
+                service->Configure(it->second);
+            }
+        }
     }
 
     LOG_INFO("RPC service unregistered (ServiceName: %v, RealmId: %v)",
@@ -438,7 +446,7 @@ void TServerBase::UnregisterService(IServicePtr service)
         serviceId.RealmId);
 }
 
-NYT::NRpc::IServicePtr TServerBase::FindService(const TServiceId& serviceId)
+IServicePtr TServerBase::FindService(const TServiceId& serviceId)
 {
     TReaderGuard guard(ServicesLock_);
     auto it = ServiceMap_.find(serviceId);
@@ -447,10 +455,16 @@ NYT::NRpc::IServicePtr TServerBase::FindService(const TServiceId& serviceId)
 
 void TServerBase::Configure(TServerConfigPtr config)
 {
+    TWriterGuard guard(ServicesLock_);
+
+    // Future services will be configured appropriately.
+    Config_ = config;
+
+    // Apply configuration to all existing services.
     for (const auto& pair : config->Services) {
         const auto& serviceName = pair.first;
         const auto& serviceConfig = pair.second;
-        auto services = FindServices(serviceName);
+        auto services = DoFindServices(serviceName);
         for (auto service : services) {
             service->Configure(serviceConfig);
         }
@@ -486,15 +500,15 @@ void TServerBase::DoStop()
     Started_ = false;
 }
 
-std::vector<IServicePtr> TServerBase::FindServices(const Stroka& serviceName)
+std::vector<IServicePtr> TServerBase::DoFindServices(const Stroka& serviceName)
 {
     std::vector<IServicePtr> result;
-    TReaderGuard guard(ServicesLock_);
     for (const auto& pair : ServiceMap_) {
         if (pair.first.ServiceName == serviceName) {
             result.push_back(pair.second);
         }
     }
+
     return result;
 }
 
