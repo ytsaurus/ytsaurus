@@ -102,7 +102,7 @@ public:
         }
     }
 
-    const std::vector<TUnversionedRow> GetLookupKeys() const
+    const std::vector<TUnversionedRow>& GetLookupKeys() const
     {
         return LookupKeys_;
     }
