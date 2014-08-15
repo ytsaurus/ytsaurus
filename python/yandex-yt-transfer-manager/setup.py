@@ -3,7 +3,7 @@ from helpers import get_version, prepare_files
 from setuptools import setup
 
 def main():
-    requires =["yandex-yt-python", "python-flask"]
+    requires =["yandex-yt-python", "yandex-yt-python-tools", "python-flask"]
     scripts, data_files = prepare_files(["yt/transfer_manager/yt_transfer_manager"])
 
     setup(
