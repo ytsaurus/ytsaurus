@@ -93,14 +93,25 @@ public:
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
 
-    TAsyncError Run(IInvokerPtr invoker, TWireProtocolWriter* writer)
+    TAsyncError Run(IInvokerPtr invoker)
     {
         if (invoker) {
-            return RunCallback_.AsyncVia(invoker).Run(writer);
+            return RunCallback_.AsyncVia(invoker).Run();
         } else {
-            return MakeFuture(RunCallback_.Run(writer));
+            return MakeFuture(RunCallback_.Run());
         }
     }
+
+    const std::vector<TUnversionedRow> GetLookupKeys() const
+    {
+        return LookupKeys_;
+    }
+
+    const std::vector<TUnversionedRow>& GetResultRows() const
+    {
+        return ResultRows_;
+    }
+
 
     void Clean()
     {
@@ -121,10 +132,10 @@ private:
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
 
-    TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
+    TCallback<TError()> RunCallback_;
 
 
-    void DoRun(TWireProtocolWriter* writer)
+    void DoRun()
     {
         TUnversionedRowMerger rowMerger(
             &MemoryPool_,
@@ -170,8 +181,6 @@ private:
 
             ResultRows_.push_back(rowMerger.BuildMergedRowAndReset());
         }
-
-        writer->WriteUnversionedRowset(ResultRows_);
     }
 
 };
@@ -214,6 +223,7 @@ TStoreManager::TStoreManager(
     YCHECK(Config_);
     YCHECK(Tablet_);
 
+    Logger.AddTag("TabletId: %v", Tablet_->GetId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
     }
@@ -270,8 +280,12 @@ void TStoreManager::LookupRows(
 {
     auto executor = ObjectPool<TLookupExecutor>().Allocate();
     executor->Prepare(Tablet_, timestamp, reader);
-    auto result = WaitFor(executor->Run(ReadWorkerInvoker_, writer));
+    LOG_DEBUG("Looking up %v keys", executor->GetLookupKeys().size());
+
+    auto result = WaitFor(executor->Run(ReadWorkerInvoker_));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+    writer->WriteUnversionedRowset(executor->GetResultRows());
 }
 
 TDynamicRowRef TStoreManager::WriteRow(
@@ -421,8 +435,7 @@ void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
 
-    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (TabletId: %v, StoreId: %v)",
-        Tablet_->GetId(),
+    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
         store->GetId());
     YCHECK(LockedStores_.erase(store) == 1);
 }
@@ -496,8 +509,7 @@ void TStoreManager::SetRotationScheduled()
     
     RotationScheduled_ = true;
 
-    LOG_INFO("Tablet store rotation scheduled (TabletId: %v)",
-        Tablet_->GetId());
+    LOG_INFO("Tablet store rotation scheduled");
 }
 
 void TStoreManager::ResetRotationScheduled()
@@ -507,8 +519,7 @@ void TStoreManager::ResetRotationScheduled()
 
     RotationScheduled_ = false;
 
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled (TabletId: %v)",
-        Tablet_->GetId());
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet store rotation canceled");
 }
 
 void TStoreManager::RotateStores(bool createNew)
@@ -521,16 +532,14 @@ void TStoreManager::RotateStores(bool createNew)
     activeStore->SetState(EStoreState::PassiveDynamic);
 
     if (activeStore->GetLockCount() > 0) {
-        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (TabletId: %v, StoreId: %v, LockCount: %v)",
-            Tablet_->GetId(),
+        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
             activeStore->GetId(),
             activeStore->GetLockCount());
         YCHECK(LockedStores_.insert(activeStore).second);
     }
 
     YCHECK(PassiveStores_.insert(activeStore).second);
-    LOG_INFO_UNLESS(IsRecovery(), "Passive store registered (TabletId: %v, StoreId: %v)",
-        Tablet_->GetId(),
+    LOG_INFO_UNLESS(IsRecovery(), "Passive store registered (StoreId: %v)",
         activeStore->GetId());
 
     if (createNew) {
@@ -539,8 +548,7 @@ void TStoreManager::RotateStores(bool createNew)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated (TabletId: %v)",
-        Tablet_->GetId());
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
 }
 
 void TStoreManager::AddStore(IStorePtr store)
@@ -558,8 +566,7 @@ void TStoreManager::RemoveStore(IStorePtr store)
 
     if (store->GetType() == EStoreType::DynamicMemory) {
         YCHECK(PassiveStores_.erase(store->AsDynamicMemory()) == 1);
-        LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (TabletId: %v, StoreId: %v)",
-            Tablet_->GetId(),
+        LOG_INFO_UNLESS(IsRecovery(), "Passive store unregistered (StoreId: %v)",
             store->GetId());
     } else {
         // The range is likely to have one element.
