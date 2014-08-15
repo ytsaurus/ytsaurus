@@ -47,17 +47,9 @@ def find_file(path):
             return path
         path = os.path.dirname(path)
 
-def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
-    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
-    with open(function_filename, "w") as fout:
-        attributes = function.attributes if hasattr(function, "attributes") else {}
-        dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
-
-    if isinstance(input_format, format.YsonFormat) and yt.yson.TYPE == "PYTHON":
-        raise YtError("Using python implementation of yson parser in operations "
-                      "is forbidden because of memory limit issues. "
-                      "Install yandex-yt-python-yson to fix this problem.")
+def create_modules_archive():
+    if config.PYTHON_CREATE_MODULES_ARCHIVE is not None:
+        return config.PYTHON_CREATE_MODULES_ARCHIVE()
 
     compressed_files = set()
     zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
@@ -84,7 +76,21 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 compressed_files.add(relpath)
 
                 zip.write(file, relpath)
+    return zip_filename
 
+def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
+    assert operation_type in ["mapper", "reducer", "reduce_combiner"]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
+    with open(function_filename, "w") as fout:
+        attributes = function.attributes if hasattr(function, "attributes") else {}
+        dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
+
+    if isinstance(input_format, format.YsonFormat) and yt.yson.TYPE == "PYTHON":
+        raise YtError("Using python implementation of yson parser in operations "
+                      "is forbidden because of memory limit issues. "
+                      "Install yandex-yt-python-yson to fix this problem.")
+
+    zip_filename = create_modules_archive()
     main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
