@@ -554,14 +554,14 @@ void TBlobSession::SetFailed(const TError& error)
     if (!Error_.IsOK())
         return;
 
-    Error_ = error;
+    Error_ = TError("Session failed") << error;
 
-    LOG_ERROR(Error_, "Session failed");
+    LOG_ERROR(Error_);
 
     Bootstrap_->GetControlInvoker()->Invoke(
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
-    Location_->Disable();
+    Location_->Disable(Error_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

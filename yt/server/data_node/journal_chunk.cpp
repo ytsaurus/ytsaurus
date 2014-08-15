@@ -140,12 +140,12 @@ void TJournalChunk::DoReadBlocks(
                 std::min(blockCount, config->MaxBlocksPerRead),
                 config->MaxBytesPerRead);
         } catch (const std::exception& ex) {
-            Location_->Disable();
-            THROW_ERROR_EXCEPTION(
+            auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading journal chunk %v",
-                Id_)
-                << ex;
+                Id_) << ex;
+            Location_->Disable(error);
+            THROW_ERROR error;
         }
 
         auto readTime = timer.GetElapsed();
@@ -199,7 +199,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
     return dispatcher->RemoveChangelog(this)
         .Apply(BIND([=] (TError error) {
             if (!error.IsOK()) {
-                location->Disable();
+                location->Disable(error);
             }
         }));
 }

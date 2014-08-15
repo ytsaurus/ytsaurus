@@ -197,12 +197,12 @@ private:
                     TSharedRef(),
                     Config_->SplitChangelog);
             } catch (const std::exception& ex) {
-                location->Disable();
-                THROW_ERROR_EXCEPTION(
+                auto error = TError(
                     NChunkClient::EErrorCode::IOError,
                     "Error creating journal chunk %v",
-                    chunkId)
-                    << ex;
+                    chunkId) << ex;
+                location->Disable(error);
+                THROW_ERROR error;
             }
         }
 
@@ -226,12 +226,12 @@ private:
             try {
                 RemoveChangelogFiles(chunk->GetFileName());
             } catch (const std::exception& ex) {
-                location->Disable();
-                THROW_ERROR_EXCEPTION(
+                auto error = TError(
                     NChunkClient::EErrorCode::IOError,
                     "Error removing journal chunk %v",
-                    chunkId)
-                    << ex;
+                    chunkId) << ex;
+                location->Disable(error);
+                THROW_ERROR error;
             }
         }
 
@@ -766,8 +766,8 @@ IChangelogPtr TJournalDispatcher::TImpl::OpenChangelog(
                     chunkId)
                     << ex;
                 cookie.Cancel(error);
-                location->Disable();
-                THROW_ERROR_EXCEPTION(error);
+                location->Disable(error);
+                THROW_ERROR error;
             }
         }
 

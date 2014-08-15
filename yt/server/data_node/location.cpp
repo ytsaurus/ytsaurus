@@ -106,8 +106,9 @@ i64 TLocation::GetAvailableSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         AvailableSpace_ = statistics.AvailableSpace;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to compute available space");
-        const_cast<TLocation*>(this)->Disable();
+        auto error = TError("Failed to compute available space") << ex;
+        LOG_ERROR(error);
+        const_cast<TLocation*>(this)->Disable(error);
         AvailableSpace_ = 0;
         return 0;
     }
@@ -125,8 +126,9 @@ i64 TLocation::GetTotalSpace() const
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         return statistics.TotalSpace;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Failed to compute total space");
-        const_cast<TLocation*>(this)->Disable();
+        auto error = TError("Failed to compute total space") << ex;
+        LOG_ERROR(error);
+        const_cast<TLocation*>(this)->Disable(error);
         return 0;
     }
 }
@@ -217,42 +219,43 @@ bool TLocation::IsEnabled() const
     return Enabled_.load();
 }
 
-void TLocation::Disable()
+void TLocation::Disable(const TError& reason)
 {
     if (Enabled_.exchange(false)) {
-        ScheduleDisable();
+        ScheduleDisable(reason);
     }
 }
 
-void TLocation::ScheduleDisable()
+void TLocation::ScheduleDisable(const TError& reason)
 {
     Bootstrap_->GetControlInvoker()->Invoke(
-        BIND(&TLocation::DoDisable, MakeStrong(this)));
+        BIND(&TLocation::DoDisable, MakeStrong(this), reason));
 }
 
-void TLocation::DoDisable()
+void TLocation::DoDisable(const TError& reason)
 {
-    LOG_ERROR("Location disabled");
+    LOG_ERROR(reason, "Location disabled");
 
     AvailableSpace_ = 0;
     UsedSpace_ = 0;
     SessionCount_ = 0;
     ChunkCount_ = 0;
 
-    Disabled_.Fire();
+    Disabled_.Fire(reason);
 }
 
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
+    std::vector<TChunkDescriptor> result;
     try {
-        auto descriptors = DoInitialize();
+        result = DoInitialize();
         Enabled_.store(true);
-        return descriptors;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Location has failed to initialize");
-        ScheduleDisable();
-        return std::vector<TChunkDescriptor>();
+        auto error = TError("Location has failed to initialize") << ex;
+        LOG_ERROR(error);
+        ScheduleDisable(error);
     }
+    return result;
 }
 
 std::vector<TChunkDescriptor> TLocation::DoInitialize()
@@ -422,14 +425,14 @@ TNullable<TChunkDescriptor> TLocation::TryGetJournalDescriptor(const TChunkId& c
     return descriptor;
 }
 
-void TLocation::OnHealthCheckFailed()
+void TLocation::OnHealthCheckFailed(const TError& error)
 {
     switch (Type_) {
         case ELocationType::Store:
-            Disable();
+            Disable(error);
             break;
         case ELocationType::Cache:
-            LOG_FATAL("Cache location has failed");
+            LOG_FATAL(error, "Cache location has failed");
             break;
         default:
             YUNREACHABLE();

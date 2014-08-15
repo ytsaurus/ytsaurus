@@ -111,13 +111,13 @@ public:
     bool IsEnabled() const;
 
     //! Marks the location as disabled.
-    void Disable();
+    void Disable(const TError& reason);
 
     //! Raised when the location gets disabled.
     /*!
      *  Raised at most once in Control thread.
      */
-    DEFINE_SIGNAL(void(), Disabled);
+    DEFINE_SIGNAL(void(const TError&), Disabled);
 
     //! The profiler tagged with location id.
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
@@ -151,9 +151,9 @@ private:
     TNullable<TChunkDescriptor> TryGetBlobDescriptor(const TChunkId& chunkId);
     TNullable<TChunkDescriptor> TryGetJournalDescriptor(const TChunkId& chunkId);
 
-    void OnHealthCheckFailed();
-    void ScheduleDisable();
-    void DoDisable();
+    void OnHealthCheckFailed(const TError& error);
+    void ScheduleDisable(const TError& reason);
+    void DoDisable(const TError& reason);
 
 };
 

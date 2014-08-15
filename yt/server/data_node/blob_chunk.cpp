@@ -172,12 +172,13 @@ void TBlobChunkBase::DoReadBlocks(
             Location_->GetId());
 
         if (!blocksOrError.IsOK()) {
-            Location_->Disable();
-            THROW_ERROR_EXCEPTION(
+            auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading blob chunk %v",
                 Id_)
                 << TError(blocksOrError);
+            Location_->Disable(error);
+            THROW_ERROR error;
         }
 
         auto& locationProfiler = Location_->Profiler();
@@ -309,8 +310,9 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
         try {
             DoSyncRemove(dataFileName);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error removing blob chunk files");
-            location->Disable();
+            auto error = TError("Error removing blob chunk files") << ex;
+            LOG_ERROR(error);
+            location->Disable(error);
         }
 
         LOG_DEBUG("Finished removing blob chunk files (ChunkId: %v)",

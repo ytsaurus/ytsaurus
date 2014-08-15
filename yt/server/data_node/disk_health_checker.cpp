@@ -72,7 +72,7 @@ void TDiskHealthChecker::OnCheckCompleted(TError error)
     if (error.IsOK()) {
         PeriodicExecutor_->ScheduleNext();
     } else if (!FailedLock_.test_and_set()) {
-        Failed_.Fire();
+        Failed_.Fire(error);
     }
 }
 
