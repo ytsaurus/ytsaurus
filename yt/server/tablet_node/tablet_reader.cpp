@@ -154,6 +154,11 @@ protected:
             // Save merged row.
             auto mergedRow = rowMerger->BuildMergedRowAndReset();
             if (mergedRow) {
+                YASSERT(
+                    rows->empty() ||
+                    CompareRows(
+                        rows->back().BeginKeys(), rows->back().EndKeys(),
+                        mergedRow.BeginKeys(), mergedRow.EndKeys()) < 0);
                 rows->push_back(mergedRow);
             }
         }
