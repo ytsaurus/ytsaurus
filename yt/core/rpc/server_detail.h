@@ -9,6 +9,8 @@
 
 #include <core/logging/log.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NRpc {
 
@@ -198,7 +200,7 @@ public:
     virtual void Stop() override;
 
 protected:
-    volatile bool Started_;
+    std::atomic<bool> Started_;
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     yhash_map<TServiceId, IServicePtr> ServiceMap_;

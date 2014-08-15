@@ -402,8 +402,9 @@ void TReplyInterceptorContext::Reply(TSharedRefArray responseMessage)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServerBase::TServerBase()
-    : Started_(false)
-{ }
+{
+    Started_ = false;
+}
 
 void TServerBase::RegisterService(IServicePtr service)
 {
@@ -450,10 +451,6 @@ void TServerBase::Configure(TServerConfigPtr config)
         const auto& serviceName = pair.first;
         const auto& serviceConfig = pair.second;
         auto services = FindServices(serviceName);
-        if (services.empty()) {
-            THROW_ERROR_EXCEPTION("Cannot find RPC service %Qv to configure",
-                serviceName);
-        }
         for (auto service : services) {
             service->Configure(serviceConfig);
         }
