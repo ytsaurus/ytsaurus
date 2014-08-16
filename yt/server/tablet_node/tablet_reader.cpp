@@ -230,6 +230,17 @@ protected:
         if (session->Rows.empty()) {
             return !hasMoreRows;
         }
+
+        #ifndef NDEBUG
+        for (int index = 0; index < static_cast<int>(session->Rows.size()) - 1; ++index) {
+            auto lhs = session->Rows[index];
+            auto rhs = session->Rows[index + 1];
+            YASSERT(CompareRows(
+                lhs.BeginKeys(), lhs.EndKeys(),
+                rhs.BeginKeys(), rhs.EndKeys()) < 0);
+        }
+        #endif
+
         session->CurrentRow = session->Rows.begin();
         *SessionHeapEnd_++ = session;
         AdjustHeapBack(SessionHeapBegin_, SessionHeapEnd_, CompareSessions);
