@@ -405,7 +405,17 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        return TTabletReaderBase::DoRead(rows, RowMerger_.get());
+        bool result = TTabletReaderBase::DoRead(rows, RowMerger_.get());
+        #ifndef NDEBUG
+        for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
+            auto lhs = (*rows)[index];
+            auto rhs = (*rows)[index + 1];
+            YASSERT(CompareRows(
+                lhs.BeginKeys(), lhs.EndKeys(),
+                rhs.BeginKeys(), rhs.EndKeys()) < 0);
+        }
+        #endif
+        return result;
     }
 
     virtual TAsyncError GetReadyEvent() override
