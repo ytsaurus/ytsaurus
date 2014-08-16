@@ -20,13 +20,11 @@ static const i64 NullValue = 0;
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : MinTimestamp_(MaxTimestamp)
+    : Schema_(schema)
+    , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
-    , TimestampCount_(0)
-    , ValueCount_(0)
-    , RowCount_(0)
 { }
 
 void TSimpleVersionedBlockWriter::WriteRow(
@@ -41,8 +39,10 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ++RowCount_;
 
     int keyOffset = KeyStream_.GetSize();
-    for (auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
-        WriteValue(KeyStream_, KeyNullFlags_, *it);
+    for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
+        const auto& value = *it;
+        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
+        WriteValue(KeyStream_, KeyNullFlags_, value);
     }
 
     WritePod(KeyStream_, TimestampCount_);
@@ -51,19 +51,19 @@ void TSimpleVersionedBlockWriter::WriteRow(
     WritePod(KeyStream_, static_cast<ui16>(row.GetDeleteTimestampCount()));
 
     TimestampCount_ += row.GetWriteTimestampCount();
-    for (auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-        WritePod(TimestampsStream_, *it);
-
-        MaxTimestamp_ = std::max(MaxTimestamp_, *it);
-        MinTimestamp_ = std::min(MinTimestamp_, *it);
+    for (const auto* it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
+        auto timestamp = *it;
+        WritePod(TimestampStream_, timestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
+        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
     }
 
     TimestampCount_ += row.GetDeleteTimestampCount();
-    for (auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        WritePod(TimestampsStream_, *it);
-
-        MaxTimestamp_ = std::max(MaxTimestamp_, *it);
-        MinTimestamp_ = std::min(MinTimestamp_, *it);
+    for (const auto* it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+        auto timestamp = *it;
+        WritePod(TimestampStream_, timestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
+        MinTimestamp_ = std::min(MinTimestamp_, timestamp);
     }
 
     ValueCount_ += row.GetValueCount();
@@ -72,6 +72,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
+        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Type].Type);
         YASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);
@@ -101,15 +102,14 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
     auto values = ValueStream_.Flush();
     blockParts.insert(blockParts.end(), values.begin(), values.end());
 
-    auto timestamps = TimestampsStream_.Flush();
+    auto timestamps = TimestampStream_.Flush();
     blockParts.insert(blockParts.end(), timestamps.begin(), timestamps.end());
 
     blockParts.insert(blockParts.end(), KeyNullFlags_.Flush());
     blockParts.insert(blockParts.end(), ValueNullFlags_.Flush());
 
-    auto strings = StringData_.Flush();
+    auto strings = StringDataStream_.Flush();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
-
 
     int size = 0;
     for (auto& part : blockParts) {
@@ -159,9 +159,9 @@ void TSimpleVersionedBlockWriter::WriteValue(
 
         case EValueType::String:
         case EValueType::Any:
-            WritePod(stream, static_cast<ui32>(StringData_.GetSize()));
+            WritePod(stream, static_cast<ui32>(StringDataStream_.GetSize()));
             WritePod(stream, value.Length);
-            StringData_.Write(value.Data.String, value.Length);
+            StringDataStream_.Write(value.Data.String, value.Length);
             nullFlags.Append(false);
             break;
 
@@ -180,7 +180,7 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
     return
         KeyStream_.GetSize() +
         ValueStream_.GetSize() +
-        TimestampsStream_.GetSize() +
+        TimestampStream_.GetSize() +
         KeyNullFlags_.Size() +
         ValueNullFlags_.Size();
 }

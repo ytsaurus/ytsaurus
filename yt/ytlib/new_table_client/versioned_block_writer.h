@@ -24,7 +24,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
 
 public:
-    TSimpleVersionedBlockWriter(const TTableSchema& schema, const TKeyColumns& keyColumns);
+    TSimpleVersionedBlockWriter(
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns);
 
     void WriteRow(
         TVersionedRow row,
@@ -46,6 +48,8 @@ public:
 private:
     typedef TAppendOnlyBitmap<ui64> TBitmap;
 
+    const TTableSchema& Schema_;
+
     const int SchemaColumnCount_;
     const int KeyColumnCount_;
 
@@ -55,13 +59,13 @@ private:
     TChunkedOutputStream ValueStream_;
     TBitmap ValueNullFlags_;
 
-    TChunkedOutputStream TimestampsStream_;
+    TChunkedOutputStream TimestampStream_;
 
-    TChunkedOutputStream StringData_;
+    TChunkedOutputStream StringDataStream_;
 
-    i64 TimestampCount_;
-    i64 ValueCount_;
-    i64 RowCount_;
+    i64 TimestampCount_ = 0;
+    i64 ValueCount_ = 0;
+    i64 RowCount_ = 0;
 
     void WriteValue(
         TChunkedOutputStream& stream,
