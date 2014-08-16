@@ -44,7 +44,7 @@ private:
     const int KeyColumnCount_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
-    const TTableSchema& Schema_;
+    const TTableSchema& ChunkSchema_;
 
     NProto::TBlockMeta Meta_;
     NProto::TSimpleVersionedBlockMeta VersionedMeta_;
