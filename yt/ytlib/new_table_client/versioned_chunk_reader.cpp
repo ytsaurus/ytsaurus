@@ -168,13 +168,13 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
 
         auto row = BlockReader_->GetRow(&MemoryPool_);
         if (row) {
-            rows->push_back(row);
-            ++RowCount_;
             YASSERT(
                 rows->empty() ||
                 CompareRows(
                     rows->back().BeginKeys(), rows->back().EndKeys(),
                     row.BeginKeys(), row.EndKeys()) < 0);
+            rows->push_back(row);
+            ++RowCount_;
         }
 
         if (!BlockReader_->NextRow()) {
