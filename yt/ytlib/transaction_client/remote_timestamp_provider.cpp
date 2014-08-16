@@ -169,7 +169,7 @@ private:
     {
         if (rsp->IsOK()) {
             auto timestamp = TTimestamp(rsp->timestamp());
-            LOG_DEBUG(*rsp, "Current timestamp updated (Timestamp: %v)", timestamp);          
+            LOG_DEBUG("Current timestamp updated (Timestamp: %v)", timestamp);
 
             TGuard<TSpinLock> guard(SpinLock_);
             LatestTimestamp_ = std::max(LatestTimestamp_, timestamp);
