@@ -31,9 +31,13 @@ TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
 
 void TSimpleVersionedBlockWriter::WriteRow(
     TVersionedRow row,
-    const TUnversionedValue* /* beginPrevKey */,
-    const TUnversionedValue* /* endPrevKey */)
+    const TUnversionedValue* beginPrevKey,
+    const TUnversionedValue* endPrevKey)
 {
+    YASSERT(
+        !beginPrevKey && !endPrevKey ||
+        CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
+
     ++RowCount_;
 
     int keyOffset = KeyStream_.GetSize();

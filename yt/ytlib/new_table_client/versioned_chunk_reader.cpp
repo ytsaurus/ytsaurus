@@ -170,6 +170,11 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
         if (row) {
             rows->push_back(row);
             ++RowCount_;
+            YASSERT(
+                rows->empty() ||
+                CompareRows(
+                    rows->back().BeginKeys(), rows->back().EndKeys(),
+                    row.BeginKeys(), row.EndKeys()) < 0);
         }
 
         if (!BlockReader_->NextRow()) {
