@@ -101,8 +101,10 @@ int GetDataWeight(const TUnversionedValue& value)
             return 0;
 
         case EValueType::Int64:
-        case EValueType::Uint64:
             return sizeof(i64);
+
+        case EValueType::Uint64:
+            return sizeof(ui64);
 
         case EValueType::Double:
             return sizeof(double);
