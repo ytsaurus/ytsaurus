@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "row_base.h"
+#include "schema.h"
 
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/serialize.h>
@@ -312,24 +313,37 @@ void ValidateRowCount(int count);
 /*! The row must obey the following properties:
  *  1. Its value count must pass #ValidateRowValueCount checks.
  *  2. It must contain all key components (values with ids in range [0, keyColumnCount - 1]).
+ *  3. Value types must either be null or match those given in schema.
  */
-void ValidateClientDataRow(TUnversionedRow row, int keyColumnCount);
+void ValidateClientDataRow(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TTableSchema& schema);
 
 //! Checks that #row is a valid server-side data row. Throws on failure.
 /*! The row must obey the following properties:
  *  1. Its value count must pass #ValidateRowValueCount checks.
  *  2. It must contain all key components (values with ids in range [0, keyColumnCount - 1])
  *  in this order at the very beginning.
+ *  3. Value types must either be null or match those given in schema.
  */
-void ValidateServerDataRow(TUnversionedRow row, int keyColumnCount);
+void ValidateServerDataRow(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TTableSchema& schema);
 
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The key must obey the following properties:
  *  1. It cannot be null.
  *  2. It must contain exactly #keyColumnCount components.
  *  3. Value ids must be a permutation of {0, ..., keyColumnCount - 1}.
+ *  4. Value types must either be null of match those given in schema.
  */
-void ValidateClientKey(TKey key, int keyColumnCount);
+void ValidateClientKey(
+    TKey key,
+    int keyColumnCount,
+    const TTableSchema& schema);
 
 //! Checks that #key is a valid server-side key. Throws on failure.
 /*! The key must obey the following properties:
@@ -337,7 +351,10 @@ void ValidateClientKey(TKey key, int keyColumnCount);
  *  2. It must contain exactly #keyColumnCount components with ids
  *  0, ..., keyColumnCount - 1 in this order.
  */
-void ValidateServerKey(TKey key, int keyColumnCount);
+void ValidateServerKey(
+    TKey key,
+    int keyColumnCount,
+    const TTableSchema& schema);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 // by appending a |EValueType::Min| sentinel.

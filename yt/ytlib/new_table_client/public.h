@@ -2,10 +2,12 @@
 
 #include <core/misc/common.h>
 #include <core/misc/enum.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/table_client/public.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <initializer_list>
@@ -99,6 +101,8 @@ struct TColumnFilter
     bool All;
     SmallVector<int, TypicalColumnCount> Indexes;
 };
+
+typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;
 

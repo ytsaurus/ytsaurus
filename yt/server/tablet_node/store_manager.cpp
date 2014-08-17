@@ -146,7 +146,7 @@ private:
         TKeyComparer keyComparer(KeyColumnCount_);
 
         for (auto key : LookupKeys_) {
-            ValidateServerKey(key, KeyColumnCount_);
+            ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
 
             // Create lookupers, send requests, collect sync responses.
             TIntrusivePtr<TParallelCollector<TVersionedRow>> collector;
@@ -293,7 +293,7 @@ TDynamicRowRef TStoreManager::WriteRow(
     TUnversionedRow row,
     bool prelock)
 {
-    ValidateServerDataRow(row, Tablet_->GetKeyColumnCount());
+    ValidateServerDataRow(row, Tablet_->GetKeyColumnCount(), Tablet_->Schema());
 
     auto* store = FindRelevantStoreAndCheckLocks(
         transaction,
@@ -314,7 +314,7 @@ TDynamicRowRef TStoreManager::DeleteRow(
     NVersionedTableClient::TKey key,
     bool prelock)
 {
-    ValidateServerKey(key, Tablet_->GetKeyColumnCount());
+    ValidateServerKey(key, Tablet_->GetKeyColumnCount(), Tablet_->Schema());
 
     auto* store = FindRelevantStoreAndCheckLocks(
         transaction,

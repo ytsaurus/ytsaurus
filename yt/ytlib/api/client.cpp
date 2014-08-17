@@ -79,18 +79,18 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 namespace {
 
-TWireProtocolWriter::TColumnIdMapping BuildColumnIdMapping(
+TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable)
 {
     for (const auto& name : tableInfo->KeyColumns) {
         if (!nameTable->FindId(name)) {
-            THROW_ERROR_EXCEPTION("Missing key column %s in name table",
-                ~name.Quote());
+            THROW_ERROR_EXCEPTION("Missing key column %Qv in name table",
+                name);
         }
     }
 
-    TWireProtocolWriter::TColumnIdMapping mapping;
+    TNameTableToSchemaIdMapping mapping;
     mapping.resize(nameTable->GetSize());
     for (int nameTableId = 0; nameTableId < nameTable->GetSize(); ++nameTableId) {
         const auto& name = nameTable->GetName(nameTableId);
@@ -484,7 +484,7 @@ private:
             TClient* owner,
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
-            const TWireProtocolWriter::TColumnIdMapping& idMapping)
+            const TNameTableToSchemaIdMapping& idMapping)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
@@ -545,7 +545,7 @@ private:
         TConnectionConfigPtr Config_;
         TTabletId TabletId_;
         TLookupRowsOptions Options_;
-        TWireProtocolWriter::TColumnIdMapping IdMapping_;
+        TNameTableToSchemaIdMapping IdMapping_;
 
         struct TBatch
         {
@@ -611,7 +611,7 @@ private:
                 
         for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
             auto key = keys[index];
-            ValidateClientKey(key, keyColumnCount);
+            ValidateClientKey(key, keyColumnCount, tableInfo->Schema);
             auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
             auto it = tabletToSession.find(tabletInfo);
             if (it == tabletToSession.end()) {
@@ -1314,7 +1314,7 @@ private:
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
             for (auto row : Rows_) {
-                ValidateClientDataRow(row, keyColumnCount);
+                ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::WriteRow);
@@ -1347,7 +1347,7 @@ private:
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
             for (auto key : Keys_) {
-                ValidateClientKey(key, keyColumnCount);
+                ValidateClientKey(key, keyColumnCount, TableInfo_->Schema);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
@@ -1456,11 +1456,10 @@ private:
     TIntrusivePtr<TParallelCollector<void>> TransactionStartCollector_;
 
     // Maps ids from name table to schema, for each involved name table.
-    typedef TWireProtocolWriter::TColumnIdMapping TColumnIdMapping;
-    yhash_map<TNameTablePtr, TWireProtocolWriter::TColumnIdMapping> NameTableToIdMapping_;
+    yhash_map<TNameTablePtr, TNameTableToSchemaIdMapping> NameTableToIdMapping_;
 
 
-    const TColumnIdMapping& GetColumnIdMapping(const TTableMountInfoPtr& tableInfo, const TNameTablePtr& nameTable)
+    const TNameTableToSchemaIdMapping& GetColumnIdMapping(const TTableMountInfoPtr& tableInfo, const TNameTablePtr& nameTable)
     {
         auto it = NameTableToIdMapping_.find(nameTable);
         if (it == NameTableToIdMapping_.end()) {

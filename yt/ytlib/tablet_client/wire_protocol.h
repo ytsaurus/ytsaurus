@@ -4,7 +4,6 @@
 
 #include <core/misc/enum.h>
 #include <core/misc/ref.h>
-#include <core/misc/small_vector.h>
 
 #include <ytlib/new_table_client/public.h>
 
@@ -75,17 +74,15 @@ public:
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
-    typedef SmallVector<int, NVersionedTableClient::TypicalColumnCount> TColumnIdMapping;
-
     void WriteUnversionedRow(
         NVersionedTableClient::TUnversionedRow row,
-        const TColumnIdMapping* idMapping = nullptr);
+        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRow(
         const std::vector<NVersionedTableClient::TUnversionedValue>& row,
-        const TColumnIdMapping* idMapping = nullptr);
+        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRowset(
         const std::vector<NVersionedTableClient::TUnversionedRow>& rowset,
-        const TColumnIdMapping* idMapping = nullptr);
+        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
 
     std::vector<TSharedRef> Flush();

@@ -124,7 +124,7 @@ public:
 
     void WriteUnversionedRow(
         TUnversionedRow row,
-        const TColumnIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping)
     {
         if (row) {
             WriteRowValues(row.Begin(), row.End(), idMapping);
@@ -135,14 +135,14 @@ public:
 
     void WriteUnversionedRow(
         const std::vector<TUnversionedValue>& row,
-        const TColumnIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping)
     {
         WriteRowValues(row.data(), row.data() + row.size(), idMapping);
     }
 
     void WriteUnversionedRowset(
         const std::vector<TUnversionedRow>& rowset,
-        const TColumnIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping)
     {
         int rowCount = static_cast<int>(rowset.size());
         ValidateRowCount(rowCount);
@@ -251,7 +251,7 @@ private:
     void WriteRowValues(
         const TUnversionedValue* begin,
         const TUnversionedValue* end,
-        const TColumnIdMapping* idMapping)
+        const TNameTableToSchemaIdMapping* idMapping)
     {
         if (!begin) {
             WriteInt64(-1);
@@ -266,16 +266,8 @@ private:
             for (int index = 0; index < valueCount; ++index) {
                 const auto& srcValue = begin[index];
                 auto& dstValue = PooledValues_[index];
-
-                int srcId = srcValue.Id;
-                if (srcId >= idMapping->size()) {
-                    THROW_ERROR_EXCEPTION("Invalid column id: actual %d, expected in range [0, %d]",
-                        srcId,
-                        static_cast<int>(idMapping->size()) - 1);
-                }
-
                 dstValue = srcValue;
-                dstValue.Id = (*idMapping)[srcId];
+                dstValue.Id = (*idMapping)[srcValue.Id];
             }
 
             std::sort(
@@ -333,21 +325,21 @@ void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& me
 
 void TWireProtocolWriter::WriteUnversionedRow(
     TUnversionedRow row,
-    const TColumnIdMapping* idMapping)
+    const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRow(row, idMapping);
 }
 
 void TWireProtocolWriter::WriteUnversionedRow(
     const std::vector<TUnversionedValue>& row,
-    const TColumnIdMapping* idMapping)
+    const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRow(row, idMapping);
 }
 
 void TWireProtocolWriter::WriteUnversionedRowset(
     const std::vector<TUnversionedRow>& rowset,
-    const TColumnIdMapping* idMapping)
+    const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRowset(rowset, idMapping);
 }
