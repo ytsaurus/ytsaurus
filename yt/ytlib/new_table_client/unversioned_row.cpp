@@ -726,7 +726,7 @@ void ValidateClientDataRow(
                 schema.Columns()[schemaId].Name,
                 schema.Columns()[schemaId].Type,
                 EValueType(EValueType::Null),
-                value.Type);
+                EValueType(value.Type));
         }
     }
 
@@ -771,7 +771,7 @@ void ValidateServerDataRow(
                     schema.Columns()[id].Name,
                     schema.Columns()[id].Type,
                     EValueType(EValueType::Null),
-                    value.Type);
+                    EValueType(value.Type));
             }
         }
     }
@@ -811,7 +811,7 @@ void ValidateClientKey(
                 schema.Columns()[id].Name,
                 schema.Columns()[id].Type,
                 EValueType(EValueType::Null),
-                value.Type);
+                EValueType(value.Type));
         }
         keyColumnFlags[id] = true;
     }
@@ -846,7 +846,7 @@ void ValidateServerKey(
                 schema.Columns()[id].Name,
                 schema.Columns()[id].Type,
                 EValueType(EValueType::Null),
-                value.Type);
+                EValueType(value.Type));
         }
     }
 }
