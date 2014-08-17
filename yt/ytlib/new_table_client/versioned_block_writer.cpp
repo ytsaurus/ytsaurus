@@ -20,9 +20,9 @@ static const i64 NullValue = 0;
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns)
-    : Schema_(schema)
-    , MinTimestamp_(MaxTimestamp)
+    : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
+    , Schema_(schema)
     , SchemaColumnCount_(schema.Columns().size())
     , KeyColumnCount_(keyColumns.size())
 { }
