@@ -204,7 +204,7 @@ template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
 {
     auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
-    auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
+    auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
     int beginBlockIndex = 0;
     if (LowerLimit_.HasRowIndex()) {
@@ -230,17 +230,15 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
     }
 
     if (LowerLimit_.HasKey()) {
-        typedef decltype(blockIndexEntries.end()) TIter;
-        auto rbegin = std::reverse_iterator<TIter>(blockIndexEntries.end());
-        auto rend = std::reverse_iterator<TIter>(blockIndexEntries.begin());
+        typedef decltype(blockIndexKeys.end()) TIter;
+        auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
+        auto rend = std::reverse_iterator<TIter>(blockIndexKeys.begin());
         auto it = std::upper_bound(
             rbegin,
             rend,
             LowerLimit_.GetKey(),
-            [] (const TOwningKey& pivot, const TProtoStringType& protoKey) {
-                TOwningKey key;
-                FromProto(&key, protoKey);
-                return pivot > key;
+            [] (const TOwningKey& pivot, const TOwningKey& indexKey) {
+                return pivot > indexKey;
             });
 
         if (it != rend) {
@@ -257,7 +255,7 @@ template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 {
     auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
-    auto& blockIndexEntries = CachedChunkMeta_->BlockIndex().entries();
+    auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
     int endBlockIndex = blockMetaEntries.size();
     if (UpperLimit_.HasRowIndex()) {
@@ -281,19 +279,17 @@ int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 
     if (UpperLimit_.HasKey()) {
         auto it = std::lower_bound(
-            blockIndexEntries.begin(),
-            blockIndexEntries.end(),
+            blockIndexKeys.begin(),
+            blockIndexKeys.end(),
             UpperLimit_.GetKey(),
-            [] (const TProtoStringType& protoKey, const TOwningKey& pivot) {
-                TOwningKey key;
-                FromProto(&key, protoKey);
-                return key < pivot;
+            [] (const TOwningKey& indexKey, const TOwningKey& pivot) {
+                return indexKey < pivot;
             });
 
-        if (it != blockIndexEntries.end()) {
+        if (it != blockIndexKeys.end()) {
             endBlockIndex = std::min(
                 endBlockIndex,
-                static_cast<int>(std::distance(blockIndexEntries.begin(), it)) + 1);
+                static_cast<int>(std::distance(blockIndexKeys.begin(), it)) + 1);
         }
     }
 

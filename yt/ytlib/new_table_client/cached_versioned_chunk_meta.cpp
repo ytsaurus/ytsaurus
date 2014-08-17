@@ -60,9 +60,14 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
         MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
         MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
 
+        auto blockIndexExt = GetProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
+        BlockIndexKeys_.reserve(blockIndexExt.entries_size());
+        for (const auto& protoKey : blockIndexExt.entries()) {
+            BlockIndexKeys_.push_back(FromProto<TOwningKey>(protoKey));
+        }
+
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
-        BlockIndex_ = GetProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
 
         return TErrorOr<TCachedVersionedChunkMetaPtr>(this);
     } catch (const std::exception& ex) {
