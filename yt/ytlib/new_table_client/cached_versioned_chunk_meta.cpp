@@ -20,6 +20,8 @@ using namespace NVersionedTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TErrorOr<TCachedVersionedChunkMetaPtr>> TCachedVersionedChunkMeta::Load(
@@ -54,10 +56,13 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
         ValidateChunkMeta();
         ValidateSchema(readerSchema);
 
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+        MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
+        MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
         BlockIndex_ = GetProtoExtension<TBlockIndexExt>(ChunkMeta_.extensions());
-        BoundaryKeys_ = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
 
         return TErrorOr<TCachedVersionedChunkMetaPtr>(this);
     } catch (const std::exception& ex) {

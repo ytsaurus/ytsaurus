@@ -3,6 +3,7 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
+#include "unversioned_row.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -18,9 +19,10 @@ class TCachedVersionedChunkMeta
     : public TIntrinsicRefCounted
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, MinKey);
+    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockIndexExt, BlockIndex);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TBoundaryKeysExt, BoundaryKeys);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);

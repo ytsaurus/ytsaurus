@@ -304,12 +304,8 @@ template <class TBlockReader>
 void TVersionedChunkReader<TBlockReader>::DoOpen()
 {
     // Check sensible lower limit.
-    if (LowerLimit_.HasKey()) {
-        auto maxKey = NYT::FromProto<TOwningKey>(CachedChunkMeta_->BoundaryKeys().max());
-        if (LowerLimit_.GetKey() > maxKey)
-            return;
-    }
-
+    if (LowerLimit_.HasKey() && LowerLimit_.GetKey() > CachedChunkMeta_->GetMaxKey())
+        return;
     if (LowerLimit_.HasRowIndex() &&
         LowerLimit_.GetRowIndex() >= CachedChunkMeta_->Misc().row_count())
         return;
