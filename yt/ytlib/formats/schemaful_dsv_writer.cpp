@@ -349,6 +349,11 @@ char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
 
 char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
 {
+    if (value == 0) {
+        *ptr++ = '0';
+        return ptr;
+    }
+
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
@@ -357,7 +362,7 @@ char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
         value = quot;
     }
 
-    if (value >= 0) {
+    if (value > 0) {
         *ptr++ = ('0' + value);
     }
 
