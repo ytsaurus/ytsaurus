@@ -14,10 +14,6 @@ namespace NYT {
         return TError(valueOrError); \
     }
 
-#define RETURN_FUTURE_IF_ERROR(valueOrError, type) \
-    if (!(valueOrError).IsOK()) { \
-        return MakeFuture<type>(TError(valueOrError)); \
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
