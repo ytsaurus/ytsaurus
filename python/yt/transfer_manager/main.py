@@ -509,6 +509,7 @@ class Application(object):
 
         self._tasks[id].state = "pending"
         self._tasks[id].creation_time = now()
+        self._tasks[id].finish_time = None
         self._tasks[id].error = None
         self._pending_tasks.append(id)
 
