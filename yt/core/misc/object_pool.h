@@ -28,6 +28,8 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
+    TObjectPool();
+
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
@@ -46,15 +48,12 @@ private:
     std::atomic<int> PoolSize_;
 
 
-    TObjectPool();
-
     T* AllocateInstance();
     void FreeInstance(T* obj);
 
     THeader* GetHeader(T* obj);
     bool IsExpired(const THeader* header);
 
-    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
 };
 
 template <class T>
