@@ -23,8 +23,8 @@ typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
     auto now = TInstant::Now();
     T* obj = nullptr;
     while (PooledObjects_.Dequeue(&obj)) {
-        AtomicDecrement(PoolSize_);
-        
+        --PoolSize_;
+
         auto* header = GetHeader(obj);
         if (header->ExpireTime > now)
             break;
@@ -54,10 +54,10 @@ void TObjectPool<T>::Reclaim(T* obj)
     TPooledObjectTraits<T>::Clean(obj);
     PooledObjects_.Enqueue(obj);
 
-    if (AtomicIncrement(PoolSize_) > TPooledObjectTraits<T>::GetMaxPoolSize()) {
+    if (++PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
         T* objToDestroy;
         if (PooledObjects_.Dequeue(&objToDestroy)) {
-            AtomicDecrement(PoolSize_);
+            --PoolSize_;
             FreeInstance(objToDestroy);
         }
     }

@@ -6,6 +6,8 @@
 
 #include <util/generic/singleton.h>
 
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +39,7 @@ private:
     };
 
     TLockFreeQueue<T*> PooledObjects_;
-    TAtomic PoolSize_;
+    std::atomic<int> PoolSize_;
 
 
     TObjectPool();
