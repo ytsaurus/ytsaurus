@@ -317,7 +317,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
 
         LOG_DEBUG("Finished removing blob chunk files (ChunkId: %v)",
             id);
-    }).AsyncVia(location->GetWriteInvoker()).Run();
+    }).AsyncVia(location->GetWritePoolInvoker()).Run();
 }
 
 void TBlobChunkBase::DoSyncRemove(const Stroka& dataFileName)
