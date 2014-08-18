@@ -797,7 +797,7 @@ IChangelogPtr TJournalDispatcher::TImpl::CreateChangelog(
 
     auto futureChangelogOrError = BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunk)
         .Guarded()
-        .AsyncVia(location->GetWriteInvoker())
+        .AsyncVia(location->GetWritePoolInvoker())
         .Run();
     auto cachedChangelog = New<TCachedChangelog>(
         this,
