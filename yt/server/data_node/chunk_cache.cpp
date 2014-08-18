@@ -131,7 +131,7 @@ public:
             LOG_INFO("Loading chunk into cache (ChunkId: %v)",
                 chunkId);
 
-            auto invoker = CreateSerializedInvoker(Location_->GetWriteInvoker());
+            auto invoker = CreateSerializedInvoker(Location_->GetWritePoolInvoker());
             invoker->Invoke(BIND(
                 &TImpl::DoDownloadChunk,
                 MakeStrong(this),

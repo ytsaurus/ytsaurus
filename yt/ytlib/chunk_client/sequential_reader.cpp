@@ -117,7 +117,7 @@ void TSequentialReader::OnGotBlocks(
         firstSequenceIndex,
         blocks.size());
 
-    TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
         &TSequentialReader::DecompressBlocks,
         MakeWeak(this),
         firstSequenceIndex,

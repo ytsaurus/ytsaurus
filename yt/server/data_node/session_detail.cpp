@@ -36,7 +36,7 @@ TSessionBase::TSessionBase(
     , ChunkId_(chunkId)
     , Options_(options)
     , Location_(location)
-    , WriteInvoker_(CreateSerializedInvoker(Location_->GetWriteInvoker()))
+    , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
     , Logger(DataNodeLogger)
     , Profiler(location->Profiler())
 {

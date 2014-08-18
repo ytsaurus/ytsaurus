@@ -143,7 +143,7 @@ public:
 
         return BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk)
             .Guarded()
-            .AsyncVia(chunk->GetLocation()->GetWriteInvoker())
+            .AsyncVia(chunk->GetLocation()->GetWritePoolInvoker())
             .Run();
     }
 

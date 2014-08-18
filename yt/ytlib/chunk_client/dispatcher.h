@@ -22,8 +22,8 @@ public:
 
     IInvokerPtr GetReaderInvoker();
     IInvokerPtr GetWriterInvoker();
-    IInvokerPtr GetCompressionInvoker();
-    IInvokerPtr GetErasureInvoker();
+    IInvokerPtr GetCompressionPoolInvoker();
+    IInvokerPtr GetErasurePoolInvoker();
 
     void Shutdown();
 

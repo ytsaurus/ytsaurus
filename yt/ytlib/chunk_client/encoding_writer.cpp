@@ -27,7 +27,7 @@ TEncodingWriter::TEncodingWriter(
     , CompressionRatio_(config->DefaultCompressionRatio)
     , Config(config)
     , ChunkWriter(asyncWriter)
-    , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
+    , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(NCompression::GetCodec(options->CompressionCodec))
     , IsWaiting(false)
@@ -80,7 +80,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 
     if (Config->VerifyCompression) {
-        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
+        TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
             &TEncodingWriter::VerifyBlock,
             MakeWeak(this),
             block,
@@ -108,7 +108,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
 
     if (Config->VerifyCompression) {
-        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
+        TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
             &TEncodingWriter::VerifyVector,
             MakeWeak(this),
             vectorizedBlock,

@@ -59,12 +59,12 @@ IInvokerPtr TDispatcher::GetWriterInvoker()
     return WriterThread_->GetInvoker();
 }
 
-IInvokerPtr TDispatcher::GetCompressionInvoker()
+IInvokerPtr TDispatcher::GetCompressionPoolInvoker()
 {
     return CompressionThreadPool_->GetInvoker();
 }
 
-IInvokerPtr TDispatcher::GetErasureInvoker()
+IInvokerPtr TDispatcher::GetErasurePoolInvoker()
 {
     return ErasureThreadPool_->GetInvoker();
 }

@@ -65,8 +65,8 @@ TLocation::TLocation(
     , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), ELocationQueue::GetDomainNames()))
     , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Data)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(ELocationQueue::Meta)))
-    , WriteQueue_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
-    , WriteInvoker_(WriteQueue_->GetInvoker())
+    , WriteThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
+    , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , Logger(DataNodeLogger)
 {
     Logger.AddTag("Path: %v", Config_->Path);
@@ -209,9 +209,9 @@ IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
     return MetaReadInvoker_;
 }
 
-IInvokerPtr TLocation::GetWriteInvoker()
+IInvokerPtr TLocation::GetWritePoolInvoker()
 {
-    return WriteInvoker_;
+    return WritePoolInvoker_;
 }
 
 bool TLocation::IsEnabled() const
@@ -352,7 +352,7 @@ std::vector<TChunkDescriptor> TLocation::DoInitialize()
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
-        GetWriteInvoker());
+        GetWritePoolInvoker());
 
     // Run first health check before initialization is complete to sort out read-only drives.
     auto error = HealthChecker_->RunCheck().Get();

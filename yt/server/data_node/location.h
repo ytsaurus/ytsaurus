@@ -105,7 +105,7 @@ public:
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWriteInvoker();
+    IInvokerPtr GetWritePoolInvoker();
 
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
@@ -139,8 +139,8 @@ private:
     IPrioritizedInvokerPtr DataReadInvoker_;
     IPrioritizedInvokerPtr MetaReadInvoker_;
 
-    NConcurrency::TThreadPoolPtr WriteQueue_;
-    IInvokerPtr WriteInvoker_;
+    NConcurrency::TThreadPoolPtr WriteThreadPool_;
+    IInvokerPtr WritePoolInvoker_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 

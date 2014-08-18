@@ -395,7 +395,7 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetQueryInvoker() const
+IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
 {
     return QueryThreadPool->GetInvoker();
 }

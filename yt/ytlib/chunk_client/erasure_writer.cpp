@@ -324,7 +324,7 @@ TError TErasureWriter::EncodeAndWriteParityBlocks()
 
         auto parityBlocksPromise = NewPromise<std::vector<TSharedRef>>();
 
-        TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, begin, end, &parityBlocksPromise] () {
+        TDispatcher::Get()->GetErasurePoolInvoker()->Invoke(BIND([this, this_, begin, end, &parityBlocksPromise] () {
             // Generate bytes from [begin, end) for parity blocks.
             std::vector<TSharedRef> slices;
             for (const auto& slicer : Slicers_) {
