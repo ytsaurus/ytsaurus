@@ -845,11 +845,11 @@ private:
                 TOwningKey limitKey;
                 FromProto(&limitKey, key);
 
-                ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
+                ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
 
                 createNewSplit();
                 *boundaryKeysExt.mutable_start() = key;
-                ToProto(currentSplit->mutable_upper_limit()->mutable_key(), limitKey);
+                ToProto(currentSplit->mutable_lower_limit()->mutable_key(), limitKey);
             }
         }
 
