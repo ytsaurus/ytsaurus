@@ -130,7 +130,7 @@ public:
             // NB: Don't bound concurrency here.
             // Doing otherwise may lead to deadlock and makes no sense since coordination
             // is cheap.
-            Bootstrap_->GetQueryInvoker(),
+            Bootstrap_->GetQueryPoolInvoker(),
             this))
         , Evaluator_(CreateEvaluator(
             Bootstrap_->GetBoundedConcurrencyQueryInvoker(),
