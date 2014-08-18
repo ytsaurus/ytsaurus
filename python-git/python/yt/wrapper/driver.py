@@ -225,21 +225,14 @@ def make_request(command_name, params,
 
     stream = (command.output_type in ["binary", "tabular"])
 
-    try:
-        response = make_request_with_retries(
-            command.http_method(),
-            url,
-            make_retries=allow_retries,
-            retry_unavailable_proxy=retry_unavailable_proxy,
-            headers=headers,
-            data=data,
-            stream=stream)
-    except requests.ConnectionError as error:
-        if hasattr(error, "response"):
-            # Reponse has trailing, it is ususally error response from yt in case of heavy request.
-            response = error.response
-        else:
-            raise
+    response = make_request_with_retries(
+        command.http_method(),
+        url,
+        make_retries=allow_retries,
+        retry_unavailable_proxy=retry_unavailable_proxy,
+        headers=headers,
+        data=data,
+        stream=stream)
 
     # Hide token for security reasons
     if "Authorization" in headers:
@@ -247,13 +240,10 @@ def make_request(command_name, params,
     print_info("Response header %r", response.headers())
 
     # Determine type of response data and return it
-    if response.is_ok():
-        if return_content:
-            return response.content()
-        else:
-            return response
+    if return_content:
+        return response.content()
     else:
-        raise YtResponseError(url, headers, response.error())
+        return response
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.

@@ -38,6 +38,10 @@ class YtResponseError(YtError):
         """Transaction lock conflict."""
         return int(self.error["code"]) == 402
 
+    def is_request_rate_limit_exceeded(self):
+        """Request rate limit exceeded."""
+        return int(self.error["code"]) == 904
+
 class YtNetworkError(YtError):
     """
     Error occurred while sending an HTTP request.

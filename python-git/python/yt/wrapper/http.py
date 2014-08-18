@@ -2,7 +2,7 @@ import http_config
 import config
 import yt.logger as logger
 from common import require, get_backoff, get_value
-from errors import YtError, YtNetworkError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse
+from errors import YtError, YtNetworkError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtResponseError
 
 import os
 import string
@@ -76,26 +76,36 @@ class Response(object):
             self._error = json.loads(self.raw_response.headers["x-yt-error"])
         self._return_code_processed = True
 
+def _process_request_backoff(current_time):
+    if http_config.REQUEST_BACKOFF is not None:
+        last_request_time = getattr(get_session(), "last_request_time", 0)
+        now_seconds = (current_time - datetime(1970, 1, 1)).total_seconds()
+        diff = now_seconds - last_request_time
+        if diff * 1000.0 < float(http_config.REQUEST_BACKOFF):
+            time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
+        get_session().last_request_time = now_seconds
+
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, **kwargs):
     yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_TIMEOUT
 
     network_errors = list(NETWORK_ERRORS)
     network_errors.append(YtIncorrectResponse)
+    network_errors.append(YtResponseError)
     if retry_unavailable_proxy:
         network_errors.append(YtProxyUnavailable)
 
     for attempt in xrange(http_config.REQUEST_RETRY_COUNT):
         current_time = datetime.now()
+        _process_request_backoff(current_time)
         try:
-            if http_config.REQUEST_BACKOFF is not None:
-                last_request_time = getattr(get_session(), "last_request_time", 0)
-                now_seconds = (datetime.now() - datetime(1970, 1, 1)).total_seconds()
-                diff = now_seconds - last_request_time
-                if diff * 1000.0 < float(http_config.REQUEST_BACKOFF):
-                    time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
-                get_session().last_request_time = now_seconds
+            try:
+                response = Response(get_session().request(method, url, **kwargs))
+            except ConnectionError as error:
+                if hasattr(error, "response"):
+                    raise YtResponseError(url, kwargs.get("headers", {}), Response(error.response).error())
+                else:
+                    raise
 
-            response = Response(get_session().request(method, url, **kwargs))
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
             # So we should retry this request.
             if not kwargs.get("stream", False) and response.is_json() and not response.content():
@@ -104,8 +114,17 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                         repr(response.headers()))
             if response.raw_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
+            if not response.is_ok():
+                raise YtResponseError(url, kwargs.get("headers", {}), response.error())
+
             return response
+
         except tuple(network_errors) as error:
+            # We consider only request rate limit exceeded as retryable error among
+            # possible response errors
+            if isinstance(error, YtResponseError) and not error.is_request_rate_limit_exceeded():
+                raise
+
             message =  "HTTP %s request %s has failed with error '%s'" % (method, url, str(error))
             if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
