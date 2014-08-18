@@ -161,11 +161,8 @@ class TNonReparingReader
     : public IReader
 {
 public:
-    TNonReparingReader(
-        const std::vector<IReaderPtr>& readers,
-        IInvokerPtr controlInvoker)
+    explicit TNonReparingReader(const std::vector<IReaderPtr>& readers)
         : Readers_(readers)
-        , ControlInvoker_(controlInvoker)
     {
         YCHECK(!Readers_.empty());
     }
@@ -175,10 +172,11 @@ public:
         auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
             BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadBlocksResult {
-                RETURN_FUTURE_IF_ERROR(error, TReadBlocksResult);
+                if (!error.IsOK()) {
+                    return MakeFuture<TReadBlocksResult>(error);
+                }
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
-            }).AsyncVia(ControlInvoker_)
-        );
+            }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
@@ -203,9 +201,9 @@ public:
 
 private:
     std::vector<IReaderPtr> Readers_;
-    IInvokerPtr ControlInvoker_;
 
     std::vector<TPartInfo> PartInfos_;
+
 
     TAsyncError PreparePartInfos()
     {
@@ -213,32 +211,32 @@ private:
             return MakePromise(TError());
         }
 
-        auto this_ = MakeStrong(this);
         return GetPlacementMeta(this).Apply(
-            BIND([this, this_] (IReader::TGetMetaResult metaOrError) -> TError {
-                RETURN_IF_ERROR(metaOrError);
-
-                auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
-                PartInfos_ = NYT::FromProto<TPartInfo>(extension.part_infos());
-
-                // Check that part infos are correct.
-                YCHECK(PartInfos_.front().first_block_index() == 0);
-                for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
-                    YCHECK(PartInfos_[i].first_block_index() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].first_block_index());
-                }
-
-                return TError();
-            }).AsyncVia(ControlInvoker_)
-        );
+            BIND(&TNonReparingReader::OnGotPlacementMeta, MakeStrong(this))
+                .Guarded()
+                .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
+
+    void OnGotPlacementMeta(IReader::TGetMetaResult metaOrError)
+    {
+        THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
+
+        auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
+        PartInfos_ = NYT::FromProto<TPartInfo>(extension.part_infos());
+
+        // Check that part infos are correct.
+        YCHECK(PartInfos_.front().first_block_index() == 0);
+        for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
+            YCHECK(PartInfos_[i].first_block_index() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].first_block_index());
+        }
+    }
+
 };
 
 IReaderPtr CreateNonReparingErasureReader(
     const std::vector<IReaderPtr>& dataBlockReaders)
 {
-    return New<TNonReparingReader>(
-        dataBlockReaders,
-        TDispatcher::Get()->GetReaderInvoker());
+    return New<TNonReparingReader>(dataBlockReaders);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -259,13 +257,13 @@ public:
     TWindowReader(
         IReaderPtr reader,
         int blockCount)
-            : Reader_(reader)
-            , BlockCount_(blockCount)
-            , WindowSize_(-1)
-            , BlockIndex_(0)
-            , BlocksDataSize_(0)
-            , BuildDataSize_(0)
-            , FirstBlockOffset_(0)
+        : Reader_(reader)
+        , BlockCount_(blockCount)
+        , WindowSize_(-1)
+        , BlockIndex_(0)
+        , BlocksDataSize_(0)
+        , BuildDataSize_(0)
+        , FirstBlockOffset_(0)
     { }
 
     TReadFuture Read(i64 windowSize)
@@ -523,10 +521,11 @@ private:
     int ErasedBlockCount_;
     int RepairedBlockCount_;
 
-    TAsyncError RepairIfNeeded();
+    TAsyncError RepairBlockIfNeeded();
+    TBlock OnBlockRepaired(TError error);
     TAsyncError OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
-    TError OnGotMeta(IReader::TGetMetaResult metaOrError);
+    void OnGotMeta(IReader::TGetMetaResult metaOrError);
 
 };
 
@@ -540,17 +539,24 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
     YCHECK(HasNextBlock());
 
     auto this_ = MakeStrong(this);
-    return RepairIfNeeded()
-        .Apply(BIND([this, this_] (TError error) -> TReadResult {
-            RETURN_IF_ERROR(error);
+    return RepairBlockIfNeeded().Apply(BIND(&TRepairReader::OnBlockRepaired, MakeStrong(this))
+        .Guarded()
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
+}
 
-            YCHECK(!RepairedBlocksQueue_.empty());
-            auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
-            RepairedBlocksQueue_.pop_front();
-            RepairedBlockCount_ += 1;
-            return result;
-        }).AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-    );
+TRepairReader::TBlock TRepairReader::OnBlockRepaired(TError error)
+{
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+    YCHECK(!RepairedBlocksQueue_.empty());
+    auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    const auto& block = result.Value();
+
+    RepairedBlocksQueue_.pop_front();
+    RepairedBlockCount_ += 1;
+
+    return block;
 }
 
 TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
@@ -565,22 +571,24 @@ TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
     }
 
     if (RepairedBlocksQueue_.empty()) {
-        return RepairIfNeeded();
+        return RepairBlockIfNeeded();
     } else {
-        return MakePromise(TError());
+        return OKFuture;
     }
 }
 
 TAsyncError TRepairReader::OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> result)
 {
-    RETURN_FUTURE_IF_ERROR(result, TError);
+    if (!result.IsOK()) {
+        return MakeFuture(TError(result));
+    }
 
     return BIND(&TRepairReader::Repair, MakeStrong(this), result.Value())
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 
-TAsyncError TRepairReader::RepairIfNeeded()
+TAsyncError TRepairReader::RepairBlockIfNeeded()
 {
     YCHECK(HasNextBlock());
 
@@ -601,9 +609,9 @@ TAsyncError TRepairReader::RepairIfNeeded()
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
 
-TError TRepairReader::OnGotMeta(IReader::TGetMetaResult metaOrError)
+void TRepairReader::OnGotMeta(IReader::TGetMetaResult metaOrError)
 {
-    RETURN_IF_ERROR(metaOrError);
+    THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
     auto placementExt = GetProtoExtension<TErasurePlacementExt>(
         metaOrError.Value().extensions());
 
@@ -645,7 +653,6 @@ TError TRepairReader::OnGotMeta(IReader::TGetMetaResult metaOrError)
     }
 
     Prepared_ = true;
-    return TError();
 }
 
 TAsyncError TRepairReader::Prepare()
@@ -656,6 +663,7 @@ TAsyncError TRepairReader::Prepare()
     auto reader = Readers_.front();
     return GetPlacementMeta(reader).Apply(
         BIND(&TRepairReader::OnGotMeta, MakeStrong(this))
+            .Guarded()
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
 
