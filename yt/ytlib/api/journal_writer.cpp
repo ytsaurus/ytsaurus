@@ -561,7 +561,7 @@ private:
                     throw TFiberCanceledException();
                 } else if (auto* typedCommand = command.TryAs<TBatchCommand>()) {
                     HandleBatch(*typedCommand);
-                    if (IsSessionOverful()) {
+                    if (IsSessionOverfull()) {
                         SwitchChunk();
                         break;
                     }
@@ -596,7 +596,7 @@ private:
             EnqueueBatchToSession(batch);
         }
 
-        bool IsSessionOverful()
+        bool IsSessionOverfull()
         {
             return
                 CurrentSession_->RowCount > Config_->MaxChunkRowCount ||
