@@ -6,6 +6,8 @@
 
 #include <util/generic/singleton.h>
 
+#include <core/profiling/public.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -35,10 +37,12 @@ public:
     void Reclaim(T* obj);
 
 private:
-	struct THeader
-	{
-		TInstant ExpireTime;
-	};
+    struct THeader
+    {
+        NProfiling::TCpuInstant ExpireInstant;
+    };
+
+    static_assert(sizeof(THeader) % 8 == 0, "THeader must be padded to ensure proper alignment.");
 
     TLockFreeQueue<T*> PooledObjects_;
     std::atomic<int> PoolSize_;
@@ -46,8 +50,14 @@ private:
 
     T* AllocateInstance();
     void FreeInstance(T* obj);
-    THeader* GetHeader(T* obj);
 
+<<<<<<< HEAD
+=======
+    THeader* GetHeader(T* obj);
+    bool IsExpired(const THeader* header);
+
+    DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
+>>>>>>> 18d0167... Fix pooled objects expiration. Also replace TInstant with TCpuInstant.
 };
 
 template <class T>
@@ -100,4 +110,3 @@ struct TPooledObjectTraitsBase
 #define OBJECT_POOL_INL_H_
 #include "object_pool-inl.h"
 #undef OBJECT_POOL_INL_H_
-
