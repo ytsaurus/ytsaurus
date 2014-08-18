@@ -198,8 +198,7 @@ TError TOutputPipe::DoAll()
 TError TOutputPipe::ReadAll()
 {
     TBlob buffer(InputBufferSize, false);
-    while (true)
-    {
+    while (true) {
         auto result = WaitFor(Reader->Read(buffer.Begin(), buffer.Size()));
         RETURN_IF_ERROR(result);
 

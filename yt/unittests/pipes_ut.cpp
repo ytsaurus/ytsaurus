@@ -69,10 +69,10 @@ TEST(TPipeIOHolder, CanInstantiate)
 
 TBlob ReadAll(TAsyncReaderPtr reader, bool useWaitFor)
 {
-    TBlob buffer(1024 * 1024), whole;
+    TBlob buffer(1024 * 1024);
+    TBlob whole;
 
-    while (true)
-    {
+    while (true)  {
         TErrorOr<size_t> result;
         auto future = reader->Read(buffer.Begin(), buffer.Size());
         if (useWaitFor) {
@@ -181,19 +181,20 @@ TEST_F(TPipeReadWriteTest, ReadWrite)
     EXPECT_EQ(text, std::string(textFromPipe.Begin(), textFromPipe.End()));
 }
 
-TError WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)
+void WriteAll(TAsyncWriterPtr writer, const char* data, size_t size, size_t blockSize)
 {
     while (size > 0) {
         const size_t currentBlockSize = std::min(blockSize, size);
         auto error = WaitFor(writer->Write(data, currentBlockSize));
-        RETURN_IF_ERROR(error);
-
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
         size -= currentBlockSize;
         data += currentBlockSize;
     }
 
-    auto error = WaitFor(writer->Close());
-    return error;
+    {
+        auto error = WaitFor(writer->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,14 +223,13 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
     })
         .AsyncVia(queue->GetInvoker()).Run();
 
-    auto writeError =
-        BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
-            .AsyncVia(queue->GetInvoker())
-            .Run();
-    auto readFromPipe =
-        BIND(&ReadAll, Reader, true)
-            .AsyncVia(queue->GetInvoker())
-            .Run();
+    auto writeError =  BIND(&WriteAll, Writer, data.data(), data.size(), blockSize)
+        .Guarded()
+        .AsyncVia(queue->GetInvoker())
+        .Run();
+    auto readFromPipe = BIND(&ReadAll, Reader, true)
+        .AsyncVia(queue->GetInvoker())
+        .Run();
 
     auto textFromPipe = readFromPipe.Get();
     EXPECT_EQ(data.size(), textFromPipe.Size());
