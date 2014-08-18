@@ -72,7 +72,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
-        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Type].Type);
+        YASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].Type);
         YASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);
