@@ -28,8 +28,6 @@ class TObjectPool
 public:
     typedef std::shared_ptr<T> TValuePtr;
 
-    TObjectPool();
-
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();
 
@@ -48,16 +46,15 @@ private:
     std::atomic<int> PoolSize_;
 
 
+    TObjectPool();
+
     T* AllocateInstance();
     void FreeInstance(T* obj);
 
-<<<<<<< HEAD
-=======
     THeader* GetHeader(T* obj);
     bool IsExpired(const THeader* header);
 
     DECLARE_SINGLETON_FRIEND(TObjectPool<T>)
->>>>>>> 18d0167... Fix pooled objects expiration. Also replace TInstant with TCpuInstant.
 };
 
 template <class T>
@@ -83,7 +80,7 @@ struct TPooledObjectTraits
 //! Basic version of traits. Others may consider inheriting from it.
 struct TPooledObjectTraitsBase
 {
-	template <class T>
+    template <class T>
     static void Clean(T*)
     { }
 
@@ -99,7 +96,7 @@ struct TPooledObjectTraitsBase
 
     static TDuration GetMaxLifetimeSplay()
     {
-    	return TDuration::Seconds(60);
+        return TDuration::Seconds(60);
     }
 };
 
