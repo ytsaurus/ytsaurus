@@ -147,7 +147,7 @@ public:
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type %Qv",
+            THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
                 type);
         }
 
@@ -376,7 +376,8 @@ public:
         auto objectProxy = resolver->ResolvePath(path, Transaction);
         auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
         if (!nodeProxy) {
-            THROW_ERROR_EXCEPTION("Path % points to a nonversioned %Qv object instead of a node",
+            THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
+                path,
                 TypeFromId(objectProxy->GetId()));
         }
         return nodeProxy;
@@ -689,7 +690,7 @@ TError TCypressManager::CheckLock(
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
-        return TError("%Qv lock requires a transaction",
+        return TError("%Qlv lock requires a transaction",
             request.Mode);
     }
 
@@ -713,7 +714,7 @@ TError TCypressManager::CheckLock(
             {
                 return TError(
                     NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                    "Cannot take %Qv lock for node %v since %Qv lock is taken by concurrent transaction %v",
+                    "Cannot take %Qlv lock for node %v since %Qlv lock is taken by concurrent transaction %v",
                     request.Mode,
                     GetNodePath(trunkNode, transaction),
                     existingState.Mode,
@@ -727,7 +728,7 @@ TError TCypressManager::CheckLock(
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %Qv lock for child %Qv of node %v since %Qv lock is taken by concurrent transaction %v",
+                        "Cannot take %Qlv lock for child %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         request.ChildKey.Get(),
                         GetNodePath(trunkNode, transaction),
@@ -739,7 +740,7 @@ TError TCypressManager::CheckLock(
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %Qv lock for attribute %Qv of node %v since %Qv lock is taken by concurrent transaction %v",
+                        "Cannot take %Qlv lock for attribute %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
                         request.Mode,
                         request.AttributeKey.Get(),
                         GetNodePath(trunkNode, transaction),
@@ -763,7 +764,7 @@ TError TCypressManager::CheckLock(
             if (existingState.Mode == ELockMode::Snapshot) {
                 return TError(
                     NCypressClient::EErrorCode::SameTransactionLockConflict,
-                    "Cannot take %Qv lock for node %v since %Qv lock is already taken by the same transaction",
+                    "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by the same transaction",
                     request.Mode,
                     GetNodePath(trunkNode, transaction),
                     existingState.Mode);
@@ -780,7 +781,7 @@ TError TCypressManager::CheckLock(
     if (request.Mode != ELockMode::Snapshot && checkPending && !trunkNode->PendingLocks().empty()) {
         return TError(
             NCypressClient::EErrorCode::PendingLockConflict,
-            "Cannot take %Qv lock for node %v since there are %v pending lock(s) for this node",
+            "Cannot take %Qlv lock for node %v since there are %v pending lock(s) for this node",
             request.Mode,
             GetNodePath(trunkNode, transaction),
             trunkNode->PendingLocks().size());
