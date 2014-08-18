@@ -109,6 +109,11 @@ private:
             !chunk->IsSealed();
     }
 
+    static bool IsAttached(TChunk* chunk)
+    {
+        return !chunk->Parents().empty();
+    }
+
     static bool IsLocked(TChunk* chunk)
     {
         for (auto* parent : chunk->Parents()) {
@@ -132,6 +137,7 @@ private:
         return
             IsSealNeeded(chunk) &&
             HasEnoughReplicas(chunk) &&
+            IsAttached(chunk) &&
             !IsLocked(chunk);
     }
 
