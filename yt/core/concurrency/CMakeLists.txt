@@ -19,6 +19,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/public.h
+  ${BASE}/counter.h
+  ${BASE}/counter-inl.h
   ${BASE}/async_stream.h
   ${BASE}/action_queue.h
   ${BASE}/action_queue_detail.h
