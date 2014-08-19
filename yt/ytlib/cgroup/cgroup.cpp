@@ -359,14 +359,18 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& type = values[3 * lineNumber + 1];
             i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
-            YCHECK(deviceId.has_prefix("8:"));
+            if (!deviceId.has_prefix("8:")) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
+            }
 
             if (type == "Read") {
                 result.BytesRead += bytes;
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                YCHECK(type != "Sync" && type != "Async" && type != "Total");
+                if (type != "Sync" && type != "Async" && type != "Total") {
+                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
+                }
             }
             ++lineNumber;
         }
