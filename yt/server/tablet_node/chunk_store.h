@@ -36,7 +36,6 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
-        IInvokerPtr automatonInvoker,
         NCellNode::TBootstrap* bootstrap);
     ~TChunkStore();
 
@@ -75,7 +74,7 @@ public:
 private:
     class TLookuper;
 
-    IInvokerPtr AutomatonInvoker_;
+    TTablet* Tablet_;
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.

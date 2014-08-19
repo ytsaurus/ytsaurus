@@ -614,7 +614,6 @@ TChunkStorePtr TStoreManager::CreateChunkStore(
         chunkId,
         Tablet_,
         chunkMeta,
-        Tablet_->GetEpochAutomatonInvoker(),
         bootstrap);
 }
 

@@ -119,12 +119,10 @@ TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
-    IInvokerPtr automatonInvoker,
     TBootstrap* boostrap)
     : TStoreBase(
         id,
         tablet)
-    , AutomatonInvoker_(automatonInvoker)
     , Bootstrap_(boostrap)
 {
     State_ = EStoreState::Persistent;
@@ -316,14 +314,12 @@ void TChunkStore::PrepareReader()
         Chunk_ = WaitFor(asyncChunk);
         ChunkInitialized_ = true;
 
-        if (AutomatonInvoker_) {
-            TDelayedExecutor::Submit(
-                BIND([this, this_] () {
-                    ChunkInitialized_ = false;
-                    Chunk_.Reset();
-                }).Via(AutomatonInvoker_),
-                ChunkExpirationTimeout);
-        }
+        TDelayedExecutor::Submit(
+            BIND([this, this_] () {
+                ChunkInitialized_ = false;
+                Chunk_.Reset();
+            }).Via(Tablet_->GetEpochAutomatonInvoker()),
+            ChunkExpirationTimeout);
     }
 
     if (!ChunkReader_) {
@@ -340,13 +336,11 @@ void TChunkStore::PrepareReader()
                 Id_);
         }
 
-        if (AutomatonInvoker_) {
-            TDelayedExecutor::Submit(
-                BIND([this, this_] () {
-                    ChunkReader_.Reset();
-                }).Via(AutomatonInvoker_),
-                ChunkReaderExpirationTimeout);
-        }
+        TDelayedExecutor::Submit(
+            BIND([this, this_] () {
+                ChunkReader_.Reset();
+            }).Via(Tablet_->GetEpochAutomatonInvoker()),
+            ChunkReaderExpirationTimeout);
     }
 
     if (!CachedMeta_) {
