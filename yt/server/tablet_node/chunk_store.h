@@ -7,6 +7,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/profiling/public.h>
+
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/versioned_row.h>
 
@@ -80,6 +82,9 @@ private:
     i64 DataSize_;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
+
+    NChunkClient::IReaderPtr CachedChunkReader_;
+    NProfiling::TCpuInstant CachedChunkReaderExpirationInstant_;
 
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
 

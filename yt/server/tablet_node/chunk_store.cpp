@@ -54,6 +54,10 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TDuration CachedChunkReaderExpirationTimeout = TDuration::Seconds(15);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkStore::TLookuper
     : public IVersionedLookuper
 {
@@ -192,24 +196,30 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
-    auto asyncChunkReader = BIND(&CreateLocalChunkReader)
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run(Bootstrap_, Id_);
-    auto chunkReader = WaitFor(asyncChunkReader);
-    if (!chunkReader) {
-        // TODO(babenko): provide seed replicas
-        chunkReader = CreateReplicationReader(
-            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-            Bootstrap_->GetBlockStore()->GetBlockCache(),
-            Bootstrap_->GetMasterClient()->GetMasterChannel(),
-            New<TNodeDirectory>(),
-            Bootstrap_->GetLocalDescriptor(),
-            Id_);
+    if (!CachedChunkReader_ || NProfiling::GetCpuInstant() > CachedChunkReaderExpirationInstant_) {
+        auto asyncLocalChunkReader = BIND(&CreateLocalChunkReader)
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run(Bootstrap_, Id_);
+        CachedChunkReader_ = WaitFor(asyncLocalChunkReader);
+
+        if (!CachedChunkReader_) {
+            // TODO(babenko): provide seed replicas
+            CachedChunkReader_ = CreateReplicationReader(
+                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                New<TNodeDirectory>(),
+                Bootstrap_->GetLocalDescriptor(),
+                Id_);
+        }
+        CachedChunkReaderExpirationInstant_ =
+            NProfiling::GetCpuInstant() +
+            NProfiling::DurationToCpuDuration(CachedChunkReaderExpirationTimeout);
     }
 
     if (!CachedMeta_) {
         auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
-            chunkReader,
+            CachedChunkReader_,
             Tablet_->Schema(),
             Tablet_->KeyColumns()));
         THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
@@ -224,7 +234,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
     return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-        chunkReader,
+        CachedChunkReader_,
         CachedMeta_,
         lowerLimit,
         upperLimit,
