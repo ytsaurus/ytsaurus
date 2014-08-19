@@ -74,7 +74,6 @@ public:
 private:
     class TLookuper;
 
-    TTablet* Tablet_;
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
