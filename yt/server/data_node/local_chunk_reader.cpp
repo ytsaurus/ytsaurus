@@ -41,11 +41,6 @@ public:
         , Chunk_(chunk)
     { }
 
-    ~TLocalChunkReader()
-    {
-        Chunk_->ReleaseReadLock();
-    }
-
     virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
     {
         NTracing::TTraceSpanGuard guard(
@@ -201,10 +196,6 @@ NChunkClient::IReaderPtr CreateLocalChunkReader(
         return nullptr;
     }
          
-    if (!chunk->TryAcquireReadLock()) {
-        return nullptr;
-    }
-
     return New<TLocalChunkReader>(
         bootstrap,
         chunk);
