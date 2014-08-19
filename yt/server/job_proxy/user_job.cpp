@@ -119,7 +119,10 @@ public:
         if (UserJobSpec.enable_accounting()) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
-            CreateCGroup(Memory);
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                CreateCGroup(Memory);
+            }
         }
 
         ProcessStartTime = TInstant::Now();
@@ -176,11 +179,15 @@ public:
             RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
                     BlockIOStats = cgroup.GetStatistics();
                 });
-            RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
-            DestroyCGroup(Memory);
+
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+                DestroyCGroup(Memory);
+            }
         }
 
         if (ErrorOutput) {
@@ -597,6 +604,8 @@ private:
             return;
         }
 
+        TGuard<TSpinLock> guard(MemoryLock);
+
         if (!Memory.IsCreated()) {
             return;
         }
@@ -719,6 +728,7 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
+    TSpinLock MemoryLock;
 };
 
 TJobPtr CreateUserJob(
