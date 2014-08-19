@@ -10,7 +10,6 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <server/data_node/chunk_registry.h>
 #include <server/data_node/chunk.h>
 #include <server/data_node/block_store.h>
 
@@ -31,7 +30,7 @@ class TLocalChunkReader;
 typedef TIntrusivePtr<TLocalChunkReader> TLocalChunkReaderPtr;
 
 class TLocalChunkReader
-    : public IReader
+    : public NChunkClient::IReader
 {
 public:
     TLocalChunkReader(
@@ -188,14 +187,8 @@ private:
 
 NChunkClient::IReaderPtr CreateLocalChunkReader(
     TBootstrap* bootstrap,
-    const TChunkId& chunkId)
+    IChunkPtr chunk)
 {
-    auto chunkRegistry = bootstrap->GetChunkRegistry();
-    auto chunk = chunkRegistry->FindChunk(chunkId);
-    if (!chunk) {
-        return nullptr;
-    }
-         
     return New<TLocalChunkReader>(
         bootstrap,
         chunk);

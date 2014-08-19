@@ -42,6 +42,7 @@
 #include <server/hydra/hydra_manager.h>
 
 #include <server/data_node/local_chunk_reader.h>
+#include <server/data_node/chunk_registry.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -291,13 +292,18 @@ private:
         auto upperBound = FromProto<TReadLimit>(split.upper_limit());
         auto timestamp = GetTimestampFromDataSplit(split);
 
-        auto chunkReader = CreateLocalChunkReader(Bootstrap_, chunkId);
-        if (chunkReader) {
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+
+        NChunkClient::IReaderPtr chunkReader;
+        if (chunk) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,
                 lowerBound,
                 upperBound,
                 timestamp);
+
+            chunkReader = CreateLocalChunkReader(Bootstrap_, chunk);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,

@@ -5,6 +5,7 @@
 #include "automaton.h"
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/ytree/fluent.h>
 
@@ -27,6 +28,7 @@
 
 #include <server/data_node/local_chunk_reader.h>
 #include <server/data_node/block_store.h>
+#include <server/data_node/chunk_registry.h>
 
 #include <server/query_agent/config.h>
 
@@ -54,7 +56,8 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration CachedChunkReaderExpirationTimeout = TDuration::Seconds(15);
+static const TDuration ChunkExpirationTimeout = TDuration::Seconds(15);
+static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,12 +119,13 @@ TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
+    IInvokerPtr automatonInvoker,
     TBootstrap* boostrap)
     : TStoreBase(
         id,
         tablet)
+    , AutomatonInvoker_(automatonInvoker)
     , Bootstrap_(boostrap)
-    , DataSize_(-1)
 {
     State_ = EStoreState::Persistent;
 
@@ -196,35 +200,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
-    if (!CachedChunkReader_ || NProfiling::GetCpuInstant() > CachedChunkReaderExpirationInstant_) {
-        auto asyncLocalChunkReader = BIND(&CreateLocalChunkReader)
-            .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run(Bootstrap_, Id_);
-        CachedChunkReader_ = WaitFor(asyncLocalChunkReader);
-
-        if (!CachedChunkReader_) {
-            // TODO(babenko): provide seed replicas
-            CachedChunkReader_ = CreateReplicationReader(
-                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-                Bootstrap_->GetBlockStore()->GetBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
-                New<TNodeDirectory>(),
-                Bootstrap_->GetLocalDescriptor(),
-                Id_);
-        }
-        CachedChunkReaderExpirationInstant_ =
-            NProfiling::GetCpuInstant() +
-            NProfiling::DurationToCpuDuration(CachedChunkReaderExpirationTimeout);
-    }
-
-    if (!CachedMeta_) {
-        auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
-            CachedChunkReader_,
-            Tablet_->Schema(),
-            Tablet_->KeyColumns()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
-        CachedMeta_ = cachedMetaOrError.Value();
-    }
+    PrepareReader();
 
     TReadLimit lowerLimit;
     lowerLimit.SetKey(std::move(lowerKey));
@@ -234,7 +210,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
     return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-        CachedChunkReader_,
+        ChunkReader_,
         CachedMeta_,
         lowerLimit,
         upperLimit,
@@ -326,6 +302,61 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         .DoIf(BackingStore_, [&] (TFluentMap fluent) {
             fluent.Item("backing_store_id").Value(BackingStore_->GetId());
         });
+}
+
+void TChunkStore::PrepareReader()
+{
+    auto this_ = MakeStrong(this);
+
+    if (!ChunkInitialized_) {
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto asyncChunk = BIND(&TChunkRegistry::FindChunk, chunkRegistry, Id_)
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run();
+        Chunk_ = WaitFor(asyncChunk);
+        ChunkInitialized_ = true;
+
+        if (AutomatonInvoker_) {
+            TDelayedExecutor::Submit(
+                BIND([this, this_] () {
+                    ChunkInitialized_ = false;
+                    Chunk_.Reset();
+                }).Via(AutomatonInvoker_),
+                ChunkExpirationTimeout);
+        }
+    }
+
+    if (!ChunkReader_) {
+        if (Chunk_) {
+            ChunkReader_ = CreateLocalChunkReader(Bootstrap_, Chunk_);
+        } else {
+            // TODO(babenko): provide seed replicas
+            ChunkReader_ = CreateReplicationReader(
+                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                New<TNodeDirectory>(),
+                Bootstrap_->GetLocalDescriptor(),
+                Id_);
+        }
+
+        if (AutomatonInvoker_) {
+            TDelayedExecutor::Submit(
+                BIND([this, this_] () {
+                    ChunkReader_.Reset();
+                }).Via(AutomatonInvoker_),
+                ChunkReaderExpirationTimeout);
+        }
+    }
+
+    if (!CachedMeta_) {
+        auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
+            ChunkReader_,
+            Tablet_->Schema(),
+            Tablet_->KeyColumns()));
+        THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
+        CachedMeta_ = cachedMetaOrError.Value();
+    }
 }
 
 void TChunkStore::PrecacheProperties()

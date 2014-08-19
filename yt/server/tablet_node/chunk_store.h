@@ -21,6 +21,8 @@
 
 #include <server/query_agent/public.h>
 
+#include <server/data_node/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -34,6 +36,7 @@ public:
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
+        IInvokerPtr automatonInvoker,
         NCellNode::TBootstrap* bootstrap);
     ~TChunkStore();
 
@@ -72,6 +75,7 @@ public:
 private:
     class TLookuper;
 
+    IInvokerPtr AutomatonInvoker_;
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -79,12 +83,14 @@ private:
     TOwningKey MaxKey_;
     TTimestamp MinTimestamp_;
     TTimestamp MaxTimestamp_;
-    i64 DataSize_;
+    i64 DataSize_ = -1;
+
+    bool ChunkInitialized_ = false;
+    NDataNode::IChunkPtr Chunk_;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    NChunkClient::IReaderPtr CachedChunkReader_;
-    NProfiling::TCpuInstant CachedChunkReaderExpirationInstant_;
+    NChunkClient::IReaderPtr ChunkReader_;
 
     NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
 
@@ -93,6 +99,7 @@ private:
     IStorePtr BackingStore_;
 
 
+    void PrepareReader();
     void PrecacheProperties();
 
 };
