@@ -411,11 +411,11 @@ class Application(object):
                 "error": error.simplify()
             })
         except Exception as error:
-            logger.exception("Task {} failed with error {}".format(task.id, error.message))
+            logger.exception("Task {} failed with error:".format(task.id))
             message_queue.put({
                 "type": "error",
                 "error": {
-                    "message": error.message,
+                    "message": str(error),
                     "code": 1
                 }
             })
