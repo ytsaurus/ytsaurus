@@ -188,7 +188,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
             columnFilter);
     }
 
-    if (upperKey < MinKey_ || lowerKey > MaxKey_) {
+    if (upperKey <= MinKey_ || lowerKey > MaxKey_) {
         return nullptr;
     }
 
