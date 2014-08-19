@@ -365,7 +365,8 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, false, ProtocolVersion_) \
+        static Stroka MethodName(#method); \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, MethodName, false, ProtocolVersion_) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
@@ -383,7 +384,8 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, true, ProtocolVersion_) \
+        static Stroka MethodName(#method); \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, MethodName, true, ProtocolVersion_) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
