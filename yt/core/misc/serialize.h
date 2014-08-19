@@ -63,7 +63,9 @@ void Append(TOutput& output, const TRef& ref)
 template <class TInput>
 size_t Read(TInput& input, TRef& ref)
 {
-    return input.LoadOrFail(ref.Begin(), ref.Size());
+    auto loadBytes = input.Load(ref.Begin(), ref.Size());
+    YCHECK(loadBytes == ref.Size());
+    return loadBytes;
 }
 
 template <class TOutput, class T>
@@ -84,7 +86,8 @@ template <class TInput, class T>
 void ReadPod(TInput& input, T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    return input.LoadOrFail(&obj, sizeof(obj));
+    auto loadBytes = input.Load(&obj, sizeof(obj));
+    YCHECK(loadBytes == sizeof(obj));
 }
 
 template <class TOutput>
@@ -113,7 +116,8 @@ size_t AppendPadded(TOutput& output, const TRef& ref)
 template <class TInput>
 size_t ReadPadded(TInput& input, const TRef& ref)
 {
-    input.LoadOrFail(ref.Begin(), ref.Size());
+    auto loadBytes = input.Load(ref.Begin(), ref.Size());
+    YCHECK(loadBytes == ref.Size());
     input.Skip(GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
