@@ -46,8 +46,8 @@ private:
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTableSchema& ChunkSchema_;
 
-    NProto::TBlockMeta Meta_;
-    NProto::TSimpleVersionedBlockMeta VersionedMeta_;
+    const NProto::TBlockMeta& Meta_;
+    const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
 
     TRef KeyData_;
     TBitmap KeyNullFlags_;

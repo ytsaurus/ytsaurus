@@ -50,6 +50,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , SchemaIdMapping_(schemaIdMapping)
     , ChunkSchema_(chunkSchema)
     , Meta_(meta)
+    , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
 {
     YCHECK(Meta_.row_count() > 0);
 
@@ -57,8 +58,6 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
         KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
     }
     Key_ = KeyBuilder_.GetRow();
-
-    VersionedMeta_ = Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
 
     KeyData_ = TRef(const_cast<char*>(data.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         KeyColumnCount_,
