@@ -108,7 +108,8 @@ protected:
         IChannelPtr channel,
         const Stroka& service,
         const Stroka& method,
-        bool oneWay);
+        bool oneWay,
+        int protocolVersion);
 
     virtual bool IsRequestHeavy() const;
     virtual bool IsResponseHeavy() const;
@@ -134,9 +135,15 @@ public:
         IChannelPtr channel,
         const Stroka& path,
         const Stroka& method,
-        bool oneWay)
-        : TClientRequest(channel, path, method, oneWay)
-        , Codec(NCompression::ECodec::None)
+        bool oneWay,
+        int protocolVersion)
+        : TClientRequest(
+            std::move(channel),
+            path,
+            method,
+            oneWay,
+            protocolVersion)
+        , Codec_(NCompression::ECodec::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
@@ -163,7 +170,7 @@ public:
 
     TIntrusivePtr<TTypedClientRequest> SetCodec(NCompression::ECodec codec)
     {
-        Codec = codec;
+        Codec_ = codec;
         return this;
     }
 
@@ -180,12 +187,12 @@ public:
     }
 
 private:
-    NCompression::ECodec Codec;
+    NCompression::ECodec Codec_;
 
     virtual TSharedRef SerializeBody() const override
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec));
+        YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec_));
         return data;
     }
 
@@ -239,10 +246,10 @@ protected:
         (Done)
     );
 
-    TSpinLock SpinLock; // Protects state.
-    EState State;
+    TSpinLock SpinLock_; // Protects state.
+    EState State_;
 
-    TClientContextPtr ClientContext;
+    TClientContextPtr ClientContext_;
 
     explicit TClientResponseBase(TClientContextPtr clientContext);
 
@@ -273,7 +280,7 @@ protected:
 
 private:
     // Protected by #SpinLock.
-    TSharedRefArray ResponseMessage;
+    TSharedRefArray ResponseMessage_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
@@ -295,22 +302,22 @@ public:
 
     explicit TTypedClientResponse(TClientContextPtr clientContext)
         : TClientResponse(std::move(clientContext))
-        , Promise(NewPromise<TThisPtr>())
+        , Promise_(NewPromise<TThisPtr>())
     { }
 
     TFuture<TThisPtr> GetAsyncResult()
     {
-        return Promise;
+        return Promise_;
     }
 
 private:
-    TPromise<TThisPtr> Promise;
+    TPromise<TThisPtr> Promise_;
 
     virtual void FireCompleted()
     {
         BeforeCompleted();
-        Promise.Set(this);
-        Promise.Reset();
+        Promise_.Set(this);
+        Promise_.Reset();
     }
 
     virtual void DeserializeBody(const TRef& data) override
@@ -333,7 +340,7 @@ public:
     TFuture<TThisPtr> GetAsyncResult();
 
 private:
-    TPromise<TThisPtr> Promise;
+    TPromise<TThisPtr> Promise_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
@@ -358,7 +365,7 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, false) \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, false, ProtocolVersion_) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
@@ -376,7 +383,7 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
     \
     TReq##method##Ptr method() \
     { \
-        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, true) \
+        return ::NYT::New<TReq##method>(Channel_, ServiceName_, #method, true, ProtocolVersion_) \
             ->SetTimeout(DefaultTimeout_) \
             ->SetRequestAck(DefaultRequestAck_); \
     }
@@ -391,13 +398,15 @@ public:
 protected:
     TProxyBase(
         IChannelPtr channel,
-        const Stroka& serviceName);
+        const Stroka& serviceName,
+        int protocolVersion = 0);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);
 
     Stroka ServiceName_;
     IChannelPtr Channel_;
+    int ProtocolVersion_;
 
 };
 

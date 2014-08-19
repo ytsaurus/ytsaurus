@@ -20,6 +20,7 @@ class TObjectServiceProxy
 {
 public:
     static Stroka GetServiceName();
+    static int GetProtocolVersion();
 
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 

@@ -34,8 +34,8 @@ class TMyProxy
 public:
     static const Stroka ServiceName_;
 
-    explicit TMyProxy(IChannelPtr channel)
-        : TProxyBase(channel, ServiceName_)
+    explicit TMyProxy(IChannelPtr channel, int protocolVersion = 0)
+        : TProxyBase(channel, ServiceName_, protocolVersion)
     { }
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
@@ -446,6 +446,16 @@ TEST_F(TRpcTest, LostConnection)
     auto response = future.Get();
     EXPECT_FALSE(response->IsOK());
     EXPECT_EQ(NRpc::EErrorCode::TransportError, response->GetError().GetCode());
+}
+
+TEST_F(TRpcTest, ProtocolVersionMismatch)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"), 1);
+    auto request = proxy.SomeCall();
+    request->set_a(42);
+    auto response = request->Invoke().Get();
+    EXPECT_FALSE(response->IsOK());
+    EXPECT_EQ(NRpc::EErrorCode::ProtocolError, response->GetError().GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

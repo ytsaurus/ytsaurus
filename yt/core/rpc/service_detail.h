@@ -539,12 +539,14 @@ protected:
     TServiceBase(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger);
+        const NLog::TLogger& logger,
+        int protocolVersion = 0);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger);
+        const NLog::TLogger& logger,
+        int protocolVersion = 0);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -589,6 +591,7 @@ private:
 
     IPrioritizedInvokerPtr DefaultInvoker_;
     TServiceId ServiceId_;
+    int ProtocolVersion_;
 
     NProfiling::TTagId ServiceTagId_;
     NProfiling::TRateCounter RequestCounter_;
@@ -600,7 +603,8 @@ private:
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
-        const NLog::TLogger& logger);
+        const NLog::TLogger& logger,
+        int protocolVersion);
 
     virtual TServiceId GetServiceId() const override;
 

@@ -10,16 +10,18 @@ import "yt/core/misc/error.proto";
 message TRequestHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
+
     required string service = 2;
     required string method = 3;
     optional NYT.NProto.TGuid realm_id = 8;
 
     optional bool one_way = 4;
+    optional int32 protocol_version = 9 [default = 0];
+
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
 
     extensions 100 to max;
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

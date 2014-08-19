@@ -170,35 +170,41 @@ private:
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger)
+    const NLog::TLogger& logger,
+    int protocolVersion)
 {
     Init(
         defaultInvoker,
         serviceId,
-        logger);
+        logger,
+        protocolVersion);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger)
+    const NLog::TLogger& logger,
+    int protocolVersion)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
         serviceId,
-        logger);
+        logger,
+        protocolVersion);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
-    const NLog::TLogger& logger)
+    const NLog::TLogger& logger,
+    int protocolVersion)
 {
     YCHECK(defaultInvoker);
 
     DefaultInvoker_ = defaultInvoker;
     ServiceId_ = serviceId;
     Logger = logger;
+    ProtocolVersion_ = protocolVersion;
 
     ServiceTagId_ = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
@@ -229,48 +235,48 @@ void TServiceBase::OnRequest(
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
 
-    auto runtimeInfo = FindMethodInfo(method);
-    if (!runtimeInfo) {
-        auto error = TError(
-            EErrorCode::NoSuchMethod,
-            "Unknown method %v:%v",
-            ServiceId_.ServiceName,
-            method)
+    TRuntimeMethodInfoPtr runtimeInfo;
+    try {
+        if (header->protocol_version() != ProtocolVersion_) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ProtocolError,
+                "Protocol version mismatch for service %v: expected %v, received %v",
+                ServiceId_.ServiceName,
+                ProtocolVersion_,
+                header->protocol_version());
+        }
+
+        runtimeInfo = FindMethodInfo(method);
+        if (!runtimeInfo) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::NoSuchMethod,
+                "Unknown method %v:%v",
+                ServiceId_.ServiceName,
+                method);
+        }
+
+        if (runtimeInfo->Descriptor.OneWay != oneWay) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ProtocolError,
+                "One-way flag mismatch for method %v:%v: expected %v, actual %v",
+                ServiceId_.ServiceName,
+                method,
+                runtimeInfo->Descriptor.OneWay,
+                oneWay);
+        }
+
+        // Not actually atomic but should work fine as long as some small error is OK.
+        if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::Unavailable,
+                "Request queue limit %v reached",
+                runtimeInfo->Descriptor.MaxQueueSize);
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError(ex)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!oneWay) {
-            auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
-        }
-        return;
-    }
-
-    if (runtimeInfo->Descriptor.OneWay != oneWay) {
-        auto error = TError(
-            EErrorCode::ProtocolError,
-            "One-way flag mismatch for method %v:%v: expected %v, actual %v",
-            ServiceId_.ServiceName,
-            method,
-            runtimeInfo->Descriptor.OneWay,
-            oneWay)
-            << TErrorAttribute("request_id", requestId);
-        LOG_WARNING(error);
-        if (!header->one_way()) {
-            auto errorMessage = CreateErrorResponseMessage(requestId, error);
-            replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
-        }
-        return;
-    }
-
-    // Not actually atomic but should work fine as long as some small error is OK.
-    if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
-        auto error = TError(
-            EErrorCode::Unavailable,
-            "Request queue limit %v reached",
-            runtimeInfo->Descriptor.MaxQueueSize)
-            << TErrorAttribute("request_id", requestId);
-        LOG_WARNING(error);
-        if (!header->one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
         }

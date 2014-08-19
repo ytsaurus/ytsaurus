@@ -16,7 +16,12 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
     const Stroka& path,
     const Stroka& method)
-    : TClientRequest(channel, path, method, false)
+    : TClientRequest(
+        std::move(channel),
+        path,
+        method,
+        false,
+        TObjectServiceProxy::GetProtocolVersion())
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -198,8 +203,13 @@ Stroka TObjectServiceProxy::GetServiceName()
     return "ObjectService";
 }
 
+int TObjectServiceProxy::GetProtocolVersion()
+{
+    return 0;
+}
+
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
-    : TProxyBase(channel, GetServiceName())
+    : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
 { }
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()

@@ -27,7 +27,8 @@ TClientRequest::TClientRequest(
     IChannelPtr channel,
     const Stroka& service,
     const Stroka& method,
-    bool oneWay)
+    bool oneWay,
+    int protocolVersion)
     : RequestAck_(true)
     , RequestHeavy_(false)
     , ResponseHeavy_(false)
@@ -40,6 +41,7 @@ TClientRequest::TClientRequest(
     Header_.set_one_way(oneWay);
     Header_.set_request_start_time(TInstant::Now().MicroSeconds());
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
+    Header_.set_protocol_version(protocolVersion);
 }
 
 TSharedRefArray TClientRequest::Serialize() const
@@ -138,8 +140,8 @@ TClientContextPtr TClientRequest::CreateClientContext()
 
 TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
     : StartTime_(TInstant::Now())
-    , State(EState::Sent)
-    , ClientContext(std::move(clientContext))
+    , State_(EState::Sent)
+    , ClientContext_(std::move(clientContext))
 { }
 
 bool TClientResponseBase::IsOK() const
@@ -155,26 +157,26 @@ TClientResponseBase::operator TError() const
 void TClientResponseBase::OnError(const TError& error)
 {
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Done) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (State_ == EState::Done) {
             // Ignore the error.
             // Most probably this is a late timeout.
             return;
         }
-        State = EState::Done;
+        State_ = EState::Done;
         Error_  = error;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
+    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
     FireCompleted();
 }
 
 void TClientResponseBase::BeforeCompleted()
 {
     NTracing::TraceEvent(
-        ClientContext->GetTraceContext(),
-        ClientContext->GetService(),
-        ClientContext->GetMethod(),
+        ClientContext_->GetTraceContext(),
+        ClientContext_->GetService(),
+        ClientContext_->GetMethod(),
         NTracing::ClientReceiveAnnotation);
 }
 
@@ -186,45 +188,45 @@ TClientResponse::TClientResponse(TClientContextPtr clientContext)
 
 TSharedRefArray TClientResponse::GetResponseMessage() const
 {
-    YASSERT(ResponseMessage);
-    return ResponseMessage;
+    YASSERT(ResponseMessage_);
+    return ResponseMessage_;
 }
 
 void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
     YASSERT(responseMessage);
-    YASSERT(!ResponseMessage);
+    YASSERT(!ResponseMessage_);
 
-    ResponseMessage = std::move(responseMessage);
+    ResponseMessage_ = std::move(responseMessage);
 
-    YASSERT(ResponseMessage.Size() >= 2);
+    YASSERT(ResponseMessage_.Size() >= 2);
 
-    DeserializeBody(ResponseMessage[1]);
+    DeserializeBody(ResponseMessage_[1]);
 
     Attachments_.clear();
     Attachments_.insert(
         Attachments_.begin(),
-        ResponseMessage.Begin() + 2,
-        ResponseMessage.End());
+        ResponseMessage_.Begin() + 2,
+        ResponseMessage_.End());
 }
 
 void TClientResponse::OnAcknowledgement()
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (State == EState::Sent) {
-        State = EState::Ack;
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (State_ == EState::Sent) {
+        State_ = EState::Ack;
     }
 }
 
 void TClientResponse::OnResponse(TSharedRefArray message)
 {
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        YASSERT(State == EState::Sent || State == EState::Ack);
-        State = EState::Done;
+        TGuard<TSpinLock> guard(SpinLock_);
+        YASSERT(State_ == EState::Sent || State_ == EState::Ack);
+        State_ = EState::Done;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
+    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
     Deserialize(message);
     FireCompleted();
 }
@@ -233,21 +235,21 @@ void TClientResponse::OnResponse(TSharedRefArray message)
 
 TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
     : TClientResponseBase(std::move(clientContext))
-    , Promise(NewPromise<TThisPtr>())
+    , Promise_(NewPromise<TThisPtr>())
 { }
 
 void TOneWayClientResponse::OnAcknowledgement()
 {
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Done) {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (State_ == EState::Done) {
             // Ignore the ack.
             return;
         }
-        State = EState::Done;
+        State_ = EState::Done;
     }
 
-    NTracing::TTraceContextGuard guard(ClientContext->GetTraceContext());
+    NTracing::TTraceContextGuard guard(ClientContext_->GetTraceContext());
     FireCompleted();
 }
 
@@ -258,25 +260,27 @@ void TOneWayClientResponse::OnResponse(TSharedRefArray /*message*/)
 
 TFuture<TOneWayClientResponsePtr> TOneWayClientResponse::GetAsyncResult()
 {
-    return Promise;
+    return Promise_;
 }
 
 void TOneWayClientResponse::FireCompleted()
 {
     BeforeCompleted();
-    Promise.Set(this);
-    Promise.Reset();
+    Promise_.Set(this);
+    Promise_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TProxyBase::TProxyBase(
     IChannelPtr channel,
-    const Stroka& serviceName)
+    const Stroka& serviceName,
+    int protocolVersion)
     : DefaultTimeout_(channel->GetDefaultTimeout())
     , DefaultRequestAck_(true)
     , ServiceName_(serviceName)
-    , Channel_(channel)
+    , Channel_(std::move(channel))
+    , ProtocolVersion_(protocolVersion)
 {
     YASSERT(Channel_);
 }
