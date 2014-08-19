@@ -6,17 +6,15 @@
 
 #include <core/misc/chunked_memory_pool.h>
 #include <core/misc/serialize.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/varint.h>
+#include <core/misc/string.h>
 
 #include <core/ytree/public.h>
 
 #include <core/yson/public.h>
 
 #include <ytlib/chunk_client/schema.pb.h>
-
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/varint.h>
-#include <core/misc/serialize.h>
-#include <core/misc/string.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -545,15 +543,21 @@ inline int GetKeyComparerValueCount(const TUnversionedOwningRow& row, int prefix
 class TUnversionedRowBuilder
 {
 public:
-    explicit TUnversionedRowBuilder(int initialValueCapacity = 16);
+    static const int DefaultValueCapacity = 16;
+
+    explicit TUnversionedRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
     void AddValue(const TUnversionedValue& value);
     TUnversionedRow GetRow();
     void Reset();
 
 private:
+    static const int DefaultBlobCapacity =
+        sizeof(TUnversionedRowHeader) +
+        DefaultValueCapacity * sizeof(TUnversionedValue);
+
     int ValueCapacity_;
-    TBlob RowData_;
+    SmallVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
     TUnversionedValue* GetValue(int index);
@@ -567,7 +571,9 @@ private:
 class TUnversionedOwningRowBuilder
 {
 public:
-    explicit TUnversionedOwningRowBuilder(int initialValueCapacity = 16);
+    static const int DefaultValueCapacity = 16;
+
+	explicit TUnversionedOwningRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
     void AddValue(const TUnversionedValue& value);
     TUnversionedValue* BeginValues();
