@@ -573,7 +573,7 @@ class TUnversionedOwningRowBuilder
 public:
     static const int DefaultValueCapacity = 16;
 
-	explicit TUnversionedOwningRowBuilder(int initialValueCapacity = DefaultValueCapacity);
+    explicit TUnversionedOwningRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
     void AddValue(const TUnversionedValue& value);
     TUnversionedValue* BeginValues();
