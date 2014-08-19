@@ -14,41 +14,37 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTracker::TSlot::TSlot(TKey key)
-    : Key(key)
-    , ObjectsAllocated(0)
-    , BytesAllocated(0)
-    , ObjectsFreed(0)
-    , BytesFreed(0)
+    : Key_(key)
 { }
 
 TRefCountedTracker::TKey TRefCountedTracker::TSlot::GetKey() const
 {
-    return Key;
+    return Key_;
 }
 
 Stroka TRefCountedTracker::TSlot::GetName() const
 {
-    return DemangleCxxName(Key->name());
+    return DemangleCxxName(Key_->name());
 }
 
 size_t TRefCountedTracker::TSlot::GetObjectsAllocated() const
 {
-    return ObjectsAllocated;
+    return ObjectsAllocated_.Get();
 }
 
 size_t TRefCountedTracker::TSlot::GetObjectsAlive() const
 {
-    return ObjectsAllocated - ObjectsFreed;
+    return ObjectsAllocated_.Get() - ObjectsFreed_.Get();
 }
 
 size_t TRefCountedTracker::TSlot::GetBytesAllocated() const
 {
-    return BytesAllocated;
+    return BytesAllocated_.Get();
 }
 
 size_t TRefCountedTracker::TSlot::GetBytesAlive() const
 {
-    return BytesAllocated - BytesFreed;
+    return BytesAllocated_.Get() - BytesFreed_.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,21 +61,21 @@ void* TRefCountedTracker::GetCookie(TKey key)
 
 TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock_);
 
-    auto it = Statistics.find(key);
-    if (it != Statistics.end()) {
+    auto it = KeyToSlot_.find(key);
+    if (it != KeyToSlot_.end()) {
         return &it->second;
     }
 
-    return &Statistics.insert(std::make_pair(key, TSlot(key))).first->second;
+    return &KeyToSlot_.insert(std::make_pair(key, TSlot(key))).first->second;
 }
 
 std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock_);
     std::vector<TSlot> result;
-    for (const auto& pair : Statistics) {
+    for (const auto& pair : KeyToSlot_) {
         result.push_back(pair.second);
     }
     return result;
@@ -130,7 +126,7 @@ void TRefCountedTracker::SortSnapshot(std::vector<TSlot>& slots, int sortByColum
                 slots.begin(),
                 slots.end(),
                 [] (const TSlot& lhs, const TSlot& rhs) {
-                    return strcmp(lhs.Key->name(), rhs.Key->name()) < 0;
+                    return strcmp(lhs.GetKey()->name(), rhs.GetKey()->name()) < 0;
                 });
             break;
     }

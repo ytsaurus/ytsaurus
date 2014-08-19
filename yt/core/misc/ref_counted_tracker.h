@@ -2,6 +2,8 @@
 
 #include <core/ytree/yson_producer.h>
 
+#include <core/concurrency/counter.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,19 +32,29 @@ private:
         TKey GetKey() const;
         Stroka GetName() const;
 
+        FORCED_INLINE void Allocate(size_t size)
+        {
+            ObjectsAllocated_.Increment(1);
+            BytesAllocated_.Increment(size);
+        }
+
+        FORCED_INLINE void Free(size_t size)
+        {
+            ObjectsFreed_.Increment(1);
+            BytesFreed_.Increment(size);
+        }
+
         size_t GetObjectsAllocated() const;
         size_t GetObjectsAlive() const;
         size_t GetBytesAllocated() const;
         size_t GetBytesAlive() const;
 
     private:
-        TKey Key;
-        TAtomic ObjectsAllocated;
-        TAtomic BytesAllocated;
-        TAtomic ObjectsFreed;
-        TAtomic BytesFreed;
-
-        friend class TRefCountedTracker;
+        TKey Key_;
+        NConcurrency::TCounter ObjectsAllocated_;
+        NConcurrency::TCounter BytesAllocated_;
+        NConcurrency::TCounter ObjectsFreed_;
+        NConcurrency::TCounter BytesFreed_;
 
     };
 
@@ -53,16 +65,12 @@ public:
 
     FORCED_INLINE void Allocate(void* cookie, size_t size)
     {
-        auto* slot = static_cast<TSlot*>(cookie);
-        AtomicIncrement(slot->ObjectsAllocated);
-        AtomicAdd(slot->BytesAllocated, size);
-    }
+        static_cast<TSlot*>(cookie)->Allocate(size);
+   }
 
     FORCED_INLINE void Free(void* cookie, size_t size)
     {
-        auto* slot = static_cast<TSlot*>(cookie);
-        AtomicIncrement(slot->ObjectsFreed);
-        AtomicAdd(slot->BytesFreed, size);
+        static_cast<TSlot*>(cookie)->Free(size);
     }
 
     Stroka GetDebugInfo(int sortByColumn = -1) const;
@@ -74,8 +82,8 @@ public:
     i64 GetAliveBytes(TKey key);
 
 private:
-    TSpinLock SpinLock;
-    yhash_map<TKey, TSlot> Statistics;
+    TSpinLock SpinLock_;
+    yhash_map<TKey, TSlot> KeyToSlot_;
 
     std::vector<TSlot> GetSnapshot() const;
     static void SortSnapshot(std::vector<TSlot>& slots, int sortByColumn);
