@@ -29,6 +29,18 @@ size_t TCheckedReader<T>::Load(void* buffer, size_t length)
 }
 
 template <class T>
+void TCheckedReader<T>::LoadOrFail(void* buffer, size_t length)
+{
+    size_t loadBytes = Load(buffer, length);
+    if (loadBytes != length) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to read required number of bytes from stream (expected: %v, recieved: %v)",
+            length,
+            loadBytes);
+    }
+}
+
+template <class T>
 void TCheckedReader<T>::Skip(size_t length)
 {
     if (!Check(length))
@@ -42,6 +54,12 @@ template <class T>
 bool TCheckedReader<T>::Success() const
 {
     return Success_;
+}
+
+template <class T>
+size_t TCheckedReader<T>::Avail() const
+{
+    return FileLength_ - CurrentOffset_;
 }
 
 template <class T>

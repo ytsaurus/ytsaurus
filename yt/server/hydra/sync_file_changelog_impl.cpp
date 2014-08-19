@@ -62,15 +62,21 @@ struct TRecordInfo
 template <class TInput>
 TNullable<TRecordInfo> ReadRecord(TInput& input)
 {
+    if (input.Avail() < sizeof(TChangelogRecordHeader)) {
+        return Null;
+    }
+
     int readSize = 0;
     TChangelogRecordHeader header;
     readSize += ReadPodPadded(input, header);
     if (!input.Success() || header.DataSize <= 0) {
-        return Null;
     }
 
     struct TSyncChangelogRecordTag { };
     auto data = TSharedRef::Allocate<TSyncChangelogRecordTag>(header.DataSize, false);
+    if (input.Avail() < header.DataSize) {
+        return Null;
+    }
     readSize += ReadPadded(input, data);
     if (!input.Success()) {
         return Null;
@@ -450,7 +456,7 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
     YCHECK(recordCount >= 0);
 
     LOG_DEBUG("Sealing changelog with %v records", recordCount);
-    
+
     auto oldRecordCount = RecordCount_;
 
     SealedRecordCount_ = RecordCount_ = recordCount;
@@ -490,7 +496,7 @@ void TSyncFileChangelog::TImpl::Seal(int recordCount)
 
         {
             TGuard<TMutex> guard(Mutex_);
-            
+
             IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
             UpdateIndexHeader();
 
@@ -516,7 +522,7 @@ void TSyncFileChangelog::TImpl::Unseal()
         TGuard<TMutex> guard(Mutex_);
         UpdateLogHeader();
     }
-    
+
     LOG_DEBUG("Changelog unsealed");
 }
 
@@ -567,7 +573,9 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
 void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 {
     // Create index if it is missing.
-    if (!NFS::Exists(IndexFileName_)) {
+    if (!NFS::Exists(IndexFileName_) ||
+        TFile(IndexFileName_, RdOnly).GetLength() < sizeof(TChangelogIndexHeader))
+    {
         CreateIndexFile();
     }
 
@@ -583,6 +591,10 @@ void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 
         // Read index records.
         for (int i = 0; i < indexHeader.IndexRecordCount; ++i) {
+            if (indexStream.Avail() < sizeof(TChangelogIndexHeader)) {
+                break;
+            }
+
             TChangelogIndexRecord indexRecord;
             ReadPod(indexStream, indexRecord);
             if (IsSealed() && indexRecord.RecordId >= SealedRecordCount_) {
@@ -685,7 +697,7 @@ TSyncFileChangelog::TImpl::TEnvelopeData TSyncFileChangelog::TImpl::ReadEnvelope
 
     TEnvelopeData result;
     result.LowerBound = *LastNotGreater(Index_, TChangelogIndexRecord(firstRecordId, -1), CompareRecordIds);
-    
+
     auto it = FirstGreater(Index_, TChangelogIndexRecord(lastRecordId, -1), CompareRecordIds);
     if (maxBytes != -1) {
         i64 maxFilePosition = result.LowerBound.FilePosition + maxBytes;

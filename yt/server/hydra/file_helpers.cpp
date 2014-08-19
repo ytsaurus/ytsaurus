@@ -46,8 +46,20 @@ size_t TBufferedFile::Pread(void* buffer, size_t length, i64 offset)
 size_t TBufferedFile::Load(void* buffer, size_t length)
 {
     FileOutput_.Flush();
-    File_.Load(buffer, length);
+    File_.Read(buffer, length);
     return length;
+}
+
+void TBufferedFile::LoadOrFail(void* buffer, size_t length)
+{
+    FileOutput_.Flush();
+    size_t loadBytes = File_.Read(buffer, length);
+    if (loadBytes != length) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to read required number of bytes from stream (expected: %v, recieved: %v)",
+            length,
+            loadBytes);
+    }
 }
 
 void TBufferedFile::Skip(size_t length)

@@ -25,6 +25,7 @@ public:
     void Write(const void* buffer, size_t length);
     size_t Pread(void* buffer, size_t length, i64 offset);
     size_t Load(void* buffer, size_t length);
+    void LoadOrFail(void* buffer, size_t length);
     void Skip(size_t length);
     size_t GetPosition();
     size_t GetLength();
@@ -49,7 +50,9 @@ public:
     explicit TCheckedReader(T& underlying);
 
     size_t Load(void* buffer, size_t length);
+    void LoadOrFail(void* buffer, size_t length);
     void Skip(size_t length);
+    size_t Avail() const;
     bool Success() const;
 
 private:
