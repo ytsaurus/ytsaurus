@@ -1,6 +1,7 @@
 import yt.logger as logger
 from yt.common import YtError
 
+import os
 import sh
 import shlex
 import subprocess
@@ -30,6 +31,7 @@ def _check_call(command, **kwargs):
 class Yamr(object):
     def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", fastbone=False, opts=""):
         self.binary = binary
+        self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
         if proxies is None:
@@ -133,13 +135,13 @@ class Yamr(object):
         else:
             fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
             shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
-            return '{0} USER=yt ./mapreduce -server $server {2} -read {3}:[$start,$end] -lenval -subkey {4}'\
-                        .format(self.opts, self.mr_user, fastbone_str, table, shared_tx_str)
+            return '{0} MR_USER={1} USER=yt ./{2} -server $server {3} -read {4}:[$start,$end] -lenval -subkey {5}'\
+                        .format(self.opts, self.mr_user, self.binary_name, fastbone_str, table, shared_tx_str)
 
     def get_write_command(self, table):
         fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
-        return "{0} USER=yt MR_USER={1} ./mapreduce -server {2} {3} -append -lenval -subkey -write {4}"\
-                .format(self.opts, self.mr_user, self.server, fastbone_str, table)
+        return "{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write {5}"\
+                .format(self.opts, self.mr_user, self.binary_name, self.server, fastbone_str, table)
 
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
