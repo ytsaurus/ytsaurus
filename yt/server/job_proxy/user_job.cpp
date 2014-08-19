@@ -457,13 +457,14 @@ private:
         std::vector<TAsyncError> inputFinishEvents;
         std::vector<TAsyncError> outputFinishEvents;
 
-        auto doAll = [this] (IDataPipePtr pipe) {
+        auto this_ = MakeStrong(this);
+        auto doAll = [this_] (IDataPipePtr pipe) {
             auto error = pipe->DoAll();
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Pipe has failed");
                 auto closeError = pipe->Close();
                 if (!closeError.IsOK()) {
-                    SetError(closeError);
+                    this_->SetError(closeError);
                 }
             }
             return error;
