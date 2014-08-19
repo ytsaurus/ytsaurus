@@ -203,8 +203,8 @@ TAsyncError TVersionedChunkReader<TBlockReader>::GetReadyEvent()
 template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
 {
-    auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
-    auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
+    const auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
+    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
     int beginBlockIndex = 0;
     if (LowerLimit_.HasRowIndex()) {
@@ -254,8 +254,8 @@ int TVersionedChunkReader<TBlockReader>::GetBeginBlockIndex() const
 template <class TBlockReader>
 int TVersionedChunkReader<TBlockReader>::GetEndBlockIndex() const
 {
-    auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
-    auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
+    const auto& blockMetaEntries = CachedChunkMeta_->BlockMeta().entries();
+    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
     int endBlockIndex = blockMetaEntries.size();
     if (UpperLimit_.HasRowIndex()) {
@@ -309,7 +309,7 @@ void TVersionedChunkReader<TBlockReader>::DoOpen()
     CurrentBlockIndex_ = GetBeginBlockIndex();
     auto endBlockIndex = GetEndBlockIndex();
 
-    auto& blockMeta = CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_);
+    const auto& blockMeta = CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_);
     CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
