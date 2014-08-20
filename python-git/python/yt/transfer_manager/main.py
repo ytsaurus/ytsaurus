@@ -275,7 +275,7 @@ class Application(object):
         if destination_client._type == "yt":
             destination_dir = os.path.dirname(task.destination_table)
             if not os.path.exists(destination_dir):
-                raise yt.YtError("Directory {} should exist".format(destination_dir))
+                raise yt.YtError("Destination directory {} should exist".format(destination_dir))
             if destination_client.check_permission(task.user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
