@@ -128,6 +128,7 @@ public:
         TBlockId blockId(chunkId, blockIndex);
         auto cachedBlock = FindBlock(blockId);
         if (cachedBlock) {
+            LogCacheHit(cachedBlock);
             return MakeFuture<TGetBlockResult>(cachedBlock->GetData());
         }
         
