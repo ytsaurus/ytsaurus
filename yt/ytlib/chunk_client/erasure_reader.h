@@ -28,7 +28,7 @@ TAsyncError RepairErasedParts(
 
 std::vector<IReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr blockCache,
+    IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
@@ -38,7 +38,7 @@ std::vector<IReaderPtr> CreateErasureDataPartsReaders(
 
 std::vector<IReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr blockCache,
+    IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,

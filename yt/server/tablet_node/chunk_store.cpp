@@ -181,6 +181,7 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
     return CreateVersionedChunkLookuper(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
+        Bootstrap_->GetUncompressedBlockCache(),
         std::move(cachedVersionedChunkMeta),
         columnFilter,
         timestamp);
@@ -301,7 +302,7 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         // TODO(babenko): provide seed replicas
         chunkReader = ChunkReader_ = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-            Bootstrap_->GetBlockStore()->GetBlockCache(),
+            Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
             Bootstrap_->GetMasterClient()->GetMasterChannel(),
             New<TNodeDirectory>(),
             Bootstrap_->GetLocalDescriptor(),

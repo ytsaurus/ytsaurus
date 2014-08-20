@@ -31,7 +31,7 @@ template <class TChunkReader>
 TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IBlockCachePtr compressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     const TProviderPtr& readerProvider)
@@ -39,7 +39,7 @@ TOldMultiChunkReaderBase<TChunkReader>::TOldMultiChunkReaderBase(
     , Config(config)
     , PrefetchWindow(0)
     , MasterChannel(masterChannel)
-    , BlockCache(blockCache)
+    , CompressedBlockCache(compressedBlockCache)
     , NodeDirectory(nodeDirectory)
     , ChunkSpecs(chunkSpecs)
     , ReaderProvider(readerProvider)
@@ -156,7 +156,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
         auto readers = CreateErasureDataPartsReaders(
             Config,
-            BlockCache,
+            CompressedBlockCache,
             MasterChannel,
             NodeDirectory,
             chunkId,
@@ -166,7 +166,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     } else {
         asyncReader = CreateReplicationReader(
             Config,
-            BlockCache,
+            CompressedBlockCache,
             MasterChannel,
             NodeDirectory,
             Null,

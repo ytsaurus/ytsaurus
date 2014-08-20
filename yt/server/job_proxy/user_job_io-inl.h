@@ -42,7 +42,7 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     auto reader = New<TReader>(
         IOConfig->TableReader,
         Host->GetMasterChannel(),
-        Host->GetBlockCache(),
+        Host->GetCompressedBlockCache(),
         Host->GetNodeDirectory(),
         std::move(chunks),
         provider);

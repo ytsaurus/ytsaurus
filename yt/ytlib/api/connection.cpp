@@ -187,8 +187,8 @@ public:
             GetBusChannelFactory());
         CellDirectory_->RegisterCell(config->Master);
 
-        BlockCache_ = CreateClientBlockCache(
-            Config_->BlockCache);
+        CompressedBlockCache_ = CreateClientBlockCache(
+            Config_->CompressedBlockCache);
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
@@ -228,9 +228,9 @@ public:
         return NodeChannelFactory_;
     }
 
-    virtual IBlockCachePtr GetBlockCache() override
+    virtual IBlockCachePtr GetCompressedBlockCache() override
     {
-        return BlockCache_;
+        return CompressedBlockCache_;
     }
 
     virtual TTableMountCachePtr GetTableMountCache() override
@@ -367,7 +367,7 @@ private:
     IChannelPtr MasterCacheChannel_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
-    IBlockCachePtr BlockCache_;
+    IBlockCachePtr CompressedBlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;

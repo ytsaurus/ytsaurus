@@ -70,7 +70,7 @@ public:
                 auto reader = New<TTableChunkSequenceReader>(
                     config->JobIO->TableReader,
                     host->GetMasterChannel(),
-                    host->GetBlockCache(),
+                    host->GetCompressedBlockCache(),
                     host->GetNodeDirectory(),
                     std::move(chunks),
                     provider);

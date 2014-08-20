@@ -166,7 +166,7 @@ private:
             Reader_ = New<TReader>(
                 Config_,
                 Client_->GetMasterChannel(),
-                Client_->GetConnection()->GetBlockCache(),
+                Client_->GetConnection()->GetCompressedBlockCache(),
                 nodeDirectory,
                 std::move(chunks),
                 provider);

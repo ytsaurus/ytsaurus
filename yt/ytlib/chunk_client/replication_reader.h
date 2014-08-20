@@ -18,7 +18,7 @@ namespace NChunkClient {
 
 IReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
-    IBlockCachePtr blockCache,
+    IBlockCachePtr compressedBlockCache,
     NRpc::IChannelPtr masterChannel,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,

@@ -60,7 +60,7 @@ public:
         auto reader = CreateSortingReader(
             IOConfig->TableReader,
             Host->GetMasterChannel(),
-            Host->GetBlockCache(),
+            Host->GetCompressedBlockCache(),
             Host->GetNodeDirectory(),
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),

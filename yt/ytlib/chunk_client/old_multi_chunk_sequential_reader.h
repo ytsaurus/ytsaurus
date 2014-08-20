@@ -17,7 +17,7 @@ public:
     TOldMultiChunkSequentialReader(
         TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::IBlockCachePtr compressedBlockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         typename TBase::TProviderPtr readerProvider);

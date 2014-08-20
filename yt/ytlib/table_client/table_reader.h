@@ -35,7 +35,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::TTransactionPtr transaction,
-        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         const NYPath::TRichYPath& richPath);
 
     virtual void Open();
@@ -59,7 +59,7 @@ private:
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::TTransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
-    NChunkClient::IBlockCachePtr BlockCache;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NYPath::TRichYPath RichPath;
     bool IsOpen;

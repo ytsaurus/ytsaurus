@@ -35,7 +35,7 @@ public:
     TOldMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::IBlockCachePtr compressedBlockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         const TProviderPtr& readerProvider);
@@ -74,7 +74,7 @@ protected:
     int PrefetchWindow;
 
     NRpc::IChannelPtr MasterChannel;
-    NChunkClient::IBlockCachePtr BlockCache;
+    NChunkClient::IBlockCachePtr CompressedBlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;

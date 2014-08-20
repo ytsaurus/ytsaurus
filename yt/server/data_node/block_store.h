@@ -102,7 +102,7 @@ public:
     TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
 
     //! Returns a caching adapter.
-    NChunkClient::IBlockCachePtr GetBlockCache();
+    NChunkClient::IBlockCachePtr GetCompressedBlockCache();
 
 private:
     class TStoreImpl;

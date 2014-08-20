@@ -79,7 +79,7 @@ void TReadTableCommand::DoExecute()
         config,
         Context_->GetClient()->GetMasterChannel(),
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
-        Context_->GetClient()->GetConnection()->GetBlockCache(),
+        Context_->GetClient()->GetConnection()->GetCompressedBlockCache(),
         Request_->Path);
 
     auto output = Context_->Request().OutputStream;

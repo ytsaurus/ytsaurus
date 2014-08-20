@@ -60,7 +60,7 @@ public:
             auto reader = New<TTableChunkSequenceReader>(
                 IOConfig->TableReader,
                 Host->GetMasterChannel(),
-                Host->GetBlockCache(),
+                Host->GetCompressedBlockCache(),
                 Host->GetNodeDirectory(),
                 std::move(chunks),
                 provider);

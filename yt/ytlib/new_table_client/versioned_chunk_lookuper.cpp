@@ -6,10 +6,13 @@
 #include "versioned_lookuper.h"
 #include "unversioned_row.h"
 
+#include <core/compression/codec.h>
+
 #include <ytlib/chunk_client/reader.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <core/compression/codec.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -30,11 +33,13 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp)
         : Config_(std::move(config))
         , ChunkMeta_(std::move(chunkMeta))
         , ChunkReader_(std::move(chunkReader))
+        , UncompressedBlockCache_(std::move(uncompressedBlockCache))
         , Timestamp_(timestamp)
         , MemoryPool_(TVersionedChunkLookuperPoolTag())
     {
@@ -65,13 +70,22 @@ public:
         }
 
         int blockIndex = GetBlockIndex(key);
+        TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
+
+        auto uncompressedBlock = UncompressedBlockCache_->Find(blockId);
+        if (uncompressedBlock) {
+            return MakeFuture<TErrorOr<TVersionedRow>>(DoLookup(
+                uncompressedBlock,
+                key,
+                blockId));
+        }
 
         PooledBlockIndexes_.clear();
         PooledBlockIndexes_.push_back(blockIndex);
 
         auto asyncResult = ChunkReader_->ReadBlocks(PooledBlockIndexes_);
         return asyncResult.Apply(
-            BIND(&TVersionedChunkLookuper::OnBlockRead, MakeStrong(this), key, blockIndex)
+            BIND(&TVersionedChunkLookuper::OnBlockRead, MakeStrong(this), key, blockId)
                 .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker()));
     }
 
@@ -80,6 +94,7 @@ private:
     TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr ChunkMeta_;
     IReaderPtr ChunkReader_;
+    IBlockCachePtr UncompressedBlockCache_;
     TTimestamp Timestamp_;
 
     std::vector<TColumnIdMapping> SchemaIdMapping_;
@@ -113,7 +128,7 @@ private:
 
     TErrorOr<TVersionedRow> OnBlockRead(
         TKey key,
-        int blockIndex,
+        const TBlockId& blockId,
         NChunkClient::IReader::TReadBlocksResult result)
     {
         if (!result.IsOK()) {
@@ -125,11 +140,21 @@ private:
 
         const auto& compressedBlock = compressedBlocks[0];
         auto* codec = GetCodec(ECodec(ChunkMeta_->Misc().compression_codec()));
-        auto decompressedBlock = codec->Decompress(compressedBlock);
+        auto uncompressedBlock = codec->Decompress(compressedBlock);
 
+        UncompressedBlockCache_->Put(blockId, uncompressedBlock, Null);
+
+        return DoLookup(uncompressedBlock, key, blockId);
+    }
+
+    TVersionedRow DoLookup(
+        const TSharedRef& uncompressedBlock,
+        TKey key,
+        const TBlockId& blockId)
+    {
         TBlockReader blockReader(
-            std::move(decompressedBlock),
-            ChunkMeta_->BlockMeta().entries(blockIndex),
+            uncompressedBlock,
+            ChunkMeta_->BlockMeta().entries(blockId.BlockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->KeyColumns(),
             SchemaIdMapping_,
@@ -151,6 +176,7 @@ private:
 IVersionedLookuperPtr CreateVersionedChunkLookuper(
     TChunkReaderConfigPtr config,
     IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
@@ -161,6 +187,7 @@ IVersionedLookuperPtr CreateVersionedChunkLookuper(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),
+                std::move(uncompressedBlockCache),
                 columnFilter,
                 timestamp);
 

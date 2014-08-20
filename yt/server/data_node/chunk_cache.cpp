@@ -222,7 +222,7 @@ private:
 
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
-                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),

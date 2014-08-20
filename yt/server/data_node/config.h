@@ -172,8 +172,11 @@ public:
      */
     TDuration FullHeartbeatTimeout;
 
-    //! Block cache size (in bytes).
-    i64 BlockCacheSize;
+    //! Size of compressed block cache (in bytes).
+    i64 CompressedBlockCacheSize;
+
+    //! Size of uncompressed block cache (in bytes).
+    i64 UncompressedBlockCacheSize;
 
     //! Maximum number of cached blob chunks readers.
     int BlobReaderCacheSize;
@@ -274,7 +277,10 @@ public:
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
-        RegisterParameter("block_cache_size", BlockCacheSize)
+        RegisterParameter("compressed_block_cache_size", CompressedBlockCacheSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024);
+        RegisterParameter("uncompressed_block_cache_size", UncompressedBlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
 

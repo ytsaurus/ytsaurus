@@ -85,7 +85,7 @@ public:
             Reader = New<TReader>(
                 config->JobIO->TableReader,
                 host->GetMasterChannel(),
-                host->GetBlockCache(),
+                host->GetCompressedBlockCache(),
                 host->GetNodeDirectory(),
                 std::move(chunks),
                 provider);

@@ -504,7 +504,7 @@ private:
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
-                Bootstrap_->GetBlockStore()->GetBlockCache(),
+                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
                 nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
@@ -615,7 +615,7 @@ private:
 
                 auto reader = CreateReplicationReader(
                     Config_->SealReader,
-                    Bootstrap_->GetBlockStore()->GetBlockCache(),
+                    Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
                     Bootstrap_->GetMasterClient()->GetMasterChannel(),
                     nodeDirectory,
                     Null,

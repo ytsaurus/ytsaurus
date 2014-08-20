@@ -35,6 +35,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
@@ -205,6 +206,10 @@ void TBootstrap::DoRun()
     ChunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
+
+    auto uncompressedBlockCacheConfig = New<TClientBlockCacheConfig>();
+    uncompressedBlockCacheConfig->MaxSize = Config->DataNode->UncompressedBlockCacheSize;
+    UncompressedBlockCache = CreateClientBlockCache(uncompressedBlockCacheConfig);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
@@ -478,6 +483,11 @@ TSessionManagerPtr TBootstrap::GetSessionManager() const
 TBlockStorePtr TBootstrap::GetBlockStore() const
 {
     return BlockStore;
+}
+
+IBlockCachePtr TBootstrap::GetUncompressedBlockCache() const
+{
+    return UncompressedBlockCache;
 }
 
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const

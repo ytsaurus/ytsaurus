@@ -57,7 +57,7 @@ public:
     TSortingReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::IBlockCachePtr compressedBlockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
@@ -83,7 +83,7 @@ public:
         Reader = New<TReader>(
             config,
             masterChannel,
-            blockCache,
+            compressedBlockCache,
             nodeDirectory,
             std::move(chunks),
             provider);
@@ -499,7 +499,7 @@ private:
 ISyncReaderPtr CreateSortingReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IBlockCachePtr compressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
@@ -510,7 +510,7 @@ ISyncReaderPtr CreateSortingReader(
     return New<TSortingReader>(
         config,
         masterChannel,
-        blockCache,
+        compressedBlockCache,
         nodeDirectory,
         keyColumns,
         onNetworkReleased,

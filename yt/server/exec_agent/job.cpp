@@ -644,7 +644,7 @@ private:
         auto reader = New<TReader>(
             config,
             Bootstrap->GetMasterClient()->GetMasterChannel(),
-            Bootstrap->GetBlockStore()->GetBlockCache(),
+            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             NodeDirectory,
             std::move(chunks),
             provider);
@@ -703,7 +703,7 @@ private:
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,
             Bootstrap->GetMasterClient()->GetMasterChannel(),
-            Bootstrap->GetBlockStore()->GetBlockCache(),
+            Bootstrap->GetBlockStore()->GetCompressedBlockCache(),
             NodeDirectory,
             std::move(chunks),
             readerProvider);

@@ -59,7 +59,7 @@ public:
     TStoreImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->BlockCacheSize)
+        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->CompressedBlockCacheSize)
         , Config_(config)
         , Bootstrap_(bootstrap)
         , PendingReadSize_(0)
@@ -69,7 +69,7 @@ public:
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,
-            Config_->BlockCacheSize);
+            Config_->CompressedBlockCacheSize + Config_->UncompressedBlockCacheSize);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
     }
 
@@ -376,7 +376,7 @@ TPendingReadSizeGuard TBlockStore::IncreasePendingReadSize(i64 delta)
     return StoreImpl_->IncreasePendingReadSize(delta);
 }
 
-IBlockCachePtr TBlockStore::GetBlockCache()
+IBlockCachePtr TBlockStore::GetCompressedBlockCache()
 {
     return CacheImpl_;
 }

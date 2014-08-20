@@ -37,7 +37,7 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
-    RegisterParameter("block_cache", BlockCache)
+    RegisterParameter("compressed_block_cache", CompressedBlockCache)
         .DefaultNew();
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();

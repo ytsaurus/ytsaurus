@@ -314,16 +314,13 @@ private:
                 upperBound,
                 timestamp);
 
-            auto blockCache = Bootstrap_->GetBlockStore()->GetBlockCache();
-            auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannel();
-            auto nodeDirectory = context->GetNodeDirectory();
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
             chunkReader = CreateReplicationReader(
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-                std::move(blockCache),
-                std::move(masterChannel),
-                std::move(nodeDirectory),
+                Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
+                Bootstrap_->GetMasterClient()->GetMasterChannel(),
+                context->GetNodeDirectory(),
                 Bootstrap_->GetLocalDescriptor(),
                 chunkId);
         }

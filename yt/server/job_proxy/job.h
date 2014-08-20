@@ -29,7 +29,7 @@ struct IJobHost
 
     virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
 
-    virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
+    virtual NChunkClient::IBlockCachePtr GetCompressedBlockCache() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 

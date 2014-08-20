@@ -28,6 +28,7 @@ using namespace NYTree;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 
@@ -37,13 +38,13 @@ TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
-    NChunkClient::IBlockCachePtr blockCache,
+    IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
-    , BlockCache(blockCache)
+    , UncompressedBlockCache(uncompressedBlockCache)
     , NodeDirectory(New<TNodeDirectory>())
     , RichPath(richPath.Normalize())
     , IsOpen(false)
@@ -77,7 +78,7 @@ void TAsyncTableReader::Open()
     {
         auto req = TTableYPathProxy::Fetch(path);
         InitializeFetchRequest(req.Get(), RichPath);
-        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
         SetTransactionId(req, TransactionId);
         SetSuppressAccessTracking(req, Config->SuppressAccessTracking);
         // ToDo(psushin): enable ignoring lost chunks.
@@ -105,7 +106,7 @@ void TAsyncTableReader::Open()
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table chunks");
 
         NodeDirectory->MergeFrom(rsp->node_directory());
-        auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+        auto chunkSpecs = FromProto<TChunkSpec>(rsp->chunks());
 
         auto provider = New<TTableChunkReaderProvider>(
             chunkSpecs,
@@ -115,7 +116,7 @@ void TAsyncTableReader::Open()
         Reader = New<TTableChunkSequenceReader>(
             Config,
             MasterChannel,
-            BlockCache,
+            UncompressedBlockCache,
             NodeDirectory,
             std::move(chunkSpecs),
             provider);
@@ -180,7 +181,7 @@ i64 TAsyncTableReader::GetTableRowIndex() const
     return Reader->GetFacade()->GetTableRowIndex();
 }
 
-std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunkIds() const
+std::vector<TChunkId> TAsyncTableReader::GetFailedChunkIds() const
 {
     return Reader->GetFailedChunkIds();
 }
@@ -190,7 +191,7 @@ int TAsyncTableReader::GetTableIndex() const
     return Reader->GetFacade()->GetTableIndex();
 }
 
-NChunkClient::NProto::TDataStatistics TAsyncTableReader::GetDataStatistics() const
+TDataStatistics TAsyncTableReader::GetDataStatistics() const
 {
     return Reader->GetProvider()->GetDataStatistics();
 }

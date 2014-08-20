@@ -188,7 +188,7 @@ private:
                 auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,
-                    Client_->GetConnection()->GetBlockCache(),
+                    Client_->GetConnection()->GetCompressedBlockCache(),
                     Client_->GetMasterChannel(),
                     NodeDirectory_,
                     Null,

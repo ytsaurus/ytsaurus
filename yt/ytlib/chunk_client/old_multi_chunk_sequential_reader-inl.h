@@ -12,14 +12,14 @@ template <class TChunkReader>
 TOldMultiChunkSequentialReader<TChunkReader>::TOldMultiChunkSequentialReader(
     TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::IBlockCachePtr compressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     typename TBase::TProviderPtr readerProvider)
     : TOldMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
-        blockCache,
+        compressedBlockCache,
         nodeDirectory,
         std::move(chunkSpecs),
         readerProvider)
