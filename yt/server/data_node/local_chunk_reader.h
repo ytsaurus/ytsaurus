@@ -18,6 +18,7 @@ namespace NDataNode {
  */
 NChunkClient::IReaderPtr CreateLocalChunkReader(
     NCellNode::TBootstrap* bootstrap,
+    NChunkClient::TReplicationReaderConfigPtr config,
     IChunkPtr chunk);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 
 #include <core/tracing/trace_context.h>
 
+#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -35,8 +36,10 @@ class TLocalChunkReader
 public:
     TLocalChunkReader(
         TBootstrap* bootstrap,
+        TReplicationReaderConfigPtr config,
         IChunkPtr chunk)
         : Bootstrap_(bootstrap)
+        , Config_(config)
         , Chunk_(chunk)
     { }
 
@@ -79,6 +82,7 @@ public:
 
 private:
     TBootstrap* Bootstrap_;
+    TReplicationReaderConfigPtr Config_;
     IChunkPtr Chunk_;
 
 
@@ -106,7 +110,7 @@ private:
                     Owner_->Chunk_->GetId(),
                     blockIndexes[index],
                     priority,
-                    false);
+                    Owner_->Config_->EnableCaching);
                 auto handler = BIND(
                     &TReadSession::OnBlockFetched,
                     MakeStrong(this),
@@ -187,10 +191,12 @@ private:
 
 NChunkClient::IReaderPtr CreateLocalChunkReader(
     TBootstrap* bootstrap,
+    TReplicationReaderConfigPtr config,
     IChunkPtr chunk)
 {
     return New<TLocalChunkReader>(
         bootstrap,
+        config,
         chunk);
 }
 

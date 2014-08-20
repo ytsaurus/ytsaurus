@@ -198,7 +198,9 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
-    PrepareReader();
+    auto chunk = PrepareChunk();
+    auto chunkReader = PrepareChunkReader(chunk);
+    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
     TReadLimit lowerLimit;
     lowerLimit.SetKey(std::move(lowerKey));
@@ -208,8 +210,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
 
     return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-        ChunkReader_,
-        CachedMeta_,
+        std::move(chunkReader),
+        std::move(cachedVersionedChunkMeta),
         lowerLimit,
         upperLimit,
         columnFilter,
@@ -302,55 +304,77 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         });
 }
 
-void TChunkStore::PrepareReader()
+IChunkPtr TChunkStore::PrepareChunk()
 {
+    if (ChunkInitialized_) {
+        return Chunk_;
+    }
+
+    auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+    auto asyncChunk = BIND(&TChunkRegistry::FindChunk, chunkRegistry, Id_)
+        .AsyncVia(Bootstrap_->GetControlInvoker())
+        .Run();
+    auto chunk = Chunk_ = WaitFor(asyncChunk);
+    ChunkInitialized_ = true;
+
     auto this_ = MakeStrong(this);
+    TDelayedExecutor::Submit(
+        BIND([this, this_] () {
+            ChunkInitialized_ = false;
+            Chunk_.Reset();
+        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        ChunkExpirationTimeout);
 
-    if (!ChunkInitialized_) {
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto asyncChunk = BIND(&TChunkRegistry::FindChunk, chunkRegistry, Id_)
-            .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run();
-        Chunk_ = WaitFor(asyncChunk);
-        ChunkInitialized_ = true;
+    return chunk;
+}
 
-        TDelayedExecutor::Submit(
-            BIND([this, this_] () {
-                ChunkInitialized_ = false;
-                Chunk_.Reset();
-            }).Via(Tablet_->GetEpochAutomatonInvoker()),
-            ChunkExpirationTimeout);
+IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
+{
+    if (ChunkReader_) {
+        return ChunkReader_;
     }
 
-    if (!ChunkReader_) {
-        if (Chunk_) {
-            ChunkReader_ = CreateLocalChunkReader(Bootstrap_, Chunk_);
-        } else {
-            // TODO(babenko): provide seed replicas
-            ChunkReader_ = CreateReplicationReader(
-                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
-                Bootstrap_->GetBlockStore()->GetBlockCache(),
-                Bootstrap_->GetMasterClient()->GetMasterChannel(),
-                New<TNodeDirectory>(),
-                Bootstrap_->GetLocalDescriptor(),
-                Id_);
-        }
-
-        TDelayedExecutor::Submit(
-            BIND([this, this_] () {
-                ChunkReader_.Reset();
-            }).Via(Tablet_->GetEpochAutomatonInvoker()),
-            ChunkReaderExpirationTimeout);
+    IReaderPtr chunkReader;
+    if (chunk) {
+        chunkReader = ChunkReader_ = CreateLocalChunkReader(
+            Bootstrap_,
+            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            chunk);
+    } else {
+        // TODO(babenko): provide seed replicas
+        chunkReader = ChunkReader_ = CreateReplicationReader(
+            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            Bootstrap_->GetBlockStore()->GetBlockCache(),
+            Bootstrap_->GetMasterClient()->GetMasterChannel(),
+            New<TNodeDirectory>(),
+            Bootstrap_->GetLocalDescriptor(),
+            Id_);
     }
 
-    if (!CachedMeta_) {
-        auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
-            ChunkReader_,
-            Tablet_->Schema(),
-            Tablet_->KeyColumns()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
-        CachedMeta_ = cachedMetaOrError.Value();
+    auto this_ = MakeStrong(this);
+    TDelayedExecutor::Submit(
+        BIND([this, this_] () {
+            ChunkReader_.Reset();
+        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+        ChunkReaderExpirationTimeout);
+
+    return chunkReader;
+}
+
+TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IReaderPtr chunkReader)
+{
+    if (CachedVersionedChunkMeta_) {
+        return CachedVersionedChunkMeta_;
     }
+
+    auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
+        chunkReader,
+        Tablet_->Schema(),
+        Tablet_->KeyColumns()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
+    auto cachedMeta = CachedVersionedChunkMeta_ = cachedMetaOrError.Value();
+
+    return cachedMeta;
 }
 
 void TChunkStore::PrecacheProperties()

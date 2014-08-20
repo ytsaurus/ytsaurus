@@ -90,14 +90,19 @@ private:
 
     NChunkClient::IReaderPtr ChunkReader_;
 
-    NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedMeta_;
+    NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
     std::vector<TVersionedRow> PooledRows_;
 
     IStorePtr BackingStore_;
 
 
-    void PrepareReader();
+    NDataNode::IChunkPtr PrepareChunk();
+    NChunkClient::IReaderPtr PrepareChunkReader(
+        NDataNode::IChunkPtr chunk);
+    NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
+        NChunkClient::IReaderPtr chunkReader);
+
     void PrecacheProperties();
 
 };

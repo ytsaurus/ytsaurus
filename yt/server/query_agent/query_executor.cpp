@@ -303,7 +303,10 @@ private:
                 upperBound,
                 timestamp);
 
-            chunkReader = CreateLocalChunkReader(Bootstrap_, chunk);
+            chunkReader = CreateLocalChunkReader(
+                Bootstrap_,
+                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                chunk);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
                 chunkId,
