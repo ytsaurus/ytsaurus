@@ -99,7 +99,7 @@ public:
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             FormatBool(Config_->FetchFromPeers),
             LocalDescriptor_ ? ToString(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : "<Null>",
-            FormatBool(Config_->EnableNodeCaching),
+            FormatBool(Config_->EnableCaching),
             NetworkName_);
     }
 
@@ -689,7 +689,7 @@ private:
                 req->SetStartTime(StartTime_);
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
-                req->set_enable_caching(reader->Config_->EnableNodeCaching);
+                req->set_enable_caching(reader->Config_->EnableCaching);
                 req->set_session_type(reader->SessionType_);
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;

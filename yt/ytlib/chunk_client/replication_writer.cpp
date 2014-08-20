@@ -272,7 +272,7 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
     req->set_first_block_index(FirstBlockIndex_);
     req->Attachments().insert(req->Attachments().begin(), Blocks_.begin(), Blocks_.end());
-    req->set_enable_caching(writer->Config_->EnableNodeCaching);
+    req->set_enable_caching(writer->Config_->EnableCaching);
 
     LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
         GetStartBlockIndex(),
@@ -469,7 +469,7 @@ void TReplicationWriter::Open()
 {
     LOG_INFO("Opening writer (Addresses: [%v], EnableCaching: %v, SessionType: %v)",
         JoinToString(Targets_),
-        Config_->EnableNodeCaching,
+        Config_->EnableCaching,
         SessionType_);
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());

@@ -3534,7 +3534,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->TableWriter->MinUploadReplicationFactor = 1;
 
     // Cache blocks on nodes.
-    config->TableWriter->EnableNodeCaching = true;
+    config->TableWriter->EnableCaching = true;
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;

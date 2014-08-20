@@ -50,7 +50,7 @@ public:
     TDuration PeerExpirationTimeout;
 
     //! If True then fetched blocks are cached by the node.
-    bool EnableNodeCaching;
+    bool EnableCaching;
 
     //! If True then the master may be asked for seeds.
     bool AllowFetchingSeedsFromMaster;
@@ -78,7 +78,7 @@ public:
             .Default(true);
         RegisterParameter("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
-        RegisterParameter("enable_node_caching", EnableNodeCaching)
+        RegisterParameter("enable_caching", EnableCaching)
             .Default(true);
         RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
             .Default(true);
@@ -163,7 +163,7 @@ public:
     TDuration NodePingPeriod;
 
     //! If |true| then written blocks are cached by the node.
-    bool EnableNodeCaching;
+    bool EnableCaching;
 
     bool SyncOnClose;
 
@@ -182,7 +182,7 @@ public:
             .GreaterThan(0);
         RegisterParameter("node_ping_interval", NodePingPeriod)
             .Default(TDuration::Seconds(10));
-        RegisterParameter("enable_node_caching", EnableNodeCaching)
+        RegisterParameter("enable_caching", EnableCaching)
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
