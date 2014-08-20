@@ -161,7 +161,7 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedMultiChunkWriter)
 
 DECLARE_REFCOUNTED_CLASS(TCachedVersionedChunkMeta)
 
-DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
+DECLARE_REFCOUNTED_STRUCT(IVersionedLookuper)
 
 typedef NChunkClient::TEncodingWriterOptions TChunkWriterOptions;
 typedef NChunkClient::TEncodingWriterOptionsPtr TChunkWriterOptionsPtr;

@@ -60,7 +60,7 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual IVersionedLookuperPtr CreateLookuper(
+    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
@@ -72,8 +72,6 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
-    class TLookuper;
-
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.

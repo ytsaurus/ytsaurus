@@ -15,6 +15,8 @@
 
 #include <ytlib/new_table_client/versioned_reader.h>
 #include <ytlib/new_table_client/versioned_chunk_reader.h>
+#include <ytlib/new_table_client/versioned_lookuper.h>
+#include <ytlib/new_table_client/versioned_chunk_lookuper.h>
 #include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
@@ -58,60 +60,6 @@ using NChunkClient::TReadLimit;
 
 static const TDuration ChunkExpirationTimeout = TDuration::Seconds(15);
 static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkStore::TLookuper
-    : public IVersionedLookuper
-{
-public:
-    TLookuper(
-        TChunkStorePtr store,
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter)
-        : Store_(std::move(store))
-        , Timestamp_(timestamp)
-        , ColumnFilter_(columnFilter)
-    { }
-
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
-    {
-        Reader_ = Store_->CreateReader(
-            TOwningKey(key),
-            GetKeySuccessor(key),
-            Timestamp_,
-            ColumnFilter_);
-        if (!Reader_) {
-            static auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
-            return NullRow;
-        }
-
-        return Reader_->Open().Apply(BIND(&TLookuper::OnOpened, MakeStrong(this)));
-    }
-
-private:
-    TChunkStorePtr Store_;
-    TTimestamp Timestamp_;
-    TColumnFilter ColumnFilter_;
-
-    IVersionedReaderPtr Reader_;
-    std::vector<TVersionedRow> PooledRows_;
-
-
-    TErrorOr<TVersionedRow> OnOpened(TError error)
-    {
-        if (!error.IsOK()) {
-            return error;
-        }
-
-        PooledRows_.clear();
-        PooledRows_.reserve(1);
-        Reader_->Read(&PooledRows_);
-        YASSERT(PooledRows_.size() <= 1);
-        return PooledRows_.empty() ? TVersionedRow() : PooledRows_[0];
-    }
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +174,16 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
         return BackingStore_->CreateLookuper(timestamp, columnFilter);
     }
 
-    return New<TLookuper>(this, timestamp, columnFilter);
+    auto chunk = PrepareChunk();
+    auto chunkReader = PrepareChunkReader(chunk);
+    auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+
+    return CreateVersionedChunkLookuper(
+        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(chunkReader),
+        std::move(cachedVersionedChunkMeta),
+        columnFilter,
+        timestamp);
 }
 
 TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)

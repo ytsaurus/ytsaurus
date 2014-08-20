@@ -3,8 +3,6 @@
 
 #include <yt/core/actions/invoker_util.h>
 
-#include <yt/ytlib/new_table_client/versioned_reader.h>
-
 namespace NYT {
 namespace NTabletNode {
 namespace {

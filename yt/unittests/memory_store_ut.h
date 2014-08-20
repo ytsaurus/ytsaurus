@@ -17,6 +17,7 @@
 #include <yt/ytlib/new_table_client/versioned_row.h>
 #include <yt/ytlib/new_table_client/unversioned_row.h>
 #include <yt/ytlib/new_table_client/versioned_reader.h>
+#include <yt/ytlib/new_table_client/versioned_lookuper.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>

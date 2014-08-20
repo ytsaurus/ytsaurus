@@ -64,7 +64,6 @@ inline Stroka KeyToYson(TKey key)
     return ConvertToYsonString(key, EYsonFormat::Text).Data();
 }
 
-
 class TVersionedTableClientTestBase
     : public ::testing::Test
 {

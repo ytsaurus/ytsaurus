@@ -13,21 +13,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVersionedLookuper
-    : public virtual TRefCounted
-{
-    //! Runs an asynchronous lookup.
-    /*!
-     *  The result remains valid as long as the lookuper instance lives and
-     *  no more #Lookup calls are made.
-     */
-    virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IVersionedLookuper)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IStore
     : public virtual TRefCounted
 {
@@ -75,7 +60,7 @@ struct IStore
         const TColumnFilter& columnFilter) = 0;
 
     //! Creates a lookuper instance.
-    virtual IVersionedLookuperPtr CreateLookuper(
+    virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 

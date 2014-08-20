@@ -25,6 +25,7 @@ set( SRCS
   ${BASE}/versioned_chunk_reader.cpp
   ${BASE}/versioned_chunk_writer.cpp
   ${BASE}/versioned_row.cpp
+  ${BASE}/versioned_chunk_lookuper.cpp
 )
 
 set( HDRS
@@ -63,6 +64,8 @@ set( HDRS
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
   ${BASE}/writer.h
+  ${BASE}/versioned_lookuper.h
+  ${BASE}/versioned_chunk_lookuper.h
 )
 
 list(APPEND YT_SOURCE_FILES
