@@ -385,7 +385,7 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& deviceId = values[2 * lineNumber];
             i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
-            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
+            if (!deviceId.has_prefix("8:")) {
                 THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
             }
 

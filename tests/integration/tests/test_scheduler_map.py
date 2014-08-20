@@ -1,6 +1,7 @@
 import pytest
 import sys
 import time
+import socket
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -45,6 +46,26 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     assert key in stats
                 # out job should burn enough cpu
                 assert int(stats['cpu']['user_time']) > 0
+
+    @pytest.mark.skipif("socket.gethostname() != 'build01-01g'")
+    def test_block_io_accounting(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write('//tmp/t1', [{"a": "b"}])
+        op_id = map(in_='//tmp/t1', out='//tmp/t2', command="cat; sync; echo 1 | sudo tee /proc/sys/vm/drop_caches 1>/dev/null; sudo dd if=/dev/sda of=something bs=4K count=1000 1>/dev/null; sleep 2")
+
+        # wait for scheduler to dump the event log
+        time.sleep(1)
+        res = read('//sys/scheduler/event_log')
+        exist = False
+        for item in res:
+            if item['event_type'] == 'job_completed' and item['operation_id'] == op_id:
+                stats = item['statistics']
+                for key in ['cpu', 'block_io']:
+                    assert key in stats
+                if int(stats['block_io']['total_sectors']) > 0:
+                    exist = True
+        assert exist
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_one_chunk(self):
