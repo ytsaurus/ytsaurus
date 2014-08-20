@@ -836,7 +836,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table, client=client)
     for table in source_table:
-        require(exists(table.name), YtError("Table %s should exist" % table))
+        require(exists(table.name, client=client), YtError("Table %s should exist" % table))
 
     if destination_table is None:
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
