@@ -3,14 +3,12 @@ import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value
-from errors import YtError, YtResponseError
+from errors import YtError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url
 from command import parse_commands
 
 from yt.yson.convert import json_to_yson
-
-import yt.packages.requests as requests
 
 import sys
 import simplejson as json
