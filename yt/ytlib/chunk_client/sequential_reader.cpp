@@ -30,10 +30,9 @@ TSequentialReader::TSequentialReader(
     , Logger(ChunkClientLogger)
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
+    YCHECK(ChunkReader_);
 
     Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
-
-    YCHECK(ChunkReader_);
 
     std::vector<int> blockIndexes;
     for (const auto& info : BlockInfos_) {
