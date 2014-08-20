@@ -121,8 +121,8 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, token, spec_template,
                 yt_client,
                 lambda client, strategy: client.run_sort(dst, sort_by=["key", "subkey"], strategy=strategy))
 
-        result_record_count = yt.records_count(dst)
-        if yt.records_count(dst) != record_count:
+        result_record_count = yt_client.records_count(dst)
+        if result_record_count != record_count:
             error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
             logger.error(error)
             raise yt.YtError(error)
