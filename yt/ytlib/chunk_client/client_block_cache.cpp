@@ -47,10 +47,8 @@ public:
     virtual void Put(
         const TBlockId& id,
         const TSharedRef& data,
-        const TNullable<TNodeDescriptor>& source) override
+        const TNullable<TNodeDescriptor>& /*source*/) override
     {
-        UNUSED(source);
-
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
             auto block = New<TCachedBlock>(id, data);
