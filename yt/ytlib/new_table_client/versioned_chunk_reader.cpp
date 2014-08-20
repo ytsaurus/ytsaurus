@@ -1,7 +1,5 @@
 #include "stdafx.h"
-
 #include "versioned_chunk_reader.h"
-
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
@@ -371,7 +369,8 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
+IVersionedReaderPtr CreateVersionedChunkReader(
+    TChunkReaderConfigPtr config,
     IReaderPtr chunkReader,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
@@ -382,9 +381,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(TChunkReaderConfigPtr config,
     switch (chunkMeta->ChunkMeta().version()) {
         case ETableChunkFormat::VersionedSimple:
             return New<TVersionedChunkReader<TSimpleVersionedBlockReader>>(
-                config,
-                chunkMeta,
-                chunkReader,
+                std::move(config),
+                std::move(chunkMeta),
+                std::move(chunkReader),
                 std::move(lowerLimit),
                 std::move(upperLimit),
                 columnFilter,
