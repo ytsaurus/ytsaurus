@@ -115,7 +115,7 @@ public:
         }
     }
 
-    TFuture<TGetBlockResult> GetBlock(
+    TAsyncGetBlockResult GetBlock(
         const TChunkId& chunkId,
         int blockIndex,
         i64 priority,
@@ -136,14 +136,9 @@ public:
         if (enableCaching) {
             if (!BeginInsert(&cookie)) {
                 auto this_ = MakeStrong(this);
-                return cookie.GetValue().Apply(BIND([this, this_] (TErrorOr<TCachedBlockPtr> result) -> TGetBlockResult {
-                    if (!result.IsOK()) {
-                        return TError(result);
-                    }
-                    auto cachedBlock = result.Value();
-                    LogCacheHit(cachedBlock);
-                    return cachedBlock->GetData();
-                }));
+                return cookie
+                    .GetValue()
+                    .Apply(BIND(&TStoreImpl::OnCachedBlockReady, MakeStrong(this)));
             }
         }
 
@@ -161,22 +156,14 @@ public:
 
         return chunk
             ->ReadBlocks(blockIndex, 1, priority)
-            .Apply(BIND([=] (IChunk::TReadBlocksResult result) -> TGetBlockResult {
-                chunk->ReleaseReadLock();
-                if (!result.IsOK()) {
-                    return TError(result);
-                }
-                
-                const auto& blocks = result.Value();
-                if (blocks.empty()) {
-                    return TError("No such block %v:%v", chunkId, blockIndex);
-                }
-
-                return blocks[0];
-            }));
+            .Apply(BIND(
+                &TStoreImpl::OnBlockRead,
+                chunk,
+                blockIndex,
+                Passed(std::move(cookie))));
     }
 
-    TFuture<TGetBlocksResult> GetBlocks(
+    TAsyncGetBlocksResult GetBlocks(
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
@@ -198,10 +185,7 @@ public:
 
         return chunk
             ->ReadBlocks(firstBlockIndex, blockCount, priority)
-            .Apply(BIND([=] (IChunk::TReadBlocksResult result) -> TGetBlocksResult {
-                chunk->ReleaseReadLock();
-                return result;
-            }));
+            .Apply(BIND(&TStoreImpl::OnBlocksRead, chunk));
     }
 
     TCachedBlockPtr FindBlock(const TBlockId& id)
@@ -231,8 +215,6 @@ public:
     }
 
 private:
-    friend class TGetBlocksSession;
-
     TDataNodeConfigPtr Config_;
     TBootstrap* Bootstrap_;
 
@@ -257,6 +239,49 @@ private:
         LOG_DEBUG("Pending read size updated (PendingReadSize: %v, Delta: %v)",
             result,
             delta);
+    }
+
+    TGetBlockResult OnCachedBlockReady(TErrorOr<TCachedBlockPtr> result)
+    {
+        if (!result.IsOK()) {
+            return TError(result);
+        }
+
+        const auto& cachedBlock = result.Value();
+        LogCacheHit(cachedBlock);
+        return cachedBlock->GetData();
+    }
+
+    static TGetBlockResult OnBlockRead(
+        IChunkPtr chunk,
+        int blockIndex,
+        TInsertCookie cookie,
+        IChunk::TReadBlocksResult result)
+    {
+        TBlockId blockId(chunk->GetId(), blockIndex);
+
+        chunk->ReleaseReadLock();
+
+        if (!result.IsOK()) {
+            return TError(result);
+        }
+
+        const auto& blocks = result.Value();
+        if (blocks.empty()) {
+            return TError("No such block %v", blockId);
+        }
+
+        const auto& block = blocks[0];
+        auto cachedBlock = New<TCachedBlock>(blockId, block, Null);
+        cookie.EndInsert(cachedBlock);
+
+        return block;
+    }
+
+    static TGetBlocksResult OnBlocksRead(IChunkPtr chunk, IChunk::TReadBlocksResult result)
+    {
+        chunk->ReleaseReadLock();
+        return result;
     }
 
 };
