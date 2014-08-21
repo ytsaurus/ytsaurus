@@ -83,14 +83,14 @@ private:
 };
 
 class TFileChangelogStore
-    : public TSizeLimitedCache<int, TCachedLocalChangelog>
+    : public TSlruCacheBase<int, TCachedLocalChangelog>
     , public IChangelogStore
 {
 public:
     TFileChangelogStore(
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
-        : TSizeLimitedCache(config->MaxCachedChangelogs)
+        : TSlruCacheBase(config->ChangelogReaderCache)
         , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
         , Config_(config)
         , Logger(HydraLogger)
@@ -135,6 +135,12 @@ private:
     TFileChangelogStoreConfigPtr Config_;
 
     NLog::TLogger Logger;
+
+
+    virtual i64 GetWeight(TCachedLocalChangelog* /*changelog*/) const override
+    {
+        return 1;
+    }
 
 
     Stroka GetChangelogPath(int id)

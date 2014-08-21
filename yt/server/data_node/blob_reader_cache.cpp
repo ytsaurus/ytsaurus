@@ -44,11 +44,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobReaderCache::TImpl
-    : public TSizeLimitedCache<TChunkId, TCachedReader>
+    : public TSlruCacheBase<TChunkId, TCachedReader>
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
-        : TSizeLimitedCache<TChunkId, TCachedReader>(config->BlobReaderCacheSize)
+        : TSlruCacheBase(config->BlobReaderCache)
     { }
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
@@ -95,10 +95,15 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        TCacheBase::Remove(chunk->GetId());
+        TSlruCacheBase::Remove(chunk->GetId());
     }
 
 private:
+    virtual i64 GetWeight(TCachedReader* /*reader*/) const override
+    {
+        return 1;
+    }
+
     virtual void OnAdded(TCachedReader* reader) override
     {
         LOG_DEBUG("Block chunk reader added to cache (ChunkId: %v)",

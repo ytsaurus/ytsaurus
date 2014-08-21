@@ -53,13 +53,13 @@ TCachedBlock::~TCachedBlock()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TStoreImpl
-    : public TWeightLimitedCache<TBlockId, TCachedBlock>
+    : public TSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
     TStoreImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->CompressedBlockCacheSize)
+        : TSlruCacheBase(config->CompressedBlockCache)
         , Config_(config)
         , Bootstrap_(bootstrap)
         , PendingReadSize_(0)
@@ -69,7 +69,7 @@ public:
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,
-            Config_->CompressedBlockCacheSize + Config_->UncompressedBlockCacheSize);
+            Config_->CompressedBlockCache->Capacity + Config_->UncompressedBlockCache->Capacity);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for block cache");
     }
 
@@ -190,7 +190,7 @@ public:
 
     TCachedBlockPtr FindBlock(const TBlockId& id)
     {
-        auto block = TWeightLimitedCache::Find(id);
+        auto block = TSlruCacheBase::Find(id);
         if (block) {
             LogCacheHit(block);
         }

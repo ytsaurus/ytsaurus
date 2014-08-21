@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/ytree/yson_serializable.h>
 
 #include <core/compression/public.h>
@@ -53,7 +55,7 @@ public:
     NHive::TCellDirectoryConfigPtr CellDirectory;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    NChunkClient::TClientBlockCacheConfigPtr CompressedBlockCache;
+    TSlruCacheConfigPtr CompressedBlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
     
     TDuration QueryTimeout;

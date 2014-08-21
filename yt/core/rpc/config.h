@@ -152,7 +152,7 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThrottlingChannelConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Maximum allowed number of requests per second.

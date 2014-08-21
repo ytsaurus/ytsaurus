@@ -1,16 +1,19 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <core/misc/error.h>
+
 #include <core/actions/future.h>
+
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-class TCacheBase;
+class TSlruCacheBase;
 
 template <class TKey, class TValue, class THash = ::hash<TKey> >
 class TCacheValueBase
@@ -25,8 +28,8 @@ protected:
     explicit TCacheValueBase(const TKey& key);
 
 private:
-    typedef TCacheBase<TKey, TValue, THash> TCache;
-    friend class TCacheBase<TKey, TValue, THash>;
+    typedef TSlruCacheBase<TKey, TValue, THash> TCache;
+    friend class TSlruCacheBase<TKey, TValue, THash>;
 
     TIntrusivePtr<TCache> Cache_;
     TKey Key_;
@@ -36,7 +39,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash = hash<TKey> >
-class TCacheBase
+class TSlruCacheBase
     : public virtual TRefCounted
 {
 public:
@@ -51,7 +54,7 @@ public:
     std::vector<TValuePtr> GetAll();
 
 protected:
-    TSpinLock SpinLock_;
+    TSlruCacheConfigPtr Config_;
 
     class TInsertCookie
     {
@@ -73,10 +76,10 @@ protected:
         void EndInsert(TValuePtr value);
 
     private:
-        friend class TCacheBase;
+        friend class TSlruCacheBase;
 
         TKey Key_;
-        TIntrusivePtr<TCacheBase> Cache_;
+        TIntrusivePtr<TSlruCacheBase> Cache_;
         TAsyncValuePtrOrErrorResult ValueOrError_;
         bool Active_;
 
@@ -84,7 +87,7 @@ protected:
 
     };
 
-    TCacheBase();
+    explicit TSlruCacheBase(TSlruCacheConfigPtr config);
 
     TAsyncValuePtrOrErrorResult Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
@@ -92,13 +95,8 @@ protected:
     bool Remove(const TKey& key);
     bool Remove(TValuePtr value);
 
-    //! Called under #SpinLock.
-    virtual bool IsTrimNeeded() const = 0;
-
-    //! Must acquire #SpinLock if needed.
+    virtual i64 GetWeight(TValue* value) const = 0;
     virtual void OnAdded(TValue* value);
-
-    //! Must acquire #SpinLock if needed.
     virtual void OnRemoved(TValue* value);
 
 private:
@@ -111,69 +109,41 @@ private:
             : ValueOrError(NewPromise<TValuePtrOrError>())
         { }
 
-        explicit TItem(const TValuePtr& value)
-            : ValueOrError(MakePromise(TValuePtrOrError(value)))
-        { }
-
-        explicit TItem(TValuePtr&& value)
+        explicit TItem(TValuePtr value)
             : ValueOrError(MakePromise(TValuePtrOrError(std::move(value))))
         { }
 
         TAsyncValuePtrOrErrorPromise ValueOrError;
+        bool Younger;
     };
 
     typedef yhash_map<TKey, TValue*, THash> TValueMap;
     typedef yhash_map<TKey, TItem*, THash> TItemMap;
     typedef TIntrusiveListWithAutoDelete<TItem, TDelete> TItemList;
 
+    TSpinLock SpinLock_;
+
+    TItemList YoungerLruList_;
+    i64 YoungerWeight_ = 0;
+
+    TItemList OlderLruList_;
+    i64 OlderWeight_ = 0;
+
     TValueMap ValueMap_;
+
     TItemMap ItemMap_;
-    TItemList LruList_;
-    int ItemMapSize_;
+    int ItemMapSize_ = 0;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
     void Touch(TItem* item); // thread-unsafe
     void Unregister(const TKey& key);
-    void TrimIfNeeded(); // thread-unsafe
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, class THash = ::hash<TKey> >
-class TSizeLimitedCache
-    : public TCacheBase<TKey, TValue, THash>
-{
-protected:
-    explicit TSizeLimitedCache(int maxSize);
-
-    virtual bool IsTrimNeeded() const;
-
-private:
-    int MaxSize_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, class THash = ::hash<TKey> >
-class TWeightLimitedCache
-    : public TCacheBase<TKey, TValue, THash>
-{
-protected:
-    explicit TWeightLimitedCache(i64 maxWeight);
-
-    virtual i64 GetWeight(TValue* value) const = 0;
-
-    virtual void OnAdded(TValue* value) override;
-    virtual void OnRemoved(TValue* value) override;
-
-    virtual bool IsTrimNeeded() const override;
-
-private:
-    i64 TotalWeight_;
-    i64 MaxWeight_;
+    static TValuePtr GetValue(TItem* item);
+    void PushToYounger(TItem* item, TValue* value);
+    void MoveToYounger(TItem* item, TValue* value);
+    void MoveToOlder(TItem* item, TValue* value);
+    void Pop(TItem* item, TValue* value);
+    void TrimIfNeeded();
 
 };
 

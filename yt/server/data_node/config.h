@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/concurrency/throughput_throttler.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -172,14 +174,14 @@ public:
      */
     TDuration FullHeartbeatTimeout;
 
-    //! Size of compressed block cache (in bytes).
-    i64 CompressedBlockCacheSize;
+    //! Cache for raw (compressed) blocks.
+    TSlruCacheConfigPtr CompressedBlockCache;
 
-    //! Size of uncompressed block cache (in bytes).
-    i64 UncompressedBlockCacheSize;
+    //! Cache for uncompressed blocks.
+    TSlruCacheConfigPtr UncompressedBlockCache;
 
-    //! Maximum number of cached blob chunks readers.
-    int BlobReaderCacheSize;
+    //! Opened blob chunks cache.
+    TSlruCacheConfigPtr BlobReaderCache;
 
     //! Multiplexed changelog configuration.
     TMultiplexedChangelogConfigPtr MultiplexedChangelog;
@@ -187,8 +189,8 @@ public:
     //! Split (per chunk) changelog configuration.
     NHydra::TFileChangelogConfigPtr SplitChangelog;
 
-    //! Maximum number of cached opened changelogs.
-    int ChangelogReaderCacheSize;
+    //! Opened changelogs cache.
+    TSlruCacheConfigPtr ChangelogReaderCache;
 
     //! Upload session timeout.
     /*!
@@ -277,24 +279,20 @@ public:
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
-        RegisterParameter("compressed_block_cache_size", CompressedBlockCacheSize)
-            .GreaterThan(0)
-            .Default(1024 * 1024);
-        RegisterParameter("uncompressed_block_cache_size", UncompressedBlockCacheSize)
-            .GreaterThan(0)
-            .Default(1024 * 1024);
+        RegisterParameter("compressed_block_cache", CompressedBlockCache)
+            .DefaultNew();
+        RegisterParameter("uncompressed_block_cache_size", UncompressedBlockCache)
+            .DefaultNew();
 
-        RegisterParameter("blob_reader_cache_size", BlobReaderCacheSize)
-            .GreaterThan(0)
-            .Default(256);
+        RegisterParameter("blob_reader_cache", BlobReaderCache)
+            .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
             .Default(nullptr);
         RegisterParameter("split_changelog", SplitChangelog)
             .DefaultNew();
-        RegisterParameter("changelog_reader_cache_size", ChangelogReaderCacheSize)
-            .GreaterThan(0)
-            .Default(256);
+        RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+            .DefaultNew();
 
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
@@ -363,6 +361,14 @@ public:
             .Default((i64) 64 * 1024 * 1024);
 
         RegisterInitializer([&] () {
+            CompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
+
+            UncompressedBlockCache->Capacity = (i64) 1024 * 1024 * 1024;
+
+            BlobReaderCache->Capacity = 256;
+
+            ChangelogReaderCache->Capacity = 256;
+
             // Expect many splits -- adjust configuration.
             SplitChangelog->FlushBufferSize = (i64) 16 * 1024 * 1024;
             SplitChangelog->FlushPeriod = TDuration::Seconds(15);

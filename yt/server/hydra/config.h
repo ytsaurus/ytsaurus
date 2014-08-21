@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/misc/config.h>
+
 #include <core/compression/public.h>
 
 #include <core/ytree/yson_serializable.h>
@@ -53,14 +55,17 @@ public:
     Stroka Path;
 
     //! Maximum number of cached changelogs.
-    int MaxCachedChangelogs;
+    TSlruCacheConfigPtr ChangelogReaderCache;
 
     TFileChangelogStoreConfig()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("max_cached_changelogs", MaxCachedChangelogs)
-            .GreaterThan(0)
-            .Default(4);
+        RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+           ChangelogReaderCache->Capacity = 4;
+        });
     }
 };
 

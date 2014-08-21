@@ -36,12 +36,12 @@ public:
 };
 
 class TClientBlockCache
-    : public TWeightLimitedCache<TBlockId, TCachedBlock>
+    : public TSlruCacheBase<TBlockId, TCachedBlock>
     , public IBlockCache
 {
 public:
-    explicit TClientBlockCache(TClientBlockCacheConfigPtr config)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxSize)
+    explicit TClientBlockCache(TSlruCacheConfigPtr config)
+        : TSlruCacheBase(config)
     { }
 
     virtual void Put(
@@ -81,16 +81,15 @@ public:
     }
 
 private:
-    virtual i64 GetWeight(TCachedBlock* block) const
+    virtual i64 GetWeight(TCachedBlock* block) const override
     {
         return block->GetData().Size();
     }
 
 };
 
-IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfigPtr config)
+IBlockCachePtr CreateClientBlockCache(TSlruCacheConfigPtr config)
 {
-    YCHECK(config);
     return New<TClientBlockCache>(config);
 }
 

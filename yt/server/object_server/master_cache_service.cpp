@@ -124,11 +124,11 @@ private:
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
     class TCache
-        : public TWeightLimitedCache<TKey, TEntry>
+        : public TSlruCacheBase<TKey, TEntry>
     {
     public:
         explicit TCache(TMasterCacheService* owner)
-            : TWeightLimitedCache(owner->Config_->MaxSpace)
+            : TSlruCacheBase(owner->Config_)
             , Owner_(owner)
             , Logger(ObjectServerLogger)
         { }

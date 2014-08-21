@@ -266,14 +266,11 @@ public:
 };
 
 class TEvaluator::TImpl
-    : public TSizeLimitedCache<
-        llvm::FoldingSetNodeID,
-        TCachedCGFragment,
-        TFoldingHasher>
+    : public TSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
 {
 public:
-    explicit TImpl(const int maxCacheSize)
-        : TSizeLimitedCache(maxCacheSize)
+    explicit TImpl(TSlruCacheConfigPtr config)
+        : TSlruCacheBase(std::move(config))
     {
         InitializeLlvm();
         RegisterCGRoutines();
@@ -438,6 +435,12 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
+
+    virtual i64 GetWeight(TCachedCGFragment* /*fragment*/) const override
+    {
+        return 1;
+    }
+
     static NLog::TLogger BuildLogger(const TPlanFragment& fragment)
     {
         NLog::TLogger result(QueryClientLogger);
@@ -450,7 +453,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvaluator::TEvaluator()
-    : Impl_(New<TEvaluator::TImpl>(100))
+    : Impl_(New<TEvaluator::TImpl>(New<TSlruCacheConfig>(100)))
 { }
 
 TEvaluator::~TEvaluator()

@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/cache.h>
 #include <core/misc/property.h>
 
 #include <core/concurrency/thread_affinity.h>

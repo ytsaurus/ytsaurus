@@ -187,7 +187,7 @@ TJobResult TJobProxy::DoRun()
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
     // Cache is disabled.
-    CompressedBlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
+    CompressedBlockCache = NChunkClient::CreateClientBlockCache(New<TSlruCacheConfig>());
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());

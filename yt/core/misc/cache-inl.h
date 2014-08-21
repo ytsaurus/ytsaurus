@@ -3,6 +3,8 @@
 #endif
 #undef CACHE_INL_H_
 
+#include "config.h"
+
 #include <util/system/yield.h>
 
 namespace NYT {
@@ -31,24 +33,28 @@ NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::Clear()
+void TSlruCacheBase<TKey, TValue, THash>::Clear()
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
     ItemMap_.clear();
     ItemMapSize_ = 0;
 
-    LruList_.Clear();
+    YoungerLruList_.Clear();
+    YoungerWeight_ = 0;
+
+    OlderLruList_.Clear();
+    OlderWeight_ = 0;
 }
 
 template <class TKey, class TValue, class THash>
-TCacheBase<TKey, TValue, THash>::TCacheBase()
-    : ItemMapSize_(0)
+TSlruCacheBase<TKey, TValue, THash>::TSlruCacheBase(TSlruCacheConfigPtr config)
+    : Config_(std::move(config))
 { }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TValuePtr
-TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
+typename TSlruCacheBase<TKey, TValue, THash>::TValuePtr
+TSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = ValueMap_.find(key);
@@ -59,8 +65,8 @@ TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-std::vector<typename TCacheBase<TKey, TValue, THash>::TValuePtr>
-TCacheBase<TKey, TValue, THash>::GetAll()
+std::vector<typename TSlruCacheBase<TKey, TValue, THash>::TValuePtr>
+TSlruCacheBase<TKey, TValue, THash>::GetAll()
 {
     std::vector<TValuePtr> result;
     TGuard<TSpinLock> guard(SpinLock_);
@@ -75,8 +81,8 @@ TCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
-TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
+typename TSlruCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
+TSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
         {
@@ -101,8 +107,8 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 
                 ItemMap_.insert(std::make_pair(key, item));
                 ++ItemMapSize_;
-                
-                LruList_.PushFront(item);
+
+                PushToYounger(item, value.Get());
 
                 guard.Release();
 
@@ -119,7 +125,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
+bool TSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
     YCHECK(!cookie->Active_);
     auto key = cookie->GetKey();
@@ -156,7 +162,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
                 ++ItemMapSize_;
 
-                LruList_.PushFront(item);
+                PushToYounger(item, value.Get());
 
                 cookie->ValueOrError_ = item->ValueOrError;
 
@@ -176,7 +182,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
+void TSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
     YCHECK(cookie->Active_);
 
@@ -205,7 +211,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto it = ItemMap_.find(key);
         if (it != ItemMap_.end()) {
             auto* item = it->second;
-            LruList_.PushFront(item);
+            PushToYounger(item, value.Get());
         }
     }
 
@@ -214,7 +220,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
+void TSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
     TAsyncValuePtrOrErrorPromise valueOrError;
     {
@@ -236,7 +242,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
+void TSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     
@@ -245,7 +251,16 @@ void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
+TIntrusivePtr<TValue> TSlruCacheBase<TKey, TValue, THash>::GetValue(TItem* item)
+{
+    auto maybeValueOrError = item->ValueOrError.TryGet();
+    YCHECK(maybeValueOrError);
+    YCHECK(maybeValueOrError->IsOK());
+    return maybeValueOrError->Value();
+}
+
+template <class TKey, class TValue, class THash>
+void TSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = ItemMap_.find(key);
@@ -255,7 +270,7 @@ void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
+bool TSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock_);
     auto it = ItemMap_.find(key);
@@ -264,20 +279,12 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     }
 
     auto* item = it->second;
-
-    TNullable<TValuePtrOrError> maybeValueOrError;
-    maybeValueOrError = item->ValueOrError.TryGet();
-
-    YCHECK(maybeValueOrError);
-    YCHECK(maybeValueOrError->IsOK());
-    auto value = maybeValueOrError->Value();
+    auto value = GetValue(item);
 
     ItemMap_.erase(it);
     --ItemMapSize_;
 
-    if (!item->Empty()) {
-        item->Unlink();
-    }
+    Pop(item, value.Get());
 
     // Release the guard right away to prevent recursive spinlock acquisition.
     // Indeed, the item's dtor may drop the last reference
@@ -293,7 +300,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
+bool TSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
 {
     TGuard<TSpinLock> guard(SpinLock_);
 
@@ -309,9 +316,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
         ItemMap_.erase(itemIt);
         --ItemMapSize_;
 
-        if (!item->Empty()) {
-            item->Unlink();
-        }
+        Pop(item, value.Get());
 
         delete item;
     }
@@ -326,49 +331,111 @@ bool TCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
+void TSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
     if (!item->Empty()) {
+        auto value = GetValue(item);
+        MoveToOlder(item, value.Get());
         item->Unlink();
-        LruList_.PushFront(item);
+        item->Younger = false;
+        OlderLruList_.PushFront(item);
     }
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::OnAdded(TValue* value)
-{
-    UNUSED(value);
-}
+void TSlruCacheBase<TKey, TValue, THash>::OnAdded(TValue* /*value*/)
+{ }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
-{
-    UNUSED(value);
-}
+void TSlruCacheBase<TKey, TValue, THash>::OnRemoved(TValue* /*value*/)
+{ }
 
 template <class TKey, class TValue, class THash>
-int TCacheBase<TKey, TValue, THash>::GetSize() const
+int TSlruCacheBase<TKey, TValue, THash>::GetSize() const
 {
     return ItemMapSize_;
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
+void TSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item, TValue* value)
 {
+    YASSERT(item->Empty());
+    YoungerLruList_.PushFront(item);
+    YoungerWeight_ += GetWeight(value);
+    item->Younger = true;
+}
+
+template <class TKey, class TValue, class THash>
+void TSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item, TValue* value)
+{
+    YASSERT(!item->Empty());
+    item->Unlink();
+    YoungerLruList_.PushFront(item);
+    if (!item->Younger) {
+        i64 weight = GetWeight(value);
+        OlderWeight_ -= weight;
+        YoungerWeight_ += weight;
+        item->Younger = true;
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item, TValue* value)
+{
+    YASSERT(!item->Empty());
+    item->Unlink();
+    OlderLruList_.PushFront(item);
+    if (item->Younger) {
+        i64 weight = GetWeight(value);
+        YoungerWeight_ -= weight;
+        OlderWeight_ += weight;
+        item->Younger = false;
+    }
+}
+
+template <class TKey, class TValue, class THash>
+void TSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item, TValue* value)
+{
+    if (item->Empty())
+        return;
+    i64 weight = GetWeight(value);
+    if (item->Younger) {
+        YoungerWeight_ -= weight;
+    } else {
+        OlderWeight_ -= weight;
+    }
+    item->Unlink();
+}
+
+template <class TKey, class TValue, class THash>
+void TSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
+{
+    // Move from older to younger.
     while (true) {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        if (LruList_.Empty() || !IsTrimNeeded())
-            return;
+        if (OlderLruList_.Empty() || OlderWeight_ <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
+            break;
 
-        auto* item = LruList_.PopBack();
+        auto* item = &*(--OlderLruList_.End());
+        auto value = GetValue(item);
 
-        auto maybeValueOrError = item->ValueOrError.TryGet();
+        MoveToYounger(item, value.Get());
 
-        YCHECK(maybeValueOrError);
-        YCHECK(maybeValueOrError->IsOK());
+        guard.Release();
+    }
 
-        auto value = maybeValueOrError->Value();
+    // Evict from younger.
+    while (true) {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (YoungerLruList_.Empty() || YoungerWeight_ + OlderWeight_ <= Config_->Capacity)
+            break;
+
+        auto* item = &*(--YoungerLruList_.End());
+        auto value = GetValue(item);
+
+        Pop(item, value.Get());
 
         YCHECK(ItemMap_.erase(value->GetKey()) == 1);
         --ItemMapSize_;
@@ -384,18 +451,18 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie()
+TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie()
     : Active_(false)
 { }
 
 template <class TKey, class TValue, class THash>
-TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
+TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
     : Key_(key)
     , Active_(false)
 { }
 
 template <class TKey, class TValue, class THash>
-TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
+TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
     : Key_(std::move(other.Key_))
     , Cache_(std::move(other.Cache_))
     , ValueOrError_(std::move(other.ValueOrError_))
@@ -405,13 +472,13 @@ TCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& ot
 }
 
 template <class TKey, class TValue, class THash>
-TCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
+TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
 {
     Abort();
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TInsertCookie& TCacheBase<TKey, TValue, THash>::TInsertCookie::operator =(TInsertCookie&& other)
+typename TSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::operator =(TInsertCookie&& other)
 {
     if (this != &other) {
         Abort();
@@ -425,27 +492,27 @@ typename TCacheBase<TKey, TValue, THash>::TInsertCookie& TCacheBase<TKey, TValue
 }
 
 template <class TKey, class TValue, class THash>
-TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
+TKey TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
 {
     return Key_;
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
-TCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
+typename TSlruCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
+TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
     YASSERT(ValueOrError_);
     return ValueOrError_;
 }
 
 template <class TKey, class TValue, class THash>
-bool TCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
+bool TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
 {
     return Active_;
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
+void TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 {
     if (Active_) {
         Cache_->CancelInsert(Key_, error);
@@ -454,7 +521,7 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
+void TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 {
     YCHECK(Active_);
     Cache_->EndInsert(value, this);
@@ -462,50 +529,9 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::TInsertCookie::Abort()
+void TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::Abort()
 {
     Cancel(TError("Cache item insertion aborted"));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, class THash>
-TSizeLimitedCache<TKey, TValue, THash>::TSizeLimitedCache(int maxSize)
-    : MaxSize_(maxSize)
-{ }
-
-template <class TKey, class TValue, class THash>
-bool TSizeLimitedCache<TKey, TValue, THash>::IsTrimNeeded() const
-{
-    return this->GetSize() > MaxSize_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TKey, class TValue, class THash>
-TWeightLimitedCache<TKey, TValue, THash>::TWeightLimitedCache(i64 maxWeight)
-    : TotalWeight_(0)
-    , MaxWeight_(maxWeight)
-{ }
-
-template <class TKey, class TValue, class THash>
-void TWeightLimitedCache<TKey, TValue, THash>::OnAdded(TValue* value)
-{
-    TGuard<TSpinLock> guard(this->SpinLock_);
-    TotalWeight_ += GetWeight(value);
-}
-
-template <class TKey, class TValue, class THash>
-void TWeightLimitedCache<TKey, TValue, THash>::OnRemoved(TValue* value)
-{
-    TGuard<TSpinLock> guard(this->SpinLock_);
-    TotalWeight_ -= GetWeight(value);
-}
-
-template <class TKey, class TValue, class THash>
-bool TWeightLimitedCache<TKey, TValue, THash>::IsTrimNeeded() const
-{
-    return TotalWeight_ > MaxWeight_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

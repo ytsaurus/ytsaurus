@@ -58,6 +58,7 @@ set( HDRS
   ${BASE}/chunked_memory_pool.h
   ${BASE}/chunked_output_stream.h
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/crash_handler.h
   ${BASE}/demangle.h
   ${BASE}/enum.h

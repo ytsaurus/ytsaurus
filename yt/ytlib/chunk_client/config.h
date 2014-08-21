@@ -89,26 +89,6 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TClientBlockCacheConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    //! The maximum number of bytes that block are allowed to occupy.
-    //! Zero means that no blocks are cached.
-    i64 MaxSize;
-
-    TClientBlockCacheConfig()
-    {
-        RegisterParameter("max_size", MaxSize)
-            .Default(0)
-            .GreaterThanOrEqual(0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TClientBlockCacheConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
 class TSequentialReaderConfig
     : public virtual NYTree::TYsonSerializable
 {

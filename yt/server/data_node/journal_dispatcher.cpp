@@ -105,13 +105,13 @@ int ParseChangelogId(const Stroka& str, const Stroka& fileName)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalDispatcher::TImpl
-    : public TSizeLimitedCache<TChunkId, TCachedChangelog>
+    : public TSlruCacheBase<TChunkId, TCachedChangelog>
 {
 public:
     explicit TImpl(
         NCellNode::TBootstrap* bootstrap,
         TDataNodeConfigPtr config)
-        : TSizeLimitedCache<TChunkId, TCachedChangelog>(config->ChangelogReaderCacheSize)
+        : TSlruCacheBase<TChunkId, TCachedChangelog>(config->ChangelogReaderCache)
         , Bootstrap_(bootstrap)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>("JournalFlush"))
@@ -149,7 +149,7 @@ public:
 
     void EvictChangelog(IChunkPtr chunk)
     {
-        TCacheBase::Remove(chunk->GetId());
+        TSlruCacheBase::Remove(chunk->GetId());
     }
 
 private:
@@ -175,6 +175,12 @@ private:
     yhash_set<TCachedChangelogPtr> ActiveChangelogs_;
 
     TPeriodicExecutorPtr CleanupExecutor_;
+
+
+    virtual i64 GetWeight(TCachedChangelog* /*changelog*/) const override
+    {
+        return 1;
+    }
 
 
     IChangelogPtr DoCreateChangelog(IChunkPtr chunk)

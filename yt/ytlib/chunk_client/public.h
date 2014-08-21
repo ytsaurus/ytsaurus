@@ -92,7 +92,6 @@ DECLARE_ENUM(EReadSessionType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TReplicationReaderConfig)
-DECLARE_REFCOUNTED_CLASS(TClientBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)

@@ -207,9 +207,7 @@ void TBootstrap::DoRun()
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
 
-    auto uncompressedBlockCacheConfig = New<TClientBlockCacheConfig>();
-    uncompressedBlockCacheConfig->MaxSize = Config->DataNode->UncompressedBlockCacheSize;
-    UncompressedBlockCache = CreateClientBlockCache(uncompressedBlockCacheConfig);
+    UncompressedBlockCache = CreateClientBlockCache(Config->DataNode->UncompressedBlockCache);
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 

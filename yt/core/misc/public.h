@@ -34,6 +34,8 @@ class TStringBuilder;
 struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
+DECLARE_REFCOUNTED_CLASS(TSlruCacheConfig)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
