@@ -39,6 +39,8 @@ Stroka GetParentFor(const Stroka& type)
 yvector<Stroka> ReadAllValues(const Stroka& filename)
 {
     auto raw = TFileInput(filename).ReadAll();
+    LOG_DEBUG("File %s contains: %s", ~filename.Quote(), ~raw);
+
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
     return values;
