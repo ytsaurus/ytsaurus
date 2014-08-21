@@ -177,6 +177,7 @@ TEST(CGroup, GetMemoryStats)
 
     auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.UsageInBytes);
+    EXPECT_EQ(0, stats.Rss);
 
     group.Destroy();
 }
@@ -214,6 +215,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
     auto statistics = group.GetStatistics();
     EXPECT_TRUE(statistics.UsageInBytes >= memoryUsage);
     EXPECT_TRUE(statistics.MaxUsageInBytes >= memoryUsage);
+    EXPECT_TRUE(statistics.Rss >= memoryUsage);
 
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
 

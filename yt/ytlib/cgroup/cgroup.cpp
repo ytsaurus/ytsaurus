@@ -430,6 +430,19 @@ TMemory::TStatistics TMemory::GetStatistics()
         auto rawData = TFileInput(filename).ReadAll();
         result.MaxUsageInBytes = FromString<i64>(strip(rawData));
     }
+
+    {
+        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
+        int lineNumber = 0;
+        while (2 * lineNumber + 1 < values.size()) {
+            const Stroka& type = values[2 * lineNumber];
+            const i64 value = FromString<i64>(values[2 * lineNumber + 1]);
+            if (type == "rss") {
+                result.Rss = value;
+            }
+            ++lineNumber;
+        }
+    }
 #endif
     return result;
 }

@@ -613,22 +613,22 @@ private:
         try {
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId: %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+            LOG_DEBUG("Get memory usage (JobId: %s, Rss: %" PRId64 ", MemoryLimit: %" PRId64 ")",
                 ~ToString(JobId),
-                statistics.UsageInBytes,
+                statistics.Rss,
                 memoryLimit);
 
-            if (statistics.UsageInBytes > memoryLimit) {
+            if (statistics.Rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
-                    << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
+                    << TErrorAttribute("rss", statistics.Rss)
                     << TErrorAttribute("limit", memoryLimit));
                 KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
                 return;
             }
 
-            if (statistics.UsageInBytes > MemoryUsage) {
-                i64 delta = statistics.UsageInBytes - MemoryUsage;
+            if (statistics.Rss > MemoryUsage) {
+                i64 delta = statistics.Rss - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;

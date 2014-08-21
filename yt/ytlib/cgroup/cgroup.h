@@ -149,6 +149,7 @@ public:
 
         i64 UsageInBytes;
         i64 MaxUsageInBytes;
+        i64 Rss;
     };
 
     explicit TMemory(const Stroka& name);
