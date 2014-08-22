@@ -447,7 +447,7 @@ void TCoordinator::DelegateToPeers()
                 peer.Fragment,
                 peer.CollocatedSplit);
         } else {
-            peer.QueryResult = MakePromise<TErrorOr<TQueryStatistics>>(TQueryStatistics()).ToFuture();
+            peer.QueryResult = MakeFuture<TErrorOr<TQueryStatistics>>(TQueryStatistics());
         }
     }
 }
