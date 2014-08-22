@@ -7,10 +7,6 @@
 #include <core/actions/invoker_util.h>
 
 #if defined(_unix_)
-    // fork()
-    #include <sys/types.h>
-    #include <unistd.h>
-
     // for wait*()
     #include <sys/wait.h>
 #endif
@@ -39,7 +35,7 @@ TSnapshotBuilderBase::~TSnapshotBuilderBase()
 
 TAsyncError TSnapshotBuilderBase::Run()
 {
-#if defined(_unix_)
+#ifdef _unix_
     LOG_INFO("Going to fork");
 
     ChildPid = fork();

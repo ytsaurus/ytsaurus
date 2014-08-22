@@ -2,6 +2,12 @@
 #include "fork_aware_spinlock.h"
 #include "rw_spinlock.h"
 
+#ifdef _unix_
+    // fork()
+    #include <sys/types.h>
+    #include <unistd.h>
+#endif
+
 namespace NYT {
 namespace NConcurrency {
 
@@ -54,10 +60,14 @@ void TForkAwareSpinLock::Release()
 
 pid_t SafeFork()
 {
+#ifdef _unix_
     ForkLock.AcquireWriter();
     auto result = ::fork();
     ForkLock.ReleaseWriter();
     return result;
+#else
+    YUNREACAHBLE();
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
