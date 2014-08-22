@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/execution_stack.cpp
   ${BASE}/execution_context.cpp
   ${BASE}/fls.cpp
+  ${BASE}/fork_aware_spinlock.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -43,6 +44,7 @@ set( HDRS
   ${BASE}/fiber.h
   ${BASE}/fls.h
   ${BASE}/fls-inl.h
+  ${BASE}/fork_aware_spinlock.h
 )
 
 list(APPEND YT_SOURCE_FILES
