@@ -18,6 +18,7 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentRequests;
     int MaxSubsplitsPerTablet;
+    int MaxQueryRetries;
 
     NCompression::ECodec LookupResponseCodec;
     NCompression::ECodec SelectResponseCodec;
@@ -33,6 +34,9 @@ public:
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
             .GreaterThan(0)
             .Default(4);
+        RegisterParameter("max_query_retries", MaxQueryRetries)
+            .GreaterThanOrEqual(1)
+            .Default(10);
 
         RegisterParameter("lookup_response_codec", LookupResponseCodec)
             .Default(NCompression::ECodec::Lz4);

@@ -1,5 +1,6 @@
 #include "query_service.h"
 #include "private.h"
+#include "public.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -19,6 +20,8 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 
 #include <server/query_agent/config.h>
+
+#include <server/data_node/public.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -64,19 +67,36 @@ private:
         planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
 
         context->SetRequestInfo("FragmentId: %v", planFragment.Id());
-        
-        TWireProtocolWriter protocolWriter;
-        auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
-        auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        for (int retryIndex = 0; retryIndex < Config_->MaxQueryRetries; ++retryIndex) {
+            TWireProtocolWriter protocolWriter;
+            auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
-        response->Attachments() = NCompression::CompressWithEnvelope(
-            protocolWriter.Flush(),
-            Config_->SelectResponseCodec);
-        ToProto(response->mutable_query_statistics(), result.Value());
+            auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
+            if (!result.IsOK()) {
+                if (IsRetriableError(result)) {
+                    LOG_INFO(result, "Query execution failed, retrying");
+                    continue;
+                }
+                THROW_ERROR result;
+            }
 
-        context->Reply();
+            response->Attachments() = NCompression::CompressWithEnvelope(
+                protocolWriter.Flush(),
+                Config_->SelectResponseCodec);
+            ToProto(response->mutable_query_statistics(), result.Value());
+
+            context->Reply();
+            break;
+        }
+    }
+
+    static bool IsRetriableError(const TError& error)
+    {
+        if (error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed)) {
+            return true;
+        }
+        return false;
     }
 
 };
