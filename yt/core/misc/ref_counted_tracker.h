@@ -3,6 +3,7 @@
 #include <core/ytree/yson_producer.h>
 
 #include <core/concurrency/counter.h>
+#include <core/concurrency/fork_aware_spinlock.h>
 
 namespace NYT {
 
@@ -82,7 +83,7 @@ public:
     i64 GetAliveBytes(TKey key);
 
 private:
-    TSpinLock SpinLock_;
+    NConcurrency::TForkAwareSpinLock SpinLock_;
     yhash_map<TKey, TSlot> KeyToSlot_;
 
     std::vector<TSlot> GetSnapshot() const;

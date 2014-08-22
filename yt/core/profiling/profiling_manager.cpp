@@ -3,8 +3,10 @@
 #include "resource_tracker.h"
 #include "timing.h"
 
-#include <core/misc/id_generator.h>
 #include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/fork_aware_spinlock.h>
+
+#include <core/misc/id_generator.h>
 #include <core/misc/hash.h>
 
 #include <core/concurrency/action_queue_detail.h>
@@ -101,7 +103,7 @@ public:
 
     TTagId RegisterTag(const TTag& tag)
     {
-        TGuard<TSpinLock> guard(TagSpinLock);
+        TGuard<TForkAwareSpinLock> guard(TagSpinLock);
         auto pair = std::make_pair(tag.Key, tag.Value);
         auto it = TagToId.find(pair);
         if (it != TagToId.end()) {
@@ -128,7 +130,7 @@ public:
         return id;
     }
 
-    TSpinLock& GetTagSpinLock()
+    TForkAwareSpinLock& GetTagSpinLock()
     {
         return TagSpinLock;
     }
@@ -223,7 +225,7 @@ private:
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
             auto* profilingManager = TProfilingManager::Get()->Impl.get();
-            TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
+            TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo();
 
@@ -298,7 +300,7 @@ private:
     yhash_map<TYPath, TBucketPtr> PathToBucket;
     TIdGenerator SampleIdGenerator;
 
-    TSpinLock TagSpinLock;
+    TForkAwareSpinLock TagSpinLock;
     std::vector<TTag> IdToTag;
     yhash_map<std::pair<Stroka, TYsonString>, int> TagToId;
     typedef yhash_map<Stroka, std::vector<TYsonString>> TTagKeyToValues;

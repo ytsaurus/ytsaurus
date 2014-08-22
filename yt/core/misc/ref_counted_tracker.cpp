@@ -10,6 +10,7 @@ namespace NYT {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +62,7 @@ void* TRefCountedTracker::GetCookie(TKey key)
 
 TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
     auto it = KeyToSlot_.find(key);
     if (it != KeyToSlot_.end()) {
@@ -73,7 +74,7 @@ TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
 
 std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TForkAwareSpinLock> guard(SpinLock_);
     std::vector<TSlot> result;
     for (const auto& pair : KeyToSlot_) {
         result.push_back(pair.second);

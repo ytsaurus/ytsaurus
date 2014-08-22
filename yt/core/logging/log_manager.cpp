@@ -12,6 +12,7 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue_detail.h>
+#include <core/concurrency/fork_aware_spinlock.h>
 
 #include <core/ytree/ypath_client.h>
 #include <core/ytree/ypath_service.h>
@@ -277,7 +278,7 @@ public:
 
     ELogLevel GetMinLevel(const Stroka& category) const
     {
-        TGuard<TSpinLock> guard(&SpinLock_);
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
         ELogLevel level = ELogLevel::Maximum;
         for (const auto& rule : Config_->Rules) {
@@ -527,7 +528,7 @@ private:
         FlushWriters();
 
         {
-            TGuard<TSpinLock> guard(&SpinLock_);
+            TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
             Writers_.clear();
             CachedWriters_.clear();
@@ -675,7 +676,7 @@ private:
     TEnqueuedAction CurrentAction_;
 
     // Configuration.
-    TSpinLock SpinLock_;
+    TForkAwareSpinLock SpinLock_;
     std::atomic<int> Version_;
     TLogConfigPtr Config_;
     NProfiling::TRateCounter EnqueueCounter_;

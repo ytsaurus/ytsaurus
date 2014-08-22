@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "delayed_executor.h"
 #include "action_queue_detail.h"
+#include "fork_aware_spinlock.h"
 
 #include <core/misc/singleton.h>
 
@@ -58,9 +59,9 @@ public:
         : TEVSchedulerThread(
             "DelayedExecutor",
             false)
-        , TimerWatcher(EventLoop)
+        , TimerWatcher_(EventLoop)
     {
-        TimerWatcher.set<TImpl, &TImpl::OnTimer>(this);
+        TimerWatcher_.set<TImpl, &TImpl::OnTimer>(this);
 
         Start();
     }
@@ -75,11 +76,11 @@ public:
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            auto pair = Entries.insert(entry);
+            TGuard<TForkAwareSpinLock> guard(SpinLock_);
+            auto pair = Entries_.insert(entry);
             YCHECK(pair.second);    
             entry->Iterator = pair.first;
-            if (*Entries.begin() == entry) {
+            if (*Entries_.begin() == entry) {
                 StartWatcher(entry);
             }
         }
@@ -95,11 +96,11 @@ public:
     {
         TClosure callback;
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TForkAwareSpinLock> guard(SpinLock_);
             if (!entry || !entry->Callback) {
                 return false;
             }
-            Entries.erase(entry->Iterator);
+            Entries_.erase(entry->Iterator);
             callback = std::move(entry->Callback); // prevent destruction under spin lock
         }
         // |callback| dies here
@@ -117,10 +118,10 @@ public:
     }
 
 private:
-    ev::timer TimerWatcher;
+    ev::timer TimerWatcher_;
 
-    TSpinLock SpinLock;
-    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> Entries;
+    TForkAwareSpinLock SpinLock_;
+    std::set<TDelayedExecutorCookie, TDelayedExecutorEntry::TComparer> Entries_;
 
 
     virtual void OnShutdown() override
@@ -140,7 +141,7 @@ private:
     void DoStartWatcher(TInstant deadline)
     {
         double delay = std::max(deadline.SecondsFloat() - TInstant::Now().SecondsFloat(), 0.0);
-        TimerWatcher.start(delay + ev_now(EventLoop) - ev_time(), 0.0);        
+        TimerWatcher_.start(delay + ev_now(EventLoop) - ev_time(), 0.0);
     }
 
     void OnTimer(ev::timer&, int)
@@ -148,16 +149,16 @@ private:
         while (true) {
             TClosure callback;
             {
-                TGuard<TSpinLock> guard(SpinLock);
-                if (Entries.empty()) {
+                TGuard<TForkAwareSpinLock> guard(SpinLock_);
+                if (Entries_.empty()) {
                     break;
                 }
-                auto entry = *Entries.begin();
+                auto entry = *Entries_.begin();
                 if (entry->Deadline > TInstant::Now() + DeadlinePrecision) {
                     StartWatcher(entry);
                     break;
                 }
-                Entries.erase(entry->Iterator);
+                Entries_.erase(entry->Iterator);
                 
                 callback = std::move(entry->Callback); // prevent destruction under spin lock
             }
@@ -171,8 +172,8 @@ private:
     {
         std::vector<TClosure> callbacks;
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            for (auto& entry : Entries) {
+            TGuard<TForkAwareSpinLock> guard(SpinLock_);
+            for (auto& entry : Entries_) {
                 callbacks.push_back(std::move(entry->Callback)); // prevent destruction under spin lock
             }            
         }
