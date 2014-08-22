@@ -175,7 +175,7 @@ void TBootstrap::DoRun()
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
-    BoundedConcurrencyQueryInvoker = CreateBoundedConcurrencyInvoker(
+    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
         QueryThreadPool->GetInvoker(),
         Config->QueryAgent->MaxConcurrentRequests);
 
@@ -403,9 +403,9 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
     return QueryThreadPool->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryInvoker() const
+IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryPoolInvoker() const
 {
-    return BoundedConcurrencyQueryInvoker;
+    return BoundedConcurrencyQueryPoolInvoker;
 }
 
 IClientPtr TBootstrap::GetMasterClient() const

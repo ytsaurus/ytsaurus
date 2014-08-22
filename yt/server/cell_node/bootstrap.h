@@ -47,7 +47,7 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
-    IInvokerPtr GetBoundedConcurrencyQueryInvoker() const;
+    IInvokerPtr GetBoundedConcurrencyQueryPoolInvoker() const;
     NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
@@ -91,7 +91,7 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue;
 
     NConcurrency::TThreadPoolPtr QueryThreadPool;
-    IInvokerPtr BoundedConcurrencyQueryInvoker;
+    IInvokerPtr BoundedConcurrencyQueryPoolInvoker;
 
     NBus::IBusServerPtr BusServer;
     NApi::IClientPtr MasterClient;

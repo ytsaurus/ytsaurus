@@ -134,7 +134,7 @@ public:
             Bootstrap_->GetQueryPoolInvoker(),
             this))
         , Evaluator_(CreateEvaluator(
-            Bootstrap_->GetBoundedConcurrencyQueryInvoker(),
+            Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker(),
             this))
     { }
 
