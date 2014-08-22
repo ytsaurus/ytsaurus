@@ -27,7 +27,7 @@ class YsonString(str, YsonType):
     def __repr__(self):
         return self.repr(str)
 
-class YsonInt64(int, YsonType):
+class YsonInt64(long, YsonType):
     def __eq__(self, other):
         return int(self) == int(other) and YsonType.__eq__(self, other)
 
