@@ -144,14 +144,8 @@ public:
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
-        if (!chunk) {
+        if (!chunk || !chunk->TryAcquireReadLock()) {
             return MakeFuture<TGetBlockResult>(TSharedRef());
-        }
-
-        if (!chunk->TryAcquireReadLock()) {
-            return MakeFuture<TGetBlockResult>(TError(
-                "Cannot read chunk %v since it is scheduled for removal",
-                chunkId));
         }
 
         return chunk
@@ -179,6 +173,7 @@ public:
 
         if (!chunk->TryAcquireReadLock()) {
             return MakeFuture<TGetBlocksResult>(TError(
+                NChunkClient::EErrorCode::NoSuchChunk,
                 "Cannot read chunk %v since it is scheduled for removal",
                 chunkId));
         }
@@ -268,7 +263,10 @@ private:
 
         const auto& blocks = result.Value();
         if (blocks.empty()) {
-            return TError("No such block %v", blockId);
+            return TError(
+                NChunkClient::EErrorCode::NoSuchBlock,
+                "No such block %v",
+                blockId);
         }
 
         const auto& block = blocks[0];
