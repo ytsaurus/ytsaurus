@@ -152,7 +152,7 @@ TError TProcess::Spawn()
 
     int pid = -1;
     if (FileActions_.empty()) {
-        // one does not allowed to call close and dup2 after vfork
+        // one is not allowed to call close and dup2 after vfork
         pid = vfork();
     } else {
         pid = fork();
@@ -204,7 +204,6 @@ TError TProcess::Spawn()
     return TError();
 #endif
 }
-
 
 TError TProcess::Wait()
 {
