@@ -20,8 +20,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 
 #include <server/query_agent/config.h>
-
-#include <server/data_node/public.h>
+#include <server/query_agent/helpers.h>
 
 namespace NYT {
 namespace NQueryAgent {
@@ -68,36 +67,25 @@ private:
 
         context->SetRequestInfo("FragmentId: %v", planFragment.Id());
 
-        for (int retryIndex = 0; retryIndex < Config_->MaxQueryRetries; ++retryIndex) {
-            TWireProtocolWriter protocolWriter;
-            auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
+        ExecuteRequestWithRetries(
+            Config_->MaxQueryRetries,
+            Logger,
+            [&] () {
+                TWireProtocolWriter protocolWriter;
+                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
 
-            auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
-            if (!result.IsOK()) {
-                if (IsRetriableError(result)) {
-                    LOG_INFO(result, "Query execution failed, retrying");
-                    continue;
-                }
-                THROW_ERROR result;
-            }
+                auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-            response->Attachments() = NCompression::CompressWithEnvelope(
-                protocolWriter.Flush(),
-                Config_->SelectResponseCodec);
-            ToProto(response->mutable_query_statistics(), result.Value());
+                response->Attachments() = NCompression::CompressWithEnvelope(
+                    protocolWriter.Flush(),
+                    Config_->SelectResponseCodec);
+                ToProto(response->mutable_query_statistics(), result.Value());
 
-            context->Reply();
-            break;
-        }
+                context->Reply();
+            });
     }
 
-    static bool IsRetriableError(const TError& error)
-    {
-        if (error.FindMatching(NDataNode::EErrorCode::LocalChunkReaderFailed)) {
-            return true;
-        }
-        return false;
-    }
 
 };
 

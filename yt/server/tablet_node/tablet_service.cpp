@@ -17,6 +17,8 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/rpc_helpers.h>
 
+#include <server/query_agent/helpers.h>
+
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 
@@ -102,15 +104,19 @@ private:
 
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
 
-        auto responseData = tabletManager->Read(
-            tablet,
-            timestamp,
-            requestData);
-
-        response->Attachments() = NCompression::CompressWithEnvelope(
-            responseData,
-            Bootstrap_->GetConfig()->QueryAgent->LookupResponseCodec);
-        context->Reply();
+        NQueryAgent::ExecuteRequestWithRetries(
+            Bootstrap_->GetConfig()->QueryAgent->MaxQueryRetries,
+            Logger,
+            [&] () {
+                auto responseData = tabletManager->Read(
+                    tablet,
+                    timestamp,
+                    requestData);
+                response->Attachments() = NCompression::CompressWithEnvelope(
+                    responseData,
+                    Bootstrap_->GetConfig()->QueryAgent->LookupResponseCodec);
+                context->Reply();
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)

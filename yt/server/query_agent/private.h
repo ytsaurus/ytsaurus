@@ -15,4 +15,3 @@ extern NProfiling::TProfiler QueryAgentProfiler;
 
 } // namespace NQueryAgent
 } // namespace NYT
-
