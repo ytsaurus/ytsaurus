@@ -63,6 +63,70 @@ static const TDuration ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkStore::TLocalChunkReaderWrapper
+    : public NChunkClient::IReader
+{
+public:
+    TLocalChunkReaderWrapper(
+        NChunkClient::IReaderPtr underlyingReader,
+        TChunkStorePtr owner)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , Owner_(std::move(owner))
+    { }
+
+    virtual TAsyncReadBlocksResult ReadBlocks(const std::vector<int>& blockIndexes) override
+    {
+        auto this_ = MakeStrong(this);
+        return UnderlyingReader_->ReadBlocks(blockIndexes).Apply(
+            BIND([this, this_] (TReadBlocksResult result) -> TReadBlocksResult {
+                CheckResult(result);
+                return result;
+            }));
+    }
+
+    virtual TAsyncReadBlocksResult ReadBlocks(int firstBlockIndex, int blockCount) override
+    {
+        auto this_ = MakeStrong(this);
+        return UnderlyingReader_->ReadBlocks(firstBlockIndex, blockCount).Apply(
+            BIND([this, this_] (TReadBlocksResult result) -> TReadBlocksResult {
+                CheckResult(result);
+                return result;
+            }));
+    }
+
+    virtual TAsyncGetMetaResult GetMeta(
+        const TNullable<int>& partitionTag = Null,
+        const std::vector<int>* extensionTags = nullptr) override
+    {
+        auto this_ = MakeStrong(this);
+        return UnderlyingReader_->GetMeta(partitionTag, extensionTags).Apply(
+            BIND([this, this_] (TGetMetaResult result) -> TGetMetaResult {
+                CheckResult(result);
+                return result;
+            }));
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return UnderlyingReader_->GetChunkId();
+    }
+
+private:
+    NChunkClient::IReaderPtr UnderlyingReader_;
+    TChunkStorePtr Owner_;
+
+
+    void CheckResult(const TError& result)
+    {
+        if (!result.IsOK()) {
+            Owner_->OnLocalReaderFailed();
+        }
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkStore::TChunkStore(
     const TStoreId& id,
     TTablet* tablet,
@@ -294,10 +358,13 @@ IReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 
     IReaderPtr chunkReader;
     if (chunk) {
-        chunkReader = ChunkReader_ = CreateLocalChunkReader(
+        auto localChunkReader = CreateLocalChunkReader(
             Bootstrap_,
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             chunk);
+        chunkReader = ChunkReader_ = New<TLocalChunkReaderWrapper>(
+            localChunkReader,
+            this);
     } else {
         // TODO(babenko): provide seed replicas
         chunkReader = ChunkReader_ = CreateReplicationReader(
@@ -346,6 +413,16 @@ void TChunkStore::PrecacheProperties()
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
     MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
     MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+}
+
+void TChunkStore::OnLocalReaderFailed()
+{
+    auto this_ = MakeStrong(this);
+    Tablet_->GetEpochAutomatonInvoker()->Invoke(BIND([this, this_] () {
+        ChunkInitialized_ = false;
+        Chunk_.Reset();
+        ChunkReader_.Reset();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

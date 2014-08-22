@@ -72,6 +72,8 @@ public:
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
 private:
+    class TLocalChunkReaderWrapper;
+
     NCellNode::TBootstrap* Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
@@ -102,6 +104,8 @@ private:
         NChunkClient::IReaderPtr chunkReader);
 
     void PrecacheProperties();
+
+    void OnLocalReaderFailed();
 
 };
 
