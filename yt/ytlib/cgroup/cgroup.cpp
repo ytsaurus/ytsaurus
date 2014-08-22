@@ -423,14 +423,14 @@ TMemory::TStatistics TMemory::GetStatistics()
 #ifdef _linux_
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-        auto rawData = TFileInput(filename).ReadAll();
-        result.UsageInBytes = FromString<i64>(strip(rawData));
+        auto rawData = TBufferedFileInput(filename).ReadLine();
+        result.UsageInBytes = FromString<i64>(rawData);
     }
 
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
-        auto rawData = TFileInput(filename).ReadAll();
-        result.MaxUsageInBytes = FromString<i64>(strip(rawData));
+        auto rawData = TBufferedFileInput(filename).ReadLine();
+        result.MaxUsageInBytes = FromString<i64>(rawData);
     }
 
     {
