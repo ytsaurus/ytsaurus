@@ -92,13 +92,22 @@ TError StatusToError(int status)
         return TError();
     } else if (WIFSIGNALED(status)) {
         int signalNumber = WTERMSIG(status);
-        return TError(EExitStatus::SignalBase + signalNumber, "Process terminated by signal %v", signalNumber);
+        return TError(
+            EExitStatus::SignalBase + signalNumber,
+            "Process terminated by signal %v",
+            signalNumber);
     } else if (WIFSTOPPED(status)) {
         int signalNumber = WSTOPSIG(status);
-        return TError(EExitStatus::SignalBase + signalNumber, "Process stopped by signal %v", signalNumber);
+        return TError(
+            EExitStatus::SignalBase + signalNumber,
+            "Process stopped by signal %v",
+            signalNumber);
     } else if (WIFEXITED(status)) {
         int exitCode = WEXITSTATUS(status);
-        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with code %v", exitCode);
+        return TError(
+            EExitStatus::ExitCodeBase + exitCode,
+            "Process exited with code %v",
+            exitCode);
     } else {
         return TError("Unknown status %v", status);
     }
