@@ -143,23 +143,17 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (!result.IsOK()) {
-                Promise_.TrySet(TError("Error reading local chunk block %v:%v",
+            if (!result.IsOK() || !result.Value()) {
+                Promise_.TrySet(TError(
+                    NDataNode::EErrorCode::LocalChunkReaderFailed,
+                    "Error reading local chunk block %v:%v",
                     Owner_->Chunk_->GetId(),
                     blockIndex)
                     << result);
                 return;
             }
 
-            const auto& block = result.Value();
-            if (!block) {
-                Promise_.TrySet(TError("Local chunk block %v:%v is no longer available",
-                    Owner_->Chunk_->GetId(),
-                    blockIndex)
-                    << result);
-            }
-
-            Blocks_[index] = block;
+            Blocks_[index] = result.Value();
         }
 
         void OnCompleted()
