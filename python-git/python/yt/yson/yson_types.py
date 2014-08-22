@@ -29,7 +29,7 @@ class YsonString(str, YsonType):
 
 class YsonInt64(long, YsonType):
     def __eq__(self, other):
-        return int(self) == int(other) and YsonType.__eq__(self, other)
+        return long(self) == long(other) and YsonType.__eq__(self, other)
 
     def __hash__(self):
         return self.base_hash(int)
