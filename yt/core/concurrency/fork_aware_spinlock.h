@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <util/system/spinlock.h>
-
 namespace NYT {
 namespace NConcurrency {
 
@@ -26,9 +24,6 @@ private:
     std::unique_ptr<TImpl> Impl_;
 
 };
-
-//! Acquires a global write lock around |::fork| call.
-pid_t SafeFork();
 
 ////////////////////////////////////////////////////////////////////////////////
 

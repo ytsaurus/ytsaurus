@@ -3,9 +3,7 @@
 #include "rw_spinlock.h"
 
 #ifdef _unix_
-    // fork()
-    #include <sys/types.h>
-    #include <unistd.h>
+    #include <pthread.h>
 #endif
 
 namespace NYT {
@@ -58,17 +56,40 @@ void TForkAwareSpinLock::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pid_t SafeFork()
-{
 #ifdef _unix_
-    ForkLock.AcquireWriter();
-    auto result = ::fork();
-    ForkLock.ReleaseWriter();
-    return result;
-#else
-    YUNREACAHBLE();
+
+class TForkProtector
+{
+public:
+    TForkProtector()
+    {
+        pthread_atfork(
+            &TForkProtector::OnPrepare,
+            &TForkProtector::OnParent,
+            &TForkProtector::OnChild);
+    }
+
+private:
+    static void OnPrepare()
+    {
+        ForkLock.AcquireWriter();
+    }
+
+    static void OnParent()
+    {
+        ForkLock.ReleaseWriter();
+    }
+
+    static void OnChild()
+    {
+        ForkLock.ReleaseWriter();
+    }
+
+};
+
+static TForkProtector ForkProtector;
+
 #endif
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
