@@ -59,8 +59,8 @@ public:
 private:
     std::atomic<ui32> Value_;
 
-    static const intptr_t WriterMask = 1;
-    static const intptr_t ReaderDelta = 2;
+    static const ui32 WriterMask = 1;
+    static const ui32 ReaderDelta = 2;
 
     static const int YieldThreshold = 1000;
 
