@@ -38,7 +38,7 @@ public:
     void ReleaseReader()
     {
         ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
-        YASSERT(!(prevValue & WriterMask) && prevValue != 0);
+        YASSERT((prevValue & ~WriterMask) != 0);
     }
 
     void AcquireWriter()
