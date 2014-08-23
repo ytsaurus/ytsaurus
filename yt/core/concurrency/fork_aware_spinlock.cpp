@@ -26,8 +26,8 @@ public:
 
     void Release()
     {
-        ForkLock.ReleaseReader();
         SpinLock_.Release();
+        ForkLock.ReleaseReader();
     }
 
 private:
@@ -95,4 +95,20 @@ static TForkProtector ForkProtector;
 
 } // namespace NConcurrency
 } // namespace NYT
+
+// LFAlloc hooks
+////////////////////////////////////////////////////////////////////////////////
+
+void BeforeLFAllocGlobalLockAcquired()
+{
+    NYT::NConcurrency::ForkLock.AcquireReader();
+}
+
+void AfterLFAllocGlobalLockReleased()
+{
+    NYT::NConcurrency::ForkLock.ReleaseReader();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
