@@ -15,7 +15,7 @@ namespace NConcurrency {
 /*!
  *  Reader-side calls are pretty cheap.
  *  If no writers are present then readers never spin.
- *  Writers take precedence over readers and can make the latter starve.
+ *  The lock is unfair.
  */
 class TReaderWriterSpinLock
 {
@@ -26,10 +26,12 @@ public:
 
     void AcquireReader()
     {
-        while (true) {
+        for (int counter = 0; ;++counter) {
             if (TryAcquireReader())
                 break;
-            SpinLockPause();
+            if (counter > YieldThreshold) {
+                SpinLockPause();
+            }
         }
     }
 
@@ -40,10 +42,12 @@ public:
 
     void AcquireWriter()
     {
-        while (true) {
+        for (int counter = 0; ;++counter) {
             if (TryAcquireWriter())
                 break;
-            SpinLockPause();
+            if (counter > YieldThreshold) {
+                SpinLockPause();
+            }
         }
     }
 
@@ -53,44 +57,30 @@ public:
     }
 
 private:
-    std::atomic<intptr_t> Value_;
+    std::atomic<ui32> Value_;
 
     static const intptr_t WriterMask = 1;
-    static const intptr_t PendingWriterMask = 2;
-    static const intptr_t ReaderDelta = 4;
+    static const intptr_t ReaderDelta = 2;
+
+    static const int YieldThreshold = 1000;
+
 
     bool TryAcquireReader()
     {
-        // Fail to take the lock in case of pending or active writers.
-        auto value = Value_.load(std::memory_order_relaxed);
-        if (value & (WriterMask | PendingWriterMask)) {
-            return false;
-        }
-
-        auto oldValue = Value_.fetch_add(ReaderDelta, std::memory_order_acquire);
-        if (oldValue & (WriterMask | PendingWriterMask)) {
-            // Backoff.
+        ui32 oldValue = Value_.fetch_add(ReaderDelta, std::memory_order_acquire);
+        if (oldValue & WriterMask ) {
             Value_.fetch_sub(ReaderDelta, std::memory_order_relaxed);
             return false;
         }
-
         return true;
     }
 
     bool TryAcquireWriter()
     {
-        // Prevent more readers from acquiring the lock.
-        auto value = Value_.fetch_or(PendingWriterMask, std::memory_order_acquire);
-        if (value & ~PendingWriterMask) {
-            // Fail if there are active readers or writers.
-            return false;
-        }
-
-        auto expected = PendingWriterMask;
+        ui32 expected = 0;
         if (!Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire)) {
             return false;
         }
-
         return true;
     }
 
