@@ -825,6 +825,7 @@ private:
             result = changelogRotation->RotateChangelog();
         } else {
             LOG_WARNING("Cannot neither build a snapshot nor rotate changelogs");
+            return;
         }
 
         result.Subscribe(BIND(&TDistributedHydraManager::OnCheckpointResult, MakeStrong(this))
