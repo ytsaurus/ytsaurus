@@ -37,7 +37,8 @@ public:
 
     void ReleaseReader()
     {
-        Value_.fetch_sub(ReaderDelta, std::memory_order_release);
+        ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
+        YASSERT(!(prevValue & WriterMask) && prevValue != 0);
     }
 
     void AcquireWriter()
@@ -53,6 +54,7 @@ public:
 
     void ReleaseWriter()
     {
+        YASSERT(Value_.load() == WriterMask);
         Value_.store(0, std::memory_order_release);
     }
 
