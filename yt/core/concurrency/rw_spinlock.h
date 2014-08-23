@@ -68,7 +68,7 @@ private:
     bool TryAcquireReader()
     {
         ui32 oldValue = Value_.fetch_add(ReaderDelta, std::memory_order_acquire);
-        if (oldValue & WriterMask ) {
+        if (oldValue & WriterMask) {
             Value_.fetch_sub(ReaderDelta, std::memory_order_relaxed);
             return false;
         }
