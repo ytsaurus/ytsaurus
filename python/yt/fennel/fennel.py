@@ -139,6 +139,7 @@ class EventLog(object):
     def __init__(self, yt, table_name=None):
         self.yt = yt
         self._table_name = table_name or "//tmp/event_log"
+        self._archive_table_name = self._table_name + ".archive"
         self._index_of_first_line_attr = "{0}/@index_of_first_line".format(self._table_name)
         self._line_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
         self._row_count = "{0}/@row_count".format(self._table_name)
@@ -184,6 +185,34 @@ class EventLog(object):
                 sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
             else:
                 sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
+
+    def archive(self, count):
+        max_batch_size = 5 * 10**6
+        while count > 0:
+            batch_size = min(count, max_batch_size)
+            with self.yt.Transaction():
+                index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
+                partition = yt.TablePath(
+                    self._table_name,
+                    start_index=0,
+                    end_index=batch_size)
+
+                self.yt.run_merge(
+                    source_table=[
+                        self._archive_table_name,
+                        partition
+                    ],
+                    destination_table=self._archive_table_name,
+                    mode="ordered",
+                    compression_codec="gzip_normal",
+                    spec={
+                        "combine_chunks": "true"
+                    }
+                )
+                self.yt.run_erase(partition)
+                index_of_first_line += batch_size
+                self.yt.set(self._index_of_first_line_attr, index_of_first_line)
+            count -= batch_size
 
     def set_next_line_to_save(self, line_index):
         self.yt.set(self._line_to_save_attr, line_index)
@@ -524,6 +553,12 @@ def monitor(table_name, proxy_path, threshold, **kwargs):
     event_log.monitor(threshold)
 
 
+def archive(table_name, proxy_path, count, **kwargs):
+    yt.config.set_proxy(proxy_path)
+    event_log = EventLog(yt, table_name=table_name)
+    event_log.archive(count)
+
+
 def run():
     options.define("table_name",
         metavar="PATH",
@@ -543,7 +578,8 @@ def run():
 
     options.define("init", default=False, help="init and exit")
     options.define("truncate", default=False, help="truncate and exit")
-    options.define("monitor", default=False, help="output status")
+    options.define("monitor", default=False, help="output status and exit")
+    options.define("archive", default=False, help="archive and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
     options.define("verbose", default=False, help="vervose mode")
@@ -562,6 +598,8 @@ def run():
         func = init
     elif options.options.monitor:
         func = monitor
+    elif options.options.archive:
+        func = archive
     else:
         func = main
 
