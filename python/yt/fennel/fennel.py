@@ -9,8 +9,6 @@ from tornado import options
 
 import requests
 
-import sys
-import os
 import atexit
 import socket
 import struct
@@ -144,7 +142,6 @@ class EventLog(object):
         self._line_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
 
     def get_data(self, begin, count):
-        result = None
         with self.yt.Transaction():
             lines_removed = int(self.yt.get(self._index_of_first_line_attr))
             begin -= lines_removed

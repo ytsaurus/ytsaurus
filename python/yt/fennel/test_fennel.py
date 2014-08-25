@@ -3,14 +3,10 @@ import fennel
 from tornado import iostream
 from tornado import ioloop
 
-from yt import wrapper as yt
-
 import pytest
 import mock
 import datetime
 import unittest
-import logging
-import json
 
 
 @pytest.fixture
@@ -21,13 +17,13 @@ def fake_state():
 
 
 def test_on_skip_new(fake_state):
-    fake_state.on_skip(10);
+    fake_state.on_skip(10)
     assert fake_state._last_seqno == 10
 
 
 def test_on_skip_old(fake_state):
     fake_state._last_seqno = 20
-    fake_state.on_skip(10);
+    fake_state.on_skip(10)
     assert fake_state._last_seqno == 20
 
 
