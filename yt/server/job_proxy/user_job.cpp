@@ -119,7 +119,10 @@ public:
         if (UserJobSpec.enable_accounting()) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
-            CreateCGroup(Memory);
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                CreateCGroup(Memory);
+            }
         }
 
         ProcessStartTime = TInstant::Now();
@@ -176,11 +179,15 @@ public:
             RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
                     BlockIOStats = cgroup.GetStatistics();
                 });
-            RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
-            DestroyCGroup(Memory);
+
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+                DestroyCGroup(Memory);
+            }
         }
 
         if (ErrorOutput) {
@@ -597,6 +604,8 @@ private:
             return;
         }
 
+        TGuard<TSpinLock> guard(MemoryLock);
+
         if (!Memory.IsCreated()) {
             return;
         }
@@ -604,22 +613,22 @@ private:
         try {
             i64 memoryLimit = UserJobSpec.memory_limit();
             auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId: %s, UsageInBytes: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+            LOG_DEBUG("Get memory usage (JobId: %s, Rss: %" PRId64 ", MemoryLimit: %" PRId64 ")",
                 ~ToString(JobId),
-                statistics.UsageInBytes,
+                statistics.Rss,
                 memoryLimit);
 
-            if (statistics.UsageInBytes > memoryLimit) {
+            if (statistics.Rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
-                    << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
+                    << TErrorAttribute("rss", statistics.Rss)
                     << TErrorAttribute("limit", memoryLimit));
                 KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
                 return;
             }
 
-            if (statistics.UsageInBytes > MemoryUsage) {
-                i64 delta = statistics.UsageInBytes - MemoryUsage;
+            if (statistics.Rss > MemoryUsage) {
+                i64 delta = statistics.Rss - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;
@@ -719,6 +728,7 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
+    TSpinLock MemoryLock;
 };
 
 TJobPtr CreateUserJob(

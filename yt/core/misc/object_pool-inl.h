@@ -8,6 +8,8 @@
 
 #include <util/random/random.h>
 
+#include <core/profiling/timing.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,13 +22,12 @@ TObjectPool<T>::TObjectPool()
 template <class T>
 typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
 {
-    auto now = TInstant::Now();
     T* obj = nullptr;
     while (PooledObjects_.Dequeue(&obj)) {
-        AtomicDecrement(PoolSize_);
-        
+        --PoolSize_;
+
         auto* header = GetHeader(obj);
-        if (header->ExpireTime > now)
+        if (!IsExpired(header))
             break;
 
         FreeInstance(obj);
@@ -46,7 +47,7 @@ template <class T>
 void TObjectPool<T>::Reclaim(T* obj)
 {
     auto* header = GetHeader(obj);
-    if (header->ExpireTime > TInstant::Now()) {
+    if (IsExpired(header)) {
         FreeInstance(obj);
         return;
     }
@@ -54,10 +55,10 @@ void TObjectPool<T>::Reclaim(T* obj)
     TPooledObjectTraits<T>::Clean(obj);
     PooledObjects_.Enqueue(obj);
 
-    if (AtomicIncrement(PoolSize_) > TPooledObjectTraits<T>::GetMaxPoolSize()) {
+    if (++PoolSize_ > TPooledObjectTraits<T>::GetMaxPoolSize()) {
         T* objToDestroy;
         if (PooledObjects_.Dequeue(&objToDestroy)) {
-            AtomicDecrement(PoolSize_);
+            --PoolSize_;
             FreeInstance(objToDestroy);
         }
     }
@@ -72,10 +73,11 @@ T* TObjectPool<T>::AllocateInstance()
     auto* header = reinterpret_cast<THeader*>(buffer);
     auto* obj = reinterpret_cast<T*>(header + 1);
     new (obj) T();
-    header->ExpireTime =
-        TInstant::Now() +
-        TPooledObjectTraits<T>::GetMaxLifetime() +
-        RandomDuration(TPooledObjectTraits<T>::GetMaxLifetimeSplay());
+    header->ExpireInstant =
+        NProfiling::GetCpuInstant() +
+        NProfiling::DurationToCpuDuration(
+            TPooledObjectTraits<T>::GetMaxLifetime() +
+            RandomDuration(TPooledObjectTraits<T>::GetMaxLifetimeSplay()));
     return obj;
 }
 
@@ -93,6 +95,12 @@ template <class T>
 typename TObjectPool<T>::THeader* TObjectPool<T>::GetHeader(T* obj)
 {
     return reinterpret_cast<THeader*>(obj) - 1;
+}
+
+template <class T>
+bool TObjectPool<T>::IsExpired(const THeader* header)
+{
+    return NProfiling::GetCpuInstant() > header->ExpireInstant;
 }
 
 template <class T>

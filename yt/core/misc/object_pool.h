@@ -4,6 +4,12 @@
 
 #include <util/thread/lfqueue.h>
 
+#include <util/generic/singleton.h>
+
+#include <core/profiling/public.h>
+
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,18 +37,22 @@ public:
     void Reclaim(T* obj);
 
 private:
-	struct THeader
-	{
-		TInstant ExpireTime;
-	};
+    struct THeader
+    {
+        NProfiling::TCpuInstant ExpireInstant;
+    };
+
+    static_assert(sizeof(THeader) % 8 == 0, "THeader must be padded to ensure proper alignment.");
 
     TLockFreeQueue<T*> PooledObjects_;
-    TAtomic PoolSize_;
+    std::atomic<int> PoolSize_;
 
 
     T* AllocateInstance();
     void FreeInstance(T* obj);
+
     THeader* GetHeader(T* obj);
+    bool IsExpired(const THeader* header);
 
 };
 
@@ -69,7 +79,7 @@ struct TPooledObjectTraits
 //! Basic version of traits. Others may consider inheriting from it.
 struct TPooledObjectTraitsBase
 {
-	template <class T>
+    template <class T>
     static void Clean(T*)
     { }
 
@@ -85,7 +95,7 @@ struct TPooledObjectTraitsBase
 
     static TDuration GetMaxLifetimeSplay()
     {
-    	return TDuration::Seconds(60);
+        return TDuration::Seconds(60);
     }
 };
 
@@ -96,4 +106,3 @@ struct TPooledObjectTraitsBase
 #define OBJECT_POOL_INL_H_
 #include "object_pool-inl.h"
 #undef OBJECT_POOL_INL_H_
-
