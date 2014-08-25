@@ -16,6 +16,7 @@ import logging
 import json
 import datetime
 import zlib
+import sys
 
 
 DEFAULT_TABLE_NAME = "//sys/scheduler/event_log"
@@ -140,6 +141,7 @@ class EventLog(object):
         self._table_name = table_name or "//tmp/event_log"
         self._index_of_first_line_attr = "{0}/@index_of_first_line".format(self._table_name)
         self._line_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
+        self._row_count = "{0}/@row_count".format(self._table_name)
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
@@ -168,6 +170,20 @@ class EventLog(object):
                 self._table_name,
                 start_index=0,
                 end_index=count))
+
+    def monitor(self, threshold):
+        with self.yt.Transaction():
+            index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
+            line_to_save = int(self.get_next_line_to_save())
+            real_line_to_save = line_to_save - index_of_first_line
+
+            row_count = int(self.yt.get(self._row_count))
+
+            lag = row_count - real_line_to_save
+            if lag > threshold:
+                sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
+            else:
+                sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 
     def set_next_line_to_save(self, line_index):
         self.yt.set(self._line_to_save_attr, line_index)
@@ -502,6 +518,12 @@ def truncate(table_name, proxy_path, count, **kwargs):
     event_log.truncate(count)
 
 
+def monitor(table_name, proxy_path, threshold, **kwargs):
+    yt.config.set_proxy(proxy_path)
+    event_log = EventLog(yt, table_name=table_name)
+    event_log.monitor(threshold)
+
+
 def run():
     options.define("table_name",
         metavar="PATH",
@@ -517,8 +539,11 @@ def run():
 
     options.define("count", default=10**6, help="number of lines to truncate")
 
+    options.define("threshold", default=10**6, help="threshold of lag size to generate error")
+
     options.define("init", default=False, help="init and exit")
     options.define("truncate", default=False, help="truncate and exit")
+    options.define("monitor", default=False, help="output status")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
     options.define("verbose", default=False, help="vervose mode")
@@ -535,6 +560,8 @@ def run():
         func = truncate
     elif options.options.init:
         func = init
+    elif options.options.monitor:
+        func = monitor
     else:
         func = main
 
