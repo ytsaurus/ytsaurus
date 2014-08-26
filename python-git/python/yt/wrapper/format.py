@@ -471,13 +471,15 @@ class JsonFormat(Format):
         return json.loads(row.rstrip("\n"))
 
     def _process_input_rows(self, rows):
+        table_index = None
         for row in rows:
             if "$value" in row:
                 require(row["$value"] == None,
                         YtError("Incorrect $value of table switch in json format"))
                 table_index = row["$attributes"]["table_index"]
             else:
-                row[self.table_index_field_name] = table_index
+                if table_index is not None:
+                    row[self.table_index_field_name] = table_index
                 yield row
 
     def load_rows(self, stream):
@@ -497,10 +499,14 @@ class JsonFormat(Format):
     def _process_output_rows(self, rows):
         table_index = 0
         for row in rows:
-            if self.table_index_field_name in row and row[self.table_index_field_name] != table_index:
-                table_index = row[self.table_index_field_name]
-                del row[self.table_index_field_name]
+            new_table_index = row[self.table_index_field_name] \
+                if self.table_index_field_name in row \
+                else 0
+            if new_table_index != table_index:
+                table_index = new_table_index
                 yield {"$value": None, "$attributes": {"table_index": table_index}}
+            if self.table_index_field_name in row:
+                del row[self.table_index_field_name]
             yield row
 
     def dump_rows(self, rows, stream):
