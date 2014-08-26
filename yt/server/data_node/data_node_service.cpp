@@ -735,7 +735,7 @@ private:
             miscExt.row_count() *
             miscExt.uncompressed_data_size() /
             indexExt.items_size()));
-    	YCHECK(dataSizeBetweenSamples > 0);
+        YCHECK(dataSizeBetweenSamples > 0);
 
         using NChunkClient::TReadLimit;
         auto comparer = [&] (
@@ -770,7 +770,7 @@ private:
         auto beginIt = std::lower_bound(
             indexExt.items().begin(),
             indexExt.items().end(),
-            TReadLimit(chunkSpec->upper_limit()),
+            TReadLimit(chunkSpec->lower_limit()),
             [&] (const TIndexRow& indexRow, const TReadLimit& limit) {
                 return comparer(limit, indexRow, true) > 0;
             });
@@ -778,7 +778,7 @@ private:
         auto endIt = std::upper_bound(
             beginIt,
             indexExt.items().end(),
-            TReadLimit(chunkSpec->lower_limit()),
+            TReadLimit(chunkSpec->upper_limit()),
             [&] (const TReadLimit& limit, const TIndexRow& indexRow) {
                 return comparer(limit, indexRow, false) < 0;
             });
@@ -805,7 +805,7 @@ private:
         createNewSplit();
 
         auto samplesLeft = std::distance(beginIt, endIt) - 1;
-    	YCHECK(samplesLeft > 0);
+        YCHECK(samplesLeft > 0);
 
         while (samplesLeft > 0) {
             ++beginIt;
