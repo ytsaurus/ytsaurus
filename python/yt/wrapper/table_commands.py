@@ -81,9 +81,11 @@ from cStringIO import StringIO
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_table", simplify=False)
 
-def _prepare_source_tables(tables, client=None):
+def _prepare_source_tables(tables, filter_instead_replace=False, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
     if config.TREAT_UNEXISTING_AS_EMPTY:
+        if filter_instead_replace:
+            return [table for table in result if exists(table.name, client=client)]
         def get_empty_table(table):
             logger.warning("Warning: input table '%s' does not exist", table.name)
             return DEFAULT_EMPTY_TABLE
@@ -803,7 +805,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     .. seealso::  :ref:`operation_parameters`.
     """
-    source_table = _prepare_source_tables(source_table, client=client)
+    source_table = _prepare_source_tables(source_table, filter_instead_replace=True, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
