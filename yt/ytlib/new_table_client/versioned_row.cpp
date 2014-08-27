@@ -69,7 +69,7 @@ size_t GetVersionedRowDataSize(
         sizeof(TUnversionedValue) * keyCount +
         sizeof(TVersionedValue) * valueCount +
         sizeof(TTimestamp) * writeTimestampCount +
-        sizeof(TTimestamp) + deleteTimestampCount;
+        sizeof(TTimestamp) * deleteTimestampCount;
 }
 
 i64 GetDataWeight(TVersionedRow row)
