@@ -64,9 +64,10 @@ size_t GetVersionedRowDataSize(
     int writeTimestampCount,
     int deleteTimestampCount)
 {
-    return sizeof(TVersionedRowHeader) +
-        sizeof(TVersionedValue) * valueCount +
+    return
+        sizeof(TVersionedRowHeader) +
         sizeof(TUnversionedValue) * keyCount +
+        sizeof(TVersionedValue) * valueCount +
         sizeof(TTimestamp) * writeTimestampCount +
         sizeof(TTimestamp) + deleteTimestampCount;
 }
