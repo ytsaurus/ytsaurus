@@ -298,15 +298,17 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/temp_other"
         another_table = TEST_DIR + "/temp_another"
         yt.run_sort(table)
-        self.assertTrue(yt.is_sorted(table))
+        assert yt.is_sorted(table)
         yt.run_merge(table, other_table, mode="sorted")
-        self.assertTrue(yt.is_sorted(other_table))
+        assert yt.is_sorted(other_table)
         yt.run_merge([table, other_table], another_table, mode="sorted")
-        self.assertTrue(yt.is_sorted(another_table))
-        self.assertEqual(yt.records_count(another_table), 20)
+        assert yt.is_sorted(another_table)
+        assert yt.records_count(another_table) == 20
 
         yt.run_merge(TEST_DIR + "/unexisting", other_table)
-        self.assertEqual(yt.records_count(other_table), 0)
+        assert yt.records_count(other_table) == 0
+        yt.run_merge([table, TEST_DIR + "/unexisting"], other_table, mode="sorted")
+        assert yt.records_count(other_table) == yt.records_count(table)
 
     def test_digit_names(self):
         table = TEST_DIR + '/123'
