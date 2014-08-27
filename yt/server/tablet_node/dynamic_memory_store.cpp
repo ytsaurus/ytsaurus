@@ -330,6 +330,15 @@ protected:
         copyTimestamps(writeTimestampList, versionedRow.BeginWriteTimestamps());
         copyTimestamps(deleteTimestampList, versionedRow.BeginDeleteTimestamps());
 
+        for (const auto* key = versionedRow.BeginKeys(); key != versionedRow.EndKeys(); ++key) {
+            YCHECK(
+                key->Type == EValueType::Null ||
+                key->Type == EValueType::Int64 ||
+                key->Type == EValueType::Uint64 ||
+                key->Type == EValueType::Double ||
+                key->Type == EValueType::String);
+        }
+
         return versionedRow;
     }
 
