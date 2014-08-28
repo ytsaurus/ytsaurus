@@ -116,7 +116,11 @@ public:
 
         InitCompleted = true;
 
-        if (UserJobSpec.enable_accounting()) {
+        auto host = Host.Lock();
+        YCHECK(host);
+
+        auto config = host->GetConfig();
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
             {
@@ -172,7 +176,7 @@ public:
             }
         }
 
-        if (UserJobSpec.enable_accounting()) {
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
                     CpuAccountingStats = cgroup.GetStatistics();
                 });
@@ -554,7 +558,7 @@ private:
                 }
             }
 
-            if (UserJobSpec.enable_accounting()) {
+            if (UserJobSpec.enable_accounting() || host->GetConfig()->ForceEnableAccounting) {
                 CpuAccounting.AddCurrentTask();
                 BlockIO.AddCurrentTask();
                 Memory.AddCurrentTask();
@@ -651,7 +655,11 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        if (UserJobSpec.enable_accounting()) {
+        auto host = Host.Lock();
+        if (!host)
+            return result;
+
+        if (UserJobSpec.enable_accounting() || host->GetConfig()->ForceEnableAccounting) {
             ToProto(result.mutable_cpu(), CpuAccountingStats);
             ToProto(result.mutable_block_io(), BlockIOStats);
         }

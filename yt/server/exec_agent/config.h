@@ -114,6 +114,7 @@ public:
     TDuration MemoryWatchdogPeriod;
 
     double MemoryLimitMultiplier;
+    bool ForceEnableAccounting;
 
     TExecAgentConfig()
     {
@@ -133,6 +134,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
+        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
+            .Default(false);
     }
 };
 

@@ -16,10 +16,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         'scheduler' : {
-            'enable_accounting': 'true',
             'event_log' : {
                 'flush_period' : 300
             }
+        }
+    }
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'force_enable_accounting' : 'true'
         }
     }
 
