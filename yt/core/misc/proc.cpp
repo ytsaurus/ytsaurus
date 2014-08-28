@@ -30,6 +30,49 @@ static NLog::TLogger SILENT_UNUSED Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<int> GetPidsByUid(int uid)
+{
+#ifdef _linux_
+    std::vector<int> result;
+
+    DIR *dp = ::opendir("/proc");
+    YCHECK(dp != nullptr);
+
+    struct dirent *ep;
+    while ((ep = ::readdir(dp)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+
+        auto path = Sprintf("/proc/%d", pid);
+        struct stat buf;
+        int res = ::stat(~path, &buf);
+
+        if (res == 0) {
+            if (buf.st_uid == uid) {
+                result.push_back(pid);
+            }
+        } else {
+            // Assume that the process has already completed.
+            auto errno_ = errno;
+            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
+                pid);
+            YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
+        }
+    }
+
+    YCHECK(::closedir(dp) == 0);
+    return result;
+
+#else
+    return std::vector<int>();
+#endif
+}
+
 i64 GetProcessRss(int pid)
 {
 #ifdef _linux_

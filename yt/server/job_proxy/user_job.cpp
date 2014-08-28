@@ -608,31 +608,47 @@ private:
             return;
         }
 
-        TGuard<TSpinLock> guard(MemoryLock);
-
-        if (!Memory.IsCreated()) {
-            return;
-        }
-
         try {
+            auto pids = GetPidsByUid(uid);
+
             i64 memoryLimit = UserJobSpec.memory_limit();
-            auto statistics = Memory.GetStatistics();
+            i64 rss = 0;
+            FOREACH(int pid, pids) {
+                try {
+                    i64 processRss = GetProcessRss(pid);
+                    // ProcessId itself is skipped since it's always 'sh'.
+                    // This also helps to prevent taking proxy's own RSS into account
+                    // when it has fork-ed but not exec-uted the child process yet.
+                    bool skip = (pid == ProcessId);
+                    LOG_DEBUG("PID: %d, RSS: %" PRId64 "%s",
+                        pid,
+                        processRss,
+                        skip ? " (skipped)" : "");
+                    if (!skip) {
+                        rss += processRss;
+                    }
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG(ex, "Failed to get RSS for PID %d",
+                        pid);
+                }
+            }
+
             LOG_DEBUG("Get memory usage (JobId: %s, Rss: %" PRId64 ", MemoryLimit: %" PRId64 ")",
                 ~ToString(JobId),
-                statistics.Rss,
+                rss,
                 memoryLimit);
 
-            if (statistics.Rss > memoryLimit) {
+            if (rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
-                    << TErrorAttribute("rss", statistics.Rss)
+                    << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit));
                 KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
                 return;
             }
 
-            if (statistics.Rss > MemoryUsage) {
-                i64 delta = statistics.Rss - MemoryUsage;
+            if (rss > MemoryUsage) {
+                i64 delta = rss - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
 
                 MemoryUsage += delta;
@@ -641,8 +657,27 @@ private:
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
                 host->SetResourceUsage(resourceUsage);
             }
+
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+
+                if (!Memory.IsCreated()) {
+                    return;
+                }
+
+                auto statistics = Memory.GetStatistics();
+                LOG_DEBUG("Memory usage. Old way: %" PRId64 " , CGroup way: %" PRId64,
+                    rss,
+                    statistics.Rss);
+            }
         } catch (const std::exception& ex) {
             SetError(ex);
+
+            TGuard<TSpinLock> guard(MemoryLock);
+
+            if (!Memory.IsCreated()) {
+                return;
+            }
             KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
         }
     }
