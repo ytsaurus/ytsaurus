@@ -66,6 +66,8 @@ public:
     int MaxRowsPerRead;
     int MaxRowsPerWrite;
 
+    int MaxRowsPerTransaction;
+
     int DefaultInputRowLimit;
     int DefaultOutputRowLimit;
 

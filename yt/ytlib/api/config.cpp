@@ -57,6 +57,10 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
 
+    RegisterParameter("max_rows_per_transaction", MaxRowsPerTransaction)
+        .GreaterThan(0)
+        .Default(100000);
+
     RegisterParameter("default_input_row_limit", DefaultInputRowLimit)
         .GreaterThan(0)
         .Default(100000000);
