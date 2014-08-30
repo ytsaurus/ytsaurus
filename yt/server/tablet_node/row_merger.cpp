@@ -180,8 +180,8 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         row.BeginValues(),
         row.EndValues());
 
-    PartialDeleteTimestamps_.insert(
-        PartialDeleteTimestamps_.end(),
+    DeleteTimestamps_.insert(
+        DeleteTimestamps_.end(),
         row.BeginDeleteTimestamps(),
         row.EndDeleteTimestamps());
 }
@@ -193,10 +193,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
     }
 
     // Sort delete timestamps and remove duplicates.
-    std::sort(PartialDeleteTimestamps_.begin(), PartialDeleteTimestamps_.end());
-    PartialDeleteTimestamps_.erase(
-        std::unique(PartialDeleteTimestamps_.begin(), PartialDeleteTimestamps_.end()),
-        PartialDeleteTimestamps_.end());
+    std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
+    DeleteTimestamps_.erase(
+        std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
+        DeleteTimestamps_.end());
 
     // Sort input values by (id, timestamp).
     std::sort(
@@ -232,8 +232,8 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         // Merge with delete timestamps and put result into ColumnValues_.
         // Delete timestamps are represented by TheBottom sentinels.
         {
-            auto timestampBeginIt = PartialDeleteTimestamps_.begin();
-            auto timestampEndIt = PartialDeleteTimestamps_.end();
+            auto timestampBeginIt = DeleteTimestamps_.begin();
+            auto timestampEndIt = DeleteTimestamps_.end();
             ColumnValues_.clear();
             auto columnValueIt = columnBeginIt;
             auto timestampIt = timestampBeginIt;
@@ -292,7 +292,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         for (auto it = retentionBeginIt; it != ColumnValues_.end(); ++it) {
             const auto& value = *it;
             if (value.Type == EValueType::TheBottom) {
-                DeleteTimestamps_.push_back(value.Timestamp);
+                //DeleteTimestamps_.push_back(value.Timestamp);
             } else {
                 WriteTimestamps_.push_back(value.Timestamp);
                 MergedValues_.push_back(*it);
@@ -302,12 +302,10 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
         partialValueIt = columnEndIt;
     }
 
-    // Delete duplicate timestamps.
-    std::sort(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), std::greater<TTimestamp>());
-    DeleteTimestamps_.erase(
-        std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
-        DeleteTimestamps_.end());
+    // Reverse delete timestamps list to make them appear in descending order.
+    std::reverse(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
 
+    // Sort write timestamps in descending order, remove duplicates.
     std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
     WriteTimestamps_.erase(
         std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
@@ -364,7 +362,6 @@ void TVersionedRowMerger::Cleanup()
     MergedValues_.clear();
     ColumnValues_.clear();
 
-    PartialDeleteTimestamps_.clear();
     WriteTimestamps_.clear();
     DeleteTimestamps_.clear();
 

@@ -489,6 +489,24 @@ TEST_F(TVersionedRowMergerTest, Expire3)
         merger.BuildMergedRowAndReset());
 }
 
+TEST_F(TVersionedRowMergerTest, DeleteOnly)
+{
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 10;
+
+    TChunkedMemoryPool pool;
+    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000), 0);
+
+    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+
+    EXPECT_EQ(
+        BuildVersionedRow(
+            "0",
+            "",
+            { 100 }),
+        merger.BuildMergedRowAndReset());
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace

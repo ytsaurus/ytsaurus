@@ -82,7 +82,6 @@ private:
     std::vector<TVersionedValue> ColumnValues_;
     std::vector<TVersionedValue> MergedValues_;
 
-    std::vector<TTimestamp> PartialDeleteTimestamps_;
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
