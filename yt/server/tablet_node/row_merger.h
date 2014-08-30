@@ -26,6 +26,7 @@ public:
 
     void AddPartialRow(TVersionedRow row);
     TUnversionedRow BuildMergedRowAndReset();
+    void Reset();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -45,7 +46,7 @@ private:
     bool Started_ = false;
 
 
-    void Reset();
+    void Cleanup();
 
 };
 
@@ -63,6 +64,7 @@ public:
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRowAndReset();
+    void Reset();
 
 private:
     TChunkedMemoryPool* Pool_;
@@ -84,7 +86,7 @@ private:
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
 
-    void Reset();
+    void Cleanup();
 
 };
 

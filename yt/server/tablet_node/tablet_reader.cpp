@@ -95,7 +95,7 @@ protected:
         YCHECK(!Refilling_);
 
         rows->clear();
-        Pool_.Clear();
+        rowMerger->Reset();
 
         if (!ExhaustedSessions_.empty()) {
             // Prevent proceeding to the merge phase in presence of exhausted sessions.

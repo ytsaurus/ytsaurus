@@ -47,7 +47,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
         }
     }
 
-    Reset();
+    Cleanup();
 }
 
 void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
@@ -89,7 +89,7 @@ void TUnversionedRowMerger::AddPartialRow(TVersionedRow row)
         auto writeTimestamp = row.BeginWriteTimestamps()[0];
         LatestWrite_ = std::max(LatestWrite_, writeTimestamp);
 
-        if (writeTimestamp < LatestDelete_ ) {
+        if (writeTimestamp < LatestDelete_) {
             return;
         }
 
@@ -115,7 +115,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRowAndReset()
     }
 
     if (LatestWrite_ == NullTimestamp || LatestWrite_ < LatestDelete_) {
-        Reset();
+        Cleanup();
         return TUnversionedRow();
     }
 
@@ -130,11 +130,18 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRowAndReset()
     auto mergedRow = MergedRow_;
     MergedRow_ = TUnversionedRow();
 
-    Reset();
+    Cleanup();
     return mergedRow;
 }
 
 void TUnversionedRowMerger::Reset()
+{
+    YCHECK(!Started_);
+    Pool_->Clear();
+    MergedRow_ = TUnversionedRow();
+}
+
+void TUnversionedRowMerger::Cleanup()
 {
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
@@ -157,7 +164,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , KeyComparer_(KeyColumnCount_)
     , Keys_(KeyColumnCount_)
 {
-    Reset();
+    Cleanup();
 }
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
@@ -319,7 +326,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
     }
 
     if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
-        Reset();
+        Cleanup();
         return TVersionedRow();
     }
 
@@ -341,11 +348,17 @@ TVersionedRow TVersionedRowMerger::BuildMergedRowAndReset()
     std::copy(WriteTimestamps_.begin(), WriteTimestamps_.end(), row.BeginWriteTimestamps());
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
-    Reset();
+    Cleanup();
     return row;
 }
 
 void TVersionedRowMerger::Reset()
+{
+    YCHECK(!Started_);
+    Pool_->Clear();
+}
+
+void TVersionedRowMerger::Cleanup()
 {
     PartialValues_.clear();
     MergedValues_.clear();
