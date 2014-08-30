@@ -404,6 +404,12 @@ public:
         , Stores_(std::move(stores))
         , CurrentTimestamp_(currentTimestamp)
         , MajorTimestamp_(majorTimestamp)
+        , RowMerger_(
+            &Pool_,
+            Tablet_->GetKeyColumnCount(),
+            Tablet_->GetConfig(),
+            CurrentTimestamp_,
+            MajorTimestamp_)
     { }
 
     virtual TAsyncError Open() override
@@ -416,7 +422,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        bool result = TTabletReaderBase::DoRead(rows, RowMerger_.get());
+        bool result = TTabletReaderBase::DoRead(rows, &RowMerger_);
         #ifndef NDEBUG
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
@@ -439,19 +445,11 @@ private:
     TTimestamp CurrentTimestamp_;
     TTimestamp MajorTimestamp_;
 
-    std::unique_ptr<TVersionedRowMerger> RowMerger_;
+    TVersionedRowMerger RowMerger_;
 
 
     void DoOpen()
     {
-        // Initialize merger.
-        RowMerger_.reset(new TVersionedRowMerger(
-            &Pool_,
-            Tablet_->GetKeyColumnCount(),
-            Tablet_->GetConfig(),
-            CurrentTimestamp_,
-            MajorTimestamp_));
-
         TTabletReaderBase::DoOpen(TColumnFilter(), Stores_);
     }
 
