@@ -6,6 +6,21 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TRefCountedBase;
+class TExtrinsicRefCounted;
+class TIntrinsicRefCounted;
+
+// This is a reasonable default.
+// For performance-critical bits of code use TIntrinsicRefCounted instead.
+typedef TExtrinsicRefCounted TRefCounted;
+
+typedef int TRefCountedCookie;
+const int NullRefCountedCookie = -1;
+
+typedef void* TRefCountedKey;
+
+///////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TLeaseEntry)
 typedef TLeaseEntryPtr TLease;
 

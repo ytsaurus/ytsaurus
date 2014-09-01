@@ -1,8 +1,9 @@
 #pragma once
 
+#include "public.h"
+
 #include <core/ytree/yson_producer.h>
 
-#include <core/concurrency/counter.h>
 #include <core/concurrency/fork_aware_spinlock.h>
 
 namespace NYT {
@@ -21,75 +22,96 @@ namespace NYT {
 class TRefCountedTracker
     : private TNonCopyable
 {
-public:
-    typedef const std::type_info* TKey;
-
 private:
     class TSlot
     {
     public:
-        explicit TSlot(TKey key);
+        explicit TSlot(TRefCountedKey key);
 
-        TKey GetKey() const;
+        TRefCountedKey GetKey() const;
         Stroka GetName() const;
 
         FORCED_INLINE void Allocate(size_t size)
         {
-            ObjectsAllocated_.Increment(1);
-            BytesAllocated_.Increment(size);
+            ++ObjectsAllocated_;
+            ++BytesAllocated_;
         }
 
         FORCED_INLINE void Free(size_t size)
         {
-            ObjectsFreed_.Increment(1);
-            BytesFreed_.Increment(size);
+            ++ObjectsFreed_;
+            ++BytesFreed_;
         }
 
-        size_t GetObjectsAllocated() const;
-        size_t GetObjectsAlive() const;
-        size_t GetBytesAllocated() const;
-        size_t GetBytesAlive() const;
+        TSlot& operator += (const TSlot& other);
+
+        i64 GetObjectsAllocated() const;
+        i64 GetObjectsAlive() const;
+        i64 GetBytesAllocated() const;
+        i64 GetBytesAlive() const;
 
     private:
-        TKey Key_;
-        NConcurrency::TCounter ObjectsAllocated_;
-        NConcurrency::TCounter BytesAllocated_;
-        NConcurrency::TCounter ObjectsFreed_;
-        NConcurrency::TCounter BytesFreed_;
+        TRefCountedKey Key_;
+        i64 ObjectsAllocated_ = 0;
+        i64 BytesAllocated_ = 0;
+        i64 ObjectsFreed_ = 0;
+        i64 BytesFreed_ = 0;
 
     };
+
+    typedef std::vector<TSlot> TStatistics;
 
 public:
     static TRefCountedTracker* Get();
 
-    void* GetCookie(TKey key);
+    TRefCountedCookie GetCookie(TRefCountedKey key);
 
-    FORCED_INLINE void Allocate(void* cookie, size_t size)
+    FORCED_INLINE void Allocate(TRefCountedCookie cookie, size_t size)
     {
-        static_cast<TSlot*>(cookie)->Allocate(size);
-   }
+        GetPerThreadSlot(cookie)->Allocate(size);
+    }
 
-    FORCED_INLINE void Free(void* cookie, size_t size)
+    FORCED_INLINE void Free(TRefCountedCookie cookie, size_t size)
     {
-        static_cast<TSlot*>(cookie)->Free(size);
+        GetPerThreadSlot(cookie)->Free(size);
     }
 
     Stroka GetDebugInfo(int sortByColumn = -1) const;
     NYTree::TYsonProducer GetMonitoringProducer() const;
 
-    i64 GetObjectsAllocated(TKey key);
-    i64 GetObjectsAlive(TKey key);
-    i64 GetAllocatedBytes(TKey key);
-    i64 GetAliveBytes(TKey key);
+    i64 GetObjectsAllocated(TRefCountedKey key);
+    i64 GetObjectsAlive(TRefCountedKey key);
+    i64 GetAllocatedBytes(TRefCountedKey key);
+    i64 GetAliveBytes(TRefCountedKey key);
 
 private:
     NConcurrency::TForkAwareSpinLock SpinLock_;
-    yhash_map<TKey, TSlot> KeyToSlot_;
+    yhash_map<TRefCountedKey, TRefCountedCookie> KeyToCookie_;
+    TRefCountedCookie LastUsedCookie = -1;
+    TStatistics GlobalStatistics_;
+    TLS_STATIC TStatistics* CurrentThreadStatistics = nullptr;
+    yhash_set<TStatistics*> PerThreadStatistics_;
 
-    std::vector<TSlot> GetSnapshot() const;
-    static void SortSnapshot(std::vector<TSlot>& slots, int sortByColumn);
 
-    TSlot* GetSlot(TKey key);
+    TStatistics GetSnapshot() const;
+    static void SortSnapshot(TStatistics* snapshot, int sortByColumn);
+
+    TSlot GetSlot(TRefCountedKey key);
+
+    FORCED_INLINE TStatistics* GetPerThreadStatistics()
+    {
+        if (!CurrentThreadStatistics) {
+            CreateCurrentThreadStatistics();
+        }
+        return CurrentThreadStatistics;
+    }
+
+    FORCED_INLINE TSlot* GetPerThreadSlot(TRefCountedCookie cookie)
+    {
+
+    }
+
+    void CreateCurrentThreadStatistics();
 
 };
 

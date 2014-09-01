@@ -29,7 +29,7 @@ class TTabletManager
     : public TRefCounted
 {
 public:
-    explicit TTabletManager(
+    TTabletManager(
         TTabletManagerConfigPtr config,
         TTabletSlot* slot,
         NCellNode::TBootstrap* bootstrap);

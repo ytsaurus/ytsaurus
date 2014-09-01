@@ -1,18 +1,9 @@
 #pragma once
 
+#include "public.h:
 #include "intrusive_ptr.h"
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRefCountedBase;
-class TExtrinsicRefCounted;
-class TIntrinsicRefCounted;
-
-// This is a reasonable default.
-// For performance-critical bits of code use TIntrinsicRefCounted instead.
-typedef TExtrinsicRefCounted TRefCounted;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +221,7 @@ private:
     friend void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    void* TypeCookie;
+    voidtref* TypeCookie;
     size_t InstanceSize;
 
     void InitializeTracking(void* typeCookie, size_t instanceSize);
