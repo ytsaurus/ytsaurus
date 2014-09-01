@@ -27,8 +27,8 @@
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/plan_context.h>
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_statistics.h>
 #include <ytlib/query_client/query_service_proxy.h>
 #include <ytlib/query_client/executor.h>
 
@@ -273,12 +273,12 @@ public:
 
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(
         const TYPath& path,
-        TPlanContextPtr context) override
+        TTimestamp timestamp) override
     {
         return BIND(&TConnection::DoGetInitialSplit, MakeStrong(this))
             .Guarded()
             .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
-            .Run(path, std::move(context));
+            .Run(path, timestamp);
     }
 
 
@@ -286,7 +286,7 @@ public:
 
     virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& /*split*/,
-        TPlanContextPtr /*context*/) override
+        TNodeDirectoryPtr /*nodeDirectory*/) override
     {
         YUNREACHABLE();
     }
@@ -298,23 +298,21 @@ public:
 
     virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
         const TDataSplit& split,
-        TPlanContextPtr context) override
+        TNodeDirectoryPtr nodeDirectory) override
     {
         return
             BIND(&TConnection::DoSplitFurther, MakeStrong(this))
                 .Guarded()
                 .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
-                .Run(split, std::move(context));
+                .Run(split, std::move(nodeDirectory));
     }
 
     virtual TGroupedDataSplits Regroup(
         const TDataSplits& splits,
-        TPlanContextPtr context) override
+        TNodeDirectoryPtr nodeDirectory) override
     {
         std::map<Stroka, TDataSplits> groups;
         TGroupedDataSplits result;
-
-        auto nodeDirectory = context->GetNodeDirectory();
 
         for (const auto& split : splits) {
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
@@ -338,14 +336,14 @@ public:
     }
 
     virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         const TDataSplit& collocatedSplit) override
     {
         auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(collocatedSplit.replicas());
         YCHECK(!replicas.empty());
         auto replica = replicas[RandomNumber(replicas.size())];
 
-        auto descriptor = fragment.GetContext()->GetNodeDirectory()->GetDescriptor(replica);
+        auto descriptor = fragment->NodeDirectory->GetDescriptor(replica);
         auto address = descriptor.GetDefaultAddress();
         auto channel = NodeChannelFactory_->CreateChannel(address);
 
@@ -353,7 +351,7 @@ public:
         proxy.SetDefaultTimeout(Config_->QueryTimeout);
         auto req = proxy.Execute();
 
-        fragment.GetContext()->GetNodeDirectory()->DumpTo(req->mutable_node_directory());
+        fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
 
         auto resultReader = New<TQueryResponseReader>(req->Invoke());
@@ -389,7 +387,7 @@ private:
 
     TDataSplit DoGetInitialSplit(
         const TYPath& path,
-        TPlanContextPtr context)
+        TTimestamp timestamp)
     {
         auto asyncInfoOrError = TableMountCache_->GetTableInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
@@ -400,20 +398,20 @@ private:
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, info->Schema);
         SetKeyColumns(&result, info->KeyColumns);
-        SetTimestamp(&result, context->GetTimestamp());
+        SetTimestamp(&result, timestamp);
         return result;
     }
 
     std::vector<TDataSplit> DoSplitFurther(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto objectId = GetObjectIdFromDataSplit(split);
 
         std::vector<TDataSplit> subsplits;
         switch (TypeFromId(objectId)) {
             case EObjectType::Table:
-                subsplits = DoSplitTableFurther(split, std::move(context));
+                subsplits = DoSplitTableFurther(split, std::move(nodeDirectory));
                 break;
 
             default:
@@ -425,7 +423,7 @@ private:
 
     std::vector<TDataSplit> DoSplitTableFurther(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
         auto tableInfoOrError = WaitFor(TableMountCache_->GetTableInfo(FromObjectId(tableId)));
@@ -433,13 +431,13 @@ private:
         const auto& tableInfo = tableInfoOrError.Value();
 
         return tableInfo->Sorted
-            ? DoSplitSortedTableFurther(split, std::move(context))
-            : DoSplitUnsortedTableFurther(split, std::move(context), std::move(tableInfo));
+            ? DoSplitSortedTableFurther(split, std::move(nodeDirectory))
+            : DoSplitUnsortedTableFurther(split, std::move(nodeDirectory), std::move(tableInfo));
     }
 
     std::vector<TDataSplit> DoSplitSortedTableFurther(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
 
@@ -452,7 +450,7 @@ private:
         auto rsp = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        context->GetNodeDirectory()->MergeFrom(rsp->node_directory());
+        nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
         auto keyColumns = GetKeyColumnsFromDataSplit(split);
@@ -486,7 +484,7 @@ private:
 
     std::vector<TDataSplit> DoSplitUnsortedTableFurther(
         const TDataSplit& split,
-        TPlanContextPtr context,
+        TNodeDirectoryPtr nodeDirectory,
         TTableMountInfoPtr tableInfo)
     {
         auto tableId = GetObjectIdFromDataSplit(split);
@@ -500,6 +498,7 @@ private:
         auto upperBound = GetUpperBoundFromDataSplit(split);
         auto keyColumns = GetKeyColumnsFromDataSplit(split);
         auto schema = GetTableSchemaFromDataSplit(split);
+        auto timestamp = GetTimestampFromDataSplit(split);
 
         // Run binary search to find the relevant tablets.
         auto startIt = std::upper_bound(
@@ -509,8 +508,6 @@ private:
             [] (const TOwningKey& key, const TTabletInfoPtr& tabletInfo) {
                 return key < tabletInfo->PivotKey;
             }) - 1;
-
-        auto nodeDirectory = context->GetNodeDirectory();
 
         std::vector<TDataSplit> subsplits;
         for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
@@ -534,8 +531,7 @@ private:
 
             SetLowerBound(&subsplit, std::max(lowerBound, pivotKey));
             SetUpperBound(&subsplit, std::min(upperBound, nextPivotKey));
-
-            SetTimestamp(&subsplit, context->GetTimestamp());
+            SetTimestamp(&subsplit, timestamp); 
 
             for (const auto& tabletReplica : tabletInfo->Replicas) {
                 nodeDirectory->AddDescriptor(tabletReplica.Id, tabletReplica.Descriptor);

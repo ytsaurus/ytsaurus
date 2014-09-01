@@ -2,7 +2,7 @@
 %require "3.0"
 %language "C++"
 
-%define api.namespace {NYT::NQueryClient}
+%define api.namespace {NYT::NQueryClient::NAst}
 %define api.prefix {yt_ql_yy}
 %define api.value.type variant
 %define api.location.type {TSourceLocation}
@@ -13,18 +13,17 @@
 %locations
 
 %parse-param {TLexer& lexer}
-%parse-param {TPlanContext* context}
-%parse-param {const TOperator** head}
+%parse-param {TQuery* head}
 
 %code requires {
-    #include "plan_node.h"
+    #include "ast.h"
 
-    namespace NYT { namespace NQueryClient {
+    namespace NYT { namespace NQueryClient { namespace NAst {
         using namespace NVersionedTableClient;
 
         class TLexer;
         class TParser;
-    } }
+    } } }
 }
 
 %code {
@@ -93,25 +92,22 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TOperator*> head-clause
-%type <TProjectOperator*> select-clause
-%type <TScanOperator*> from-clause
-%type <TFilterOperator*> where-clause
-%type <TGroupOperator*> group-by-clause
+%type <TNullableNamedExprs> select-clause
+%type <TStringBuf> from-clause
+%type <TExpressionPtr> where-clause
+%type <TNamedExpressionList> group-by-clause
 
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
 
-%type <TExpression*> expression
-%type <TExpression*> or-op-expr
-%type <TExpression*> and-op-expr
-%type <TExpression*> relational-op-expr
-%type <TExpression*> multiplicative-op-expr
-%type <TExpression*> additive-op-expr
-%type <TExpression*> atomic-expr
-%type <TReferenceExpression*> reference-expr
-%type <TFunctionExpression*> function-expr
-%type <TFunctionExpression::TArguments> function-expr-args
+%type <TExpressionPtr> expression
+%type <TExpressionPtr> or-op-expr
+%type <TExpressionPtr> and-op-expr
+%type <TExpressionPtr> relational-op-expr
+%type <TExpressionPtr> multiplicative-op-expr
+%type <TExpressionPtr> additive-op-expr
+%type <TExpressionPtr> atomic-expr
+%type <TFunctionExpression::TArguments> expr-list
 
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
@@ -123,72 +119,64 @@
 
 head
     : StrayWillParseQuery head-clause
-        {
-            *head = $[head-clause];
-        }
 ;
 
 head-clause
-    : select-clause[project] from-clause[scan]
+    : select-clause[select] from-clause[from]
         {
-            $project->SetSource($scan);
-            $$ = $project;
+            head->SelectExprs = $select;
+            head->FromPath = $from;
         }
-    | select-clause[project] from-clause[scan] where-clause[filter]
+    | select-clause[select] from-clause[from] where-clause[where]
         {
-            $filter->SetSource($scan);
-            $project->SetSource($filter);
-            $$ = $project;
+            head->SelectExprs = $select;
+            head->WherePredicate = $where;
+            head->FromPath = $from;
         }
-    | select-clause[project] from-clause[scan] where-clause[filter] group-by-clause[group]
+    | select-clause[select] from-clause[from] where-clause[where] group-by-clause[group]
         {
-            $filter->SetSource($scan);
-            $group->SetSource($filter);
-            $project->SetSource($group);
-            $$ = $project;
+            head->SelectExprs = $select;
+            head->WherePredicate = $where;
+            head->GroupExprs = $group;
+            head->FromPath = $from;
         }
-    | select-clause[project] from-clause[scan] group-by-clause[group]
+    | select-clause[select] from-clause[from] group-by-clause[group]
         {
-            $group->SetSource($scan);
-            $project->SetSource($group);
-            $$ = $project;
+            head->SelectExprs = $select;
+            head->GroupExprs = $group;
+            head->FromPath = $from;
         }
 ;
 
 select-clause
     : named-expression-list[projections]
         {
-            $$ = context->TrackedNew<TProjectOperator>(nullptr);
-            $$->Projections().assign($projections.begin(), $projections.end());
+            $$ = $projections;
         }
-    | Asterisk 
+    | Asterisk
         {
-            $$ = context->TrackedNew<TProjectOperator>(nullptr);
+            $$ = TNullableNamedExprs();
         }
 ;
 
 from-clause
     : KwFrom Identifier[path]
         {
-            context->SetTablePath(Stroka(~$path, +$path));
-
-            $$ = context->TrackedNew<TScanOperator>();
+            $$ = $path;
         }
 ;
 
 where-clause
     : KwWhere or-op-expr[predicate]
         {
-            $$ = context->TrackedNew<TFilterOperator>(nullptr);
-            $$->SetPredicate($predicate);
+            $$ = $predicate;
         }
 ;
 
 group-by-clause
     : KwGroupBy named-expression-list[exprs]
         {
-            $$ = context->TrackedNew<TGroupOperator>(nullptr);
-            $$->GroupItems().assign($exprs.begin(), $exprs.end());
+            $$ = $exprs;
         }
 ;
 
@@ -205,9 +193,9 @@ named-expression-list
 ;
 
 named-expression
-    : reference-expr
+    : expression[expr]
         {
-            $$ = TNamedExpression($1, $1->GetColumnName());
+            $$ = TNamedExpression($expr, InferName($expr.Get()));
         }
     | expression[expr] KwAs Identifier[name]
         {
@@ -223,7 +211,7 @@ expression
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
@@ -232,7 +220,7 @@ or-op-expr
 and-op-expr
     : and-op-expr[lhs] KwAnd relational-op-expr[rhs]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
@@ -241,24 +229,22 @@ and-op-expr
 relational-op-expr
     : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | atomic-expr[expr] KwBetween atomic-expr[lbexpr] KwAnd atomic-expr[rbexpr]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::And, 
-                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr), 
-                context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
-        }
-    | atomic-expr[expr] KwIn LeftParenthesis function-expr-args[args] RightParenthesis
-        {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, MakeUnversionedBooleanValue(false));
+            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And,
+                New<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
+                New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
-            for (const TExpression* current : $args) {
-                $$ = context->TrackedNew<TBinaryOpExpression>(
-                    @$,
-                    EBinaryOp::Or,
-                    context->TrackedNew<TBinaryOpExpression>(@$, EBinaryOp::Equal, $expr, current),
-                    $$);
+        }
+    | atomic-expr[expr] KwIn LeftParenthesis expr-list[args] RightParenthesis
+        {
+            $$ = New<TLiteralExpression>(@$, MakeUnversionedBooleanValue(false));
+
+            for (const auto& current : $args) {
+                $$ = New<TBinaryOpExpression>(@$, EBinaryOp::Or, 
+                    New<TBinaryOpExpression>(@$, EBinaryOp::Equal, $expr, current), $$);
             }
         }
     | additive-op-expr
@@ -283,7 +269,7 @@ relational-op
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | multiplicative-op-expr
         { $$ = $1; }
@@ -299,7 +285,7 @@ additive-op
 multiplicative-op-expr
     : multiplicative-op-expr[lhs] multiplicative-op[opcode] atomic-expr[rhs]
         {
-            $$ = context->TrackedNew<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | atomic-expr
         { $$ = $1; }
@@ -315,25 +301,29 @@ multiplicative-op
 ;
 
 atomic-expr
-    : reference-expr
-        { $$ = $1; }
-    | function-expr
-        { $$ = $1; }
+    : Identifier[name]
+        {
+            $$ = New<TReferenceExpression>(@$, $name);
+        }
+    | Identifier[name] LeftParenthesis expr-list[args] RightParenthesis
+        {
+            $$ = New<TFunctionExpression>(@$, $name, $args);
+        }
     | Int64Literal[value]
         {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, $value);
         }
     | Uint64Literal[value]
         {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, $value);
         }
     | DoubleLiteral[value]
         {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, $value);
         }
     | StringLiteral[value]
         {
-            $$ = context->TrackedNew<TLiteralExpression>(@$, $value);
+            $$ = New<TLiteralExpression>(@$, $value);
         }
     | LeftParenthesis or-op-expr[expr] RightParenthesis
         {
@@ -341,23 +331,8 @@ atomic-expr
         }
 ;
 
-reference-expr
-    : Identifier[name]
-        {
-            $$ = context->TrackedNew<TReferenceExpression>(@$, $name);
-        }
-;
-
-function-expr
-    : Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
-        {
-            $$ = context->TrackedNew<TFunctionExpression>(@$, $name);
-            $$->Arguments().assign($args.begin(), $args.end());
-        }
-;
-
-function-expr-args
-    : function-expr-args[as] Comma expression[a]
+expr-list
+    : expr-list[as] Comma expression[a]
         {
             $$.swap($as);
             $$.push_back($a);
@@ -374,6 +349,7 @@ function-expr-args
 
 namespace NYT {
 namespace NQueryClient {
+namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,5 +361,6 @@ void TParser::error(const location_type& location, const std::string& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NAst
 } // namespace NQueryClient
 } // namespace NYT

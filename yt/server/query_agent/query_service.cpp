@@ -14,6 +14,7 @@
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/query_service_proxy.h>
+#include <ytlib/query_client/query_statistics.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -63,9 +64,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
         auto planFragment = FromProto(request->plan_fragment());
-        planFragment.GetContext()->GetNodeDirectory()->MergeFrom(request->node_directory());
+        planFragment->NodeDirectory->MergeFrom(request->node_directory());
 
-        context->SetRequestInfo("FragmentId: %v", planFragment.Id());
+        context->SetRequestInfo("FragmentId: %v", planFragment->GetId());
 
         ExecuteRequestWithRetries(
             Config_->MaxQueryRetries,

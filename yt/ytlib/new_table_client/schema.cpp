@@ -104,8 +104,7 @@ TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
 {
     auto* column = FindColumn(name);
     if (!column) {
-        THROW_ERROR_EXCEPTION("Missing schema column %Qv",
-            name);
+        THROW_ERROR_EXCEPTION("Missing schema column %Qv", name);
     }
     return *column;
 }
@@ -114,8 +113,7 @@ const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) cons
 {
     auto* column = FindColumn(name);
     if (!column) {
-        THROW_ERROR_EXCEPTION("Missing schema column %Qv",
-            name);
+        THROW_ERROR_EXCEPTION("Missing schema column %Qv", name);
     }
     return *column;
 }
@@ -255,6 +253,16 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
     }
 }
 
+void ValidateTableScheme(const TTableSchema& tableScheme)
+{
+    yhash_set<Stroka> names;
+    for (const auto& column : tableScheme.Columns()) {
+        if (!names.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column %Qv", column.Name);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
@@ -275,8 +283,8 @@ void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
     *keyColumns = NYT::FromProto<Stroka>(protoKeyColumns.names());
 }
 
-}
-}
-}
+} // namespace NProto
+} // namespace NTableClient
+} // namespace NYT
 
 

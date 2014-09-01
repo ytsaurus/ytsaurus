@@ -32,7 +32,7 @@ public:
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM
@@ -69,7 +69,7 @@ public:
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
 #ifdef YT_USE_LLVM

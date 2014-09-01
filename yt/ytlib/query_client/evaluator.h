@@ -15,7 +15,7 @@ public:
 
     TQueryStatistics Run(
         IEvaluateCallbacks* callbacks,
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer);
 
 private:

@@ -2,6 +2,7 @@
 
 namespace NYT {
 namespace NQueryClient {
+namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,7 +10,7 @@ class TLexer
 {
 public:
     TLexer(
-        TPlanContext* context,
+        TRowBuffer* rowBuffer,
         const Stroka& source,
         TParser::token_type strayToken);
 
@@ -21,7 +22,7 @@ private:
     void Initialize(const char* begin, const char* end);
 
 private:
-    TPlanContext* Context_;
+    TRowBuffer* RowBuffer_;
 
     TParser::token_type StrayToken_;
     bool InjectedStrayToken_;
@@ -47,6 +48,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NAst
 } // namespace NQueryClient
 } // namespace NYT
 

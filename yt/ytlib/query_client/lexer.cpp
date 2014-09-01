@@ -5,8 +5,11 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 
+#include <ytlib/new_table_client/row_buffer.h>
+
 namespace NYT {
 namespace NQueryClient {
+namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,10 +33,10 @@ static const int Lexer_en_main = 8;
 } // namespace anonymous
 
 TLexer::TLexer(
-    TPlanContext* context,
+    TRowBuffer* rowBuffer,
     const Stroka& source,
     TParser::token_type strayToken)
-    : Context_(context)
+    : RowBuffer_(rowBuffer)
     , StrayToken_(strayToken)
     , InjectedStrayToken_(false)
     , p(nullptr)
@@ -142,7 +145,8 @@ tr0:
 tr3:
 	{te = p+1;{
             type = TToken::StringLiteral;
-            value->build(MakeUnversionedStringValue(Context_->Capture(UnescapeC(ts + 1, te - ts - 2))));
+
+            value->build(RowBuffer_->Capture(MakeUnversionedStringValue(UnescapeC(ts + 1, te - ts - 2))));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
@@ -156,7 +160,7 @@ tr5:
 tr8:
 	{{p = ((te))-1;}{
             type = TToken::Identifier;
-            value->build(Context_->Capture(ts, te));
+            value->build(TStringBuf(ts, te));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
@@ -222,7 +226,7 @@ tr38:
 tr39:
 	{te = p;p--;{
             type = TToken::Identifier;
-            value->build(Context_->Capture(ts, te));
+            value->build(TStringBuf(ts, te));
             {p++; cs = 8; goto _out;}
         }}
 	goto st8;
@@ -252,7 +256,7 @@ tr42:
 	case 12:
 	{{p = ((te))-1;}
             type = TToken::Identifier;
-            value->build(Context_->Capture(ts, te));
+            value->build(TStringBuf(ts, te));
             {p++; cs = 8; goto _out;}
         }
 	break;
@@ -899,7 +903,7 @@ tr65:
             if (--rd == 0) {
                 re = p;
                 type = TToken::Identifier;
-                value->build(Context_->Capture(rs, re));
+                value->build(TStringBuf(rs, re));
                 cs = 8;
                 {p++; goto _out;}
             }
@@ -1016,6 +1020,7 @@ case 39:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NAst
 } // namespace NQueryClient
 } // namespace NYT
 

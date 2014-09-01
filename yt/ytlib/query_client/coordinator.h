@@ -3,6 +3,7 @@
 #include "public.h"
 #include "callbacks.h"
 #include "plan_fragment.h"
+#include "query_statistics.h"
 #include "key_trie.h"
 
 #include <core/logging/log.h>
@@ -18,7 +19,7 @@ class TCoordinator
 public:
     TCoordinator(
         ICoordinateCallbacks* callbacks,
-        const TPlanFragment& fragment);
+        const TPlanFragmentPtr& fragment);
 
     ~TCoordinator();
 
@@ -26,17 +27,17 @@ public:
 
     virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
-        TPlanContextPtr context) override;
+        TNodeDirectoryPtr nodeDirectory) override;
 
     //! Actually evaluates query.
     //! NB: Does not throw.
     void Run();
 
     //! Returns a plan fragment to be evaluated by the coordinator.
-    TPlanFragment GetCoordinatorFragment() const;
+    TPlanFragmentPtr GetCoordinatorFragment() const;
 
     //! Returns plan fragments to be evaluated by peers.
-    std::vector<TPlanFragment> GetPeerFragments() const;
+    std::vector<TPlanFragmentPtr> GetPeerFragments() const;
 
     //! Returns the totals by aggregating statistics for all involved peers.
     TQueryStatistics GetStatistics() const;
@@ -52,11 +53,11 @@ private:
     struct TPeer
     {
         TPeer(
-            TPlanFragment fragment,
+            const TPlanFragmentPtr& fragment,
             const TDataSplit& collocatedSplit,
             ISchemafulReaderPtr reader,
             const TFuture<TErrorOr<TQueryStatistics>>& QueryResult)
-            : Fragment(std::move(fragment))
+            : Fragment(fragment)
             , CollocatedSplit(collocatedSplit)
             , Reader(std::move(reader))
             , QueryResult(QueryResult)
@@ -65,17 +66,15 @@ private:
         TPeer(const TPeer&) = delete;
         TPeer(TPeer&&) = default;
 
-        TPlanFragment Fragment;
+        TPlanFragmentPtr Fragment;
         const TDataSplit& CollocatedSplit;
         ISchemafulReaderPtr Reader;
         TFuture<TErrorOr<TQueryStatistics>> QueryResult;
     };
 
 private:
-    std::vector<const TOperator*> Scatter(const TOperator* op, const TKeyTrieNode& keyTrie = TKeyTrieNode());
-    const TOperator* Gather(const std::vector<const TOperator*>& ops);
-
-    const TOperator* Simplify(const TOperator*);
+    std::vector<TOperatorPtr> Scatter(const TConstOperatorPtr& op, const TKeyTrieNode& keyTrie = TKeyTrieNode());
+    TOperatorPtr Gather(const std::vector<TOperatorPtr>& ops);
 
     TGroupedDataSplits SplitAndRegroup(
         const TDataSplits& splits,
@@ -89,7 +88,7 @@ private:
 
 private:
     ICoordinateCallbacks* Callbacks_;
-    TPlanFragment Fragment_;
+    TPlanFragmentPtr Fragment_;
 
     std::vector<TPeer> Peers_;
 

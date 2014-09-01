@@ -16,7 +16,7 @@ struct IExecutor
     : public virtual TRefCounted
 {
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) = 0;
 
 };

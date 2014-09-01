@@ -32,7 +32,7 @@
 
 /**
  ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh
- ** Define the NYT::NQueryClient::stack class.
+ ** Define the NYT::NQueryClient::NAst::stack class.
  */
 
 #ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
@@ -40,7 +40,7 @@
 
 # include <vector>
 
-namespace NYT { namespace NQueryClient {
+namespace NYT { namespace NQueryClient { namespace NAst {
   template <class T, class S = std::vector<T> >
   class stack
   {
@@ -149,6 +149,6 @@ namespace NYT { namespace NQueryClient {
     unsigned int range_;
   };
 
-} } // NYT::NQueryClient
+} } } // NYT::NQueryClient::NAst
 
 #endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED

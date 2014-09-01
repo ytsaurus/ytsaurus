@@ -79,6 +79,8 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 
+void ValidateTableScheme(const TTableSchema& tableScheme);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient

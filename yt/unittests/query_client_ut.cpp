@@ -4,21 +4,17 @@
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/object_client/helpers.h>
-
 #include <ytlib/query_client/plan_fragment.h>
-
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
-
 #include <ytlib/query_client/coordinator.h>
 #include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/plan_node.h>
 #include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/plan_visitor.h>
 #include <ytlib/query_client/helpers.h>
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/cg_types.h>
 #endif
+#include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/name_table.h>
@@ -61,6 +57,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NObjectClient;
 using namespace NVersionedTableClient;
+using namespace NNodeTrackerClient;
 
 using ::testing::_;
 using ::testing::StrictMock;
@@ -79,7 +76,7 @@ class TPrepareCallbacksMock
 public:
     MOCK_METHOD2(GetInitialSplit, TFuture<TErrorOr<TDataSplit>>(
         const TYPath&,
-        TPlanContextPtr));
+        TTimestamp));
 };
 
 class TCoordinateCallbacksMock
@@ -88,20 +85,20 @@ class TCoordinateCallbacksMock
 public:
     MOCK_METHOD2(GetReader, ISchemafulReaderPtr(
         const TDataSplit&,
-        TPlanContextPtr));
+        TNodeDirectoryPtr));
 
     MOCK_METHOD1(CanSplit, bool(const TDataSplit&));
 
     MOCK_METHOD2(SplitFurther, TFuture<TErrorOr<TDataSplits>>(
         const TDataSplit&,
-        TPlanContextPtr));
+        TNodeDirectoryPtr));
 
     MOCK_METHOD2(Regroup, TGroupedDataSplits(
         const TDataSplits&,
-        TPlanContextPtr));
+        TNodeDirectoryPtr));
 
     MOCK_METHOD2(Delegate, std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>>(
-        const TPlanFragment&,
+        const TPlanFragmentPtr&,
         const TDataSplit&));
 };
 
@@ -273,7 +270,7 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns)
 
 TFuture<TErrorOr<TDataSplit>> RaiseTableNotFound(
     const TYPath& path,
-    TPlanContextPtr)
+    TTimestamp)
 {
     return MakeFuture(TErrorOr<TDataSplit>(TError(Format(
         "Could not find table %v",
@@ -303,7 +300,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { TPlanFragment::Prepare(&PrepareMock_, query); },
+            [&] { PreparePlanFragment(&PrepareMock_, query); },
             matcher);
     }
 
@@ -316,7 +313,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    TPlanFragment::Prepare(&PrepareMock_, "a, b FROM [//t] WHERE k > 3");
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3");
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -374,6 +371,9 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
     }
     query += ")";
 
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
     ExpectPrepareThrowsWithDiagnostics(
         query,
         ContainsRegex("Plan fragment depth limit exceeded"));
@@ -386,7 +386,24 @@ TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "a as x, b as x FROM [//t] WHERE k > 3",
-        ContainsRegex("Redefinition of column .*"));
+        ContainsRegex("Duplicate column .*"));
+}
+
+TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "sum(sum(a)) from [//t] group by k",
+        ContainsRegex("Misuse of aggregate function .*"));
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "sum(a) from [//t]",
+        ContainsRegex("Misuse of aggregate function .*"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -406,24 +423,11 @@ protected:
         YCHECK(!Coordinator_);
         Coordinator_.Emplace(
             &CoordinateMock_,
-            TPlanFragment::Prepare(&PrepareMock_, source));
+            PreparePlanFragment(&PrepareMock_, source));
 
         Coordinator_->Run();
         CoordinatorFragment_ = Coordinator_->GetCoordinatorFragment();
         PeerFragments_ = Coordinator_->GetPeerFragments();
-    }
-
-    std::vector<const TDataSplit*> ExtractDataSplits(const TOperator* op)
-    {
-        std::vector<const TDataSplit*> result;
-        Visit(op, [&result] (const TOperator* op) {
-            if (auto* scanOp = op->As<TScanOperator>()) {
-                for (const auto& dataSplit : scanOp->DataSplits()) {
-                    result.emplace_back(&dataSplit);
-                }
-            }
-        });
-        return result;
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -431,8 +435,8 @@ protected:
 
     TNullable<TCoordinator> Coordinator_;
 
-    TNullable<TPlanFragment> CoordinatorFragment_;
-    TNullable<std::vector<TPlanFragment>> PeerFragments_;
+    TPlanFragmentPtr CoordinatorFragment_;
+    TNullable<std::vector<TPlanFragmentPtr>> PeerFragments_;
 
 };
 
@@ -533,6 +537,31 @@ TEST(TKeyRangeTest, IsEmpty)
 ////////////////////////////////////////////////////////////////////////////////
 // Refinement tests.
 
+TKeyRange RefineKeyRange(
+    const TKeyColumns& keyColumns,
+    const TKeyRange& keyRange,
+    const TConstExpressionPtr& predicate,
+    const TOwningRow& literals)
+{
+    TRowBuffer rowBuffer;
+
+    auto keyTrie = ExtractMultipleConstraints(
+        predicate,
+        literals,
+        keyColumns,
+        &rowBuffer);
+
+    auto result = GetRangesFromTrieWithinRange(keyRange, &rowBuffer, keyColumns.size(), keyTrie);
+
+    if (result.empty()) {
+        return std::make_pair(EmptyKey(), EmptyKey());
+    } else if (result.size() == 1) {
+        return result[0];
+    } else {
+        return keyRange;
+    }
+}
+
 struct TRefineKeyRangeTestCase
 {
     const char* InitialLeftBoundAsYson;
@@ -573,9 +602,7 @@ class TRefineKeyRangeTest
 {
 protected:
     virtual void SetUp() override
-    {
-        Context_ = New<TPlanContext>();
-    }
+    { }
 
     void ExpectIsEmpty(const TKeyRange& keyRange)
     {
@@ -585,16 +612,33 @@ protected:
     }
 
     template <class TTypedExpression, class... TArgs>
-    const TTypedExpression* Make(TArgs&&... args)
+    TConstExpressionPtr Make(TArgs&&... args)
     {
-        return new (Context_.Get()) TTypedExpression(
-            Context_.Get(),
+        return New<TTypedExpression>(
             NullSourceLocation,
+            EValueType::EDomain::TheBottom,
             std::forward<TArgs>(args)...);
     }
 
-    TPlanContextPtr Context_;
-    const TExpression* Predicate_;
+    TOwningRowBuilder RowBuilder;
+
+    size_t MakeInt64(i64 value)
+    {
+        return RowBuilder.AddValue(MakeUnversionedInt64Value(value));
+    }
+    size_t MakeUint64(ui64 value)
+    {
+        return RowBuilder.AddValue(MakeUnversionedUint64Value(value));
+    }
+    size_t MakeString(const TStringBuf& value)
+    {
+        return RowBuilder.AddValue(MakeUnversionedStringValue(value));
+    }
+
+    TOwningRow Literals()
+    {
+        return RowBuilder.GetRowAndReset();
+    }
 };
 
 void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
@@ -618,14 +662,17 @@ TEST_P(TRefineKeyRangeTest, Basic)
 {
     auto testCase = GetParam();
 
+    auto expr = Make<TBinaryOpExpression>(testCase.ConstraintOpcode,
+        Make<TReferenceExpression>(testCase.ConstraintColumnName),
+        Make<TLiteralExpression>(MakeInt64(testCase.ConstraintValue)));
+
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(
             testCase.GetInitialLeftBound(),
             testCase.GetInitialRightBound()),
-        Make<TBinaryOpExpression>(testCase.ConstraintOpcode,
-            Make<TReferenceExpression>(testCase.ConstraintColumnName),
-            Make<TLiteralExpression>(MakeUnversionedInt64Value(testCase.ConstraintValue))));
+        expr,
+        Literals());
 
     if (testCase.ResultIsEmpty) {
         ExpectIsEmpty(result);
@@ -1022,15 +1069,18 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
+        Make<TLiteralExpression>(MakeInt64(90)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
+        Make<TLiteralExpression>(MakeInt64(10)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
+        expr,
+        Literals());
 
     ExpectIsEmpty(result);
 }
@@ -1039,15 +1089,18 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("50;50;" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;50;" _MAX_), result.second);
@@ -1057,20 +1110,23 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
+        Make<TBinaryOpExpression>(EBinaryOp::And,
+            conj1, conj2), conj3);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            Make<TBinaryOpExpression>(EBinaryOp::And,
-                conj1, conj2), conj3));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("50;50;50"), result.first);
     EXPECT_EQ(BuildKey("50;50;51"), result.second);
@@ -1080,18 +1136,21 @@ TEST_F(TRefineKeyRangeTest, Range1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(0)));
+        Make<TLiteralExpression>(MakeInt64(0)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(100)));
+        Make<TLiteralExpression>(MakeInt64(100)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
+        conj1, conj2);
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
     auto result = RefineKeyRange(
         keyColumns,
         std::make_pair(BuildKey(""), BuildKey("1000000000")),
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-                conj1, conj2));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("1"), result.first);
     EXPECT_EQ(BuildKey("100"), result.second);
@@ -1101,15 +1160,18 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
+        Make<TLiteralExpression>(MakeInt64(10)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
+        Make<TLiteralExpression>(MakeInt64(90)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("10;" _MIN_ ";" _MIN_), result.first);
     EXPECT_EQ(BuildKey("90;" _MIN_ ";" _MIN_), result.second);
@@ -1119,24 +1181,26 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(10)));
+        Make<TLiteralExpression>(MakeInt64(10)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(90)));
+        Make<TLiteralExpression>(MakeInt64(90)));
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
 
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
+        Make<TBinaryOpExpression>(EBinaryOp::And,
+            Make<TBinaryOpExpression>(EBinaryOp::And,
+                conj1, conj2), conj3), conj4);
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            Make<TBinaryOpExpression>(EBinaryOp::And,
-                Make<TBinaryOpExpression>(EBinaryOp::And,
-                    conj1, conj2), conj3), conj4));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("50;10;" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;90;" _MIN_), result.second);
@@ -1146,15 +1210,18 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
@@ -1164,28 +1231,31 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
 
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2);
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(75)));
+        Make<TLiteralExpression>(MakeInt64(75)));
     auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
 
     auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::And, conj4, conj5);
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::Or, conj3, conj6);
 
     TRowBuffer rowBuffer;
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
-        Make<TBinaryOpExpression>(EBinaryOp::Or, conj3, conj6),
+        expr,
+        Literals(),
         keyColumns,
         &rowBuffer);
 
@@ -1208,20 +1278,20 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
 
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
+        Make<TLiteralExpression>(MakeInt64(40)));
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Less,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
+        Make<TLiteralExpression>(MakeInt64(60)));
 
-    auto conj5 = Make<TBinaryOpExpression>(
+    auto expr = Make<TBinaryOpExpression>(
         EBinaryOp::And,
         Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2),
         Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4));
@@ -1231,7 +1301,8 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
-        conj5,
+        expr,
+        Literals(),
         keyColumns,
         &rowBuffer);
 
@@ -1254,13 +1325,13 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
+        Make<TLiteralExpression>(MakeInt64(40)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
+        Make<TLiteralExpression>(MakeInt64(60)));
 
     auto disj1 = Make<TBinaryOpExpression>(
         EBinaryOp::Or,
@@ -1269,27 +1340,30 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
     auto conj4 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(40)));
+        Make<TLiteralExpression>(MakeInt64(40)));
     auto conj5 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj6 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(60)));
+        Make<TLiteralExpression>(MakeInt64(60)));
 
     auto disj2 = Make<TBinaryOpExpression>(
         EBinaryOp::Or,
         Make<TBinaryOpExpression>(EBinaryOp::Or, conj4, conj5),
         conj6);
 
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, disj1, disj2);
+
     TRowBuffer rowBuffer;
 
     auto keyColumns = GetSampleKeyColumns();
 
     auto keyTrie = ExtractMultipleConstraints(
-        Make<TBinaryOpExpression>(EBinaryOp::And, disj1, disj2),
+        expr,
+        Literals(),
         keyColumns,
-        &rowBuffer);
+        &rowBuffer );
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -1331,20 +1405,23 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(1)));
+        Make<TLiteralExpression>(MakeInt64(1)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(2)));
+        Make<TLiteralExpression>(MakeInt64(2)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(3)));
+        Make<TLiteralExpression>(MakeInt64(3)));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And,
+        Make<TBinaryOpExpression>(EBinaryOp::And,
+            conj1, conj2), conj3);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1"), BuildKey("2")),
-        Make<TBinaryOpExpression>(EBinaryOp::And,
-            Make<TBinaryOpExpression>(EBinaryOp::And,
-                conj1, conj2), conj3));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("1;2;3"), result.first);
     EXPECT_EQ(BuildKey("1;2;4"), result.second);
@@ -1354,24 +1431,29 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
     auto conj3 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
         Make<TReferenceExpression>("m"),
-        Make<TLiteralExpression>(MakeUnversionedInt64Value(50)));
+        Make<TLiteralExpression>(MakeInt64(50)));
+
+    auto arg1 = Make<TLiteralExpression>(MakeString("abc"));
+    auto arg2 = Make<TReferenceExpression>("s");
 
     auto conj4 = Make<TFunctionExpression>("is_prefix",
-        Make<TLiteralExpression>(MakeUnversionedStringValue("abc")),
-        Make<TReferenceExpression>("s"));
+        std::initializer_list<TConstExpressionPtr>({arg1, arg2}));
+
+    auto expr = Make<TBinaryOpExpression>(EBinaryOp::And, conj1, 
+        Make<TBinaryOpExpression>(EBinaryOp::And, conj2, 
+            Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4)));
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
         std::make_pair(BuildKey("1;1;1;aaaa"), BuildKey("100;100;100;bbbbb")),
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, 
-            Make<TBinaryOpExpression>(EBinaryOp::And, conj2, 
-                Make<TBinaryOpExpression>(EBinaryOp::And, conj3, conj4))));
+        expr,
+        Literals());
 
     EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
     EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);
@@ -1425,7 +1507,7 @@ class TEvaluateCallbacksMock
     : public IEvaluateCallbacks
 {
 public:
-    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(const TDataSplit&, TPlanContextPtr));
+    MOCK_METHOD2(GetReader, ISchemafulReaderPtr(const TDataSplit&, TNodeDirectoryPtr));
 
 };
 
@@ -1448,7 +1530,7 @@ public:
     MOCK_METHOD0(GetReadyEvent, TAsyncError());
 };
 
-TUnversionedOwningRow BuildRow(
+TOwningRow BuildRow(
     const Stroka& yson,
     TDataSplit& dataSplit,
     bool treatMissingAsNull = true)
@@ -1466,8 +1548,6 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
-        
-
         ReaderMock_ = New<StrictMock<TReaderMock>>();
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
@@ -1482,8 +1562,8 @@ protected:
     void Evaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
-        const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult,
+        const std::vector<TOwningRow>& owningSource,
+        const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
@@ -1504,20 +1584,20 @@ protected:
     void DoEvaluate(
         const Stroka& query,
         const TDataSplit& dataSplit,
-        const std::vector<TUnversionedOwningRow>& owningSource,
-        const std::vector<TUnversionedOwningRow>& owningResult,
+        const std::vector<TOwningRow>& owningSource,
+        const std::vector<TOwningRow>& owningResult,
         i64 inputRowLimit,
         i64 outputRowLimit)
     {
         std::vector<TRow> source(owningSource.size());
         std::vector<std::vector<TRow>> results;
-        typedef const TRow(TUnversionedOwningRow::*TGetFunction)() const;
+        typedef const TRow(TOwningRow::*TGetFunction)() const;
 
         std::transform(
             owningSource.begin(),
             owningSource.end(),
             source.begin(),
-            std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+            std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
         for (auto iter = owningResult.begin(), end = owningResult.end(); iter != end;) {
             size_t writeSize = std::min(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
@@ -1527,7 +1607,7 @@ protected:
                 iter,
                 iter + writeSize,
                 result.begin(),
-                std::mem_fn(TGetFunction(&TUnversionedOwningRow::Get)));
+                std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
             results.push_back(result);
 
@@ -1563,7 +1643,7 @@ protected:
         TEvaluator evaluator;
         evaluator.Run(
             &EvaluateMock_,
-            TPlanFragment::Prepare(&PrepareMock_, query, inputRowLimit, outputRowLimit),
+            PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit),
             WriterMock_);
     }
 
@@ -1582,11 +1662,11 @@ TEST_F(TQueryEvaluateTest, Simple)
     columns.emplace_back("b", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
@@ -1600,12 +1680,12 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     columns.emplace_back("b", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
     source.push_back(BuildRow("a=15;b=11", simpleSplit, false));
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
     Evaluate("a, b FROM [//t] where a between 9 and 11", simpleSplit, source, result);
@@ -1618,12 +1698,12 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     columns.emplace_back("b", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     source.push_back(BuildRow("a=10;b=11", simpleSplit, false));
     source.push_back(BuildRow("a=15;b=11", simpleSplit, false));
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=4;b=5", simpleSplit, false));
     result.push_back(BuildRow("a=10;b=11", simpleSplit, false));
 
@@ -1638,12 +1718,12 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
     columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("a=4;b=5", simpleSplit, true));
     source.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
     source.push_back(BuildRow("a=16", simpleSplit, true));
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=4;b=5", simpleSplit, true));
     result.push_back(BuildRow("a=10;b=11;c=9", simpleSplit, true));
     result.push_back(BuildRow("a=16", simpleSplit, true));
@@ -1659,7 +1739,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
     columns.emplace_back("c", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("a=1;b=2;c=3", simpleSplit, true));
     source.push_back(BuildRow("a=4", simpleSplit, true));
     source.push_back(BuildRow("a=5;b=5", simpleSplit, true));
@@ -1672,7 +1752,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
     resultColumns.emplace_back("x", EValueType::Int64);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=1;x=5", resultSplit, true));
     result.push_back(BuildRow("a=4;", resultSplit, true));
     result.push_back(BuildRow("a=5;", resultSplit, true));
@@ -1687,14 +1767,14 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
     columns.emplace_back("s", EValueType::String);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("s=foo", simpleSplit, true));
     source.push_back(BuildRow("s=bar", simpleSplit, true));
     source.push_back(BuildRow("s=baz", simpleSplit, true));
 
     auto resultSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("s=foo", resultSplit, true));
     result.push_back(BuildRow("s=bar", resultSplit, true));
     result.push_back(BuildRow("s=baz", resultSplit, true));
@@ -1709,7 +1789,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
     columns.emplace_back("u", EValueType::String);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("s=foo; u=x", simpleSplit, true));
     source.push_back(BuildRow("s=bar; u=y", simpleSplit, true));
     source.push_back(BuildRow("s=baz; u=x", simpleSplit, true));
@@ -1717,7 +1797,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
 
     auto resultSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("s=foo; u=x", resultSplit, true));
     result.push_back(BuildRow("s=baz; u=x", resultSplit, true));
 
@@ -1730,14 +1810,14 @@ TEST_F(TQueryEvaluateTest, HasPrefixStrings)
     columns.emplace_back("s", EValueType::String);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     source.push_back(BuildRow("s=foobar", simpleSplit, true));
     source.push_back(BuildRow("s=bar", simpleSplit, true));
     source.push_back(BuildRow("s=baz", simpleSplit, true));
 
     auto resultSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("s=foobar", resultSplit, true));
 
     Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", simpleSplit, source, result);
@@ -1762,12 +1842,12 @@ TEST_F(TQueryEvaluateTest, Complex)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=0;t=200", simpleSplit, false));
     result.push_back(BuildRow("x=1;t=241", simpleSplit, false));
 
@@ -1795,7 +1875,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
@@ -1806,7 +1886,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
     resultColumns.emplace_back("t", EValueType::Int64);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=0;q=0;t=200", resultSplit, false));
     result.push_back(BuildRow("x=1;q=0;t=241", resultSplit, false));
 
@@ -1822,12 +1902,12 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     columns.emplace_back("b", EValueType::Int64);
     auto simpleSplit = MakeSplit(columns);
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (size_t i = 0; i < 10000; ++i) {
         source.push_back(BuildRow(Stroka() + "a=" + ToString(i) + ";b=" + ToString(i * 10), simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
 
     for (size_t i = 2; i < 10000; ++i) {
         result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), simpleSplit, false));
@@ -1859,7 +1939,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "b=3"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, true));
     }
@@ -1870,7 +1950,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     resultColumns.emplace_back("y", EValueType::Int64);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=1;t=251;y=250", resultSplit, true));
     result.push_back(BuildRow("x=0;t=200;y=200", resultSplit, true));
     result.push_back(BuildRow("y=6", resultSplit, true));
@@ -1898,7 +1978,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "b=3"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, true));
     }
@@ -1907,7 +1987,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
     resultColumns.emplace_back("b", EValueType::Int64);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("b=1", resultSplit, true));
     result.push_back(BuildRow("b=2", resultSplit, true));
     result.push_back(BuildRow("b=3", resultSplit, true));
@@ -1940,7 +2020,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "a=90;s=z"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, true));
     }
@@ -1950,7 +2030,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
     resultColumns.emplace_back("t", EValueType::Int64);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=y;t=160", resultSplit, true));
     result.push_back(BuildRow("x=x;t=120", resultSplit, true));
     result.push_back(BuildRow("t=199", resultSplit, true));
@@ -1977,7 +2057,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         "a=trg1t;s=six"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, true));
     }
@@ -1986,7 +2066,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
     resultColumns.emplace_back("s", EValueType::String);
     auto resultSplit = MakeSplit(resultColumns);
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("s=one", resultSplit, true));
     result.push_back(BuildRow("s=two", resultSplit, true));
     result.push_back(BuildRow("s=four", resultSplit, true));
@@ -2016,12 +2096,12 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
     result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     
@@ -2049,12 +2129,12 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
 
@@ -2082,12 +2162,12 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
     result.push_back(BuildRow("a=4;b=40", simpleSplit, false));
@@ -2116,12 +2196,12 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "a=9;b=90"
     };
 
-    std::vector<TUnversionedOwningRow> source;
+    std::vector<TOwningRow> source;
     for (auto row : sourceRowsData) {
         source.push_back(BuildRow(row, simpleSplit, false));
     }
 
-    std::vector<TUnversionedOwningRow> result;
+    std::vector<TOwningRow> result;
     result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
     result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     

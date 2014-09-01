@@ -1,27 +1,123 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/query_client/operator.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TExpression
+{
+    required int32 kind = 1;
+    required uint32 type = 2;
+
+    required int32 location_begin = 3;
+    required int32 location_end = 4;
+
+    extensions 100 to max;
+}
+
+message TLiteralExpression
+{
+    extend TExpression {
+        optional TLiteralExpression literal_expression = 107;
+    }
+    required uint32 index = 1;
+}
+
+message TReferenceExpression
+{
+    extend TExpression {
+        optional TReferenceExpression reference_expression = 104;
+    }
+    required string column_name = 1;
+}
+
+message TFunctionExpression
+{
+    extend TExpression {
+        optional TFunctionExpression function_expression = 105;
+    }
+    required string function_name = 1;
+    repeated TExpression arguments = 2;
+}
+
+message TBinaryOpExpression
+{
+    extend TExpression {
+        optional TBinaryOpExpression binary_op_expression = 106;
+    }
+    required int32 opcode = 1; // EBinaryOp
+    required TExpression lhs = 2;
+    required TExpression rhs = 3;
+}
+
+message TNamedItem
+{
+    required TExpression expression = 1;
+    required string name = 2;
+}
+
+message TAggregateItem
+{
+    required TExpression expression = 1;
+    required int32 aggregate_function = 2; // EAggregateFunction
+    required string name = 3;
+}
+
+message TOperator
+{
+    required int32 kind = 1;
+
+    extensions 100 to max;
+}
+
+message TScanOperator
+{
+    extend TOperator {
+        optional TScanOperator scan_operator = 101;
+    }
+    repeated NYT.NChunkClient.NProto.TChunkSpec data_split = 1;
+}
+
+message TFilterOperator
+{
+    extend TOperator {
+        optional TFilterOperator filter_operator = 102;
+    }
+    required TOperator source = 1;
+    required TExpression predicate = 2;
+}
+
+message TGroupOperator
+{
+    extend TOperator {
+        optional TGroupOperator group_operator = 103;
+    }
+    required TOperator source = 1;
+    repeated TNamedItem group_items = 2;
+    repeated TAggregateItem aggregate_items = 3;
+}
+
+message TProjectOperator
+{
+    extend TOperator {
+        optional TProjectOperator project_operator = 104;
+    }
+    required TOperator source = 1;
+    repeated TNamedItem projections = 2;
+}
 
 message TPlanFragment
 {
     required TOperator head = 1;
     required NYT.NProto.TGuid id = 2;
     required uint64 timestamp = 3;
-    required int64 input_row_limit = 5;
-    required int64 output_row_limit = 4;
-}
+    required int64 input_row_limit = 4;
+    required int64 output_row_limit = 5;
 
-message TQueryStatistics
-{
-    required int64 rows_read = 1;
-    required int64 rows_written = 2;
-    required uint64 sync_time = 3;
-    required uint64 async_time = 4;
-    required bool incomplete_input = 6;
-    required bool incomplete_output = 5;
+    required bytes literals = 6;
+
+    required string source = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

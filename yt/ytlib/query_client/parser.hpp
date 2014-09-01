@@ -32,7 +32,7 @@
 
 /**
  ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp
- ** Define the NYT::NQueryClient::parser class.
+ ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
@@ -41,14 +41,14 @@
 # define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
-    #include "plan_node.h"
+    #include "ast.h"
 
-    namespace NYT { namespace NQueryClient {
+    namespace NYT { namespace NQueryClient { namespace NAst {
         using namespace NVersionedTableClient;
 
         class TLexer;
         class TParser;
-    } }
+    } } }
 
 
 
@@ -78,7 +78,7 @@
 # endif /* ! defined YYDEBUG */
 #endif  /* ! defined YT_QL_YYDEBUG */
 
-namespace NYT { namespace NQueryClient {
+namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
@@ -230,6 +230,7 @@ namespace NYT { namespace NQueryClient {
       // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
 
+      // where-clause
       // expression
       // or-op-expr
       // and-op-expr
@@ -237,46 +238,30 @@ namespace NYT { namespace NQueryClient {
       // additive-op-expr
       // multiplicative-op-expr
       // atomic-expr
-      char dummy2[sizeof(TExpression*)];
+      char dummy2[sizeof(TExpressionPtr)];
 
-      // where-clause
-      char dummy3[sizeof(TFilterOperator*)];
-
-      // function-expr
-      char dummy4[sizeof(TFunctionExpression*)];
-
-      // function-expr-args
-      char dummy5[sizeof(TFunctionExpression::TArguments)];
-
-      // group-by-clause
-      char dummy6[sizeof(TGroupOperator*)];
+      // expr-list
+      char dummy3[sizeof(TFunctionExpression::TArguments)];
 
       // named-expression
-      char dummy7[sizeof(TNamedExpression)];
+      char dummy4[sizeof(TNamedExpression)];
 
+      // group-by-clause
       // named-expression-list
-      char dummy8[sizeof(TNamedExpressionList)];
-
-      // head-clause
-      char dummy9[sizeof(TOperator*)];
+      char dummy5[sizeof(TNamedExpressionList)];
 
       // select-clause
-      char dummy10[sizeof(TProjectOperator*)];
-
-      // reference-expr
-      char dummy11[sizeof(TReferenceExpression*)];
-
-      // from-clause
-      char dummy12[sizeof(TScanOperator*)];
+      char dummy6[sizeof(TNullableNamedExprs)];
 
       // "identifier"
-      char dummy13[sizeof(TStringBuf)];
+      // from-clause
+      char dummy7[sizeof(TStringBuf)];
 
       // "int64 literal"
       // "uint64 literal"
       // "double literal"
       // "string literal"
-      char dummy14[sizeof(TUnversionedValue)];
+      char dummy8[sizeof(TUnversionedValue)];
 };
 
     /// Symbol semantic values.
@@ -365,27 +350,15 @@ namespace NYT { namespace NQueryClient {
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TExpression* v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TFilterOperator* v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TFunctionExpression* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TExpressionPtr v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TGroupOperator* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TOperator* v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TProjectOperator* v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TReferenceExpression* v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TScanOperator* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TNullableNamedExprs v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -571,7 +544,7 @@ namespace NYT { namespace NQueryClient {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TPlanContext* context_yyarg, const TOperator** head_yyarg);
+    TParser (TLexer& lexer_yyarg, TQuery* head_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -652,7 +625,7 @@ namespace NYT { namespace NQueryClient {
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
-  static const signed char yytable_[];
+  static const unsigned char yytable_[];
 
   static const signed char yycheck_[];
 
@@ -769,10 +742,10 @@ namespace NYT { namespace NQueryClient {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 73,           //< Last index in yytable_.
-      yynnts_ = 22,  //< Number of nonterminal symbols.
+      yylast_ = 71,           //< Last index in yytable_.
+      yynnts_ = 20,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 23, //< Termination state number.
+      yyfinal_ = 21, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
       yyntokens_ = 32    //< Number of tokens.
@@ -781,12 +754,11 @@ namespace NYT { namespace NQueryClient {
 
     // User arguments.
     TLexer& lexer;
-    TPlanContext* context;
-    const TOperator** head;
+    TQuery* head;
   };
 
 
-} } // NYT::NQueryClient
+} } } // NYT::NQueryClient::NAst
 
 
 

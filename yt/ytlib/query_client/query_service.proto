@@ -2,6 +2,7 @@ package NYT.NQueryClient.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/query_client/query_statistics.proto";
 import "yt/ytlib/query_client/plan_fragment.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

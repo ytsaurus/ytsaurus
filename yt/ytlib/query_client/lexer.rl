@@ -4,8 +4,11 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 
+#include <ytlib/new_table_client/row_buffer.h>
+
 namespace NYT {
 namespace NQueryClient {
+namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +54,7 @@ typedef TParser::token_type TToken;
             if (--rd == 0) {
                 re = fpc;
                 type = TToken::Identifier;
-                value->build(Context_->Capture(rs, re));
+                value->build(TStringBuf(rs, re));
                 fnext main;
                 fbreak;
             }
@@ -72,7 +75,7 @@ typedef TParser::token_type TToken;
 
         identifier => {
             type = TToken::Identifier;
-            value->build(Context_->Capture(ts, te));
+            value->build(TStringBuf(ts, te));
             fbreak;
         };
         int64_literal => {
@@ -92,7 +95,8 @@ typedef TParser::token_type TToken;
         };
         string_literal => {
             type = TToken::StringLiteral;
-            value->build(MakeUnversionedStringValue(Context_->Capture(UnescapeC(ts + 1, te - ts - 2))));
+
+            value->build(RowBuffer_->Capture(MakeUnversionedStringValue(UnescapeC(ts + 1, te - ts - 2))));
             fbreak;
         };
 
@@ -127,10 +131,10 @@ namespace {
 } // namespace anonymous
 
 TLexer::TLexer(
-    TPlanContext* context,
+    TRowBuffer* rowBuffer,
     const Stroka& source,
     TParser::token_type strayToken)
-    : Context_(context)
+    : RowBuffer_(rowBuffer)
     , StrayToken_(strayToken)
     , InjectedStrayToken_(false)
     , p(nullptr)
@@ -183,6 +187,7 @@ TParser::token_type TLexer::GetNextToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NAst
 } // namespace NQueryClient
 } // namespace NYT
 

@@ -7,8 +7,6 @@
 #include <core/misc/common.h>
 #include <core/misc/error.h>
 
-#include <ytlib/node_tracker_client/public.h>
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -23,7 +21,7 @@ struct IPrepareCallbacks
     //! Returns an initial split for a given path.
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(
         const NYPath::TYPath& path,
-        TPlanContextPtr context) = 0;
+        TTimestamp timestamp) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +35,7 @@ struct IEvaluateCallbacks
     //! Returns a reader for a given split.
     virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
-        TPlanContextPtr context) = 0;
+        TNodeDirectoryPtr nodeDirectory) = 0;
 
 };
 
@@ -57,7 +55,7 @@ struct ICoordinateCallbacks
     //! Reduces a given split to smaller partitions.
     virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
         const TDataSplit& split,
-        TPlanContextPtr context) = 0;
+        TNodeDirectoryPtr nodeDirectory) = 0;
 
     //! Regroups data splits so that each group could be effectively processed
     //! independently.
@@ -72,11 +70,11 @@ struct ICoordinateCallbacks
      */
     virtual TGroupedDataSplits Regroup(
         const TDataSplits& splits,
-        TPlanContextPtr context) = 0;
+        TNodeDirectoryPtr nodeDirectory) = 0;
 
     //! Delegates fragment execution to be collocated with a given split.
     virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         const TDataSplit& collocatedSplit) = 0;
 
 };

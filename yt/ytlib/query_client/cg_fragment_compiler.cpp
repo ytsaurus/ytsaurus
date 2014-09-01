@@ -4,7 +4,6 @@
 #include "private.h"
 #include "helpers.h"
 
-#include "plan_node.h"
 #include "plan_fragment.h"
 
 #include "cg_fragment.h"
@@ -54,7 +53,6 @@ using llvm::Value;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<void(TCGIRBuilder& builder, Value* row)> TCodegenConsumer;
-
 
 static Value* CodegenValuesPtrFromRow(TCGIRBuilder&, Value*);
 
@@ -347,7 +345,7 @@ class TCGContext
 {
 public:
     static Function* CodegenEvaluate(
-        const TPlanFragment& planFragment,
+        const TConstPlanFragmentPtr& planFragment,
         const TCGFragment& cgFragment,
         const TCGBinding& binding);
 
@@ -380,7 +378,7 @@ private:
 
     TCGValue CodegenExpr(
         TCGIRBuilder& builder,
-        const TExpression* expr,
+        const TConstExpressionPtr& expr,
         const TTableSchema& schema,
         Value* row);
 
@@ -398,7 +396,7 @@ private:
 
     void CodegenOp(
         TCGIRBuilder& builder,
-        const TOperator* op,
+        const TConstOperatorPtr& op,
         const TCodegenConsumer& codegenConsumer);
 
     void CodegenScanOp(
@@ -686,21 +684,21 @@ TCGValue TCGContext::CodegenFunctionExpr(
     const TTableSchema& schema,
     Value* row)
 {
-    Stroka functionName(expr->GetFunctionName());
+    Stroka functionName(expr->FunctionName);
     functionName.to_lower();
 
     auto name = "{" + expr->GetName() + "}";
-    auto type = expr->GetType(schema);
+    auto type = expr->Type;
     auto nameTwine = Twine(name.c_str());
 
     if (functionName == "if") {
-        YCHECK(expr->GetArgumentCount() == 3);
-        const TExpression* condExpr = expr->Arguments()[0];
-        const TExpression* thenExpr = expr->Arguments()[1];
-        const TExpression* elseExpr = expr->Arguments()[2];
+        YCHECK(expr->Arguments.size() == 3);
+        const auto& condExpr = expr->Arguments[0];
+        const auto& thenExpr = expr->Arguments[1];
+        const auto& elseExpr = expr->Arguments[2];
 
-        auto thenType = thenExpr->GetType(schema);
-        auto elseType = elseExpr->GetType(schema);
+        auto thenType = thenExpr->Type;
+        auto elseType = elseExpr->Type;
 
         auto condition = CodegenExpr(builder, condExpr, schema, row);
 
@@ -720,12 +718,12 @@ TCGValue TCGContext::CodegenFunctionExpr(
             }, type);
         }, type, nameTwine);
     } else if (functionName == "is_prefix") {
-        YCHECK(expr->GetArgumentCount() == 2);
-        const TExpression* lhsExpr = expr->Arguments()[0];
-        const TExpression* rhsExpr = expr->Arguments()[1];
+        YCHECK(expr->Arguments.size() == 2);
+        const auto& lhsExpr = expr->Arguments[0];
+        const auto& rhsExpr = expr->Arguments[1];
 
-        YCHECK(lhsExpr->GetType(schema) == EValueType::String);
-        YCHECK(rhsExpr->GetType(schema) == EValueType::String);
+        YCHECK(lhsExpr->Type == EValueType::String);
+        YCHECK(rhsExpr->Type == EValueType::String);
 
         auto lhsValue = CodegenExpr(builder, lhsExpr, schema, row);
     
@@ -754,8 +752,8 @@ TCGValue TCGContext::CodegenFunctionExpr(
             }, type);
         }, type, nameTwine);
     } else if (functionName == "lower") {
-        YCHECK(expr->GetArgumentCount() == 1);
-        const TExpression* argExpr = expr->Arguments()[0];
+        YCHECK(expr->Arguments.size() == 1);
+        const auto& argExpr = expr->Arguments[0];
 
         auto argValue = CodegenExpr(builder, argExpr, schema, row);
 
@@ -776,8 +774,8 @@ TCGValue TCGContext::CodegenFunctionExpr(
             return TCGValue::CreateFromValue(builder, builder.getInt16(type), argLength, result);
         }, type, nameTwine);
     } else if (functionName == "is_null") {
-        YCHECK(expr->GetArgumentCount() == 1);
-        const TExpression* argExpr = expr->Arguments()[0];
+        YCHECK(expr->Arguments.size() == 1);
+        const auto& argExpr = expr->Arguments[0];
 
         auto argValue = CodegenExpr(builder, argExpr, schema, row);
 
@@ -800,27 +798,27 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
     Value* row)
 {
     auto name = "{" + expr->GetName() + "}";
-    auto type = expr->GetType(schema);
+    auto type = expr->Type;
     
     auto nameTwine = Twine(name.c_str());
-    auto lhsValue = CodegenExpr(builder, expr->GetLhs(), schema, row);
+    auto lhsValue = CodegenExpr(builder, expr->Lhs, schema, row);
 
     return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
             return lhsValue.IsNull();
         }, [&] (TCGIRBuilder& builder) {
             return TCGValue::CreateNull(builder);
         }, [&] (TCGIRBuilder& builder) {
-            auto rhsValue = CodegenExpr(builder, expr->GetRhs(), schema, row);
+            auto rhsValue = CodegenExpr(builder, expr->Rhs, schema, row);
 
             return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
                 return rhsValue.IsNull();            
             }, [&] (TCGIRBuilder& builder) {
                 return TCGValue::CreateNull(builder);
             }, [&] (TCGIRBuilder& builder) {
-                auto lhsType = expr->GetLhs()->GetType(schema);
-                auto rhsType = expr->GetRhs()->GetType(schema);
+                auto lhsType = expr->Lhs->Type;
+                auto rhsType = expr->Rhs->Type;
 
-                auto commonType = InferCommonType(lhsType, rhsType, expr->GetSource());
+                auto commonType = InferCommonType(lhsType, rhsType);
 
                 lhsValue = lhsValue.Cast(lhsType, commonType);
                 rhsValue = rhsValue.Cast(rhsType, commonType);
@@ -845,7 +843,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
 
                     case EValueType::Boolean:
                     case EValueType::Int64:
-                        switch (expr->GetOpcode()) {
+                        switch (expr->Opcode) {
                             OP(Plus, Add)
                             OP(Minus, Sub)
                             OP(Multiply, Mul)
@@ -864,7 +862,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                         }
                         break;
                     case EValueType::Uint64:
-                        switch (expr->GetOpcode()) {
+                        switch (expr->Opcode) {
                             OP(Plus, Add)
                             OP(Minus, Sub)
                             OP(Multiply, Mul)
@@ -883,7 +881,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                         }
                         break;
                     case EValueType::Double:
-                        switch (expr->GetOpcode()) {
+                        switch (expr->Opcode) {
                             OP(Plus, FAdd)
                             OP(Minus, FSub)
                             OP(Multiply, FMul)
@@ -902,7 +900,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                         Value* lhsLength = lhsValue.GetLength();
                         Value* rhsLength = rhsValue.GetLength();
 
-                        switch (expr->GetOpcode()) {
+                        switch (expr->Opcode) {
                             case EBinaryOp::Equal:
                                 evalData = builder.CreateCall4(
                                     Fragment_.GetRoutine("Equal"),
@@ -942,47 +940,40 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
 
 TCGValue TCGContext::CodegenExpr(
     TCGIRBuilder& builder,
-    const TExpression* expr,
+    const TConstExpressionPtr& expr,
     const TTableSchema& schema,
     Value* row)
 {
-    YASSERT(expr);
-    switch (expr->GetKind()) {
-        case EExpressionKind::Literal: {
-            auto it = Binding_.NodeToConstantIndex.find(expr);
-            YCHECK(it != Binding_.NodeToConstantIndex.end());
-            auto index = it->second;
-            return TCGValue::CreateFromRow(
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return TCGValue::CreateFromRow(
+            builder,
+            GetConstantsRows(builder),
+            literalExpr->Index,
+            "literal." + Twine(literalExpr->Index))
+            .SetType(expr->Type) // Force type as constants are non-NULL.
+            .Steal();
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        auto column = referenceExpr->ColumnName;
+        auto index = schema.GetColumnIndexOrThrow(column);
+        return TCGValue::CreateFromRow(
+            builder,
+            row,
+            index,
+            "reference." + Twine(column.c_str()));
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        return CodegenFunctionExpr(
                 builder,
-                GetConstantsRows(builder),
-                index,
-                "literal." + Twine(index))
-                .SetType(expr->GetType(schema)) // Force type as constants are non-NULL.
-                .Steal();
-        }
-        case EExpressionKind::Reference: {
-            auto column = expr->As<TReferenceExpression>()->GetColumnName();
-            auto index = schema.GetColumnIndexOrThrow(column);
-            return TCGValue::CreateFromRow(
-                builder,
-                row,
-                index,
-                "reference." + Twine(column.c_str()));
-        }
-        case EExpressionKind::Function:
-            return CodegenFunctionExpr(
-                builder,
-                expr->As<TFunctionExpression>(),
+                functionExpr,
                 schema,
                 row);
-        case EExpressionKind::BinaryOp:
-            return CodegenBinaryOpExpr(
+    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
+        return CodegenBinaryOpExpr(
                 builder,
-                expr->As<TBinaryOpExpression>(),
+                binaryOpExpr,
                 schema,
                 row);
-        default:
-            YUNREACHABLE();
+    } else {
+        YUNREACHABLE();
     }
 }
 
@@ -992,20 +983,20 @@ TCGValue TCGContext::CodegenExpr(
 
 void TCGContext::CodegenOp(
     TCGIRBuilder& builder,
-    const TOperator* op,
+    const TConstOperatorPtr& op,
     const TCodegenConsumer& codegenConsumer)
 {
-    switch (op->GetKind()) {
-        case EOperatorKind::Scan:
-            return CodegenScanOp(builder, op->As<TScanOperator>(), codegenConsumer);
-        case EOperatorKind::Filter:
-            return CodegenFilterOp(builder, op->As<TFilterOperator>(), codegenConsumer);
-        case EOperatorKind::Project:
-            return CodegenProjectOp(builder, op->As<TProjectOperator>(), codegenConsumer);
-        case EOperatorKind::Group:
-            return CodegenGroupOp(builder, op->As<TGroupOperator>(), codegenConsumer);
+    if (auto scanOp = op->As<TScanOperator>()) {
+        return CodegenScanOp(builder, scanOp, codegenConsumer);
+    } else if (auto filterOp = op->As<TFilterOperator>()) {
+        return CodegenFilterOp(builder, filterOp, codegenConsumer);
+    } else if (auto projectOp = op->As<TProjectOperator>()) {
+        return CodegenProjectOp(builder, projectOp, codegenConsumer);
+    } else if (auto groupOp = op->As<TGroupOperator>()) {
+        return CodegenGroupOp(builder, groupOp, codegenConsumer);
+    } else {
+        YUNREACHABLE();
     }
-    YUNREACHABLE();
 }
 
 void TCGContext::CodegenScanOp(
@@ -1058,11 +1049,11 @@ void TCGContext::CodegenFilterOp(
 {
     auto sourceSchema = op->GetTableSchema();
 
-    CodegenOp(builder, op->GetSource(),
+    CodegenOp(builder, op->Source,
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             auto predicateResult = CodegenExpr(
                 innerBuilder,
-                op->GetPredicate(),
+                op->Predicate,
                 sourceSchema,
                 row);
 
@@ -1091,12 +1082,10 @@ void TCGContext::CodegenProjectOp(
     const TProjectOperator* op,
     const TCodegenConsumer& codegenConsumer)
 {
-    int projectionCount = op->GetProjectionCount();
+    int projectionCount = op->Projections.size();
+    auto sourceTableSchema = op->Source->GetTableSchema();
 
-    auto sourceTableSchema = op->GetSource()->GetTableSchema();
-    auto nameTable = op->GetNameTable();
-
-    CodegenOp(builder, op->GetSource(),
+    CodegenOp(builder, op->Source,
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
@@ -1109,10 +1098,9 @@ void TCGContext::CodegenProjectOp(
             Value* newRow = innerBuilder.CreateLoad(newRowPtr);
 
             for (int index = 0; index < projectionCount; ++index) {
-                const auto& expr = op->GetProjection(index).Expression;
-                const auto& name = op->GetProjection(index).Name;
-                auto id = nameTable->GetId(name);
-                auto type = expr->GetType(sourceTableSchema);
+                const auto& expr = op->Projections[index].Expression;
+                auto id = index;
+                auto type = expr->Type;
 
                 CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                     .SetTypeIfNotNull(type)
@@ -1148,15 +1136,13 @@ void TCGContext::CodegenGroupOp(
         &builder,
         closure);
 
-    int keySize = op->GetGroupItemCount();
-    int aggregateItemCount = op->AggregateItems().size();
-
-    auto sourceTableSchema = op->GetSource()->GetTableSchema();
-    auto nameTable = op->GetNameTable();
+    int keySize = op->GroupItems.size();
+    int aggregateItemCount = op->AggregateItems.size();
+    auto sourceTableSchema = op->Source->GetTableSchema();
 
     Value* newRowPtr = innerBuilder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-    CodegenOp(innerBuilder, op->GetSource(), [&] (TCGIRBuilder& innerBuilder, Value* row) {
+    CodegenOp(innerBuilder, op->Source, [&] (TCGIRBuilder& innerBuilder, Value* row) {
         Value* executionContextPtrRef = GetExecutionContextPtr(innerBuilder);
         Value* groupedRowsRef = innerBuilder.ViaClosure(groupedRows);
         Value* rowsRef = innerBuilder.ViaClosure(rows);
@@ -1171,10 +1157,9 @@ void TCGContext::CodegenGroupOp(
         Value* newRowRef = innerBuilder.CreateLoad(newRowPtrRef);
 
         for (int index = 0; index < keySize; ++index) {
-            const auto& expr = op->GetGroupItem(index).Expression;
-            const auto& name = op->GetGroupItem(index).Name;
-            auto id = nameTable->GetId(name);
-            auto type = expr->GetType(sourceTableSchema);
+            const auto& expr = op->GroupItems[index].Expression;
+            auto id = index;
+            auto type = expr->Type;
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .SetTypeIfNotNull(type)
@@ -1182,12 +1167,11 @@ void TCGContext::CodegenGroupOp(
         }
 
         for (int index = 0; index < aggregateItemCount; ++index) {
-            const auto& item = op->GetAggregateItem(index);
+            const auto& item = op->AggregateItems[index];
             const auto& expr = item.Expression;
-            const auto& name = item.Name;
 
-            auto id = nameTable->GetId(name);
-            auto type = expr->GetType(sourceTableSchema);
+            auto id = keySize + index;
+            auto type = expr->Type;
 
             CodegenExpr(innerBuilder, expr, sourceTableSchema, row)
                 .SetTypeIfNotNull(type)
@@ -1208,11 +1192,11 @@ void TCGContext::CodegenGroupOp(
         }, [&] (TCGIRBuilder& innerBuilder) {
             Value* foundRow = innerBuilder.CreateLoad(foundRowPtr);
             for (int index = 0; index < aggregateItemCount; ++index) {
-                const auto& item = op->GetAggregateItem(index);
+                const auto& item = op->AggregateItems[index];
                 const auto& name = item.Name;
 
-                auto id = nameTable->GetId(name);
-                auto type = item.Expression->GetType(sourceTableSchema);
+                auto id = keySize + index;
+                auto type = item.Expression->Type;
                 auto fn = item.AggregateFunction;
 
                 CodegenAggregateFunction(innerBuilder, foundRow, newRowRef, fn, keySize + index, id, type, name.c_str());
@@ -1245,13 +1229,10 @@ void TCGContext::CodegenGroupOp(
 }
 
 Function* TCGContext::CodegenEvaluate(
-    const TPlanFragment& planFragment,
+    const TConstPlanFragmentPtr& planFragment,
     const TCGFragment& cgFragment,
     const TCGBinding& binding)
 {
-    auto op = planFragment.GetHead();
-    YASSERT(op);
-
     auto* module = cgFragment.GetModule();
     auto& context = module->getContext();
 
@@ -1271,7 +1252,7 @@ Function* TCGContext::CodegenEvaluate(
 
     TCGContext ctx(cgFragment, binding, constants, executionContextPtr);
 
-    ctx.CodegenOp(builder, op,
+    ctx.CodegenOp(builder, planFragment->Head,
         [&] (TCGIRBuilder& innerBuilder, Value* row) {
             Value* executionContextPtrRef = innerBuilder.ViaClosure(executionContextPtr);
             innerBuilder.CreateCall2(cgFragment.GetRoutine("WriteRow"), row, executionContextPtrRef);

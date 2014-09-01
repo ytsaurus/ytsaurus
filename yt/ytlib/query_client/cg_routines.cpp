@@ -4,6 +4,7 @@
 
 #include "helpers.h"
 #include "callbacks.h"
+#include "query_statistics.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
@@ -75,7 +76,6 @@ void ScanOpHelper(
     void (*consumeRows)(void** closure, TRow* rows, int size))
 {
     auto* callbacks = executionContext->Callbacks;
-    auto* context = executionContext->Context;
     auto dataSplits = (*executionContext->DataSplitsArray)[dataSplitsIndex];
 
     std::vector<ISchemafulReaderPtr> splitReaders;
@@ -85,7 +85,7 @@ void ScanOpHelper(
             // All schemas are expected to be same; take the first one. 
             schema = GetTableSchemaFromDataSplit(dataSplit);
         }
-        splitReaders.push_back(callbacks->GetReader(dataSplit, context));
+        splitReaders.push_back(callbacks->GetReader(dataSplit, executionContext->NodeDirectory));
     }
 
     auto mergingReader = CreateSchemafulMergingReader(splitReaders);

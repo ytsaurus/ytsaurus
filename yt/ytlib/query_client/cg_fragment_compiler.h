@@ -9,7 +9,7 @@ namespace NQueryClient {
 
 typedef std::function<
     llvm::Function*(
-        const TPlanFragment&,
+        const TPlanFragmentPtr&,
         const TCGFragment&,
         const TCGBinding&)
     > TCGFragmentCompiler;

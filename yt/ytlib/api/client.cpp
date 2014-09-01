@@ -52,6 +52,7 @@
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/executor.h>
+#include <ytlib/query_client/query_statistics.h>
 
 namespace NYT {
 namespace NApi {
@@ -676,7 +677,7 @@ private:
         ISchemafulWriterPtr writer,
         TSelectRowsOptions options)
     {
-        auto fragment = TPlanFragment::Prepare(
+        auto fragment = PreparePlanFragment(
             Connection_->GetQueryPrepareCallbacks(),
             query,
             options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit),

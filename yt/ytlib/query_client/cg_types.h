@@ -41,7 +41,7 @@ struct TExecutionContext
 #endif
 
     IEvaluateCallbacks* Callbacks;
-    TPlanContext* Context;
+    TNodeDirectoryPtr NodeDirectory;
     std::vector<TDataSplits>* DataSplitsArray;
     TRowBuffer* RowBuffer;
     TChunkedMemoryPool* ScratchSpace;
@@ -64,7 +64,6 @@ typedef
 
 struct TCGBinding
 {
-    std::unordered_map<const TExpression*, int> NodeToConstantIndex;
     std::unordered_map<const TOperator*, int> ScanOpToDataSplits;
 };
 

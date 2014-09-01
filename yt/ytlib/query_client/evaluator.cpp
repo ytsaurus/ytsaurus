@@ -1,18 +1,18 @@
 #include "stdafx.h"
 #include "evaluator.h"
 
+#include "helpers.h"
+#include "private.h"
+#include "plan_fragment.h"
+#include "query_statistics.h"
 #include "cg_fragment.h"
 #include "cg_fragment_compiler.h"
 #include "cg_routines.h"
 
-#include "plan_fragment.h"
-#include "plan_node.h"
-
-#include "helpers.h"
-#include "private.h"
-
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
+
+#include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/profiling/scoped_timer.h>
@@ -85,9 +85,9 @@ public:
         , Variables_(variables)
     { }
 
-    void Profile(const TOperator* op);
-    void Profile(const TExpression* expr);
-    void Profile(const TNamedExpression& namedExpression);
+    void Profile(const TConstOperatorPtr& op);
+    void Profile(const TConstExpressionPtr& expr);
+    void Profile(const TNamedItem& namedExpression);
     void Profile(const TAggregateItem& aggregateItem);
     void Profile(const TTableSchema& tableSchema);
 
@@ -98,123 +98,78 @@ private:
 
 };
 
-void TFoldingProfiler::Profile(const TOperator* op)
+void TFoldingProfiler::Profile(const TConstOperatorPtr& op)
 {
-    switch (op->GetKind()) {
+    if (auto scanOp = op->As<TScanOperator>()) {
+        Id_.AddInteger(EFoldingObjectType::ScanOp);
 
-        case EOperatorKind::Scan: {
-            const auto* scanOp = op->As<TScanOperator>();
-            Id_.AddInteger(EFoldingObjectType::ScanOp);
-
-            auto tableSchema = scanOp->GetTableSchema();
+        auto tableSchema = scanOp->GetTableSchema();
             
-            Profile(tableSchema);
-            
-            auto dataSplits = scanOp->DataSplits();
-            for (auto & dataSplit : dataSplits) {
-                SetTableSchema(&dataSplit, tableSchema);
-            }
-
-            int index = Variables_.DataSplitsArray.size();
-            Variables_.DataSplitsArray.push_back(dataSplits);
-            Binding_.ScanOpToDataSplits[scanOp] = index;
-
-            break;
+        Profile(tableSchema);
+        
+        // TODO(lukyan): Remove this code
+        auto dataSplits = scanOp->DataSplits;
+        for (auto & dataSplit : dataSplits) {
+            SetTableSchema(&dataSplit, tableSchema);
         }
 
-        case EOperatorKind::Filter: {
-            const auto* filterOp = op->As<TFilterOperator>();
-            Id_.AddInteger(EFoldingObjectType::FilterOp);
+        int index = Variables_.DataSplitsArray.size();
+        Variables_.DataSplitsArray.push_back(dataSplits);
+        Binding_.ScanOpToDataSplits[scanOp] = index;
+    } else if (auto filterOp = op->As<TFilterOperator>()) {
+        Id_.AddInteger(EFoldingObjectType::FilterOp);
 
-            Profile(filterOp->GetPredicate());
-            Profile(filterOp->GetSource());
+        Profile(filterOp->Predicate);
+        Profile(filterOp->Source);
+    } else if (auto projectOp = op->As<TProjectOperator>()) {
+        Id_.AddInteger(EFoldingObjectType::ProjectOp);
 
-            break;
+        for (const auto& projection : projectOp->Projections) {
+            Profile(projection);
         }
 
-        case EOperatorKind::Project: {
-            const auto* projectOp = op->As<TProjectOperator>();
-            Id_.AddInteger(EFoldingObjectType::ProjectOp);
+        Profile(projectOp->Source);
+    } else if (auto groupOp = op->As<TGroupOperator>()) {
+        Id_.AddInteger(EFoldingObjectType::GroupOp);
 
-            for (const auto& projection : projectOp->Projections()) {
-                Profile(projection);
-            }
-
-            Profile(projectOp->GetSource());
-
-            break;
+        for (const auto& groupItem : groupOp->GroupItems) {
+            Profile(groupItem);
         }
 
-        case EOperatorKind::Group: {
-            const auto* groupOp = op->As<TGroupOperator>();
-            Id_.AddInteger(EFoldingObjectType::GroupOp);
-
-            for (const auto& groupItem : groupOp->GroupItems()) {
-                Profile(groupItem);
-            }
-
-            for (const auto& aggregateItem : groupOp->AggregateItems()) {
-                Profile(aggregateItem);
-            }
-
-            Profile(groupOp->GetSource());
-
-            break;
+        for (const auto& aggregateItem : groupOp->AggregateItems) {
+            Profile(aggregateItem);
         }
 
-        default:
-            YUNREACHABLE();
+        Profile(groupOp->Source);
+    } else {
+        YUNREACHABLE();
     }
 }
 
-void TFoldingProfiler::Profile(const TExpression* expr)
+void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 {
-    switch (expr->GetKind()) {
+    Id_.AddInteger(expr->Type);
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        Id_.AddInteger(EFoldingObjectType::LiteralExpr);
+        Id_.AddInteger(literalExpr->Index);
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
+        Id_.AddString(referenceExpr->ColumnName.c_str());
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        Id_.AddInteger(EFoldingObjectType::FunctionExpr);
+        Id_.AddString(functionExpr->FunctionName.c_str());
 
-        case EExpressionKind::Literal: {
-            const auto* literalExpr = expr->As<TLiteralExpression>();
-            Id_.AddInteger(EFoldingObjectType::LiteralExpr);
-            Id_.AddInteger(literalExpr->GetValue().Type);
-
-            int index = Variables_.ConstantArray.size();
-            Variables_.ConstantArray.push_back(literalExpr->GetValue());
-            Binding_.NodeToConstantIndex[expr] = index;
-            break;
+        for (const auto& argument : functionExpr->Arguments) {
+            Profile(argument);
         }
+    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+        Id_.AddInteger(EFoldingObjectType::BinaryOpExpr);
+        Id_.AddInteger(binaryOp->Opcode);
 
-        case EExpressionKind::Reference: {
-            const auto* referenceExpr = expr->As<TReferenceExpression>();
-            Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
-            Id_.AddString(referenceExpr->GetColumnName().c_str());
-
-            break;
-        }
-
-        case EExpressionKind::Function: {
-            const auto* functionExpr = expr->As<TFunctionExpression>();
-            Id_.AddInteger(EFoldingObjectType::FunctionExpr);
-            Id_.AddString(functionExpr->GetFunctionName().c_str());
-
-            for (const auto& argument : functionExpr->Arguments()) {
-                Profile(argument);
-            }
-
-            break;
-        }
-
-        case EExpressionKind::BinaryOp: {
-            const auto* binaryOp = expr->As<TBinaryOpExpression>();
-            Id_.AddInteger(EFoldingObjectType::BinaryOpExpr);
-            Id_.AddInteger(binaryOp->GetOpcode());
-
-            Profile(binaryOp->GetLhs());
-            Profile(binaryOp->GetRhs());
-
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
+        Profile(binaryOp->Lhs);
+        Profile(binaryOp->Rhs);
+    } else {
+        YUNREACHABLE();
     }
 }
 
@@ -223,7 +178,7 @@ void TFoldingProfiler::Profile(const TTableSchema& tableSchema)
     Id_.AddInteger(EFoldingObjectType::TableSchema);
 }
 
-void TFoldingProfiler::Profile(const TNamedExpression& namedExpression)
+void TFoldingProfiler::Profile(const TNamedItem& namedExpression)
 {
     Id_.AddInteger(EFoldingObjectType::NamedExpression);
     Id_.AddString(namedExpression.Name.c_str());
@@ -282,11 +237,11 @@ public:
 
     TQueryStatistics Run(
         IEvaluateCallbacks* callbacks,
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
-            TRACE_ANNOTATION("fragment_id", fragment.Id());
+            TRACE_ANNOTATION("fragment_id", fragment->GetId());
 
             auto Logger = BuildLogger(fragment);
 
@@ -301,12 +256,7 @@ public:
 
                 std::tie(cgFunction, fragmentParams) = Codegen(fragment);
 
-                // Make TRow from fragmentParams.ConstantArray.
-                TChunkedMemoryPool memoryPool;
-                auto constants = TRow::Allocate(&memoryPool, fragmentParams.ConstantArray.size());
-                for (int i = 0; i < fragmentParams.ConstantArray.size(); ++i) {
-                    constants[i] = fragmentParams.ConstantArray[i];
-                }
+                auto constants = fragment->Literals.Get();
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -314,8 +264,8 @@ public:
                 {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
                     auto error = WaitFor(writer->Open(
-                        fragment.GetHead()->GetTableSchema(),
-                        fragment.GetHead()->GetKeyColumns()));
+                        fragment->Head->GetTableSchema(),
+                        fragment->Head->GetKeyColumns()));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error);
                 }
 
@@ -328,15 +278,15 @@ public:
 
                 TExecutionContext executionContext;
                 executionContext.Callbacks = callbacks;
-                executionContext.Context = fragment.GetContext().Get();
+                executionContext.NodeDirectory = fragment->NodeDirectory;
                 executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
                 executionContext.RowBuffer = &rowBuffer;
                 executionContext.ScratchSpace = &scratchSpace;
                 executionContext.Writer = writer.Get();
                 executionContext.Batch = &batch;
                 executionContext.Statistics = &statistics;
-                executionContext.InputRowLimit = fragment.GetContext()->GetInputRowLimit();
-                executionContext.OutputRowLimit = fragment.GetContext()->GetOutputRowLimit();
+                executionContext.InputRowLimit = fragment->GetInputRowLimit();
+                executionContext.OutputRowLimit = fragment->GetOutputRowLimit();
 
                 CallCgFunctionPtr_(cgFunction, constants, &executionContext);
 
@@ -378,13 +328,13 @@ public:
     }
 
 private:
-    std::pair<TCgFunction, TCGVariables> Codegen(const TPlanFragment& fragment)
+    std::pair<TCgFunction, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
         TCGVariables variables;
 
-        TFoldingProfiler(id, binding, variables).Profile(fragment.GetHead());
+        TFoldingProfiler(id, binding, variables).Profile(fragment->Head);
         auto Logger = BuildLogger(fragment);
 
         TInsertCookie cookie(id);
@@ -435,16 +385,15 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
-
     virtual i64 GetWeight(TCachedCGFragment* /*fragment*/) const override
     {
         return 1;
     }
 
-    static NLog::TLogger BuildLogger(const TPlanFragment& fragment)
+    static NLog::TLogger BuildLogger(const TPlanFragmentPtr& fragment)
     {
         NLog::TLogger result(QueryClientLogger);
-        result.AddTag("FragmentId: %v", fragment.Id());
+        result.AddTag("FragmentId: %v", fragment->GetId());
         return result;
     }
 
@@ -461,7 +410,7 @@ TEvaluator::~TEvaluator()
 
 TQueryStatistics TEvaluator::Run(
     IEvaluateCallbacks* callbacks,
-    const TPlanFragment& fragment,
+    const TPlanFragmentPtr& fragment,
     ISchemafulWriterPtr writer)
 {
     return Impl_->Run(callbacks, fragment, std::move(writer));

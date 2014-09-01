@@ -7,7 +7,6 @@ namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)

@@ -21,10 +21,10 @@
 #include <ytlib/new_table_client/pipe.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
-#include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/helpers.h>
+#include <ytlib/query_client/query_statistics.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -141,7 +141,7 @@ public:
 
     // IExecutor implementation.
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         ISchemafulWriterPtr writer) override
     {
         return Coordinator_->Execute(fragment, std::move(writer));
@@ -158,7 +158,7 @@ public:
 
     virtual TFuture<TErrorOr<TDataSplits>> SplitFurther(
         const TDataSplit& split,
-        TPlanContextPtr context) override
+        TNodeDirectoryPtr nodeDirectory) override
     {
         try {
             auto tabletId = GetObjectIdFromDataSplit(split);
@@ -174,6 +174,7 @@ public:
             auto upperBound = GetUpperBoundFromDataSplit(split);
             auto keyColumns = GetKeyColumnsFromDataSplit(split);
             auto schema = GetTableSchemaFromDataSplit(split);
+            auto timestamp = GetTimestampFromDataSplit(split);
 
             // Run binary search to find the relevant partitions.
             auto startIt = std::upper_bound(
@@ -209,7 +210,7 @@ public:
                 SetTableSchema(&subsplit, schema);
                 SetLowerBound(&subsplit, std::max(lowerBound, thisKey));
                 SetUpperBound(&subsplit, std::min(upperBound, nextKey));
-                SetTimestamp(&subsplit, context->GetTimestamp());
+                SetTimestamp(&subsplit, timestamp);
                 subsplits.push_back(std::move(subsplit));
             }
 
@@ -221,7 +222,7 @@ public:
 
     virtual TGroupedDataSplits Regroup(
         const TDataSplits& splits,
-        TPlanContextPtr context) override
+        TNodeDirectoryPtr nodeDirectory) override
     {
         TGroupedDataSplits result;
         for (const auto& split : splits) {
@@ -231,7 +232,7 @@ public:
     }
 
     virtual std::pair<ISchemafulReaderPtr, TFuture<TErrorOr<TQueryStatistics>>> Delegate(
-        const TPlanFragment& fragment,
+        const TPlanFragmentPtr& fragment,
         const TDataSplit& /*collocatedSplit*/) override
     {
         auto pipe = New<TSchemafulPipe>();
@@ -247,16 +248,16 @@ public:
 
     virtual ISchemafulReaderPtr GetReader(
         const TDataSplit& split,
-        TPlanContextPtr context) override
+        TNodeDirectoryPtr nodeDirectory) override
     {
         auto objectId = FromProto<TObjectId>(split.chunk_id());
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return DoGetChunkReader(split, std::move(context));
+                return DoGetChunkReader(split, std::move(nodeDirectory));
 
             case EObjectType::Tablet:
-                return DoGetTabletReader(split, std::move(context));
+                return DoGetTabletReader(split, std::move(nodeDirectory));
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qv", 
@@ -274,18 +275,18 @@ private:
 
     ISchemafulReaderPtr DoGetChunkReader(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto futureReader = BIND(&TQueryExecutor::DoControlGetChunkReader, MakeStrong(this))
             .Guarded()
             .AsyncVia(Bootstrap_->GetControlInvoker())
-            .Run(split, std::move(context));
+            .Run(split, std::move(nodeDirectory));
         return New<TLazySchemafulReader>(std::move(futureReader));
     }
 
     ISchemafulReaderPtr DoControlGetChunkReader(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto chunkId = FromProto<TChunkId>(split.chunk_id());
         auto lowerBound = FromProto<TReadLimit>(split.lower_limit());
@@ -320,7 +321,7 @@ private:
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
                 Bootstrap_->GetBlockStore()->GetCompressedBlockCache(),
                 Bootstrap_->GetMasterClient()->GetMasterChannel(),
-                context->GetNodeDirectory(),
+                nodeDirectory,
                 Bootstrap_->GetLocalDescriptor(),
                 chunkId);
         }
@@ -337,7 +338,7 @@ private:
 
     ISchemafulReaderPtr DoGetTabletReader(
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         try {
             auto tabletId = FromProto<TTabletId>(split.chunk_id());
@@ -353,7 +354,7 @@ private:
             auto futureReader = BIND(&TQueryExecutor::DoAutomatonGetTabletReader, MakeStrong(this))
                 .Guarded()
                 .AsyncVia(invoker)
-                .Run(tabletId, slot, split, std::move(context));
+                .Run(tabletId, slot, split, std::move(nodeDirectory));
 
             return New<TLazySchemafulReader>(futureReader);
         } catch (const std::exception& ex) {
@@ -366,7 +367,7 @@ private:
         const TTabletId& tabletId,
         TTabletSlotPtr slot,
         const TDataSplit& split,
-        TPlanContextPtr context)
+        TNodeDirectoryPtr nodeDirectory)
     {
         auto hydraManager = slot->GetHydraManager();
         if (hydraManager->GetAutomatonState() != NHydra::EPeerState::Leading) {
