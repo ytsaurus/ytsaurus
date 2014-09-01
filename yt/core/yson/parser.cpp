@@ -66,7 +66,7 @@ TYsonParser::TYsonParser(
     EYsonType type,
     bool enableLinePositionInfo,
     TNullable<i64> memoryLimit)
-    : Impl(new TImpl(consumer, type, enableLinePositionInfo, memoryLimit))
+    : Impl(std::make_unique<TImpl>(consumer, type, enableLinePositionInfo, memoryLimit))
 { }
 
 TYsonParser::~TYsonParser()
