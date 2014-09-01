@@ -575,7 +575,7 @@ public:
 
     explicit TUnversionedOwningRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
-    void AddValue(const TUnversionedValue& value);
+    int AddValue(const TUnversionedValue& value);
     TUnversionedValue* BeginValues();
     TUnversionedValue* EndValues();
 

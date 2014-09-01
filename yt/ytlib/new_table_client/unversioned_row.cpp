@@ -1232,7 +1232,7 @@ TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapac
     Reset();
 }
 
-void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
+int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
@@ -1261,7 +1261,7 @@ void TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
         StringData_.append(value.Data.String, value.Data.String + value.Length);
     }
 
-    ++header->Count;
+    return header->Count++;
 }
 
 TUnversionedValue* TUnversionedOwningRowBuilder::BeginValues()
