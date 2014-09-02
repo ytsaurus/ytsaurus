@@ -1,7 +1,6 @@
 #pragma once
 
 #include <typeinfo>
-#include <atomic>
 
 #include <util/system/defaults.h>
 
@@ -66,15 +65,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void* GetRefCountedTrackerCookie(const void* key);
+template <class T>
+TRefCountedTypeKey GetRefCountedTypeKey()
+{
+    return &typeid(T);
+}
+
+TRefCountedTypeCookie GetRefCountedTypeCookie(TRefCountedTypeKey key);
 
 template <class T>
-FORCED_INLINE void* GetRefCountedTrackerCookie()
+FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
-    static std::atomic<void*> cookie(nullptr);
-    if (UNLIKELY(!cookie)) {
-        cookie = GetRefCountedTrackerCookie(&typeid(T));
-    }
+    static TRefCountedTypeCookie cookie = GetRefCountedTypeCookie(GetRefCountedTypeKey<T>());
     return cookie;
 }
 
@@ -83,7 +85,7 @@ FORCED_INLINE void* GetRefCountedTrackerCookie()
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
-    void* cookie = ::NYT::GetRefCountedTrackerCookie<T>()
+    auto cookie = ::NYT::GetRefCountedTypeCookie<T>()
 
 #define REF_COUNTED_NEW_EPILOGUE() \
     InitializeTracking(result.Get(), cookie, sizeof (T))

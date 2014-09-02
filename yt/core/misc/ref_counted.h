@@ -1,72 +1,91 @@
 #pragma once
 
-#include "public.h:
 #include "intrusive_ptr.h"
+
+#include <util/generic/noncopyable.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-    typedef intptr_t TNonVolatileCounter;
-    typedef volatile intptr_t TVolatileCounter;
+class TRefCountedBase;
+class TExtrinsicRefCounted;
+class TIntrinsicRefCounted;
 
-    static_assert(sizeof(TNonVolatileCounter) == sizeof(void*),
-        "TNonVolatileCounter should be the same size as a raw pointer.");
-    static_assert(sizeof(TVolatileCounter) == sizeof(void*),
-        "TVolatileCounter should be the same size as a raw pointer.");
+// This is a reasonable default.
+// For performance-critical bits of code use TIntrinsicRefCounted instead.
+typedef TExtrinsicRefCounted TRefCounted;
+
+typedef int TRefCountedTypeCookie;
+const int NullRefCountedTypeCookie = -1;
+
+typedef const void* TRefCountedTypeKey;
+
+///////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+typedef intptr_t TNonVolatileCounter;
+typedef volatile intptr_t TVolatileCounter;
+
+static_assert(sizeof(TNonVolatileCounter) == sizeof(void*),
+    "TNonVolatileCounter should be the same size as a raw pointer.");
+static_assert(sizeof(TVolatileCounter) == sizeof(void*),
+    "TVolatileCounter should be the same size as a raw pointer.");
 
 #if defined(__GNUC__)
-    // Note that returning previous value is a micro-tiny-bit faster.
-    // (see http://lwn.net/Articles/256433/)
 
-    static inline TNonVolatileCounter AtomicallyStore(TVolatileCounter* p, TNonVolatileCounter v)
-    {
-        __sync_synchronize();
-        *p = v;
-        __sync_synchronize();
-        return v;
-    }
+// Note that returning previous value is a micro-tiny-bit faster.
+// (see http://lwn.net/Articles/256433/)
 
-    static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
-    {
-        return __sync_fetch_and_add(const_cast<TVolatileCounter*>(p), 0);
-    }
+static inline TNonVolatileCounter AtomicallyStore(TVolatileCounter* p, TNonVolatileCounter v)
+{
+    __sync_synchronize();
+    *p = v;
+    __sync_synchronize();
+    return v;
+}
 
-    static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
-    {
-        // Atomically performs the following:
-        // { return (*p)++; }
-        return __sync_fetch_and_add(p, +1);
-    }
+static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
+{
+    return __sync_fetch_and_add(const_cast<TVolatileCounter*>(p), 0);
+}
 
-    static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
-    {
-        // Atomically performs the following:
-        // { return (*p)--; }
-        return __sync_fetch_and_add(p, -1);
-    }
+static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
+{
+    // Atomically performs the following:
+    // { return (*p)++; }
+    return __sync_fetch_and_add(p, +1);
+}
 
-    static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
-    {
-        // Atomically performs the following:
-        // { auto v = *p; if (v != 0) ++(*p); return v; }
-        TNonVolatileCounter v = *p;
+static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
+{
+    // Atomically performs the following:
+    // { return (*p)--; }
+    return __sync_fetch_and_add(p, -1);
+}
 
-        for (;;) {
-            if (v == 0) {
-                return v;
-            }
+static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
+{
+    // Atomically performs the following:
+    // { auto v = *p; if (v != 0) ++(*p); return v; }
+    TNonVolatileCounter v = *p;
 
-            TNonVolatileCounter w = __sync_val_compare_and_swap(p, v, v + 1);
+    for (;;) {
+        if (v == 0) {
+            return v;
+        }
 
-            if (w == v) {
-                return v; // CAS was successful.
-            } else {
-                v = w; // CAS was unsuccessful.
-            }
+        TNonVolatileCounter w = __sync_val_compare_and_swap(p, v, v + 1);
+
+        if (w == v) {
+            return v; // CAS was successful.
+        } else {
+            v = w; // CAS was unsuccessful.
         }
     }
+}
+
 #else
     // Fallback to Arcadia's implementation (efficiency is not crucial here).
 
@@ -101,99 +120,100 @@ namespace NDetail {
     }
 #endif
 
-    //! An atomic reference counter for extrinsic reference counting.
-    class TRefCounter
+//! An atomic reference counter for extrinsic reference counting.
+class TRefCounter
+{
+public:
+    TRefCounter(TExtrinsicRefCounted* object)
+        : StrongCount(1)
+        , WeakCount(1)
+        , that(object)
+    { }
+
+    ~TRefCounter()
+    { }
+
+    //! This method is called when there are no strong references remaining
+    //! and the object have to be disposed (technically this means that
+    //! there are no more strong references being held).
+    void Dispose();
+
+    //! This method is called when the counter is about to be destroyed
+    //! (technically this means that there are neither strong
+    //! nor weak references being held).
+    void Destroy();
+
+    //! Adds a strong reference to the counter.
+    inline void Ref() // noexcept
     {
-    public:
-        TRefCounter(TExtrinsicRefCounted* object)
-            : StrongCount(1)
-            , WeakCount(1)
-            , that(object)
-        { }
+        YASSERT(StrongCount > 0 && WeakCount > 0);
+        AtomicallyIncrement(&StrongCount);
+    }
 
-        ~TRefCounter()
-        { }
+    //! Removes a strong reference from the counter.
+    inline void Unref() // noexcept
+    {
+        YASSERT(StrongCount > 0 && WeakCount > 0);
+        if (AtomicallyDecrement(&StrongCount) == 1) {
+            Dispose();
 
-        //! This method is called when there are no strong references remaining
-        //! and the object have to be disposed (technically this means that
-        //! there are no more strong references being held).
-        void Dispose();
-
-        //! This method is called when the counter is about to be destroyed
-        //! (technically this means that there are neither strong
-        //! nor weak references being held).
-        void Destroy();
-
-        //! Adds a strong reference to the counter.
-        inline void Ref() // noexcept
-        {
-            YASSERT(StrongCount > 0 && WeakCount > 0);
-            AtomicallyIncrement(&StrongCount);
-        }
-
-        //! Removes a strong reference from the counter.
-        inline void Unref() // noexcept
-        {
-            YASSERT(StrongCount > 0 && WeakCount > 0);
-            if (AtomicallyDecrement(&StrongCount) == 1) {
-                Dispose();
-
-                if (AtomicallyDecrement(&WeakCount) == 1) {
-                    Destroy();
-                }
-            }
-        }
-
-        //! Tries to add a strong reference to the counter.
-        inline bool TryRef() // noexcept
-        {
-            YASSERT(WeakCount > 0);
-            return AtomicallyIncrementIfNonZero(&StrongCount) > 0;
-        }
-
-        //! Adds a weak reference to the counter.
-        inline void WeakRef() // noexcept
-        {
-            YASSERT(WeakCount > 0);
-            AtomicallyIncrement(&WeakCount);
-        }
-
-        //! Removes a weak reference from the counter.
-        inline void WeakUnref() // noexcept
-        {
-            YASSERT(WeakCount > 0);
             if (AtomicallyDecrement(&WeakCount) == 1) {
                 Destroy();
             }
         }
+    }
 
-        //! Returns the current number of strong references.
-        int GetRefCount() const // noexcept
-        {
-            return AtomicallyFetch(&StrongCount);
+    //! Tries to add a strong reference to the counter.
+    inline bool TryRef() // noexcept
+    {
+        YASSERT(WeakCount > 0);
+        return AtomicallyIncrementIfNonZero(&StrongCount) > 0;
+    }
+
+    //! Adds a weak reference to the counter.
+    inline void WeakRef() // noexcept
+    {
+        YASSERT(WeakCount > 0);
+        AtomicallyIncrement(&WeakCount);
+    }
+
+    //! Removes a weak reference from the counter.
+    inline void WeakUnref() // noexcept
+    {
+        YASSERT(WeakCount > 0);
+        if (AtomicallyDecrement(&WeakCount) == 1) {
+            Destroy();
         }
+    }
 
-        //! Returns the current number of weak references.
-        int GetWeakRefCount() const // noexcept
-        {
-            return AtomicallyFetch(&WeakCount);
-        }
+    //! Returns the current number of strong references.
+    int GetRefCount() const // noexcept
+    {
+        return AtomicallyFetch(&StrongCount);
+    }
 
-    private:
-        // Explicitly prohibit forbidden constructors and operators.
-        TRefCounter();
-        TRefCounter(const TRefCounter&);
-        TRefCounter(const TRefCounter&&);
-        TRefCounter& operator=(const TRefCounter&);
-        TRefCounter& operator=(const TRefCounter&&);
+    //! Returns the current number of weak references.
+    int GetWeakRefCount() const // noexcept
+    {
+        return AtomicallyFetch(&WeakCount);
+    }
 
-        //! Number of strong references.
-        TVolatileCounter StrongCount;
-        //! Number of weak references plus one if there is at least one strong reference.
-        TVolatileCounter WeakCount;
-        //! The object.
-        TExtrinsicRefCounted* that;
-    };
+private:
+    // Explicitly prohibit forbidden constructors and operators.
+    TRefCounter();
+    TRefCounter(const TRefCounter&);
+    TRefCounter(const TRefCounter&&);
+    TRefCounter& operator=(const TRefCounter&);
+    TRefCounter& operator=(const TRefCounter&&);
+
+    //! Number of strong references.
+    TVolatileCounter StrongCount;
+    //! Number of weak references plus one if there is at least one strong reference.
+    TVolatileCounter WeakCount;
+    //! The object.
+    TExtrinsicRefCounted* that;
+};
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +221,7 @@ namespace NDetail {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 //! A helper called by #New to register the just-created instance.
-void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
+void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
 
 #endif
 
@@ -210,7 +230,6 @@ class TRefCountedBase
     : private TNonCopyable
 {
 protected:
-    TRefCountedBase();
     virtual ~TRefCountedBase();
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -218,20 +237,20 @@ protected:
 #endif
 
 private:
-    friend void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
+    friend void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    voidtref* TypeCookie;
-    size_t InstanceSize;
+    TRefCountedTypeCookie TypeCookie = NullRefCountedTypeCookie;
+    size_t InstanceSize = 0;
 
-    void InitializeTracking(void* typeCookie, size_t instanceSize);
+    void InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize);
 #endif
 
 };
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-FORCED_INLINE void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize)
+FORCED_INLINE void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize)
 {
     object->InitializeTracking(typeCookie, instanceSize);
 }

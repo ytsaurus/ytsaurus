@@ -19,7 +19,7 @@ public:
     explicit TChunkedMemoryPool(
         size_t chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio,
-        void* tagCookie = GetRefCountedTrackerCookie<TDefaultChunkedMemoryPoolTag>());
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedMemoryPoolTag>());
 
     template <class TTag>
     explicit TChunkedMemoryPool(
@@ -29,7 +29,7 @@ public:
         : TChunkedMemoryPool(
             chunkSize,
             maxSmallBlockSizeRatio,
-            GetRefCountedTrackerCookie<TTag>())
+        GetRefCountedTypeCookie<TTag>())
     { }
 
     //! Allocates #sizes bytes without any alignment.
@@ -52,7 +52,7 @@ public:
 private:
     size_t ChunkSize_;
     size_t MaxSmallBlockSize_;
-    void* TagCookie_;
+    TRefCountedTypeCookie TagCookie_;
 
     int CurrentChunkIndex_ = 0;
 

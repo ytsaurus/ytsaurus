@@ -4,6 +4,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <util/system/tls.h>
+
 #include <algorithm>
 
 namespace NYT {
@@ -14,21 +16,55 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTracker::TSlot::TSlot(TRefCountedKey key)
+class TRefCountedTracker::TStatisticsHolder
+{
+public:
+    bool IsInitialized() const
+    {
+        return Owner_ != nullptr;
+    }
+
+    void Initialize(TRefCountedTracker* owner)
+    {
+        Owner_ = owner;
+    }
+
+    TAnonymousStatistics* GetStatistics()
+    {
+        return &Statistics_;
+    }
+
+    ~TStatisticsHolder()
+    {
+        Owner_->FlushPerThreadStatistics(this);
+    }
+
+private:
+    TRefCountedTracker* Owner_ = nullptr;
+    TAnonymousStatistics Statistics_;
+
+};
+
+TLS_STATIC void* CurrentThreadStatisticsBegin = nullptr; // actually TRefCountedTracker::TAnonymousSlot*
+TLS_STATIC int CurrentThreadStatisticsSize = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedTracker::TNamedSlot::TNamedSlot(TRefCountedTypeKey key)
     : Key_(key)
 { }
 
-TRefCountedKey TRefCountedTracker::TSlot::GetKey() const
+TRefCountedTypeKey TRefCountedTracker::TNamedSlot::GetKey() const
 {
     return Key_;
 }
 
-Stroka TRefCountedTracker::TSlot::GetName() const
+Stroka TRefCountedTracker::TNamedSlot::GetName() const
 {
-    return DemangleCxxName(Key_->name());
+    return DemangleCxxName(static_cast<const std::type_info*>(Key_)->name());
 }
 
-TRefCountedTracker::TSlot& TRefCountedTracker::TSlot::operator+=(const TSlot& other)
+TRefCountedTracker::TAnonymousSlot& TRefCountedTracker::TAnonymousSlot::operator+=(const TAnonymousSlot& other)
 {
     ObjectsAllocated_ += other.ObjectsAllocated_;
     BytesAllocated_ += other.BytesAllocated_;
@@ -37,24 +73,30 @@ TRefCountedTracker::TSlot& TRefCountedTracker::TSlot::operator+=(const TSlot& ot
     return *this;
 }
 
-size_t TRefCountedTracker::TSlot::GetObjectsAllocated() const
+i64 TRefCountedTracker::TAnonymousSlot::GetObjectsAllocated() const
 {
     return ObjectsAllocated_;
 }
 
-size_t TRefCountedTracker::TSlot::GetObjectsAlive() const
+i64 TRefCountedTracker::TAnonymousSlot::GetObjectsAlive() const
 {
     return ObjectsAllocated_ - ObjectsFreed_;
 }
 
-size_t TRefCountedTracker::TSlot::GetBytesAllocated() const
+i64 TRefCountedTracker::TAnonymousSlot::GetBytesAllocated() const
 {
     return BytesAllocated_;
 }
 
-size_t TRefCountedTracker::TSlot::GetBytesAlive() const
+i64 TRefCountedTracker::TAnonymousSlot::GetBytesAlive() const
 {
     return BytesAllocated_ - BytesFreed_;
+}
+
+int TRefCountedTracker::GetTrackedThreadCount() const
+{
+    TGuard<TForkAwareSpinLock> guard(SpinLock_);
+    return PerThreadHolders_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +106,7 @@ TRefCountedTracker* TRefCountedTracker::Get()
     return Singleton<TRefCountedTracker>();
 }
 
-TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TRefCountedKey key)
+TRefCountedTypeCookie TRefCountedTracker::GetCookie(TRefCountedTypeKey key)
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
     auto it = KeyToCookie_.find(key);
@@ -76,48 +118,71 @@ TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TRefCountedKey key)
     return cookie;
 }
 
-std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
+TRefCountedTracker::TRefCountedTracker()
+{
+    Active_ = true;
+}
+
+TRefCountedTracker::~TRefCountedTracker()
+{
+    Active_ = false;
+}
+
+TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
 {
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
-    std::vector<TSlot> result;
-    for (const auto& pair : KeyToSlot_) {
-        result.push_back(pair.second);
+
+    TNamedStatistics result;
+    for (auto cookie : CookieToKey_) {
+        result.emplace_back(cookie);
     }
+
+    auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
+        for (auto index = 0; index < result.size() && index < statistics.size(); ++index) {
+            result[index] += statistics[index];
+        }
+    };
+
+    accumulateResult(GlobalStatistics_);
+    for (auto* holder : PerThreadHolders_) {
+        accumulateResult(*holder->GetStatistics());
+    }
+
     return result;
 }
 
-void TRefCountedTracker::SortSnapshot(TStatistics* snapshot, int sortByColumn)
+void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColumn)
 {
-    std::function<bool(const TSlot& lhs, const TSlot& rhs)> predicate;
+    std::function<bool(const TNamedSlot& lhs, const TNamedSlot& rhs)> predicate;
     switch (sortByColumn) {
         case 0:
         default:
-            predicate = [] (const TSlot& lhs, const TSlot& rhs) {
+            predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
                 return lhs.GetObjectsAlive() > rhs.GetObjectsAlive();
             };
             break;
 
         case 1:
-            predicate = [] (const TSlot& lhs, const TSlot& rhs) {
+            predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
                 return lhs.GetObjectsAllocated() > rhs.GetObjectsAllocated();
             };
             break;
 
         case 2:
-            predicate = [] (const TSlot& lhs, const TSlot& rhs) {
+            predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
                 return lhs.GetBytesAlive() > rhs.GetBytesAlive();
             };
             break;
 
         case 3:
-            predicate = [] (const TSlot& lhs, const TSlot& rhs) {
+            predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
                 return lhs.GetBytesAllocated() > rhs.GetBytesAllocated();
             };
             break;
 
         case 4:
-            predicate = [] (const TSlot& lhs, const TSlot& rhs) {
-                return strcmp(lhs.GetKey()->name(), rhs.GetKey()->name()) < 0;
+            predicate = [] (const TNamedSlot& lhs, const TNamedSlot& rhs) {
+                return lhs.GetName() < rhs.GetName();
             };
             break;
     }
@@ -177,12 +242,12 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
 {
     return BIND([=] (IYsonConsumer* consumer) {
         auto slots = GetSnapshot();
-        SortSnapshot(slots, -1);
+        SortSnapshot(&slots, -1);
 
-        size_t totalObjectsAlive = 0;
-        size_t totalObjectsAllocated = 0;
-        size_t totalBytesAlive = 0;
-        size_t totalBytesAllocated = 0;
+        i64 totalObjectsAlive = 0;
+        i64 totalObjectsAllocated = 0;
+        i64 totalBytesAlive = 0;
+        i64 totalBytesAllocated = 0;
 
         for (const auto& slot : slots) {
             totalObjectsAlive += slot.GetObjectsAlive();
@@ -193,7 +258,7 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TSlot& slot) {
+                .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TNamedSlot& slot) {
                     fluent
                         .Item().BeginMap()
                             .Item("name").Value(slot.GetName())
@@ -213,51 +278,87 @@ TYsonProducer TRefCountedTracker::GetMonitoringProducer() const
     });
 }
 
-i64 TRefCountedTracker::GetObjectsAllocated(TRefCountedKey key)
+i64 TRefCountedTracker::GetObjectsAllocated(TRefCountedTypeKey key)
 {
     return GetSlot(key).GetObjectsAllocated();
 }
 
-i64 TRefCountedTracker::GetObjectsAlive(TRefCountedKey key)
+i64 TRefCountedTracker::GetObjectsAlive(TRefCountedTypeKey key)
 {
     return GetSlot(key).GetObjectsAlive();
 }
 
-i64 TRefCountedTracker::GetAllocatedBytes(TRefCountedKey key)
+i64 TRefCountedTracker::GetAllocatedBytes(TRefCountedTypeKey key)
 {
     return GetSlot(key).GetBytesAllocated();
 }
 
-i64 TRefCountedTracker::GetAliveBytes(TRefCountedKey key)
+i64 TRefCountedTracker::GetAliveBytes(TRefCountedTypeKey key)
 {
     return GetSlot(key).GetBytesAlive();
 }
 
-TRefCountedTracker::TSlot TRefCountedTracker::GetSlot(TRefCountedKey key)
+TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey key)
 {
     auto cookie = GetCookie(key);
-    TSlot result(key);
+
+    TNamedSlot result(key);
+    auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
+        if (cookie < statistics.size()) {
+            result += statistics[cookie];
+        }
+    };
 
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
-
-    if (cookie < GlobalStatistics_.size()) {
-        result += GlobalStatistics_[cookie];
-    }
-
-    for (const auto* statistics : PerThreadStatistics_) {
-        if (cookie < statistics->size()) {
-            result += (*statistics)[cookie];
-        }
+    accumulateResult(GlobalStatistics_);
+    for (auto* holder : PerThreadHolders_) {
+        accumulateResult(*holder->GetStatistics());
     }
 
     return result;
 }
 
-void TRefCountedTracker::CreateCurrentThreadStatistics()
+TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::GetPerThreadSlot(TRefCountedTypeCookie cookie)
 {
+    if (cookie >= CurrentThreadStatisticsSize) {
+        STATIC_THREAD(TStatisticsHolder) Holder;
+        auto* holder = Holder.GetPtr();
+
+        if (!holder->IsInitialized()) {
+            holder->Initialize(this);
+            TGuard<TForkAwareSpinLock> guard(SpinLock_);
+            YCHECK(PerThreadHolders_.insert(holder).second);
+        }
+
+        auto* statistics = holder->GetStatistics();
+        if (statistics->size() <= cookie) {
+            statistics->resize(std::max(
+                static_cast<size_t>(cookie + 1),
+                statistics->size() * 2));
+        }
+
+        CurrentThreadStatisticsBegin = statistics->data();
+        CurrentThreadStatisticsSize = statistics->size();
+    }
+    return reinterpret_cast<TAnonymousSlot*>(CurrentThreadStatisticsBegin) + cookie;
+}
+
+void TRefCountedTracker::FlushPerThreadStatistics(TStatisticsHolder* holder)
+{
+    if (!Active_)
+        return;
+
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
-    CurrentThreadStatistics = new TStatistics();
-    YCHECK(PerThreadStatistics_.insert(CurrentThreadStatistics).second);
+    const auto& perThreadStatistics = *holder->GetStatistics();
+    if (GlobalStatistics_.size() < perThreadStatistics.size()) {
+        GlobalStatistics_.resize(std::max(
+            perThreadStatistics.size(),
+            GlobalStatistics_.size() * 2));
+    }
+    for (auto index = 0; index < perThreadStatistics.size(); ++index) {
+        GlobalStatistics_[index] += perThreadStatistics[index];
+    }
+    YCHECK(PerThreadHolders_.erase(holder) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

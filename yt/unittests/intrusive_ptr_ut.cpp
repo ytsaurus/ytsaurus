@@ -60,12 +60,8 @@ private:
 typedef TIntrusivePtr<TIntricateObject> TIntricateObjectPtr;
 
 
-void InitializeTracking(TIntricateObject* object, void* cookie, size_t size)
-{
-    UNUSED(object);
-    UNUSED(cookie);
-    UNUSED(size);
-}
+void InitializeTracking(TIntricateObject* /*object*/, TRefCountedTypeCookie /*cookie*/, size_t /*size*/)
+{ }
 
 MATCHER_P3(HasRefCounts, increments, decrements, zeros,
     "Reference counter " \

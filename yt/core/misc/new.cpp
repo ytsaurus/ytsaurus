@@ -7,10 +7,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void* GetRefCountedTrackerCookie(const void* key)
+TRefCountedTypeCookie GetRefCountedTypeCookie(TRefCountedTypeKey key)
 {
-    return TRefCountedTracker::Get()->GetCookie(
-        static_cast<const std::type_info*>(key));
+    return TRefCountedTracker::Get()->GetCookie(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

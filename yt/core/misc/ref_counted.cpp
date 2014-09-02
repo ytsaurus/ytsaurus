@@ -1,17 +1,11 @@
 #include "stdafx.h"
+#include "public.h"
 #include "ref_counted.h"
 #include "ref_counted_tracker.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TRefCountedBase::TRefCountedBase()
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    : TypeCookie(NullRefCountedCookie)
-    , InstanceSize(0)
-#endif
-{ }
 
 TRefCountedBase::~TRefCountedBase()
 {
@@ -22,13 +16,13 @@ TRefCountedBase::~TRefCountedBase()
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-void TRefCountedBase::InitializeTracking(TRefCountedCookie typeCookie, size_t instanceSize)
+void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie, size_t instanceSize)
 {
-    YASSERT(!TypeCookie);
+    YASSERT(TypeCookie == NullRefCountedTypeCookie);
     TypeCookie = typeCookie;
 
     YASSERT(InstanceSize == 0);
-    YASSERT(instanceSize > 0);
+    YASSERT(instanceSize != 0);
     InstanceSize = instanceSize;
 
     TRefCountedTracker::Get()->Allocate(typeCookie, instanceSize);
@@ -36,8 +30,8 @@ void TRefCountedBase::InitializeTracking(TRefCountedCookie typeCookie, size_t in
 
 void TRefCountedBase::FinalizeTracking()
 {
-    YASSERT(TypeCookie);
-    YASSERT(InstanceSize > 0);
+    YASSERT(TypeCookie != NullRefCountedTypeCookie);
+    YASSERT(InstanceSize != 0);
     TRefCountedTracker::Get()->Free(TypeCookie, InstanceSize);
 }
 

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "chunked_output_stream.h"
 
 namespace NYT {
@@ -9,7 +8,7 @@ namespace NYT {
 TChunkedOutputStream::TChunkedOutputStream(
     size_t initialReserveSize,
     size_t maxReserveSize,
-    void* tagCookie)
+    TRefCountedTypeCookie tagCookie)
     : MaxReserveSize_(RoundUpToPage(maxReserveSize))
     , CurrentReserveSize_(RoundUpToPage(initialReserveSize))
     , TagCookie_(tagCookie)

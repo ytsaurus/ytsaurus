@@ -13,7 +13,7 @@ const double TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio = 0.25;
 TChunkedMemoryPool::TChunkedMemoryPool(
     size_t chunkSize,
     double maxSmallBlockSizeRatio,
-    void* tagCookie)
+    TRefCountedTypeCookie tagCookie)
     : ChunkSize_ ((chunkSize + 7) & ~7) // must be aligned
     , MaxSmallBlockSize_(static_cast<size_t>(ChunkSize_ * maxSmallBlockSizeRatio))
     , TagCookie_(tagCookie)

@@ -18,7 +18,7 @@ public:
     explicit TChunkedOutputStream(
         size_t initialReserveSize = 4 * 1024,
         size_t maxReserveSize = 64 * 1024,
-        void* tagCookie = GetRefCountedTrackerCookie<TChunkedOutputStreamTag>());
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TChunkedOutputStreamTag>());
 
     template <class TTag>
     explicit TChunkedOutputStream(
@@ -28,7 +28,7 @@ public:
         : TChunkedOutputStream(
             initialReserveSize,
             maxReserveSize,
-            GetRefCountedTrackerCookie<TTag>())
+        GetRefCountedTypeCookie<TTag>())
     { }
 
     ~TChunkedOutputStream() throw();
@@ -57,7 +57,7 @@ public:
 private:
     size_t MaxReserveSize_;
     size_t CurrentReserveSize_;
-    void* TagCookie_;
+    TRefCountedTypeCookie TagCookie_;
 
     size_t FinishedSize_;
 

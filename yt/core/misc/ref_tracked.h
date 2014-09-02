@@ -21,7 +21,7 @@ public:
     TRefTracked()
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        void* cookie = GetRefCountedTrackerCookie<T>();
+        auto cookie = GetRefCountedTypeCookie<T>();
         TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
 #endif
     }
@@ -29,7 +29,7 @@ public:
     ~TRefTracked()
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        void* cookie = GetRefCountedTrackerCookie<T>();
+        auto cookie = GetRefCountedTypeCookie<T>();
         TRefCountedTracker::Get()->Free(cookie, sizeof(T));
 #endif
     }
