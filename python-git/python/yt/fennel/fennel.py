@@ -230,7 +230,7 @@ class EventLog(object):
 
 def serialize_chunk(chunk_id, seqno, lines, data):
     serialized_data = struct.pack(CHUNK_HEADER_FORMAT, chunk_id, seqno, lines)
-    serialized_data += zlib.compress("".join([json.dumps(row) for row in data]))
+    serialized_data += zlib.compress("\n".join(["json-" + json.dumps(row).encode("string_escape") for row in data]))
     return serialized_data
 
 
@@ -245,14 +245,11 @@ def parse_chunk(serialized_data):
     index += CHUNK_HEADER_SIZE
 
     decompressed_data = zlib.decompress(serialized_data[index:])
-    i = 0
 
     data = []
-    decoder = json.JSONDecoder()
-    while i < len(decompressed_data):
-        item, shift = decoder.raw_decode(decompressed_data[i:])
-        i += shift
-        data.append(item)
+    for line in decompressed_data.split("\n"):
+        data.append(json.loads(line[len("json-"):].decode("string_escape")))
+
     return data
 
 
