@@ -9,6 +9,7 @@
 
 #include <core/misc/small_vector.h>
 
+#include <atomic>
 #include <exception>
 
 namespace NYT {
