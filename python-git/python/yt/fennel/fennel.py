@@ -307,7 +307,7 @@ class LogBroker(object):
 
     def get_endpoint(self):
         self.log.info("Getting adviced logbroker endpoint...")
-        host = requests.get(self._advicer_url).text.strip()
+        host = requests.get(self._advicer_url, headers={"ClientHost": socket.getfqdn()}).text.strip()
         self.log.info("Adviced endpoint: %s", host)
         return (host, 80)
 
