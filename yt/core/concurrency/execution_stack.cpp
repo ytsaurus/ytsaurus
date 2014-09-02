@@ -178,7 +178,11 @@ struct TPooledObjectTraits<NConcurrency::TPooledExecutionStack<Size>, void>
 
     static int GetMaxPoolSize()
     {
+#if defined(_unix_)
         return 1024;
+#elif defined(_win_)
+        return 0;
+#endif
     }
 };
 
