@@ -28,7 +28,7 @@ public:
         : TChunkedOutputStream(
             initialReserveSize,
             maxReserveSize,
-        GetRefCountedTypeCookie<TTag>())
+            GetRefCountedTypeCookie<TTag>())
     { }
 
     ~TChunkedOutputStream() throw();
