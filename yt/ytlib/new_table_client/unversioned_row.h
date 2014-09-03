@@ -64,7 +64,6 @@ static_assert(
 
 bool IsIntegralType(EValueType type);
 bool IsArithmeticType(EValueType type);
-EValueType InferCommonType(EValueType lhsType, EValueType rhsType, TStringBuf expression = TStringBuf());
 
 ////////////////////////////////////////////////////////////////////////////////
 

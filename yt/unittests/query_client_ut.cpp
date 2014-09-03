@@ -360,7 +360,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
-        ContainsRegex("Types in expression .* are incompatible"));
+        ContainsRegex("Type mismatch in expression .*"));
 }
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
@@ -2105,7 +2105,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
     result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
     result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     
-    Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", simpleSplit, source, result);
+    Evaluate("if(x = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", simpleSplit, source, result);
 
     SUCCEED();
 }
@@ -2138,7 +2138,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
     result.push_back(BuildRow("a=2;b=20", simpleSplit, false));
     result.push_back(BuildRow("a=3;b=30", simpleSplit, false));
 
-    Evaluate("a, b FROM [//t] where a > 1u and a < 9u", simpleSplit, source, result, 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", simpleSplit, source, result, 3);
 
     SUCCEED();
 }
@@ -2205,7 +2205,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
     result.push_back(BuildRow("x=b;t=251.", simpleSplit, false));
     result.push_back(BuildRow("x=a;t=201.", simpleSplit, false));
     
-    Evaluate("if(x = 4, \"a\", \"b\") as x, sum(b * 1u) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4u, 5.0) as x", simpleSplit, source, result);
+    Evaluate("if(int64(x) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, double(4u), 5.0) as x", simpleSplit, source, result);
 
     SUCCEED();
 }

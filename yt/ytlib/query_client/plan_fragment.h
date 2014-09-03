@@ -137,7 +137,7 @@ struct TFunctionExpression
     { }
 
     Stroka FunctionName;
-    TArguments Arguments;    
+    TArguments Arguments;
 
 };
 

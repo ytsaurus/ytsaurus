@@ -312,13 +312,12 @@ public:
         auto value = GetData(source);
 
         Value* result;
-        if (dest == EValueType::Double) {
-            auto destType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
-
+        if (dest == EValueType::Int64) {
+            auto destType = TDataTypeBuilder::TUint64::get(Builder_.getContext());
             if (source == EValueType::Uint64) {
-                result = Builder_.CreateUIToFP(value, destType);
-            } else if (source == EValueType::Int64) {
-                result = Builder_.CreateSIToFP(value, destType);
+                result = Builder_.CreateIntCast(value, destType, false);
+            } else if (source == EValueType::Double) {
+                result = Builder_.CreateFPToSI(value, destType);
             } else {
                 YUNREACHABLE();
             }
@@ -326,6 +325,17 @@ public:
             auto destType = TDataTypeBuilder::TUint64::get(Builder_.getContext());
             if (source == EValueType::Int64) {
                 result = Builder_.CreateIntCast(value, destType, true);
+            } else if (source == EValueType::Double) {
+                result = Builder_.CreateFPToUI(value, destType);
+            } else {
+                YUNREACHABLE();
+            }
+        } else if (dest == EValueType::Double) {
+            auto destType = TDataTypeBuilder::TDouble::get(Builder_.getContext());
+            if (source == EValueType::Uint64) {
+                result = Builder_.CreateUIToFP(value, destType);
+            } else if (source == EValueType::Int64) {
+                result = Builder_.CreateSIToFP(value, destType);
             } else {
                 YUNREACHABLE();
             }
@@ -712,9 +722,9 @@ TCGValue TCGContext::CodegenFunctionExpr(
                     builder.CreateZExtOrBitCast(condition.GetData(EValueType::Boolean), builder.getInt64Ty()),
                     builder.getInt64(0));            
             }, [&] (TCGIRBuilder& builder) {
-                return CodegenExpr(builder, thenExpr, schema, row).Cast(thenType, type);
+                return CodegenExpr(builder, thenExpr, schema, row);
             }, [&] (TCGIRBuilder& builder) {
-                return CodegenExpr(builder, elseExpr, schema, row).Cast(elseType, type);
+                return CodegenExpr(builder, elseExpr, schema, row);
             }, type);
         }, type, nameTwine);
     } else if (functionName == "is_prefix") {
@@ -786,6 +796,10 @@ TCGValue TCGContext::CodegenFunctionExpr(
             builder.CreateZExtOrBitCast(
                 argValue.IsNull(),
                 TDataTypeBuilder::TBoolean::get(builder.getContext())));
+    } else if (functionName == "int64" || functionName == "uint64" || functionName == "double") {
+        YCHECK(expr->Arguments.size() == 1);
+        const auto& argExpr = expr->Arguments[0];
+        return CodegenExpr(builder, argExpr, schema, row).Cast(argExpr->Type, type);
     }
 
     YUNIMPLEMENTED();
@@ -818,13 +832,11 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                 auto lhsType = expr->Lhs->Type;
                 auto rhsType = expr->Rhs->Type;
 
-                auto commonType = InferCommonType(lhsType, rhsType);
+                YCHECK(lhsType == rhsType);
+                auto operandType = lhsType;
 
-                lhsValue = lhsValue.Cast(lhsType, commonType);
-                rhsValue = rhsValue.Cast(rhsType, commonType);
-                
-                Value* lhsData = lhsValue.GetData(commonType);
-                Value* rhsData = rhsValue.GetData(commonType);
+                Value* lhsData = lhsValue.GetData(operandType);
+                Value* rhsData = rhsValue.GetData(operandType);
                 Value* evalData = nullptr;
 
                 #define OP(opcode, optype) \
@@ -839,7 +851,7 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
                             TDataTypeBuilder::TBoolean::get(builder.getContext())); \
                         break;
 
-                switch (commonType) {
+                switch (operandType) {
 
                     case EValueType::Boolean:
                     case EValueType::Int64:

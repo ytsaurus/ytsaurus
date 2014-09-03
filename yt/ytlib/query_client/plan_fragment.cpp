@@ -104,38 +104,45 @@ TTableSchema TProjectOperator::GetTableSchema() const
 
 EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source)
 {
+    if (lhsType != rhsType) {
+        THROW_ERROR_EXCEPTION(
+            "Type mismatch in expression %Qv",
+            source)
+            << TErrorAttribute("lhs_type", ToString(lhsType))
+            << TErrorAttribute("rhs_type", ToString(rhsType));
+    }
+
+    EValueType operandType = lhsType;
+
     switch (opCode) {
         case EBinaryOp::Plus:
         case EBinaryOp::Minus:
         case EBinaryOp::Multiply:
         case EBinaryOp::Divide:
-            if (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType)) {
+            if (!IsArithmeticType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
+                    << TErrorAttribute("operand_type", ToString(operandType));
             }
-            return std::max(lhsType, rhsType);
+            return operandType;
 
         case EBinaryOp::Modulo:
-            if (!IsIntegralType(lhsType) || !IsIntegralType(rhsType)) {
+            if (!IsIntegralType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
                     source)
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
+                    << TErrorAttribute("operand_type", ToString(operandType));
             }
-            return std::max(lhsType, rhsType);
+            return operandType;
 
         case EBinaryOp::And:
         case EBinaryOp::Or:
-            if (lhsType != EValueType::Boolean || rhsType != EValueType::Boolean) {
+            if (operandType != EValueType::Boolean) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",
                     source)
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
+                    << TErrorAttribute("operand_type", ToString(operandType));
             }
             return EValueType::Boolean;
 
@@ -143,22 +150,15 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
         case EBinaryOp::NotEqual:
         case EBinaryOp::Less:
         case EBinaryOp::Greater:
-            if (lhsType != rhsType && (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType))) {
-                THROW_ERROR_EXCEPTION("Types in expression %Qv are incompatible",
-                    source)
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
-            }
             return EValueType::Boolean;
 
         case EBinaryOp::LessOrEqual:
         case EBinaryOp::GreaterOrEqual:
-            if (!IsArithmeticType(lhsType) || !IsArithmeticType(rhsType)) {
+            if (!IsArithmeticType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
-                    << TErrorAttribute("lhs_type", ToString(lhsType))
-                    << TErrorAttribute("rhs_type", ToString(rhsType));
+                    << TErrorAttribute("lhs_type", ToString(operandType));
             }
             return EValueType::Boolean;
 
@@ -182,6 +182,19 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
     };
 
+    auto checkTypeCast = [&] (EValueType destType) {
+        validateArgCount(1);
+        auto argType = argTypes[0];
+
+        if (argType != EValueType::Int64 && argType != EValueType::Uint64 && argType != EValueType::Double) {
+            THROW_ERROR_EXCEPTION("Conversion %Qv is not supported for this types", source)
+                << TErrorAttribute("src_type", ToString(argType))
+                << TErrorAttribute("dest_type", ToString(destType));
+        }
+
+        return destType;
+    };
+
     if (functionName == "if") {
         validateArgCount(3);
 
@@ -190,13 +203,19 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         auto elseType = argTypes[2];
 
         if (conditionType != EValueType::Boolean) {
-            THROW_ERROR_EXCEPTION(
-                "Expected condition %Qv to be boolean",
-                source)
+            THROW_ERROR_EXCEPTION("Expected condition %Qv to be boolean", source)
                 << TErrorAttribute("condition_type", ToString(conditionType));
         }
 
-        return InferCommonType(thenType, elseType, source);
+        if (thenType != elseType) {
+            THROW_ERROR_EXCEPTION(
+                "Type mismatch in expression %Qv",
+                source)
+                << TErrorAttribute("then_type", ToString(thenType))
+                << TErrorAttribute("else_type", ToString(elseType));
+        }
+
+        return thenType;
     } else if (functionName == "is_prefix") {
         validateArgCount(2);
 
@@ -214,7 +233,6 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         return EValueType::Boolean;
     } else if (functionName == "lower") {
         validateArgCount(1);
-
         auto argType = argTypes[0];
 
         if (argType != EValueType::String) {
@@ -227,8 +245,13 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         return EValueType::String;
     } else if (functionName == "is_null") {
         validateArgCount(1);
-
         return EValueType::Boolean;
+    } else if (functionName == "int64") {
+        return checkTypeCast(EValueType::Int64);
+    } else if (functionName == "uint64") {
+        return checkTypeCast(EValueType::Uint64);
+    } else if (functionName == "double") {
+        return checkTypeCast(EValueType::Double);
     }
 
     THROW_ERROR_EXCEPTION(
