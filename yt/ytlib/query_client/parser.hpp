@@ -230,6 +230,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
 
+      // expr-list
+      char dummy2[sizeof(TExpressionList)];
+
       // where-clause
       // expression
       // or-op-expr
@@ -238,10 +241,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // additive-op-expr
       // multiplicative-op-expr
       // atomic-expr
-      char dummy2[sizeof(TExpressionPtr)];
-
-      // expr-list
-      char dummy3[sizeof(TFunctionExpression::TArguments)];
+      char dummy3[sizeof(TExpressionPtr)];
 
       // named-expression
       char dummy4[sizeof(TNamedExpression)];
@@ -261,7 +261,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "uint64 literal"
       // "double literal"
       // "string literal"
+      // literal-expr
       char dummy8[sizeof(TUnversionedValue)];
+
+      // literal-list
+      char dummy9[sizeof(TValueList)];
 };
 
     /// Symbol semantic values.
@@ -350,9 +354,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TExpressionPtr v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TExpressionPtr v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
 
@@ -363,6 +367,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TUnversionedValue v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TValueList v, const location_type& l);
 
 
       /// Constructor for symbols with semantic value.
@@ -742,10 +748,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 71,           //< Last index in yytable_.
-      yynnts_ = 20,  //< Number of nonterminal symbols.
+      yylast_ = 70,           //< Last index in yytable_.
+      yynnts_ = 22,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 21, //< Termination state number.
+      yyfinal_ = 22, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
       yyntokens_ = 32    //< Number of tokens.

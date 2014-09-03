@@ -365,11 +365,11 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
-    Stroka query = "k from [//t] where a in (0";
-    for (int i = 1; i < 50 ; ++i) {
-        query += ", " + ToString(i);
+    Stroka query = "k from [//t] where a ";
+    for (int i = 0; i < 50 ; ++i) {
+        query += "+ " + ToString(i);
     }
-    query += ")";
+    query += " > 0";
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));

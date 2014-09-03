@@ -107,7 +107,9 @@
 %type <TExpressionPtr> multiplicative-op-expr
 %type <TExpressionPtr> additive-op-expr
 %type <TExpressionPtr> atomic-expr
-%type <TFunctionExpression::TArguments> expr-list
+%type <TUnversionedValue> literal-expr
+%type <TExpressionList> expr-list
+%type <TValueList> literal-list
 
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
@@ -238,14 +240,9 @@ relational-op-expr
                 New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
-    | atomic-expr[expr] KwIn LeftParenthesis expr-list[args] RightParenthesis
+    | atomic-expr[expr] KwIn LeftParenthesis literal-list[args] RightParenthesis
         {
-            $$ = New<TLiteralExpression>(@$, MakeUnversionedBooleanValue(false));
-
-            for (const auto& current : $args) {
-                $$ = New<TBinaryOpExpression>(@$, EBinaryOp::Or, 
-                    New<TBinaryOpExpression>(@$, EBinaryOp::Equal, $expr, current), $$);
-            }
+            $$ = New<TInExpression>(@$, $expr, $args);
         }
     | additive-op-expr
         { $$ = $1; }
@@ -309,26 +306,25 @@ atomic-expr
         {
             $$ = New<TFunctionExpression>(@$, $name, $args);
         }
-    | Int64Literal[value]
-        {
-            $$ = New<TLiteralExpression>(@$, $value);
-        }
-    | Uint64Literal[value]
-        {
-            $$ = New<TLiteralExpression>(@$, $value);
-        }
-    | DoubleLiteral[value]
-        {
-            $$ = New<TLiteralExpression>(@$, $value);
-        }
-    | StringLiteral[value]
-        {
-            $$ = New<TLiteralExpression>(@$, $value);
-        }
     | LeftParenthesis or-op-expr[expr] RightParenthesis
         {
             $$ = $expr;
         }
+    | literal-expr[value]
+        {
+            $$ = New<TLiteralExpression>(@$, $value);
+        }
+;
+
+literal-expr
+    : Int64Literal
+        { $$ = $1; }
+    | Uint64Literal
+        { $$ = $1; }
+    | DoubleLiteral
+        { $$ = $1; }
+    | StringLiteral
+        { $$ = $1; }
 ;
 
 expr-list
@@ -338,6 +334,18 @@ expr-list
             $$.push_back($a);
         }
     | expression[a]
+        {
+            $$.push_back($a);
+        }
+;
+
+literal-list
+    : literal-list[as] Comma literal-expr[a]
+        {
+            $$.swap($as);
+            $$.push_back($a);
+        }
+    | literal-expr[a]
         {
             $$.push_back($a);
         }

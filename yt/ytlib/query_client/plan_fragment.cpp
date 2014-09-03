@@ -510,6 +510,43 @@ TPlanFragmentPtr PreparePlanFragment(
                 binaryExpr->Opcode,
                 typedLhsExpr,
                 typedRhsExpr);
+        } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
+            auto sourceLoaction = inExpr->SourceLocation;
+            auto inExprOperand = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
+
+            std::function<TExpressionPtr(const TValue*, const TValue*)> makeOrExpression = 
+                [&] (const TValue* begin, const TValue* end) -> TExpressionPtr {
+                if (begin == end) {
+                    return New<TLiteralExpression>(
+                        sourceLoaction,
+                        EValueType::Boolean,
+                        rowBuilder.AddValue(MakeUnversionedBooleanValue(false)));
+                } else if (begin + 1 == end) {
+
+                    auto literalExpr = New<TLiteralExpression>(
+                        sourceLoaction,
+                        EValueType(begin->Type),
+                        rowBuilder.AddValue(*begin));
+
+                    return New<TBinaryOpExpression>(
+                        sourceLoaction,
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        inExprOperand,
+                        literalExpr);
+                } else {
+                    auto middle = (end - begin) / 2;
+
+                    return New<TBinaryOpExpression>(
+                        sourceLoaction,
+                        EValueType::Boolean,
+                        EBinaryOp::Or, 
+                        makeOrExpression(begin, begin + middle),
+                        makeOrExpression(begin + middle, end));
+                }
+            };
+
+            return makeOrExpression(inExpr->Values.data(), inExpr->Values.data() + inExpr->Values.size());
         }
 
         YUNREACHABLE();

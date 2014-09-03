@@ -14,6 +14,8 @@ namespace NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::vector<TValue> TValueList;
+
 struct TExpression
     : public TIntrinsicRefCounted
 {
@@ -41,6 +43,8 @@ struct TExpression
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 DEFINE_REFCOUNTED_TYPE(TExpression)
+
+typedef std::vector<TExpressionPtr> TExpressionList;
 
 struct TLiteralExpression
     : public TExpression
@@ -73,19 +77,17 @@ struct TReferenceExpression
 struct TFunctionExpression
     : public TExpression
 {
-    typedef std::vector<TExpressionPtr> TArguments;
-
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName,
-        const TArguments& arguments)
+        const TExpressionList& arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
         , Arguments(arguments)
     { }
 
     Stroka FunctionName;
-    TArguments Arguments;
+    TExpressionList Arguments;
 
 };
 
@@ -106,6 +108,23 @@ struct TBinaryOpExpression
     EBinaryOp Opcode;
     TExpressionPtr Lhs;
     TExpressionPtr Rhs;
+
+};
+
+struct TInExpression
+    : public TExpression
+{
+    TInExpression(
+        const TSourceLocation& sourceLocation,
+        const TExpressionPtr& expression,
+        const TValueList& values)
+        : TExpression(sourceLocation)
+        , Expr(expression)
+        , Values(values)
+    { }
+
+    TExpressionPtr Expr;
+    TValueList Values;
 
 };
 
