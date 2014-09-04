@@ -12,7 +12,7 @@ def main():
     setup(
         name = "yandex-yt-yson-bindings",
         version = get_version(),
-        packages = ["yt.bindings.yson"],
+        packages = ["yt.bindings", "yt.bindings.yson"],
         package_data = {"yt.bindings.yson": ["yson_lib.so"] },
 
         author = "Ignat Kolesnichenko",
