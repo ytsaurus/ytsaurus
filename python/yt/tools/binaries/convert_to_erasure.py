@@ -42,11 +42,11 @@ def main():
         
     if args.proxy is not None:
         yt.config.set_proxy(args.proxy)
-    else:
-        yt.create("table", args.dst, ignore_existing=True)
 
     if args.dst is None:
         args.dst = args.src
+    else:
+        yt.create("table", args.dst, ignore_existing=True)
     
     if args.compression_codec is not None:
         ratio = get_compression_ratio(args.src, args.compression_codec)
