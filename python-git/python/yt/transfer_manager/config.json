@@ -54,15 +54,27 @@
                 "fastbone": true,
                 "viewer": "https://specto.yandex.ru/betula-viewer/"
             }
+        },
+        "bsmr": {
+            "type": "yamr",
+            "options": {
+                "server": "bsmr-server.yandex.ru",
+                "opts": "MR_NET_TABLE=ipv6",
+                "binary": "/opt/cron/tools/mapreduce",
+                "server_port": 8013,
+                "http_port": 13013,
+                "fastbone": false
+            }
         }
     },
     "availability_graph": {
-        "kant": ["cedar", "betula", "smith", "plato"],
+        "kant": ["cedar", "betula", "smith", "plato", "bsmr"],
         "smith": ["cedar", "betula", "kant", "plato"],
         "plato": ["cedar", "betula", "kant", "smith"],
         "marx": ["plato"],
         "cedar": ["kant", "smith", "plato"],
-        "betula": ["kant", "smith", "plato"]
+        "betula": ["kant", "smith", "plato"],
+        "bsmr": ["kant"]
     },
     "path": "//home/ignat/transfer_manager",
     "proxy": "kant.yt.yandex.net",
