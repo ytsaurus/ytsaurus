@@ -24,6 +24,14 @@
             "remote_copy_network": "fastbone",
             "mr_import_pool": "import_restricted"
         },
+        "marx": {
+            "type": "yt",
+            "options": {
+                "proxy": "marx.yt.yandex.net"
+            },
+            "remote_copy_network": "default",
+            "mr_import_pool": "import_restricted"
+        },
         "cedar": {
             "type": "yamr",
             "options": {
@@ -52,6 +60,7 @@
         "kant": ["cedar", "betula", "smith", "plato"],
         "smith": ["cedar", "betula", "kant", "plato"],
         "plato": ["cedar", "betula", "kant", "smith"],
+        "marx": ["plato"],
         "cedar": ["kant", "smith", "plato"],
         "betula": ["kant", "smith", "plato"]
     },
