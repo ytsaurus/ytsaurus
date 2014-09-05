@@ -175,7 +175,7 @@ private:
             return TVersionedRow();
         }
 
-        UncompressedBlock_ = uncompressedBlock;
+        UncompressedBlock_ = std::move(uncompressedBlock);
         return blockReader.GetRow(&MemoryPool_);
     }
 
