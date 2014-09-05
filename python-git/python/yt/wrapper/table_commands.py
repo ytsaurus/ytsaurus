@@ -301,25 +301,30 @@ def _make_operation_request(command_name, spec, strategy,
                 _manage_operation(finalizer)
 
 def _get_format_from_tables(tables, ignore_unexisting_tables):
-    """Try to get format from tables, raise YtError if tables are inappropriate"""
+    """Try to get format from tables, raise YtError if tables have different _format attribute"""
     not_none_tables = filter(None, flatten(tables))
-    existing_tables = filter(lambda x: exists(to_name(x)), not_none_tables)
-    if not existing_tables:
+
+    if ignore_unexisting_tables:
+        tables_to_extract = filter(lambda x: exists(to_name(x)), not_none_tables)
+    else:
+        tables_to_extract = not_none_tables
+
+    if not tables_to_extract:
         return None
-    if not ignore_unexisting_tables:
-        require(len(existing_tables) == len(not_none_tables),
-                YtError("Tables [{0}] must exist"
-                          .format(", ".join(str(table) for table in not_none_tables))))
 
     def extract_format(table):
         table_name = to_table(table).name
+
+        if not exists(table_name):
+            return None
+
         if "channel" in table_name.attributes:
             return create_format("<line_prefix=tskv>dsv")
         if has_attribute(table_name, "_format"):
             format_name = get(table_name + "/@_format", format=YsonFormat())
             return create_format(format_name)
         return None
-    formats = map(extract_format, existing_tables)
+    formats = map(extract_format, tables_to_extract)
 
     require(len(set(repr(format) for format in formats)) == 1,
             YtError("Tables have different attribute _format: " + repr(formats)))
