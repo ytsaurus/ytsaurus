@@ -280,6 +280,8 @@ Examples:
              "(port usually equals to 80 and can be omitted)"),
             ("set",
              "NEW! set value to given path, value should be in json format"),
+            ("smartformat",
+             "try to extract input and output formats from inputs and outputs (by '_format' attribute)"),
             ("sort",
              "sort source tables to destination table"),
             ("sortby",
@@ -559,17 +561,6 @@ Examples:
         config.DETACHED = True
         config.KEYBOARD_ABORT = False
         yt.WaitStrategy().process_operation("unknown", args.track)
-
-    # Set _format for exisitng destination tables
-    #if args.smartformat:
-    #    output_tables = []
-    #    if args.write is not None: output_tables.append(args.write)
-    #    if args.writesorted is not None: output_tables.append(args.writesorted)
-    #    if dst is not None: output_tables += dst
-
-    #    for table in map(yt.to_name, output_tables):
-    #        if yt.exists(table):
-    #            yt.set_attribute(table, "_format", outputformat.to_json())
 
 if __name__ == "__main__":
     try:

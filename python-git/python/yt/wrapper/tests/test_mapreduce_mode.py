@@ -489,6 +489,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         with pytest.raises(YtError):
             get_format([[dsv_table, not_existing_table], None], ignore_unexisting_tables=False)
 
+        assert get_format([existing_table, not_existing_table], ignore_unexisting_tables=False) == None
         assert get_format([[dsv_table, not_existing_table], None], ignore_unexisting_tables=True).name() == "dsv"
 
         with pytest.raises(YtError):
