@@ -64,6 +64,9 @@ public:
 
     virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
     {
+        MemoryPool_.Clear();
+        UncompressedBlock_.Reset();
+
         if (key < ChunkMeta_->GetMinKey().Get() || key > ChunkMeta_->GetMaxKey().Get()) {
             static auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
             return NullRow;
@@ -80,10 +83,10 @@ public:
                 blockId));
         }
 
-        PooledBlockIndexes_.clear();
-        PooledBlockIndexes_.push_back(blockIndex);
+        BlockIndexes_.clear();
+        BlockIndexes_.push_back(blockIndex);
 
-        auto asyncResult = ChunkReader_->ReadBlocks(PooledBlockIndexes_);
+        auto asyncResult = ChunkReader_->ReadBlocks(BlockIndexes_);
         return asyncResult.Apply(
             BIND(&TVersionedChunkLookuper::OnBlockRead, MakeStrong(this), key, blockId)
                 .AsyncVia(TDispatcher::Get()->GetCompressionPoolInvoker()));
@@ -99,9 +102,13 @@ private:
 
     std::vector<TColumnIdMapping> SchemaIdMapping_;
 
+    std::vector<int> BlockIndexes_;
+
+    //! Holds row values for the returned row.
     TChunkedMemoryPool MemoryPool_;
 
-    std::vector<int> PooledBlockIndexes_;
+    //! Holds the block for the returned row (for string references).
+    TSharedRef UncompressedBlock_;
 
 
     int GetBlockIndex(TKey key)
@@ -168,6 +175,7 @@ private:
             return TVersionedRow();
         }
 
+        UncompressedBlock_ = uncompressedBlock;
         return blockReader.GetRow(&MemoryPool_);
     }
 

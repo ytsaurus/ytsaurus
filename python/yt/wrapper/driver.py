@@ -46,7 +46,10 @@ class ResponseStream(object):
             length = 2 ** 32
 
         result = []
-        while length > len(self._buffer) - self._pos:
+        if not self._buffer:
+            self._fetch()
+
+        while length > 0:
             right = min(len(self._buffer), self._pos + length)
             result.append(self._buffer[self._pos:right])
             length -= right - self._pos
