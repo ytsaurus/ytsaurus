@@ -46,7 +46,8 @@ public:
         : TServiceBase(
             CreatePrioritizedInvoker(invoker),
             TQueryServiceProxy::GetServiceName(),
-            QueryAgentLogger)
+            QueryAgentLogger,
+            TQueryServiceProxy::GetProtocolVersion())
         , Config_(config)
         , Executor_(executor)
     {
