@@ -99,11 +99,21 @@ class Application(object):
 
         message_queue = Queue()
         self._lock_path = os.path.join(config["path"], "lock")
+        self._lock_timeout = 10.0
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
         self._lock_thread = Process(target=self._take_lock, args=(message_queue,))
         self._lock_thread.start()
-        if not message_queue.get(timeout=5.0):
-            raise yt.YtError("Cannot take lock " + self._lock_path)
+        self._lock_acquired = False
+        while True:
+            try:
+                if message_queue.get(timeout=10.0):
+                    self._lock_acquired = True
+                    break
+                else:
+                    raise yt.YtError("Cannot take lock " + self._lock_path)
+            except Queue.Empty:
+                time.sleep(self._lock_timeout)
+
         self._yt.set_attribute(config["path"], "address", socket.getfqdn())
 
         self._acl_path = os.path.join(config["path"], "acl")
@@ -116,6 +126,7 @@ class Application(object):
         self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"])
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
+        self._add_rule("/ping/", 'ping', methods=["GET"])
 
         self._task_processes = {}
 
@@ -159,13 +170,17 @@ class Application(object):
     def _take_lock(self, message_queue):
         try:
             with self._yt.PingableTransaction():
-                try:
-                    self._yt.lock(self._lock_path)
-                    message_queue.put(True)
-                except Exception as err:
-                    logger.exception(yt.errors.format_error(err))
-                    message_queue.put(True)
-                    return
+                while True:
+                    try:
+                        self._yt.lock(self._lock_path)
+                        message_queue.put(True)
+                    except yt.YtError as err:
+                        if err.is_concurrent_transaction_lock_conflict():
+                            time.sleep(self._lock_timeout)
+                            continue
+                        logger.exception(yt.errors.format_error(err))
+                        message_queue.put(True)
+                        return
 
                 # Sleep infinitely long
                 time.sleep(2 ** 60)
@@ -537,6 +552,11 @@ class Application(object):
 
     def config(self):
         return jsonify(self._config)
+
+    def ping(self):
+        if not self._lock_acquired:
+            return "Cannot take lock", 500
+        return 200
 
 DEFAULT_CONFIG = {
     "clusters": {
