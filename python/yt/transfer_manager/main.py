@@ -8,7 +8,7 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_yamr_push, \
     run_operation_and_notify
 from yt.wrapper.client import Yt
-from yt.wrapper.common import generate_uuid
+from yt.wrapper.common import generate_uuid, get_value
 import yt.wrapper as yt
 
 from flask import Flask, request, jsonify, Response, make_response
@@ -52,7 +52,7 @@ def get_import_pool(mr_client, yt_client):
 
 class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
-                 token="", user="unknown", mr_user=None, error=None, finish_time=None, progress=None, meta=None):
+                 token="", user="unknown", mr_user=None, error=None, finish_time=None, copy_method=None, progress=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.destination_cluster = destination_cluster
@@ -66,6 +66,7 @@ class Task(object):
         self.mr_user = mr_user
         self.error = error
         self.token = token
+        self.copy_method = copy_method
         self.progress = progress
 
         # Special field to store meta-information for web-interface
@@ -148,10 +149,10 @@ class Application(object):
                 return func(*args, **kwargs)
             except RequestFailed as error:
                 logger.exception(yt.errors.format_error(error))
-                return yt.errors.format_error(error), 400
+                return json.dumps(error.simplify()), 400
             except Exception as error:
                 logger.exception(error)
-                return "Unknown error: " + error.message, 502
+                return json.dumps({"code": 1, "message": "Unknown error: " + error.message}), 502
 
         return decorator
 
@@ -254,6 +255,8 @@ class Application(object):
         return token, user
 
     def _precheck(self, task):
+        if task.copy_method not in [None, "pull", "push"]:
+            raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
         if task.source_cluster not in self._clusters:
             raise yt.YtError("Unknown cluster " + task.source_cluster)
         if task.destination_cluster not in self._clusters:
@@ -359,22 +362,24 @@ class Application(object):
                 if task.mr_user is None:
                     task.mr_user = "tmp"
                 logger.info("Running YT -> YAMR remote copy")
-                #copy_yt_to_yamr_pull(
-                #    self._clusters[task.source_cluster],
-                #    self._clusters[task.destination_cluster],
-                #    task.source_table,
-                #    task.destination_table,
-                #    mr_user=task.mr_user,
-                #    message_queue=message_queue)
-                copy_yt_to_yamr_push(
-                    self._clusters[task.source_cluster],
-                    self._clusters[task.destination_cluster],
-                    task.source_table,
-                    task.destination_table,
-                    mr_user=task.mr_user,
-                    spec_template=task_spec,
-                    token=task.token,
-                    message_queue=message_queue)
+                if get_value(task.copy_method, "push"):
+                    copy_yt_to_yamr_push(
+                        self._clusters[task.source_cluster],
+                        self._clusters[task.destination_cluster],
+                        task.source_table,
+                        task.destination_table,
+                        mr_user=task.mr_user,
+                        spec_template=task_spec,
+                        token=task.token,
+                        message_queue=message_queue)
+                else:
+                    copy_yt_to_yamr_pull(
+                        self._clusters[task.source_cluster],
+                        self._clusters[task.destination_cluster],
+                        task.source_table,
+                        task.destination_table,
+                        mr_user=task.mr_user,
+                        message_queue=message_queue)
             elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yt":
                 if task.mr_user is None:
                     task.mr_user = "tmp"
