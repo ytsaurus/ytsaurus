@@ -52,11 +52,13 @@ def get_import_pool(mr_client, yt_client):
 
 class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, destination_table, creation_time, id, state,
-                 token="", user="unknown", mr_user=None, error=None, finish_time=None, copy_method=None, progress=None, meta=None):
+                 token="", source_cluster_token=None, destination_cluster_token=None, user="unknown", mr_user=None, error=None, finish_time=None, copy_method=None, progress=None, meta=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
+        self.source_cluster_token = get_value(source_cluster_token, token)
         self.destination_cluster = destination_cluster
         self.destination_table = destination_table
+        self.destination_cluster_token = get_value(destination_cluster_token, token)
 
         self.creation_time = creation_time
         self.finish_time = finish_time
@@ -360,7 +362,7 @@ class Application(object):
 
             if self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yt":
                 client = deepcopy(self._clusters[task.destination_cluster])
-                client.token = task.token
+                client.token = task.destination_cluster_token
                 logger.info("Running YT -> YT remote copy operation")
                 run_operation_and_notify(
                     message_queue,
@@ -385,7 +387,7 @@ class Application(object):
                         task.destination_table,
                         mr_user=task.mr_user,
                         spec_template=task_spec,
-                        token=task.token,
+                        token=task.source_cluster_token,
                         message_queue=message_queue)
                 else:
                     copy_yt_to_yamr_pull(
@@ -405,7 +407,7 @@ class Application(object):
                     self._clusters[task.destination_cluster],
                     task.source_table,
                     task.destination_table,
-                    token=task.token,
+                    token=task.destination_cluster_token,
                     mr_user=task.mr_user,
                     spec_template=task_spec,
                     message_queue=message_queue)
