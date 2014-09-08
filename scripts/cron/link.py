@@ -11,8 +11,12 @@ def link(obj):
     dst = obj["dst"]
     if not yt.exists(src):
         return -1
-    if not yt.exists(dst):
-        yt.link(src, dst)
+    if yt.exists(dst + "&"):
+        if yt.get(dst + "&/@broken"):
+            yt.remove(dst)
+        else:
+            return
+    yt.link(src, dst)
 
 if __name__ == "__main__":
     process_tasks_from_list(sys.argv[1], link)
