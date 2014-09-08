@@ -73,21 +73,16 @@
     #pragma warning (disable: 4250)
 #endif
 
-#if defined(_MSC_VER)
-    // VS does not support alignof natively yet.
-    #define alignof __alignof
-#endif
-
 #if defined(__GNUC__) || defined(__clang__)
     #define SILENT_UNUSED __attribute__((unused))
-#else
+    #define PER_THREAD __thread
+#elif defined(_MSC_VER)
     #define SILENT_UNUSED
-#endif
-
-#ifdef _unix_
-    #define TLS_STATIC static __thread
+    #define PER_THREAD __declspec(thread)
+    // VS does not support alignof natively yet.
+    #define alignof __alignof
 #else
-    #define TLS_STATIC static __declspec(thread)
+    #error Unsupported compiler
 #endif
 
 namespace std {

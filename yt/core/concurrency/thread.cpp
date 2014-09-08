@@ -111,7 +111,7 @@ TThreadId GetCurrentThreadId()
 {
     // TODO(babenko): add support for other platforms using some well-established TLS macros
 #if defined(__GNUC__) && !defined(__APPLE__)
-    TLS_STATIC TThreadId CachedThreadId = InvalidThreadId;
+    static PER_THREAD auto CachedThreadId = InvalidThreadId;
     if (CachedThreadId == InvalidThreadId) {
         CachedThreadId = SystemCurrentThreadIdImpl();
     }

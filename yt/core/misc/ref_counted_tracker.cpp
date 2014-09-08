@@ -45,8 +45,8 @@ private:
 
 };
 
-TLS_STATIC void* CurrentThreadStatisticsBegin = nullptr; // actually TRefCountedTracker::TAnonymousSlot*
-TLS_STATIC int CurrentThreadStatisticsSize = 0;
+static PER_THREAD void* CurrentThreadStatisticsBegin = nullptr; // actually TRefCountedTracker::TAnonymousSlot*
+static PER_THREAD int CurrentThreadStatisticsSize = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

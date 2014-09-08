@@ -9,7 +9,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLS_STATIC IScheduler* CurrentScheduler = nullptr;
+static PER_THREAD IScheduler* CurrentScheduler = nullptr;
 
 IScheduler* GetCurrentScheduler()
 {
