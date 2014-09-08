@@ -375,7 +375,6 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/t1', '//tmp/t2') # preserve is OFF
         assert get('//tmp/t2/@account') == 'tmp'
 
-
     def test_copy_preserve_account2(self):
         create_account('max')
         create('table', '//tmp/t1')
