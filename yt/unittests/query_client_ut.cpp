@@ -379,6 +379,20 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
         ContainsRegex("Plan fragment depth limit exceeded"));
 }
 
+TEST_F(TQueryPrepareTest, BigQuery)
+{
+    Stroka query = "k from [//t] where a in (0";
+    for (int i = 1; i < 1000; ++i) {
+        query += ", " + ToString(i);
+    }
+    query += ")";
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
+
+    PreparePlanFragment(&PrepareMock_, query);
+}
+
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
