@@ -81,16 +81,17 @@ from cStringIO import StringIO
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_table", simplify=False)
 
-def _prepare_source_tables(tables, filter_instead_replace=False, client=None):
+def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
     if config.TREAT_UNEXISTING_AS_EMPTY:
-        if filter_instead_replace:
+        if not replace_unexisting_by_empty:
             return [table for table in result if exists(table.name, client=client)]
         def get_empty_table(table):
             logger.warning("Warning: input table '%s' does not exist", table.name)
             return DEFAULT_EMPTY_TABLE
         return [table if exists(table.name, client=client) else get_empty_table(table)
                   for table in result]
+
     return result
 
 def _are_default_empty_table(tables):
@@ -772,8 +773,8 @@ def select(query, timestamp=None, format=None, response_type=None, raw=True, cli
 def run_erase(table, spec=None, strategy=None, client=None):
     """Erase table or part of it.
 
-    It differs from remove command.
-    `Erase` only remove given content. You can erase range of records in the table.
+    Erase differs from remove command.
+    It only removes content of table (range of records or all table) and doesn't remove Cypress node.
 
     :param table: (string or `TablePath`)
     :param spec: (dict)
@@ -808,11 +809,11 @@ def run_merge(source_table, destination_table, mode=None,
 
     .. seealso::  :ref:`operation_parameters`.
     """
-    source_table = _prepare_source_tables(source_table, filter_instead_replace=True, client=client)
+    source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
         _remove_tables([destination_table], client=client)
         return
 
@@ -838,11 +839,13 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     """
 
     sort_by = _prepare_sort_by(sort_by)
-    source_table = _prepare_source_tables(source_table, client=client)
+    source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     for table in source_table:
         require(exists(table.name, client=client), YtError("Table %s should exist" % table))
 
     if destination_table is None:
+        if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+            return
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
@@ -850,15 +853,15 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))
 
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        _remove_tables([destination_table], client=client)
+        return
+
     if all(is_prefix(sort_by, get_sorted_by(table.name, [], client=client)) for table in source_table):
         #(TODO) Hack detected: make something with it
         if len(source_table) > 0:
             run_merge(source_table, destination_table, "sorted",
                       strategy=strategy, table_writer=table_writer, spec=spec, client=client)
-        return
-
-    if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
-        _remove_tables([destination_table], client=client)
         return
 
     spec = compose(
@@ -1066,12 +1069,22 @@ def _run_operation(binary, source_table, destination_table,
         return spec
     op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
+
     if op_name == "reduce":
+
+        reduce_by = _prepare_reduce_by(reduce_by)
+
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
-            are_input_tables_sorted =  all(
-                is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, [], client=client))
-                for table in source_table)
-            if not are_input_tables_sorted:
+            are_tables_not_sorted = False
+            for table in source_table:
+                sorted_by = get_sorted_by(table.name, [], client=client)
+                if not sorted_by:
+                    are_tables_not_sorted = True
+                    continue
+                if not is_prefix(reduce_by, sorted_by):
+                    raise YtError("reduce_by parameter {0} conflicts with sorted_by attribute {1} of input table {2}".format(reduce_by, sorted_by, table.name))
+
+            if are_tables_not_sorted:
                 if job_count is not None:
                     spec = update({"partition_count": job_count}, spec)
                 run_map_reduce(
@@ -1093,9 +1106,6 @@ def _run_operation(binary, source_table, destination_table,
                     strategy=strategy,
                     spec=spec)
                 return
-
-    if op_name == "reduce":
-        reduce_by = _prepare_reduce_by(reduce_by)
 
     destination_table = _prepare_destination_tables(destination_table, replication_factor,
                                                     compression_codec, client=client)
