@@ -109,7 +109,7 @@ private:
     //! Holds the block for the returned row (for string references).
     TSharedRef UncompressedBlock_;
 
-    TErrorOr<TVersionedRow> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+    TFuture<TErrorOr<TVersionedRow>> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 
     int GetBlockIndex(TKey key)

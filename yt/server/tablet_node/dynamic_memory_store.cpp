@@ -450,7 +450,7 @@ public:
     }
 
 private:
-    TErrorOr<TVersionedRow> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
+    TFuture<TErrorOr<TVersionedRow>> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 };
 
