@@ -182,17 +182,17 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
         }
     };
 
-    auto checkTypeCast = [&] (EValueType destType) {
+    auto checkTypeCast = [&] (EValueType dstType) {
         validateArgCount(1);
         auto argType = argTypes[0];
 
         if (argType != EValueType::Int64 && argType != EValueType::Uint64 && argType != EValueType::Double) {
             THROW_ERROR_EXCEPTION("Conversion %Qv is not supported for this types", source)
                 << TErrorAttribute("src_type", ToString(argType))
-                << TErrorAttribute("dest_type", ToString(destType));
+                << TErrorAttribute("dst_type", ToString(dstType));
         }
 
-        return destType;
+        return dstType;
     };
 
     if (functionName == "if") {
@@ -511,25 +511,24 @@ TPlanFragmentPtr PreparePlanFragment(
                 typedLhsExpr,
                 typedRhsExpr);
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto sourceLoaction = inExpr->SourceLocation;
+            auto sourceLocation = inExpr->SourceLocation;
             auto inExprOperand = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
 
             std::function<TExpressionPtr(const TValue*, const TValue*)> makeOrExpression = 
                 [&] (const TValue* begin, const TValue* end) -> TExpressionPtr {
                 if (begin == end) {
                     return New<TLiteralExpression>(
-                        sourceLoaction,
+                        sourceLocation,
                         EValueType::Boolean,
                         rowBuilder.AddValue(MakeUnversionedBooleanValue(false)));
                 } else if (begin + 1 == end) {
-
                     auto literalExpr = New<TLiteralExpression>(
-                        sourceLoaction,
+                        sourceLocation,
                         EValueType(begin->Type),
                         rowBuilder.AddValue(*begin));
 
                     return New<TBinaryOpExpression>(
-                        sourceLoaction,
+                        sourceLocation,
                         EValueType::Boolean,
                         EBinaryOp::Equal,
                         inExprOperand,
@@ -538,7 +537,7 @@ TPlanFragmentPtr PreparePlanFragment(
                     auto middle = (end - begin) / 2;
 
                     return New<TBinaryOpExpression>(
-                        sourceLoaction,
+                        sourceLocation,
                         EValueType::Boolean,
                         EBinaryOp::Or, 
                         makeOrExpression(begin, begin + middle),
