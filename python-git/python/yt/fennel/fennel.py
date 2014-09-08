@@ -600,7 +600,10 @@ def run():
     else:
         func = main
 
-    func(**options.options.as_dict())
+    try:
+        func(**options.options.as_dict())
+    except Exception:
+        log.error("Unhandled exception: ", exc_info=True)
 
 
 if __name__ == "__main__":
