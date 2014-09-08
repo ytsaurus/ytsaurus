@@ -188,7 +188,7 @@ void TMoveCommand::DoExecute()
     SetTransactionId(req, EAllowNullTransaction::Yes);
     GenerateMutationId(req);
     req->set_source_path(Request->SourcePath.GetPath());
-    req->set_preserve_account(true);
+    req->set_preserve_account(Request->PreserveAccount);
     req->set_remove_source(true);
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
