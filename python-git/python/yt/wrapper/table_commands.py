@@ -1141,7 +1141,7 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, copy_attributes=False, strategy=None, client=None):
+                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
@@ -1174,11 +1174,14 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
         remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
         current_proxy = config.http.PROXY
+        current_token = config.http.TOKEN
 
         config.set_proxy(remote_proxy)
+        config.http.TOKEN = get_value(remote_cluster_token, config.http.TOKEN)
         src_attributes = get(source_table[0] + "/@")
 
         config.set_proxy(current_proxy)
+        config.http.TOKEN = current_token
         attributes = src_attributes.get("user_attribute_keys", []) + \
                      ["compression_codec", "erasure_codec", "replication_factor"]
         for attribute in attributes:

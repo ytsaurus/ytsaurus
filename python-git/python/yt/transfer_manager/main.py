@@ -374,6 +374,7 @@ class Application(object):
                             cluster_name=task.source_cluster,
                             network_name=self._clusters[task.source_cluster]._network,
                             spec=task_spec,
+                            remote_copy_token=task.source_cluster_token,
                             strategy=strategy))
             elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
