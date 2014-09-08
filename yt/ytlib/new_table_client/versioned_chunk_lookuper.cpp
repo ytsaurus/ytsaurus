@@ -68,8 +68,7 @@ public:
         UncompressedBlock_.Reset();
 
         if (key < ChunkMeta_->GetMinKey().Get() || key > ChunkMeta_->GetMaxKey().Get()) {
-            static auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
-            return NullRow;
+            return NullRow_;
         }
 
         int blockIndex = GetBlockIndex(key);
@@ -109,6 +108,8 @@ private:
 
     //! Holds the block for the returned row (for string references).
     TSharedRef UncompressedBlock_;
+
+    TErrorOr<TVersionedRow> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 
     int GetBlockIndex(TKey key)

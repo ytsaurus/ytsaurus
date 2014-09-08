@@ -441,14 +441,16 @@ public:
     {
         auto iterator = Store_->Rows_->FindEqualTo(key);
         if (!iterator.IsValid()) {
-            static const auto NullRow = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
-            return NullRow;
+            return NullRow_;
         }
 
         auto dynamicRow = iterator.GetCurrent();
         auto versionedRow = ProduceSingleRowVersion(dynamicRow);
         return MakeFuture<TErrorOr<TVersionedRow>>(versionedRow);
     }
+
+private:
+    TErrorOr<TVersionedRow> NullRow_ = MakeFuture<TErrorOr<TVersionedRow>>(TVersionedRow());
 
 };
 
