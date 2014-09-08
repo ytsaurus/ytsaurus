@@ -29,6 +29,12 @@ class TestMapreduceMode(YtTestBase, YTEnv):
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
         config.set_mapreduce_mode()
+        config.TREAT_UNEXISTING_AS_EMPTY = False
+        if not yt.exists("//sys/empty_table"):
+            yt.create("table", "//sys/empty_table", recursive=True)
+        if not yt.is_sorted("//sys/empty_table"):
+            yt.run_sort("//sys/empty_table", "//sys/empty_table", sort_by=["key", "subkey"])
+        config.TREAT_UNEXISTING_AS_EMPTY = True
 
     @classmethod
     def teardown_class(cls):
@@ -423,6 +429,28 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
         yt.run_reduce("cat", table, table)
         self.assertEqual(yt.records_count(table), 10)
+
+    def test_reduce_unexisting_tables(self):
+        old_config = config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED
+        config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = False
+
+        input_tables = [self.create_temp_table(), TEST_DIR + "/unexisting_table"]
+        output_table = TEST_DIR + "/output_table"
+        yt.create("table", output_table)
+        yt.run_sort(input_tables[0])
+
+        yt.run_reduce("cat", input_tables, output_table)
+
+        config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = old_config
+
+    def test_reduce_improperly_sorted_table(self):
+        input_table = TEST_DIR + "/table_one"
+        output_table = TEST_DIR + "/output_table"
+        yt.create("table", input_table)
+        yt.run_sort(input_table, sort_by=["a", "b"])
+
+        with pytest.raises(YtError):
+            yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
 
     def test_sort_of_sorted_tables(self):
         table = self.create_temp_table()
