@@ -60,7 +60,7 @@ class State(object):
         self._log_broker.abort()
 
     def _initialize(self):
-        self._last_saved_seqno = self._from_line_index(self._event_log.get_next_line_to_save()) - 1
+        self._last_saved_seqno = self._from_row_number(self._event_log.get_next_row_to_save()) - 1
         self._last_seqno = self._last_saved_seqno
         self.log.info("Last acked seqno is %d", self._last_seqno)
 
@@ -76,7 +76,7 @@ class State(object):
         self._save_chunk_handle = None
         try:
             seqno = self._last_saved_seqno + 1
-            data = self._event_log.get_data(self._to_line_index(seqno), self._chunk_size)
+            data = self._event_log.get_data(self._to_row_number(seqno), self._chunk_size)
             self._log_broker.save_chunk(seqno, data)
             self._last_saved_seqno = seqno
         except yt.YtError:
@@ -118,16 +118,16 @@ class State(object):
         self.log.debug("Update state. Last acked seqno: %d", self._last_seqno)
         self._update_state_handle = None
         try:
-            self._event_log.set_next_line_to_save(self._to_line_index(self._last_seqno))
+            self._event_log.set_next_row_to_save(self._to_row_number(self._last_seqno))
         except yt.YtError:
-            self.log.error("Unable to update next line to save", exc_info=True)
+            self.log.error("Unable to update next row to save", exc_info=True)
             self._update_state_handle = self._io_loop.add_timeout(datetime.timedelta(seconds=1), self._update_state)
 
-    def _to_line_index(self, reqno):
+    def _to_row_number(self, reqno):
         return reqno * self._chunk_size
 
-    def _from_line_index(self, line_index):
-        return line_index / self._chunk_size
+    def _from_row_number(self, row_number):
+        return row_number / self._chunk_size
 
 
 class EventLog(object):
@@ -140,14 +140,14 @@ class EventLog(object):
         self.yt = yt
         self._table_name = table_name or "//tmp/event_log"
         self._archive_table_name = self._table_name + ".archive"
-        self._index_of_first_line_attr = "{0}/@index_of_first_line".format(self._table_name)
-        self._line_to_save_attr = "{0}/@lines_to_save".format(self._table_name)
+        self._number_of_first_row_attr = "{0}/@number_of_first_row".format(self._table_name)
+        self._row_to_save_attr = "{0}/@row_to_save".format(self._table_name)
         self._row_count = "{0}/@row_count".format(self._table_name)
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
-            lines_removed = int(self.yt.get(self._index_of_first_line_attr))
-            begin -= lines_removed
+            rows_removed = int(self.yt.get(self._number_of_first_row_attr))
+            begin -= rows_removed
             assert begin >= 0
             self.log.debug("Reading %s event log. Begin: %d, count: %d",
                 self._table_name,
@@ -164,9 +164,9 @@ class EventLog(object):
 
     def truncate(self, count):
         with self.yt.Transaction():
-            index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
-            index_of_first_line += count
-            self.yt.set(self._index_of_first_line_attr, index_of_first_line)
+            first_row = int(self.yt.get(self._number_of_first_row_attr))
+            first_row += count
+            self.yt.set(self._number_of_first_row_attr, first_row)
             self.yt.run_erase(yt.TablePath(
                 self._table_name,
                 start_index=0,
@@ -174,13 +174,13 @@ class EventLog(object):
 
     def monitor(self, threshold):
         with self.yt.Transaction():
-            index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
-            line_to_save = int(self.get_next_line_to_save())
-            real_line_to_save = line_to_save - index_of_first_line
+            first_row = int(self.yt.get(self._number_of_first_row_attr))
+            row_to_save = int(self.get_next_row_to_save())
+            real_row_to_save = row_to_save - first_row
 
             row_count = int(self.yt.get(self._row_count))
 
-            lag = row_count - real_line_to_save
+            lag = row_count - real_row_to_save
             if lag > threshold:
                 sys.stdout.write("2;  Lag equals to: %d\n" % (lag,))
             else:
@@ -191,7 +191,7 @@ class EventLog(object):
         while count > 0:
             batch_size = min(count, max_batch_size)
             with self.yt.Transaction():
-                index_of_first_line = int(self.yt.get(self._index_of_first_line_attr))
+                first_row = int(self.yt.get(self._number_of_first_row_attr))
                 partition = yt.TablePath(
                     self._table_name,
                     start_index=0,
@@ -210,22 +210,22 @@ class EventLog(object):
                     }
                 )
                 self.yt.run_erase(partition)
-                index_of_first_line += batch_size
-                self.yt.set(self._index_of_first_line_attr, index_of_first_line)
+                first_row += batch_size
+                self.yt.set(self._number_of_first_row_attr, first_row)
             count -= batch_size
 
-    def set_next_line_to_save(self, line_index):
-        self.yt.set(self._line_to_save_attr, line_index)
+    def set_next_row_to_save(self, row_number):
+        self.yt.set(self._row_to_save_attr, row_number)
 
-    def get_next_line_to_save(self):
-        return self.yt.get(self._line_to_save_attr)
+    def get_next_row_to_save(self):
+        return self.yt.get(self._row_to_save_attr)
 
     def initialize(self):
         with self.yt.Transaction():
-            if not self.yt.exists(self._line_to_save_attr):
-                self.yt.set(self._line_to_save_attr, 0)
-            if not self.yt.exists(self._index_of_first_line_attr):
-                self.yt.set(self._index_of_first_line_attr, 0)
+            if not self.yt.exists(self._row_to_save_attr):
+                self.yt.set(self._row_to_save_attr, 0)
+            if not self.yt.exists(self._number_of_first_row_attr):
+                self.yt.set(self._number_of_first_row_attr, 0)
 
 
 def serialize_chunk(chunk_id, seqno, lines, data):
@@ -569,7 +569,7 @@ def run():
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
-    options.define("count", default=10**6, help="number of lines to truncate")
+    options.define("count", default=10**6, help="number of rows to truncate")
 
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
 
