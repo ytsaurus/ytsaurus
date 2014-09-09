@@ -400,12 +400,19 @@ class TestCypressCommands(YTEnvSetup):
     def test_move_simple3(self):
         with pytest.raises(YtError): move('//tmp', '//tmp/a')
 
-    def test_move_preserve_account(self):
+    def test_move_preserve_account1(self):
         create_account('max')
         create('table', '//tmp/t1')
         set('//tmp/t1/@account', 'max')
         move('//tmp/t1', '//tmp/t2', preserve_account="false") # preserve is OFF
         assert get('//tmp/t2/@account') == 'tmp'
+
+    def test_move_preserve_account2(self):
+        create_account('max')
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@account', 'max')
+        move('//tmp/t1', '//tmp/t2') # preserve is ON
+        assert get('//tmp/t2/@account') == 'max'
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})
