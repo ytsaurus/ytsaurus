@@ -82,6 +82,8 @@ TKeyTrieNode ExtractMultipleConstraints(
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
                 if (keyPartIndex >= 0) {
                     auto value = literals[constantExpr->Index];
+
+                    auto& bounds = result.Bounds;
                     switch (opcode) {
                         case EBinaryOp::Equal:
                             result.Offset = keyPartIndex;
@@ -89,36 +91,35 @@ TKeyTrieNode ExtractMultipleConstraints(
                             break;
                         case EBinaryOp::NotEqual:
                             result.Offset = keyPartIndex;
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                            bounds.emplace_back(value, false);
+                            bounds.emplace_back(value, false);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
 
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
-                            result.Bounds.push_back(value);
-
-                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
-                            
                             break;
                         case EBinaryOp::Less:
                             result.Offset = keyPartIndex;
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
-                            result.Bounds.push_back(value);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                            bounds.emplace_back(value, false);
 
                             break;
                         case EBinaryOp::LessOrEqual:
                             result.Offset = keyPartIndex;
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Min));
-                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+                            bounds.emplace_back(value, true);
 
                             break;
                         case EBinaryOp::Greater:
                             result.Offset = keyPartIndex;
-                            result.Bounds.push_back(GetValueSuccessor(value, rowBuffer));
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
+                            bounds.emplace_back(value, false);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
 
                             break;
                         case EBinaryOp::GreaterOrEqual:
                             result.Offset = keyPartIndex;
-                            result.Bounds.push_back(value);
-                            result.Bounds.push_back(MakeUnversionedSentinelValue(EValueType::Max));
+                            bounds.emplace_back(value, true);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+
                             break;
                         default:
                             break;
@@ -148,7 +149,7 @@ TKeyTrieNode ExtractMultipleConstraints(
                 YCHECK(value.Type == EValueType::String);
 
                 result.Offset = keyPartIndex;
-                result.Bounds.push_back(value);
+                result.Bounds.emplace_back(value, true);
 
                 ui32 length = value.Length;
                 while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
@@ -165,7 +166,7 @@ TKeyTrieNode ExtractMultipleConstraints(
                 } else {
                     value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
                 }
-                result.Bounds.push_back(value);
+                result.Bounds.emplace_back(value, false);
             }
         }
 

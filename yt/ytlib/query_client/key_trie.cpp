@@ -14,31 +14,97 @@ TKeyTrieNode ReduceKeyTrie(const TKeyTrieNode& keyTrie)
     return keyTrie;
 }
 
-std::vector<TUnversionedValue> MergeBounds(
-    std::vector<std::pair<TUnversionedValue, bool>>& bounds,
-    int overlayCount = 0)
+int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
 {
-    std::sort(bounds.begin(), bounds.end());
+    auto rank = [] (bool direction, bool included) {
+        // <  - (false, fasle)
+        // >  - (true, false)
+        // <= - (false, true)
+        // >= - (true, true)
 
-    int cover = 0;
-    std::vector<TUnversionedValue> result;
+        // (< x) < (>= x) < (<= x) < (> x)
+        return (included? -1 : 2) * (direction? 1 : -1);
+    };
 
-    for (const auto& bound : bounds) {
-        if (bound.second) {
-            --cover;
+    int result = CompareRowValues(lhs.Value, rhs.Value);
+    return result == 0
+        ? rank(lhsDir, lhs.Included) - rank(rhsDir, rhs.Included)
+        : result;
+};
+
+template <class TEachCallback>
+void MergeBounds(
+    const std::vector<TBound>& lhs,
+    const std::vector<TBound>& rhs,
+    TEachCallback eachCallback)
+{
+    auto first = lhs.begin();
+    auto second = rhs.begin();
+
+    bool firstIsOpen = true;
+    bool secondIsOpen = true;
+
+    while (first != lhs.end() && second != rhs.end()) {
+        if (CompareBound(*first, *second, firstIsOpen, secondIsOpen) < 0) {
+            eachCallback(*first, firstIsOpen);
+            ++first;
+            firstIsOpen = !firstIsOpen;
         } else {
-            ++cover;
-        }
-
-        bool currentIsActive = result.size() & 1;
-        if (currentIsActive != cover > overlayCount) {
-            if (!result.empty() && result.back() == bound.first) {
-                result.pop_back();
-            } else {
-                result.emplace_back(bound.first);
-            }
+            eachCallback(*second, secondIsOpen);
+            ++second;
+            secondIsOpen = !secondIsOpen;
         }
     }
+
+    while (first != lhs.end()) {
+        eachCallback(*first, firstIsOpen);
+        ++first;
+        firstIsOpen = !firstIsOpen;
+    }
+
+    while (second != rhs.end()) {
+        eachCallback(*second, secondIsOpen);
+        ++second;
+        secondIsOpen = !secondIsOpen;
+    }
+}
+
+std::vector<TBound> UniteBounds(
+    const std::vector<TBound>& lhs,
+    const std::vector<TBound>& rhs)
+{
+    int cover = 0;
+    std::vector<TBound> result;
+    bool resultIsOpen = false;
+
+    MergeBounds(lhs, rhs, [&] (TBound bound, bool isOpen) {
+        if (isOpen? ++cover == 1 : --cover == 0) {
+            if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
+                result.push_back(bound);
+                resultIsOpen = !resultIsOpen;
+            }
+        }
+    });
+
+    return result;
+}
+
+std::vector<TBound> IntersectBounds(
+    const std::vector<TBound>& lhs,
+    const std::vector<TBound>& rhs)
+{
+    int cover = 0;
+    std::vector<TBound> result;
+    bool resultIsOpen = false;
+
+    MergeBounds(lhs, rhs, [&] (TBound bound, bool isOpen) {
+        if (isOpen? ++cover == 2 : --cover == 1) {
+            if (result.empty() || !(result.back() == bound && isOpen == resultIsOpen)) {
+                result.push_back(bound);
+                resultIsOpen = !resultIsOpen;
+            }
+        }
+    });
 
     return result;
 }
@@ -53,27 +119,11 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRow
     TKeyTrieNode result;
     result.Offset = lhs.Offset;
 
-    std::vector<std::pair<TUnversionedValue, bool>> bounds;
+    std::vector<TBound> bounds = UniteBounds(lhs.Bounds, rhs.Bounds);
 
-    for (size_t i = 0; i < lhs.Bounds.size(); ++i) {
-        bounds.emplace_back(lhs.Bounds[i], bool(i & 1));
-    }
+    std::vector<TBound> deletedPoints;
 
-    for (size_t j = 0; j < rhs.Bounds.size(); ++j) {
-        bounds.emplace_back(rhs.Bounds[j], bool(j & 1));
-    }
-
-    for (const auto& next : lhs.Next) {
-        bounds.emplace_back(next.first, true);
-        bounds.emplace_back(GetValueSuccessor(next.first, rowBuffer), false);
-    }
-
-    for (const auto& next : rhs.Next) {
-        bounds.emplace_back(next.first, true);
-        bounds.emplace_back(GetValueSuccessor(next.first, rowBuffer), false);
-    }
-
-    result.Bounds = MergeBounds(bounds);
+    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
 
     auto addValue = [&] (const std::pair<TUnversionedValue, TKeyTrieNode>& next) {
         auto found = result.Next.find(next.first);
@@ -82,6 +132,9 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRow
             found->second = UniteKeyTrie(found->second, next.second, rowBuffer);
         } else {
             result.Next.insert(next);
+
+            deletedPoints.emplace_back(next.first, false);
+            deletedPoints.emplace_back(next.first, false);
         }
     };
 
@@ -92,6 +145,10 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRow
     for (const auto& next : rhs.Next) {
         addValue(next);
     }
+
+    deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+
+    result.Bounds = IntersectBounds(bounds, deletedPoints);
 
     return result;
 };
@@ -113,44 +170,33 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, 
     }
     TKeyTrieNode result;
     result.Offset = lhs.Offset;
-    std::vector<std::pair<TUnversionedValue, bool>> bounds;
+    result.Bounds = IntersectBounds(lhs.Bounds, rhs.Bounds);
 
-    for (size_t i = 0; i < lhs.Bounds.size(); ++i) {
-        bounds.emplace_back(lhs.Bounds[i], bool(i & 1));
-    }
+    auto covers = [&] (const std::vector<TBound>& bounds, const TUnversionedValue& point) {
+        auto found = std::lower_bound(
+            bounds.begin(),
+            bounds.end(),
+            point,
+            [] (const TBound& bound, const TUnversionedValue& point) {
+                return bound.Value < point;
+            });
 
-    for (size_t j = 0; j < rhs.Bounds.size(); ++j) {
-        bounds.emplace_back(rhs.Bounds[j], bool(j & 1));
-    }
-
-    for (const auto& next : lhs.Next) {
-        bounds.emplace_back(next.first, true);
-        bounds.emplace_back(GetValueSuccessor(next.first, rowBuffer), false);
-    }
-
-    for (const auto& next : rhs.Next) {
-        bounds.emplace_back(next.first, true);
-        bounds.emplace_back(GetValueSuccessor(next.first, rowBuffer), false);
-    }
-
-    result.Bounds = MergeBounds(bounds, true);
+        bool isClose = (found - bounds.begin()) & 1;
+        if (found != bounds.end()) {
+            return (found->Value != point) == isClose;
+        } else {
+            return false;
+        }
+    };
 
     for (const auto& next : lhs.Next) {
-        bool covers = !(std::upper_bound(
-            rhs.Bounds.begin(),
-            rhs.Bounds.end(),
-            next.first) - rhs.Bounds.begin() & 1);
-        if (covers) {
+        if (covers(rhs.Bounds, next.first)) {
             result.Next.insert(next);
         }
     }
 
     for (const auto& next : rhs.Next) {
-        bool covers = !(std::upper_bound(
-            lhs.Bounds.begin(),
-            lhs.Bounds.end(),
-            next.first) - lhs.Bounds.begin() & 1);
-        if (covers) {
+        if (covers(lhs.Bounds, next.first)) {
             result.Next.insert(next);
         }
     }
@@ -188,14 +234,18 @@ void GetRangesFromTrieWithinRangeImpl(
     YCHECK(!refineLower || offset < keyRange.first.GetCount());
     YCHECK(!refineUpper || offset < keyRange.second.GetCount());
 
-    auto getFirstKeyRangeComponent = [&] (bool refine, size_t index) {
-        return refine && index < keyRange.first.GetCount() ? 
-            keyRange.first[index] : MakeUnversionedSentinelValue(EValueType::Min);
+    auto getFirstKeyRangeComponent = [&] (size_t index) {
+        // EValueType::Min because lower bound from keyRange is included
+        return index < keyRange.first.GetCount()
+            ? keyRange.first[index]
+            : MakeUnversionedSentinelValue(EValueType::Min);
     };
 
-    auto getSecondKeyRangeComponent = [&] (bool refine, size_t index) {
-        return refine && index < keyRange.second.GetCount() ? 
-            keyRange.second[index] : MakeUnversionedSentinelValue(EValueType::Min);
+    auto getSecondKeyRangeComponent = [&] (size_t index) {
+        // EValueType::Min because upper bound from keyRange is excluded
+        return index < keyRange.second.GetCount()
+            ? keyRange.second[index]
+            : MakeUnversionedSentinelValue(EValueType::Min);
     };
 
     if (trie.Offset > offset) {
@@ -218,20 +268,25 @@ void GetRangesFromTrieWithinRangeImpl(
                 builder.AddValue(prefix[i]);
             }
             for (size_t i = prefix.size(); i < keySize; ++i) {
-                builder.AddValue(getFirstKeyRangeComponent(refineLower, i));
+                // EValueType::Min because lower bound from prefix is included
+                builder.AddValue(refineLower
+                    ? getFirstKeyRangeComponent(i)
+                    : MakeUnversionedSentinelValue(EValueType::Min));
             }
             range.first = builder.GetRowAndReset();
 
             for (size_t i = 0; i < prefix.size(); ++i) {
-                builder.AddValue(i + 1 != keySize? prefix[i] : GetValueSuccessor(prefix[i], rowBuffer));
+                // We need to make result range with excluded upper bound
+                // it could also be done outside this function
+                builder.AddValue(i + 1 != keySize
+                    ? prefix[i]
+                    : GetValueSuccessor(prefix[i], rowBuffer));
             }
             for (size_t i = prefix.size(); i < std::max(keySize, keyRange.second.GetCount()); ++i) {
-                if (refineUpper) {
-                    builder.AddValue(i < keyRange.second.GetCount() ? 
-                        keyRange.second[i] : MakeUnversionedSentinelValue(EValueType::Min));
-                } else {
-                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-                }
+                // EValueType::Max because upper bound from prefix is included 
+                builder.AddValue(refineUpper
+                    ? getSecondKeyRangeComponent(i)
+                    : MakeUnversionedSentinelValue(EValueType::Max));
             }
             range.second = builder.GetRowAndReset();
             result->push_back(range);
@@ -246,23 +301,28 @@ void GetRangesFromTrieWithinRangeImpl(
 
     for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
 
-        YCHECK(resultBounds[i] < resultBounds[i + 1]);
+        auto lower = resultBounds[i];
+        auto upper = resultBounds[i + 1];
+
+        YCHECK(lower.Value < upper.Value);
+
+        auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
+        auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 != keyRange.second.GetCount());
 
         bool lowerBoundRefined = false;
         if (refineLower) {
-            if (resultBounds[i + 1] <= keyRange.first[offset]) {
+            if (CompareBound(upper, keyRangeLowerBound, false, true) < 0) {
                 continue;
-            } else if (resultBounds[i] <= keyRange.first[offset]) {
+            } else if (CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
                 lowerBoundRefined = true;
             }
         }
 
         bool upperBoundRefined = false;
         if (refineUpper) {
-            if (resultBounds[i] > keyRange.second[offset] 
-                || offset + 1 == keyRange.second.GetCount() && resultBounds[i] == keyRange.second[offset]) {
+            if (CompareBound(lower, keyRangeUpperBound, true, false) > 0) {
                 continue;
-            } else if (resultBounds[i + 1] > keyRange.second[offset]) {
+            } else if (CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
                 upperBoundRefined = true;
             }
         }
@@ -273,19 +333,53 @@ void GetRangesFromTrieWithinRangeImpl(
         for (size_t j = 0; j < prefix.size(); ++j) {
             builder.AddValue(prefix[j]);
         }
-        builder.AddValue(lowerBoundRefined? keyRange.first[offset] : resultBounds[i]);
-        for (size_t j = prefix.size() + 1; j < keySize; ++j) {
-            builder.AddValue(getFirstKeyRangeComponent(lowerBoundRefined, j));
+
+        if (lowerBoundRefined) {
+            for (size_t j = offset; j < keySize; ++j) {
+                builder.AddValue(getFirstKeyRangeComponent(j));
+            }
+        } else {
+            size_t rangeSize = keySize;
+
+            builder.AddValue(
+                offset + 1 == rangeSize && !lower.Included
+                    ? GetValueSuccessor(lower.Value, rowBuffer)
+                    : lower.Value);
+
+            for (size_t j = offset + 1; j < rangeSize; ++j) {
+                builder.AddValue(MakeUnversionedSentinelValue(
+                    lower.Included
+                        ? EValueType::Min
+                        : EValueType::Max));
+            }
         }
+        
         range.first = builder.GetRowAndReset();
 
         for (size_t j = 0; j < prefix.size(); ++j) {
             builder.AddValue(prefix[j]);
         }
-        builder.AddValue(upperBoundRefined? keyRange.second[offset] : resultBounds[i + 1]);
-        for (size_t j = prefix.size() + 1; j < std::max(keySize, keyRange.second.GetCount()); ++j) {
-            builder.AddValue(getSecondKeyRangeComponent(upperBoundRefined, j));
+
+        if (upperBoundRefined) {
+            for (size_t j = offset; j < std::max(keySize, keyRange.second.GetCount()); ++j) {
+                builder.AddValue(getSecondKeyRangeComponent(j));
+            }
+        } else {
+            size_t rangeSize = std::max(keySize, keyRange.second.GetCount());
+
+            builder.AddValue(
+                offset + 1 == rangeSize && upper.Included
+                    ? GetValueSuccessor(upper.Value, rowBuffer)
+                    : upper.Value);
+
+            for (size_t j = offset + 1; j < rangeSize; ++j) {
+                builder.AddValue(MakeUnversionedSentinelValue(
+                    upper.Included
+                        ? EValueType::Max
+                        : EValueType::Min));
+            }
         }
+
         range.second = builder.GetRowAndReset();
         result->push_back(range);
     }
@@ -326,7 +420,6 @@ void GetRangesFromTrieWithinRangeImpl(
             refineUpperNext);
     }
 }
-
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,

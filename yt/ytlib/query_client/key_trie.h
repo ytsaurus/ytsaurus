@@ -13,12 +13,35 @@ namespace NQueryClient {
 using NVersionedTableClient::TUnversionedValue;
 using NVersionedTableClient::TRowBuffer;
 
+struct TBound
+{    
+    TUnversionedValue Value;
+    bool Included;
+
+    TBound(
+        TUnversionedValue value,
+        bool included)
+        : Value(value)
+        , Included(included)
+    { }
+
+    bool operator == (const TBound& other) const {
+        return Value == other.Value
+            && Included == other.Included;
+    }
+
+    bool operator != (const TBound& other) const {
+        return !(*this == other);
+    }
+
+};
+
 struct TKeyTrieNode
 {
     int Offset = std::numeric_limits<int>::max();
 
     std::map<TUnversionedValue, TKeyTrieNode> Next;
-    std::vector<TUnversionedValue> Bounds;
+    std::vector<TBound> Bounds;
 };
 
 TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRowBuffer* rowBuffer);

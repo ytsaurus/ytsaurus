@@ -752,7 +752,7 @@ TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::NotEqual, 1,
-        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
+        false, ("1;" _MAX_ ";" _MAX_), ("100;100;100")
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -803,17 +803,17 @@ TRefineKeyRangeTestCase refineCasesForLessOrEqualOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 50,
-        false, ("1;1;1"), ("51;" _MIN_ ";" _MIN_)
+        false, ("1;1;1"), ("50;" _MAX_ ";" _MAX_)
     },
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 1,
-        false, ("1;1;1"), ("2;" _MIN_ ";" _MIN_)
+        false, ("1;1;1"), ("1;" _MAX_ ";" _MAX_)
     },
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::LessOrEqual, 99,
-        false, ("1;1;1"), ("100;" _MIN_ ";" _MIN_)
+        false, ("1;1;1"), ("99;" _MAX_ ";" _MAX_)
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -836,7 +836,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Greater, 50,
-        false, ("51;" _MIN_ ";" _MIN_), ("100;100;100")
+        false, ("50;" _MAX_ ";" _MAX_), ("100;100;100")
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -846,7 +846,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOpcodeInFirstComponent[] = {
     {
         ("1;1;1"), ("100;100;100"),
         "k", EBinaryOp::Greater, 1,
-        false, ("2;" _MIN_ ";" _MIN_), ("100;100;100")
+        false, ("1;" _MAX_ ";" _MAX_), ("100;100;100")
     },
     {
         ("1;1;1"), ("100;100;100"),
@@ -1328,10 +1328,10 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 
     EXPECT_EQ(result.size(), 2);
 
-    EXPECT_EQ(BuildKey("50;41;" _MIN_), result[0].first);
+    EXPECT_EQ(BuildKey("50;40;" _MAX_), result[0].first);
     EXPECT_EQ(BuildKey("50;50;" _MIN_), result[0].second);
 
-    EXPECT_EQ(BuildKey("50;51;" _MIN_), result[1].first);
+    EXPECT_EQ(BuildKey("50;50;" _MAX_), result[1].first);
     EXPECT_EQ(BuildKey("50;60;" _MIN_), result[1].second);
 }
 
