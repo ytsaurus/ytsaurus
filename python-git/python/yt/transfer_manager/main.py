@@ -23,6 +23,7 @@ from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict
 
+from Queue import Empty
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
@@ -113,7 +114,7 @@ class Application(object):
                     break
                 else:
                     raise yt.YtError("Cannot take lock " + self._lock_path)
-            except Queue.Empty:
+            except Empty:
                 time.sleep(self._lock_timeout)
 
         self._yt.set_attribute(config["path"], "address", socket.getfqdn())
