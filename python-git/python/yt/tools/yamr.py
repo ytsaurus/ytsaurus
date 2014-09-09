@@ -49,7 +49,7 @@ class Yamr(object):
         _check_output("{0} --help".format(self.binary), shell=True)
 
         self.supports_shared_transactions = \
-            subprocess.call("{0} --help | grep sharedtransaction &>/dev/null".format(self.binary), shell=True) == 0
+            subprocess.call("{0} --help | grep sharedtransaction >/dev/null".format(self.binary), shell=True) == 0
 
         logger.info("Yamr options configured (binary: %s, server: %s, http_server: %s, proxies: [%s])",
                     self.binary, self.server, self.http_server, ", ".join(self.proxies))
