@@ -45,9 +45,6 @@ private:
 
 };
 
-static PER_THREAD void* CurrentThreadStatisticsBegin = nullptr; // actually TRefCountedTracker::TAnonymousSlot*
-static PER_THREAD int CurrentThreadStatisticsSize = 0;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTracker::TNamedSlot::TNamedSlot(TRefCountedTypeKey key)
@@ -101,10 +98,8 @@ int TRefCountedTracker::GetTrackedThreadCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedTracker* TRefCountedTracker::Get()
-{
-    return Singleton<TRefCountedTracker>();
-}
+PER_THREAD TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::CurrentThreadStatisticsBegin; // = nullptr
+PER_THREAD int TRefCountedTracker::CurrentThreadStatisticsSize; // = 0
 
 TRefCountedTypeCookie TRefCountedTracker::GetCookie(TRefCountedTypeKey key)
 {
@@ -116,16 +111,6 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(TRefCountedTypeKey key)
     auto cookie = ++LastUsedCookie;
     KeyToCookie_.insert(std::make_pair(key, cookie));
     return cookie;
-}
-
-TRefCountedTracker::TRefCountedTracker()
-{
-    Active_ = true;
-}
-
-TRefCountedTracker::~TRefCountedTracker()
-{
-    Active_ = false;
 }
 
 TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
@@ -318,36 +303,30 @@ TRefCountedTracker::TNamedSlot TRefCountedTracker::GetSlot(TRefCountedTypeKey ke
     return result;
 }
 
-TRefCountedTracker::TAnonymousSlot* TRefCountedTracker::GetPerThreadSlot(TRefCountedTypeCookie cookie)
+void TRefCountedTracker::PreparePerThreadSlot(TRefCountedTypeCookie cookie)
 {
-    if (cookie >= CurrentThreadStatisticsSize) {
-        STATIC_THREAD(TStatisticsHolder) Holder;
-        auto* holder = Holder.GetPtr();
+    STATIC_THREAD(TStatisticsHolder) Holder;
+    auto* holder = Holder.GetPtr();
 
-        if (!holder->IsInitialized()) {
-            holder->Initialize(this);
-            TGuard<TForkAwareSpinLock> guard(SpinLock_);
-            YCHECK(PerThreadHolders_.insert(holder).second);
-        }
-
-        auto* statistics = holder->GetStatistics();
-        if (statistics->size() <= cookie) {
-            statistics->resize(std::max(
-                static_cast<size_t>(cookie + 1),
-                statistics->size() * 2));
-        }
-
-        CurrentThreadStatisticsBegin = statistics->data();
-        CurrentThreadStatisticsSize = statistics->size();
+    if (!holder->IsInitialized()) {
+        holder->Initialize(this);
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
+        YCHECK(PerThreadHolders_.insert(holder).second);
     }
-    return reinterpret_cast<TAnonymousSlot*>(CurrentThreadStatisticsBegin) + cookie;
+
+    auto* statistics = holder->GetStatistics();
+    if (statistics->size() <= cookie) {
+        statistics->resize(std::max(
+            static_cast<size_t>(cookie + 1),
+            statistics->size() * 2));
+    }
+
+    CurrentThreadStatisticsBegin = statistics->data();
+    CurrentThreadStatisticsSize = statistics->size();
 }
 
 void TRefCountedTracker::FlushPerThreadStatistics(TStatisticsHolder* holder)
 {
-    if (!Active_)
-        return;
-
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
     const auto& perThreadStatistics = *holder->GetStatistics();
     if (GlobalStatistics_.size() < perThreadStatistics.size()) {
@@ -359,6 +338,18 @@ void TRefCountedTracker::FlushPerThreadStatistics(TStatisticsHolder* holder)
         GlobalStatistics_[index] += perThreadStatistics[index];
     }
     YCHECK(PerThreadHolders_.erase(holder) == 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static int RefCountedTrackerInitializerCounter; // = 0
+TRefCountedTracker* RefCountedTrackerInstance;  // = nullptr
+
+TRefCountedTrackerInitializer::TRefCountedTrackerInitializer()
+{
+    if (RefCountedTrackerInitializerCounter++ == 0) {
+        RefCountedTrackerInstance = new TRefCountedTracker();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
