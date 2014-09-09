@@ -21,6 +21,9 @@ Py::Callable GetYsonType(const std::string& name)
     static PyObject* ysonTypesModule = nullptr;
     if (!ysonTypesModule) {
         ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
+        if (!ysonTypesModule) {
+            throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
+        }
     }
     return Py::Callable(PyObject_GetAttr(ysonTypesModule, PyString_FromString(name.c_str())));
 }
