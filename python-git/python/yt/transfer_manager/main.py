@@ -23,7 +23,6 @@ from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict
 
-from Queue import Empty
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
@@ -99,30 +98,32 @@ class Application(object):
         self._yt.token = config["token"]
 
         self._load_config(config)
+        self._path = config["path"]
 
-        message_queue = Queue()
-        self._lock_path = os.path.join(config["path"], "lock")
-        self._lock_timeout = 10.0
-        self._yt.create("map_node", self._lock_path, ignore_existing=True)
-        self._lock_thread = Process(target=self._take_lock, args=(message_queue,))
-        self._lock_thread.start()
-        self._lock_acquired = False
-        while True:
-            try:
-                if message_queue.get(timeout=10.0):
-                    self._lock_acquired = True
-                    break
-                else:
-                    raise yt.YtError("Cannot take lock " + self._lock_path)
-            except Empty:
-                time.sleep(self._lock_timeout)
+        self._sleep_step = 0.5
 
-        self._yt.set_attribute(config["path"], "address", socket.getfqdn())
-
+        # Prepare acl node if it is missing
         self._acl_path = os.path.join(config["path"], "acl")
         self._yt.create("map_node", self._acl_path, ignore_existing=True)
 
-        self._add_rule("/", 'main', methods=["GET"])
+        # Run lock thread
+        self._terminating = False
+        self._lock_acquired = False
+        self._lock_path = os.path.join(config["path"], "lock")
+        self._lock_timeout = 10.0
+        self._yt.create("map_node", self._lock_path, ignore_existing=True)
+        self._lock_thread = Thread(target=self._take_lock)
+        self._lock_thread.daemon = True
+        self._lock_thread.start()
+
+        # Run execution thread
+        self._task_processes = {}
+        self._execution_thread = Thread(target=self._execute_tasks)
+        self._execution_thread.daemon = True
+        self._execution_thread.start()
+
+        # Add rules
+        self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
         self._add_rule("/tasks/", 'add', methods=["POST"])
         self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
@@ -131,15 +132,31 @@ class Application(object):
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
 
-        self._task_processes = {}
+    def terminate(self):
+        self._terminating = True
+        self._lock_thread.join(self._sleep_step)
+        self._execution_thread.join(self._sleep_step)
 
-        self._execution_thread = Thread(target=self._execute_tasks)
-        self._execution_thread.daemon = True
-        self._execution_thread.start()
-
-    def _add_rule(self, rule, endpoint, methods):
+    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True):
         methods.append("OPTIONS")
-        self._daemon.add_url_rule(rule, endpoint, self._process_cors(self._process_exception(Application.__dict__[endpoint]), methods), methods=methods)
+        self._daemon.add_url_rule(
+            rule,
+            endpoint,
+            self._process_lock(
+                self._process_cors(
+                    self._process_exception(
+                        Application.__dict__[endpoint]
+                    ),
+                    methods),
+                depends_on_lock),
+            methods=methods)
+
+    def _process_lock(self, func, depends_on_lock):
+        def decorator(*args, **kwargs):
+            if depends_on_lock and not self._lock_acquired:
+                return "Cannot take lock", 500
+            return func(*args, **kwargs)
+        return decorator
 
     def _process_cors(self, func, methods):
         def decorator(*args, **kwargs):
@@ -170,23 +187,32 @@ class Application(object):
 
         return decorator
 
-    def _take_lock(self, message_queue):
+    def _take_lock(self):
+        yt_client = deepcopy(self._yt)
         try:
-            with self._yt.PingableTransaction():
+            with yt_client.PingableTransaction():
                 while True:
                     try:
-                        self._yt.lock(self._lock_path)
-                        message_queue.put(True)
+                        yt_client.lock(self._lock_path)
+                        break
                     except yt.YtError as err:
                         if err.is_concurrent_transaction_lock_conflict():
                             time.sleep(self._lock_timeout)
                             continue
                         logger.exception(yt.errors.format_error(err))
-                        message_queue.put(True)
                         return
 
+                self._lock_acquired = True
+
+                # Set attribute outside of transaction
+                self._yt.set_attribute(self._path, "address", socket.getfqdn())
+
                 # Sleep infinitely long
-                time.sleep(2 ** 60)
+                while True:
+                    if self._terminating:
+                        return
+                    time.sleep(self._sleep_step)
+
         except KeyboardInterrupt:
             # Do not print backtrace in case of SIGINT
             pass
@@ -306,6 +332,13 @@ class Application(object):
 
     def _execute_tasks(self):
         while True:
+            if self._terminating:
+                return
+
+            if not self._lock_acquired:
+                time.sleep(self._lock_timeout)
+                continue
+
             with self._mutex:
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
 
@@ -350,7 +383,7 @@ class Application(object):
                     task_process.start()
                     self._task_processes[id] = (task_process, queue)
 
-            time.sleep(1.0)
+            time.sleep(self._sleep_step)
 
     def _execute_task(self, task, message_queue):
         logger.info("Executing task %s", task.id)
@@ -375,7 +408,7 @@ class Application(object):
                             cluster_name=task.source_cluster,
                             network_name=self._clusters[task.source_cluster]._network,
                             spec=task_spec,
-                            remote_copy_token=task.source_cluster_token,
+                            remote_cluster_token=task.source_cluster_token,
                             strategy=strategy))
             elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
@@ -558,9 +591,7 @@ class Application(object):
         return jsonify(self._config)
 
     def ping(self):
-        if not self._lock_acquired:
-            return "Cannot take lock", 500
-        return 200
+        return "OK", 200
 
 DEFAULT_CONFIG = {
     "clusters": {
@@ -638,6 +669,7 @@ def main():
 
     app = Application(config)
     app.run(host="localhost", port=config["port"], debug=True, use_reloader=False)
+    app.terminate()
 
 if __name__ == "__main__":
     main()
