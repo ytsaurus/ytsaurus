@@ -127,7 +127,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if isinstance(error, YtResponseError) and not error.is_request_rate_limit_exceeded():
                 raise
 
-            message =  "HTTP %s request %s (headers: %s) has failed with error '%s'" % (method, url, kwargs.get("headers", {}), str(error))
+            message =  "HTTP %s request %s (headers: %s) has failed with error %s, message: %s" % (method, url, kwargs.get("headers", {}), type(error), str(error))
             if make_retries and attempt + 1 < http_config.REQUEST_RETRY_COUNT:
                 backoff = get_backoff(http_config.REQUEST_RETRY_TIMEOUT, current_time)
                 if backoff:
