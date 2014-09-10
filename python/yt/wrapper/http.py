@@ -12,10 +12,11 @@ import yt.packages.requests
 import simplejson as json
 from datetime import datetime
 from socket import error as SocketError
+from httplib import BadStatusLine
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, SocketError)
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, SocketError, BadStatusLine)
 
 session_ = yt.packages.requests.Session()
 def get_session():
