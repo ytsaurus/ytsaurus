@@ -508,7 +508,7 @@ def add_start_tx_parser(add_parser):
                         help="transaction lifetime singe last ping in milliseconds")
 
 def transaction_args(parser):
-    parser.add_argument("tx", help="transaction id, for example: 5c51-24e204-1-9f3f6437")
+    parser.add_argument("transaction", help="transaction id, for example: 5c51-24e204-1-9f3f6437")
 
 def add_commit_tx_parser(add_parser):
     parser = add_parser("commit-tx", yt.commit_transaction)
