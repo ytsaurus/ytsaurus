@@ -110,7 +110,7 @@ class PingTransaction(Thread):
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
-        self.step = config.TRANSACTION_SLEEP_PERIOD / 1000.0 # in seconds
+        self.step = min(self.delay, config.TRANSACTION_SLEEP_PERIOD / 1000.0) # in seconds
         self.client = client
 
     def __enter__(self):
@@ -150,7 +150,8 @@ class PingableTransaction(object):
         self.transaction.__enter__()
 
         transaction = config.TRANSACTION if self.client is None else self.client._get_transaction()[0]
-        self.ping = PingTransaction(transaction, delay=self.timeout / (1000 * 10), client=self.client)
+        delay = (self.timeout / 1000.0) / max(2, config.http.REQUEST_RETRY_COUNT)
+        self.ping = PingTransaction(transaction, delay, client=self.client)
         self.ping.start()
         return self
 
