@@ -184,6 +184,15 @@ test_sorted_by()
     check "$(./yt get //home/wrapper_test/table/@sorted)" '"true"'
 }
 
+test_transactions()
+{
+    local tx=$(./yt start-tx)
+    ./yt abort-tx "$tx"
+
+    tx=$(./yt start-tx)
+    ./yt commit-tx "$tx"
+}
+
 tear_down
 run_test test_tree_commands
 run_test test_file_commands
@@ -192,3 +201,4 @@ run_test test_map_reduce
 run_test test_users
 run_test test_concurrent_upload_in_operation
 run_test test_sorted_by
+run_test test_transactions
