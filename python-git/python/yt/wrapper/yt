@@ -336,11 +336,20 @@ def add_copy_parser(add_parser):
     parser = add_parser("copy", yt.copy)
     parser.add_argument("source_path", help="source address, path must exist")
     parser.add_argument("destination_path", help="destination address, path must not exist")
+    parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied table")
+
+def move(**args):
+    if "dont_preserve_account" in args:
+        args["preserve_account"] = not args["dont_preserve_account"]
+        del args["dont_preserve_account"]
+    yt.move(**args)
 
 def add_move_parser(add_parser):
     parser = add_parser("move", yt.move)
     parser.add_argument("source_path", help="old node address, path must exist")
     parser.add_argument("destination_path", help="new node address, path must not exist")
+    parser.add_argument("--dont-preserve-account", action="store_true", help="do not preserve account of moved table")
+    parser.set_defaults(func=move)
 
 def add_link_parser(add_parser):
     parser = add_parser("link", yt.link)
@@ -501,11 +510,15 @@ def add_track_op_parser(add_parser):
     operation_id_args(parser)
     parser.set_defaults(func=track_op)
 
+def start_tx(**args):
+    print yt.start_transaction(**args)
+
 def add_start_tx_parser(add_parser):
     parser = add_parser("start-tx", yt.start_transaction)
     add_spec_help(parser, "--attributes")
     parser.add_argument("--timeout", type=int,
                         help="transaction lifetime singe last ping in milliseconds")
+    parser.set_defaults(func=start_tx)
 
 def transaction_args(parser):
     parser.add_argument("transaction", help="transaction id, for example: 5c51-24e204-1-9f3f6437")

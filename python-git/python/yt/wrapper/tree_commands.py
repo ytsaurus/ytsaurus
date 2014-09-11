@@ -69,20 +69,18 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
         params["preserve_account"] = bool_to_string(preserve_account)
     return _make_transactional_request("copy", params, client=client)
 
-def move(source_path, destination_path, client=None):
+def move(source_path, destination_path, preserve_account=None, client=None):
     """Move (rename) Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
     :param destination_path: (string or `yt.wrapper.table.TablePath`)
     .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
     """
-    _make_transactional_request(
-        "move",
-        {
-            "source_path": prepare_path(source_path, client=client),
-            "destination_path": prepare_path(destination_path, client=client)
-        },
-        client=client)
+    params = {"source_path": prepare_path(source_path, client=client),
+              "destination_path": prepare_path(destination_path, client=client)}
+    if preserve_account is not None:
+        params["preserve_account"] = bool_to_string(preserve_account)
+    _make_transactional_request("move", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
     """Make link to Cypress node.
