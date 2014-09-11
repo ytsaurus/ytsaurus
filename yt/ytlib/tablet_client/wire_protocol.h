@@ -27,10 +27,10 @@ DECLARE_ENUM(EWireProtocolCommand,
     //
     // Input:
     //   * Column filter
-    //   * Unversioned rowset containing keys
+    //   * Unversioned rowset containing N keys
     //
     // Output:
-    //   * Unversioned rowset containing rows (whose size matches the number of requested keys)
+    //   * N unversioned rows
 
 
     // Write commands:

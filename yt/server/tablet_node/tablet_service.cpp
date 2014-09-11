@@ -46,7 +46,8 @@ public:
             slot->GetHydraManager(),
             slot->GetAutomatonInvoker(),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellGuid()),
-            TabletNodeLogger)
+            TabletNodeLogger,
+            TTabletServiceProxy::GetProtocolVersion())
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {
