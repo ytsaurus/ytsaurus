@@ -680,7 +680,7 @@ def is_sorted(table, client=None):
                           "sorted", default="false", client=client))
 
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Mount table (or a part of it).
+    """Mount table (or a part of it).  NB! Command doesn't work now! Feature is coming with 0.17+ version!
 
     description is coming with tablets
     TODO
@@ -695,7 +695,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, client=No
     make_request("mount_table", params, client=client)
 
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
-    """Unmount table (or a part of it).
+    """Unmount table (or a part of it).  NB! Command doesn't work now! Feature is coming with 0.17+ version!
 
     description is coming with tablets
     TODO
@@ -711,7 +711,7 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
     make_request("unmount_table", params, client=client)
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Remount table (or a part of it).
+    """Remount table (or a part of it).  NB! Command doesn't work now! Feature is coming with 0.17+ version!
 
     description is coming with tablets
     TODO
@@ -725,7 +725,7 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     make_request("remount_table", params, client=client)
 
 def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
-    """Change pivot keys separating tablets of a given table.
+    """Change pivot keys separating tablets of a given table.  NB! Command doesn't work now! Feature is coming with 0.17+ version!
 
     description is coming with tablets
     TODO
@@ -740,7 +740,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
     make_request("reshard_table", params, client=client)
 
 def select(query, timestamp=None, format=None, response_type=None, raw=True, client=None):
-    """Execute a SQL-like query.
+    """Execute a SQL-like query. NB! Command doesn't work now! Feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
 
