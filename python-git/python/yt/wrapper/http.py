@@ -88,7 +88,7 @@ def _process_request_backoff(current_time):
         get_session().last_request_time = now_seconds
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, **kwargs):
-    yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_TIMEOUT
+    yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
     network_errors = list(NETWORK_ERRORS)
     network_errors.append(YtIncorrectResponse)
@@ -101,7 +101,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         _process_request_backoff(current_time)
         try:
             try:
-                response = Response(get_session().request(method, url, timeout=http_config.REQUEST_RETRY_TIMEOUT, **kwargs))
+                response = Response(get_session().request(method, url, **kwargs))
             except ConnectionError as error:
                 if hasattr(error, "response"):
                     raise YtResponseError(url, kwargs.get("headers", {}), Response(error.response).error())
