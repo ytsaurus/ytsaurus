@@ -234,16 +234,19 @@ void TServiceBase::OnRequest(
     const auto& method = header->method();
     bool oneWay = header->one_way();
     auto requestId = FromProto<TRequestId>(header->request_id());
+    auto requestProtocolVersion = header->protocol_version();
 
     TRuntimeMethodInfoPtr runtimeInfo;
     try {
-        if (header->protocol_version() != ProtocolVersion_) {
+        if (requestProtocolVersion != TProxyBase::GenericProtocolVersion &&
+            requestProtocolVersion != ProtocolVersion_)
+        {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::ProtocolError,
                 "Protocol version mismatch for service %v: expected %v, received %v",
                 ServiceId_.ServiceName,
                 ProtocolVersion_,
-                header->protocol_version());
+                requestProtocolVersion);
         }
 
         runtimeInfo = FindMethodInfo(method);

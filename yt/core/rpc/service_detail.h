@@ -4,6 +4,7 @@
 #include "service.h"
 #include "server_detail.h"
 #include "dispatcher.h"
+#include "client.h"
 
 #include <core/misc/ref.h>
 #include <core/misc/protobuf_helpers.h>
@@ -540,13 +541,13 @@ protected:
         IPrioritizedInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLog::TLogger& logger,
-        int protocolVersion = 0);
+        int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLog::TLogger& logger,
-        int protocolVersion = 0);
+        int protocolVersion = TProxyBase::DefaultProtocolVersion);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);

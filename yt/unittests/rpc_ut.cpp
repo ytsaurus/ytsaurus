@@ -34,7 +34,7 @@ class TMyProxy
 public:
     static const Stroka ServiceName_;
 
-    explicit TMyProxy(IChannelPtr channel, int protocolVersion = 0)
+    explicit TMyProxy(IChannelPtr channel, int protocolVersion = DefaultProtocolVersion)
         : TProxyBase(channel, ServiceName_, protocolVersion)
     { }
 

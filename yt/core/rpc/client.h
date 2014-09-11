@@ -395,13 +395,16 @@ DEFINE_REFCOUNTED_TYPE(TOneWayClientResponse)
 class TProxyBase
 {
 public:
+    static const int DefaultProtocolVersion = 0;
+    static const int GenericProtocolVersion = -1;
+
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
 protected:
     TProxyBase(
         IChannelPtr channel,
         const Stroka& serviceName,
-        int protocolVersion = 0);
+        int protocolVersion = DefaultProtocolVersion);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck);

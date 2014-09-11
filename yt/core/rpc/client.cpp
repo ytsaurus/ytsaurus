@@ -290,7 +290,7 @@ TProxyBase::TProxyBase(
 TGenericProxy::TGenericProxy(
     IChannelPtr channel,
     const Stroka& serviceName)
-    : TProxyBase(channel, serviceName)
+    : TProxyBase(channel, serviceName, GenericProtocolVersion)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
