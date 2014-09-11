@@ -85,8 +85,12 @@ public:
             }
         }
 
+        // NB: IStore::CreateLookuper may yield so one must copy all stores.
         for (const auto& pair : Tablet_->Stores()) {
-            const auto& store = pair.second;
+            Stores_.push_back(pair.second);
+        }
+
+        for (const auto& store : Stores_) {
             auto lookuper = store->CreateLookuper(timestamp, ColumnFilter_);
             Lookupers_.push_back(lookuper);
         }
@@ -119,6 +123,7 @@ public:
         MemoryPool_.Clear();
         LookupKeys_.clear();
         ResultRows_.clear();
+        Stores_.clear();
         Lookupers_.clear();
     }
 
@@ -126,6 +131,7 @@ private:
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedRow> LookupKeys_;
     std::vector<TUnversionedRow> ResultRows_;
+    std::vector<IStorePtr> Stores_;
     std::vector<IVersionedLookuperPtr> Lookupers_;
     
     TTablet* Tablet_;

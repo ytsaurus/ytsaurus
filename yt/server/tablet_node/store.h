@@ -52,6 +52,8 @@ struct IStore
     *
     *  The reader will be providing values filtered by |timestamp| and columns
     *  filtered by |columnFilter|.
+    *
+    *  This call is typically synchornous and fast but may occasionally yield.
     */
     virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
@@ -60,6 +62,9 @@ struct IStore
         const TColumnFilter& columnFilter) = 0;
 
     //! Creates a lookuper instance.
+    /*!
+     *  This call is typically synchornous and fast but may occasionally yield.
+     */
     virtual NVersionedTableClient::IVersionedLookuperPtr CreateLookuper(
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
