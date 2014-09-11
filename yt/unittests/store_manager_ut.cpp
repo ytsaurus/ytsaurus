@@ -87,10 +87,8 @@ protected:
 
         {
             TWireProtocolReader reader(response);
-            std::vector<TUnversionedRow> rows;
-            reader.ReadUnversionedRowset(&rows);
-            EXPECT_EQ(1, rows.size());
-            return TUnversionedOwningRow(rows[0]);
+            auto row = reader.ReadUnversionedRow();
+            return TUnversionedOwningRow(row);
         }
     }
 

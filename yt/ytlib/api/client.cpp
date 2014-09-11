@@ -523,21 +523,16 @@ private:
         }
 
         void ParseResponse(
-            std::vector<TUnversionedRow>* pooledRows,
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
-                    
-                pooledRows->clear();
-                reader->ReadUnversionedRowset(pooledRows);
-
-                for (int index = 0; index < static_cast<int>(pooledRows->size()); ++index) {
-                    (*resultRows)[batch->Indexes[index]] = (*pooledRows)[index];
+                for (int index = 0; index < batch->Keys.size(); ++index) {
+                    auto row = reader->ReadUnversionedRow();
+                    (*resultRows)[batch->Indexes[index]] = row;
                 }
-
                 readers->push_back(std::move(reader));
             }
         }
@@ -642,17 +637,11 @@ private:
         std::vector<TUnversionedRow> resultRows;
         resultRows.resize(keys.size());
         
-        std::vector<TUnversionedRow> pooledRows;
-        pooledRows.reserve(keys.size());
-
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
         for (const auto& pair : tabletToSession) {
             const auto& session = pair.second;
-            session->ParseResponse(
-                &pooledRows,
-                &resultRows,
-                &readers);
+            session->ParseResponse(&resultRows, &readers);
         }
 
         if (!options.KeepMissingRows) {

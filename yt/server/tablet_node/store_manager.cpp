@@ -98,12 +98,14 @@ public:
         reader->ReadUnversionedRowset(&LookupKeys_);
     }
 
-    TAsyncError Run(IInvokerPtr invoker)
+    TAsyncError Run(
+        IInvokerPtr invoker,
+        TWireProtocolWriter* writer)
     {
         if (invoker) {
-            return RunCallback_.AsyncVia(invoker).Run();
+            return RunCallback_.AsyncVia(invoker).Run(writer);
         } else {
-            return MakeFuture(RunCallback_.Run());
+            return MakeFuture(RunCallback_.Run(writer));
         }
     }
 
@@ -112,17 +114,11 @@ public:
         return LookupKeys_;
     }
 
-    const std::vector<TUnversionedRow>& GetResultRows() const
-    {
-        return ResultRows_;
-    }
-
 
     void Clean()
     {
         MemoryPool_.Clear();
         LookupKeys_.clear();
-        ResultRows_.clear();
         Stores_.clear();
         Lookupers_.clear();
     }
@@ -130,7 +126,6 @@ public:
 private:
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedRow> LookupKeys_;
-    std::vector<TUnversionedRow> ResultRows_;
     std::vector<IStorePtr> Stores_;
     std::vector<IVersionedLookuperPtr> Lookupers_;
     
@@ -139,10 +134,10 @@ private:
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
 
-    TCallback<TError()> RunCallback_;
+    TCallback<TError(TWireProtocolWriter* writer)> RunCallback_;
 
 
-    void DoRun()
+    void DoRun(TWireProtocolWriter* writer)
     {
         TUnversionedRowMerger rowMerger(
             &MemoryPool_,
@@ -186,7 +181,8 @@ private:
                 }
             }
 
-            ResultRows_.push_back(rowMerger.BuildMergedRowAndReset());
+            auto mergedRow = rowMerger.BuildMergedRowAndReset();
+            writer->WriteUnversionedRow(mergedRow);
         }
     }
 
@@ -289,10 +285,8 @@ void TStoreManager::LookupRows(
     executor->Prepare(Tablet_, timestamp, reader);
     LOG_DEBUG("Looking up %v keys", executor->GetLookupKeys().size());
 
-    auto result = WaitFor(executor->Run(ReadWorkerInvoker_));
+    auto result = WaitFor(executor->Run(ReadWorkerInvoker_, writer));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
-
-    writer->WriteUnversionedRowset(executor->GetResultRows());
 }
 
 TDynamicRowRef TStoreManager::WriteRow(
