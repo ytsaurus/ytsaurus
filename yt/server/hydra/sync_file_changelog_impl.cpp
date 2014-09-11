@@ -6,6 +6,9 @@
 #include <core/misc/fs.h>
 #include <core/misc/string.h>
 #include <core/misc/serialize.h>
+#include <core/misc/blob_output.h>
+
+#include <iostream>
 
 namespace NYT {
 namespace NHydra {
@@ -92,7 +95,7 @@ TNullable<TRecordInfo> ReadRecord(TInput& input)
 size_t ComputeValidIndexPrefix(
     const std::vector<TChangelogIndexRecord>& index,
     const TChangelogHeader& header,
-    TBufferedFile* file)
+    TFileWrapper* file)
 {
     // Validate index records.
     size_t result = 0;
@@ -127,7 +130,7 @@ size_t ComputeValidIndexPrefix(
 
     // Truncate the last index entry if the corresponding changelog record is corrupt.
     file->Seek(index[result - 1].FilePosition, sSet);
-    TCheckedReader<TBufferedFile> changelogReader(*file);
+    TCheckedReader<TFileWrapper> changelogReader(*file);
     if (!ReadRecord(changelogReader)) {
         --result;
     }
@@ -253,7 +256,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
         i64 currentFilePosition;
         {
             auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFile tempFile(tempFileName, WrOnly|CreateAlways);
+            TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
 
             TChangelogHeader header(
                 Meta_.Size(),
@@ -270,7 +273,7 @@ void TSyncFileChangelog::TImpl::Create(const TSharedRef& meta)
 
             ReplaceFile(tempFileName, FileName_);
 
-            DataFile_ = std::make_unique<TBufferedFile>(FileName_, RdWr);
+            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
             DataFile_->Flock(LOCK_EX | LOCK_NB);
             DataFile_->Seek(0, sEnd);
         }
@@ -294,7 +297,7 @@ void TSyncFileChangelog::TImpl::Open()
     {
         TGuard<TMutex> guard(Mutex_);
 
-        DataFile_.reset(new TBufferedFile(FileName_, RdWr|Seq));
+        DataFile_.reset(new TFileWrapper(FileName_, RdWr|Seq));
         DataFile_->Flock(LOCK_EX | LOCK_NB);
 
         // Read and check changelog header.
@@ -355,24 +358,31 @@ void TSyncFileChangelog::TImpl::Append(
 
     {
         TGuard<TMutex> guard(Mutex_);
-        for (const auto& record : records) {
-            DoAppend(record);
+
+        // Write records to one blob in memory.
+        TBlobOutput memoryOutput;
+        int currentRecordCount = RecordCount_;
+        std::vector<int> recordSizes;
+        for (int i = 0; i < records.size(); ++i) {
+            auto record = records[i];
+            int recordId = currentRecordCount + i;
+
+            int totalSize = 0;
+            TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
+            totalSize += WritePodPadded(memoryOutput, header);
+            totalSize += WritePadded(memoryOutput, record);
+            recordSizes.push_back(totalSize);
+        }
+
+        // Write blob to file.
+        DataFile_->Seek(0, sEnd);
+        DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
+
+        // Process written records (update index, et c).
+        for (int i = 0; i < records.size(); ++i) {
+            ProcessRecord(currentRecordCount + i, recordSizes[i]);
         }
     }
-}
-
-void TSyncFileChangelog::TImpl::DoAppend(const TRef& record)
-{
-    YCHECK(record.Size() != 0);
-
-    int recordId = RecordCount_;
-    TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
-
-    int readSize = 0;
-    readSize += AppendPodPadded(*DataFile_, header);
-    readSize += AppendPadded(*DataFile_, record);
-
-    ProcessRecord(recordId, readSize);
 }
 
 std::vector<TSharedRef> TSyncFileChangelog::TImpl::Read(
@@ -545,7 +555,7 @@ TInstant TSyncFileChangelog::TImpl::GetLastFlushed()
     return LastFlushed_;
 }
 
-void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
+void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int totalSize)
 {
     if (CurrentBlockSize_ >= Config_->IndexBlockSize || RecordCount_ == 0) {
         // Add index record in two cases:
@@ -565,8 +575,8 @@ void TSyncFileChangelog::TImpl::ProcessRecord(int recordId, int readSize)
             CurrentFilePosition_);
     }
     // Record appended successfully.
-    CurrentBlockSize_ += readSize;
-    CurrentFilePosition_ += readSize;
+    CurrentBlockSize_ += totalSize;
+    CurrentFilePosition_ += totalSize;
     RecordCount_ += 1;
 }
 
@@ -618,6 +628,7 @@ void TSyncFileChangelog::TImpl::ReadIndex(const TChangelogHeader& header)
 
 void TSyncFileChangelog::TImpl::UpdateLogHeader()
 {
+    DataFile_->Flush();
     i64 oldPosition = DataFile_->GetPosition();
     DataFile_->Seek(0, sSet);
     TChangelogHeader header(
@@ -629,6 +640,7 @@ void TSyncFileChangelog::TImpl::UpdateLogHeader()
 
 void TSyncFileChangelog::TImpl::UpdateIndexHeader()
 {
+    IndexFile_->Flush();
     i64 oldPosition = IndexFile_->GetPosition();
     IndexFile_->Seek(0, sSet);
     TChangelogIndexHeader header(Index_.size());
@@ -651,7 +663,7 @@ void TSyncFileChangelog::TImpl::ReadChangelogUntilEnd(const TChangelogHeader& he
 
     // Seek to proper position in file, initialize checkable reader.
     DataFile_->Seek(CurrentFilePosition_, sSet);
-    TCheckedReader<TBufferedFile> dataReader(*DataFile_);
+    TCheckedReader<TFileWrapper> dataReader(*DataFile_);
 
     TNullable<TRecordInfo> recordInfo;
     if (!Index_.empty()) {

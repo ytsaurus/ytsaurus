@@ -54,12 +54,6 @@ void Write(TOutput& output, const TRef& ref)
     output.Write(ref.Begin(), ref.Size());
 }
 
-template <class TOutput>
-void Append(TOutput& output, const TRef& ref)
-{
-    output.Append(ref.Begin(), ref.Size());
-}
-
 template <class TInput>
 size_t Read(TInput& input, TRef& ref)
 {
@@ -73,13 +67,6 @@ void WritePod(TOutput& output, const T& obj)
 {
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
     output.Write(&obj, sizeof(obj));
-}
-
-template <class TOutput, class T>
-void AppendPod(TOutput& output, const T& obj)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    output.Append(&obj, sizeof(obj));
 }
 
 template <class TInput, class T>
@@ -105,14 +92,6 @@ size_t WritePadded(TOutput& output, const TRef& ref)
     return AlignUp(ref.Size());
 }
 
-template <class TOutput>
-size_t AppendPadded(TOutput& output, const TRef& ref)
-{
-    output.Append(ref.Begin(), ref.Size());
-    output.Append(&NYT::NDetail::SerializationPadding, GetPaddingSize(ref.Size()));
-    return AlignUp(ref.Size());
-}
-
 template <class TInput>
 size_t ReadPadded(TInput& input, const TRef& ref)
 {
@@ -128,14 +107,6 @@ size_t ReadPodPadded(TInput& input, T& obj)
     static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
     auto objRef = TRef::FromPod(obj);
     return ReadPadded(input, objRef);
-}
-
-template <class TOutput, class T>
-size_t AppendPodPadded(TOutput& output, const T& obj)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    auto objRef = TRef::FromPod(obj);
-    return AppendPadded(output, objRef);
 }
 
 template <class TOutput, class T>

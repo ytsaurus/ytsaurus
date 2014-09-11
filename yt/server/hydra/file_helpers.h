@@ -10,18 +10,14 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Random-access file with buffering.
-class TBufferedFile
+//! Wrapper on arcadia TFile with appropriate interface
+class TFileWrapper
 {
 public:
-    TBufferedFile(
-        const Stroka& fileName,
-        ui32 oMode,
-        size_t bufferSize = 1024 * 1024);
+    TFileWrapper(const Stroka& fileName, ui32 oMode);
 
     i64 Seek(i64 offset, SeekDir origin);
     void Flush();
-    void Append(const void* buffer, size_t length);
     void Write(const void* buffer, size_t length);
     size_t Pread(void* buffer, size_t length, i64 offset);
     size_t Load(void* buffer, size_t length);
@@ -34,8 +30,6 @@ public:
 
 private:
     TFile File_;
-    TBufferedFileOutput FileOutput_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

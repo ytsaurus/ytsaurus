@@ -236,7 +236,7 @@ private:
     
     std::vector<TChangelogIndexRecord> Index_;
 
-    std::unique_ptr<TBufferedFile> DataFile_;
+    std::unique_ptr<TFileWrapper> DataFile_;
     std::unique_ptr<TFile> IndexFile_;
 
     //! Auxiliary data.

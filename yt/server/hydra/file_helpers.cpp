@@ -6,81 +6,62 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBufferedFile::TBufferedFile(
-    const Stroka& fileName,
-    ui32 oMode,
-    size_t bufferSize)
+TFileWrapper::TFileWrapper(const Stroka& fileName, ui32 oMode)
     : File_(fileName, oMode)
-    , FileOutput_(File_, bufferSize)
 { }
 
-i64 TBufferedFile::Seek(i64 offset, SeekDir origin)
+i64 TFileWrapper::Seek(i64 offset, SeekDir origin)
 {
-    FileOutput_.Flush();
     return File_.Seek(offset, origin);
 }
 
-void TBufferedFile::Flush()
+void TFileWrapper::Flush()
 {
-    FileOutput_.Flush();
     File_.Flush();
 }
 
-void TBufferedFile::Append(const void* buffer, size_t length)
+void TFileWrapper::Write(const void* buffer, size_t length)
 {
-    FileOutput_.Write(buffer, length);
-}
-
-void TBufferedFile::Write(const void* buffer, size_t length)
-{
-    FileOutput_.Flush();
     File_.Write(buffer, length);
 }
 
-size_t TBufferedFile::Pread(void* buffer, size_t length, i64 offset)
+size_t TFileWrapper::Pread(void* buffer, size_t length, i64 offset)
 {
-    FileOutput_.Flush();
     return File_.Pread(buffer, length, offset);
 }
 
-size_t TBufferedFile::Load(void* buffer, size_t length)
+size_t TFileWrapper::Load(void* buffer, size_t length)
 {
-    FileOutput_.Flush();
     File_.Read(buffer, length);
     return length;
 }
 
-void TBufferedFile::Skip(size_t length)
+void TFileWrapper::Skip(size_t length)
 {
-    FileOutput_.Flush();
     File_.Seek(length, sCur);
 }
 
-size_t TBufferedFile::GetPosition()
+size_t TFileWrapper::GetPosition()
 {
-    FileOutput_.Flush();
     return File_.GetPosition();
 }
 
-size_t TBufferedFile::GetLength()
+size_t TFileWrapper::GetLength()
 {
-    FileOutput_.Flush();
     return File_.GetLength();
 }
 
-void TBufferedFile::Resize(size_t length)
+void TFileWrapper::Resize(size_t length)
 {
-    FileOutput_.Flush();
     File_.Resize(length);
 }
 
-void TBufferedFile::Close()
+void TFileWrapper::Close()
 {
-    FileOutput_.Flush();
     File_.Close();
 }
 
-void TBufferedFile::Flock(int op)
+void TFileWrapper::Flock(int op)
 {
     File_.Flock(op);
 }
