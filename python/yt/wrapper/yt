@@ -288,6 +288,9 @@ def add_write_parser(add_parser):
     add_spec_help(parser, "--table-writer")
     parser.set_defaults(func=yt.write_table, input_stream=sys.stdin)
 
+def create(**args):
+    print yt.create(**args)
+
 def add_create_parser(add_parser):
     parser = add_parser("create", yt.create)
     add_type_help(parser, "type")
@@ -295,6 +298,7 @@ def add_create_parser(add_parser):
     parser.add_argument("-r", "--recursive", action="store_true")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
     add_spec_help(parser, "--attributes")
+    parser.set_defaults(func=create)
 
 def get(**args):
     result = yt.get(**args)
