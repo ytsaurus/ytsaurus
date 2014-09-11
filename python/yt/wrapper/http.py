@@ -101,7 +101,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         _process_request_backoff(current_time)
         try:
             try:
-                response = Response(get_session().request(method, url, **kwargs))
+                response = Response(get_session().request(method, url, timeout=http_config.REQUEST_RETRY_TIMEOUT, **kwargs))
             except ConnectionError as error:
                 if hasattr(error, "response"):
                     raise YtResponseError(url, kwargs.get("headers", {}), Response(error.response).error())
