@@ -235,8 +235,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 "--capture=no",
                 "--tb=native",
                 "--timeout=300",
-                "--junitxml={0}".format(handle.name)],
-                *pytest_args,
+                "--junitxml={0}".format(handle.name)]
+                + pytest_args,
                 cwd=suite_path,
                 env={
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
