@@ -606,7 +606,7 @@ def main():
                             description=DESCRIPTION,
                             epilog=EPILOG)
 
-    parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.VERSION)
+    parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
 
