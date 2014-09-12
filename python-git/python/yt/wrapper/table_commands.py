@@ -1070,7 +1070,7 @@ def _run_operation(binary, source_table, destination_table,
     source_table = _prepare_source_tables(source_table, client=client)
 
     if op_name == "reduce":
-
+        sort_by = _prepare_sort_by(reduce_by)
         reduce_by = _prepare_reduce_by(reduce_by)
 
         if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
@@ -1098,7 +1098,7 @@ def _run_operation(binary, source_table, destination_table,
                     reduce_output_format=output_format,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
-                    sort_by=reduce_by,
+                    sort_by=sort_by,
                     replication_factor=replication_factor,
                     compression_codec=compression_codec,
                     reducer_memory_limit=memory_limit,
