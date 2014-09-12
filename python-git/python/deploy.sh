@@ -2,7 +2,7 @@
 
 PACKAGE=$1
 
-rm -rf debian setup.py
+rm -rf debian setup.py docs
 
 # NB: Symbolic links doesn't work correctly with `sdist upload`
 cp -r $PACKAGE/debian $PACKAGE/setup.py .
@@ -12,14 +12,6 @@ fi
 
 python setup.py clean
 sudo make -f debian/rules clean
-
-YT="yt/wrapper/yt"
-VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-echo "$VERSION" >VERSION
-if [ "$PACKAGE" = "yandex-yt-python" ]; then
-    make version
-    make docs
-fi
 
 # Build and upload package
 make deb_without_test
@@ -33,6 +25,8 @@ else
         REPO="common"
     fi
 fi
+
+VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
 
 if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
@@ -44,7 +38,9 @@ if [ "$PACKAGE" = "yandex-yt-python" ]; then
     export YT_PROXY=kant.yt.yandex.net
     DEST="//home/files"
 
-    python setup.py sdist upload -r yandex
+    python setup.py bdist_wheel upload -r yandex
+
+    YT="yt/wrapper/yt"
 
     make egg
     EGG_VERSION=$(echo $VERSION | tr '-' '_')
