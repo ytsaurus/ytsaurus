@@ -18,11 +18,11 @@ sudo make -f debian/rules clean
 
 # Build debian package
 DEB=1 python setup.py sdist --dist-dir=../
-dpkg-buildpackage -i -I -rfakeroot
+DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
 # Upload debian package
 if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
-    REPO="precise"
+    REPO=$(lsb_release -c | awk '{print $2}')
 elif [ "$PACKAGE" = "yandex-yt-python-fennel" ] || [ "$PACKAGE" = "yandex-yt-transfer-manager" ]; then
     REPO="yt-common"
 else
