@@ -192,7 +192,13 @@ def run_javascript_tests(options):
         raise StepFailedWithNonCriticalError(str(err))
 
 
-def run_python_tests(options, suite_name, suite_path):
+def run_python_tests(options, suite_name, suite_path, pytest_args=None):
+    if options.build_enable_python != "YES":
+        return
+
+    if pytest_args is None:
+        pytest_args = []
+
     sandbox_current = "{0}/{1}".format(options.sandbox_directory, suite_name)
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
@@ -213,6 +219,7 @@ def run_python_tests(options, suite_name, suite_path):
                 "--tb=native",
                 "--timeout=300",
                 "--junitxml={0}".format(handle.name)],
+                *pytest_args,
                 cwd=suite_path,
                 env={
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
@@ -267,7 +274,15 @@ def run_integration_tests(options):
 @yt_register_build_step
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
-    run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory))
+    run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=["--ignore=pyinstaller"])
+
+
+@yt_register_build_step
+def run_perl_tests(options):
+    if options.build_enable_perl != "YES":
+        return
+    kill_by_name("ytserver")
+    run_python_tests(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
 @yt_register_cleanup_step
