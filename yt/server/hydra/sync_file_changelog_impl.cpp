@@ -8,8 +8,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/blob_output.h>
 
-#include <iostream>
-
 namespace NYT {
 namespace NHydra {
 
