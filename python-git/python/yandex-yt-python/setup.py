@@ -36,15 +36,21 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-
     scripts, data_files = prepare_files(["yt/wrapper/mapreduce-yt", "yt/wrapper/yt2"])
     if "DEB" in os.environ:
+        if not os.path.exists("docs"):
+            subprocess.check_call("sphinx-apidoc -F -o docs yt", shell=True)
+            subprocess.check_call("sphinx-build -b html docs docs/_build/", shell=True)
         data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
+
+    version = get_version()
+    with open("yt/wrapper/version.py", "w") as version_output:
+        version_output.write("VERSION='{0}'".format(version))
     
     find_packages("yt/packages")
     setup(
         name = "yandex-yt",
-        version = get_version(),
+        version = version,
         packages = ["yt", "yt.wrapper", "yt.yson"] + recursive("yt/packages"),
         scripts = scripts,
 
