@@ -32,7 +32,8 @@ from py_wrapper import aggregator, raw
 from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
 
-from version import VERSION
+from common import get_version
+VERSION = get_version()
 
 # For PyCharm checks
 import config
