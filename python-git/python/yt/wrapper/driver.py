@@ -2,9 +2,8 @@
 import config
 import yt.logger as logger
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid, bool_to_string, get_value
+from common import require, generate_uuid, bool_to_string, get_value, get_version
 from errors import YtError
-from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api, get_proxy_url
 from command import parse_commands
 
@@ -190,7 +189,7 @@ def make_request(command_name, params,
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
-    headers = {"User-Agent": "Python wrapper " + VERSION,
+    headers = {"User-Agent": "Python wrapper " + get_version(),
                "Accept-Encoding": config.http.ACCEPT_ENCODING,
                "X-YT-Correlation-Id": generate_uuid()}
 

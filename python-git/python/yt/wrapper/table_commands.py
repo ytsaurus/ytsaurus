@@ -51,9 +51,8 @@ Operation run under self-pinged transaction, if `yt.wrapper.config.DETACHED` is 
 import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines
+                   is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version
 from errors import YtError, YtNetworkError
-from version import VERSION
 from driver import read_content, get_host_for_heavy_operation, make_request
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -252,7 +251,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     return spec, files + additional_files
 
 def _configure_spec(spec):
-    spec = update({"wrapper_version": VERSION}, spec)
+    spec = update({"wrapper_version": get_version()}, spec)
     if config.POOL is not None:
         spec = update({"pool": config.POOL}, spec)
     if config.INTERMEDIATE_DATA_ACCOUNT is not None:

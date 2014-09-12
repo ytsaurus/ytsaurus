@@ -135,3 +135,11 @@ def generate_uuid():
     def get_int():
         return hex(random.randint(0, 2**32 - 1))[2:].rstrip("L")
     return "-".join([get_int() for _ in xrange(4)])
+
+def get_version():
+    try:
+        from version import VERSION
+        return VERSION
+    except:
+        return "unknown"
+
