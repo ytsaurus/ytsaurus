@@ -452,6 +452,16 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         with pytest.raises(YtError):
             yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
 
+    def test_reduce_unsorted(self):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.create("table", input_table)
+        data = ['0\ti\tA\n', '0\th\tB\n', '0\tg\tC\n', '0\tf\tD\n', '0\te\tE\n',
+                '0\td\tF\n', '0\tc\tG\n', '0\tb\tH\n', '0\ta\tI\n']
+        yt.write_table(input_table, data)
+        yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
+        assert list(yt.read_table(output_table)) == data[::-1]
+
     def test_sort_of_sorted_tables(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
