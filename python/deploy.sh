@@ -22,7 +22,7 @@ DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
 # Upload debian package
 if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
-    REPO=$(lsb_release -c | awk '{print $2}')
+    REPO="yandex-$(lsb_release -c | awk '{print $2}')"
 elif [ "$PACKAGE" = "yandex-yt-python-fennel" ] || [ "$PACKAGE" = "yandex-yt-transfer-manager" ]; then
     REPO="yt-common"
 else

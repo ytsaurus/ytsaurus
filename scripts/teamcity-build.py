@@ -293,6 +293,14 @@ def run_python_libraries_tests(options):
     kill_by_name("ytserver")
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=["--ignore=pyinstaller"])
 
+@yt_register_build_step
+def build_python_packages(options):
+    for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager"]:
+        with cwd(options.checkout_directory, "python", package):
+            version = check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
+            subprocess.check_call("dch -r {0} 'Resigned by teamcity'".format(version), shell=True)
+        with cwd(options.checkout_directory, "python"):
+            run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
 
 @yt_register_build_step
 def run_perl_tests(options):
@@ -489,6 +497,18 @@ def run_captured(args, cwd=None, env=None, input=None):
 def run_preexec():
     resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
+def check_output(*popenargs, **kwargs):
+    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+    output, unused_err = process.communicate()
+    retcode = process.poll()
+    if retcode:
+        cmd = kwargs.get("args")
+        if cmd is None:
+            cmd = popenargs[0]
+        error = subprocess.CalledProcessError(retcode, cmd)
+        error.output = output
+        raise error
+    return output
 
 def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False):
     POLL_TIMEOUT = 1.0

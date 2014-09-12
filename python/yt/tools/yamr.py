@@ -3,7 +3,6 @@ from yt.common import YtError
 
 import os
 import sh
-import shlex
 import subprocess
 import simplejson as json
 from urllib import quote_plus
@@ -15,8 +14,18 @@ try:
     _check_output = subprocess.check_output
 except AttributeError:
     # There is no check_output function in python2.6 :(
-    def _check_output(command, **kwargs):
-        return subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, **kwargs).communicate()[0]
+    def _check_output(*popenargs, **kwargs):
+        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+            error = subprocess.CalledProcessError(retcode, cmd)
+            error.output = output
+            raise error
+        return output
 
 def _check_call(command, **kwargs):
     logger.debug("Executing command '{}'".format(command))
