@@ -2,6 +2,7 @@
 # Build and upload self-contained binaries
 
 export YT_PROXY=kant.yt.yandex.net
+export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1 #teamcity user
 DEST="//home/files"
 YT="yt/wrapper/yt"
 
