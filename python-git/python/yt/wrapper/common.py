@@ -137,6 +137,7 @@ def generate_uuid():
     return "-".join([get_int() for _ in xrange(4)])
 
 def get_version():
+    """ Returns python wrapper version """
     try:
         from version import VERSION
         return VERSION
