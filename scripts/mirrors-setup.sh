@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MIRRORS_DIRECTORY=/home/sandello/mirrors
+MIRRORS_DIRECTORY="$HOME/mirrors"
 
 set -x
 set -e
@@ -92,3 +92,4 @@ configure_arcadia_mirror library-messagebus
 configure_github_mirror lloyd-yajl
 configure_github_mirror joyent-libuv
 configure_github_mirror twitter-zipkin
+configure_github_mirror pyinstaller-pyinstaller
