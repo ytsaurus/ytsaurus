@@ -352,7 +352,7 @@ def add_move_parser(add_parser):
     parser = add_parser("move", yt.move)
     parser.add_argument("source_path", help="old node address, path must exist")
     parser.add_argument("destination_path", help="new node address, path must not exist")
-    parser.add_argument("--dont-preserve-account", action="store_true", help="do not preserve account of moved table")
+    parser.add_argument("--no-preserve-account", action="store_true", help="do not preserve account of moved table")
     parser.set_defaults(func=move)
 
 def add_link_parser(add_parser):
