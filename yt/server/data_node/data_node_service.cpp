@@ -783,11 +783,11 @@ private:
                 return comparer(limit, indexRow, false) < 0;
             });
 
-    	if (std::distance(beginIt, endIt) < 2) {
-       	 	// Too small distance between given read limits.
-	        splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
-        	return;
-    	}
+        if (std::distance(beginIt, endIt) < 2) {
+            // Too small distance between given read limits.
+            splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
+            return;
+        }
 
         TChunkSpec* currentSplit;
         TOldBoundaryKeysExt boundaryKeysExt;

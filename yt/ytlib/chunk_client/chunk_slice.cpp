@@ -158,7 +158,7 @@ TChunkSlicePtr CreateChunkSlice(
         result->StartLimit.SetKey(*startKey);
     }
 
-    if (endKey && (!result->EndLimit.HasKey() || result->EndLimit.GetKey() < *endKey)) {
+    if (endKey && (!result->EndLimit.HasKey() || result->EndLimit.GetKey() > *endKey)) {
         result->EndLimit.SetKey(*endKey);
     }
 
