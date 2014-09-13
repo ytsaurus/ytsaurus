@@ -299,7 +299,7 @@ def build_python_packages(options):
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager"]:
         with cwd(options.checkout_directory, "python", package):
             package_version = check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            uploaded_version = check_output("apt-cache show yandex-yt-python | grep Version | head -n 1 | awk '{print $2}'", shell=True).strip()
+            uploaded_version = check_output("apt-cache show {0} | grep Version | head -n 1 | awk '{{print $2}}'".format(package), shell=True).strip()
             if package_version == uploaded_version:
                 continue
             subprocess.check_call("dch -r {0} 'Resigned by teamcity'".format(package_version), shell=True)
