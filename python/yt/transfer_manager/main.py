@@ -80,7 +80,8 @@ class Task(object):
     def dict(self, hide_token=False):
         result = deepcopy(self.__dict__)
         if hide_token:
-            del result["token"]
+            for key in ["token", "source_cluster_token", "destination_cluster_token"]:
+                del result[key]
         for key in result.keys():
             if result[key] is None:
                 del result[key]
@@ -323,7 +324,8 @@ class Application(object):
             destination_dir = os.path.dirname(task.destination_table)
             if not destination_client.exists(destination_dir):
                 raise yt.YtError("Destination directory {} should exist".format(destination_dir))
-            if destination_client.check_permission(task.user, "write", destination_dir)["action"] != "allow":
+            destination_user = self._yt.get_user_name(task.destination_cluster_token)
+            if destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                 raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
 
