@@ -295,10 +295,14 @@ def run_python_libraries_tests(options):
 
 @yt_register_build_step
 def build_python_packages(options):
+    run(["sudo", "apt-get", "update"])
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager"]:
         with cwd(options.checkout_directory, "python", package):
-            version = check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            subprocess.check_call("dch -r {0} 'Resigned by teamcity'".format(version), shell=True)
+            package_version = check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
+            uploaded_version = check_output("apt-cache show yandex-yt-python | grep Version | head -n 1 | awk '{print $2}'", shell=True).strip()
+            if package_version == uploaded_version:
+                continue
+            subprocess.check_call("dch -r {0} 'Resigned by teamcity'".format(package_version), shell=True)
         with cwd(options.checkout_directory, "python"):
             run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
 
