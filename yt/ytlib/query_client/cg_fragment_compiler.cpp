@@ -707,9 +707,6 @@ TCGValue TCGContext::CodegenFunctionExpr(
         const auto& thenExpr = expr->Arguments[1];
         const auto& elseExpr = expr->Arguments[2];
 
-        auto thenType = thenExpr->Type;
-        auto elseType = elseExpr->Type;
-
         auto condition = CodegenExpr(builder, condExpr, schema, row);
 
         return CodegenIfValue(builder, [&] (TCGIRBuilder& builder) {
