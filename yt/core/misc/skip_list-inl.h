@@ -140,7 +140,7 @@ void TSkipList<TKey, TComparer>::Insert(
     TNode* prevs[MaxHeight];
 
     auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, prevs);
-    if (lowerBound && Comparer_(pivot, lowerBound->GetKey()) == 0) {
+    if (lowerBound && Comparer_(lowerBound->GetKey(), pivot) == 0) {
         existingKeyConsumer(lowerBound->GetKey());
         return;
     }
@@ -188,7 +188,7 @@ template <class TPivot>
 typename TSkipList<TKey, TComparer>::TIterator TSkipList<TKey, TComparer>::FindEqualTo(const TPivot& pivot) const
 {
     auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, nullptr);
-    return lowerBound && Comparer_(pivot, lowerBound->GetKey()) == 0
+    return lowerBound && Comparer_(lowerBound->GetKey(), pivot) == 0
         ? TIterator(this, lowerBound)
         : TIterator();
 }
