@@ -391,12 +391,12 @@ public:
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
 
-        TTabletCell* cell;
+        TTabletCell* hintedCell;
         if (cellId == NullTabletCellId) {
             ValidateHasHealthyCells(); // may throw
-            cell = nullptr;
+            hintedCell = nullptr;
         } else {
-            cell = GetTabletCellOrThrow(cellId); // may throw
+            hintedCell = GetTabletCellOrThrow(cellId); // may throw
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
@@ -450,8 +450,9 @@ public:
             if (tablet->GetCell())
                 continue;
 
-            tablet->SetCell(cell ? cell : AllocateCell());
-            YCHECK(tablet->GetCell()->Tablets().insert(tablet).second);
+            auto* cell = hintedCell ? hintedCell : AllocateCell();
+            tablet->SetCell(cell);
+            YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
