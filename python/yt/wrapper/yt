@@ -343,9 +343,9 @@ def add_copy_parser(add_parser):
     parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied table")
 
 def move(**args):
-    if "dont_preserve_account" in args:
-        args["preserve_account"] = not args["dont_preserve_account"]
-        del args["dont_preserve_account"]
+    if "no_preserve_account" in args:
+        args["preserve_account"] = not args["no_preserve_account"]
+        del args["no_preserve_account"]
     yt.move(**args)
 
 def add_move_parser(add_parser):
