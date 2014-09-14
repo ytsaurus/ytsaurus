@@ -451,7 +451,7 @@ public:
                 continue;
 
             tablet->SetCell(cell ? cell : AllocateCell());
-            YCHECK(cell->Tablets().insert(tablet).second);
+            YCHECK(tablet->GetCell()->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
             YCHECK(tablet->GetState() == ETabletState::Unmounted);
