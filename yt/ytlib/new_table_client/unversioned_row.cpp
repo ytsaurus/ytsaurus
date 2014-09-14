@@ -225,7 +225,7 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
     YCHECK(input->Load(&value, fixedSize) == fixedSize);
     if (value.Type == EValueType::String || value.Type == EValueType::Any) {
         if (value.Length != 0) {
-            value.Data.String = pool->Allocate(value.Length);
+            value.Data.String = pool->AllocateUnaligned(value.Length);
             YCHECK(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
         } else {
             value.Data.String = nullptr;
@@ -610,7 +610,7 @@ i64 GetDataWeight(TUnversionedRow row)
 
 TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* alignedPool, int valueCount)
 {
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->Allocate(GetUnversionedRowDataSize(valueCount)));
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(alignedPool->AllocateAligned(GetUnversionedRowDataSize(valueCount)));
     header->Count = valueCount;
     header->Padding = 0;
     return TUnversionedRow(header);

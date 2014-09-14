@@ -207,8 +207,8 @@ template <class TKey, class TComparer>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::AllocateNode(const TKey& key, int height)
 {
     // -1 since Next_ is of size 1
-    size_t size = sizeof (TNode)+sizeof (TAtomic)* (height - 1);
-    auto* buffer = Pool_->Allocate(size);
+    size_t size = sizeof (TNode) + sizeof (TAtomic) * (height - 1);
+    auto* buffer = Pool_->AllocateAligned(size);
     new (buffer)TNode(key, height);
     return reinterpret_cast<TNode*>(buffer);
 }

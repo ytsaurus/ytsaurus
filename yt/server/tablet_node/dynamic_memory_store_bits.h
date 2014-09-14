@@ -59,7 +59,7 @@ public:
         TChunkedMemoryPool* pool,
         int capacity)
     {
-        auto* header = reinterpret_cast<TEditListHeader*>(pool->Allocate(
+        auto* header = reinterpret_cast<TEditListHeader*>(pool->AllocateAligned(
             sizeof (TEditListHeader) +
             capacity * sizeof(T)));
         header->Capacity = capacity;
@@ -233,7 +233,7 @@ public:
             schemaColumnCount -
             keyCount +
             ETimestampListKind::GetDomainSize();
-        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->Allocate(
+        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->AllocateAligned(
             sizeof (TDynamicRowHeader) +
             keyCount * sizeof (TUnversionedValue) +
             listCount * sizeof(TEditListHeader*)));

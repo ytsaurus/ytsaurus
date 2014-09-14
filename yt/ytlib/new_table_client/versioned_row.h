@@ -133,7 +133,7 @@ public:
         int writeTimestampCount,
         int deleteTimestampCount)
     {
-        auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->Allocate(GetVersionedRowDataSize(
+        auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->AllocateAligned(GetVersionedRowDataSize(
             keyCount,
             valueCount,
             writeTimestampCount,

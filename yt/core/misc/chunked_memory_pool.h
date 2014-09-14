@@ -35,8 +35,11 @@ public:
     //! Allocates #sizes bytes without any alignment.
     char* AllocateUnaligned(size_t size);
 
-    //! Allocates #sizes bytes aligned with 8-byte granularity.
-    char* Allocate(size_t size);
+    //! Allocates #size bytes aligned with #align-byte granularity.
+    /*!
+     *  #align must be a power of two.
+     */
+    char* AllocateAligned(size_t size, size_t align = 8);
 
     //! Marks all previously allocated small chunks as free for subsequent allocations but
     //! does not deallocate them.
@@ -93,9 +96,9 @@ inline char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
     return AllocateUnalignedSlow(size);
 }
 
-inline char* TChunkedMemoryPool::Allocate(size_t size)
+inline char* TChunkedMemoryPool::AllocateAligned(size_t size, size_t align)
 {
-    CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + 7) & ~7);
+    CurrentPtr_ = reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(CurrentPtr_) + align - 1) & ~(align - 1));
     return AllocateUnaligned(size);
 }
 
