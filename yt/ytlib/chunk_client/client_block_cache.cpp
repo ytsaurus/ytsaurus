@@ -6,6 +6,7 @@
 
 #include <core/misc/cache.h>
 #include <core/misc/property.h>
+#include <core/misc/singleton.h>
 
 #include <ytlib/chunk_client/block_id.h>
 
@@ -91,6 +92,29 @@ private:
 IBlockCachePtr CreateClientBlockCache(TSlruCacheConfigPtr config)
 {
     return New<TClientBlockCache>(config);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TNullBlockCache
+    : public IBlockCache
+{
+public:
+    virtual void Put(
+        const TBlockId& /*id*/,
+        const TSharedRef& /*data*/,
+        const TNullable<TNodeDescriptor>& /*source*/) override
+    { }
+
+    virtual TSharedRef Find(const TBlockId& /*id*/) override
+    {
+        return TSharedRef();
+    }
+};
+
+IBlockCachePtr GetNullBlockCache()
+{
+    return RefCountedSingleton<TNullBlockCache>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

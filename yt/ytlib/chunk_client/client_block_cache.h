@@ -12,6 +12,9 @@ namespace NChunkClient {
 //! Creates a simple client-side block cache.
 IBlockCachePtr CreateClientBlockCache(TSlruCacheConfigPtr config);
 
+//! Returns an always-empty block cache.
+IBlockCachePtr GetNullBlockCache();
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
