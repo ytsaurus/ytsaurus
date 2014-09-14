@@ -25,6 +25,9 @@ message TReqMount
     // If omitted then all tablets are affected.
     required int32 first_tablet_index = 1 [default = -1];
     required int32 last_tablet_index = 2 [default = -1];
+
+    // If omitted then cell is chosen automatically.
+    optional NYT.NProto.TGuid cell_id = 3;
 }
 
 message TRspMount

@@ -311,9 +311,11 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->first_tablet_index();
-        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v",
+        auto cellId = request->has_cell_id() ? FromProto<TTabletCellId>(request->cell_id()) : NullTabletCellId;
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v",
             firstTabletIndex,
-            lastTabletIndex);
+            lastTabletIndex,
+            cellId);
 
         ValidateNoTransaction();
 
@@ -323,7 +325,8 @@ private:
         tabletManager->MountTable(
             impl,
             firstTabletIndex,
-            lastTabletIndex);
+            lastTabletIndex,
+            cellId);
 
         context->Reply();
     }

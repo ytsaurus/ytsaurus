@@ -42,8 +42,9 @@ public:
 
     void MountTable(
         NTableServer::TTableNode* table,
-        int firstTabletIndex = -1,
-        int lastTabletIndex = -1);
+        int firstTabletIndex,
+        int lastTabletIndex,
+        TTabletCellId cellId);
 
     void UnmountTable(
         NTableServer::TTableNode* table,
@@ -68,6 +69,8 @@ public:
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
+    TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:

@@ -82,7 +82,15 @@ struct TTabletRequest
 
 struct TMountTableRequest
     : public TTabletRequest
-{ };
+{
+    NTabletClient::TTabletCellId CellId;
+
+    TMountTableRequest()
+    {
+        RegisterParameter("cell_id", CellId)
+            .Default(NTabletClient::NullTabletCellId);
+    }
+};
 
 class TMountTableCommand
     : public TTypedCommand<TMountTableRequest>

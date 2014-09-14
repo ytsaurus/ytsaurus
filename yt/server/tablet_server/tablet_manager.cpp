@@ -378,7 +378,8 @@ public:
     void MountTable(
         TTableNode* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex,
+        TTabletCellId cellId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -389,7 +390,14 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
-        ValidateHasHealthyCells(); // may throw
+
+        TTabletCell* cell;
+        if (cellId == NullTabletCellId) {
+            ValidateHasHealthyCells(); // may throw
+            cell = nullptr;
+        } else {
+            cell = GetTabletCellOrThrow(cellId); // may throw
+        }
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto chunkManager = Bootstrap->GetChunkManager();
@@ -442,8 +450,7 @@ public:
             if (tablet->GetCell())
                 continue;
 
-            auto* cell = AllocateCell();
-            tablet->SetCell(cell);
+            tablet->SetCell(cell ? cell : AllocateCell());
             YCHECK(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
@@ -695,6 +702,14 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
     }
 
+    TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
+    {
+        auto* cell = FindTabletCell(id);
+        if (!IsObjectAlive(cell)) {
+            THROW_ERROR_EXCEPTION("No such tablet cell %v", id);
+        }
+        return cell;
+    }
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
@@ -1631,12 +1646,14 @@ TTabletStatistics TTabletManager::GetTabletStatistics(TTablet* tablet)
 void TTabletManager::MountTable(
     TTableNode* table,
     int firstTabletIndex,
-    int lastTabletIndex)
+    int lastTabletIndex,
+    TTabletCellId cellId)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
-        lastTabletIndex);
+        lastTabletIndex,
+        cellId);
 }
 
 void TTabletManager::UnmountTable(
@@ -1679,6 +1696,11 @@ void TTabletManager::ReshardTable(
         firstTabletIndex,
         lastTabletIndex,
         pivotKeys);
+}
+
+TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
+{
+    return Impl_->GetTabletCellOrThrow(id);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl_)

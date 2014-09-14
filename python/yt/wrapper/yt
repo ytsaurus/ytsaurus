@@ -340,7 +340,7 @@ def add_copy_parser(add_parser):
     parser = add_parser("copy", yt.copy)
     parser.add_argument("source_path", help="source address, path must exist")
     parser.add_argument("destination_path", help="destination address, path must not exist")
-    parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied table")
+    parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied nodes")
 
 def move(**args):
     if "no_preserve_account" in args:
@@ -352,13 +352,13 @@ def add_move_parser(add_parser):
     parser = add_parser("move", yt.move)
     parser.add_argument("source_path", help="old node address, path must exist")
     parser.add_argument("destination_path", help="new node address, path must not exist")
-    parser.add_argument("--no-preserve-account", action="store_true", help="do not preserve account of moved table")
+    parser.add_argument("--no-preserve-account", action="store_true", help="do not preserve account of moved nodes")
     parser.set_defaults(func=move)
 
 def add_link_parser(add_parser):
     parser = add_parser("link", yt.link)
     parser.add_argument("target_path", help="address of original node to link, path must exist")
-    parser.add_argument("link_path", help="resulted link path, path must not exist")
+    parser.add_argument("link_path", help="address of resulting link, path must not exist")
     parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true", help="overwrite existing link_path")
 
@@ -370,9 +370,12 @@ def tablet_args(parser):
 def add_mount_table_parser(add_parser):
     parser = add_parser("mount-table", yt.mount_table)
     tablet_args(parser)
+    parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
+        "if omitted then an appropriate cell is chosen automatically")
 
 def add_unmount_table_parser(add_parser):
     parser = add_parser("unmount-table", yt.unmount_table)
+    tablet_args(parser)
     parser.add_argument("--force", action="store_true")
 
 def add_remount_table_parser(add_parser):
@@ -381,6 +384,7 @@ def add_remount_table_parser(add_parser):
 
 def add_reshard_table_parser(add_parser):
     parser = add_parser("reshard-table", yt.reshard_table)
+    tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArgument, nargs="+")
 
 def select(**args):

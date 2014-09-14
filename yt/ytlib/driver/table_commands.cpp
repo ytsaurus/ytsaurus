@@ -192,6 +192,7 @@ void TMountTableCommand::DoExecute()
     if (Request_->LastTabletIndex) {
         options.LastTabletIndex = *Request_->LastTabletIndex;
     }
+    options.CellId = Request_->CellId;
 
     auto result = WaitFor(Context_->GetClient()->MountTable(
         Request_->Path.GetPath(),

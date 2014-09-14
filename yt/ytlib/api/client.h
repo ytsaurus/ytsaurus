@@ -62,7 +62,9 @@ struct TGetTableInfoOptions
 
 struct TMountTableOptions
     : public TTabletRangeOptions
-{ };
+{
+    NTabletClient::TTabletCellId CellId;
+};
 
 struct TUnmountTableOptions
     : public TTabletRangeOptions

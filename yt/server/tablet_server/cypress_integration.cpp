@@ -77,10 +77,7 @@ private:
         auto id = TTabletCellId::FromString(key);
      
         auto tabletManager = Bootstrap->GetTabletManager();
-        auto* cell = tabletManager->FindTabletCell(id);
-        if (!IsObjectAlive(cell)) {
-            THROW_ERROR_EXCEPTION("No such tablet cell %v", id);
-        }
+        auto* cell = tabletManager->GetTabletCellOrThrow(id);
 
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->GetProxy(cell, nullptr);
