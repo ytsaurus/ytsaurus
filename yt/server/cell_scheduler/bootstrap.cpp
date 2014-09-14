@@ -32,7 +32,7 @@
 #include <core/ytree/ypath_client.h>
 #include <core/ytree/yson_file_service.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/scheduler/config.h>
 
@@ -142,7 +142,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
-        CreateVirtualNode(TProfilingManager::Get()->GetService()));
+        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",

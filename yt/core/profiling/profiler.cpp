@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "profiler.h"
-#include "profiling_manager.h"
+#include "profile_manager.h"
 #include "timing.h"
 
 #include <core/ypath/token.h>
@@ -136,7 +136,7 @@ void TProfiler::Enqueue(
     sample.Path = PathPrefix_ + path;
     sample.Value = value;
     sample.TagIds = TagIds_ + tagIds;
-    TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
+    TProfileManager::Get()->Enqueue(sample, SelfProfiling);
 }
 
 TTimer TProfiler::TimingStart(

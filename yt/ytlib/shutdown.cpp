@@ -2,7 +2,7 @@
 
 #include <core/concurrency/fiber.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <core/misc/address.h>
 
@@ -38,7 +38,7 @@ void Shutdown()
     NRpc::TDispatcher::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
+    NProfiling::TProfileManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
 #ifdef YT_USE_LLVM
     NQueryClient::ShutdownLlvm();

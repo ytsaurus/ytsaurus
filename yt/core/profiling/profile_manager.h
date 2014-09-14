@@ -48,14 +48,11 @@ struct TTag
  *
  *  This thread also provides a invoker for executing various callbacks.
  */
-class TProfilingManager
-    : private TNonCopyable
+class TProfileManager
 {
 public:
-    TProfilingManager();
-
     //! Returns the singleton instance.
-    static TProfilingManager* Get();
+    static TProfileManager* Get();
 
     //! Starts profiling.
     /*!
@@ -98,9 +95,12 @@ public:
     }
 
 private:
-    class TImpl;
+    TProfileManager();
 
-    std::unique_ptr<TImpl> Impl;
+    DECLARE_SINGLETON_FRIEND(TProfileManager);
+
+    class TImpl;
+    std::unique_ptr<TImpl> Impl_;
 
 };
 
@@ -108,12 +108,3 @@ private:
 
 } // namespace NProfiling
 } // namespace NYT
-
-template <>
-struct TSingletonTraits<NYT::NProfiling::TProfilingManager>
-{
-    enum
-    {
-        Priority = 2048
-    };
-};

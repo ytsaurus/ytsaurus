@@ -23,7 +23,7 @@
 #include <core/rpc/bus_server.h>
 #include <core/rpc/bus_channel.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
 #include <ytlib/monitoring/http_server.h>
@@ -377,7 +377,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
-        CreateVirtualNode(TProfilingManager::Get()->GetService()));
+        CreateVirtualNode(TProfileManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",

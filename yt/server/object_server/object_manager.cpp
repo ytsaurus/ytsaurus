@@ -17,7 +17,7 @@
 
 #include <core/erasure/public.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/hydra/rpc_helpers.h>
 
@@ -416,7 +416,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     RegisteredTypes.push_back(type);
     auto& entry = TypeToEntry[typeValue];
     entry.Handler = handler;
-    entry.TagId = NProfiling::TProfilingManager::Get()->RegisterTag("type", type);
+    entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
@@ -1044,7 +1044,7 @@ NProfiling::TTagId TObjectManager::GetMethodTagId(const Stroka& method)
     if (it != MethodToTag.end()) {
         return it->second;
     }
-    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("method", method);
+    auto tag = NProfiling::TProfileManager::Get()->RegisterTag("method", method);
     YCHECK(MethodToTag.insert(std::make_pair(method, tag)).second);
     return tag;
 }

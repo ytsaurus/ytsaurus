@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "resource_tracker.h"
+#include "profile_manager.h"
 #include "profiler.h"
 #include "timing.h"
 
@@ -8,8 +9,6 @@
 #include <core/misc/lfalloc_helpers.h>
 
 #include <core/ypath/token.h>
-
-#include <core/profiling/profiling_manager.h>
 
 #include <util/folder/filelist.h>
 #include <util/stream/file.h>
@@ -118,7 +117,7 @@ void TResourceTracker::EnqueueCpuUsage()
             i64 systemCpuTime = (systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond;
 
             TTagIdList tagIds;
-            tagIds.push_back(TProfilingManager::Get()->RegisterTag("thread", threadName));
+            tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
 
             Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, tagIds);
             Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, tagIds);

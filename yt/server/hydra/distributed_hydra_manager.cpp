@@ -28,7 +28,7 @@
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/election/cell_manager.h>
 
@@ -133,7 +133,7 @@ public:
 
         Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 
-        auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
+        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("cell_guid", CellManager_->GetCellGuid());
         Profiler.TagIds().push_back(tagId);
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(

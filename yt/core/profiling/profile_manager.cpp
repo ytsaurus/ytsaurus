@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "profiling_manager.h"
+#include "profile_manager.h"
 #include "resource_tracker.h"
 #include "timing.h"
 
@@ -35,7 +35,7 @@ static const TDuration MaxKeepInterval = TDuration::Minutes(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProfilingManager::TImpl
+class TProfileManager::TImpl
 {
 public:
     TImpl()
@@ -224,7 +224,7 @@ private:
 
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
-            auto* profilingManager = TProfilingManager::Get()->Impl.get();
+            auto* profilingManager = TProfileManager::Get()->Impl_.get();
             TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo();
@@ -378,48 +378,48 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfilingManager::TProfilingManager()
-    : Impl(new TImpl())
+TProfileManager::TProfileManager()
+    : Impl_(new TImpl())
 { }
 
-TProfilingManager* TProfilingManager::Get()
+TProfileManager* TProfileManager::Get()
 {
-    return Singleton<TProfilingManager>();
+    return Singleton<TProfileManager>();
 }
 
-void TProfilingManager::Start()
+void TProfileManager::Start()
 {
-    Impl->Start();
+    Impl_->Start();
 }
 
-void TProfilingManager::Shutdown()
+void TProfileManager::Shutdown()
 {
-    Impl->Shutdown();
+    Impl_->Shutdown();
 }
 
-void TProfilingManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
+void TProfileManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
 {
-    Impl->Enqueue(sample, selfProfiling);
+    Impl_->Enqueue(sample, selfProfiling);
 }
 
-IInvokerPtr TProfilingManager::GetInvoker() const
+IInvokerPtr TProfileManager::GetInvoker() const
 {
-    return Impl->GetInvoker();
+    return Impl_->GetInvoker();
 }
 
-IMapNodePtr TProfilingManager::GetRoot() const
+IMapNodePtr TProfileManager::GetRoot() const
 {
-    return Impl->GetRoot();
+    return Impl_->GetRoot();
 }
 
-IYPathServicePtr TProfilingManager::GetService() const
+IYPathServicePtr TProfileManager::GetService() const
 {
-    return Impl->GetService();
+    return Impl_->GetService();
 }
 
-TTagId TProfilingManager::RegisterTag(const TTag& tag)
+TTagId TProfileManager::RegisterTag(const TTag& tag)
 {
-    return Impl->RegisterTag(tag);
+    return Impl_->RegisterTag(tag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

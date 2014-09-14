@@ -11,7 +11,7 @@
 
 #include <core/rpc/helpers.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NElection {
@@ -50,7 +50,7 @@ TCellManager::TCellManager(
 void TCellManager::BuildTags()
 {
     PeerTags.clear();
-    auto* profilingManager = NProfiling::TProfilingManager::Get();
+    auto* profilingManager = NProfiling::TProfileManager::Get();
     for (TPeerId id = 0; id < GetPeerCount(); ++id) {
         NProfiling::TTagIdList tags;
         tags.push_back(profilingManager->RegisterTag("address", GetPeerAddress(id)));

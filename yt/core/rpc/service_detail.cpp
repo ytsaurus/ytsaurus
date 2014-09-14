@@ -15,7 +15,7 @@
 #include <core/bus/bus.h>
 
 #include <core/profiling/timing.h>
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NRpc {
@@ -206,7 +206,7 @@ void TServiceBase::Init(
     Logger = logger;
     ProtocolVersion_ = protocolVersion;
 
-    ServiceTagId_ = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
+    ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
@@ -463,7 +463,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 {
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(ServiceTagId_);
-    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("method", descriptor.Method));
+    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("method", descriptor.Method));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
 
     TWriterGuard guard(MethodMapLock_);

@@ -6,7 +6,7 @@
 
 #include <core/ypath/token.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -22,7 +22,7 @@ namespace {
 TTagIdList GetThreadTagIds(const Stroka& threadName)
 {
     TTagIdList tagIds;
-    auto* profilingManager = TProfilingManager::Get();
+    auto* profilingManager = TProfileManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
     return tagIds;
 }
@@ -30,7 +30,7 @@ TTagIdList GetThreadTagIds(const Stroka& threadName)
 TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
 {
     TTagIdList tagIds;
-    auto* profilingManager = TProfilingManager::Get();
+    auto* profilingManager = TProfileManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
     tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
     return tagIds;

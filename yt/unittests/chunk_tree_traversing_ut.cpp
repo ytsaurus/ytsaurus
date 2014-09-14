@@ -2,8 +2,10 @@
 #include "framework.h"
 
 #include <core/misc/protobuf_helpers.h>
+
 #include <core/actions/invoker_util.h>
-#include <core/profiling/profiling_manager.h>
+
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 

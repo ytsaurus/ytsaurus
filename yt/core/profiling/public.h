@@ -9,7 +9,7 @@ namespace NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfiler;
-class TProfilingManager;
+class TProfileManager;
 
 class TResourceTracker;
 

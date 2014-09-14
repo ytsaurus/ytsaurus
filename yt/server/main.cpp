@@ -8,7 +8,7 @@
 
 #include <core/logging/log_manager.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <core/tracing/trace_manager.h>
 
@@ -284,7 +284,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
-        NProfiling::TProfilingManager::Get()->Start();
+        NProfiling::TProfileManager::Get()->Start();
     }
 
 #ifdef _linux_

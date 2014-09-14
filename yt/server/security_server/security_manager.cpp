@@ -13,7 +13,7 @@
 
 #include <core/ypath/token.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -1329,7 +1329,7 @@ private:
 
     void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
-        auto* profilingManager = NProfiling::TProfilingManager::Get();
+        auto* profilingManager = NProfiling::TProfileManager::Get();
         auto now = TInstant::Now();
         for (const auto& update : request.updates()) {
             auto userId = FromProto<TUserId>(update.user_id());

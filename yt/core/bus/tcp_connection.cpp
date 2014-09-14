@@ -10,7 +10,7 @@
 
 #include <core/ytree/convert.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 #include <util/system/error.h>
 
@@ -86,7 +86,7 @@ TTcpConnection::TTcpConnection(
         id,
         Address_);
 
-    auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
+    auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType_));
     Profiler.TagIds().push_back(tagId);
 
     switch (ConnectionType_) {

@@ -22,7 +22,7 @@
 
 #include <core/rpc/rpc.pb.h>
 
-#include <core/profiling/profiling_manager.h>
+#include <core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NRpc {
@@ -56,7 +56,7 @@ const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka
     auto it = MethodDescriptors.find(pair);
     if (it == MethodDescriptors.end()) {
         TMethodDescriptor descriptor;
-        auto* profilingManager = NProfiling::TProfilingManager::Get();
+        auto* profilingManager = NProfiling::TProfileManager::Get();
         descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
         descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
         it = MethodDescriptors.insert(std::make_pair(pair, descriptor)).first;
