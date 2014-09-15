@@ -603,7 +603,7 @@ def init(table_name, proxy_path, **kwargs):
 def truncate(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
-    count = kwargs.get("count", 10**6)
+    count = int(kwargs.get("count", 10**6))
     event_log.truncate(count)
 
 
@@ -617,6 +617,8 @@ def archive(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
     count = kwargs.get("count", None)
+    if count is not None:
+        count = int(count)
     event_log.archive(count)
 
 
