@@ -21,7 +21,7 @@ NTableClient::ISyncReaderPtr CreateSortingReader(
     NTableClient::TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr compressedBlockCache,
-    NChunkClient::IBlockCachePtr unccompressedBlockCache,
+    NChunkClient::IBlockCachePtr uncompressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NTableClient::TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
