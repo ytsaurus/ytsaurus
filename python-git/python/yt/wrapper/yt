@@ -371,7 +371,7 @@ def add_mount_table_parser(add_parser):
     parser = add_parser("mount-table", yt.mount_table)
     tablet_args(parser)
     parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
-        "if omitted then an appropriate cell is chosen automatically")
+                                          "if omitted then an appropriate cell is chosen automatically")
 
 def add_unmount_table_parser(add_parser):
     parser = add_parser("unmount-table", yt.unmount_table)
