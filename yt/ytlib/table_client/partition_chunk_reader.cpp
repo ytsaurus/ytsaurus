@@ -37,16 +37,18 @@ TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
 // ToDo(psushin): eliminate copy-paste from table_chunk_reader.cpp
 TPartitionChunkReader::TPartitionChunkReader(
     TPartitionChunkReaderProviderPtr provider,
-    const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
-    const NChunkClient::IReaderPtr& chunkReader,
+    TSequentialReaderConfigPtr sequentialReader,
+    NChunkClient::IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     int partitionTag,
     NCompression::ECodec codecId)
-    : RowPointer_(NULL)
+    : RowPointer_(nullptr)
     , RowIndex_(-1)
     , Provider(provider)
     , Facade(this)
-    , SequentialConfig(sequentialReader)
-    , ChunkReader(chunkReader)
+    , SequentialConfig(std::move(sequentialReader))
+    , ChunkReader(std::move(chunkReader))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableClientLogger)
@@ -69,7 +71,7 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TPartitionChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
+void TPartitionChunkReader::OnGotMeta(IReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         OnFail(result);
@@ -109,6 +111,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult resu
         SequentialConfig,
         std::move(blockSequence),
         ChunkReader,
+        UncompressedBlockCache,
         CodecId);
 
     LOG_INFO("Reading %d blocks for partition %d",
@@ -253,22 +256,25 @@ void TPartitionChunkReader::OnFail(const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
-    const NChunkClient::TSequentialReaderConfigPtr& config)
+    TSequentialReaderConfigPtr config,
+    IBlockCachePtr uncompressedBlockCache)
     : RowIndex_(-1)
-    , Config(config)
+    , Config(std::move(config))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IReaderPtr& chunkReader)
+    const NChunkClient::IReaderPtr chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
     return New<TPartitionChunkReader>(
         this,
         Config,
-        chunkReader,
+        std::move(chunkReader),
+        UncompressedBlockCache,
         chunkSpec.partition_tag(),
         NCompression::ECodec(miscExt.compression_codec()));
 }

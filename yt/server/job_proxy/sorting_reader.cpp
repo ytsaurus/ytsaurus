@@ -57,7 +57,8 @@ public:
     TSortingReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr compressedBlockCache,
+        IBlockCachePtr compressedBlockCache,
+        IBlockCachePtr uncompressedBlockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
@@ -79,7 +80,10 @@ public:
         srand(time(nullptr));
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        auto provider = New<TPartitionChunkReaderProvider>(config);
+        auto provider = New<TPartitionChunkReaderProvider>(
+            config,
+            uncompressedBlockCache);
+
         Reader = New<TReader>(
             config,
             masterChannel,
@@ -499,7 +503,8 @@ private:
 ISyncReaderPtr CreateSortingReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NChunkClient::IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr compressedBlockCache,
+    IBlockCachePtr uncompressedBlockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
@@ -511,6 +516,7 @@ ISyncReaderPtr CreateSortingReader(
         config,
         masterChannel,
         compressedBlockCache,
+        uncompressedBlockCache,
         nodeDirectory,
         keyColumns,
         onNetworkReleased,

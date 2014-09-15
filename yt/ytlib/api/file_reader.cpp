@@ -162,7 +162,9 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            auto provider = New<TFileChunkReaderProvider>(Config_);
+            auto provider = New<TFileChunkReaderProvider>(
+                Config_,
+                Client_->GetConnection()->GetUncompressedBlockCache());
             Reader_ = New<TReader>(
                 Config_,
                 Client_->GetMasterChannel(),

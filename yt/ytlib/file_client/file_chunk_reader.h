@@ -22,11 +22,12 @@ class TFileChunkReaderProvider
 {
 public:
     TFileChunkReaderProvider(
-        const NChunkClient::TSequentialReaderConfigPtr& config);
+        NChunkClient::TSequentialReaderConfigPtr config,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache);
 
     TFileChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IReaderPtr& chunkReader);
+        NChunkClient::IReaderPtr chunkReader);
 
     void OnReaderOpened(
         TFileChunkReaderPtr reader,
@@ -38,6 +39,7 @@ public:
 
 private:
     NChunkClient::TSequentialReaderConfigPtr Config;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
 
 };
 
@@ -68,8 +70,9 @@ public:
     typedef TFileChunkReaderFacade TFacade;
 
     TFileChunkReader(
-        const NChunkClient::TSequentialReaderConfigPtr& sequentialConfig,
-        const NChunkClient::IReaderPtr& asyncReader,
+        NChunkClient::TSequentialReaderConfigPtr sequentialConfig,
+        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         NCompression::ECodec codecId,
         i64 startOffset,
         i64 endOffset);
@@ -90,9 +93,8 @@ public:
 private:
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IReaderPtr ChunkReader;
-
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
     NCompression::ECodec CodecId;
-
     i64 StartOffset;
     i64 EndOffset;
 

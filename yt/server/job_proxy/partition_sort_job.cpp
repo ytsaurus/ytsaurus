@@ -70,11 +70,12 @@ public:
         KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
         std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
-
-        srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        auto provider = New<TPartitionChunkReaderProvider>(config->JobIO->TableReader);
+        auto provider = New<TPartitionChunkReaderProvider>(
+            config->JobIO->TableReader,
+            host->GetUncompressedBlockCache());
+
         Reader = New<TReader>(
             config->JobIO->TableReader,
             host->GetMasterChannel(),

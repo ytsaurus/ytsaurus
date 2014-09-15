@@ -38,12 +38,14 @@ TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::TTransactionPtr transaction,
+    IBlockCachePtr compressedBlockCache,
     IBlockCachePtr uncompressedBlockCache,
     const NYPath::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
+    , CompressedBlockCache(compressedBlockCache)
     , UncompressedBlockCache(uncompressedBlockCache)
     , NodeDirectory(New<TNodeDirectory>())
     , RichPath(richPath.Normalize())
@@ -111,12 +113,13 @@ void TAsyncTableReader::Open()
         auto provider = New<TTableChunkReaderProvider>(
             chunkSpecs,
             Config,
+            UncompressedBlockCache,
             New<TChunkReaderOptions>());
 
         Reader = New<TTableChunkSequenceReader>(
             Config,
             MasterChannel,
-            UncompressedBlockCache,
+            CompressedBlockCache,
             NodeDirectory,
             std::move(chunkSpecs),
             provider);

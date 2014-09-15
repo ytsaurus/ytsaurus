@@ -329,6 +329,7 @@ private:
         return CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
+            Bootstrap_->GetUncompressedBlockCache(),
             split.chunk_meta(),
             lowerBound,
             upperBound,

@@ -74,7 +74,8 @@ public:
 
         auto readerProvider = New<TTableChunkReaderProvider>(
             chunkSpecs,
-            config->JobIO->TableReader);
+            config->JobIO->TableReader,
+            host->GetUncompressedBlockCache());
 
         Reader = CreateSyncReader(New<TReader>(
             config->JobIO->TableReader,

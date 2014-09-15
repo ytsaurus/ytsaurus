@@ -58,6 +58,7 @@ public:
         NChunkClient::TSequentialReaderConfigPtr config,
         const NChunkClient::TChannel& channel,
         NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit,
         int tableIndex,
@@ -178,18 +179,20 @@ private:
 class TTableChunkReaderProvider
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowCount);
 
 public:
     TTableChunkReaderProvider(
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-        const NChunkClient::TSequentialReaderConfigPtr& config,
-        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>(),
+        NChunkClient::TSequentialReaderConfigPtr config,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
+        TChunkReaderOptionsPtr options = New<TChunkReaderOptions>(),
         TNullable<i64> startTableRowIndex = Null);
 
     TTableChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IReaderPtr& chunkReader);
+        NChunkClient::IReaderPtr chunkReader);
 
     void OnReaderOpened(
         TTableChunkReaderPtr reader,
@@ -206,6 +209,7 @@ private:
     friend class TTableChunkReader;
 
     NChunkClient::TSequentialReaderConfigPtr Config;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
     TChunkReaderOptionsPtr Options;
 
     TSpinLock SpinLock;

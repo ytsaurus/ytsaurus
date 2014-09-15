@@ -163,11 +163,13 @@ public:
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr tableReader,
         NChunkClient::IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit)
-        : SequentialConfig(config)
-        , ChunkReader(chunkReader)
-        , TableReader(tableReader)
+        : SequentialConfig(std::move(config))
+        , ChunkReader(std::move(chunkReader))
+        , UncompressedBlockCache(std::move(uncompressedBlockCache))
+        , TableReader(std::move(tableReader))
         , Channel(tableReader->Channel)
         , StartLimit(startLimit)
         , EndLimit(endLimit)
@@ -355,6 +357,7 @@ private:
             SequentialConfig,
             std::move(blockSequence),
             ChunkReader,
+            UncompressedBlockCache,
             NCompression::ECodec(miscExt.compression_codec()));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
@@ -595,8 +598,10 @@ private:
         chunkReader->ReaderState.FinishOperation();
     }
 
+
     TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IReaderPtr ChunkReader;
+    IBlockCachePtr UncompressedBlockCache;
     TWeakPtr<TTableChunkReader> TableReader;
 
     TChannel Channel;
@@ -630,10 +635,12 @@ public:
     TPartitionInitializer(
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr tableReader,
-        NChunkClient::IReaderPtr chunkReader)
+        NChunkClient::IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache)
         : SequentialConfig(config)
-        , ChunkReader(chunkReader)
-        , TableReader(tableReader)
+        , ChunkReader(std::move(chunkReader))
+        , UncompressedBlockCache(std::move(uncompressedBlockCache))
+        , TableReader(std::move(tableReader))
         , Logger(TableClientLogger)
     { }
 
@@ -707,6 +714,7 @@ public:
             SequentialConfig,
             std::move(blockSequence),
             ChunkReader,
+            UncompressedBlockCache,
             NCompression::ECodec(miscExt.compression_codec()));
 
         LOG_DEBUG("Reading %d blocks for partition %d",
@@ -725,10 +733,13 @@ public:
         chunkReader->Initializer.Reset();
     }
 
+
     TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IReaderPtr ChunkReader;
+    IBlockCachePtr UncompressedBlockCache;
     TWeakPtr<TTableChunkReader> TableReader;
     NLog::TLogger Logger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -739,6 +750,7 @@ TTableChunkReader::TTableChunkReader(
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     const NChunkClient::TReadLimit& startLimit,
     const NChunkClient::TReadLimit& endLimit,
     int tableIndex,
@@ -767,13 +779,15 @@ TTableChunkReader::TTableChunkReader(
             config,
             this,
             chunkReader,
+            uncompressedBlockCache,
             startLimit,
             endLimit);
     } else {
         Initializer = New<TPartitionInitializer>(
             config,
             this,
-            chunkReader);
+            chunkReader,
+            uncompressedBlockCache);
     }
 }
 
@@ -1008,12 +1022,14 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 
 TTableChunkReaderProvider::TTableChunkReaderProvider(
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-    const NChunkClient::TSequentialReaderConfigPtr& config,
-    const TChunkReaderOptionsPtr& options,
+    TSequentialReaderConfigPtr config,
+    IBlockCachePtr uncompressedBlockCache,
+    TChunkReaderOptionsPtr options,
     TNullable<i64> startTableRowIndex)
     : RowCount_(0)
-    , Config(config)
-    , Options(options)
+    , Config(std::move(config))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
+    , Options(std::move(options))
     , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 {
     for (const auto& chunkSpec : chunkSpecs) {
@@ -1025,13 +1041,14 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IReaderPtr& chunkReader)
+    NChunkClient::IReaderPtr chunkReader)
 {
     return New<TTableChunkReader>(
         this,
         Config,
         chunkSpec.has_channel() ? FromProto<TChannel>(chunkSpec.channel()) : TChannel::Universal(),
-        chunkReader,
+        std::move(chunkReader),
+        UncompressedBlockCache,
         FromProto<TReadLimit>(chunkSpec.lower_limit()),
         FromProto<TReadLimit>(chunkSpec.upper_limit()),
         chunkSpec.table_index(),

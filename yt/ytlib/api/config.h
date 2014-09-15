@@ -56,6 +56,7 @@ public:
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     TSlruCacheConfigPtr CompressedBlockCache;
+    TSlruCacheConfigPtr UncompressedBlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
     
     TDuration QueryTimeout;

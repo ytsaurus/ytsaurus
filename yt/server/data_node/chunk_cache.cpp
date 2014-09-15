@@ -25,6 +25,7 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -258,6 +259,7 @@ private:
                 Config_->CacheSequentialReader,
                 std::move(blocks),
                 chunkReader,
+                GetNullBlockCache(),
                 NCompression::ECodec::None);
 
             for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {

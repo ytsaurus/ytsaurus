@@ -39,6 +39,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("compressed_block_cache", CompressedBlockCache)
         .DefaultNew();
+    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+        .DefaultNew();
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();
 

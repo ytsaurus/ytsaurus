@@ -637,7 +637,9 @@ private:
         auto chunks = PatchCachedChunkReplicas(descriptor.file());
         auto config = New<TFileReaderConfig>();
 
-        auto provider = New<TFileChunkReaderProvider>(config);
+        auto provider = New<TFileChunkReaderProvider>(
+            config,
+            Bootstrap->GetUncompressedBlockCache());
 
         typedef TOldMultiChunkSequentialReader<TFileChunkReader> TReader;
 
@@ -698,7 +700,8 @@ private:
 
         auto readerProvider = New<TTableChunkReaderProvider>(
             chunks,
-            config);
+            config,
+            Bootstrap->GetUncompressedBlockCache());
 
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,

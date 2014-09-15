@@ -19,12 +19,14 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
     IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     NCompression::ECodec codecId)
     : UncompressedDataSize_(0)
     , CompressedDataSize_(0)
-    , BlockInfos_(std::move(blockInfos))
     , Config_(config)
-    , ChunkReader_(chunkReader)
+    , BlockInfos_(std::move(blockInfos))
+    , ChunkReader_(std::move(chunkReader))
+    , UncompressedBlockCache_(std::move(uncompressedBlockCache))
     , AsyncSemaphore_(config->WindowSize)
     , Codec_(NCompression::GetCodec(codecId))
     , Logger(ChunkClientLogger)
@@ -42,9 +44,9 @@ TSequentialReader::TSequentialReader(
     LOG_DEBUG("Creating sequential reader (Blocks: [%v])",
         JoinToString(blockIndexes));
 
-    BlockWindow.reserve(BlockInfos_.size());
+    BlockWindow_.reserve(BlockInfos_.size());
     for (int i = 0; i < BlockInfos_.size(); ++i) {
-        BlockWindow.push_back(NewPromise<TSharedRef>());
+        BlockWindow_.push_back(NewPromise<TSharedRef>());
     }
 
     TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
@@ -56,18 +58,18 @@ bool TSequentialReader::HasNext() const
 {
     // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
-    return NextSequenceIndex < BlockWindow.size();
+    return NextSequenceIndex_ < BlockWindow_.size();
 }
 
 TSharedRef TSequentialReader::GetBlock()
 {
     // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
-    YCHECK(!State.HasRunningOperation());
-    YCHECK(NextSequenceIndex > 0);
-    YCHECK(BlockWindow[NextSequenceIndex - 1].IsSet());
+    YCHECK(!State_.HasRunningOperation());
+    YCHECK(NextSequenceIndex_ > 0);
+    YCHECK(BlockWindow_[NextSequenceIndex_ - 1].IsSet());
 
-    return BlockWindow[NextSequenceIndex - 1].Get();
+    return BlockWindow_[NextSequenceIndex_ - 1].Get();
 }
 
 TAsyncError TSequentialReader::AsyncNextBlock()
@@ -76,24 +78,24 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     // ContinueNextRow of NTableClient::TChunkReader.
 
     YCHECK(HasNext());
-    YCHECK(!State.HasRunningOperation());
+    YCHECK(!State_.HasRunningOperation());
 
-    if (NextSequenceIndex > 0) {
-        AsyncSemaphore_.Release(BlockWindow[NextSequenceIndex - 1].Get().Size());
-        BlockWindow[NextSequenceIndex - 1].Reset();
+    if (NextSequenceIndex_ > 0) {
+        AsyncSemaphore_.Release(BlockWindow_[NextSequenceIndex_ - 1].Get().Size());
+        BlockWindow_[NextSequenceIndex_ - 1].Reset();
     }
 
-    State.StartOperation();
+    State_.StartOperation();
 
     auto this_ = MakeStrong(this);
-    BlockWindow[NextSequenceIndex].Subscribe(
+    BlockWindow_[NextSequenceIndex_].Subscribe(
         BIND([=] (TSharedRef) {
-            this_->State.FinishOperation();
+            this_->State_.FinishOperation();
         }));
 
-    ++NextSequenceIndex;
+    ++NextSequenceIndex_;
 
-    return State.GetOperationError();
+    return State_.GetOperationError();
 }
 
 void TSequentialReader::OnGotBlocks(
@@ -102,11 +104,11 @@ void TSequentialReader::OnGotBlocks(
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    if (!State.IsActive())
+    if (!State_.IsActive())
         return;
 
     if (!readResult.IsOK()) {
-        State.Fail(readResult);
+        State_.Fail(readResult);
         return;
     }
 
@@ -136,7 +138,7 @@ void TSequentialReader::DecompressBlocks(
             blockInfo.Index);
 
         auto data = Codec_->Decompress(block);
-        BlockWindow[blockIndex].Set(data);
+        BlockWindow_[blockIndex].Set(data);
 
         UncompressedDataSize_ += data.Size();
         CompressedDataSize_ += block.Size();
@@ -161,11 +163,11 @@ void TSequentialReader::FetchNextGroup()
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
     // ToDo(psushin): maybe use SmallVector here?
-    auto firstUnfetched = NextUnfetchedIndex;
+    auto firstUnfetched = NextUnfetchedIndex_;
     std::vector<int> blockIndexes;
     i64 groupSize = 0;
-    while (NextUnfetchedIndex < BlockInfos_.size()) {
-        auto& blockInfo = BlockInfos_[NextUnfetchedIndex];
+    while (NextUnfetchedIndex_ < BlockInfos_.size()) {
+        auto& blockInfo = BlockInfos_[NextUnfetchedIndex_];
 
         if (!blockIndexes.empty() && groupSize + blockInfo.Size > Config_->GroupSize) {
             // Do not exceed group size if possible.
@@ -174,11 +176,11 @@ void TSequentialReader::FetchNextGroup()
 
         blockIndexes.push_back(blockInfo.Index);
         groupSize += blockInfo.Size;
-        ++NextUnfetchedIndex;
+        ++NextUnfetchedIndex_;
     }
 
     if (!groupSize) {
-        FetchingCompleteEvent.Set();
+        FetchingCompleteEvent_.Set();
         return;
     }
 
@@ -215,7 +217,7 @@ void TSequentialReader::RequestBlocks(
 
 TFuture<void> TSequentialReader::GetFetchingCompleteEvent()
 {
-    return FetchingCompleteEvent;
+    return FetchingCompleteEvent_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

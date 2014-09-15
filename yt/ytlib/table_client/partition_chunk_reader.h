@@ -40,6 +40,7 @@ private:
 class TPartitionChunkReader
     : public virtual TRefCounted
 {
+public:
     // Points to a non-key part of the row inside a block.
     DEFINE_BYVAL_RO_PROPERTY(const char*, RowPointer);
     DEFINE_BYVAL_RO_PROPERTY(i64, RowIndex);
@@ -50,8 +51,9 @@ public:
 
     TPartitionChunkReader(
         TPartitionChunkReaderProviderPtr provider,
-        const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
-        const NChunkClient::IReaderPtr& chunkReader,
+        NChunkClient::TSequentialReaderConfigPtr sequentialReader,
+        NChunkClient::IReaderPtr chunkReader,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache,
         int partitionTag,
         NCompression::ECodec codecId);
 
@@ -76,7 +78,7 @@ private:
 
     NChunkClient::TSequentialReaderConfigPtr SequentialConfig;
     NChunkClient::IReaderPtr ChunkReader;
-
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
     int PartitionTag;
     NCompression::ECodec CodecId;
 
@@ -107,15 +109,17 @@ private:
 class TPartitionChunkReaderProvider
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
 
 public:
     TPartitionChunkReaderProvider(
-        const NChunkClient::TSequentialReaderConfigPtr& config);
+        NChunkClient::TSequentialReaderConfigPtr config,
+        NChunkClient::IBlockCachePtr uncompressedBlockCache);
 
     TPartitionChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        const NChunkClient::IReaderPtr& chunkReader);
+        NChunkClient::IReaderPtr chunkReader);
 
     void OnReaderOpened(
         TPartitionChunkReaderPtr reader,
@@ -130,6 +134,7 @@ private:
     friend class TPartitionChunkReader;
 
     NChunkClient::TSequentialReaderConfigPtr Config;
+    NChunkClient::IBlockCachePtr UncompressedBlockCache;
 
     TSpinLock SpinLock;
     NChunkClient::NProto::TDataStatistics DataStatistics;

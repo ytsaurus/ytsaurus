@@ -73,13 +73,12 @@ public:
             options->KeepBlocks = true;
 
             std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
-
-            srand(time(NULL));
             std::random_shuffle(chunks.begin(), chunks.end());
 
             auto provider = New<TTableChunkReaderProvider>(
                 chunks,
                 config->JobIO->TableReader,
+                host->GetUncompressedBlockCache(),
                 options);
 
             Reader = New<TReader>(

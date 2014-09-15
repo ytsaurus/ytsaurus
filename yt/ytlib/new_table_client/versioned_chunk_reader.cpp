@@ -41,6 +41,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache,
         TReadLimit lowerLimit,
         TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
@@ -54,6 +55,7 @@ private:
     const TChunkReaderConfigPtr Config_;
     TCachedVersionedChunkMetaPtr CachedChunkMeta_;
     IReaderPtr ChunkReader_;
+    IBlockCachePtr UncompressedBlockCache_;
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
 
@@ -92,6 +94,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
@@ -99,6 +102,7 @@ TVersionedChunkReader<TBlockReader>::TVersionedChunkReader(
     : Config_(std::move(config))
     , CachedChunkMeta_(std::move(chunkMeta))
     , ChunkReader_(std::move(chunkReader))
+    , UncompressedBlockCache_(std::move(uncompressedBlockCache))
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
     , Timestamp_(timestamp)
@@ -325,6 +329,7 @@ void TVersionedChunkReader<TBlockReader>::DoOpen()
         Config_,
         std::move(blocks),
         ChunkReader_,
+        UncompressedBlockCache_,
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
     {
@@ -372,6 +377,7 @@ void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     TReadLimit lowerLimit,
     TReadLimit upperLimit,
@@ -384,6 +390,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 std::move(config),
                 std::move(chunkMeta),
                 std::move(chunkReader),
+                std::move(uncompressedBlockCache),
                 std::move(lowerLimit),
                 std::move(upperLimit),
                 columnFilter,

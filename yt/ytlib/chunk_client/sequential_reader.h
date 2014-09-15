@@ -53,6 +53,7 @@ public:
         TSequentialReaderConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
         IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache,
         NCompression::ECodec codecId);
 
     bool HasNext() const;
@@ -87,22 +88,23 @@ private:
         int blockIndex,
         const IReader::TReadBlocksResult& readResult);
 
-    const std::vector<TBlockInfo> BlockInfos_;
 
     TSequentialReaderConfigPtr Config_;
+    std::vector<TBlockInfo> BlockInfos_;
     IReaderPtr ChunkReader_;
+    IBlockCachePtr UncompressedBlockCache_;
 
-    std::vector< TPromise<TSharedRef> > BlockWindow;
+    std::vector<TPromise<TSharedRef>> BlockWindow_;
 
     NConcurrency::TAsyncSemaphore AsyncSemaphore_;
 
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
-    volatile int NextSequenceIndex = 0;
-    int NextUnfetchedIndex = 0;
+    volatile int NextSequenceIndex_ = 0;
+    int NextUnfetchedIndex_ = 0;
  
-    TPromise<void> FetchingCompleteEvent = NewPromise();
+    TPromise<void> FetchingCompleteEvent_ = NewPromise();
 
-    TAsyncStreamState State;
+    TAsyncStreamState State_;
     NCompression::ICodec* Codec_;
 
     NLog::TLogger Logger;

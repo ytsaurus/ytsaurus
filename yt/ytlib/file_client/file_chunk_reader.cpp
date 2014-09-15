@@ -20,13 +20,15 @@ static const auto& Logger = FileClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChunkReader::TFileChunkReader(
-    const NChunkClient::TSequentialReaderConfigPtr& sequentialConfig,
-    const NChunkClient::IReaderPtr& chunkReader,
+    TSequentialReaderConfigPtr sequentialConfig,
+    NChunkClient::IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     NCompression::ECodec codecId,
     i64 startOffset,
     i64 endOffset)
-    : SequentialConfig(sequentialConfig)
-    , ChunkReader(chunkReader)
+    : SequentialConfig(std::move(sequentialConfig))
+    , ChunkReader(std::move(chunkReader))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
     , CodecId(codecId)
     , StartOffset(startOffset)
     , EndOffset(endOffset)
@@ -125,8 +127,8 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
     }
     YCHECK(blockCount >= 0);
 
-    LOG_INFO("Reading %d blocks out of %d starting from %d (SelectedSize: %" PRId64 ")",
-        static_cast<int>(blockSequence.size()),
+    LOG_INFO("Reading %v blocks out of %v starting from %v (SelectedSize: %v)",
+        blockSequence.size(),
         blockCount,
         blockIndex,
         selectedSize);
@@ -135,7 +137,8 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
         SequentialConfig,
         std::move(blockSequence),
         ChunkReader,
-        NCompression::ECodec(CodecId));
+        UncompressedBlockCache,
+        CodecId);
 
     LOG_INFO("File reader opened");
 
@@ -219,13 +222,15 @@ TFuture<void> TFileChunkReader::GetFetchingCompleteEvent()
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChunkReaderProvider::TFileChunkReaderProvider(
-    const NChunkClient::TSequentialReaderConfigPtr& config)
-    : Config(config)
+    NChunkClient::TSequentialReaderConfigPtr config,
+    IBlockCachePtr uncompressedBlockCache)
+    : Config(std::move(config))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
 { }
 
 TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
-    const NChunkClient::IReaderPtr& chunkReader)
+    NChunkClient::IReaderPtr chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
 
@@ -246,7 +251,8 @@ TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
 
     return New<TFileChunkReader>(
         Config,
-        chunkReader,
+        std::move(chunkReader),
+        UncompressedBlockCache,
         NCompression::ECodec(miscExt.compression_codec()),
         startOffset,
         endOffset);

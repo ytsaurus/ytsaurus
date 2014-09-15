@@ -57,6 +57,7 @@ public:
     TChunkReader(
         TChunkReaderConfigPtr config,
         NChunkClient::IReaderPtr chunkReader,
+        IBlockCachePtr uncompressedBlockCache,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTimestamp timestamp);
@@ -75,7 +76,8 @@ private:
     };
 
     TChunkReaderConfigPtr Config;
-    NChunkClient::IReaderPtr UnderlyingReader;
+    NChunkClient::IReaderPtr ChunkReader;
+    IBlockCachePtr UncompressedBlockCache;
 
     TTableSchema Schema;
     bool IncludeAllColumns;
@@ -112,11 +114,13 @@ private:
 TChunkReader::TChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     TTimestamp timestamp)
-    : Config(config)
-    , UnderlyingReader(chunkReader)
+    : Config(std::move(config))
+    , ChunkReader(std::move(chunkReader))
+    , UncompressedBlockCache(std::move(uncompressedBlockCache))
     , IncludeAllColumns(false)
     , CurrentBlockIndex(0)
     , Logger(TableClientLogger)
@@ -165,7 +169,7 @@ void TChunkReader::DoOpen()
     tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(UnderlyingReader->GetMeta(Null, &tags));
+    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, &tags));
     if (!metaOrError.IsOK()) {
         State.Finish(metaOrError);
         return;
@@ -246,7 +250,8 @@ void TChunkReader::DoOpen()
     SequentialReader = New<TSequentialReader>(
         Config,
         std::move(blockSequence),
-        UnderlyingReader,
+        ChunkReader,
+        UncompressedBlockCache,
         NCompression::ECodec(misc.compression_codec()));
 
     if (SequentialReader->HasNext()) {
@@ -502,6 +507,7 @@ void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema
 ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IReaderPtr chunkReader,
+    IBlockCachePtr uncompressedBlockCache,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
@@ -512,9 +518,10 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
         case ETableChunkFormat::Old: {
             auto tableChunkReader = New<TTableChunkReader>(
                 nullptr,
-                config, 
+                std::move(config),
                 TChannel::Universal(), 
-                chunkReader, 
+                std::move(chunkReader),
+                std::move(uncompressedBlockCache),
                 lowerLimit, 
                 upperLimit,
                 0,
@@ -522,11 +529,17 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                 DefaultPartitionTag,
                 New<TChunkReaderOptions>());
 
-            return New<TTableChunkReaderAdapter>(tableChunkReader);
+            return New<TTableChunkReaderAdapter>(std::move(tableChunkReader));
         }
 
         case ETableChunkFormat::Schemaful:
-            return New<TChunkReader>(config, chunkReader, lowerLimit, upperLimit, timestamp);
+            return New<TChunkReader>(
+                std::move(config),
+                std::move(chunkReader),
+                std::move(uncompressedBlockCache),
+                lowerLimit,
+                upperLimit,
+                timestamp);
 
         default:
             YUNREACHABLE();

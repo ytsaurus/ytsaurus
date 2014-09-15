@@ -38,7 +38,9 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     auto provider = New<NTableClient::TTableChunkReaderProvider>(
         chunks,
-        IOConfig->TableReader);
+        IOConfig->TableReader,
+        Host->GetUncompressedBlockCache());
+
     auto reader = New<TReader>(
         IOConfig->TableReader,
         Host->GetMasterChannel(),
@@ -59,7 +61,10 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     syncReader->Open();
 
-    return std::unique_ptr<NTableClient::TTableProducer>(new NTableClient::TTableProducer(syncReader, consumer, IOConfig->TableReader->EnableTableIndex));
+    return std::unique_ptr<NTableClient::TTableProducer>(new NTableClient::TTableProducer(
+        syncReader,
+        consumer,
+        IOConfig->TableReader->EnableTableIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

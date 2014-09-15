@@ -190,6 +190,9 @@ public:
         CompressedBlockCache_ = CreateClientBlockCache(
             Config_->CompressedBlockCache);
 
+        UncompressedBlockCache_ = CreateClientBlockCache(
+            Config_->UncompressedBlockCache);
+
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
             MasterCacheChannel_,
@@ -231,6 +234,11 @@ public:
     virtual IBlockCachePtr GetCompressedBlockCache() override
     {
         return CompressedBlockCache_;
+    }
+
+    virtual IBlockCachePtr GetUncompressedBlockCache() override
+    {
+        return UncompressedBlockCache_;
     }
 
     virtual TTableMountCachePtr GetTableMountCache() override
@@ -366,6 +374,7 @@ private:
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     IBlockCachePtr CompressedBlockCache_;
+    IBlockCachePtr UncompressedBlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;

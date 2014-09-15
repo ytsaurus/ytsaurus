@@ -163,6 +163,8 @@ public:
 
 EExitCode GuardedMain(int argc, const char* argv[])
 {
+    srand(time(nullptr));
+
     NYT::NConcurrency::SetCurrentThreadName("Bootstrap");
 
     TArgsParser parser;

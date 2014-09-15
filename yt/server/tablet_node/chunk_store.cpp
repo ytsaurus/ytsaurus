@@ -223,6 +223,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     return CreateVersionedChunkReader(
         Bootstrap_->GetConfig()->TabletNode->ChunkReader,
         std::move(chunkReader),
+        Bootstrap_->GetUncompressedBlockCache(),
         std::move(cachedVersionedChunkMeta),
         lowerLimit,
         upperLimit,

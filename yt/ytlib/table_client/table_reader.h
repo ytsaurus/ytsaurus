@@ -35,6 +35,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::TTransactionPtr transaction,
+        NChunkClient::IBlockCachePtr compressedBlockCache,
         NChunkClient::IBlockCachePtr uncompressedBlockCache,
         const NYPath::TRichYPath& richPath);
 
@@ -59,6 +60,7 @@ private:
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::TTransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
+    NChunkClient::IBlockCachePtr CompressedBlockCache;
     NChunkClient::IBlockCachePtr UncompressedBlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NYPath::TRichYPath RichPath;

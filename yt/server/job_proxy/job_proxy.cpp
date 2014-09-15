@@ -186,9 +186,6 @@ TJobResult TJobProxy::DoRun()
     const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
-    // Cache is disabled.
-    CompressedBlockCache = NChunkClient::CreateClientBlockCache(New<TSlruCacheConfig>());
-
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
 
@@ -353,7 +350,12 @@ IChannelPtr TJobProxy::GetMasterChannel() const
 
 IBlockCachePtr TJobProxy::GetCompressedBlockCache() const
 {
-    return CompressedBlockCache;
+    return GetNullBlockCache();
+}
+
+IBlockCachePtr TJobProxy::GetUncompressedBlockCache() const
+{
+    return GetNullBlockCache();
 }
 
 TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const

@@ -14,6 +14,7 @@
 
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -227,6 +228,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
@@ -285,6 +287,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
@@ -330,6 +333,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         TReadLimit(),
         TReadLimit(),
@@ -391,6 +395,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
@@ -427,6 +432,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         std::move(lowerLimit),
         TReadLimit(),
@@ -462,6 +468,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
         MemoryReader,
+        GetNullBlockCache(),
         chunkMeta,
         TReadLimit(),
         TReadLimit(),

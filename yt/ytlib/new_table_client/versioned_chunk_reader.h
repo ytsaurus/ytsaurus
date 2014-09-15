@@ -14,6 +14,7 @@ namespace NVersionedTableClient {
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IReaderPtr chunkReader,
+    NChunkClient::IBlockCachePtr uncompressedBlockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     NChunkClient::TReadLimit lowerLimit,
     NChunkClient::TReadLimit upperLimit,
