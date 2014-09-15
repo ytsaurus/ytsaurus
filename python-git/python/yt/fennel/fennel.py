@@ -186,33 +186,75 @@ class EventLog(object):
             else:
                 sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 
-    def archive(self, count):
-        max_batch_size = 5 * 10**6
-        while count > 0:
-            batch_size = min(count, max_batch_size)
-            with self.yt.Transaction():
-                first_row = int(self.yt.get(self._number_of_first_row_attr))
-                partition = yt.TablePath(
-                    self._table_name,
-                    start_index=0,
-                    end_index=batch_size)
+    def archive(self, count = None):
+        desired_chunk_size = 2 * 1024 ** 3
+        ratio = 0.137
+        data_size_per_job = max(1, int(desired_chunk_size / ratio))
 
-                self.yt.run_merge(
-                    source_table=[
+        count = count or yt.get(self._table_name + "/@row_count")
+
+        self.log.info("Archive %s rows from event log", count)
+
+        partition = yt.TablePath(
+            self._table_name,
+            start_index=0,
+            end_index=count)
+
+        with self.yt.Transaction():
+            try:
+                self.yt.get(self._archive_table_name)
+            except yt.errors.YtResponseError as e:
+                if e.is_resolve_error():
+                    self.log.info("There is no %s table. Create one.", self._archive_table_name)
+                    self.yt.create_table(
                         self._archive_table_name,
-                        partition
-                    ],
-                    destination_table=self._archive_table_name,
-                    mode="ordered",
-                    compression_codec="gzip_normal",
-                    spec={
-                        "combine_chunks": "true"
+                        compression_codec = "gzip_best_compression",
+                        attributes={
+                            "erasure-codec": "lrc_12_2_2"
+                        })
+                else:
+                    self.log.error("Unhandled exception", exc_info=True)
+                    raise
+
+            self.log.info("Run merge...")
+            self.yt.run_merge(
+                source_table=[
+                    partition
+                ],
+                destination_table="<append=true>" + self._archive_table_name,
+                compression_codec="gzip_best_compression",
+                spec={
+                    "combine_chunks": "true",
+                    "force_transform": "true",
+                    "data_size_per_job": data_size_per_job,
+                    "job_io": {
+                        "table_writer": {
+                            "desired_chunk_size": desired_chunk_size
+                        }
                     }
-                )
-                self.yt.run_erase(partition)
-                first_row += batch_size
-                self.yt.set(self._number_of_first_row_attr, first_row)
-            count -= batch_size
+                }
+            )
+
+        self.log.info("Truncate event log...")
+
+        tries = 0
+        finished = False
+        backoff_time = 5
+        while not finished:
+            try:
+                with self.yt.Transaction():
+                    first_row = int(self.yt.get(self._number_of_first_row_attr))
+                    first_row += count
+                    self.yt.run_erase(partition)
+                    self.yt.set(self._number_of_first_row_attr, first_row)
+                finished = True
+            except yt.common.YtError as e:
+                self.log.error("Unhandled exception", exc_info=True)
+
+                self.log.info("Retry again in %d seconds...", backoff_time)
+                time.sleep(backoff_time)
+                tries += 1
+                backoff_time = min(backoff_time * 2, 180)
 
     def set_next_row_to_save(self, row_number):
         self.yt.set(self._row_to_save_attr, row_number)
@@ -550,9 +592,10 @@ def monitor(table_name, proxy_path, threshold, **kwargs):
     event_log.monitor(threshold)
 
 
-def archive(table_name, proxy_path, count, **kwargs):
+def archive(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
+    count = kwargs.get("count", None)
     event_log.archive(count)
 
 
@@ -603,7 +646,7 @@ def run():
     try:
         func(**options.options.as_dict())
     except Exception:
-        log.error("Unhandled exception: ", exc_info=True)
+        logging.error("Unhandled exception: ", exc_info=True)
 
 
 if __name__ == "__main__":
