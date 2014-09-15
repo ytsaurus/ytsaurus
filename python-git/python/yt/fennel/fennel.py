@@ -349,7 +349,12 @@ class LogBroker(object):
 
     def get_endpoint(self):
         self.log.info("Getting adviced logbroker endpoint...")
-        host = requests.get(self._advicer_url, headers={"ClientHost": socket.getfqdn()}).text.strip()
+        response = requests.get(self._advicer_url, headers={"ClientHost": socket.getfqdn()})
+        if not response.ok:
+            self.log.error("Unable to get adviced logbroker endpoint")
+            return None
+        host = response.text.strip()
+
         self.log.info("Adviced endpoint: %s", host)
         return (host, 80)
 
@@ -370,7 +375,7 @@ class PushChannel(object):
         self.IOStreamClass = IOStreamClass or iostream.IOStream
 
     def connect(self):
-        self.log.info("Create a push channel. Endpoint: %s", self._endpoint)
+        self.log.info("Create a push channel. Endpoint: %s. Session: %s", self._endpoint, self._session_id)
         if self._aborted:
             self.log.error("Unable to connect: channel is aborted")
             return
@@ -451,29 +456,44 @@ class Session(object):
             return
         self.log.info("Connect to kafka")
 
+        # check endpoint
         self._endpoint = self._log_broker.get_endpoint()
+        if self._endpoint is None:
+            self.log.info("Unable to get logbroker endpoint. Retry later.")
+            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
+
         self._host = self._endpoint[0]
 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
-        self._iostream.set_close_callback(self.on_close)
-        self._iostream.connect(self._endpoint, callback=self.on_connect)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+            self._iostream = self.IOStreamClass(s, io_loop=self._io_loop)
+            self._iostream.set_close_callback(self.on_close)
+            self._iostream.connect(self._endpoint, callback=self.on_connect)
+        except Exception:
+            self._iostream = None
+            self.log.error("Unable to start connecting. Retry later.", exc_info=True)
+            self._io_loop.add_timeout(datetime.timedelta(seconds=1), self.connect)
+
         self.log.info("Send request. Ident: %s. SourceId: %s. Endpoint: %s",
             self._service_id,
             self._source_id,
             self._endpoint)
-        self._iostream.write(
-            "GET /rt/session?"
-            "ident={ident}&"
-            "sourceid={source_id}&"
-            "logtype=json "
-            "HTTP/1.1\r\n"
-            "Host: {host}\r\n"
-            "Accept: */*\r\n\r\n".format(
-                ident=self._service_id,
-                source_id=self._source_id,
-                host=self._host)
-        )
+        try:
+            self._iostream.write(
+                "GET /rt/session?"
+                "ident={ident}&"
+                "sourceid={source_id}&"
+                "logtype=json "
+                "HTTP/1.1\r\n"
+                "Host: {host}\r\n"
+                "Accept: */*\r\n\r\n".format(
+                    ident=self._service_id,
+                    source_id=self._source_id,
+                    host=self._host)
+                )
+        except iostream.StreamClosedError:
+            self.log.error("Session is closed before created. Reconnect", exc_info=True)
+            raise
 
     @gen.coroutine
     def on_connect(self):
