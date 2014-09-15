@@ -408,6 +408,7 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
+                        .Item("account").Value("tmp")
                     .EndMap());
 
             CommitTransaction(transactionId);
