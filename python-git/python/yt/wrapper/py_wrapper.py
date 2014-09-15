@@ -9,6 +9,7 @@ import yt.logger as logger
 from errors import YtError
 
 import imp
+import inspect
 import os
 import sys
 import shutil
@@ -16,6 +17,19 @@ import tempfile
 import types
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
+
+def is_running_interactively():
+    # Does not work in bpython
+    if hasattr(sys, 'ps1'):
+        return True
+    else:
+        # Old IPython (0.12 at least) has no sys.ps1 defined
+        try:
+            __IPYTHON__
+        except NameError:
+            return False
+        else:
+            return True
 
 def module_relpath(module_name, module_file):
     if config.PYTHON_FUNCTION_SEARCH_EXTENSIONS is None:
@@ -92,7 +106,16 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
 
     zip_filename = create_modules_archive()
     main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
-    shutil.copy(sys.modules['__main__'].__file__, main_filename)
+    if is_running_interactively():
+        function_source_filename = inspect.getfile(function)
+        # If function is defined in terminal path is <stdin> or
+        # <ipython-input-*>
+        if not os.path.exists(function_source_filename):
+            function_source_filename = None
+    else:
+        function_source_filename = sys.modules['__main__'].__file__
+    if function_source_filename:
+        shutil.copy(function_source_filename, main_filename)
 
     config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
     config_dict = {}
