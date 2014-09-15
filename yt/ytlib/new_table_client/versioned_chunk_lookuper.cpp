@@ -147,10 +147,13 @@ private:
         YASSERT(compressedBlocks.size() == 1);
 
         const auto& compressedBlock = compressedBlocks[0];
-        auto* codec = GetCodec(ECodec(ChunkMeta_->Misc().compression_codec()));
+        auto codecId = ECodec(ChunkMeta_->Misc().compression_codec());
+        auto* codec = GetCodec(codecId);
         auto uncompressedBlock = codec->Decompress(compressedBlock);
 
-        UncompressedBlockCache_->Put(blockId, uncompressedBlock, Null);
+        if (codecId != ECodec::None) {
+            UncompressedBlockCache_->Put(blockId, uncompressedBlock, Null);
+        }
 
         return DoLookup(uncompressedBlock, key, blockId);
     }
