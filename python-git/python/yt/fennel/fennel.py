@@ -210,7 +210,7 @@ class EventLog(object):
                         self._archive_table_name,
                         compression_codec = "gzip_best_compression",
                         attributes={
-                            "erasure-codec": "lrc_12_2_2"
+                            "erasure_codec": "lrc_12_2_2"
                         })
                 else:
                     self.log.error("Unhandled exception", exc_info=True)
