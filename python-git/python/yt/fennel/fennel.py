@@ -580,9 +580,10 @@ def init(table_name, proxy_path, **kwargs):
     event_log.initialize()
 
 
-def truncate(table_name, proxy_path, count, **kwargs):
+def truncate(table_name, proxy_path, **kwargs):
     yt.config.set_proxy(proxy_path)
     event_log = EventLog(yt, table_name=table_name)
+    count = kwargs.get("count", 10**6)
     event_log.truncate(count)
 
 
@@ -612,7 +613,7 @@ def run():
     options.define("service_id", default=DEFAULT_SERVICE_ID, help="[logbroker] service id")
     options.define("source_id", default=DEFAULT_SOURCE_ID, help="[logbroker] source id")
 
-    options.define("count", default=10**6, help="number of rows to truncate")
+    options.define("count", default=None, help="number of rows to truncate")
 
     options.define("threshold", default=10**6, help="threshold of lag size to generate error")
 
