@@ -201,26 +201,17 @@ class EventLog(object):
             end_index=count)
 
         with self.yt.Transaction():
-            try:
-                self.yt.get(self._archive_table_name)
-            except yt.errors.YtResponseError as e:
-                if e.is_resolve_error():
-                    self.log.info("There is no %s table. Create one.", self._archive_table_name)
-                    self.yt.create_table(
-                        self._archive_table_name,
-                        compression_codec = "gzip_best_compression",
+            self.yt.create_table(
+                self._archive_table_name,
                         attributes={
-                            "erasure_codec": "lrc_12_2_2"
-                        })
-                else:
-                    self.log.error("Unhandled exception", exc_info=True)
-                    raise
+                            "erasure_codec": "lrc_12_2_2",
+                            "compression_codec": "gzip_best_compression"
+                        },
+                        ignore_existing=True)
 
             self.log.info("Run merge...")
             self.yt.run_merge(
-                source_table=[
-                    partition
-                ],
+                source_table=partition,
                 destination_table="<append=true>" + self._archive_table_name,
                 compression_codec="gzip_best_compression",
                 spec={
