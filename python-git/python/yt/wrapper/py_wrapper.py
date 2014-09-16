@@ -142,18 +142,20 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
             os.path.join(LOCATION, "_py_runner.py"),
             [function_filename, zip_filename, main_filename, config_filename])
 
-def _init_attributes(func):
+def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
         func.attributes = {}
+    func.attributes[key] = value
+    return func
 
 def aggregator(func):
-    """Decorate mapper function to consume *iterator of rows* instead of single row."""
-    _init_attributes(func)
-    func.attributes["is_aggregator"] = True
-    return func
+    """Decorate function to consume *iterator of rows* instead of single row."""
+    return _set_attribute(func, "aggregator", True)
 
 def raw(func):
-    """Decorate mapper function to consume *raw data stream* instead of single row."""
-    _init_attributes(func)
-    func.attributes["is_raw"] = True
-    return func
+    """Decorate function to consume *raw data stream* instead of single row."""
+    return _set_attribute(func, "raw", True)
+
+def raw_io(func):
+    """Decorate function to run as is. No arguments are passed. Function handles IO."""
+    return _set_attribute(func, "raw_io", True)
