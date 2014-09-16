@@ -10,16 +10,21 @@ def main():
     __modules_archive = sys.argv[2]
     __main_filename = sys.argv[3]
     __main_module_name = sys.argv[4]
-    __config_dump_filename = sys.argv[5]
+    __main_module_type = sys.argv[5]
+    __config_dump_filename = sys.argv[6]
 
     # Unfortunately we cannot use fixes version of ZipFile
     __zip = zipfile.ZipFile(__modules_archive)
     __zip.extractall("modules")
     __zip.close()
 
+
     sys.path = ["./modules"] + sys.path
 
-    sys.modules['__main__'] = imp.load_module(__main_module_name, open(__main_filename, 'rU'), __main_filename, ('', 'rU', imp.PY_SOURCE))
+    sys.modules['__main__'] = imp.load_module(__main_module_name,
+                                              open(__main_filename, 'rU'),
+                                              __main_filename,
+                                              ('', 'rU', imp.__dict__[__main_module_type]))
 
     for name in dir(sys.modules['__main__']):
         globals()[name] = sys.modules['__main__'].__dict__[name]
