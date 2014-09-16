@@ -422,18 +422,6 @@ TMemory::TStatistics TMemory::GetStatistics()
     TMemory::TStatistics result;
 #ifdef _linux_
     {
-        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-        auto rawData = TBufferedFileInput(filename).ReadLine();
-        result.UsageInBytes = FromString<i64>(rawData);
-    }
-
-    {
-        const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
-        auto rawData = TBufferedFileInput(filename).ReadLine();
-        result.MaxUsageInBytes = FromString<i64>(rawData);
-    }
-
-    {
         auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
         int lineNumber = 0;
         while (2 * lineNumber + 1 < values.size()) {
@@ -447,6 +435,28 @@ TMemory::TStatistics TMemory::GetStatistics()
     }
 #endif
     return result;
+}
+
+i64 TMemory::GetUsageInBytes() const
+{
+    i64 usageInBytes = 0;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
+    auto rawData = TBufferedFileInput(filename).ReadLine();
+    usageInBytes = FromString<i64>(rawData);
+#endif
+    return usageInBytes;
+}
+
+i64 TMemory::GetMaxUsageInBytes() const
+{
+    i64 maxUsageInBytes = 0;
+#ifdef _linux_
+    const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
+    auto rawData = TBufferedFileInput(filename).ReadLine();
+    maxUsageInBytes = FromString<i64>(rawData);
+#endif
+    return maxUsageInBytes;
 }
 
 void TMemory::SetLimitInBytes(i64 bytes) const
@@ -534,8 +544,7 @@ int TMemory::GetFailCount() const
 }
 
 TMemory::TStatistics::TStatistics()
-    : UsageInBytes(0)
-    , MaxUsageInBytes(0)
+    : Rss(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
