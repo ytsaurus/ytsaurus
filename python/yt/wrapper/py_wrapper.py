@@ -106,6 +106,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
 
     zip_filename = create_modules_archive()
     main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
+    main_module_type = "PY_SOURCE"
     if is_running_interactively():
         function_source_filename = inspect.getfile(function)
         # If function is defined in terminal path is <stdin> or
@@ -114,6 +115,8 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
             function_source_filename = None
     else:
         function_source_filename = sys.modules['__main__'].__file__
+        if function_source_filename.endswith("pyc"):
+            main_module_type = "PY_COMPILED"
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
@@ -134,6 +137,7 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 os.path.basename(zip_filename),
                 os.path.basename(main_filename),
                 "_main_module",
+                main_module_type,
                 os.path.basename(config_filename)]),
             os.path.join(LOCATION, "_py_runner.py"),
             [function_filename, zip_filename, main_filename, config_filename])
