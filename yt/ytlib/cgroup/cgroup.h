@@ -148,6 +148,7 @@ public:
         TStatistics();
 
         i64 Rss;
+        i64 MappedFile;
     };
 
     explicit TMemory(const Stroka& name);

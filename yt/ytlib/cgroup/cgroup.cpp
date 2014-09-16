@@ -430,6 +430,9 @@ TMemory::TStatistics TMemory::GetStatistics()
             if (type == "rss") {
                 result.Rss = value;
             }
+            if (type == "mapped_file") {
+                result.MappedFile = value;
+            }
             ++lineNumber;
         }
     }
@@ -545,6 +548,7 @@ int TMemory::GetFailCount() const
 
 TMemory::TStatistics::TStatistics()
     : Rss(0)
+    , MappedFile(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

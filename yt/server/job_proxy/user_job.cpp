@@ -673,7 +673,7 @@ private:
                 auto statistics = Memory.GetStatistics();
                 LOG_DEBUG("Memory usage. Old way: %" PRId64 " , CGroup way: %" PRId64,
                     rss,
-                    statistics.Rss);
+                    statistics.Rss + statistics.MappedFile);
             }
         } catch (const std::exception& ex) {
             SetError(ex);
