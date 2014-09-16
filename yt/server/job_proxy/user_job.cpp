@@ -123,6 +123,8 @@ public:
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
+
+            if (config->EnableCGroupMemoryHierarchy)
             {
                 TGuard<TSpinLock> guard(MemoryLock);
                 CreateCGroup(Memory);
@@ -187,6 +189,7 @@ public:
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
 
+            if (config->EnableCGroupMemoryHierarchy)
             {
                 TGuard<TSpinLock> guard(MemoryLock);
                 RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
@@ -561,7 +564,9 @@ private:
             if (UserJobSpec.enable_accounting() || host->GetConfig()->ForceEnableAccounting) {
                 CpuAccounting.AddCurrentTask();
                 BlockIO.AddCurrentTask();
-                Memory.AddCurrentTask();
+                if (config->EnableCGroupMemoryHierarchy) {
+                    Memory.AddCurrentTask();
+                }
             }
 
             if (config->UserId > 0) {

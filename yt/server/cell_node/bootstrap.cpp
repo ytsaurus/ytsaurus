@@ -225,6 +225,7 @@ void TBootstrap::Run()
     JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
 
     JobProxyConfig->ForceEnableAccounting = Config->ExecAgent->ForceEnableAccounting;
+    JobProxyConfig->EnableCGroupMemoryHierarchy = Config->ExecAgent->EnableCGroupMemoryHierarchy;
 
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
