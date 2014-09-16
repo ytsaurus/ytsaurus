@@ -146,7 +146,7 @@ class EventLog(object):
 
     def get_data(self, begin, count):
         with self.yt.Transaction():
-            rows_removed = int(self.yt.get(self._number_of_first_row_attr))
+            rows_removed = self.yt.get(self._number_of_first_row_attr)
             begin -= rows_removed
             assert begin >= 0
             self.log.debug("Reading %s event log. Begin: %d, count: %d",
@@ -164,7 +164,7 @@ class EventLog(object):
 
     def truncate(self, count):
         with self.yt.Transaction():
-            first_row = int(self.yt.get(self._number_of_first_row_attr))
+            first_row = self.yt.get(self._number_of_first_row_attr)
             first_row += count
             self.yt.set(self._number_of_first_row_attr, first_row)
             self.yt.run_erase(yt.TablePath(
@@ -174,11 +174,11 @@ class EventLog(object):
 
     def monitor(self, threshold):
         with self.yt.Transaction():
-            first_row = int(self.yt.get(self._number_of_first_row_attr))
+            first_row = self.yt.get(self._number_of_first_row_attr)
             row_to_save = int(self.get_next_row_to_save())
             real_row_to_save = row_to_save - first_row
 
-            row_count = int(self.yt.get(self._row_count))
+            row_count = self.yt.get(self._row_count)
 
             lag = row_count - real_row_to_save
             if lag > threshold:
@@ -212,7 +212,7 @@ class EventLog(object):
             self.log.info("Run merge...")
             self.yt.run_merge(
                 source_table=partition,
-                destination_table="<append=true>" + self._archive_table_name,
+                destination_table=yt.TablePath(self._archive_table_name, append=True),
                 compression_codec="gzip_best_compression",
                 spec={
                     "combine_chunks": "true",
@@ -234,7 +234,7 @@ class EventLog(object):
         while not finished:
             try:
                 with self.yt.Transaction():
-                    first_row = int(self.yt.get(self._number_of_first_row_attr))
+                    first_row = self.yt.get(self._number_of_first_row_attr)
                     first_row += count
                     self.yt.run_erase(partition)
                     self.yt.set(self._number_of_first_row_attr, first_row)
