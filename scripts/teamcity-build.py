@@ -312,7 +312,7 @@ def build_python_packages(options):
         else:
             return sorted(versions, reverse=True, cmp=versions_cmp)[0]
 
-    for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager"]:
+    for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
         with cwd(options.checkout_directory, "python", package):
             package_version = run_captured("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
             uploaded_version = extract_version(package)
