@@ -40,7 +40,7 @@ class TestAccounts(YTEnvSetup):
         assert get('//@account') == 'sys'
         assert get('//sys/@account') == 'sys'
         assert get('//tmp/@account') == 'tmp'
-        assert get('//home/@account') == 'sys'
+        assert get('//home/@account') == 'tmp'
 
     def test_account_create1(self):
         create_account('max')
