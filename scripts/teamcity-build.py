@@ -275,7 +275,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
 def kill_by_name(name):
     # Cannot use check_output because of python2.6 on Lucid
-    pids = run_captured(["pgrep", "-f", name])
+    pids = run_captured(["pgrep", "-f", name], ignore_return_code=True)
     for pid in pids.split("\n"):
         if not pid:
             continue
@@ -295,14 +295,30 @@ def run_python_libraries_tests(options):
 
 @yt_register_build_step
 def build_python_packages(options):
-    run(["sudo", "apt-get", "update"])
+    def versions_cmp(version1, version2):
+        def normalize(v):
+            return map(int, v.replace("-", ".").split("."))
+        return cmp(normalize(version1), normalize(version2))
+
+    def extract_version(package):
+        output = run_captured(
+            """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes" 2>/dev/null | grep -v REJECT' 2>/dev/null""".format(package),
+            shell=True,
+            ignore_return_code=True)
+        filenames = filter(None, output.split("\n"))
+        versions = map(lambda filename: filename.split(package)[1].split("_")[1], filenames)
+        if not versions:
+            return ""
+        else:
+            return sorted(versions, reverse=True, cmp=versions_cmp)[0]
+
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager"]:
         with cwd(options.checkout_directory, "python", package):
-            package_version = check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            uploaded_version = check_output("apt-cache show {0} | grep Version | head -n 1 | awk '{{print $2}}'".format(package), shell=True).strip()
+            package_version = run_captured("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
+            uploaded_version = extract_version(package)
             if package_version == uploaded_version:
                 continue
-            subprocess.check_call("dch -r {0} 'Resigned by teamcity'".format(package_version), shell=True)
+            run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         with cwd(options.checkout_directory, "python"):
             run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
 
@@ -480,39 +496,28 @@ class StepFailedWithNonCriticalError(Exception):
     pass
 
 
-def run_captured(args, cwd=None, env=None, input=None):
-    if env:
-        tmp = os.environ.copy()
-        tmp.update(env)
-        env = tmp
+def run_captured(*args, **kwargs):
+    ignore_return_code = kwargs.get("ignore_return_code", False)
+    if "ignore_return_code" in kwargs:
+        del kwargs["ignore_return_code"]
 
-    child = subprocess.Popen(
-        args,
-        bufsize=1,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=cwd,
-        env=env)
+    process = subprocess.Popen(*args, bufsize=1, stdout=subprocess.PIPE, **kwargs)
 
-    return child.communicate(input)[0].strip()  # This mimics bash $() behaviour.
+    output, unused_err = process.communicate()
+    return_code = process.poll()
+    if return_code and not ignore_return_code:
+        cmd = kwargs.get("args")
+        if cmd is None:
+            cmd = args[0]
+        error = subprocess.CalledProcessError(return_code, cmd)
+        error.output = output
+        raise error
+
+    return output.strip()
 
 
 def run_preexec():
     resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
-
-def check_output(*popenargs, **kwargs):
-    process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
-    output, unused_err = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        cmd = kwargs.get("args")
-        if cmd is None:
-            cmd = popenargs[0]
-        error = subprocess.CalledProcessError(retcode, cmd)
-        error.output = output
-        raise error
-    return output
 
 def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False):
     POLL_TIMEOUT = 1.0
