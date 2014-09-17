@@ -1051,8 +1051,7 @@ private:
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %s)",
                 ~ToString(operation->GetId()));
             auto wrappedError = TError("Operation has failed to revive") << ex;
-            SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector_->FlushOperationNode(operation);
+            OnOperationFailed(operation, wrappedError);
             return;
         }
 
