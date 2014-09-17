@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from time import sleep
 
 
 ##################################################################
@@ -56,3 +57,35 @@ class TestJournals(YTEnvSetup):
 
         assert read_journal('//tmp/j[#200:]') == []
 
+    def test_resource_usage(self):
+        assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
+        assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
+        
+        create('journal', '//tmp/j')
+        write_journal('//tmp/j', self.DATA)
+
+        chunk_ids = get('//tmp/j/@chunk_ids')
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        # wait for chunk to become sealed
+        while True:
+            if get('#' + chunk_id + '/@sealed') == 'true':
+                break
+            sleep(1) 
+        
+        disk_space_delta = get('//tmp/j/@resource_usage/disk_space')
+        assert disk_space_delta > 0
+
+        get('//sys/accounts/tmp/@')
+
+        assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == disk_space_delta
+        assert get('//sys/accounts/tmp/@resource_usage/disk_space') == disk_space_delta
+        
+        remove('//tmp/j')
+
+        gc_collect() # wait for account stats to be updated
+
+        assert get('//sys/accounts/tmp/@committed_resource_usage/disk_space') == 0
+        assert get('//sys/accounts/tmp/@resource_usage/disk_space') == 0
+        

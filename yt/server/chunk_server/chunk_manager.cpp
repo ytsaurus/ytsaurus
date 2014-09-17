@@ -491,7 +491,7 @@ public:
         }
 
         // Increase staged resource usage.
-        if (chunk->IsStaged()) {
+        if (chunk->IsStaged() && !chunk->IsJournal()) {
             auto* stagingTransaction = chunk->GetStagingTransaction();
             auto* stagingAccount = chunk->GetStagingAccount();
             auto securityManager = Bootstrap->GetSecurityManager();
@@ -509,7 +509,7 @@ public:
 
     void UnstageChunk(TChunk* chunk)
     {
-        if (chunk->IsStaged() && chunk->IsConfirmed()) {
+        if (chunk->IsStaged() && chunk->IsConfirmed() && !chunk->IsJournal()) {
             auto* stagingTransaction = chunk->GetStagingTransaction();
             auto* stagingAccount = chunk->GetStagingAccount();
             auto securityManager = Bootstrap->GetSecurityManager();
@@ -719,6 +719,12 @@ public:
                 ++statisticsDelta.Rank;
                 current->Statistics().Accumulate(statisticsDelta);
             });
+
+        auto owningNodes = GetOwningNodes(chunk);
+        auto securityManager = Bootstrap->GetSecurityManager();
+        for (auto* node : owningNodes) {
+            securityManager->UpdateAccountNodeUsage(node);
+        }
 
         if (IsLeader()) {
             ScheduleChunkRefresh(chunk);
