@@ -104,7 +104,6 @@ private:
     NConcurrency::TForkAwareSpinLock SpinLock_;
     yhash_map<TRefCountedTypeKey, TRefCountedTypeCookie> KeyToCookie_;
     std::vector<TRefCountedTypeKey> CookieToKey_;
-    TRefCountedTypeCookie LastUsedCookie = -1;
     TAnonymousStatistics GlobalStatistics_;
     yhash_set<TStatisticsHolder*> PerThreadHolders_;
 

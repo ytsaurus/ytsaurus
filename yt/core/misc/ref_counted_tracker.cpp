@@ -108,8 +108,9 @@ TRefCountedTypeCookie TRefCountedTracker::GetCookie(TRefCountedTypeKey key)
     if (it != KeyToCookie_.end()) {
         return it->second;
     }
-    auto cookie = ++LastUsedCookie;
+    auto cookie = CookieToKey_.size();
     KeyToCookie_.insert(std::make_pair(key, cookie));
+    CookieToKey_.push_back(key);
     return cookie;
 }
 
