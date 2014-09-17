@@ -39,11 +39,11 @@ def main():
 
     from yt.wrapper.record import extract_key
 
-    if __attributes.get("raw_io", False):
+    if __attributes.get("is_raw_io", False):
         __operation()
         return
 
-    raw = __attributes.get("raw", False)
+    raw = __attributes.get("is_raw", False)
 
     if raw:
         __records = sys.stdin
@@ -51,7 +51,7 @@ def main():
         __records = __input_format.load_rows(sys.stdin)
 
     if __operation_type == "mapper" or raw:
-        if __attributes.get("aggregator", False):
+        if __attributes.get("is_aggregator", False):
             __result = __operation(__records)
         else:
             __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
