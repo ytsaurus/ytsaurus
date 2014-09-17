@@ -39,15 +39,19 @@ def main():
 
     from yt.wrapper.record import extract_key
 
-    is_raw = __attributes.get("is_raw", False)
+    if __attributes.get("raw_io", False):
+        __operation()
+        return
 
-    if is_raw:
+    raw = __attributes.get("raw", False)
+
+    if raw:
         __records = sys.stdin
     else:
         __records = __input_format.load_rows(sys.stdin)
 
-    if __operation_type == "mapper" or is_raw:
-        if __attributes.get("is_aggregator", False):
+    if __operation_type == "mapper" or raw:
+        if __attributes.get("aggregator", False):
             __result = __operation(__records)
         else:
             __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
@@ -57,7 +61,7 @@ def main():
                 itertools.starmap(__operation,
                     itertools.groupby(__records, lambda rec: extract_key(rec, __keys))))
 
-    if is_raw:
+    if raw:
         for line in __result:
             sys.stdout.write(line)
     else:
