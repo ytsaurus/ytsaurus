@@ -27,6 +27,7 @@ message TReqRead
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 timestamp = 2;
     required bytes encoded_request = 3;
+    optional int32 response_codec = 4;
 }
 
 message TRspRead

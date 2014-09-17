@@ -571,6 +571,7 @@ private:
             auto req = proxy.Read();
             ToProto(req->mutable_tablet_id(), TabletId_);
             req->set_timestamp(Options_.Timestamp);
+            req->set_response_codec(Config_->LookupResponseCodec);
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(

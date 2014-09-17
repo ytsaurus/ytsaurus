@@ -21,11 +21,13 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NRpc;
+using namespace NCompression;
 using namespace NChunkClient;
 using namespace NTabletClient;
 using namespace NTableClient;
@@ -103,7 +105,7 @@ private:
         auto tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->GetTabletOrThrow(tabletId);
 
-        auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
+        auto requestData = DecompressWithEnvelope(request->Attachments());
 
         NQueryAgent::ExecuteRequestWithRetries(
             Bootstrap_->GetConfig()->QueryAgent->MaxQueryRetries,
@@ -113,9 +115,10 @@ private:
                     tablet,
                     timestamp,
                     requestData);
-                response->Attachments() = NCompression::CompressWithEnvelope(
-                    responseData,
-                    Bootstrap_->GetConfig()->QueryAgent->LookupResponseCodec);
+                auto responseCodec = request->has_response_codec()
+                    ? ECodec(request->response_codec())
+                    : ECodec(NECodec::None);
+                response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
                 context->Reply();
             });
     }

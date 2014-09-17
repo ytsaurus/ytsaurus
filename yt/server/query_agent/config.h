@@ -20,7 +20,6 @@ public:
     int MaxSubsplitsPerTablet;
     int MaxQueryRetries;
 
-    NCompression::ECodec LookupResponseCodec;
     NCompression::ECodec SelectResponseCodec;
 
     TQueryAgentConfig()
@@ -38,8 +37,6 @@ public:
             .GreaterThanOrEqual(1)
             .Default(10);
 
-        RegisterParameter("lookup_response_codec", LookupResponseCodec)
-            .Default(NCompression::ECodec::Lz4);
         RegisterParameter("select_response_codec", SelectResponseCodec)
             .Default(NCompression::ECodec::Lz4);
     }
