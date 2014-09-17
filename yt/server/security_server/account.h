@@ -18,6 +18,7 @@ namespace NSecurityServer {
 class TAccount
     : public NObjectServer::TNonversionedObjectBase
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, CommittedResourceUsage);
