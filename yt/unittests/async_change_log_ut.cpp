@@ -43,7 +43,10 @@ protected:
     }
 
     virtual void TearDown()
-    { }
+    {
+        NFS::Remove(TemporaryFile->Name());
+        NFS::Remove(TemporaryIndexFile->Name());
+    }
 
 };
 

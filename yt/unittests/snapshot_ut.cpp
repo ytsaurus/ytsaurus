@@ -30,6 +30,7 @@ protected:
 
     virtual void TearDown()
     {
+        NFs::Remove(TemporaryFile->Name());
         TemporaryFile.reset();
     }
 };
