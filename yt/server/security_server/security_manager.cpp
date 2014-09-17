@@ -57,27 +57,19 @@ static auto& Profiler = SecurityServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPermissionCheckResult::TPermissionCheckResult()
-    : Action(ESecurityAction::Undefined)
-    , Object(nullptr)
-    , Subject(nullptr)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user)
-    : SecurityManager(securityManager)
-    , IsNull(user == nullptr)
+    : SecurityManager_(securityManager)
+    , IsNull_(!user)
 {
     if (user) {
-        SecurityManager->PushAuthenticatedUser(user);
+        SecurityManager_->PushAuthenticatedUser(user);
     }
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
-    if (!IsNull) {
-        SecurityManager->PopAuthenticatedUser();
+    if (!IsNull_) {
+        SecurityManager_->PopAuthenticatedUser();
     }
 }
 
@@ -118,7 +110,7 @@ public:
     }
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TAccount* object) override
     {
@@ -164,7 +156,7 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TUser* user) override
     {
@@ -205,7 +197,7 @@ public:
         TRspCreateObjects* response) override;
 
 private:
-    TImpl* Owner;
+    TImpl* Owner_;
 
     virtual Stroka DoGetName(TGroup* group) override
     {
@@ -228,15 +220,8 @@ public:
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
-        , Config(config)
-        , RecomputeResources(false)
-        , SysAccount(nullptr)
-        , TmpAccount(nullptr)
-        , RootUser(nullptr)
-        , GuestUser(nullptr)
-        , EveryoneGroup(nullptr)
-        , UsersGroup(nullptr)
-        , RequestTracker(New<TRequestTracker>(config, bootstrap))
+        , Config_(config)
+        , RequestTracker_(New<TRequestTracker>(config, bootstrap))
     {
         RegisterLoader(
             "SecurityManager.Keys",
@@ -256,14 +241,14 @@ public:
 
         auto cellId = Bootstrap->GetCellId();
 
-        SysAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
-        TmpAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
+        SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
+        TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
 
-        RootUserId = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
-        GuestUserId = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
+        RootUserId_ = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
+        GuestUserId_ = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
 
-        EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
-        UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
+        EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
+        UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
 
         RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }
@@ -309,13 +294,13 @@ public:
 
     void DestroyAccount(TAccount* account)
     {
-        YCHECK(AccountNameMap.erase(account->GetName()) == 1);
+        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
     }
 
     TAccount* FindAccountByName(const Stroka& name)
     {
-        auto it = AccountNameMap.find(name);
-        return it == AccountNameMap.end() ? nullptr : it->second;
+        auto it = AccountNameMap_.find(name);
+        return it == AccountNameMap_.end() ? nullptr : it->second;
     }
 
     TAccount* GetAccountByNameOrThrow(const Stroka& name)
@@ -330,14 +315,14 @@ public:
 
     TAccount* GetSysAccount()
     {
-        YCHECK(SysAccount);
-        return SysAccount;
+        YCHECK(SysAccount_);
+        return SysAccount_;
     }
 
     TAccount* GetTmpAccount()
     {
-        YCHECK(TmpAccount);
-        return TmpAccount;
+        YCHECK(TmpAccount_);
+        return TmpAccount_;
     }
 
 
@@ -402,8 +387,8 @@ public:
                 newName);
         }
 
-        YCHECK(AccountNameMap.erase(account->GetName()) == 1);
-        YCHECK(AccountNameMap.insert(std::make_pair(newName, account)).second);
+        YCHECK(AccountNameMap_.erase(account->GetName()) == 1);
+        YCHECK(AccountNameMap_.insert(std::make_pair(newName, account)).second);
         account->SetName(newName);
     }
 
@@ -446,7 +431,7 @@ public:
 
         for (const auto& pair : subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
-            acd->OnSubjectDestroyed(subject, GuestUser);
+            acd->OnSubjectDestroyed(subject, GuestUser_);
         }
     }
 
@@ -474,14 +459,14 @@ public:
 
     void DestroyUser(TUser* user)
     {
-        YCHECK(UserNameMap.erase(user->GetName()) == 1);
+        YCHECK(UserNameMap_.erase(user->GetName()) == 1);
         DestroySubject(user);
     }
 
     TUser* FindUserByName(const Stroka& name)
     {
-        auto it = UserNameMap.find(name);
-        return it == UserNameMap.end() ? nullptr : it->second;
+        auto it = UserNameMap_.find(name);
+        return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
     TUser* GetUserByNameOrThrow(const Stroka& name)
@@ -510,14 +495,14 @@ public:
 
     TUser* GetRootUser()
     {
-        YCHECK(RootUser);
-        return RootUser;
+        YCHECK(RootUser_);
+        return RootUser_;
     }
 
     TUser* GetGuestUser()
     {
-        YCHECK(GuestUser);
-        return GuestUser;
+        YCHECK(GuestUser_);
+        return GuestUser_;
     }
 
 
@@ -544,7 +529,7 @@ public:
 
     void DestroyGroup(TGroup* group)
     {
-        YCHECK(GroupNameMap.erase(group->GetName()) == 1);
+        YCHECK(GroupNameMap_.erase(group->GetName()) == 1);
 
         for (auto* subject : group->Members()) {
             YCHECK(subject->MemberOf().erase(group) == 1);
@@ -557,21 +542,21 @@ public:
 
     TGroup* FindGroupByName(const Stroka& name)
     {
-        auto it = GroupNameMap.find(name);
-        return it == GroupNameMap.end() ? nullptr : it->second;
+        auto it = GroupNameMap_.find(name);
+        return it == GroupNameMap_.end() ? nullptr : it->second;
     }
 
 
     TGroup* GetEveryoneGroup()
     {
-        YCHECK(EveryoneGroup);
-        return EveryoneGroup;
+        YCHECK(EveryoneGroup_);
+        return EveryoneGroup_;
     }
 
     TGroup* GetUsersGroup()
     {
-        YCHECK(UsersGroup);
-        return UsersGroup;
+        YCHECK(UsersGroup_);
+        return UsersGroup_;
     }
 
 
@@ -650,13 +635,13 @@ public:
 
         switch (subject->GetType()) {
             case EObjectType::User:
-                YCHECK(UserNameMap.erase(subject->GetName()) == 1);
-                YCHECK(UserNameMap.insert(std::make_pair(newName, subject->AsUser())).second);
+                YCHECK(UserNameMap_.erase(subject->GetName()) == 1);
+                YCHECK(UserNameMap_.insert(std::make_pair(newName, subject->AsUser())).second);
                 break;
 
             case EObjectType::Group:
-                YCHECK(GroupNameMap.erase(subject->GetName()) == 1);
-                YCHECK(GroupNameMap.insert(std::make_pair(newName, subject->AsGroup())).second);
+                YCHECK(GroupNameMap_.erase(subject->GetName()) == 1);
+                YCHECK(GroupNameMap_.insert(std::make_pair(newName, subject->AsGroup())).second);
                 break;
 
             default:
@@ -710,17 +695,17 @@ public:
 
     void PushAuthenticatedUser(TUser* user)
     {
-        AuthenticatedUserStack.push_back(user);
+        AuthenticatedUserStack_.push_back(user);
     }
 
     void PopAuthenticatedUser()
     {
-        AuthenticatedUserStack.pop_back();
+        AuthenticatedUserStack_.pop_back();
     }
 
     TUser* GetAuthenticatedUser()
     {
-        return AuthenticatedUserStack.back();
+        return AuthenticatedUserStack_.back();
     }
 
 
@@ -732,7 +717,7 @@ public:
         TPermissionCheckResult result;
 
         // Fast lane: "root" needs to authorization.
-        if (user == RootUser) {
+        if (user == RootUser_) {
             result.Action = ESecurityAction::Allow;
             return result;
         }
@@ -847,7 +832,7 @@ public:
 
     void SetUserBanned(TUser* user, bool banned)
     {
-        if (banned && user == RootUser) {
+        if (banned && user == RootUser_) {
             THROW_ERROR_EXCEPTION("User %Qv cannot be banned",
                 user->GetName());
         }
@@ -869,7 +854,7 @@ public:
                 user->GetName());
         }
 
-        if (user != RootUser && GetRequestRate(user) > user->GetRequestRateLimit()) {
+        if (user != RootUser_ && GetRequestRate(user) > user->GetRequestRateLimit()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
                 "User %Qv has exceeded its request rate limit",
@@ -877,13 +862,13 @@ public:
                 << TErrorAttribute("limit", user->GetRequestRateLimit());
         }
 
-        RequestTracker->ChargeUser(user, requestCount);
+        RequestTracker_->ChargeUser(user, requestCount);
     }
 
     double GetRequestRate(TUser* user)
     {
         return
-            TInstant::Now() > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod
+            TInstant::Now() > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod
             ? 0.0
             : user->GetRequestRate();
     }
@@ -894,40 +879,40 @@ private:
     friend class TGroupTypeHandler;
 
 
-    TSecurityManagerConfigPtr Config;
+    TSecurityManagerConfigPtr Config_;
 
-    bool RecomputeResources;
+    bool RecomputeResources_ = false;
 
-    NHydra::TEntityMap<TAccountId, TAccount> AccountMap;
-    yhash_map<Stroka, TAccount*> AccountNameMap;
+    NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
+    yhash_map<Stroka, TAccount*> AccountNameMap_;
 
-    TAccountId SysAccountId;
-    TAccount* SysAccount;
+    TAccountId SysAccountId_;
+    TAccount* SysAccount_ = nullptr;
 
-    TAccountId TmpAccountId;
-    TAccount* TmpAccount;
+    TAccountId TmpAccountId_;
+    TAccount* TmpAccount_ = nullptr;
 
-    NHydra::TEntityMap<TUserId, TUser> UserMap;
-    yhash_map<Stroka, TUser*> UserNameMap;
+    NHydra::TEntityMap<TUserId, TUser> UserMap_;
+    yhash_map<Stroka, TUser*> UserNameMap_;
 
-    TUserId RootUserId;
-    TUser* RootUser;
+    TUserId RootUserId_;
+    TUser* RootUser_ = nullptr;
 
-    TUserId GuestUserId;
-    TUser* GuestUser;
+    TUserId GuestUserId_;
+    TUser* GuestUser_ = nullptr;
 
-    NHydra::TEntityMap<TGroupId, TGroup> GroupMap;
-    yhash_map<Stroka, TGroup*> GroupNameMap;
+    NHydra::TEntityMap<TGroupId, TGroup> GroupMap_;
+    yhash_map<Stroka, TGroup*> GroupNameMap_;
 
-    TGroupId EveryoneGroupId;
-    TGroup* EveryoneGroup;
+    TGroupId EveryoneGroupId_;
+    TGroup* EveryoneGroup_ = nullptr;
 
-    TGroupId UsersGroupId;
-    TGroup* UsersGroup;
+    TGroupId UsersGroupId_;
+    TGroup* UsersGroup_ = nullptr;
 
-    std::vector<TUser*> AuthenticatedUserStack;
+    std::vector<TUser*> AuthenticatedUserStack_;
 
-    TRequestTrackerPtr RequestTracker;
+    TRequestTrackerPtr RequestTracker_;
 
 
     static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
@@ -985,8 +970,8 @@ private:
         auto* account = new TAccount(id);
         account->SetName(name);
 
-        AccountMap.Insert(id, account);
-        YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
+        AccountMap_.Insert(id, account);
+        YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
 
         // Make the fake reference.
         YCHECK(account->RefObject() == 1);
@@ -999,18 +984,18 @@ private:
         auto* user = new TUser(id);
         user->SetName(name);
 
-        UserMap.Insert(id, user);
-        YCHECK(UserNameMap.insert(std::make_pair(user->GetName(), user)).second);
+        UserMap_.Insert(id, user);
+        YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
 
         // Make the fake reference.
         YCHECK(user->RefObject() == 1);
 
         // Every user except for "guest" is a member of "users" group.
         // "guest is a member of "everyone" group.
-        if (id == GuestUserId) {
-            DoAddMember(EveryoneGroup, user);
+        if (id == GuestUserId_) {
+            DoAddMember(EveryoneGroup_, user);
         } else {
-            DoAddMember(UsersGroup, user);
+            DoAddMember(UsersGroup_, user);
         }
 
         return user;
@@ -1021,8 +1006,8 @@ private:
         auto* group = new TGroup(id);
         group->SetName(name);
 
-        GroupMap.Insert(id, group);
-        YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
+        GroupMap_.Insert(id, group);
+        YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
 
         // Make the fake reference.
         YCHECK(group->RefObject() == 1);
@@ -1044,15 +1029,15 @@ private:
 
     void RecomputeMembershipClosure()
     {
-        for (const auto& pair : UserMap) {
+        for (const auto& pair : UserMap_) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        for (const auto& pair : GroupMap) {
+        for (const auto& pair : GroupMap_) {
             pair.second->RecursiveMemberOf().clear();
         }
 
-        for (const auto& pair : GroupMap) {
+        for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
             for (auto* member : group->Members()) {
                 PropagateRecursiveMemberOf(member, group);
@@ -1080,7 +1065,7 @@ private:
 
     void ValidateMembershipUpdate(TGroup* group, TSubject* member)
     {
-        if (group == EveryoneGroup || group == UsersGroup) {
+        if (group == EveryoneGroup_ || group == UsersGroup_) {
             THROW_ERROR_EXCEPTION("Cannot modify a built-in group");
         }
 
@@ -1113,16 +1098,16 @@ private:
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
-        AccountMap.SaveKeys(context);
-        UserMap.SaveKeys(context);
-        GroupMap.SaveKeys(context);
+        AccountMap_.SaveKeys(context);
+        UserMap_.SaveKeys(context);
+        GroupMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
-        AccountMap.SaveValues(context);
-        UserMap.SaveValues(context);
-        GroupMap.SaveValues(context);
+        AccountMap_.SaveValues(context);
+        UserMap_.SaveValues(context);
+        GroupMap_.SaveValues(context);
     }
 
 
@@ -1130,56 +1115,56 @@ private:
     {
         DoClear();
 
-        RecomputeResources = false;
+        RecomputeResources_ = false;
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        AccountMap.LoadKeys(context);
-        UserMap.LoadKeys(context);
-        GroupMap.LoadKeys(context);
+        AccountMap_.LoadKeys(context);
+        UserMap_.LoadKeys(context);
+        GroupMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        AccountMap.LoadValues(context);
-        UserMap.LoadValues(context);
-        GroupMap.LoadValues(context);
+        AccountMap_.LoadValues(context);
+        UserMap_.LoadValues(context);
+        GroupMap_.LoadValues(context);
     }
 
     virtual void OnAfterSnapshotLoaded() override
     {
         // Reconstruct account name map.
-        AccountNameMap.clear();
-        for (const auto& pair : AccountMap) {
+        AccountNameMap_.clear();
+        for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
-            YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
+            YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
         }
 
         // Reconstruct user name map.
-        UserNameMap.clear();
-        for (const auto& pair : UserMap) {
+        UserNameMap_.clear();
+        for (const auto& pair : UserMap_) {
             auto* user = pair.second;
-            YCHECK(UserNameMap.insert(std::make_pair(user->GetName(), user)).second);
+            YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
         }
 
         // Reconstruct group name map.
-        GroupNameMap.clear();
-        for (const auto& pair : GroupMap) {
+        GroupNameMap_.clear();
+        for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
-            YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
+            YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
         }
 
         InitBuiltin();
         InitAuthenticatedUser();
 
         // COMPAT(babenko)
-        if (RecomputeResources) {
+        if (RecomputeResources_) {
             LOG_INFO("Recomputing resource usage");
 
             YCHECK(Bootstrap->GetTransactionManager()->Transactions().GetSize() == 0);
 
-            for (const auto& pair : AccountMap) {
+            for (const auto& pair : AccountMap_) {
                 auto* account = pair.second;
                 account->ResourceUsage() = ZeroClusterResources();
                 account->CommittedResourceUsage() = ZeroClusterResources();
@@ -1208,14 +1193,14 @@ private:
 
     void DoClear()
     {
-        AccountMap.Clear();
-        AccountNameMap.clear();
+        AccountMap_.Clear();
+        AccountNameMap_.clear();
 
-        UserMap.Clear();
-        UserNameMap.clear();
+        UserMap_.Clear();
+        UserNameMap_.clear();
 
-        GroupMap.Clear();
-        GroupNameMap.clear();
+        GroupMap_.Clear();
+        GroupNameMap_.clear();
     }
 
     virtual void Clear() override
@@ -1228,8 +1213,8 @@ private:
 
     void InitAuthenticatedUser()
     {
-        AuthenticatedUserStack.clear();
-        AuthenticatedUserStack.push_back(RootUser);
+        AuthenticatedUserStack_.clear();
+        AuthenticatedUserStack_.push_back(RootUser_);
     }
 
     void InitDefaultSchemaAcds()
@@ -1261,51 +1246,51 @@ private:
 
     void InitBuiltin()
     {
-        UsersGroup = FindGroup(UsersGroupId);
-        if (!UsersGroup) {
+        UsersGroup_ = FindGroup(UsersGroupId_);
+        if (!UsersGroup_) {
             // users
-            UsersGroup = DoCreateGroup(UsersGroupId, UsersGroupName);
+            UsersGroup_ = DoCreateGroup(UsersGroupId_, UsersGroupName);
         }
 
-        EveryoneGroup = FindGroup(EveryoneGroupId);
-        if (!EveryoneGroup) {
+        EveryoneGroup_ = FindGroup(EveryoneGroupId_);
+        if (!EveryoneGroup_) {
             // everyone
-            EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
-            DoAddMember(EveryoneGroup, UsersGroup);
+            EveryoneGroup_ = DoCreateGroup(EveryoneGroupId_, EveryoneGroupName);
+            DoAddMember(EveryoneGroup_, UsersGroup_);
         }
 
-        RootUser = FindUser(RootUserId);
-        if (!RootUser) {
+        RootUser_ = FindUser(RootUserId_);
+        if (!RootUser_) {
             // root
-            RootUser = DoCreateUser(RootUserId, RootUserName);
-            RootUser->SetRequestRateLimit(1000000.0);
+            RootUser_ = DoCreateUser(RootUserId_, RootUserName);
+            RootUser_->SetRequestRateLimit(1000000.0);
         }
 
-        GuestUser = FindUser(GuestUserId);
-        if (!GuestUser) {
+        GuestUser_ = FindUser(GuestUserId_);
+        if (!GuestUser_) {
             // guest
-            GuestUser = DoCreateUser(GuestUserId, GuestUserName);
+            GuestUser_ = DoCreateUser(GuestUserId_, GuestUserName);
         }
 
-        SysAccount = FindAccount(SysAccountId);
-        if (!SysAccount) {
+        SysAccount_ = FindAccount(SysAccountId_);
+        if (!SysAccount_) {
             // sys, 1 TB disk space, 100000 nodes, usage allowed for: root
-            SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
-            SysAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
-            SysAccount->Acd().AddEntry(TAccessControlEntry(
+            SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
+            SysAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
-                RootUser,
+                RootUser_,
                 EPermission::Use));
         }
 
-        TmpAccount = FindAccount(TmpAccountId);
-        if (!TmpAccount) {
+        TmpAccount_ = FindAccount(TmpAccountId_);
+        if (!TmpAccount_) {
             // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
-            TmpAccount = DoCreateAccount(TmpAccountId, TmpAccountName);
-            TmpAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
-            TmpAccount->Acd().AddEntry(TAccessControlEntry(
+            TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
+            TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
-                UsersGroup,
+                UsersGroup_,
                 EPermission::Use));
         }
     }
@@ -1313,9 +1298,9 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        RequestTracker->Start();
+        RequestTracker_->Start();
 
-        for (const auto& pair : UserMap) {
+        for (const auto& pair : UserMap_) {
             auto* user = pair.second;
             user->ResetRequestRate();
         }
@@ -1323,7 +1308,7 @@ private:
 
     virtual void OnStopLeading() override
     {
-        RequestTracker->Stop();
+        RequestTracker_->Stop();
     }
 
 
@@ -1350,7 +1335,7 @@ private:
                 Profiler.Enqueue("/user_request_counter", requestCounter, tags);
 
                 // Recompute request rate.
-                if (now > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod) {
+                if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
                     if (user->GetCheckpointTime() != TInstant::Zero()) {
                         double requestRate =
                             static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
@@ -1375,8 +1360,8 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, Gr
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->AccountMap)
-    , Owner(owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->AccountMap_)
+    , Owner_(owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
@@ -1394,7 +1379,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newAccount = Owner->CreateAccount(name);
+    auto* newAccount = Owner_->CreateAccount(name);
     return newAccount;
 }
 
@@ -1403,19 +1388,19 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateAccountProxy(Owner->Bootstrap, account);
+    return CreateAccountProxy(Owner_->Bootstrap, account);
 }
 
 void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
 {
-    Owner->DestroyAccount(account);
+    Owner_->DestroyAccount(account);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->UserMap)
-    , Owner(owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->UserMap_)
+    , Owner_(owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::Create(
@@ -1433,7 +1418,7 @@ TObjectBase* TSecurityManager::TUserTypeHandler::Create(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newUser = Owner->CreateUser(name);
+    auto* newUser = Owner_->CreateUser(name);
     return newUser;
 }
 
@@ -1442,19 +1427,19 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateUserProxy(Owner->Bootstrap, user);
+    return CreateUserProxy(Owner_->Bootstrap, user);
 }
 
 void TSecurityManager::TUserTypeHandler::DoDestroy(TUser* user)
 {
-    Owner->DestroyUser(user);
+    Owner_->DestroyUser(user);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->GroupMap)
-    , Owner(owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->GroupMap_)
+    , Owner_(owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
@@ -1472,7 +1457,7 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    auto* newGroup = Owner->CreateGroup(name);
+    auto* newGroup = Owner_->CreateGroup(name);
     return newGroup;
 }
 
@@ -1481,12 +1466,12 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateGroupProxy(Owner->Bootstrap, group);
+    return CreateGroupProxy(Owner_->Bootstrap, group);
 }
 
 void TSecurityManager::TGroupTypeHandler::DoDestroy(TGroup* group)
 {
-    Owner->DestroyGroup(group);
+    Owner_->DestroyGroup(group);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1494,7 +1479,7 @@ void TSecurityManager::TGroupTypeHandler::DoDestroy(TGroup* group)
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
     NCellMaster::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TSecurityManager::~TSecurityManager()
@@ -1502,53 +1487,53 @@ TSecurityManager::~TSecurityManager()
 
 void TSecurityManager::Initialize()
 {
-    return Impl->Initialize();
+    return Impl_->Initialize();
 }
 
 TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
     const NProto::TReqUpdateRequestStatistics& request)
 {
-    return Impl->CreateUpdateRequestStatisticsMutation(request);
+    return Impl_->CreateUpdateRequestStatisticsMutation(request);
 }
 
 TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
 {
-    return Impl->FindAccountByName(name);
+    return Impl_->FindAccountByName(name);
 }
 
 TAccount* TSecurityManager::GetAccountByNameOrThrow(const Stroka& name)
 {
-    return Impl->GetAccountByNameOrThrow(name);
+    return Impl_->GetAccountByNameOrThrow(name);
 }
 
 TAccount* TSecurityManager::GetSysAccount()
 {
-    return Impl->GetSysAccount();
+    return Impl_->GetSysAccount();
 }
 
 TAccount* TSecurityManager::GetTmpAccount()
 {
-    return Impl->GetTmpAccount();
+    return Impl_->GetTmpAccount();
 }
 
 void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
 {
-    Impl->SetAccount(node, account);
+    Impl_->SetAccount(node, account);
 }
 
 void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 {
-    Impl->ResetAccount(node);
+    Impl_->ResetAccount(node);
 }
 
 void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
 {
-    Impl->RenameAccount(account, newName);
+    Impl_->RenameAccount(account, newName);
 }
 
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
-    Impl->UpdateAccountNodeUsage(node);
+    Impl_->UpdateAccountNodeUsage(node);
 }
 
 void TSecurityManager::UpdateAccountStagingUsage(
@@ -1556,107 +1541,107 @@ void TSecurityManager::UpdateAccountStagingUsage(
     TAccount* account,
     const TClusterResources& delta)
 {
-    Impl->UpdateAccountStagingUsage(transaction, account, delta);
+    Impl_->UpdateAccountStagingUsage(transaction, account, delta);
 }
 
 TUser* TSecurityManager::FindUserByName(const Stroka& name)
 {
-    return Impl->FindUserByName(name);
+    return Impl_->FindUserByName(name);
 }
 
 TUser* TSecurityManager::GetUserByNameOrThrow(const Stroka& name)
 {
-    return Impl->GetUserByNameOrThrow(name);
+    return Impl_->GetUserByNameOrThrow(name);
 }
 
 TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
 {
-    return Impl->GetUserOrThrow(id);
+    return Impl_->GetUserOrThrow(id);
 }
 
 TUser* TSecurityManager::GetRootUser()
 {
-    return Impl->GetRootUser();
+    return Impl_->GetRootUser();
 }
 
 TUser* TSecurityManager::GetGuestUser()
 {
-    return Impl->GetGuestUser();
+    return Impl_->GetGuestUser();
 }
 
 TGroup* TSecurityManager::FindGroupByName(const Stroka& name)
 {
-    return Impl->FindGroupByName(name);
+    return Impl_->FindGroupByName(name);
 }
 
 TGroup* TSecurityManager::GetEveryoneGroup()
 {
-    return Impl->GetEveryoneGroup();
+    return Impl_->GetEveryoneGroup();
 }
 
 TGroup* TSecurityManager::GetUsersGroup()
 {
-    return Impl->GetUsersGroup();
+    return Impl_->GetUsersGroup();
 }
 
 TSubject* TSecurityManager::FindSubjectByName(const Stroka& name)
 {
-    return Impl->FindSubjectByName(name);
+    return Impl_->FindSubjectByName(name);
 }
 
 TSubject* TSecurityManager::GetSubjectByNameOrThrow(const Stroka& name)
 {
-    return Impl->GetSubjectByNameOrThrow(name);
+    return Impl_->GetSubjectByNameOrThrow(name);
 }
 
 void TSecurityManager::AddMember(TGroup* group, TSubject* member)
 {
-    Impl->AddMember(group, member);
+    Impl_->AddMember(group, member);
 }
 
 void TSecurityManager::RemoveMember(TGroup* group, TSubject* member)
 {
-    Impl->RemoveMember(group, member);
+    Impl_->RemoveMember(group, member);
 }
 
 void TSecurityManager::RenameSubject(TSubject* subject, const Stroka& newName)
 {
-    Impl->RenameSubject(subject, newName);
+    Impl_->RenameSubject(subject, newName);
 }
 
 EPermissionSet TSecurityManager::GetSupportedPermissions(TObjectBase* object)
 {
-    return Impl->GetSupportedPermissions(object);
+    return Impl_->GetSupportedPermissions(object);
 }
 
 TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
 {
-    return Impl->FindAcd(object);
+    return Impl_->FindAcd(object);
 }
 
 TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)
 {
-    return Impl->GetAcd(object);
+    return Impl_->GetAcd(object);
 }
 
 TAccessControlList TSecurityManager::GetEffectiveAcl(TObjectBase* object)
 {
-    return Impl->GetEffectiveAcl(object);
+    return Impl_->GetEffectiveAcl(object);
 }
 
 void TSecurityManager::PushAuthenticatedUser(TUser* user)
 {
-    Impl->PushAuthenticatedUser(user);
+    Impl_->PushAuthenticatedUser(user);
 }
 
 void TSecurityManager::PopAuthenticatedUser()
 {
-    Impl->PopAuthenticatedUser();
+    Impl_->PopAuthenticatedUser();
 }
 
 TUser* TSecurityManager::GetAuthenticatedUser()
 {
-    return Impl->GetAuthenticatedUser();
+    return Impl_->GetAuthenticatedUser();
 }
 
 TPermissionCheckResult TSecurityManager::CheckPermission(
@@ -1664,7 +1649,7 @@ TPermissionCheckResult TSecurityManager::CheckPermission(
     TUser* user,
     EPermission permission)
 {
-    return Impl->CheckPermission(
+    return Impl_->CheckPermission(
         object,
         user,
         permission);
@@ -1675,7 +1660,7 @@ void TSecurityManager::ValidatePermission(
     TUser* user,
     EPermission permission)
 {
-    Impl->ValidatePermission(
+    Impl_->ValidatePermission(
         object,
         user,
         permission);
@@ -1685,24 +1670,24 @@ void TSecurityManager::ValidatePermission(
     TObjectBase* object,
     EPermission permission)
 {
-    Impl->ValidatePermission(
+    Impl_->ValidatePermission(
         object,
         permission);
 }
 
 void TSecurityManager::SetUserBanned(TUser* user, bool banned)
 {
-    Impl->SetUserBanned(user, banned);
+    Impl_->SetUserBanned(user, banned);
 }
 
 void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount)
 {
-    Impl->ValidateUserAccess(user, requestCount);
+    Impl_->ValidateUserAccess(user, requestCount);
 }
 
 double TSecurityManager::GetRequestRate(TUser* user)
 {
-    return Impl->GetRequestRate(user);
+    return Impl_->GetRequestRate(user);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)

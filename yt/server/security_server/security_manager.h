@@ -26,18 +26,16 @@ namespace NSecurityServer {
 //! Describes the result of #TSecurityManager::CheckAccess invocation.
 struct TPermissionCheckResult
 {
-    TPermissionCheckResult();
-
     //! Was request allowed or declined?
-    ESecurityAction Action;
+    ESecurityAction Action = ESecurityAction::Undefined;
 
     //! The object whose ACL contains the matching ACE.
     //! May be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
-    NObjectServer::TObjectBase* Object;
+    NObjectServer::TObjectBase* Object = nullptr;
 
     //! Subject to which the decision applies.
-    //! May be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
-    TSubject* Subject;
+    //! Can be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
+    TSubject* Subject = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,8 +52,8 @@ public:
     ~TAuthenticatedUserGuard();
 
 private:
-    TSecurityManagerPtr SecurityManager;
-    bool IsNull;
+    TSecurityManagerPtr SecurityManager_;
+    bool IsNull_;
 
 };
 
@@ -219,7 +217,7 @@ private:
     class TUserTypeHandler;
     class TGroupTypeHandler;
     
-    TIntrusivePtr<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl_;
 
 };
 
