@@ -116,7 +116,7 @@ private:
                     requestData);
                 auto responseCodec = request->has_response_codec()
                     ? ECodec(request->response_codec())
-                    : ECodec(NECodec::None);
+                    : ECodec(ECodec::None);
                 response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
                 context->Reply();
             });
