@@ -150,12 +150,12 @@ def _set_attribute(func, key, value):
 
 def aggregator(func):
     """Decorate function to consume *iterator of rows* instead of single row."""
-    return _set_attribute(func, "aggregator", True)
+    return _set_attribute(func, "is_aggregator", True)
 
 def raw(func):
     """Decorate function to consume *raw data stream* instead of single row."""
-    return _set_attribute(func, "raw", True)
+    return _set_attribute(func, "is_raw", True)
 
 def raw_io(func):
     """Decorate function to run as is. No arguments are passed. Function handles IO."""
-    return _set_attribute(func, "raw_io", True)
+    return _set_attribute(func, "is_raw_io", True)
