@@ -28,6 +28,7 @@ namespace NQueryAgent {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NCompression;
 using namespace NQueryClient;
 using namespace NVersionedTableClient;
 using namespace NTabletClient;
@@ -79,11 +80,11 @@ private:
                 auto result = WaitFor(Executor_->Execute(planFragment, rowsetWriter));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
 
-                response->Attachments() = NCompression::CompressWithEnvelope(
-                    protocolWriter.Flush(),
-                    Config_->SelectResponseCodec);
+                auto responseCodec = request->has_response_codec()
+                    ? ECodec(request->response_codec())
+                    : ECodec(ECodec::None);
+                response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
                 ToProto(response->mutable_query_statistics(), result.Value());
-
                 context->Reply();
             });
     }

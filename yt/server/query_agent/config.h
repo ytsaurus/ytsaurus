@@ -4,8 +4,6 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <core/compression/public.h>
-
 namespace NYT {
 namespace NQueryAgent {
 
@@ -19,8 +17,6 @@ public:
     int MaxConcurrentRequests;
     int MaxSubsplitsPerTablet;
     int MaxQueryRetries;
-
-    NCompression::ECodec SelectResponseCodec;
 
     TQueryAgentConfig()
     {
@@ -36,9 +32,6 @@ public:
         RegisterParameter("max_query_retries", MaxQueryRetries)
             .GreaterThanOrEqual(1)
             .Default(10);
-
-        RegisterParameter("select_response_codec", SelectResponseCodec)
-            .Default(NCompression::ECodec::Lz4);
     }
 };
 

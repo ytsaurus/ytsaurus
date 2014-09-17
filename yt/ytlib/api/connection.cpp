@@ -358,9 +358,9 @@ public:
         TQueryServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Config_->QueryTimeout);
         auto req = proxy.Execute();
-
         fragment->NodeDirectory->DumpTo(req->mutable_node_directory());
         ToProto(req->mutable_plan_fragment(), fragment);
+        req->set_response_codec(Config_->SelectResponseCodec);
 
         auto resultReader = New<TQueryResponseReader>(req->Invoke());
         return std::make_pair(resultReader, resultReader->GetQueryResult());
