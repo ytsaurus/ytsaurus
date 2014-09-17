@@ -670,7 +670,7 @@ def main():
         config = DEFAULT_CONFIG
 
     app = Application(config)
-    app.run(host="localhost", port=config["port"], debug=True, use_reloader=False)
+    app.run(host=config.get("host", "0.0.0.0"), port=config["port"], debug=True, use_reloader=False)
     app.terminate()
 
 if __name__ == "__main__":
