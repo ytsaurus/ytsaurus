@@ -21,7 +21,6 @@
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NTabletNode {
