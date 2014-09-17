@@ -74,19 +74,21 @@ public:
     TFuture<void> GetFetchingCompleteEvent();
 
 private:
-    void OnGotBlocks(
-        int firstSequenceIndex,
-        IReader::TReadBlocksResult readResult);
-
     void FetchNextGroup();
+
     void RequestBlocks(
-        int firstIndex,
+        const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
         i64 groupSize);
 
+    void OnGotBlocks(
+        const std::vector<int>& windowIndexes,
+        const std::vector<int>& blockIndexes,
+        IReader::TReadBlocksResult readResult);
+
     void DecompressBlocks(
-        int blockIndex,
-        const IReader::TReadBlocksResult& readResult);
+        const std::vector<int>& windowIndexes,
+        const std::vector<TSharedRef>& compressedBlocks);
 
 
     TSequentialReaderConfigPtr Config_;
@@ -98,11 +100,10 @@ private:
 
     NConcurrency::TAsyncSemaphore AsyncSemaphore_;
 
-    //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
-    volatile int NextSequenceIndex_ = 0;
-    int NextUnfetchedIndex_ = 0;
+    volatile int FirstReadyWindowIndex_ = -1;
+    int FirstUnfetchedWindowIndex_ = 0;
  
-    TPromise<void> FetchingCompleteEvent_ = NewPromise();
+    TPromise<void> FetchingComplete_ = NewPromise();
 
     TAsyncStreamState State_;
     NCompression::ICodec* Codec_;
