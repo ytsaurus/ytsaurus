@@ -67,6 +67,17 @@ See also https://wiki.yandex-team.ru/yt/Design/YPath
 
 Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
 
+Write to table in Cypress from local file.
+$ cat my_data_in_json | yt write //tmp/sepulki --format json
+
+For appending to table instead rewriting specify append mode.
+$ cat my_data_in_yson | yt write '<append=true>//tmp/sepulki' --format yson
+
+Output table to client stdout.
+$ yt read //tmp/test_table --format dsv
+>> b=hello  a=10
+   b=world  a=20
+
 $ yt map-reduce --mapper "python my_mapper.py" --map-local-file "~/my_mapper.py" --reducer "./my_reducer.pl" --reduce-file "//tmp/my_reducer.pl"
 --src //project/some_existing_table  --src some_another_table_in_prefix_directory --dst <append=true>//tmp/sepulki
 --reduce-by "column_one" --reduce-by "column_two"
@@ -251,7 +262,7 @@ def read(**args):
 
 def add_read_parser(add_parser):
     parser = add_parser("read", yt.read_table)
-    parser.add_argument("table")
+    add_ypath_argument(parser, "table")
     add_format_help(parser, help="output format")
     add_spec_help(parser, "--table-reader")
     parser.set_defaults(func=read, response_type="iter_content")
@@ -261,7 +272,7 @@ def download(**args):
 
 def add_download_parser(add_parser):
     parser = add_parser("download", yt.download_file)
-    parser.add_argument("path")
+    add_ypath_argument(parser)
     add_spec_help(parser, "--file-reader")
     parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
     parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
@@ -282,8 +293,8 @@ def add_upload_parser(add_parser):
     parser.set_defaults(func=upload)
 
 def add_write_parser(add_parser):
-    parser = add_parser("write", yt.write_table)
-    parser.add_argument("table")
+    parser = add_parser("write", yt.write_table, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+    add_ypath_argument(parser, name="table")
     add_format_help(parser, help="input format")
     add_spec_help(parser, "--table-writer")
     parser.set_defaults(func=yt.write_table, input_stream=sys.stdin)
@@ -363,7 +374,7 @@ def add_link_parser(add_parser):
     parser.add_argument("-i", "--ignore-existing", action="store_true", help="overwrite existing link_path")
 
 def tablet_args(parser):
-    parser.add_argument("path")
+    add_ypath_argument(parser)
     parser.add_argument("--first-tablet-index", type=int)
     parser.add_argument("--last-tablet-index", type=int)
 
@@ -552,10 +563,10 @@ def lock(**args):
 
 def add_lock_parser(add_parser):
     parser = add_parser("lock", yt.lock)
-    parser.add_argument("path")
-    parser.add_argument("--mode")
-    parser.add_argument("--waitable", action="store_true")
-    parser.add_argument("--wait-for", type=int)
+    add_ypath_argument(parser)
+    parser.add_argument("--mode", help="blocking type, exclusive by default", choices=["snapshot", "shared", "exclusive"])
+    parser.add_argument("--waitable", action="store_true", help="wait for lock if node is under blocking")
+    parser.add_argument("--wait-for", type=int, help="wait interval in milliseconds")
     parser.set_defaults(func=lock)
 
 def check_permission(**args):

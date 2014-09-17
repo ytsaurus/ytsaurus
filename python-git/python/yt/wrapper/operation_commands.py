@@ -307,7 +307,7 @@ class WaitStrategy(object):
             timeout_occurred = time_watcher.is_time_up()
             finalize(state)
             if timeout_occurred:
-                logger.info("Timeout occured.")
+                logger.info("Timeout occurred.")
                 raise YtTimeoutError
 
         if self.check_result and state.is_failed():
