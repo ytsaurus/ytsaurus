@@ -486,6 +486,7 @@ public:
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
         chunkList->ChunkCountSums().clear();
+        chunkList->DataSizeSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
         chunkList->Statistics().ChunkListCount = 1;
 
@@ -893,6 +894,10 @@ private:
         if (context.GetVersion() < 20) {
             // Skip NodeIdGenerator.
             context.GetInput()->Skip(8);
+        }
+        // COMPAT(ignat)
+        if (context.GetVersion() < 42) {
+            NeedToRecomputeStatistics = true;
         }
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
