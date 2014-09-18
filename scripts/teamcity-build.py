@@ -305,10 +305,10 @@ def build_python_packages(options):
 
     def extract_version(package):
         output = run_captured(
-            """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes" 2>/dev/null | grep -v REJECT' 2>/dev/null""".format(package),
-            shell=True,
-            ignore_return_code=True)
+            """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes"'""".format(package),
+            shell=True)
         filenames = filter(None, output.split("\n"))
+        filenames = filter(lambda filename: not "REJECT" in filename, filenames)
         versions = map(lambda filename: filename.split(package)[1].split("_")[1], filenames)
         if not versions:
             return ""
