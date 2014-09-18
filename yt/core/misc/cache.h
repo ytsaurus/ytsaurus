@@ -6,7 +6,9 @@
 
 #include <core/actions/future.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <core/concurrency/rw_spinlock.h>
+
+#include <core/profiling/timing.h>
 
 namespace NYT {
 
@@ -45,8 +47,8 @@ class TSlruCacheBase
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TErrorOr<TValuePtr> TValuePtrOrError;
-    typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrErrorResult;
-    typedef TPromise<TValuePtrOrError> TAsyncValuePtrOrErrorPromise;
+    typedef TFuture<TValuePtrOrError> TValuePtrOrErrorFuture;
+    typedef TPromise<TValuePtrOrError> TValuePtrOrErrorPromise;
 
     void Clear();
     int GetSize() const;
@@ -69,7 +71,7 @@ protected:
         TInsertCookie& operator = (const TInsertCookie& other) = delete;
 
         TKey GetKey() const;
-        TAsyncValuePtrOrErrorResult GetValue() const;
+        TValuePtrOrErrorFuture GetValue() const;
         bool IsActive() const;
 
         void Cancel(const TError& error);
@@ -80,7 +82,7 @@ protected:
 
         TKey Key_;
         TIntrusivePtr<TSlruCacheBase> Cache_;
-        TAsyncValuePtrOrErrorResult ValueOrError_;
+        TValuePtrOrErrorFuture ValueOrErrorPromise_;
         bool Active_;
 
         void Abort();
@@ -89,9 +91,8 @@ protected:
 
     explicit TSlruCacheBase(TSlruCacheConfigPtr config);
 
-    TAsyncValuePtrOrErrorResult Lookup(const TKey& key);
+    TValuePtrOrErrorFuture Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
-    void Touch(const TKey& key);
     bool Remove(const TKey& key);
     bool Remove(TValuePtr value);
 
@@ -106,39 +107,39 @@ private:
         : public TIntrusiveListItem<TItem>
     {
         TItem()
-            : ValueOrError(NewPromise<TValuePtrOrError>())
+            : ValueOrErrorPromise(NewPromise<TValuePtrOrError>())
         { }
 
         explicit TItem(TValuePtr value)
-            : ValueOrError(MakePromise(TValuePtrOrError(std::move(value))))
+            : ValueOrErrorPromise(MakePromise(TValuePtrOrError(value)))
+            , Value(std::move(value))
         { }
 
-        TAsyncValuePtrOrErrorPromise ValueOrError;
+        TValuePtrOrErrorPromise ValueOrErrorPromise;
+        TValuePtr Value;
         bool Younger;
+        NProfiling::TCpuInstant NextTouchInstant = 0;
     };
 
-    typedef yhash_map<TKey, TValue*, THash> TValueMap;
-    typedef yhash_map<TKey, TItem*, THash> TItemMap;
-    typedef TIntrusiveListWithAutoDelete<TItem, TDelete> TItemList;
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
 
-    TSpinLock SpinLock_;
-
-    TItemList YoungerLruList_;
+    TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
     i64 YoungerWeight_ = 0;
 
-    TItemList OlderLruList_;
+    TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
     i64 OlderWeight_ = 0;
 
-    TValueMap ValueMap_;
+    yhash_map<TKey, TValue*, THash> ValueMap_;
 
-    TItemMap ItemMap_;
-    int ItemMapSize_ = 0;
+    yhash_map<TKey, TItem*, THash> ItemMap_;
+    volatile int ItemMapSize_ = 0; // used by GetSize
+
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
-    void Touch(TItem* item); // thread-unsafe
+    static bool CanTouch(TItem* item);
+    void Touch(TItem* item);
     void Unregister(const TKey& key);
-    static TValuePtr GetValue(TItem* item);
     void PushToYounger(TItem* item, TValue* value);
     void MoveToYounger(TItem* item, TValue* value);
     void MoveToOlder(TItem* item, TValue* value);

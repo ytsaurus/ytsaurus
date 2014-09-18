@@ -35,7 +35,7 @@ NYT::TCacheValueBase<TKey, TValue, THash>::~TCacheValueBase()
 template <class TKey, class TValue, class THash>
 void TSlruCacheBase<TKey, TValue, THash>::Clear()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
 
     ItemMap_.clear();
     ItemMapSize_ = 0;
@@ -56,20 +56,29 @@ template <class TKey, class TValue, class THash>
 typename TSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    auto it = ValueMap_.find(key);
-    if (it == ValueMap_.end()) {
+    NConcurrency::TReaderGuard readerGuard(SpinLock_);
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
         return nullptr;
     }
-    return TRefCounted::DangerousGetPtr<TValue>(it->second);
+
+    auto* item = itemIt->second;
+    if (CanTouch(item)) {
+        auto writerGuard = readerGuard.Upgrade();
+        Touch(item);
+    }
+
+    return item->Value;
 }
 
 template <class TKey, class TValue, class THash>
 std::vector<typename TSlruCacheBase<TKey, TValue, THash>::TValuePtr>
 TSlruCacheBase<TKey, TValue, THash>::GetAll()
 {
+    NConcurrency::TReaderGuard guard(SpinLock_);
+
     std::vector<TValuePtr> result;
-    TGuard<TSpinLock> guard(SpinLock_);
     result.reserve(ValueMap_.size());
     for (const auto& pair : ValueMap_) {
         auto value = TRefCounted::DangerousGetPtr<TValue>(pair.second);
@@ -81,36 +90,42 @@ TSlruCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-typename TSlruCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
+typename TSlruCacheBase<TKey, TValue, THash>::TValuePtrOrErrorFuture
 TSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            NConcurrency::TReaderGuard readerGuard(SpinLock_);
+
             auto itemIt = ItemMap_.find(key);
             if (itemIt != ItemMap_.end()) {
                 auto* item = itemIt->second;
-                Touch(item);
-                return item->ValueOrError;
+                if (CanTouch(item)) {
+                    auto writerGuard = readerGuard.Upgrade();
+                    Touch(item);
+                }
+                return item->ValueOrErrorPromise;
             }
 
             auto valueIt = ValueMap_.find(key);
             if (valueIt == ValueMap_.end()) {
-                return TAsyncValuePtrOrErrorResult();
+                return TValuePtrOrErrorFuture();
             }
 
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
+                auto writerGuard = readerGuard.Upgrade();
+
                 auto* item = new TItem(value);
                 // This holds an extra reference to the promise state...
-                auto valueOrError = item->ValueOrError;
-                
+                auto valueOrError = item->ValueOrErrorPromise;
+
                 ItemMap_.insert(std::make_pair(key, item));
                 ++ItemMapSize_;
 
                 PushToYounger(item, value.Get());
 
-                guard.Release();
+                writerGuard.Release();
 
                 // ...since the item can be dead at this moment.
                 TrimIfNeeded();
@@ -132,12 +147,12 @@ bool TSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 
     while (true) {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            NConcurrency::TWriterGuard guard(SpinLock_);
 
             auto itemIt = ItemMap_.find(key);
             if (itemIt != ItemMap_.end()) {
                 auto* item = itemIt->second;
-                cookie->ValueOrError_ = item->ValueOrError;
+                cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
                 return false;
             }
 
@@ -148,7 +163,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
                 ++ItemMapSize_;
 
-                cookie->ValueOrError_ = item->ValueOrError;
+                cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
                 cookie->Active_ = true;
                 cookie->Cache_ = this;
 
@@ -164,7 +179,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 
                 PushToYounger(item, value.Get());
 
-                cookie->ValueOrError_ = item->ValueOrError;
+                cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
 
                 guard.Release();
 
@@ -188,9 +203,9 @@ void TSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCook
 
     auto key = value->GetKey();
 
-    TAsyncValuePtrOrErrorPromise valueOrError;
+    TValuePtrOrErrorPromise valueOrErrorPromise;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
 
         YCHECK(!value->Cache_);
         value->Cache_ = this;
@@ -199,15 +214,17 @@ void TSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCook
         YCHECK(it != ItemMap_.end());
 
         auto* item = it->second;
-        valueOrError = item->ValueOrError;
+        item->Value = value;
+        valueOrErrorPromise = item->ValueOrErrorPromise;
 
         YCHECK(ValueMap_.insert(std::make_pair(key, value.Get())).second);
     }
 
-    valueOrError.Set(value);
+    valueOrErrorPromise.Set(value);
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
+
         auto it = ItemMap_.find(key);
         if (it != ItemMap_.end()) {
             auto* item = it->second;
@@ -222,15 +239,15 @@ void TSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCook
 template <class TKey, class TValue, class THash>
 void TSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    TAsyncValuePtrOrErrorPromise valueOrError;
+    TValuePtrOrErrorPromise valueOrErrorPromise;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
 
         auto it = ItemMap_.find(key);
         YCHECK(it != ItemMap_.end());
 
         auto* item = it->second;
-        valueOrError = item->ValueOrError;
+        valueOrErrorPromise = item->ValueOrErrorPromise;
 
         ItemMap_.erase(it);
         --ItemMapSize_;
@@ -238,48 +255,30 @@ void TSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TE
         delete item;
     }
 
-    valueOrError.Set(error);
+    valueOrErrorPromise.Set(error);
 }
 
 template <class TKey, class TValue, class THash>
 void TSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    
-    YCHECK(ItemMap_.find(key) == ItemMap_.end());   
+    NConcurrency::TWriterGuard guard(SpinLock_);
+
+    YCHECK(ItemMap_.find(key) == ItemMap_.end());
     YCHECK(ValueMap_.erase(key) == 1);
-}
-
-template <class TKey, class TValue, class THash>
-TIntrusivePtr<TValue> TSlruCacheBase<TKey, TValue, THash>::GetValue(TItem* item)
-{
-    auto maybeValueOrError = item->ValueOrError.TryGet();
-    YCHECK(maybeValueOrError);
-    YCHECK(maybeValueOrError->IsOK());
-    return maybeValueOrError->Value();
-}
-
-template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-    auto it = ItemMap_.find(key);
-    YCHECK(it != ItemMap_.end());
-    auto* item = it->second;
-    Touch(item);
 }
 
 template <class TKey, class TValue, class THash>
 bool TSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
+
     auto it = ItemMap_.find(key);
     if (it == ItemMap_.end()) {
         return false;
     }
 
     auto* item = it->second;
-    auto value = GetValue(item);
+    auto value = item->Value;
 
     ItemMap_.erase(it);
     --ItemMapSize_;
@@ -302,7 +301,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 template <class TKey, class TValue, class THash>
 bool TSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    NConcurrency::TWriterGuard guard(SpinLock_);
 
     auto valueIt = ValueMap_.find(value->GetKey());
     if (valueIt == ValueMap_.end() || valueIt->second != value) {
@@ -331,13 +330,21 @@ bool TSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
+bool TSlruCacheBase<TKey, TValue, THash>::CanTouch(TItem* item)
+{
+    return NProfiling::GetCpuInstant() >= item->NextTouchInstant;
+}
+
+template <class TKey, class TValue, class THash>
 void TSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
+    static auto MinTouchPeriod = TDuration::MilliSeconds(100);
     if (!item->Empty()) {
-        auto value = GetValue(item);
+        auto value = item->Value;
         MoveToOlder(item, value.Get());
         item->Unlink();
         item->Younger = false;
+        item->NextTouchInstant = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(MinTouchPeriod);
         OlderLruList_.PushFront(item);
     }
 }
@@ -412,13 +419,13 @@ void TSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 {
     // Move from older to younger.
     while (true) {
-        TGuard<TSpinLock> guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
 
         if (OlderLruList_.Empty() || OlderWeight_ <= Config_->Capacity * (1 - Config_->YoungerSizeFraction))
             break;
 
         auto* item = &*(--OlderLruList_.End());
-        auto value = GetValue(item);
+        auto value = item->Value;
 
         MoveToYounger(item, value.Get());
 
@@ -427,13 +434,13 @@ void TSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 
     // Evict from younger.
     while (true) {
-        TGuard<TSpinLock> guard(SpinLock_);
+        NConcurrency::TWriterGuard guard(SpinLock_);
 
         if (YoungerLruList_.Empty() || YoungerWeight_ + OlderWeight_ <= Config_->Capacity)
             break;
 
         auto* item = &*(--YoungerLruList_.End());
-        auto value = GetValue(item);
+        auto value = item->Value;
 
         Pop(item, value.Get());
 
@@ -458,15 +465,15 @@ TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie()
 template <class TKey, class TValue, class THash>
 TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
     : Key_(key)
-    , Active_(false)
+      , Active_(false)
 { }
 
 template <class TKey, class TValue, class THash>
 TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(TInsertCookie&& other)
     : Key_(std::move(other.Key_))
-    , Cache_(std::move(other.Cache_))
-    , ValueOrError_(std::move(other.ValueOrError_))
-    , Active_(other.Active_)
+      , Cache_(std::move(other.Cache_))
+      , ValueOrErrorPromise_(std::move(other.ValueOrErrorPromise_))
+      , Active_(other.Active_)
 {
     other.Active_ = false;
 }
@@ -484,7 +491,7 @@ typename TSlruCacheBase<TKey, TValue, THash>::TInsertCookie& TSlruCacheBase<TKey
         Abort();
         Key_ = std::move(other.Key_);
         Cache_ = std::move(other.Cache_);
-        ValueOrError_ = std::move(other.ValueOrError_);
+        ValueOrErrorPromise_ = std::move(other.ValueOrErrorPromise_);
         Active_ = other.Active_;
         other.Active_ = false;
     }
@@ -498,11 +505,11 @@ TKey TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
 }
 
 template <class TKey, class TValue, class THash>
-typename TSlruCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
+typename TSlruCacheBase<TKey, TValue, THash>::TValuePtrOrErrorFuture
 TSlruCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
 {
-    YASSERT(ValueOrError_);
-    return ValueOrError_;
+    YASSERT(ValueOrErrorPromise_);
+    return ValueOrErrorPromise_;
 }
 
 template <class TKey, class TValue, class THash>
