@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <util/system/yield.h>
+#include <util/system/rwlock.h>
 
 #include <atomic>
 
@@ -30,7 +30,7 @@ public:
             if (TryAcquireReader())
                 break;
             if (counter > YieldThreshold) {
-                SchedYield();
+                SpinLockPause();
             }
         }
     }
@@ -47,7 +47,7 @@ public:
             if (TryAcquireWriter())
                 break;
             if (counter > YieldThreshold) {
-                SchedYield();
+                SpinLockPause();
             }
         }
     }
@@ -56,17 +56,6 @@ public:
     {
         ui32 prevValue = Value_.fetch_and(~WriterMask, std::memory_order_release);
         YASSERT(prevValue & WriterMask);
-    }
-
-    void UpgradeReader()
-    {
-        for (int counter = 0; ;++counter) {
-            if (TryUpgradeReader())
-                break;
-            if (counter > YieldThreshold) {
-                SchedYield();
-            }
-        }
     }
 
 private:
@@ -97,126 +86,38 @@ private:
         return true;
     }
 
-    bool TryUpgradeReader()
-    {
-        ui32 expected = ReaderDelta;
-        if (!Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire)) {
-            return false;
-        }
-        return true;
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReaderGuard;
-class TWriterGuard;
-
-class TWriterGuard
+struct TReaderSpinlockTraits
 {
-public:
-    TWriterGuard()
-        : SpinLock_(nullptr)
-    { }
-
-    explicit TWriterGuard(TReaderWriterSpinLock& spinLock)
-        : SpinLock_(&spinLock)
+    static void Acquire(TReaderWriterSpinLock* spinlock)
     {
-        SpinLock_->AcquireWriter();
+        spinlock->AcquireReader();
     }
 
-    TWriterGuard(TWriterGuard&& other)
-        : SpinLock_(other.SpinLock_)
+    static void Release(TReaderWriterSpinLock* spinlock)
     {
-        other.SpinLock_ = nullptr;
+        spinlock->ReleaseReader();
     }
-
-    TWriterGuard(const TWriterGuard& other) = delete;
-
-    ~TWriterGuard()
-    {
-        if (SpinLock_) {
-            SpinLock_->ReleaseWriter();
-        }
-    }
-
-    void Release()
-    {
-        if (SpinLock_) {
-            SpinLock_->ReleaseWriter();
-            SpinLock_ = nullptr;
-        }
-    }
-
-private:
-    friend class TReaderGuard;
-
-    TReaderWriterSpinLock* SpinLock_;
-
-
-    static TWriterGuard MakeAcquired(TReaderWriterSpinLock& spinLock)
-    {
-        TWriterGuard guard;
-        guard.SpinLock_ = &spinLock;
-        return guard;
-    }
-
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TReaderGuard
+struct TWriterSpinlockTraits
 {
-public:
-    TReaderGuard()
-        : SpinLock_(nullptr)
-    { }
-
-    explicit TReaderGuard(TReaderWriterSpinLock& spinLock)
-        : SpinLock_(&spinLock)
+    static inline void Acquire(TReaderWriterSpinLock* spinlock)
     {
-        SpinLock_->AcquireReader();
+        spinlock->AcquireWriter();
     }
 
-    TReaderGuard(TReaderGuard&& other)
-        : SpinLock_(other.SpinLock_)
+    static inline void Release(TReaderWriterSpinLock* spinlock)
     {
-        other.SpinLock_ = nullptr;
+        spinlock->ReleaseWriter();
     }
-
-    TReaderGuard(const TReaderGuard& other) = delete;
-
-    ~TReaderGuard()
-    {
-        if (SpinLock_) {
-            SpinLock_->ReleaseReader();
-        }
-    }
-
-    void Release()
-    {
-        if (SpinLock_) {
-            SpinLock_->ReleaseReader();
-            SpinLock_ = nullptr;
-        }
-    }
-
-    TWriterGuard Upgrade()
-    {
-        auto* spinLock = SpinLock_;
-        if (!spinLock) {
-            return TWriterGuard();
-        }
-        spinLock->UpgradeReader();
-        SpinLock_ = nullptr;
-        return TWriterGuard::MakeAcquired(*spinLock);
-    }
-
-private:
-    TReaderWriterSpinLock* SpinLock_;
-
 };
+
+typedef TGuard<TReaderWriterSpinLock, TReaderSpinlockTraits> TReaderGuard;
+typedef TGuard<TReaderWriterSpinLock, TWriterSpinlockTraits> TWriterGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
