@@ -190,7 +190,7 @@ void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)
     DeleteTimestamps_.push_back(timestamp);
 }
 
-TVersionedRow TVersionedRowBuilder::GetRowAndReset()
+TVersionedRow TVersionedRowBuilder::FinishRow()
 {
     std::sort(
         Values_.begin(),

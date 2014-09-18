@@ -27,7 +27,7 @@ void CheckSerialize(const TUnversionedOwningRow& original)
 TEST(TUnversionedRowTest, Serialize1)
 {
     TUnversionedOwningRowBuilder builder;
-    auto row = builder.GetRowAndReset();
+    auto row = builder.FinishRow();
     CheckSerialize(row);
 }
 
@@ -37,7 +37,7 @@ TEST(TUnversionedRowTest, Serialize2)
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
     builder.AddValue(MakeUnversionedInt64Value(42, 1));
     builder.AddValue(MakeUnversionedDoubleValue(0.25, 2));
-    CheckSerialize(builder.GetRowAndReset());
+    CheckSerialize(builder.FinishRow());
 }
 
 TEST(TUnversionedRowTest, Serialize3)
@@ -50,7 +50,7 @@ TEST(TUnversionedRowTest, Serialize3)
     builder.AddValue(MakeUnversionedStringValue("string2", 30));
     builder.AddValue(MakeUnversionedDoubleValue(4321.0, 1000));
     builder.AddValue(MakeUnversionedStringValue("", 10000));
-    CheckSerialize(builder.GetRowAndReset());
+    CheckSerialize(builder.FinishRow());
 }
 
 TEST(TUnversionedRowTest, Serialize4)

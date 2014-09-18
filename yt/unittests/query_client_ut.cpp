@@ -651,7 +651,7 @@ protected:
 
     TOwningRow Literals()
     {
-        return RowBuilder.GetRowAndReset();
+        return RowBuilder.FinishRow();
     }
 };
 

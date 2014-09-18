@@ -846,7 +846,7 @@ TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelTy
         builder.AddValue(key[index]);
     }
     builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
-    return builder.GetRowAndReset();
+    return builder.FinishRow();
 }
 
 TOwningKey GetKeySuccessor(TKey key)
@@ -872,7 +872,7 @@ static TOwningKey MakeSentinelKey(EValueType type)
 {
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedSentinelValue(type));
-    return builder.GetRowAndReset();
+    return builder.FinishRow();
 }
 
 static const TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
@@ -891,7 +891,7 @@ const TOwningKey MaxKey()
 static TOwningKey MakeEmptyKey()
 {
     TUnversionedOwningRowBuilder builder;
-    return builder.GetRowAndReset();
+    return builder.FinishRow();
 }
 
 static const TOwningKey CachedEmptyKey = MakeEmptyKey();
@@ -1059,7 +1059,7 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
         }
     }
 
-    *row = rowBuilder.GetRowAndReset();
+    *row = rowBuilder.FinishRow();
 }
 
 void Serialize(const TKey& key, IYsonConsumer* consumer)
@@ -1153,7 +1153,7 @@ void Deserialize(TOwningKey& key, INodePtr node)
         }
         ++id;
     }
-    key = builder.GetRowAndReset();
+    key = builder.FinishRow();
 }
 
 void TUnversionedOwningRow::Save(TStreamSaveContext& context) const
@@ -1260,7 +1260,7 @@ TUnversionedValue* TUnversionedOwningRowBuilder::EndValues()
     return BeginValues() + GetHeader()->Count;
 }
 
-TUnversionedOwningRow TUnversionedOwningRowBuilder::GetRowAndReset()
+TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 {
     auto row = TUnversionedOwningRow(
         TSharedRef::FromBlob<TOwningRowTag>(std::move(RowData_)),
@@ -1388,7 +1388,7 @@ TUnversionedOwningRow BuildRow(
         }
     }
 
-    return rowBuilder.GetRowAndReset();
+    return rowBuilder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

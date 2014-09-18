@@ -773,7 +773,7 @@ void TBuildingTableConsumer::OnEndRow()
         [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
             return lhs.Id < rhs.Id;
         });
-    Rows_.emplace_back(Builder_.GetRowAndReset());
+    Rows_.emplace_back(Builder_.FinishRow());
     ++RowIndex_;
 }
 

@@ -578,7 +578,7 @@ public:
     TUnversionedValue* BeginValues();
     TUnversionedValue* EndValues();
 
-    TUnversionedOwningRow GetRowAndReset();
+    TUnversionedOwningRow FinishRow();
 
 private:
     int InitialValueCapacity_;

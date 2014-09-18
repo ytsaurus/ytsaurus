@@ -614,7 +614,7 @@ TPlanFragmentPtr PreparePlanFragment(
         tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
-    planFragment->Literals = rowBuilder.GetRowAndReset();
+    planFragment->Literals = rowBuilder.FinishRow();
 
     // Now we have planOperator and tableSchemaProxy
     

@@ -310,7 +310,7 @@ void ParseRowLimit(
     }
 
     if (hasKeyLimit) {
-        auto key = rowBuilder.GetRowAndReset();
+        auto key = rowBuilder.FinishRow();
         limit->SetKey(key);
     }
 

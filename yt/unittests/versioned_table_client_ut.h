@@ -56,7 +56,7 @@ inline TUnversionedOwningRow BuildKey(const Stroka& yson)
         }
     }
 
-    return keyBuilder.GetRowAndReset();
+    return keyBuilder.FinishRow();
 }
 
 inline Stroka KeyToYson(TKey key)

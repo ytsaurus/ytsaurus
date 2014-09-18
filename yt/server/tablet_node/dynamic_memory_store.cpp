@@ -1252,7 +1252,7 @@ TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
     for (const auto* it = row.GetKeys(); it != row.GetKeys() + KeyColumnCount_; ++it) {
         builder.AddValue(*it);
     }
-    return builder.GetRowAndReset();
+    return builder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

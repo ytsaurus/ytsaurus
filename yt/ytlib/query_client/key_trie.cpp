@@ -273,7 +273,7 @@ void GetRangesFromTrieWithinRangeImpl(
                     ? getFirstKeyRangeComponent(i)
                     : MakeUnversionedSentinelValue(EValueType::Min));
             }
-            range.first = builder.GetRowAndReset();
+            range.first = builder.FinishRow();
 
             for (size_t i = 0; i < prefix.size(); ++i) {
                 // We need to make result range with excluded upper bound
@@ -288,7 +288,7 @@ void GetRangesFromTrieWithinRangeImpl(
                     ? getSecondKeyRangeComponent(i)
                     : MakeUnversionedSentinelValue(EValueType::Max));
             }
-            range.second = builder.GetRowAndReset();
+            range.second = builder.FinishRow();
             result->push_back(range);
         }
         return;
@@ -354,7 +354,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
         
-        range.first = builder.GetRowAndReset();
+        range.first = builder.FinishRow();
 
         for (size_t j = 0; j < prefix.size(); ++j) {
             builder.AddValue(prefix[j]);
@@ -380,7 +380,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
 
-        range.second = builder.GetRowAndReset();
+        range.second = builder.FinishRow();
         result->push_back(range);
     }
 

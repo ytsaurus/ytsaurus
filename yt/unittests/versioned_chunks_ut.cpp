@@ -223,7 +223,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
+    lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -390,7 +390,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
+    lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -427,7 +427,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
     lowerKeyBuilder.AddValue(MakeUnversionedDoubleValue(2, 1));
 
     TReadLimit lowerLimit;
-    lowerLimit.SetKey(lowerKeyBuilder.GetRowAndReset());
+    lowerLimit.SetKey(lowerKeyBuilder.FinishRow());
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),

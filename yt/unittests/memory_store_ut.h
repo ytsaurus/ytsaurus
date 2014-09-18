@@ -209,7 +209,7 @@ protected:
             }
         }
 
-        return builder.GetRowAndReset();
+        return builder.FinishRow();
     }
 
     TTimestamp CurrentTimestamp;

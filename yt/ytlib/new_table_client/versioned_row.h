@@ -299,7 +299,7 @@ public:
     void AddValue(const TVersionedValue& value);
     void AddDeleteTimestamp(TTimestamp timestamp);
 
-    TVersionedRow GetRowAndReset();
+    TVersionedRow FinishRow();
 
 private:
     TRowBuffer* Buffer_;

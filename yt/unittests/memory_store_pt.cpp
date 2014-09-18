@@ -43,7 +43,7 @@ public:
             TUnversionedOwningRowBuilder builder;
             builder.AddValue(MakeUnversionedInt64Value(RandomNumber<ui64>(1000000000), 0));
 
-            auto key = builder.GetRowAndReset();
+            auto key = builder.FinishRow();
             auto keySuccessor = GetKeySuccessor(key.Get());
 
             auto reader = DynamicStore->CreateReader(
@@ -64,7 +64,7 @@ public:
             builder.AddValue(MakeUnversionedInt64Value(123, 1));
             builder.AddValue(MakeUnversionedDoubleValue(3.1415, 2));
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
-            auto row = builder.GetRowAndReset();
+            auto row = builder.FinishRow();
 
             auto dynamicRow = DynamicStore->WriteRow(
                 transaction.get(),

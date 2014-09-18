@@ -99,7 +99,7 @@ protected:
             builder.AddDeleteTimestamp(SecondsToTimestamp(timestamp));
         }
 
-        return builder.GetRowAndReset();
+        return builder.FinishRow();
     }
 
     TUnversionedRow BuildUnversionedRow(const Stroka& valueYson)
