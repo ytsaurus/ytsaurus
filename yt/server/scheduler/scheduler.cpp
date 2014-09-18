@@ -128,7 +128,7 @@ public:
     void Initialize()
     {
         InitStrategy();
-        
+
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TThis::RequestPools,
             Unretained(this)));
@@ -329,6 +329,8 @@ public:
             TInstant::Now());
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
+
+        RegisterOperationMutation(operation);
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, MutationId: %s, User: %s)",
             ~type.ToString(),
@@ -544,7 +546,7 @@ public:
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
-    
+
     DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
 
@@ -797,7 +799,7 @@ private:
             TError("Scheduler transaction has expired or was aborted"));
     }
 
-    
+
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
@@ -825,7 +827,7 @@ private:
             LOG_ERROR(ex, "Error parsing pools configuration");
         }
     }
-    
+
     void RequestOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -851,7 +853,7 @@ private:
 
         auto operationNode = ConvertToNode(TYsonString(rsp->value()));
         auto attributesNode = ConvertToNode(operationNode->Attributes());
-        
+
         OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
     }
 
@@ -1009,6 +1011,7 @@ private:
             return;
         }
 
+        RegisterOperationMutation(operation);
         RegisterOperation(operation);
 
         BIND(&TThis::DoReviveOperation, MakeStrong(this), operation)
@@ -1118,18 +1121,20 @@ private:
         YCHECK(AddressToNode_.erase(address) == 1);
     }
 
+    void RegisterOperationMutation(TOperationPtr operation)
+    {
+        auto mutationId = operation->GetMutationId();
+        if (mutationId != NullMutationId) {
+            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
+        }
+    }
 
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
 
-        auto mutationId = operation->GetMutationId();
-        if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
-        }
-
         OperationRegistered_.Fire(operation);
-        
+
         GetMasterConnector()->AddOperationWatcherRequester(
             operation,
             BIND(&TThis::RequestOperationRuntimeParams, Unretained(this), operation));
