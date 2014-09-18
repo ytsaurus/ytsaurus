@@ -298,7 +298,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     ItemMap_.erase(it);
     --ItemMapSize_;
 
-    Pop(item, value.Get());
+    Pop(item);
 
     // Release the guard right away to prevent recursive spinlock acquisition.
     // Indeed, the item's dtor may drop the last reference
@@ -330,7 +330,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::Remove(TValuePtr value)
         ItemMap_.erase(itemIt);
         --ItemMapSize_;
 
-        Pop(item, value.Get());
+        Pop(item);
 
         delete item;
     }
@@ -424,11 +424,11 @@ void TSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item, TValue* value)
+void TSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
     if (item->Empty())
         return;
-    i64 weight = GetWeight(value);
+    i64 weight = GetWeight(item->Value.Get());
     if (item->Younger) {
         YoungerWeight_ -= weight;
     } else {
@@ -461,7 +461,7 @@ void TSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         auto* item = &*(--YoungerLruList_.End());
         auto value = item->Value;
 
-        Pop(item, value.Get());
+        Pop(item);
 
         YCHECK(ItemMap_.erase(value->GetKey()) == 1);
         --ItemMapSize_;

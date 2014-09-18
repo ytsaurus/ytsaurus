@@ -143,7 +143,7 @@ private:
     void PushToYounger(TItem* item);
     void MoveToYounger(TItem* item);
     void MoveToOlder(TItem* item);
-    void Pop(TItem* item, TValue* value);
+    void Pop(TItem* item);
     void TrimIfNeeded();
 
 };
