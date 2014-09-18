@@ -56,7 +56,7 @@ template <class TKey, class TValue, class THash>
 typename TSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
-    NConcurrency::TReaderGuard readerGuard(SpinLock_);
+    NConcurrency::TReaderGuard guard(SpinLock_);
 
     auto itemIt = ItemMap_.find(key);
     if (itemIt == ItemMap_.end()) {
@@ -64,12 +64,16 @@ TSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     }
 
     auto* item = itemIt->second;
-    if (CanTouch(item)) {
-        auto writerGuard = readerGuard.Upgrade();
-        Touch(item);
+    bool canTouch = CanTouch(item);
+    auto value = item->Value;
+
+    guard.Release();
+
+    if (canTouch) {
+        Touch(key);
     }
 
-    return item->Value;
+    return value;
 }
 
 template <class TKey, class TValue, class THash>
@@ -100,11 +104,16 @@ TSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             auto itemIt = ItemMap_.find(key);
             if (itemIt != ItemMap_.end()) {
                 auto* item = itemIt->second;
-                if (CanTouch(item)) {
-                    auto writerGuard = readerGuard.Upgrade();
-                    Touch(item);
+                bool canTouch = CanTouch(item);
+                auto valueOrErrorPromise = item->ValueOrErrorPromise;
+
+                readerGuard.Release();
+
+                if (canTouch) {
+                    Touch(key);
                 }
-                return item->ValueOrErrorPromise;
+
+                return valueOrErrorPromise;
             }
 
             auto valueIt = ValueMap_.find(key);
@@ -113,24 +122,27 @@ TSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             }
 
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
+
+            readerGuard.Release();
+
             if (value) {
-                auto writerGuard = readerGuard.Upgrade();
+                NConcurrency::TWriterGuard writerGuard(SpinLock_);
 
                 auto* item = new TItem(value);
                 // This holds an extra reference to the promise state...
-                auto valueOrError = item->ValueOrErrorPromise;
+                auto valueOrErrorPromise = item->ValueOrErrorPromise;
 
                 ItemMap_.insert(std::make_pair(key, item));
                 ++ItemMapSize_;
 
-                PushToYounger(item, value.Get());
+                PushToYounger(item);
 
                 writerGuard.Release();
 
                 // ...since the item can be dead at this moment.
                 TrimIfNeeded();
 
-                return valueOrError;
+                return valueOrErrorPromise;
             }
         }
 
@@ -177,7 +189,7 @@ bool TSlruCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
                 ++ItemMapSize_;
 
-                PushToYounger(item, value.Get());
+                PushToYounger(item);
 
                 cookie->ValueOrErrorPromise_ = item->ValueOrErrorPromise;
 
@@ -228,7 +240,7 @@ void TSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCook
         auto it = ItemMap_.find(key);
         if (it != ItemMap_.end()) {
             auto* item = it->second;
-            PushToYounger(item, value.Get());
+            PushToYounger(item);
         }
     }
 
@@ -336,17 +348,25 @@ bool TSlruCacheBase<TKey, TValue, THash>::CanTouch(TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::Touch(TItem* item)
+void TSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 {
     static auto MinTouchPeriod = TDuration::MilliSeconds(100);
-    if (!item->Empty()) {
-        auto value = item->Value;
-        MoveToOlder(item, value.Get());
-        item->Unlink();
-        item->Younger = false;
-        item->NextTouchInstant = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(MinTouchPeriod);
-        OlderLruList_.PushFront(item);
-    }
+
+    NConcurrency::TWriterGuard guard(SpinLock_);
+
+    auto it = ItemMap_.find(key);
+    if (it == ItemMap_.end())
+        return;
+
+    auto* item = it->second;
+    if (item->Empty())
+        return;
+
+    MoveToOlder(item);
+    item->Unlink();
+    item->Younger = false;
+    item->NextTouchInstant = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(MinTouchPeriod);
+    OlderLruList_.PushFront(item);
 }
 
 template <class TKey, class TValue, class THash>
@@ -364,22 +384,22 @@ int TSlruCacheBase<TKey, TValue, THash>::GetSize() const
 }
 
 template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item, TValue* value)
+void TSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
     YASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
-    YoungerWeight_ += GetWeight(value);
+    YoungerWeight_ += GetWeight(item->Value.Get());
     item->Younger = true;
 }
 
 template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item, TValue* value)
+void TSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
 {
     YASSERT(!item->Empty());
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
-        i64 weight = GetWeight(value);
+        i64 weight = GetWeight(item->Value.Get());
         OlderWeight_ -= weight;
         YoungerWeight_ += weight;
         item->Younger = true;
@@ -387,13 +407,13 @@ void TSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item, TValue* val
 }
 
 template <class TKey, class TValue, class THash>
-void TSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item, TValue* value)
+void TSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
 {
     YASSERT(!item->Empty());
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
-        i64 weight = GetWeight(value);
+        i64 weight = GetWeight(item->Value.Get());
         YoungerWeight_ -= weight;
         OlderWeight_ += weight;
         item->Younger = false;
@@ -425,11 +445,7 @@ void TSlruCacheBase<TKey, TValue, THash>::TrimIfNeeded()
             break;
 
         auto* item = &*(--OlderLruList_.End());
-        auto value = item->Value;
-
-        MoveToYounger(item, value.Get());
-
-        guard.Release();
+        MoveToYounger(item);
     }
 
     // Evict from younger.

@@ -138,11 +138,11 @@ private:
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
     static bool CanTouch(TItem* item);
-    void Touch(TItem* item);
+    void Touch(const TKey& key);
     void Unregister(const TKey& key);
-    void PushToYounger(TItem* item, TValue* value);
-    void MoveToYounger(TItem* item, TValue* value);
-    void MoveToOlder(TItem* item, TValue* value);
+    void PushToYounger(TItem* item);
+    void MoveToYounger(TItem* item);
+    void MoveToOlder(TItem* item);
     void Pop(TItem* item, TValue* value);
     void TrimIfNeeded();
 
