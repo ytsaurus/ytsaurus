@@ -128,11 +128,14 @@ TSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             if (value) {
                 NConcurrency::TWriterGuard writerGuard(SpinLock_);
 
+                if (ItemMap_.find(key) != ItemMap_.end())
+                    continue;
+
                 auto* item = new TItem(value);
                 // This holds an extra reference to the promise state...
                 auto valueOrErrorPromise = item->ValueOrErrorPromise;
 
-                ItemMap_.insert(std::make_pair(key, item));
+                YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
                 ++ItemMapSize_;
 
                 PushToYounger(item);
