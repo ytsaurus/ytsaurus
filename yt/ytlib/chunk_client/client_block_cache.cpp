@@ -66,14 +66,9 @@ public:
 
     virtual TSharedRef Find(const TBlockId& id) override
     {
-        auto asyncResult = Lookup(id);
-        if (asyncResult) {
-            auto result = asyncResult.Get();
-            YCHECK(result.IsOK());
-            auto block = result.Value();
-
+        auto block = TSlruCacheBase::Find(id);
+        if (block) {
             LOG_DEBUG("Block cache hit (BlockId: %v)", id);
-
             return block->GetData();
         } else {
             LOG_DEBUG("Block cache miss (BlockId: %v)", id);
