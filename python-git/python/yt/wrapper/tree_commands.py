@@ -243,9 +243,9 @@ def find_free_subpath(path, client=None):
     #if not path.endswith("/") and not exists(path):
     #    return path
     LENGTH = 10
-    char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
+    char_set = string.ascii_letters + string.digits
     while True:
-        name = "%s%s" % (path, "".join(random.sample(char_set, LENGTH)))
+        name = "".join([path] + random.sample(char_set, LENGTH))
         if not exists(name, client=client):
             return name
 
