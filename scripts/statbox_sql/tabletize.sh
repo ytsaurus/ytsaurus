@@ -36,3 +36,14 @@ export YT_PROXY=barney.yt.yandex.net
                {name=geoid__lvl;type=int64}]' \
     --key-columns '[projectid;geoid;fielddate]'
 
+./tabletize.py --input //home/hans/report_Search_Mobile_All_Adhoc_AudienceMobileWebShort_daily --output //tmp/mobile_web \
+    --schema '[{name=old_cookie;type=string};
+               {name=platform_type;type=string};
+               {name=fielddate;type=date};
+               {name=searcher;type=string};
+               {name=measure;type=string};
+               {name=region_sname;type=string};
+               {name=platform_type__lvl;type=string}]' \
+    --key-columns '[old_cookie;platform_type;searcher;fielddate]' \
+    --hash-columns '[old_cookie;platform_type;searcher]'
+

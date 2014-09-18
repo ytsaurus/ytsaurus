@@ -7,9 +7,13 @@ import sys
 import argparse
 from datetime import datetime
 from copy import deepcopy
+from itertools import groupby
         
 MOD = 2 ** 60
 SHARD_COUNT = 500
+
+def unique_list(list):
+    return [item[0] for item in groupby(list)]
 
 def date_to_timestamp(date_str):
     #2000-11-01 00:00:00
@@ -109,6 +113,7 @@ def main():
                 yt.read_table(yt.TablePath(temp, start_index=index, end_index=index+1),
                               format=yt.SchemafulDsvFormat(columns=key_columns), raw=False).next().values()
                 for index in xrange(1, row_count, row_count / SHARD_COUNT)]
+        pivot_keys = unique_list(pivot_keys)
 
 
     yt.reshard_table(args.output, pivot_keys)

@@ -9,7 +9,7 @@ index=0
 
 insert() {
     portion_number=$(($portion_number + 1))
-    echo "Portion number $portion_number" >&2
+    #echo "Portion number $portion_number" >&2
     cat file | yt insert "$output_table" --format yson
     rm -rf file
     index=0
