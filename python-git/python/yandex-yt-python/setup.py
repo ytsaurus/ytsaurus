@@ -42,6 +42,9 @@ def main():
             subprocess.check_call("sphinx-apidoc -F -o docs yt", shell=True)
             subprocess.check_call("sphinx-build -b html docs docs/_build/", shell=True)
         data_files += build_documentation_files("docs/_build/", "/usr/share/doc/yandex-yt-python-docs")
+    else:
+        # We cannot create link in the egg, so we must put yt binary.
+        scripts.append("yt/wrapper/yt")
 
     version = get_version()
     with open("yt/wrapper/version.py", "w") as version_output:
