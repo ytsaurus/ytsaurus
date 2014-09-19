@@ -5,6 +5,7 @@
 #include <ytlib/cgroup/cgroup.h>
 
 #include <core/misc/proc.h>
+#include <core/misc/fs.h>
 
 #ifdef _linux_
   #include <sys/wait.h>
@@ -181,6 +182,7 @@ TEST(CGroup, GetMemoryStats)
 
     auto stats = group.GetStatistics();
     EXPECT_EQ(0, stats.UsageInBytes);
+    EXPECT_EQ(0, stats.Rss);
 
     group.Destroy();
 }
@@ -218,6 +220,7 @@ TEST(CGroup, UsageInBytesWithoutLimit)
     auto statistics = group.GetStatistics();
     EXPECT_TRUE(statistics.UsageInBytes >= memoryUsage);
     EXPECT_TRUE(statistics.MaxUsageInBytes >= memoryUsage);
+    EXPECT_TRUE(statistics.Rss >= memoryUsage);
 
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
 
@@ -448,6 +451,53 @@ TEST(CGroup, ParentLimitTwoChildren)
     EXPECT_TRUE(children[index].GetStatistics().MaxUsageInBytes < limit);
 
     EXPECT_EQ(pids[1 - index], waitpid(pids[1 - index], nullptr, 0));
+}
+
+// This test proves that there is a bug in memory cgroup
+TEST(CGroup, Bug)
+{
+    char buffer[1024];
+
+    TMemory group("something_different");
+    group.Create();
+
+    i64 num = 1;
+    auto exitBarier = ::eventfd(0, 0);
+    auto initBarier = ::eventfd(0, 0);
+
+    const auto filename = NFS::CombinePaths(group.GetFullPath(), "memory.usage_in_bytes");
+    int fd = ::open(~filename, 0);
+    int reallyRead = ::read(fd, buffer, 1024);
+
+    ASSERT_TRUE(reallyRead > 0);
+    EXPECT_STREQ(~Stroka(buffer, reallyRead), "0\n");
+
+    auto pid = fork();
+    if (pid == 0) {
+        group.AddCurrentTask();
+
+        auto otherPid = fork();
+        if (otherPid == 0) {
+            num = 1;
+            YCHECK(::write(initBarier, &num, sizeof(num)) == sizeof(num));
+            YCHECK(::read(exitBarier, &num, sizeof(num)) == sizeof(num));
+            _exit(2);
+        }
+        waitpid(otherPid, NULL, 0);
+        _exit(1);
+    }
+
+    EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
+
+    reallyRead = ::read(fd, buffer, 1024);
+    // reallyRead SHOULD BE equal to 0
+    ASSERT_TRUE(reallyRead > 0);
+
+    num = 1;
+    EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
+
+    auto waitedpid = waitpid(pid, NULL, 0);
+    EXPECT_TRUE(waitedpid == pid);
 }
 
 TEST(CurrentProcessCGroup, Empty)

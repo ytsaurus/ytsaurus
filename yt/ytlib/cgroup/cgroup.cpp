@@ -46,6 +46,8 @@ Stroka GetParentFor(const Stroka& type)
 yvector<Stroka> ReadAllValues(const Stroka& fileName)
 {
     auto raw = TFileInput(fileName).ReadAll();
+    LOG_DEBUG("File %Qv contains: %v", fileName, raw);
+
     yvector<Stroka> values;
     Split(raw.data(), " \n", values);
     return values;
@@ -458,14 +460,18 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& type = values[3 * lineNumber + 1];
             i64 bytes = FromString<i64>(values[3 * lineNumber + 2]);
 
-            YCHECK(deviceId.has_prefix("8:"));
+            if (!deviceId.has_prefix("8:")) {
+                THROW_ERROR_EXCEPTION("Unable to parse %s: %s should start from 8:", ~path.Quote(), ~deviceId);
+            }
 
             if (type == "Read") {
                 result.BytesRead += bytes;
             } else if (type == "Write") {
                 result.BytesWritten += bytes;
             } else {
-                YCHECK(type != "Sync" && type != "Async" && type != "Total");
+                if (type != "Sync" && type != "Async" && type != "Total") {
+                    THROW_ERROR_EXCEPTION("Unable to parse %s: unexpected stat type %s", ~path.Quote(), ~type);
+                }
             }
             ++lineNumber;
         }
@@ -480,10 +486,8 @@ TBlockIO::TStatistics TBlockIO::GetStatistics()
             const Stroka& deviceId = values[2 * lineNumber];
             i64 sectors = FromString<i64>(values[2 * lineNumber + 1]);
 
-            if (deviceId.Size() <= 2 || deviceId.has_prefix("8:")) {
-                THROW_ERROR_EXCEPTION("Unable to parse %v: %Qv should start with \"8:\"",
-                    path,
-                    deviceId);
+            if (!deviceId.has_prefix("8:")) {
+                THROW_ERROR_EXCEPTION("Unable to parse %Qv: %v should start from 8:", path, deviceId);
             }
 
             result.TotalSectors += sectors;
@@ -518,14 +522,27 @@ TMemory::TStatistics TMemory::GetStatistics()
 #ifdef _linux_
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "memory.usage_in_bytes");
-        auto rawData = TFileInput(filename).ReadAll();
-        result.UsageInBytes = FromString<i64>(strip(rawData));
+        auto rawData = TBufferedFileInput(filename).ReadLine();
+        result.UsageInBytes = FromString<i64>(rawData);
     }
 
     {
         const auto filename = NFS::CombinePaths(GetFullPath(), "memory.max_usage_in_bytes");
-        auto rawData = TFileInput(filename).ReadAll();
-        result.MaxUsageInBytes = FromString<i64>(strip(rawData));
+        auto rawData = TBufferedFileInput(filename).ReadLine();
+        result.MaxUsageInBytes = FromString<i64>(rawData);
+    }
+
+    {
+        auto values = ReadAllValues(NFS::CombinePaths(FullPath_, "memory.stat"));
+        int lineNumber = 0;
+        while (2 * lineNumber + 1 < values.size()) {
+            const Stroka& type = values[2 * lineNumber];
+            const i64 value = FromString<i64>(values[2 * lineNumber + 1]);
+            if (type == "rss") {
+                result.Rss = value;
+            }
+            ++lineNumber;
+        }
     }
 #endif
     return result;

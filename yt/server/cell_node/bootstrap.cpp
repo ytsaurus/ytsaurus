@@ -245,6 +245,8 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
 
+    JobProxyConfig->ForceEnableAccounting = Config->ExecAgent->ForceEnableAccounting;
+
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();

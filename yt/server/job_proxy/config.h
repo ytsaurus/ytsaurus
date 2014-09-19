@@ -40,6 +40,8 @@ public:
 
     double MemoryLimitMultiplier;
 
+    bool ForceEnableAccounting;
+
     int UserId;
 
     NScheduler::TJobIOConfigPtr JobIO;
@@ -65,6 +67,8 @@ public:
             .DefaultNew();
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
+        RegisterParameter("force_enable_accounting", ForceEnableAccounting)
+            .Default(false);
         
         RegisterParameter("user_id", UserId).
             Default(-1);

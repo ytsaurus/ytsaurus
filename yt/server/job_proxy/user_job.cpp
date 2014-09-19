@@ -122,10 +122,17 @@ public:
 
         InitCompleted = true;
 
-        if (UserJobSpec.enable_accounting()) {
+        auto host = Host.Lock();
+        YCHECK(host);
+
+        auto config = host->GetConfig();
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
-            CreateCGroup(Memory);
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                CreateCGroup(Memory);
+            }
         }
 
         ProcessStartTime = TInstant::Now();
@@ -154,7 +161,7 @@ public:
             Process.AddArgument(::ToString(jobPipe.PipeIndex));
         }
 
-        if (UserJobSpec.enable_accounting()) {
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             Process.AddArgument("--cgroup");
             Process.AddArgument(CpuAccounting.GetFullPath());
 
@@ -249,18 +256,22 @@ public:
             }
         }
 
-        if (UserJobSpec.enable_accounting()) {
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             RetrieveStatistics(CpuAccounting, [&] (NCGroup::TCpuAccounting& cgroup) {
                     CpuAccountingStats = cgroup.GetStatistics();
                 });
             RetrieveStatistics(BlockIO, [&] (NCGroup::TBlockIO& cgroup) {
                     BlockIOStats = cgroup.GetStatistics();
                 });
-            RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
 
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
-            DestroyCGroup(Memory);
+
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+                RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
+                DestroyCGroup(Memory);
+            }
         }
 
         if (ErrorOutput) {
@@ -544,29 +555,47 @@ private:
             return;
         }
 
-        if (!Memory.IsCreated()) {
-            return;
-        }
-
         try {
+            auto pids = GetPidsByUid(uid);
+
             i64 memoryLimit = UserJobSpec.memory_limit();
-            auto statistics = Memory.GetStatistics();
-            LOG_DEBUG("Get memory usage (JobId: %v, UsageInBytes: %v, MemoryLimit: %v)",
+            i64 rss = 0;
+            FOREACH(int pid, pids) {
+                try {
+                    i64 processRss = GetProcessRss(pid);
+                    // ProcessId itself is skipped since it's always 'sh'.
+                    // This also helps to prevent taking proxy's own RSS into account
+                    // when it has fork-ed but not exec-uted the child process yet.
+                    bool skip = (pid == ProcessId);
+                    LOG_DEBUG("PID: %v, RSS: %v %v",
+                        pid,
+                        processRss,
+                        skip ? " (skipped)" : "");
+                    if (!skip) {
+                        rss += processRss;
+                    }
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG(ex, "Failed to get RSS for PID %v",
+                        pid);
+                }
+            }
+
+            LOG_DEBUG("Get memory usage (JobId: %v, Rss: %v, MemoryLimit: %v)",
                 JobId,
-                statistics.UsageInBytes,
+                rss,
                 memoryLimit);
 
-            if (statistics.UsageInBytes > memoryLimit) {
+            if (rss > memoryLimit) {
                 SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
-                    << TErrorAttribute("usage_in_bytes", statistics.UsageInBytes)
+                    << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit));
                 NCGroup::RunKiller(Memory.GetFullPath());
                 return;
             }
 
-            if (statistics.UsageInBytes > MemoryUsage) {
-                i64 delta = statistics.UsageInBytes - MemoryUsage;
+            if (rss > MemoryUsage) {
+                i64 delta = rss - MemoryUsage;
                 LOG_INFO("Memory usage increased by %v", delta);
 
                 MemoryUsage += delta;
@@ -575,9 +604,28 @@ private:
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
                 host->SetResourceUsage(resourceUsage);
             }
+
+            {
+                TGuard<TSpinLock> guard(MemoryLock);
+
+                if (!Memory.IsCreated()) {
+                    return;
+                }
+
+                auto statistics = Memory.GetStatistics();
+                LOG_DEBUG("Memory usage. Old way: %" PRId64 " , CGroup way: %" PRId64,
+                    rss,
+                    statistics.Rss);
+            }
         } catch (const std::exception& ex) {
             SetError(ex);
-            NCGroup::RunKiller(Memory.GetFullPath());
+
+            TGuard<TSpinLock> guard(MemoryLock);
+
+            if (!Memory.IsCreated()) {
+                return;
+            }
+            KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
         }
     }
 
@@ -589,7 +637,11 @@ private:
         ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
         ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
 
-        if (UserJobSpec.enable_accounting()) {
+        auto host = Host.Lock();
+        if (!host)
+            return result;
+
+        if (UserJobSpec.enable_accounting() || host->GetConfig()->ForceEnableAccounting) {
             ToProto(result.mutable_cpu(), CpuAccountingStats);
             ToProto(result.mutable_block_io(), BlockIOStats);
         }
@@ -670,6 +722,8 @@ private:
     NCGroup::TBlockIO::TStatistics BlockIOStats;
 
     NCGroup::TMemory Memory;
+    TSpinLock MemoryLock;
+
     TStatistics Statistics;
 };
 
