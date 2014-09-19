@@ -28,7 +28,7 @@ TEST(TProcessTest, InvalidPath)
 
 TEST(TProcessTest, BadDup)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/date");
     p.AddDup2FileAction(1000, 1);
     auto error = p.Spawn();
     ASSERT_FALSE(error.IsOK());
@@ -36,7 +36,7 @@ TEST(TProcessTest, BadDup)
 
 TEST(TProcessTest, GoodDup)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/date");
     p.AddDup2FileAction(2, 3);
     auto error = p.Spawn();
     ASSERT_TRUE(error.IsOK());
@@ -45,9 +45,11 @@ TEST(TProcessTest, GoodDup)
     ASSERT_TRUE(error.IsOK()) << ToString(error);
 }
 
-TEST(TProcess, IngnoreCloseInvalidFd)
+TEST(TProcess, IgnoreCloseInvalidFd)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("exit 0");
     p.AddCloseFileAction(74);
 
     auto error = p.Spawn();
@@ -59,7 +61,9 @@ TEST(TProcess, IngnoreCloseInvalidFd)
 
 TEST(TProcessTest, ProcessReturnCode0)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("exit 0");
 
     auto error = p.Spawn();
     ASSERT_TRUE(error.IsOK());
@@ -70,7 +74,9 @@ TEST(TProcessTest, ProcessReturnCode0)
 
 TEST(TProcessTest, ProcessReturnCode1)
 {
-    TProcess p("/bin/false");
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("exit 1");
 
     auto error = p.Spawn();
     ASSERT_TRUE(error.IsOK());

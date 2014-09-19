@@ -29,11 +29,15 @@ TEST(CGroup, CreateDestroy)
     }
 }
 
+#ifdef _linux_
+
 TEST(CGroup, NotExistingGroupGetTasks)
 {
     TBlockIO group("wierd_name");
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
+
+#endif
 
 TEST(CGroup, DoubleCreate)
 {
