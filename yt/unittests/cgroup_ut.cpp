@@ -181,7 +181,7 @@ TEST(CGroup, GetMemoryStats)
     group.Create();
 
     auto stats = group.GetStatistics();
-    EXPECT_EQ(0, stats.UsageInBytes);
+    EXPECT_EQ(0, group.GetUsageInBytes());
     EXPECT_EQ(0, stats.Rss);
 
     group.Destroy();
@@ -218,8 +218,8 @@ TEST(CGroup, UsageInBytesWithoutLimit)
     EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
 
     auto statistics = group.GetStatistics();
-    EXPECT_TRUE(statistics.UsageInBytes >= memoryUsage);
-    EXPECT_TRUE(statistics.MaxUsageInBytes >= memoryUsage);
+    EXPECT_TRUE(group.GetUsageInBytes() >= memoryUsage);
+    EXPECT_TRUE(group.GetMaxUsageInBytes() >= memoryUsage);
     EXPECT_TRUE(statistics.Rss >= memoryUsage);
 
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
@@ -448,7 +448,7 @@ TEST(CGroup, ParentLimitTwoChildren)
     EXPECT_TRUE(oomEvents[1 - index].Fired());
     EXPECT_TRUE(parentOom.Fired());
 
-    EXPECT_TRUE(children[index].GetStatistics().MaxUsageInBytes < limit);
+    EXPECT_TRUE(children[index].GetMaxUsageInBytes() < limit);
 
     EXPECT_EQ(pids[1 - index], waitpid(pids[1 - index], nullptr, 0));
 }

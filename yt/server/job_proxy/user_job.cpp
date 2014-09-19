@@ -129,6 +129,8 @@ public:
         if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
             CreateCGroup(CpuAccounting);
             CreateCGroup(BlockIO);
+
+            if (config->EnableCGroupMemoryHierarchy)
             {
                 TGuard<TSpinLock> guard(MemoryLock);
                 CreateCGroup(Memory);
@@ -168,8 +170,10 @@ public:
             Process.AddArgument("--cgroup");
             Process.AddArgument(BlockIO.GetFullPath());
 
-            Process.AddArgument("--cgroup");
-            Process.AddArgument(Memory.GetFullPath());
+            if (config->EnableCGroupMemoryHierarchy) {
+                Process.AddArgument("--cgroup");
+                Process.AddArgument(Memory.GetFullPath());
+            }
         }
 
         if (UserJobSpec.use_yamr_descriptors()) {
@@ -267,6 +271,7 @@ public:
             DestroyCGroup(CpuAccounting);
             DestroyCGroup(BlockIO);
 
+            if (config->EnableCGroupMemoryHierarchy)
             {
                 TGuard<TSpinLock> guard(MemoryLock);
                 RetrieveStatistics(Memory, [&] (NCGroup::TMemory& cgroup) { });
@@ -615,7 +620,7 @@ private:
                 auto statistics = Memory.GetStatistics();
                 LOG_DEBUG("Memory usage. Old way: %" PRId64 " , CGroup way: %" PRId64,
                     rss,
-                    statistics.Rss);
+                    statistics.Rss + statistics.MappedFile);
             }
         } catch (const std::exception& ex) {
             SetError(ex);
@@ -625,7 +630,7 @@ private:
             if (!Memory.IsCreated()) {
                 return;
             }
-            KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
+            NCGroup::RunKiller(Memory.GetFullPath());
         }
     }
 

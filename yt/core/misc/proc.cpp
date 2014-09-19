@@ -205,17 +205,6 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 #else
 
-void RunKiller(const Stroka&)
-{
-    YUNIMPLEMENTED();
-}
-
-
-void KillProcessGroup(const Stroka&)
-{
-    YUNIMPLEMENTED();
-}
-
 TError StatusToError(int status)
 {
     UNUSED(status);

@@ -42,6 +42,8 @@ public:
 
     bool ForceEnableAccounting;
 
+    bool EnableCGroupMemoryHierarchy;
+
     int UserId;
 
     NScheduler::TJobIOConfigPtr JobIO;
@@ -68,6 +70,8 @@ public:
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
         RegisterParameter("force_enable_accounting", ForceEnableAccounting)
+            .Default(false);
+        RegisterParameter("enable_cgroup_memory_hierarchy", EnableCGroupMemoryHierarchy)
             .Default(false);
         
         RegisterParameter("user_id", UserId).
