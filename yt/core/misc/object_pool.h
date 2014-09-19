@@ -45,7 +45,6 @@ private:
     TLockFreeQueue<T*> PooledObjects_;
     std::atomic<int> PoolSize_;
 
-
     TObjectPool();
 
     T* AllocateInstance();
