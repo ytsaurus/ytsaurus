@@ -74,7 +74,7 @@ public:
     //! freezer cgroup. It uses this to kill all job proxies descendant
     //! This option requires node server process to have permission
     //! to create freezer subcgroups
-    bool EnableCGroup;
+    bool EnableCGroups;
 
     TSlotManagerConfig()
     {
@@ -84,8 +84,8 @@ public:
             .Default(false);
         RegisterParameter("start_uid", StartUid)
             .Default(10000);
-        RegisterParameter("enable_cgroup", EnableCGroup)
-            .Default(false);
+        RegisterParameter("enable_cgroups", EnableCGroups)
+            .Default(true);
     }
 };
 

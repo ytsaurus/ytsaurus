@@ -44,7 +44,7 @@ TSlot::TSlot(
 
 void TSlot::Initialize()
 {
-    if (Config->EnableCGroup) {
+    if (Config->EnableCGroups) {
         try {
             ProcessGroup.EnsureExistance();
         } catch (const std::exception& ex) {
@@ -95,7 +95,7 @@ int TSlot::GetUserId() const
 
 const NCGroup::TNonOwningCGroup& TSlot::GetProcessGroup() const
 {
-    if (Config->EnableCGroup) {
+    if (Config->EnableCGroups) {
         return ProcessGroup;
     } else {
         return NullCGroup;
@@ -106,7 +106,7 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
 {
     std::vector<Stroka> result;
 
-    if (Config->EnableCGroup) {
+    if (Config->EnableCGroups) {
         auto subgroupName = GetSlotProcessGroup(SlotIndex);
 
         for (const auto& type : NCGroup::GetSupportedCGroups()) {
