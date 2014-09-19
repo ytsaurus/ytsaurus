@@ -185,8 +185,6 @@ TSchedulerThread::~TSchedulerThread()
 
 void TSchedulerThread::Start()
 {
-    Epoch.fetch_or((unsigned int)0x1, std::memory_order_relaxed);
-
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)",
         ThreadName);
 
@@ -199,14 +197,10 @@ void TSchedulerThread::Start()
 
 void TSchedulerThread::Shutdown()
 {
-    if (!IsRunning()) {
-        return;
-    }
-
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)",
         ThreadName);
 
-    Epoch.fetch_and(~((unsigned int)0x1), std::memory_order_relaxed);
+    Epoch.fetch_add((unsigned int)0x1, std::memory_order_relaxed);
 
     EventCount->NotifyAll();
 
@@ -237,6 +231,7 @@ void TSchedulerThread::ThreadMain()
 
     try {
         OnThreadStart();
+
         Started.Set();
 
         while (IsRunning()) {
@@ -429,7 +424,7 @@ TThreadId TSchedulerThread::GetId() const
 
 bool TSchedulerThread::IsRunning() const
 {
-    return (Epoch.load(std::memory_order_relaxed) & 0x1) == 0x1;
+    return (Epoch.load(std::memory_order_relaxed) & 0x1) == 0x0;
 }
 
 TFiber* TSchedulerThread::GetCurrentFiber()
