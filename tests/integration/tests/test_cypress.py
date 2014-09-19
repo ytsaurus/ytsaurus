@@ -400,6 +400,20 @@ class TestCypress(YTEnvSetup):
     def test_move_simple3(self):
         with pytest.raises(YtError): move('//tmp', '//tmp/a')
 
+    def test_move_preserve_account1(self):
+        create_account('max')
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@account', 'max')
+        move('//tmp/t1', '//tmp/t2', preserve_account="false") # preserve is OFF
+        assert get('//tmp/t2/@account') == 'tmp'
+
+    def test_move_preserve_account2(self):
+        create_account('max')
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@account', 'max')
+        move('//tmp/t1', '//tmp/t2') # preserve is ON
+        assert get('//tmp/t2/@account') == 'max'
+
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
@@ -656,10 +670,10 @@ class TestCypress(YTEnvSetup):
         create('map_node', '//tmp/map', attributes={'user_attr1': 10})
         set('//tmp/map/@user_attr2', 'abc')
         assert sorted(get('//tmp/map/@user_attribute_keys')) == sorted(['user_attr1', 'user_attr2'])
-        
+
         create('table', '//tmp/table')
         assert get('//tmp/table/@user_attribute_keys') == []
-        
+
         create('file', '//tmp/file')
         assert get('//tmp/file/@user_attribute_keys') == []
 

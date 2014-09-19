@@ -184,7 +184,9 @@ struct TCopyNodeOptions
 struct TMoveNodeOptions
     : public TTransactionalOptions
     , public TMutatingOptions
-{ };
+{
+    bool PreserveAccount = true;
+};
 
 struct TLinkNodeOptions
     : public TTransactionalOptions

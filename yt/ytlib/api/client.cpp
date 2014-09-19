@@ -888,6 +888,7 @@ private:
         SetTransactionId(req, options, true);
         GenerateMutationId(req, options);
         req->set_source_path(srcPath);
+        req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
 
         auto rsp = WaitFor(ObjectProxy_->Execute(req));
