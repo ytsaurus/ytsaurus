@@ -129,7 +129,7 @@ public:
     void Initialize()
     {
         InitStrategy();
-        
+
         MasterConnector_->AddGlobalWatcherRequester(BIND(
             &TImpl::RequestPools,
             Unretained(this)));
@@ -333,13 +333,13 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
+        RegisterOperationMutation(operation);
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, MutationId: %v, User: %v)",
             type,
             operationId,
             transactionId,
             mutationId,
             user);
-
 
         LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
             operationId,
@@ -548,7 +548,7 @@ public:
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
-    
+
     DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
 
@@ -787,7 +787,7 @@ private:
             TError("Scheduler transaction has expired or was aborted"));
     }
 
-    
+
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
@@ -815,7 +815,7 @@ private:
             LOG_ERROR(ex, "Error parsing pools configuration");
         }
     }
-    
+
     void RequestOperationRuntimeParams(
         TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -841,7 +841,7 @@ private:
 
         auto operationNode = ConvertToNode(TYsonString(rsp->value()));
         auto attributesNode = ConvertToNode(operationNode->Attributes());
-        
+
         OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
     }
 
@@ -1007,6 +1007,7 @@ private:
             return;
         }
 
+        RegisterOperationMutation(operation);
         RegisterOperation(operation);
 
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
@@ -1050,8 +1051,7 @@ private:
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
                 operation->GetId());
             auto wrappedError = TError("Operation has failed to revive") << ex;
-            SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector_->FlushOperationNode(operation);
+            OnOperationFailed(operation, wrappedError);
             return;
         }
 
@@ -1118,18 +1118,20 @@ private:
         YCHECK(AddressToNode_.erase(address) == 1);
     }
 
+    void RegisterOperationMutation(TOperationPtr operation)
+    {
+        auto mutationId = operation->GetMutationId();
+        if (mutationId != NullMutationId) {
+            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
+        }
+    }
 
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(IdToOperation_.insert(std::make_pair(operation->GetId(), operation)).second);
 
-        auto mutationId = operation->GetMutationId();
-        if (mutationId != NullMutationId) {
-            YCHECK(MutationIdToOperation_.insert(std::make_pair(mutationId, operation)).second);
-        }
-
         OperationRegistered_.Fire(operation);
-        
+
         GetMasterConnector()->AddOperationWatcherRequester(
             operation,
             BIND(&TImpl::RequestOperationRuntimeParams, Unretained(this), operation));

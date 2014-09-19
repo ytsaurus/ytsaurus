@@ -995,6 +995,10 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
+        // COMPAT(ignat)
+        if (context.GetVersion() < 42) {
+            NeedToRecomputeStatistics_ = true;
+        }
         ChunkMap_.LoadValues(context);
         ChunkListMap_.LoadValues(context);
     }

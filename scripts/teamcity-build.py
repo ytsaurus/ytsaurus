@@ -333,7 +333,6 @@ def run_perl_tests(options):
     kill_by_name("ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
-
 @yt_register_cleanup_step
 def clean_artifacts(options, n=10):
     for path in ls(
