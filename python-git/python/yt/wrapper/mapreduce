@@ -95,9 +95,15 @@ def writelines_silently(lines):
     try:
         for line in lines:
             sys.stdout.write(line)
-    except IOError:
-        sys.exit(1)
+    except Exception:
+        raise
     except:
+        # Trying to detect case of broken pipe
+        try:
+            sys.stdout.flush()
+        except IOError:
+            # Case of broken pipe
+            sys.exit(1)
         raise
 
 def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexisting_tables=False):
