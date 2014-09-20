@@ -65,6 +65,7 @@ from transaction import PingableTransaction, Transaction
 from format import create_format, YsonFormat
 from lock import lock
 from heavy_commands import make_heavy_request
+from http import NETWORK_ERRORS
 import yt.logger as logger
 
 from yt.yson import yson_to_json
@@ -521,7 +522,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     try:
                         for elem in iter:
                             yield elem
-                    except YtNetworkError as err:
+                    except tuple(NETWORK_ERRORS) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
                         logger.warning(err.message)
