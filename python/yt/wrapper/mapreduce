@@ -573,7 +573,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         die("Shutdown requested... exiting")
     except yt.YtError as error:
-        die(yt.errors.format_error(error))
+        die(yt.errors.format_error(error), error.code)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         die()
