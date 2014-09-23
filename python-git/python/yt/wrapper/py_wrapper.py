@@ -92,9 +92,17 @@ def create_modules_archive():
                 zip.write(file, relpath)
     return zip_filename
 
+def get_function_name(function):
+    if hasattr(function, "__name__"):
+        return function.__name__
+    elif hasattr(function, "__class__") and hasattr(function.__class__, "__name__"):
+        return function.__class__.__name__
+    else:
+        return "operation"
+
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=function.__name__+".")[1]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=get_function_name(function) + ".")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
