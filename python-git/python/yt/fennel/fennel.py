@@ -148,15 +148,25 @@ class EventLog(object):
         with self.yt.Transaction():
             rows_removed = self.yt.get(self._number_of_first_row_attr)
             begin -= rows_removed
-            assert begin >= 0
+
+            result = []
+            if begin < 0:
+                self.log.warning("%d < 0", begin)
+                archive_row_count = self.yt.get("{0}/@row_count".format(self._archive_table_name))
+                archive_begin = archive_row_count + begin
+                result.extend([item for item in self.yt.read_table(yt.TablePath(
+                    self._archive_table_name,
+                    start_index=archive_begin,
+                    end_index=archive_begin + count), format="json", raw=False)])
+
             self.log.debug("Reading %s event log. Begin: %d, count: %d",
                 self._table_name,
                 begin,
                 count)
-            result = [item for item in self.yt.read_table(yt.TablePath(
+            result.extend([item for item in self.yt.read_table(yt.TablePath(
                 self._table_name,
                 start_index=begin,
-                end_index=begin + count), format="json", raw=False)]
+                end_index=begin + count), format="json", raw=False)])
             self.log.debug("Reading is finished")
         if len(result) != count:
             raise EventLog.NotEnoughDataError("Not enough data. Got only {0} rows".format(len(result)))
