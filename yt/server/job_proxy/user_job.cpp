@@ -126,20 +126,9 @@ public:
         YCHECK(host);
 
         auto config = host->GetConfig();
-        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
-            CreateCGroup(CpuAccounting);
-            CreateCGroup(BlockIO);
-
-            if (config->EnableCGroupMemoryHierarchy)
-            {
-                TGuard<TSpinLock> guard(MemoryLock);
-                CreateCGroup(Memory);
-            }
-        }
 
         ProcessStartTime = TInstant::Now();
 
-        auto host = Host.Lock();
         Process.AddArgument("--executor");
         for (auto& pipe : InputPipes) {
             auto jobPipe = pipe->GetJobPipe();
@@ -182,7 +171,6 @@ public:
             Process.AddDup2FileAction(3, 1);
         }
 
-        auto config = host->GetConfig();
         Process.AddArgument("--config");
         Process.AddArgument(NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName));
         Process.AddArgument("--working-dir");
@@ -565,13 +553,13 @@ private:
 
             i64 memoryLimit = UserJobSpec.memory_limit();
             i64 rss = 0;
-            FOREACH(int pid, pids) {
+            for (int pid : pids) {
                 try {
                     i64 processRss = GetProcessRss(pid);
                     // ProcessId itself is skipped since it's always 'sh'.
                     // This also helps to prevent taking proxy's own RSS into account
                     // when it has fork-ed but not exec-uted the child process yet.
-                    bool skip = (pid == ProcessId);
+                    bool skip = (pid == Process.GetProcessId());
                     LOG_DEBUG("PID: %v, RSS: %v %v",
                         pid,
                         processRss,
