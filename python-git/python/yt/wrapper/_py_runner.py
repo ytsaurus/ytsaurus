@@ -7,27 +7,28 @@ def main():
 
     # Variable names start with "__" to avoid accidental intersection with scope of user function
     __operation_dump = sys.argv[1]
-    __modules_archive = sys.argv[2]
-    __main_filename = sys.argv[3]
-    __main_module_name = sys.argv[4]
-    __main_module_type = sys.argv[5]
-    __config_dump_filename = sys.argv[6]
+    __config_dump_filename = sys.argv[2]
 
-    # Unfortunately we cannot use fixes version of ZipFile
-    __zip = zipfile.ZipFile(__modules_archive)
-    __zip.extractall("modules")
-    __zip.close()
+    if len(sys.argv) > 3:
+        __modules_archive = sys.argv[3]
+        __main_filename = sys.argv[4]
+        __main_module_name = sys.argv[5]
+        __main_module_type = sys.argv[6]
 
+        # Unfortunately we cannot use fixes version of ZipFile
+        __zip = zipfile.ZipFile(__modules_archive)
+        __zip.extractall("modules")
+        __zip.close()
 
-    sys.path = ["./modules"] + sys.path
+        sys.path = ["./modules"] + sys.path
 
-    sys.modules['__main__'] = imp.load_module(__main_module_name,
-                                              open(__main_filename, 'rU'),
-                                              __main_filename,
-                                              ('', 'rU', imp.__dict__[__main_module_type]))
+        sys.modules['__main__'] = imp.load_module(__main_module_name,
+                                                  open(__main_filename, 'rU'),
+                                                  __main_filename,
+                                                  ('', 'rU', imp.__dict__[__main_module_type]))
 
-    for name in dir(sys.modules['__main__']):
-        globals()[name] = sys.modules['__main__'].__dict__[name]
+        for name in dir(sys.modules['__main__']):
+            globals()[name] = sys.modules['__main__'].__dict__[name]
 
     from yt.wrapper.pickling import load
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
