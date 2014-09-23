@@ -94,7 +94,7 @@ def create_modules_archive():
 
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=function.__name__+".")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
@@ -103,22 +103,6 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
         raise YtError("Using python implementation of yson parser in operations "
                       "is forbidden because of memory limit issues. "
                       "Install yandex-yt-python-yson to fix this problem.")
-
-    zip_filename = create_modules_archive()
-    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
-    main_module_type = "PY_SOURCE"
-    if is_running_interactively():
-        function_source_filename = inspect.getfile(function)
-        # If function is defined in terminal path is <stdin> or
-        # <ipython-input-*>
-        if not os.path.exists(function_source_filename):
-            function_source_filename = None
-    else:
-        function_source_filename = sys.modules['__main__'].__file__
-        if function_source_filename.endswith("pyc"):
-            main_module_type = "PY_COMPILED"
-    if function_source_filename:
-        shutil.copy(function_source_filename, main_filename)
 
     config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
     config_dict = {}
@@ -132,15 +116,38 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
     with open(config_filename, "w") as fout:
         dump(config_dict, fout)
 
-    return ("python _py_runner.py " + " ".join([
-                os.path.basename(function_filename),
-                os.path.basename(zip_filename),
-                os.path.basename(main_filename),
-                "_main_module",
-                main_module_type,
-                os.path.basename(config_filename)]),
-            os.path.join(LOCATION, "_py_runner.py"),
-            [function_filename, zip_filename, main_filename, config_filename])
+    if attributes.get('is_simple', False):
+        return ("python _py_runner.py " + " ".join([
+                    os.path.basename(function_filename),
+                    os.path.basename(config_filename)]),
+                os.path.join(LOCATION, "_py_runner.py"),
+                [function_filename, config_filename])
+    else:
+        zip_filename = create_modules_archive()
+        main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
+        main_module_type = "PY_SOURCE"
+        if is_running_interactively():
+            function_source_filename = inspect.getfile(function)
+            # If function is defined in terminal path is <stdin> or
+            # <ipython-input-*>
+            if not os.path.exists(function_source_filename):
+                function_source_filename = None
+        else:
+            function_source_filename = sys.modules['__main__'].__file__
+            if function_source_filename.endswith("pyc"):
+                main_module_type = "PY_COMPILED"
+        if function_source_filename:
+            shutil.copy(function_source_filename, main_filename)
+
+        return ("python _py_runner.py " + " ".join([
+                    os.path.basename(function_filename),
+                    os.path.basename(config_filename),
+                    os.path.basename(zip_filename),
+                    os.path.basename(main_filename),
+                    "_main_module",
+                    main_module_type]),
+                os.path.join(LOCATION, "_py_runner.py"),
+                [function_filename, config_filename, zip_filename, main_filename])
 
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
@@ -159,3 +166,7 @@ def raw(func):
 def raw_io(func):
     """Decorate function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
+
+def simple(func):
+    """Decorate function to be simple - without code or variable dependencies outside of body"""
+    return _set_attribute(func, "is_simple", True)
