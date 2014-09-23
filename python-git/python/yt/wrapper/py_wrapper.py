@@ -94,7 +94,7 @@ def create_modules_archive():
 
 def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".operation.dump")[1]
+    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=function.__name__+".")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
@@ -103,6 +103,25 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
         raise YtError("Using python implementation of yson parser in operations "
                       "is forbidden because of memory limit issues. "
                       "Install yandex-yt-python-yson to fix this problem.")
+
+    config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
+    config_dict = {}
+    for key in dir(format_config):
+        value = format_config.__dict__[key]
+        is_bad = any(isinstance(value, type)
+                     for type in [types.ModuleType, types.FileType, types.EllipsisType])
+        if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":
+            continue
+        config_dict[key] = value
+    with open(config_filename, "w") as fout:
+        dump(config_dict, fout)
+
+    if attributes.get('is_simple', False):
+        return ("python _py_runner.py " + " ".join([
+                    os.path.basename(function_filename),
+                    os.path.basename(config_filename)]),
+                os.path.join(LOCATION, "_py_runner.py"),
+                [function_filename, config_filename])
 
     zip_filename = create_modules_archive()
     main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
@@ -120,27 +139,15 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
-    config_dict = {}
-    for key in dir(format_config):
-        value = format_config.__dict__[key]
-        is_bad = any(isinstance(value, type)
-                     for type in [types.ModuleType, types.FileType, types.EllipsisType])
-        if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":
-            continue
-        config_dict[key] = value
-    with open(config_filename, "w") as fout:
-        dump(config_dict, fout)
-
     return ("python _py_runner.py " + " ".join([
                 os.path.basename(function_filename),
+                os.path.basename(config_filename),
                 os.path.basename(zip_filename),
                 os.path.basename(main_filename),
                 "_main_module",
-                main_module_type,
-                os.path.basename(config_filename)]),
+                main_module_type]),
             os.path.join(LOCATION, "_py_runner.py"),
-            [function_filename, zip_filename, main_filename, config_filename])
+            [function_filename, config_filename, zip_filename, main_filename])
 
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
@@ -159,3 +166,8 @@ def raw(func):
 def raw_io(func):
     """Decorate function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
+
+def simple(func):
+    """Decorate function to be simple - without code or variable dependencies outside of body.
+    It prevents library to collect dependency modules and send it with function."""
+    return _set_attribute(func, "is_simple", True)
