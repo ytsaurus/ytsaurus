@@ -19,8 +19,6 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
-static const auto& Logger = OperationLogger;
-
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripeStatistics::TChunkStripeStatistics()

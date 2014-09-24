@@ -28,11 +28,9 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
-using NConcurrency::WaitFor;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = JobProxyLogger;
 
 static const i64 InputBufferSize = (i64) 1 * 1024 * 1024;
 static const i64 OutputBufferSize = (i64) 1 * 1024 * 1024;

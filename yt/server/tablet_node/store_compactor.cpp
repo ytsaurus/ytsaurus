@@ -52,7 +52,6 @@ using namespace NTabletNode::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
 static const size_t MaxRowsPerRead = 1024;
 static const size_t MaxRowsPerWrite = 1024;
 

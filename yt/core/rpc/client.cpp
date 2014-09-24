@@ -16,8 +16,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcClientLogger;
-
 static auto ClientHostAnnotation = Stroka("client_host");
 static auto RequestIdAnnotation = Stroka("request_id");
 

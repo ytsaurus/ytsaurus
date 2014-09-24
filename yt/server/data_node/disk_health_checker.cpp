@@ -16,8 +16,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Profiler = DataNodeProfiler;
-
 static const Stroka TestFileName("health_check~");
 static const Stroka DisabledLockFileName("disabled");
 

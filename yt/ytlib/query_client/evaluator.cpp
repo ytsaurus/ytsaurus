@@ -35,8 +35,6 @@ namespace NQueryClient {
 
 using namespace NConcurrency;
 
-static const auto& Logger = QueryClientLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeLlvmImpl()
