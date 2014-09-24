@@ -24,6 +24,7 @@ class TestEventLog(YTEnvSetup):
             }
         }
     }
+
     DELTA_NODE_CONFIG = {
         'exec_agent' : {
             'slot_manager' : {

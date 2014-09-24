@@ -12,6 +12,15 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'slot_manager' : {
+                'enable_cgroups' : 'false'
+            },
+            'force_enable_accounting' : 'true'
+        }
+    }
+
     @only_linux
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
