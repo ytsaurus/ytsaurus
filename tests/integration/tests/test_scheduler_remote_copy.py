@@ -15,6 +15,14 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'slot_manager' : {
+                'enable_cgroups' : 'false'
+            },
+        }
+    }
+
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_SCHEDULERS = 1

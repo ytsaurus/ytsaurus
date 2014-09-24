@@ -32,6 +32,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
         {'exec_agent' :
             {'slot_manager' :
                   {'enforce_job_control'    : 'true',
+                   'enable_cgroups'         : 'false',
                    'memory_watchdog_period' : 100}
             }
         }

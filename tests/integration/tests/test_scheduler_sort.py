@@ -12,6 +12,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_NODE_CONFIG = {
+        'exec_agent' : {
+            'slot_manager' : {
+                'enable_cgroups' : 'false'
+            },
+        }
+    }
+
     def test_simple(self):
         v1 = {'key' : 'aaa'}
         v2 = {'key' : 'bb'}
