@@ -648,7 +648,7 @@ private:
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds())
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit));
-                KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
+                KillAll(BIND(GetPidsByUid, uid));
                 return;
             }
 
@@ -683,7 +683,7 @@ private:
             if (!Memory.IsCreated()) {
                 return;
             }
-            KillAll(BIND(&NCGroup::TCGroup::GetTasks, &Memory));
+            KillAll(BIND(GetPidsByUid, uid));
         }
     }
 
