@@ -20,6 +20,17 @@ EStoreState IStore::GetPersistentState() const
         case EStoreState::CompactionFailed:
             return EStoreState::Persistent;
 
+        case EStoreState::RemoveFailed:
+            switch (GetType()) {
+                case EStoreType::DynamicMemory:
+                    return EStoreState::PassiveDynamic;
+                case EStoreType::Chunk:
+                    return EStoreState::Persistent;
+                default:
+                    YUNREACHABLE();
+            }
+            break;
+
         default:
             return state;
     }
