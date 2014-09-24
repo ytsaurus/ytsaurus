@@ -81,8 +81,9 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   if(CMAKE_COMPILER_IS_CLANG)
     # Do not yell about unused arguments.
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Qunused-arguments")
-    # Do not yell about register storage.
+    # Disable some annoying warnings.
     set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-deprecated-register")
+    set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -Wno-logical-op-parentheses")
     if (CMAKE_COLOR_MAKEFILE OR NOT DEFINED CMAKE_COLOR_MAKEFILE)
       set(DIAGNOSTIC_FLAGS "${DIAGNOSTIC_FLAGS} -fcolor-diagnostics")
     endif()
