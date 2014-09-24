@@ -89,7 +89,6 @@ private:
             });
     }
 
-
 };
 
 IServicePtr CreateQueryService(
