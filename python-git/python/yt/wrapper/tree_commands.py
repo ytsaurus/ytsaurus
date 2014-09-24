@@ -249,7 +249,7 @@ def find_free_subpath(path, client=None):
         if not exists(name, client=client):
             return name
 
-def search(root="", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
+def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None, attributes=None, exclude=None, depth_bound=None, client=None):
     """Search for some nodes in Cypress subtree.
 
     :param root: (string or `TablePath`) path to search
@@ -293,6 +293,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, attrib
             return
         if object.attributes.get("opaque", False) and not ignore_opaque:
             walk(path, safe_get(path), depth, True)
+            return
+        if subtree_filter is not None and not subtree_filter(path, object):
             return
 
         object_type = object.attributes["type"]
