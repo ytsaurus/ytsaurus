@@ -21,7 +21,7 @@ using namespace NVersionedTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 CurrentProtocolVersion = 2;
+static const i64 CurrentProtocolVersion = 3;
 
 static const size_t ReaderAlignedChunkSize = 16384;
 static const size_t ReaderUnalignedChunkSize = 16384;
