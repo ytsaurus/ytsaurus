@@ -107,6 +107,8 @@ class Application(object):
         self._acl_path = os.path.join(config["path"], "acl")
         self._yt.create("map_node", self._acl_path, ignore_existing=True)
 
+        self._default_mr_user = "userdata"
+
         # Run lock thread
         self._terminating = False
         self._lock_acquired = False
@@ -414,7 +416,7 @@ class Application(object):
                             strategy=strategy))
             elif self._clusters[task.source_cluster]._type == "yt" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
-                    task.mr_user = "tmp"
+                    task.mr_user = self._default_mr_user
                 logger.info("Running YT -> YAMR remote copy")
                 if get_value(task.copy_method, "push"):
                     copy_yt_to_yamr_push(
@@ -436,7 +438,7 @@ class Application(object):
                         message_queue=message_queue)
             elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yt":
                 if task.mr_user is None:
-                    task.mr_user = "tmp"
+                    task.mr_user = self._default_mr_user
                 task_spec["pool"] = get_import_pool(self._clusters[task.source_cluster], self._clusters[task.destination_cluster])
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
@@ -450,7 +452,7 @@ class Application(object):
                     message_queue=message_queue)
             elif self._clusters[task.source_cluster]._type == "yamr" and self._clusters[task.destination_cluster]._type == "yamr":
                 if task.mr_user is None:
-                    task.mr_user = "tmp"
+                    task.mr_user = self._default_mr_user
                 self._clusters[task.destination_cluster].remote_copy(
                     self._clusters[task.source_cluster].server,
                     task.source_table,
@@ -670,7 +672,7 @@ def main():
         config = DEFAULT_CONFIG
 
     app = Application(config)
-    app.run(host=config.get("host", "0.0.0.0"), port=config["port"], debug=True, use_reloader=False)
+    app.run(host=config.get("host", "0.0.0.0"), port=config["port"], debug=True, use_reloader=False, processes=10)
     app.terminate()
 
 if __name__ == "__main__":
