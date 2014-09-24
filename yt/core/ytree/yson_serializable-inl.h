@@ -292,7 +292,7 @@ void TYsonSerializableLite::TParameter<T>::Validate(const NYPath::TYPath& path) 
 {
     for (const auto& validator : Validators) {
         try {
-            validator.Run(Parameter);
+            validator(Parameter);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Validation failed at %v",
                 path.empty() ? "/" : path)
@@ -374,7 +374,7 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Chec
     template <class T> \
     TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::method \
     { \
-        return CheckThat(BIND([=] (const T& parameter) { \
+        return CheckThat([=] (const T& parameter) { \
             using ::ToString; \
             TNullable<TValueType> nullableParameter(parameter); \
             if (nullableParameter) { \
@@ -383,7 +383,7 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Chec
                     THROW_ERROR error; \
                 } \
             } \
-        })); \
+        }); \
     }
 
 DEFINE_VALIDATOR(
@@ -434,19 +434,6 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
     auto parameter = New<TParameter<T>>(value);
     YCHECK(Parameters.insert(std::make_pair(parameterName, parameter)).second);
     return *parameter;
-}
-
-template <class F>
-void TYsonSerializableLite::RegisterInitializer(const F& func)
-{
-    func();
-    Initializers.push_back(BIND(func));
-}
-
-template <class F>
-void TYsonSerializableLite::RegisterValidator(const F& func)
-{
-    Validators.push_back(BIND(func));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

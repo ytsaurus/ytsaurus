@@ -10,8 +10,7 @@
 #include <core/misc/error.h>
 #include <core/misc/serialize.h>
 
-#include <core/actions/bind.h>
-#include <core/actions/callback.h>
+#include <functional>
 
 namespace NYT {
 namespace NYTree {
@@ -21,6 +20,9 @@ namespace NYTree {
 class TYsonSerializableLite
 {
 public:
+    typedef std::function<void()> TValidator;
+    typedef std::function<void()> TInitializer;
+
     struct IParameter
         : public TIntrinsicRefCounted
     {
@@ -38,7 +40,7 @@ public:
         : public IParameter
     {
     public:
-        typedef TCallback<void(const T&)> TValidator;
+        typedef std::function<void(const T&)> TValidator;
         typedef typename TNullableTraits<T>::TValueType TValueType;
 
         explicit TParameter(T& parameter);
@@ -98,11 +100,8 @@ protected:
         const Stroka& parameterName,
         T& value);
 
-    template <class F>
-    void RegisterInitializer(const F& func);
-
-    template <class F>
-    void RegisterValidator(const F& func);
+    void RegisterInitializer(const TInitializer& func);
+    void RegisterValidator(const TValidator& func);
 
 private:
     template <class T>
@@ -113,8 +112,9 @@ private:
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
 
-    std::vector<TClosure> Initializers;
-    std::vector<TClosure> Validators;
+    std::vector<TInitializer> Initializers;
+    std::vector<TValidator> Validators;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,36 +72,6 @@ void TYsonSerializableLite::Load(
     OnLoaded();
 }
 
-void TYsonSerializableLite::Validate(const TYPath& path) const
-{
-    for (auto pair : Parameters) {
-        pair.second->Validate(path + "/" + pair.first);
-    }
-
-    try {
-        for (const auto& validator : Validators) {
-            validator.Run();
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed at %v",
-            path.empty() ? "/" : path)
-            << ex;
-    }
-}
-
-void TYsonSerializableLite::SetDefaults()
-{
-    for (auto pair : Parameters) {
-        pair.second->SetDefaults();
-    }
-    for (const auto& initializer : Initializers) {
-        initializer.Run();
-    }
-}
-
-void TYsonSerializableLite::OnLoaded()
-{ }
-
 void TYsonSerializableLite::Save(
     IYsonConsumer* consumer,
     bool sortKeys) const
@@ -131,6 +101,47 @@ void TYsonSerializableLite::Save(
         }
     }
     consumer->OnEndMap();
+}
+
+void TYsonSerializableLite::Validate(const TYPath& path) const
+{
+    for (const auto& pair : Parameters) {
+        pair.second->Validate(path + "/" + pair.first);
+    }
+
+    try {
+        for (const auto& validator : Validators) {
+            validator();
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Validation failed at %v",
+            path.empty() ? "/" : path)
+            << ex;
+    }
+}
+
+void TYsonSerializableLite::SetDefaults()
+{
+    for (const auto& pair : Parameters) {
+        pair.second->SetDefaults();
+    }
+    for (const auto& initializer : Initializers) {
+        initializer();
+    }
+}
+
+void TYsonSerializableLite::OnLoaded()
+{ }
+
+void TYsonSerializableLite::RegisterInitializer(const TInitializer& func)
+{
+    func();
+    Initializers.push_back(func);
+}
+
+void TYsonSerializableLite::RegisterValidator(const TValidator& func)
+{
+    Validators.push_back(func);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
