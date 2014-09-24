@@ -914,7 +914,7 @@ class Finalizer(object):
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if config.MERGE_INSTEAD_WARNING:
-            run_merge(src=table, dst=table, mode=mode,
+            run_merge(source_table=table, destination_table=table, mode=mode,
                       spec={"combine_chunks": "true", "data_size_per_job": data_size_per_job},
                       client=self.client)
         else:
