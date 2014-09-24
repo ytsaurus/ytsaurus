@@ -197,10 +197,14 @@ void TSchedulerThread::Start()
 
 void TSchedulerThread::Shutdown()
 {
+    if (!IsRunning()) {
+        return;
+    }
+
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)",
         ThreadName);
 
-    Epoch.fetch_add((unsigned int)0x1, std::memory_order_relaxed);
+    Epoch.fetch_add(0x1, std::memory_order_relaxed);
 
     EventCount->NotifyAll();
 

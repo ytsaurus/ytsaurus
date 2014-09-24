@@ -58,7 +58,7 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
         time_since = datetime.utcnow() - op.start_time
         is_old = (time_since > failed_timeout)
 
-        is_regular = (op.user in robots)
+        is_regular = (op.user in robots) and not (op.state == "failed")
 
         is_user_limit_exceeded = users[op.user] > max_operations_per_user
 
