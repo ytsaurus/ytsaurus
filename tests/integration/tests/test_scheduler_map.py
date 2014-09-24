@@ -288,7 +288,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
             # that is last one.
             self._check_all_stderrs(op_id, 'stderr\n', 101)
         finally:
-            os.rmdir(tmpdir)
+            try:
+                os.rmdir(tmpdir)
+            except:
+                pass
 
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
