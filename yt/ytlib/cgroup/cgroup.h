@@ -154,13 +154,16 @@ public:
     {
         TStatistics();
 
-        i64 UsageInBytes;
-        i64 MaxUsageInBytes;
+        i64 Rss;
+        i64 MappedFile;
     };
 
     explicit TMemory(const Stroka& name);
     TMemory(TMemory&& other);
     TStatistics GetStatistics();
+
+    i64 GetUsageInBytes() const;
+    i64 GetMaxUsageInBytes() const;
 
     void SetLimitInBytes(i64 bytes) const;
 

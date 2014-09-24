@@ -757,7 +757,8 @@ private:
                     operation);
                 downloader->Run();
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error downloading snapshot");
+                LOG_ERROR(ex, "Error downloading snapshot (OperationId: %s)",
+                    ~ToString(operationId));
                 return false;
             }
 

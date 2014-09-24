@@ -183,6 +183,7 @@ void TMoveCommand::DoExecute()
     TMoveNodeOptions options;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    options.PreserveAccount = Request_->PreserveAccount;
 
     auto result = WaitFor(Context_->GetClient()->MoveNode(
         Request_->SourcePath.GetPath(),
