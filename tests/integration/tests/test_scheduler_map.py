@@ -3,6 +3,8 @@ import sys
 import time
 import __builtin__
 import socket
+import os
+import tempfile
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -259,22 +261,34 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write('//tmp/t1', [{"foo": "bar"} for i in xrange(110)])
 
-        command = '''cat > /dev/null;
-                     echo stderr 1>&2;
-                     if [ "$YT_START_ROW_INDEX" = "109" ]; then
-                         sleep 5;
-                         exit 125;
-                     else
-                         exit 0;
-                     fi;'''
 
-        op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
-        with pytest.raises(YtError):
-            track_op(op_id)
+        tmpdir = tempfile.mkdtemp(prefix="stderr_of_failed_jobs_semaphore")
+        try:
+            os.chmod(tmpdir, 0777)
+            for i in xrange(109):
+                with open(os.path.join(tmpdir, str(i)), "w") as f:
+                    f.close()
 
-        # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
-        # that is last one.
-        self._check_all_stderrs(op_id, 'stderr\n', 101)
+            command = '''cat > /dev/null;
+                SEMAPHORE_DIR={0}
+                echo stderr 1>&2;
+                if [ "$YT_START_ROW_INDEX" = "109" ]; then
+                    until rmdir $SEMAPHORE_DIR 2>/dev/null; do sleep 1; done
+                    exit 125;
+                else
+                    rm $SEMAPHORE_DIR/$YT_START_ROW_INDEX
+                    exit 0;
+                fi;'''.format(tmpdir)
+
+            op_id = map(dont_track=True, in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=1', '/spec/job_count=110'])
+            with pytest.raises(YtError):
+                track_op(op_id)
+
+            # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
+            # that is last one.
+            self._check_all_stderrs(op_id, 'stderr\n', 101)
+        finally:
+            os.rmdir(tmpdir)
 
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
