@@ -1,5 +1,6 @@
 import yt.logger as logger
 from yt.common import YtError
+from yt.wrapper.common import generate_uuid 
 
 import os
 import sh
@@ -143,7 +144,7 @@ class Yamr(object):
             return 'curl "http://${{server}}/table/{0}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
             fastbone_str = "-opt net_table=fastbone" if self.fastbone else ""
-            shared_tx_str = "-sharedtransactionid yt" if self.supports_shared_transactions else ""
+            shared_tx_str = ("-sharedtransactionid yt_" + generate_uuid()) if self.supports_shared_transactions else ""
             return '{0} MR_USER={1} USER=yt ./{2} -server $server {3} -read {4}:[$start,$end] -lenval -subkey {5}'\
                         .format(self.opts, self.mr_user, self.binary_name, fastbone_str, table, shared_tx_str)
 
