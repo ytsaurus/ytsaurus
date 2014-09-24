@@ -48,25 +48,16 @@ class TMemoryStoreTestBase
     : public ::testing::Test
 {
 protected:
-    TMemoryStoreTestBase()
-        : CurrentTimestamp(MinTimestamp)
-        , NameTable(New<TNameTable>())
+    virtual void SetUp() override
     {
-        TKeyColumns keyColumns;
-        keyColumns.push_back("key");
-
-        // NB: Key columns must go first.
-        TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
-        schema.Columns().push_back(TColumnSchema("c", EValueType::String));
+        auto keyColumns = GetKeyColumns();
+        auto schema = GetSchema();
 
         for (const auto& column : schema.Columns()) {
-            NameTable->RegisterName(column.Name);
+            NameTable_->RegisterName(column.Name);
         }
 
-        Tablet.reset(new TTablet(
+        Tablet_.reset(new TTablet(
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
@@ -77,21 +68,39 @@ protected:
             MaxKey()));
     }
 
+    virtual TKeyColumns GetKeyColumns() const
+    {
+        TKeyColumns keyColumns;
+        keyColumns.push_back("key");
+        return keyColumns;
+    }
+
+    virtual TTableSchema GetSchema() const
+    {
+        // NB: Key columns must go first.
+        TTableSchema schema;
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
+        schema.Columns().push_back(TColumnSchema("c", EValueType::String));
+        return schema;
+    }
+
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NVersionedTableClient::BuildRow(yson, Tablet->KeyColumns(), Tablet->Schema(), treatMissingAsNull);
+        return NVersionedTableClient::BuildRow(yson, Tablet_->KeyColumns(), Tablet_->Schema(), treatMissingAsNull);
     }
 
 
     TTimestamp GenerateTimestamp()
     {
-        return CurrentTimestamp++;
+        return CurrentTimestamp_++;
     }
 
 
     std::unique_ptr<TTransaction> StartTransaction()
     {
-        std::unique_ptr<TTransaction> transaction(new TTransaction(NullTransactionId));
+        std::unique_ptr<TTransaction> transaction(new TTransaction(TTransactionId::Create()));
         transaction->SetStartTimestamp(GenerateTimestamp());
         transaction->SetState(ETransactionState::Active);
         return transaction;
@@ -99,16 +108,17 @@ protected:
 
     void PrepareTransaction(TTransaction* transaction)
     {
-        ASSERT_EQ(transaction->GetState(), ETransactionState::Active);
+        EXPECT_EQ(ETransactionState::Active, transaction->GetState());
         transaction->SetPrepareTimestamp(GenerateTimestamp());
         transaction->SetState(ETransactionState::TransientCommitPrepared);
     }
 
-    void CommitTransaction(TTransaction* transaction)
+    NTransactionClient::TTimestamp CommitTransaction(TTransaction* transaction)
     {
-        ASSERT_EQ(transaction->GetState(), ETransactionState::TransientCommitPrepared);
+        EXPECT_EQ(ETransactionState::TransientCommitPrepared, transaction->GetState());
         transaction->SetCommitTimestamp(GenerateTimestamp());
         transaction->SetState(ETransactionState::Committed);
+        return transaction->GetCommitTimestamp();
     }
 
     void AbortTransaction(TTransaction* transaction)
@@ -117,58 +127,72 @@ protected:
     }
 
 
-    void CompareRows(const TUnversionedOwningRow& row, const TNullable<Stroka>& yson)
+    bool AreRowsEqual(const TUnversionedOwningRow& row, const TNullable<Stroka>& yson)
     {
-        if (!row && !yson)
-            return;
+        if (!row && !yson) {
+            return true;
+        }
 
-        ASSERT_TRUE(static_cast<bool>(row));
-        ASSERT_TRUE(yson.HasValue());
+        if (!row || !yson) {
+            return false;
+        }
 
         auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
             TYsonString(*yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            const auto& name = NameTable->GetName(value.Id);
+            const auto& name = NameTable_->GetName(value.Id);
             auto it = expectedRowParts.find(name);
             switch (value.Type) {
                 case EValueType::Int64:
-                    ASSERT_TRUE(it != expectedRowParts.end());
-                    ASSERT_EQ(
-                        it->second->GetValue<i64>(),
-                        value.Data.Int64);
+                    if (it == expectedRowParts.end()) {
+                        return false;
+                    }
+                    if (it->second->GetValue<i64>() != value.Data.Int64) {
+                        return false;
+                    }
                     break;
 
                 case EValueType::Uint64:
-                    ASSERT_TRUE(it != expectedRowParts.end());
-                    ASSERT_EQ(
-                        it->second->GetValue<ui64>(),
-                        value.Data.Uint64);
+                    if (it == expectedRowParts.end()) {
+                        return false;
+                    }
+                    if (it->second->GetValue<ui64>() != value.Data.Uint64) {
+                        return false;
+                    }
                     break;
 
                 case EValueType::Double:
-                    ASSERT_TRUE(it != expectedRowParts.end());
-                    ASSERT_EQ(
-                        it->second->GetValue<double>(),
-                        value.Data.Double);
+                    if (it == expectedRowParts.end()) {
+                        return false;
+                    }
+                    if (it->second->GetValue<double>() != value.Data.Double) {
+                        return false;
+                    }
                     break;
 
                 case EValueType::String:
-                    ASSERT_TRUE(it != expectedRowParts.end());
-                    ASSERT_EQ(
-                        it->second->GetValue<Stroka>(),
-                        Stroka(value.Data.String, value.Length));
+                    if (it == expectedRowParts.end()) {
+                        return false;
+                    }
+                    if (it->second->GetValue<Stroka>() != Stroka(value.Data.String, value.Length)) {
+                        return false;
+                    }
                     break;
 
                 case EValueType::Null:
-                    ASSERT_TRUE(it == expectedRowParts.end());
+                    if (it != expectedRowParts.end()) {
+                        return false;
+                    }
                     break;
 
                 default:
                     YUNREACHABLE();
             }
         }
+
+        return true;
     }
 
     TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
@@ -190,8 +214,8 @@ protected:
 
         TUnversionedOwningRowBuilder builder;
         
-        int keyCount = static_cast<int>(Tablet->KeyColumns().size());
-        int schemaColumnCount = static_cast<int>(Tablet->Schema().Columns().size());
+        int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
+        int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
 
         // Keys
         const auto* keys = row.BeginKeys();
@@ -212,9 +236,15 @@ protected:
         return builder.FinishRow();
     }
 
-    TTimestamp CurrentTimestamp;
-    TNameTablePtr NameTable;
-    std::unique_ptr<TTablet> Tablet;
+    const TLockDescriptor& GetLock(TDynamicRow row, int index = TDynamicRow::PrimaryLockIndex)
+    {
+        return row.BeginLocks(Tablet_->KeyColumns().size())[index];
+    }
+
+
+    TTimestamp CurrentTimestamp_ = MinTimestamp;
+    TNameTablePtr NameTable_ = New<TNameTable>();
+    std::unique_ptr<TTablet> Tablet_;
 
 };
 

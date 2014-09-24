@@ -101,9 +101,8 @@ T* SearchList(
             }
         }
 
-        return left && timestampExtractor(*left) <= maxTimestamp
-            ? left
-            : nullptr;
+        YASSERT(!left || timestampExtractor(*left) <= maxTimestamp);
+        return left;
     }
 }
 
@@ -150,11 +149,23 @@ public:
         : Store_(std::move(store))
         , Timestamp_(timestamp)
         , ColumnFilter_(columnFilter)
-        , KeyColumnCount_(Store_->Tablet_->GetKeyColumnCount())
-        , SchemaColumnCount_(Store_->Tablet_->GetSchemaColumnCount())
+        , KeyColumnCount_(Store_->KeyColumnCount_)
+        , SchemaColumnCount_(Store_->SchemaColumnCount_)
+        , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TDynamicMemoryStoreFetcherPoolTag(), TabletReaderPoolSize)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
+
+        if (columnFilter.All) {
+            LockMask_ = TDynamicRow::AllLocksMask;
+        } else {
+            LockMask_ = TDynamicRow::PrimaryLockMask;
+            const auto& columnIndexToLockIndex = Store_->Tablet_->ColumnIndexToLockIndex();
+            for (int columnIndex : columnFilter.Indexes) {
+                int lockIndex = columnIndexToLockIndex[columnIndex];
+                LockMask_ |= (1 << lockIndex);
+            }
+        }
     }
 
 protected:
@@ -164,17 +175,37 @@ protected:
 
     int KeyColumnCount_;
     int SchemaColumnCount_;
+    int ColumnLockCount_;
 
     TChunkedMemoryPool Pool_;
-    
+
+    ui32 LockMask_;
+
+
+    int GetBlockingLockIndex(TDynamicRow dynamicRow)
+    {
+        const auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
+        ui32 lockMaskBit = 1;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
+            if ((LockMask_ & lockMaskBit) && lock->PrepareTimestamp < Timestamp_) {
+                return index;
+            }
+        }
+        return -1;
+    }
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
-        while (Timestamp_ != LastCommittedTimestamp && dynamicRow.GetPrepareTimestamp() < Timestamp_) {
-            Store_->RowBlocked_.Fire(dynamicRow);
+        if (Timestamp_ != LastCommittedTimestamp) {
+            while (true) {
+                int lockIndex = GetBlockingLockIndex(dynamicRow);
+                if (lockIndex < 0)
+                    break;
+                Store_->RowBlocked_.Fire(dynamicRow, lockIndex);
+            }
         }
 
-        auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_);
+        auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_);
         const auto* writeTimestampPtr = SearchList(
             writeTimestampList,
             Timestamp_,
@@ -183,7 +214,7 @@ protected:
             });
         auto writeTimestamp = writeTimestampPtr ? *writeTimestampPtr : NullTimestamp;
 
-        auto deleteTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_);
+        auto deleteTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_, ColumnLockCount_);
         const auto* deleteTimestampPtr = SearchList(
             deleteTimestampList,
             Timestamp_,
@@ -214,7 +245,7 @@ protected:
             writeTimestampCount,
             deleteTimestampCount);
 
-        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyColumnCount_ * sizeof (TUnversionedValue));
+        ProduceKeys(dynamicRow, versionedRow.BeginKeys());
 
         if (writeTimestampCount > 0) {
             versionedRow.BeginWriteTimestamps()[0] = writeTimestamp;
@@ -227,7 +258,7 @@ protected:
         if (valueCount > 0) {
             auto* currentRowValue = versionedRow.BeginValues();
             auto fillValue = [&] (int index) {
-                auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
+                auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
                 const auto* value = SearchList(
                     list,
                     Timestamp_,
@@ -239,13 +270,13 @@ protected:
                 }
             };
             if (ColumnFilter_.All) {
-                for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
+                for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
                     fillValue(index);
                 }
             } else {
                 for (int index : ColumnFilter_.Indexes) {
                     if (index >= KeyColumnCount_) {
-                        fillValue(index - KeyColumnCount_);
+                        fillValue(index);
                     }
                 }
             }
@@ -257,8 +288,8 @@ protected:
 
     TVersionedRow ProduceAllRowVersions(TDynamicRow dynamicRow)
     {
-        auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_);
-        auto deleteTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_);
+        auto writeTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Write, KeyColumnCount_, ColumnLockCount_);
+        auto deleteTimestampList = dynamicRow.GetTimestampList(ETimestampListKind::Delete, KeyColumnCount_, ColumnLockCount_);
 
         auto getCommittedTimestampCount = [] (TTimestampList list) {
             if (!list) {
@@ -278,8 +309,8 @@ protected:
         }
 
         int valueCount = 0;
-        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-            auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
+        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+            auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
             if (list) {
                 valueCount += list.GetSize() + list.GetSuccessorsSize();
                 if (list.Back().Timestamp == UncommittedTimestamp) {
@@ -296,12 +327,12 @@ protected:
             deleteTimestampCount);
 
         // Keys.
-        memcpy(versionedRow.BeginKeys(), dynamicRow.GetKeys(), KeyColumnCount_ * sizeof (TUnversionedValue));
+        ProduceKeys(dynamicRow, versionedRow.BeginKeys());
 
         // Fixed values.
         auto* currentValue = versionedRow.BeginValues();
-        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-            auto currentList = dynamicRow.GetFixedValueList(index, KeyColumnCount_);
+        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+            auto currentList = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
             while (currentList) {
                 for (const auto* it = &currentList.Back(); it >= &currentList.Front(); --it) {
                     const auto& value = *it;
@@ -333,6 +364,31 @@ protected:
         return versionedRow;
     }
 
+    void ProduceKeys(TDynamicRow dynamicRow, TUnversionedValue* dstKey)
+    {
+        ui32 nullKeyMask = dynamicRow.GetNullKeyMask();
+        ui32 nullKeyBit = 1;
+        const auto* srcKey = dynamicRow.BeginKeys();
+        auto columnIt = Store_->GetTablet()->Schema().Columns().begin();
+        for (int index = 0;
+             index < KeyColumnCount_;
+             ++index, nullKeyBit <<= 1, ++srcKey, ++dstKey, ++columnIt)
+        {
+            dstKey->Id = index;
+            if (nullKeyMask & nullKeyBit) {
+                dstKey->Type = EValueType::Null;
+            } else {
+                dstKey->Type = columnIt->Type;
+                if (IsStringLikeType(EValueType(dstKey->Type))) {
+                    dstKey->Length = srcKey->String->Length;
+                    dstKey->Data.String = srcKey->String->Data;
+                } else {
+                    *reinterpret_cast<TDynamicValueData*>(&dstKey->Data) = *srcKey;
+                }
+            }
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,7 +414,7 @@ public:
 
     virtual TAsyncError Open() override
     {
-        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_);
+        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_.Get());
         return OKFuture;
     }
 
@@ -372,11 +428,10 @@ public:
         rows->clear();
         Pool_.Clear();
 
-        TKeyComparer keyComparer(KeyColumnCount_);
+        TDynamicRowKeyComparer keyComparer(KeyColumnCount_, Store_->GetTablet()->Schema());
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
-            const auto* rowKeys = Iterator_.GetCurrent().GetKeys();
-            if (CompareRows(rowKeys, rowKeys + KeyColumnCount_, UpperKey_.Begin(), UpperKey_.End()) >= 0)
+            if (keyComparer(Iterator_.GetCurrent(), UpperKey_.Get()) >= 0)
                 break;
 
             auto row = ProduceRow();
@@ -404,7 +459,7 @@ private:
     TOwningKey LowerKey_;
     TOwningKey UpperKey_;
 
-    TSkipList<TDynamicRow, TKeyComparer>::TIterator Iterator_;
+    TSkipList<TDynamicRow, TDynamicRowKeyComparer>::TIterator Iterator_;
 
     bool Finished_ = false;
 
@@ -466,13 +521,14 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     , Config_(config)
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
+    , ColumnLockCount_(Tablet_->GetColumnLockCount())
     , RowBuffer_(
         Config_->AlignedPoolChunkSize,
         Config_->UnalignedPoolChunkSize,
         Config_->MaxPoolSmallBlockRatio)
-    , Rows_(new TSkipList<TDynamicRow, TKeyComparer>(
+    , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
         RowBuffer_.GetAlignedPool(),
-        TKeyComparer(KeyColumnCount_)))
+        TDynamicRowKeyComparer(KeyColumnCount_, Tablet_->Schema())))
 {
     State_ = EStoreState::ActiveDynamic;
 
@@ -492,12 +548,12 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
 
 int TDynamicMemoryStore::GetLockCount() const
 {
-    return LockCount_;
+    return StoreLockCount_;
 }
 
 int TDynamicMemoryStore::Lock()
 {
-    int result = ++LockCount_;
+    int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (StoreId: %v, Count: %v)",
         Id_,
         result);
@@ -506,8 +562,8 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
-    YASSERT(LockCount_ > 0);
-    int result = --LockCount_;
+    YASSERT(StoreLockCount_ > 0);
+    int result = --StoreLockCount_;
     LOG_TRACE("Store unlocked (StoreId: %v, Count: %v)",
         Id_,
         result);
@@ -517,33 +573,28 @@ int TDynamicMemoryStore::Unlock()
 TDynamicRow TDynamicMemoryStore::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prelock)
+    bool prelock,
+    ui32 lockMask)
 {
     TDynamicRow result;
 
     auto addValues = [&] (TDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            AddUncommittedFixedValue(dynamicRow, value.Id - KeyColumnCount_, value);
+            AddUncommittedFixedValue(dynamicRow, value.Id, value);
         }
     };
 
     auto newKeyProvider = [&] () -> TDynamicRow {
         YASSERT(State_ == EStoreState::ActiveDynamic);
 
-        // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Write, prelock));
-
-        // Add timestamp.
-        AddUncommittedTimestamp(dynamicRow, ETimestampListKind::Write);
 
         // Copy keys.
-        for (int id = 0; id < KeyColumnCount_; ++id) {
-            auto& dstValue = dynamicRow.GetKeys()[id];
-            CaptureValue(&dstValue, row[id]);
-            dstValue.Id = id;
-        }
+        SetKeys(dynamicRow, row);
+
+        // Acquire the lock.
+        AcquireRowLocks(dynamicRow, transaction, prelock, lockMask, false);
 
         // Copy values.
         addValues(dynamicRow);
@@ -552,13 +603,11 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        // Check for lock conflicts and acquire the lock.
-        if (LockRow(dynamicRow, transaction, ERowLockMode::Write, prelock)) {
-            result = dynamicRow;
-        }
+        result = dynamicRow;
 
-        // Add timestamp, if needed.
-        AddUncommittedTimestamp(dynamicRow, ETimestampListKind::Write);
+        // Check for lock conflicts and acquire the lock.
+        CheckRowLocks(dynamicRow, transaction, lockMask);
+        AcquireRowLocks(dynamicRow, transaction, prelock, lockMask, false);
 
         // Copy values.
         addValues(dynamicRow);
@@ -584,32 +633,24 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     auto newKeyProvider = [&] () -> TDynamicRow {
         YASSERT(State_ == EStoreState::ActiveDynamic);
 
-        // Acquire the lock.
         auto dynamicRow = result = AllocateRow();
-        YCHECK(LockRow(dynamicRow, transaction, ERowLockMode::Delete, prelock));
-
-        // Add tombstone.
-        AddUncommittedTimestamp(dynamicRow, ETimestampListKind::Delete);
 
         // Copy keys.
-        for (int id = 0; id < KeyColumnCount_; ++id) {
-            auto& internedValue = dynamicRow.GetKeys()[id];
-            CaptureValue(&internedValue, key[id]);
-            internedValue.Id = id;
-        }
+        SetKeys(dynamicRow, key);
+
+        // Acquire the lock.
+        AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
 
         result = dynamicRow;
         return dynamicRow;
     };
 
     auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
-        // Check for lock conflicts and acquire the lock.
-        if (LockRow(dynamicRow, transaction, ERowLockMode::Delete, prelock)) {
-            result = dynamicRow;
-        }
+        result = dynamicRow;
 
-        // Add tombstone.
-        AddUncommittedTimestamp(dynamicRow, ETimestampListKind::Delete);
+        // Check for lock conflicts and acquire the lock.
+        CheckRowLocks(dynamicRow, transaction, TDynamicRow::PrimaryLockMask);
+        AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
     };
 
     Rows_->Insert(
@@ -622,74 +663,117 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
+TDynamicRow TDynamicMemoryStore::MigrateRow(
+    TTransaction* transaction,
+    const TDynamicRowRef& rowRef)
 {
     auto row = rowRef.Row;
     // NB: We may change rowRef if the latter references
     // an element from transaction->LockedRows().
     auto* store = rowRef.Store;
 
-    TDynamicRow migratedRow;
-    auto newKeyProvider = [&] () -> TDynamicRow {
-        // Create migrated row.
-        migratedRow = AllocateRow();
+    auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
+        auto migratedRowRef = TDynamicRowRef(this, migratedRow);
 
-        // Migrate lock.
-        Lock();
-        auto* transaction = row.GetTransaction();
-        int lockIndex = row.GetLockIndex();
-        migratedRow.Lock(transaction, lockIndex, row.GetLockMode());
-        migratedRow.SetPrepareTimestamp(row.GetPrepareTimestamp());
-        if (lockIndex != TDynamicRow::InvalidLockIndex) {
-            transaction->LockedRows()[lockIndex] = TDynamicRowRef(this, migratedRow);
-        }
+        auto* locks = row.BeginLocks(KeyColumnCount_);
+        auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
 
-        // Migrate keys.
-        const auto* srcKeys = row.GetKeys();
-        auto* dstKeys = migratedRow.GetKeys();
-        for (int index = 0; index < KeyColumnCount_; ++index) {
-            CaptureValue(&dstKeys[index], srcKeys[index]);
+        const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
+
+        // Migrate locks.
+        {
+            const auto* lock = locks;
+            auto* migratedLock = migratedLocks;
+            for (int index = 0; index < ColumnLockCount_; ++index, ++lock, ++migratedLock) {
+                if (lock->Transaction == transaction) {
+                    YASSERT(lock->RowIndex != TLockDescriptor::InvalidRowIndex);
+                    YASSERT(lock->PrepareTimestamp != NullTimestamp);
+                    YASSERT(!migratedLock->Transaction);
+                    YASSERT(migratedLock->RowIndex == TLockDescriptor::InvalidRowIndex);
+                    YASSERT(migratedLock->PrepareTimestamp == MaxTimestamp);
+                    migratedLock->Transaction = lock->Transaction;
+                    migratedLock->RowIndex = lock->RowIndex;
+                    migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
+                    migratedLock->LastCommitTimestamp = std::max(migratedLock->LastCommitTimestamp, lock->LastCommitTimestamp);
+                    migratedLock->Transaction->LockedRows()[migratedLock->RowIndex] = migratedRowRef;
+                    if (index == TDynamicRow::PrimaryLockIndex) {
+                        YASSERT(!migratedRow.GetDeleteLockFlag());
+                        migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
+                    }
+                }
+            }
         }
 
         // Migrate fixed values.
-        for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-            auto list = row.GetFixedValueList(index, KeyColumnCount_);
-            if (list) {
-                const auto& srcValue = list.Back();
-                if (srcValue.Timestamp == UncommittedTimestamp) {
-                    auto migratedList = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-                    migratedRow.SetFixedValueList(index, migratedList, KeyColumnCount_);
-                    migratedList.Push([&] (TVersionedValue* dstValue) {
-                        CaptureValue(dstValue, srcValue);
-                    });
-                    ++ValueCount_;
+        for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
+            int lockIndex = columnIndexToLockIndex[columnIndex];
+            if (locks[lockIndex].Transaction == transaction) {
+                auto list = row.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
+                if (list) {
+                    const auto& srcValue = list.Back();
+                    if (srcValue.Timestamp == UncommittedTimestamp) {
+                        auto migratedList = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
+                        migratedRow.SetFixedValueList(columnIndex, migratedList, KeyColumnCount_, ColumnLockCount_);
+                        CaptureValue(migratedList.Push(), srcValue);
+                        ++StoreValueCount_;
+                    }
                 }
             }
         }
 
-        // Migrate timestamps.
-        auto migrateTimestamps = [&] (ETimestampListKind kind) {
-            auto list = row.GetTimestampList(kind, KeyColumnCount_);
-            if (list) {
-                auto lastTimestamp = list.Back();
-                if (lastTimestamp == UncommittedTimestamp) {
-                    auto migratedList = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-                    migratedRow.SetTimestampList(migratedList, kind, KeyColumnCount_);
-                    migratedList.Push(lastTimestamp);
+        // Release locks.
+        {
+            auto* lock = locks;
+            for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+                if (lock->Transaction == transaction) {
+                    lock->Transaction = nullptr;
+                    lock->RowIndex = TLockDescriptor::InvalidRowIndex;
+                    lock->PrepareTimestamp = MaxTimestamp;
+                    if (index == TDynamicRow::PrimaryLockIndex) {
+                        row.SetDeleteLockFlag(false);
+                    }
                 }
             }
-        };
-        migrateTimestamps(ETimestampListKind::Write);
-        migrateTimestamps(ETimestampListKind::Delete);
+        }
 
+        Lock();
         store->Unlock();
-        row.Unlock();
+    };
+
+    TDynamicRow result;
+    auto newKeyProvider = [&] () -> TDynamicRow {
+        // Create migrated row.
+        auto migratedRow = result = AllocateRow();
+
+        // Migrate keys.
+        {
+            ui32 nullKeyMask = row.GetNullKeyMask();
+            migratedRow.SetNullKeyMask(nullKeyMask);
+            ui32 nullKeyBit = 1;
+            const auto* key = row.BeginKeys();
+            auto* migratedKey = migratedRow.BeginKeys();
+            auto columnIt = Tablet_->Schema().Columns().begin();
+            for (int index = 0;
+                 index < KeyColumnCount_;
+                 ++index, nullKeyBit <<= 1, ++key, ++migratedKey, ++columnIt)
+            {
+                if (!(nullKeyMask & nullKeyBit) && IsStringLikeType(columnIt->Type)) {
+                    *migratedKey = CaptureStringValue(*key);
+                } else {
+                    *migratedKey = *key;
+                }
+            }
+        }
+
+        migrateLocksAndValues(migratedRow);
 
         return migratedRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow /*dynamicRow*/) {
-        YUNREACHABLE();
+    auto existingKeyConsumer = [&] (TDynamicRow migratedRow) {
+        result = migratedRow;
+
+        migrateLocksAndValues(migratedRow);
     };
 
     Rows_->Insert(
@@ -699,102 +783,123 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(const TDynamicRowRef& rowRef)
 
     OnMemoryUsageUpdated();
 
-    return migratedRow;
+    return result;
 }
 
-TDynamicRow TDynamicMemoryStore::FindRowAndCheckLocks(
+void TDynamicMemoryStore::CheckRowLocks(
     NVersionedTableClient::TKey key,
     TTransaction* transaction,
-    ERowLockMode mode)
+    ui32 lockMask)
 {
     auto it = Rows_->FindEqualTo(key);
-    if (!it.IsValid()) {
-        return TDynamicRow();
-    }
+    if (!it.IsValid())
+        return;
 
     auto row = it.GetCurrent();
-    CheckRowLock(row, transaction, mode);
-
-    if (row.GetLockMode() == ERowLockMode::None) {
-        return TDynamicRow();
-    }
-
-    return row;
+    CheckRowLocks(row, transaction, lockMask);
 }
 
-void TDynamicMemoryStore::ConfirmRow(TDynamicRow row)
+void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
-    auto* transaction = row.GetTransaction();
-    YASSERT(transaction);
-    int lockIndex = static_cast<int>(transaction->LockedRows().size());
+    int rowIndex = static_cast<int>(transaction->LockedRows().size());
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
-    row.SetLockIndex(lockIndex);
+
+    {
+        auto* lock = row.BeginLocks(KeyColumnCount_);
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            if (lock->Transaction == transaction) {
+                YASSERT(lock->RowIndex == TLockDescriptor::InvalidRowIndex);
+                lock->RowIndex = rowIndex;
+            }
+        }
+    }
 }
 
-void TDynamicMemoryStore::PrepareRow(TDynamicRow row)
+void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 {
-    auto* transaction = row.GetTransaction();
-    YASSERT(transaction);
-
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
     YASSERT(prepareTimestamp != NullTimestamp);
 
-    row.SetPrepareTimestamp(prepareTimestamp);
+    {
+        auto* lock = row.BeginLocks(KeyColumnCount_);
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            if (lock->Transaction == transaction) {
+                lock->PrepareTimestamp = prepareTimestamp;
+            }
+        }
+    }
 }
 
-void TDynamicMemoryStore::CommitRow(TDynamicRow row)
+void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(State_ == EStoreState::ActiveDynamic);
-
-    auto* transaction = row.GetTransaction();
-    YASSERT(transaction);
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
     YASSERT(commitTimestamp != NullTimestamp);
 
-    // Timestamps.
-    auto commitTimestamps = [&] (ETimestampListKind kind) {
-        auto list = row.GetTimestampList(kind, KeyColumnCount_);
-        YASSERT(list);
-        auto& lastTimestamp = list.Back();
-        YASSERT(lastTimestamp == UncommittedTimestamp);
-        lastTimestamp = commitTimestamp;
-    };
-    switch (row.GetLockMode()) {
-        case ERowLockMode::Write:
-            commitTimestamps(ETimestampListKind::Write);
-            break;
-        case ERowLockMode::Delete:
-            commitTimestamps(ETimestampListKind::Delete);
-            break;
-        default:
-            YUNREACHABLE();
-    }
+    const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
+    auto* locks = row.BeginLocks(KeyColumnCount_);
 
-    // Fixed values.
-    for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-        auto list = row.GetFixedValueList(index, KeyColumnCount_);
-        if (list) {
-            auto& lastValue = list.Back();
-            if (lastValue.Timestamp == UncommittedTimestamp) {
-                lastValue.Timestamp = commitTimestamp;
+    for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+        const auto& lock = locks[columnIndexToLockIndex[index]];
+        if (lock.Transaction == transaction) {
+            auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+            if (list) {
+                auto& lastValue = list.Back();
+                if (lastValue.Timestamp == UncommittedTimestamp) {
+                    lastValue.Timestamp = commitTimestamp;
+                }
             }
         }
     }
 
-    Unlock();
-    row.Unlock();
+    if (row.GetDeleteLockFlag()) {
+        AddTimestamp(row, commitTimestamp, ETimestampListKind::Delete);
+    } else {
+        AddTimestamp(row, commitTimestamp, ETimestampListKind::Write);
+    }
 
-    row.SetLastCommitTimestamp(commitTimestamp);
+    {
+        auto* lock = locks;
+        YASSERT(lock[TDynamicRow::PrimaryLockIndex].LastCommitTimestamp <= commitTimestamp);
+        lock[TDynamicRow::PrimaryLockIndex].LastCommitTimestamp = commitTimestamp;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            if (lock->Transaction == transaction) {
+                lock->Transaction = nullptr;
+                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
+                lock->PrepareTimestamp = MaxTimestamp;
+                YASSERT(lock->LastCommitTimestamp <= commitTimestamp);
+                lock->LastCommitTimestamp = commitTimestamp;
+            }
+        }
+    }
+
+    row.SetDeleteLockFlag(false);
+
+    Unlock();
+
     MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
     MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
 }
 
-void TDynamicMemoryStore::AbortRow(TDynamicRow row)
+void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
     DropUncommittedValues(row);
+
+    {
+        auto* lock = row.BeginLocks(KeyColumnCount_);
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            if (lock->Transaction == transaction) {
+                lock->Transaction = nullptr;
+                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
+                lock->PrepareTimestamp = MaxTimestamp;
+            }
+        }
+    }
+
+    row.SetDeleteLockFlag(false);
+
     Unlock();
-    row.Unlock();
 }
 
 TDynamicRow TDynamicMemoryStore::AllocateRow()
@@ -802,96 +907,98 @@ TDynamicRow TDynamicMemoryStore::AllocateRow()
     return TDynamicRow::Allocate(
         RowBuffer_.GetAlignedPool(),
         KeyColumnCount_,
+        ColumnLockCount_,
         SchemaColumnCount_);
 }
 
-void TDynamicMemoryStore::CheckRowLock(
+void TDynamicMemoryStore::CheckRowLocks(
     TDynamicRow row,
     TTransaction* transaction,
-    ERowLockMode mode)
+    ui32 lockMask)
 {
-    auto* existingTransaction = row.GetTransaction();
-    if (existingTransaction) {
-        if (existingTransaction == transaction) {
-            if (row.GetLockMode() != mode) {
-                THROW_ERROR_EXCEPTION("Cannot change row lock mode from %Qlv to %Qlv",
-                    row.GetLockMode(),
-                    mode);
-            }
-        } else {
-            THROW_ERROR_EXCEPTION("Row lock conflict")
-                << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
-                << TErrorAttribute("winner_transaction_id", existingTransaction->GetId())
+    const auto* lock = row.BeginLocks(KeyColumnCount_);
+    ui32 lockMaskBit = 1;
+    for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
+        if (lock->Transaction == transaction) {
+            THROW_ERROR_EXCEPTION("Multiple modifications to a row within a single transaction are not allowed")
+                << TErrorAttribute("transaction_id", transaction->GetId())
                 << TErrorAttribute("tablet_id", Tablet_->GetId())
                 << TErrorAttribute("key", RowToKey(row));
         }
-    }
-
-    if (row.GetLastCommitTimestamp() >= transaction->GetStartTimestamp()) {
-        THROW_ERROR_EXCEPTION("Row lock conflict")
-            << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
-            << TErrorAttribute("winner_transaction_commit_timestamp", row.GetLastCommitTimestamp())
-            << TErrorAttribute("tablet_id", Tablet_->GetId())
-            << TErrorAttribute("key", RowToKey(row));
+        // Check locks requested in #lockMask with the following exceptions:
+        // * if primary lock is requested then all locks are checked
+        // * primary lock is always checked
+        if ((lockMask & lockMaskBit) ||
+            (lockMask & TDynamicRow::PrimaryLockMask) ||
+            (index == TDynamicRow::PrimaryLockIndex))
+        {
+            if (lock->Transaction) {
+                THROW_ERROR_EXCEPTION("Row lock conflict")
+                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                    << TErrorAttribute("winner_transaction_id", lock->Transaction->GetId())
+                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+                    << TErrorAttribute("key", RowToKey(row))
+                    << TErrorAttribute("lock", Tablet_->LockIndexToName()[index]);
+            }
+            if (lock->LastCommitTimestamp >= transaction->GetStartTimestamp()) {
+                THROW_ERROR_EXCEPTION("Row lock conflict")
+                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                    << TErrorAttribute("winner_transaction_commit_timestamp", lock->LastCommitTimestamp)
+                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+                    << TErrorAttribute("key", RowToKey(row))
+                    << TErrorAttribute("lock", Tablet_->LockIndexToName()[index]);
+            }
+        }
     }
 }
 
-bool TDynamicMemoryStore::LockRow(
+void TDynamicMemoryStore::AcquireRowLocks(
     TDynamicRow row,
     TTransaction* transaction,
-    ERowLockMode mode,
-    bool prelock)
+    bool prelock,
+    ui32 lockMask,
+    bool deleteFlag)
 {
-    CheckRowLock(row, transaction, mode);
-
-    if (row.GetLockMode() != ERowLockMode::None) {
-        YASSERT(row.GetTransaction() == transaction);
-        return false;
-    }
-
-    int lockIndex = TDynamicRow::InvalidLockIndex;
+    int rowIndex = TLockDescriptor::InvalidRowIndex;
     if (!prelock) {
-        lockIndex = static_cast<int>(transaction->LockedRows().size());
+        rowIndex = static_cast<int>(transaction->LockedRows().size());
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
     
-    Lock();
-    row.Lock(transaction, lockIndex, mode);
+    // Acquire locks requested in #lockMask with the following exceptions:
+    // * if primary lock is requested then all locks are acquired
+    {
+        auto* lock = row.BeginLocks(KeyColumnCount_);
+        ui32 lockMaskBit = 1;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
+            if ((lockMask & lockMaskBit) || (lockMask & TDynamicRow::PrimaryLockMask)) {
+                YASSERT(!lock->Transaction);
+                lock->Transaction = transaction;
+                YASSERT(lock->RowIndex == TLockDescriptor::InvalidRowIndex);
+                lock->RowIndex = rowIndex;
+                YASSERT(lock->PrepareTimestamp == MaxTimestamp);
+            }
+        }
+    }
 
-    return true;
+    if (deleteFlag) {
+        YASSERT(!row.GetDeleteLockFlag());
+        row.SetDeleteLockFlag(true);
+    }
+
+    Lock();
 }
 
 void TDynamicMemoryStore::DropUncommittedValues(TDynamicRow row)
 {
-    // Timestamps.
-    auto dropTimestamps = [&] (ETimestampListKind kind) {
-        auto list = row.GetTimestampList(kind, KeyColumnCount_);
-        YASSERT(list);
-        auto lastTimestamp = list.Back();
-        YASSERT(lastTimestamp == UncommittedTimestamp);
-        if (list.Pop() == 0) {
-            row.SetTimestampList(list.GetNext(), kind, KeyColumnCount_);
-        }
-    };
-    switch (row.GetLockMode()) {
-        case ERowLockMode::Write:
-            dropTimestamps(ETimestampListKind::Write);
-            break;
-        case ERowLockMode::Delete:
-            dropTimestamps(ETimestampListKind::Delete);
-            break;
-        default:
-            YUNREACHABLE();
-    }
-
     // Fixed values.
-    for (int index = 0; index < SchemaColumnCount_ - KeyColumnCount_; ++index) {
-        auto list = row.GetFixedValueList(index, KeyColumnCount_);
+    for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+        auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
         if (list) {
             const auto& lastValue = list.Back();
             if (lastValue.Timestamp == UncommittedTimestamp) {
                 if (list.Pop() == 0) {
-                    row.SetFixedValueList(index, list.GetNext(), KeyColumnCount_);
+                    row.SetFixedValueList(index, list.GetNext(), KeyColumnCount_, ColumnLockCount_);
                 }
             }
         }
@@ -900,10 +1007,10 @@ void TDynamicMemoryStore::DropUncommittedValues(TDynamicRow row)
 
 void TDynamicMemoryStore::AddFixedValue(
     TDynamicRow row,
-    int listIndex,
+    int columnIndex,
     const TVersionedValue& value)
 {
-    auto list = row.GetFixedValueList(listIndex, KeyColumnCount_);
+    auto list = row.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
 
     if (list) {
         auto& lastValue = list.Back();
@@ -913,57 +1020,61 @@ void TDynamicMemoryStore::AddFixedValue(
         }
 
         if (AllocateListForPushIfNeeded(&list, RowBuffer_.GetAlignedPool())) {
-            row.SetFixedValueList(listIndex, list, KeyColumnCount_);
+            row.SetFixedValueList(columnIndex, list, KeyColumnCount_, ColumnLockCount_);
         }
     } else {
         list = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-        row.SetFixedValueList(listIndex, list, KeyColumnCount_);
+        row.SetFixedValueList(columnIndex, list, KeyColumnCount_, ColumnLockCount_);
     }
 
-    list.Push([&] (TVersionedValue* dstValue) {
-        CaptureValue(dstValue, value);
-    });
-
-    ++ValueCount_;
+    CaptureValue(list.Push(), value);
+    ++StoreValueCount_;
 }
 
 void TDynamicMemoryStore::AddUncommittedFixedValue(
     TDynamicRow row,
-    int listIndex,
+    int columnIndex,
     const TUnversionedValue& value)
 {
-    AddFixedValue(row, listIndex, MakeVersionedValue(value, UncommittedTimestamp));
+    AddFixedValue(row, columnIndex, MakeVersionedValue(value, UncommittedTimestamp));
 }
 
 void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind)
 {
-    auto timestampList = row.GetTimestampList(kind, KeyColumnCount_);
+    auto timestampList = row.GetTimestampList(kind, KeyColumnCount_, ColumnLockCount_);
     if (timestampList) {
         if (AllocateListForPushIfNeeded(&timestampList, RowBuffer_.GetAlignedPool())) {
-            row.SetTimestampList(timestampList, kind, KeyColumnCount_);
+            row.SetTimestampList(timestampList, kind, KeyColumnCount_, ColumnLockCount_);
         }
     } else {
         timestampList = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-        row.SetTimestampList(timestampList, kind, KeyColumnCount_);
+        row.SetTimestampList(timestampList, kind, KeyColumnCount_, ColumnLockCount_);
     }
     timestampList.Push(timestamp);
 }
 
-void TDynamicMemoryStore::AddUncommittedTimestamp(TDynamicRow row, ETimestampListKind kind)
+void TDynamicMemoryStore::SetKeys(TDynamicRow dst, TUnversionedRow src)
 {
-    auto list = row.GetTimestampList(kind, KeyColumnCount_);
-    if (list && list.Back() == UncommittedTimestamp)
-        return;
-
-    if (!list) {
-        list = TTimestampList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-        row.SetTimestampList(list, kind, KeyColumnCount_);
+    ui32 nullKeyMask = 0;
+    ui32 nullKeyBit = 1;
+    auto* dstValue = dst.BeginKeys();
+    auto columnIt = Tablet_->Schema().Columns().begin();
+    for (int index = 0;
+         index < KeyColumnCount_;
+         ++index, nullKeyBit <<= 1, ++dstValue, ++columnIt)
+    {
+        const auto& srcValue = src[index];
+        if (srcValue.Type == EValueType::Null) {
+            nullKeyMask |= nullKeyBit;
+        } else {
+            if (IsStringLikeType(columnIt->Type)) {
+                *dstValue = CaptureStringValue(srcValue);
+            } else {
+                *reinterpret_cast<TUnversionedValueData*>(dstValue) = srcValue.Data;
+            }
+        }
     }
-
-    if (AllocateListForPushIfNeeded(&list, RowBuffer_.GetAlignedPool())) {
-        row.SetTimestampList(list, kind, KeyColumnCount_);
-    }
-    list.Push(UncommittedTimestamp);
+    dst.SetNullKeyMask(nullKeyMask);
 }
 
 void TDynamicMemoryStore::CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src)
@@ -980,15 +1091,39 @@ void TDynamicMemoryStore::CaptureValue(TVersionedValue* dst, const TVersionedVal
 
 void TDynamicMemoryStore::CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src)
 {
-    if (src.Type == EValueType::String || src.Type == EValueType::Any) {
+    if (IsStringLikeType(EValueType(src.Type))) {
         dst->Data.String = RowBuffer_.GetUnalignedPool()->AllocateUnaligned(src.Length);
         memcpy(const_cast<char*>(dst->Data.String), src.Data.String, src.Length);
     }
 }
 
+TDynamicValueData TDynamicMemoryStore::CaptureStringValue(TDynamicValueData src)
+{
+    ui32 length = src.String->Length;
+    TDynamicValueData dst;
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_.GetAlignedPool()->AllocateAligned(
+        sizeof(ui32) + length,
+        sizeof(ui32)));
+    ::memcpy(dst.String, src.String, sizeof(ui32) + length);
+    return dst;
+}
+
+TDynamicValueData TDynamicMemoryStore::CaptureStringValue(const TUnversionedValue& src)
+{
+    YASSERT(IsStringLikeType(EValueType(src.Type)));
+    ui32 length = src.Length;
+    TDynamicValueData dst;
+    dst.String = reinterpret_cast<TDynamicString*>(RowBuffer_.GetAlignedPool()->AllocateAligned(
+        sizeof(ui32) + length,
+        sizeof(ui32)));
+    dst.String->Length = length;
+    ::memcpy(dst.String->Data, src.Data.String, length);
+    return dst;
+}
+
 int TDynamicMemoryStore::GetValueCount() const
 {
-    return ValueCount_;
+    return StoreValueCount_;
 }
 
 int TDynamicMemoryStore::GetKeyCount() const
@@ -1068,7 +1203,9 @@ IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
     return New<TLookuper>(this, timestamp, columnFilter);
 }
 
-TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(TKey key)
+TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(
+    TKey key,
+    ui32 lockMask)
 {
     auto it = Rows_->FindEqualTo(key);
     if (!it.IsValid()) {
@@ -1076,29 +1213,17 @@ TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(TKey key)
     }
 
     auto row = it.GetCurrent();
-    auto getLatestTimestamp = [&] (ETimestampListKind kind) {
-        auto list = row.GetTimestampList(kind, KeyColumnCount_);
-        if (!list) {
-            return NullTimestamp;
+    auto timestamp = MinTimestamp;
+    {
+        ui32 lockMaskBit = 1;
+        const auto* lock = row.BeginLocks(KeyColumnCount_);
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
+            if (lockMask & lockMaskBit) {
+                timestamp = std::max(timestamp, lock->LastCommitTimestamp);
+            }
         }
-
-        auto latestTimestamp = list.Back();
-        if (latestTimestamp != UncommittedTimestamp) {
-            return latestTimestamp;
-        }
-
-        list = list.GetNext();
-        if (!list) {
-            return NullTimestamp;
-        }
-
-        latestTimestamp = list.Back();
-        YASSERT(latestTimestamp != UncommittedTimestamp);
-        return latestTimestamp;
-    };
-    auto writeTimestamp = getLatestTimestamp(ETimestampListKind::Write);
-    auto deleteTimestamp = getLatestTimestamp(ETimestampListKind::Delete);
-    return std::max(writeTimestamp, deleteTimestamp);
+    }
+    return timestamp;
 }
 
 void TDynamicMemoryStore::Save(TSaveContext& context) const
@@ -1112,17 +1237,15 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
     // Rows
     Save(context, Rows_->GetSize());
-    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(MinKey()); rowIt.IsValid(); rowIt.MoveNext()) {
+    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(MinKey().Get()); rowIt.IsValid(); rowIt.MoveNext()) {
         auto row = rowIt.GetCurrent();
 
-        const auto* keyBegin = row.GetKeys();
-        const auto* keyEnd = keyBegin + KeyColumnCount_;
-        for (const auto* keyIt = keyBegin; keyIt != keyEnd; ++keyIt) {
-            NVersionedTableClient::Save(context, *keyIt);
-        }
+        // Keys.
+        SaveRowKeys(context, row, Tablet_);
 
+        // Values.
         for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
-            auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_);
+            auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_, ColumnLockCount_);
             if (!topList) {
                 Save(context, static_cast<int>(0));
                 continue;
@@ -1145,26 +1268,23 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
             }
         }
 
+        // Timestamps.
         auto saveTimestamps = [&] (ETimestampListKind kind) {
-            auto topList = row.GetTimestampList(kind, KeyColumnCount_);
+            auto topList = row.GetTimestampList(kind, KeyColumnCount_, ColumnLockCount_);
             if (!topList) {
                 Save(context, static_cast<int>(0));
                 return;
             }
 
             int timestampCount = topList.GetSize() + topList.GetSuccessorsSize();
-            if (topList && topList.Back() == UncommittedTimestamp) {
-                --timestampCount;
-            }
             Save(context, timestampCount);
 
             EnumerateListsAndReverse(topList, &timestampLists);
             for (auto list : timestampLists) {
                 for (const auto* timestampIt = list.Begin(); timestampIt != list.End(); ++timestampIt) {
                     auto timestamp = *timestampIt;
-                    if (timestamp != UncommittedTimestamp) {
-                        Save(context, timestamp);
-                    }
+                    YASSERT(timestamp != UncommittedTimestamp);
+                    Save(context, timestamp);
                 }
             }
         };
@@ -1187,25 +1307,25 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto row = AllocateRow();
 
-        auto* keyBegin = row.GetKeys();
-        auto* keyEnd = keyBegin + KeyColumnCount_;
-        for (auto* keyIt = keyBegin; keyIt != keyEnd; ++keyIt) {
-            NVersionedTableClient::Load(context, *keyIt, RowBuffer_.GetUnalignedPool());
-        }
+        // Keys.
+        LoadRowKeys(context, row, Tablet_, RowBuffer_.GetAlignedPool());
 
-        for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
+        // Values.
+        for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
             int valueCount = Load<int>(context);
             for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 TVersionedValue value;
                 NVersionedTableClient::Load(context, value, RowBuffer_.GetUnalignedPool());
-                AddFixedValue(row, listIndex, value);
+                AddFixedValue(row, columnIndex, value);
             }
         }
 
+        // Timestamps.
         auto loadTimestamps = [&] (ETimestampListKind kind)  {
             int timestampCount = Load<int>(context);
             for (int timestampIndex = 0; timestampIndex < timestampCount; ++timestampIndex) {
                 auto timestamp = Load<TTimestamp>(context);
+                YASSERT(timestamp != UncommittedTimestamp);
                 AddTimestamp(row, timestamp, kind);
             }
         };
@@ -1249,8 +1369,28 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
 TOwningKey TDynamicMemoryStore::RowToKey(TDynamicRow row)
 {
     TUnversionedOwningRowBuilder builder;
-    for (const auto* it = row.GetKeys(); it != row.GetKeys() + KeyColumnCount_; ++it) {
-        builder.AddValue(*it);
+    ui32 nullKeyBit = 1;
+    ui32 nullKeyMask = row.GetNullKeyMask();
+    const auto* srcKey = row.BeginKeys();
+    auto columnIt = Tablet_->Schema().Columns().begin();
+    for (int index = 0;
+         index < KeyColumnCount_;
+         ++index, nullKeyBit <<= 1, ++srcKey, ++columnIt)
+    {
+        TUnversionedValue dstKey;
+        dstKey.Id = index;
+        if (nullKeyMask & nullKeyBit) {
+            dstKey.Type = EValueType::Null;
+        } else {
+            dstKey.Type = columnIt->Type;
+            if (IsStringLikeType(EValueType(dstKey.Type))) {
+                dstKey.Length = srcKey->String->Length;
+                dstKey.Data.String = srcKey->String->Data;
+            } else {
+                *reinterpret_cast<TDynamicValueData*>(&dstKey.Data) = *srcKey;
+            }
+        }
+        builder.AddValue(dstKey);
     }
     return builder.FinishRow();
 }

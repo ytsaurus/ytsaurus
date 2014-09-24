@@ -1,22 +1,14 @@
 #include "stdafx.h"
-#include "private.h"
+#include "public.h"
 
 namespace NYT {
-namespace NTabletNode {
+namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
-{
-    return 2;
-}
-
-bool ValidateSnapshotVersion(int version)
-{
-    return version == 2;
-}
+const Stroka PrimaryLockName("<primary>");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTabletNode
+} // namespace NVersionedTableClient
 } // namespace NYT

@@ -34,6 +34,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/table_mount_cache.h>
 #include <ytlib/tablet_client/tablet_service_proxy.h>
+#include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 
@@ -67,6 +68,7 @@ using namespace NRpc;
 using namespace NVersionedTableClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NHydra;
 using namespace NQueryClient;
@@ -275,7 +277,7 @@ public:
         (path, type, options))
     IMPLEMENT_METHOD(TLockId, LockNode, (
         const TYPath& path,
-        ELockMode mode,
+        NCypressClient::ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
     IMPLEMENT_METHOD(TNodeId, CopyNode, (
@@ -507,11 +509,17 @@ private:
         {
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
+                TReqLookupRows req;
+                if (!Options_.ColumnFilter.All) {
+                    ToProto(req.mutable_column_filter()->mutable_indexes(), Options_.ColumnFilter.Indexes);
+                }
+
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
-                writer.WriteColumnFilter(Options_.ColumnFilter);
+                writer.WriteMessage(req);
                 writer.WriteUnversionedRowset(batch->Keys, &IdMapping_);
                 writer.WriteCommand(EWireProtocolCommand::End);
+                
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     writer.Flush(),
                     Config_->LookupRequestCodec);
@@ -847,7 +855,7 @@ private:
 
     TLockId DoLockNode(
         const TYPath& path,
-        ELockMode mode,
+        NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
         auto lockReq = TCypressYPathProxy::Lock(path);
@@ -1088,48 +1096,56 @@ public:
     virtual void WriteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        TUnversionedRow row) override
+        TUnversionedRow row,
+        const TWriteRowOptions& options) override
     {
         WriteRows(
             path,
             std::move(nameTable),
-            std::vector<TUnversionedRow>(1, row));
+            std::vector<TUnversionedRow>(1, row),
+            options);
     }
 
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<TUnversionedRow> rows) override
+        std::vector<TUnversionedRow> rows,
+        const TWriteRowOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             this,
             path,
             std::move(nameTable),
-            std::move(rows))));
+            std::move(rows),
+            options)));
     }
 
 
     virtual void DeleteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key) override
+        NVersionedTableClient::TKey key,
+        const TDeleteRowOptions& options) override
     {
         DeleteRows(
             path,
             std::move(nameTable),
-            std::vector<NVersionedTableClient::TKey>(1, key));
+            std::vector<NVersionedTableClient::TKey>(1, key),
+            options);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TKey> keys) override
+        std::vector<NVersionedTableClient::TKey> keys,
+        const TDeleteRowOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
             path,
             std::move(nameTable),
-            std::move(keys))));
+            std::move(keys),
+            options)));
     }
 
 
@@ -1204,7 +1220,7 @@ public:
         (path, type, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TErrorOr<TLockId>>, LockNode, (
         const TYPath& path,
-        ELockMode mode,
+        NCypressClient::ELockMode mode,
         const TLockNodeOptions& options),
         (path, mode, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TErrorOr<TNodeId>>, CopyNode, (
@@ -1297,9 +1313,11 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<TUnversionedRow> rows)
+            std::vector<TUnversionedRow> rows,
+            const TWriteRowOptions& options)
             : TRequestBase(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
+            , Options_(options)
         { }
 
         virtual void Run() override
@@ -1308,17 +1326,23 @@ private:
 
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
+
+            TReqWriteRow req;
+            req.set_lock_mode(Options_.LockMode);
+
             for (auto row : Rows_) {
                 ValidateClientDataRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                writer->WriteMessage(req);
                 writer->WriteUnversionedRow(row, &idMapping);
             }
         }
 
     private:
         std::vector<TUnversionedRow> Rows_;
+        TWriteRowOptions Options_;
 
     };
 
@@ -1330,9 +1354,11 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NVersionedTableClient::TKey> keys)
+            std::vector<NVersionedTableClient::TKey> keys,
+            const TDeleteRowOptions& options)
             : TRequestBase(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
+            , Options_(options)
         { }
 
         virtual void Run() override
@@ -1343,15 +1369,20 @@ private:
             int keyColumnCount = static_cast<int>(TableInfo_->KeyColumns.size());
             for (auto key : Keys_) {
                 ValidateClientKey(key, keyColumnCount, TableInfo_->Schema);
+                
+                TReqDeleteRow req;
+
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, key);
                 auto* writer = Transaction_->GetTabletWriter(tabletInfo);
                 writer->WriteCommand(EWireProtocolCommand::DeleteRow);
+                writer->WriteMessage(req);
                 writer->WriteUnversionedRow(key, &idMapping);
             }
         }
 
     private:
         std::vector<TUnversionedRow> Keys_;
+        TDeleteRowOptions Options_;
 
     };
 

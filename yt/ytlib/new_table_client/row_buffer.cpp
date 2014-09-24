@@ -11,7 +11,7 @@ namespace {
 
 void CaptureValue(TUnversionedValue* value, TChunkedMemoryPool* pool)
 {
-    if (value->Type == EValueType::String || value->Type == EValueType::Any) {
+    if (IsStringLikeType(EValueType(value->Type))) {
         char* dst = pool->AllocateUnaligned(value->Length);
         memcpy(dst, value->Data.String, value->Length);
         value->Data.String = dst;
@@ -87,7 +87,7 @@ TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
 
     for (int index = 0; index < count; ++index) {
         const auto& value = values[index];
-        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        if (IsStringLikeType(EValueType(value.Type))) {
             auto& capturedValue = capturedValues[index];
             capturedValue.Data.String = UnalignedPool_.AllocateUnaligned(value.Length);
             memcpy(const_cast<char*>(capturedValue.Data.String), value.Data.String, value.Length);

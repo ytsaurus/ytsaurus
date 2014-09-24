@@ -48,17 +48,18 @@ public:
     TDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
-        bool prelock);
+        bool prelock,
+        ELockMode lockMode = ELockMode::Row);
 
     TDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TKey key,
         bool prelock);
 
-    void ConfirmRow(const TDynamicRowRef& rowRef);
-    void PrepareRow(const TDynamicRowRef& rowRef);
-    void CommitRow(const TDynamicRowRef& rowRef);
-    void AbortRow(const TDynamicRowRef& rowRef);
+    void ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
+    void PrepareRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
+    void CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
+    void AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
 
     bool IsOverflowRotationNeeded() const;
     bool IsPeriodicRotationNeeded() const;
@@ -88,6 +89,8 @@ private:
     TTablet* Tablet_;
     IInvokerPtr ReadWorkerInvoker_;
 
+    int KeyColumnCount_;
+
     bool RotationScheduled_;
     TInstant LastRotated_;
 
@@ -99,20 +102,29 @@ private:
     NLog::TLogger Logger;
 
 
-    TDynamicRow MigrateRowIfNeeded(const TDynamicRowRef& rowRef);
+    ui32 ComputeLockMask(TUnversionedRow row, ELockMode lockMode);
 
-    TDynamicMemoryStore* FindRelevantStoreAndCheckLocks(
+    TDynamicRow MigrateRowIfNeeded(TTransaction* transaction, const TDynamicRowRef& rowRef);
+
+    void CheckInactiveStoresLocks(
         TTransaction* transaction,
         TUnversionedRow key,
-        ERowLockMode mode,
-        bool prelock);
+        bool prelock,
+        ui32 lockMask);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
 
     bool IsRecovery() const;
 
-    void OnRowBlocked(TDynamicRow row);
-    static void WaitForBlockedRow(TDynamicRow row);
+    void OnRowBlocked(
+        IStore* store,
+        TDynamicRow row,
+        int lockIndex);
+    void WaitForBlockedRow(
+        IStorePtr store,
+        TDynamicRow row,
+        int lockIndex,
+        const TTransactionId& transactionId);
 
 };
 

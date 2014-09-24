@@ -24,17 +24,21 @@ namespace NVersionedTableClient {
 // NB: Wire protocol readers/writer rely on this fixed layout.
 union TUnversionedValueData
 {
-    //! Int64 value.
+    //! |Int64| value.
     i64 Int64;
-    //! Uint64 value.
+    //! |Uint64| value.
     ui64 Uint64;
-    //! Floating-point value.
+    //! |Double| value.
     double Double;
-    //! Boolean value.
+    //! |Boolean| value.
     bool Boolean;
     //! String value for |String| type or YSON-encoded value for |Any| type.
     const char* String;
 };
+
+static_assert(
+    sizeof(TUnversionedValueData) == 8,
+    "TUnversionedValueData has to be exactly 8 bytes.");
 
 // NB: Wire protocol readers/writer rely on this fixed layout.
 struct TUnversionedValue
@@ -62,8 +66,20 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsIntegralType(EValueType type);
-bool IsArithmeticType(EValueType type);
+inline bool IsIntegralType(EValueType type)
+{
+    return type == EValueType::Int64 || type == EValueType::Uint64;
+}
+
+inline bool IsArithmeticType(EValueType type)
+{
+    return IsIntegralType(type) || type == EValueType::Double;
+}
+
+inline bool IsStringLikeType(EValueType type)
+{
+    return type == EValueType::String || type == EValueType::Any;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -400,10 +416,6 @@ void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
 Stroka ToString(TUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 

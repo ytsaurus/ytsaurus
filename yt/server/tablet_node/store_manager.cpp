@@ -18,6 +18,7 @@
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/tablet_client/wire_protocol.h>
+#include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/versioned_row.h>
@@ -27,6 +28,8 @@
 #include <ytlib/new_table_client/versioned_lookuper.h>
 
 #include <ytlib/tablet_client/config.h>
+
+#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <server/hydra/hydra_manager.h>
 
@@ -39,13 +42,10 @@ using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 
 using NVersionedTableClient::TKey;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +68,13 @@ public:
         KeyColumnCount_ = Tablet_->GetKeyColumnCount();
         SchemaColumnCount_ = Tablet_->GetSchemaColumnCount();
 
-        ColumnFilter_ = reader->ReadColumnFilter();
+        TReqLookupRows req;
+        reader->ReadMessage(&req);
+
+        if (req.has_column_filter()) {
+            ColumnFilter_.All = false;
+            ColumnFilter_.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
+        }
 
         SmallVector<bool, TypicalColumnCount> columnFilterFlags(SchemaColumnCount_);
         if (ColumnFilter_.All) {
@@ -117,6 +123,7 @@ public:
 
     void Clean()
     {
+        ColumnFilter_ = TColumnFilter();
         MemoryPool_.Clear();
         LookupKeys_.clear();
         Stores_.clear();
@@ -219,6 +226,7 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , ReadWorkerInvoker_(readPoolInvoker)
+    , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , RotationScheduled_(false)
     , LastRotated_(TInstant::Now())
     , Logger(TabletNodeLogger)
@@ -292,22 +300,34 @@ void TStoreManager::LookupRows(
 TDynamicRowRef TStoreManager::WriteRow(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prelock)
+    bool prelock,
+    ELockMode lockMode)
 {
-    ValidateServerDataRow(row, Tablet_->GetKeyColumnCount(), Tablet_->Schema());
+    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
 
-    auto* store = FindRelevantStoreAndCheckLocks(
+    if (row.GetCount() == KeyColumnCount_) {
+        THROW_ERROR_EXCEPTION("Empty writes are not allowed")
+            << TErrorAttribute("transaction_id", transaction->GetId())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
+            << TErrorAttribute("key", row);
+    }
+
+    ui32 lockMask = ComputeLockMask(row, lockMode);
+
+    CheckInactiveStoresLocks(
         transaction,
         row,
-        ERowLockMode::Write,
-        prelock);
+        prelock,
+        lockMask);
 
-    auto updatedRow = store->WriteRow(
+    auto* store = Tablet_->GetActiveStore().Get();
+    auto dynamicRow = store->WriteRow(
         transaction,
         row,
-        prelock);
+        prelock,
+        lockMask);
 
-    return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
+    return TDynamicRowRef(store, dynamicRow);
 }
 
 TDynamicRowRef TStoreManager::DeleteRow(
@@ -315,45 +335,69 @@ TDynamicRowRef TStoreManager::DeleteRow(
     NVersionedTableClient::TKey key,
     bool prelock)
 {
-    ValidateServerKey(key, Tablet_->GetKeyColumnCount(), Tablet_->Schema());
+    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
 
-    auto* store = FindRelevantStoreAndCheckLocks(
+    CheckInactiveStoresLocks(
         transaction,
         key,
-        ERowLockMode::Delete,
-        prelock);
+        prelock,
+        TDynamicRow::PrimaryLockMask);
 
-    auto updatedRow = store->DeleteRow(
+    auto* store = Tablet_->GetActiveStore().Get();
+    auto dynamicRow = store->DeleteRow(
         transaction,
         key,
         prelock);
 
-    return updatedRow ? TDynamicRowRef(store, updatedRow) : TDynamicRowRef();
+    return TDynamicRowRef(store, dynamicRow);
 }
 
-void TStoreManager::ConfirmRow(const TDynamicRowRef& rowRef)
+void TStoreManager::ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
-    rowRef.Store->ConfirmRow(rowRef.Row);
+    rowRef.Store->ConfirmRow(transaction, rowRef.Row);
 }
 
-void TStoreManager::PrepareRow(const TDynamicRowRef& rowRef)
+void TStoreManager::PrepareRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
-    rowRef.Store->PrepareRow(rowRef.Row);
+    rowRef.Store->PrepareRow(transaction, rowRef.Row);
 }
 
-void TStoreManager::CommitRow(const TDynamicRowRef& rowRef)
+void TStoreManager::CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
-    auto row = MigrateRowIfNeeded(rowRef);
-    Tablet_->GetActiveStore()->CommitRow(row);
+    auto row = MigrateRowIfNeeded(transaction, rowRef);
+    Tablet_->GetActiveStore()->CommitRow(transaction, row);
 }
 
-void TStoreManager::AbortRow(const TDynamicRowRef& rowRef)
+void TStoreManager::AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
-    rowRef.Store->AbortRow(rowRef.Row);
+    rowRef.Store->AbortRow(transaction, rowRef.Row);
     CheckForUnlockedStore(rowRef.Store);
 }
 
-TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
+ui32 TStoreManager::ComputeLockMask(TUnversionedRow row, ELockMode lockMode)
+{
+    switch (lockMode) {
+        case ELockMode::Row:
+            return TDynamicRow::PrimaryLockMask;
+
+        case ELockMode::Column: {
+            const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
+            ui32 lockMask = 0;
+            for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+                const auto& value = row[index];
+                int lockIndex = columnIndexToLockIndex[value.Id];
+                lockMask |= (1 << lockIndex);
+            }
+            YASSERT(lockMask != 0);
+            return lockMask;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+TDynamicRow TStoreManager::MigrateRowIfNeeded(TTransaction* transaction, const TDynamicRowRef& rowRef)
 {
     if (rowRef.Store->GetState() == EStoreState::ActiveDynamic) {
         return rowRef.Row;
@@ -362,27 +406,24 @@ TDynamicRow TStoreManager::MigrateRowIfNeeded(const TDynamicRowRef& rowRef)
     // NB: MigrateRow may change rowRef if the latter references
     // an element from transaction->LockedRows().
     auto* store = rowRef.Store;
-    auto migratedRow = Tablet_->GetActiveStore()->MigrateRow(rowRef);
+    auto migratedRow = Tablet_->GetActiveStore()->MigrateRow(transaction, rowRef);
     CheckForUnlockedStore(store);
     return migratedRow;
 }
 
-TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
+void TStoreManager::CheckInactiveStoresLocks(
     TTransaction* transaction,
     TUnversionedRow key,
-    ERowLockMode mode,
-    bool prelock)
+    bool prelock,
+    ui32 lockMask)
 {
-    // Check locked stored.
+    // Check locked stores.
     for (const auto& store : LockedStores_) {
-        auto row = store->FindRowAndCheckLocks(
+        store->CheckRowLocks(
             key,
             transaction,
-            mode);
-        if (row) {
-            return store.Get();
-        }
-    } 
+            lockMask);
+    }
 
     if (prelock) {
         // Check passive stores.
@@ -391,44 +432,40 @@ TDynamicMemoryStore* TStoreManager::FindRelevantStoreAndCheckLocks(
             if (store->GetLockCount() > 0)
                 continue;
             
-            auto row = store->FindRowAndCheckLocks(
+            store->CheckRowLocks(
                 key,
                 transaction,
-                mode);
-
-            // Only active or locked stores can be relevant.
-            YCHECK(!row);
+                lockMask);
         }
 
         // Check chunk stores.
-        bool logged = false;
-        auto startTimestamp = transaction->GetStartTimestamp();
-        for (auto it = LatestTimestampToStore_.rbegin();
-             it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
-             ++it)
-        {
-            // NB: Hold by value, LatestTimestampToStore_ may be changed in a concurrent fiber. 
-            auto store = it->second;
-
-            if (!logged && store->GetType() == EStoreType::Chunk) {
-                LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %v, StartTimestamp: %v)",
-                    transaction->GetId(),
-                    startTimestamp);
-                logged = true;
-            }
-
-            auto latestTimestamp = store->GetLatestCommitTimestamp(key);
-            if (latestTimestamp > startTimestamp) {
-                THROW_ERROR_EXCEPTION("Row lock conflict")
-                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
-                    << TErrorAttribute("winner_transaction_commit_timestamp", latestTimestamp)
-                    << TErrorAttribute("tablet_id", Tablet_->GetId())
-                    << TErrorAttribute("key", key);
-            }
-        }
+        // FIXME(babenko)
+//        bool logged = false;
+//        auto startTimestamp = transaction->GetStartTimestamp();
+//        for (auto it = LatestTimestampToStore_.rbegin();
+//             it != LatestTimestampToStore_.rend() && it->first > startTimestamp;
+//             ++it)
+//        {
+//            // NB: Hold by value, LatestTimestampToStore_ may be changed in a concurrent fiber.
+//            auto store = it->second;
+//
+//            if (!logged && store->GetType() == EStoreType::Chunk) {
+//                LOG_WARNING("Checking chunk stores for conflicting commits (TransactionId: %v, StartTimestamp: %v)",
+//                    transaction->GetId(),
+//                    startTimestamp);
+//                logged = true;
+//            }
+//
+//            auto latestTimestamp = store->GetLatestCommitTimestamp(key);
+//            if (latestTimestamp > startTimestamp) {
+//                THROW_ERROR_EXCEPTION("Row lock conflict")
+//                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+//                    << TErrorAttribute("winner_transaction_commit_timestamp", latestTimestamp)
+//                    << TErrorAttribute("tablet_id", Tablet_->GetId())
+//                    << TErrorAttribute("key", key);
+//            }
+//        }
     }
-
-    return Tablet_->GetActiveStore().Get();
 }
 
 void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore * store)
@@ -600,7 +637,7 @@ TDynamicMemoryStorePtr TStoreManager::CreateDynamicMemoryStore(const TStoreId& s
     
     // NB: Slot can be null in tests.
     if (Tablet_->GetSlot()) {
-        store->SubscribeRowBlocked(BIND(&TStoreManager::OnRowBlocked, MakeWeak(this)));
+        store->SubscribeRowBlocked(BIND(&TStoreManager::OnRowBlocked, MakeWeak(this), store.Get()));
     }
 
     return store;
@@ -635,17 +672,31 @@ bool TStoreManager::IsRecovery() const
     return slot ? slot->GetHydraManager()->IsRecovery() : false;
 }
 
-void TStoreManager::OnRowBlocked(TDynamicRow row)
+void TStoreManager::OnRowBlocked(IStore* store, TDynamicRow row, int lockIndex)
 {
-    WaitFor(BIND(&TStoreManager::WaitForBlockedRow, row)
+    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    const auto* transaction = lock.Transaction;
+    WaitFor(
+        BIND(
+            &TStoreManager::WaitForBlockedRow,
+            MakeStrong(this),
+            MakeStrong(store),
+            row,
+            lockIndex,
+            transaction->GetId())
         .AsyncVia(Tablet_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read))
         .Run());
 }
 
-void TStoreManager::WaitForBlockedRow(TDynamicRow row)
+void TStoreManager::WaitForBlockedRow(
+    IStorePtr /*store*/,
+    TDynamicRow row,
+    int lockIndex,
+    const TTransactionId& transactionId)
 {
-    auto* transaction = row.GetTransaction();
-    if (transaction) {
+    const auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    const auto* transaction = lock.Transaction;
+    if (transaction && transaction->GetId() == transactionId) {
         WaitFor(transaction->GetFinished());
     }
 }

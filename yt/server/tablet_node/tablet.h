@@ -29,7 +29,10 @@ public:
     
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
-    
+
+    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
+
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
     
@@ -98,6 +101,7 @@ public:
 
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;
+    int GetColumnLockCount() const;
 
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
@@ -118,6 +122,10 @@ private:
     yhash_map<TStoreId, IStorePtr> Stores_;
     TDynamicMemoryStorePtr ActiveStore_;
 
+    int ColumnLockCount_ = -1;
+
+
+    void Initialize();
 
     TPartition* GetContainingPartition(IStorePtr store);
 

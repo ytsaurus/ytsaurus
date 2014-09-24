@@ -70,7 +70,9 @@ struct IStore
         const TColumnFilter& columnFilter) = 0;
 
     //! Returns the latest commit timestamp for a given #key.
-    virtual TTimestamp GetLatestCommitTimestamp(TKey key) = 0;
+    virtual TTimestamp GetLatestCommitTimestamp(
+        TKey key,
+        ui32 lockMask) = 0;
 
 
     virtual void Save(TSaveContext& context) const = 0;

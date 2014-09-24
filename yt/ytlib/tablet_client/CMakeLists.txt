@@ -21,3 +21,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/tablet_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/wire_protocol.proto YT_SOURCE_FILES )

@@ -33,7 +33,7 @@ TTransaction::TTransaction(const TTransactionId& id)
 void TTransaction::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    
+
     Save(context, Timeout_);
     Save(context, StartTime_);
     Save(context, GetPersistentState());
@@ -52,39 +52,45 @@ void TTransaction::Save(TSaveContext& context) const
         auto row = rowRef.Row;
         auto* tablet = store->GetTablet();
 
+        int keyColumnCount = tablet->GetKeyColumnCount();
+        int schemaColumnCount = tablet->GetSchemaColumnCount();
+        int columnLockCount = tablet->GetColumnLockCount();
+        const auto& columnIndexToLockIndex = tablet->ColumnIndexToLockIndex();
+        const auto* locks = row.BeginLocks(keyColumnCount);
+
         // Tablet
         Save(context, tablet->GetId());
 
-        // Lock mode
-        Save(context, row.GetLockMode());
-
         // Keys
-        auto* keyBegin = row.GetKeys();
-        auto* keyEnd = keyBegin + tablet->GetKeyColumnCount();
-        for (auto* it = keyBegin; it != keyEnd; ++it) {
-            NVersionedTableClient::Save(context, *it);
-        }
+        SaveRowKeys(context, row, tablet);
 
         // Fixed values
-        for (int listIndex = 0; listIndex < tablet->GetSchemaColumnCount() - tablet->GetKeyColumnCount(); ++listIndex) {
-            auto list = rowRef.Row.GetFixedValueList(listIndex, tablet->GetKeyColumnCount());
-            if (list) {
-                const auto& value = list.Back();
-                if (value.Timestamp == UncommittedTimestamp) {
-                    NVersionedTableClient::Save(context, TUnversionedValue(value));
+        ui32 lockMask = 0;
+        for (int columnIndex = keyColumnCount; columnIndex < schemaColumnCount; ++columnIndex) {
+            int lockIndex = columnIndexToLockIndex[columnIndex];
+            if (locks[lockIndex].Transaction == this) {
+                auto list = rowRef.Row.GetFixedValueList(columnIndex, keyColumnCount, columnLockCount);
+                if (list) {
+                    const auto& value = list.Back();
+                    if (value.Timestamp == UncommittedTimestamp) {
+                        NVersionedTableClient::Save(context, TUnversionedValue(value));
+                        lockMask |= (1 << lockIndex);
+                    }
                 }
             }
         }
-
-        // Sentinel
         NVersionedTableClient::Save(context, MakeUnversionedSentinelValue(EValueType::TheBottom));
+
+        // Misc
+        Save(context, lockMask);
+        Save(context, row.GetDeleteLockFlag());
     }
 }
 
 void TTransaction::Load(TLoadContext& context)
 {
     using NYT::Load;
-    
+
     Load(context, Timeout_);
     Load(context, StartTime_);
     Load(context, State_);
@@ -96,7 +102,7 @@ void TTransaction::Load(TLoadContext& context)
 
     size_t lockedRowCount = Load<size_t>(context);
     LockedRows_.reserve(lockedRowCount);
-    
+
     auto* tempPool = context.GetTempPool();
     auto* rowBuilder = context.GetRowBuilder();
 
@@ -111,13 +117,13 @@ void TTransaction::Load(TLoadContext& context)
         const auto& store = tablet->GetActiveStore();
         YCHECK(store);
 
-        // Lock mode
-        auto lockMode = Load<ERowLockMode>(context);
-
-        // Keys and fixed values
         tempPool->Clear();
         rowBuilder->Reset();
 
+        // Keys
+        LoadRowKeys(context, rowBuilder, tablet, tempPool);
+
+        // Values
         while (true) {
             TUnversionedValue value;
             Load(context, value, tempPool);
@@ -126,27 +132,21 @@ void TTransaction::Load(TLoadContext& context)
             rowBuilder->AddValue(value);
         }
 
+        // Misc
+        bool deleteLockFlag = Load<bool>(context);
+        ui32 lockMask = Load<ui32>(context);
+
         auto deserializedRow = rowBuilder->GetRow();
+
         TDynamicRow dynamicRow;
-        switch (lockMode) {
-            case ERowLockMode::Delete:
-                dynamicRow = store->DeleteRow(this, deserializedRow, false);
-                break;
-
-            case ERowLockMode::Write:
-                dynamicRow = store->WriteRow(this, deserializedRow, false);
-                break;
-
-            default:
-                YUNREACHABLE();
+        if ((lockMask & TDynamicRow::PrimaryLockMask) && deleteLockFlag) {
+            dynamicRow = store->DeleteRow(this, deserializedRow, false);
+        } else {
+            dynamicRow = store->WriteRow(this, deserializedRow, false, lockMask);
         }
 
-        YASSERT(dynamicRow.GetTransaction() == this);
-        YASSERT(dynamicRow.GetLockMode() == lockMode);
-        YASSERT(dynamicRow.GetLockIndex() == rowIndex);
-        
         if (PrepareTimestamp_ != NullTimestamp) {
-            store->PrepareRow(dynamicRow);
+            store->PrepareRow(this, dynamicRow);
         }
     }
 }

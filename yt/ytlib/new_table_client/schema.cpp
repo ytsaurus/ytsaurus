@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "schema.h"
+#include "unversioned_row.h"
 
 #include <core/ytree/serialize.h>
 #include <core/ytree/convert.h>
@@ -8,8 +9,6 @@
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h> // TODO(babenko): remove after migration
-#include "row_base.h"
-#include "unversioned_row.h"
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -23,9 +22,13 @@ TColumnSchema::TColumnSchema()
     : Type(EValueType::Null)
 { }
 
-TColumnSchema::TColumnSchema(const Stroka& name, EValueType type)
+TColumnSchema::TColumnSchema(
+    const Stroka& name,
+    EValueType type,
+    const TNullable<Stroka>& lock)
     : Name(name)
     , Type(type)
+    , Lock(lock)
 { }
 
 struct TSerializableColumnSchema
@@ -48,6 +51,24 @@ struct TSerializableColumnSchema
         RegisterParameter("name", Name)
             .NonEmpty();
         RegisterParameter("type", Type);
+        RegisterParameter("lock_group", Lock)
+            .Default();
+
+        RegisterValidator([&] () {
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            // Type
+            try {
+                ValidateSchemaValueType(Type);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+        });
     }
 };
 
@@ -132,13 +153,22 @@ TError TTableSchema::CheckKeyColumns(const TKeyColumns& keyColumns) const
 {
     // ToDo(psushin): provide ToString for TTableSchema and make better error messages.
     if (Columns_.size() < keyColumns.size()) {
-        return TError("Schema doesn't contain all key columns");
+        return TError("Key columns must form a prefix of schema");;
     }
 
     for (int index = 0; index < static_cast<int>(keyColumns.size()); ++index) {
-        if (Columns_[index].Name != keyColumns[index]) {
+        const auto& columnSchema = Columns_[index];
+        if (columnSchema.Name != keyColumns[index]) {
             return TError("Key columns must form a prefix of schema");;
         }
+        if (columnSchema.Lock) {
+            return TError("Key column %Qv cannot have an explicit lock group",
+                columnSchema.Name);
+        }
+    }
+
+    if (Columns_.size() == keyColumns.size()) {
+        return TError("Schema must contains at least one non-key column");;
     }
 
     return TError();
@@ -187,22 +217,24 @@ void Deserialize(TTableSchema& schema, INodePtr node)
     NYTree::Deserialize(schema.Columns(), node);
     
     // Check for duplicate names.
-    yhash_set<Stroka> names;
+    // Check lock groups count.
+    yhash_set<Stroka> columnNames;
+    yhash_set<Stroka> lockNames;
+    YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
-        try {
-            if (column.Name.empty()) {
-                THROW_ERROR_EXCEPTION("Column name cannot be empty");
-            }
-            ValidateSchemaValueType(column.Type);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
-                column.Name)
-                << ex;
-        }
-        if (!names.insert(column.Name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column %Qv in table schema",
+        if (!columnNames.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
                 column.Name);
         }
+        if (column.Lock) {
+            lockNames.insert(*column.Lock);
+        }
+    }
+
+    if (lockNames.size() > MaxColumnLockCount) {
+        THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
+            lockNames.size(),
+            MaxColumnLockCount);
     }
 }
 

@@ -1,0 +1,23 @@
+package NYT.NTabletClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TColumnFilter
+{
+    repeated int32 indexes = 1;
+}
+
+message TReqLookupRows
+{
+    optional TColumnFilter column_filter = 1;
+}
+
+message TReqWriteRow
+{
+    required int32 lock_mode = 1; // ELockMode
+}
+
+message TReqDeleteRow
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

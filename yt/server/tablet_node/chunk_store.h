@@ -64,7 +64,9 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
+    virtual TTimestamp GetLatestCommitTimestamp(
+        TKey key,
+        ui32 lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;

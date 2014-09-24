@@ -19,6 +19,7 @@ EStoreState IStore::GetPersistentState() const
         case EStoreState::Compacting:
         case EStoreState::CompactionFailed:
             return EStoreState::Persistent;
+
         default:
             return state;
     }

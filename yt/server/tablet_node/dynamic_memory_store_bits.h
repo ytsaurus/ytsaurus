@@ -7,23 +7,56 @@
 
 #include <ytlib/new_table_client/unversioned_row.h>
 
-#include <tuple>
-
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicRowHeader
+// NB: 4-aligned.
+struct TDynamicString
 {
+    ui32 Length;
+    char Data[1]; // the actual length is above
+};
+
+// NB: TDynamicValueData must be binary compatible with TUnversionedValueData for all simple types.
+union TDynamicValueData
+{
+    //! |Int64| value.
+    i64 Int64;
+    //! |Uint64| value.
+    ui64 Uint64;
+    //! |Double| value.
+    double Double;
+    //! |Boolean| value.
+    bool Boolean;
+    //! String value for |String| type or YSON-encoded value for |Any| type.
+    TDynamicString* String;
+};
+
+static_assert(
+    sizeof(TDynamicValueData) == sizeof(NVersionedTableClient::TUnversionedValueData),
+    "TDynamicValueData and TUnversionedValueData must be of the same size.");
+
+struct TLockDescriptor
+{
+    static const int InvalidRowIndex = -1;
+
     TTransaction* Transaction;
-    i32 LockIndex;
-    i32 LockMode;
+    ui32 RowIndex; // index in TTransaction::LockedRows
     TTimestamp PrepareTimestamp;
     TTimestamp LastCommitTimestamp;
-    
+};
+
+struct TDynamicRowHeader
+{
+    ui32 NullKeyMask;
+    ui32 DeleteLockFlag : 1;
+    ui32 Padding : 31;
+
     // Variable-size part:
-    // * TUnversionedValue per each key column
+    // * TDynamicValueData per each key column
+    // * TLockDescriptor per each lock group
     // * TEditListHeader* for timestamps
     // * TEditListHeader* per each fixed non-key column
 };
@@ -60,7 +93,7 @@ public:
         int capacity)
     {
         auto* header = reinterpret_cast<TEditListHeader*>(pool->AllocateAligned(
-            sizeof (TEditListHeader) +
+            sizeof(TEditListHeader) +
             capacity * sizeof(T)));
         header->Capacity = capacity;
         header->Size = 0;
@@ -172,12 +205,12 @@ public:
         ++Header_->Size;
     }
 
-    template <class TCtor>
-    void Push(TCtor valueCtor)
+    T* Push()
     {
         YASSERT(Header_->Size < Header_->Capacity);
-        valueCtor(End());
+        auto* result = End();
         ++Header_->Size;
+        return result;
     }
 
     int Pop()
@@ -193,16 +226,14 @@ private:
 
 };
 
-static_assert(sizeof (TValueList) == sizeof (intptr_t), "TValueList size must match that of a pointer.");
-static_assert(sizeof (TTimestampList) == sizeof (intptr_t), "TTimestampList size must match that of a pointer.");
+static_assert(
+    sizeof(TValueList) == sizeof(intptr_t),
+    "TValueList size must match that of a pointer.");
+static_assert(
+    sizeof(TTimestampList) == sizeof(intptr_t),
+    "TTimestampList size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(ERowLockMode,
-    (None)
-    (Write)
-    (Delete)
-);
 
 DECLARE_ENUM(ETimestampListKind,
     (Write)
@@ -223,29 +254,40 @@ public:
 
     static TDynamicRow Allocate(
         TChunkedMemoryPool* pool,
-        int keyCount,
+        int keyColumnCount,
+        int columnLockCount,
         int schemaColumnCount)
     {
         // One list per each non-key schema column
         // plus write timestamps
         // plus delete timestamp.
         int listCount =
-            schemaColumnCount -
-            keyCount +
+            (schemaColumnCount - keyColumnCount) +
             ETimestampListKind::GetDomainSize();
-        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->AllocateAligned(
-            sizeof (TDynamicRowHeader) +
-            keyCount * sizeof (TUnversionedValue) +
-            listCount * sizeof(TEditListHeader*)));
-        header->Transaction = nullptr;
-        header->LockIndex = InvalidLockIndex;
-        header->LockMode = ERowLockMode::None;
-        header->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
-        header->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
-        auto* keys = reinterpret_cast<TUnversionedValue*>(header + 1);
-        auto** lists = reinterpret_cast<TEditListHeader**>(keys + keyCount);
-        ::memset(lists, 0, sizeof (TEditListHeader*) * listCount);
-        return TDynamicRow(header);
+        size_t size =
+            sizeof(TDynamicRowHeader) +
+            keyColumnCount * sizeof(TDynamicValueData) +
+            columnLockCount * sizeof(TLockDescriptor) +
+            listCount * sizeof(TEditListHeader*);
+
+        // Allocate memory.
+        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->AllocateAligned(size));
+        auto row = TDynamicRow(header);
+
+        // Generic fill.
+        ::memset(header, 0, size);
+
+        // Custom fill.
+        {
+            auto* lock = row.BeginLocks(keyColumnCount);
+            for (int index = 0; index < columnLockCount; ++index, ++lock) {
+                lock->RowIndex = TLockDescriptor::InvalidRowIndex;
+                lock->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
+                lock->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
+            }
+        }
+
+        return row;
     }
 
 
@@ -254,116 +296,75 @@ public:
         return Header_ != nullptr;
     }
 
+    static const int PrimaryLockIndex = 0;
+    static const ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
+    static const ui32 AllLocksMask = 0xffffffff;
 
-    TTransaction* GetTransaction() const
+    const TDynamicValueData* BeginKeys() const
     {
-        return Header_->Transaction;
+        return reinterpret_cast<const TDynamicValueData*>(Header_ + 1);
     }
 
-    void SetTransaction(TTransaction* transaction)
+    TDynamicValueData* BeginKeys()
     {
-        Header_->Transaction = transaction;
-    }
-
-
-    static const int InvalidLockIndex;
-
-    int GetLockIndex() const
-    {
-        return Header_->LockIndex;
-    }
-
-    void SetLockIndex(int index)
-    {
-        Header_->LockIndex = index;
+        return reinterpret_cast<TDynamicValueData*>(Header_ + 1);
     }
 
 
-    ERowLockMode GetLockMode() const
+    ui32 GetNullKeyMask() const
     {
-        return ERowLockMode(Header_->LockMode);
+        return Header_->NullKeyMask;
     }
 
-    void SetLockMode(ERowLockMode mode)
+    void SetNullKeyMask(ui32 value)
     {
-        Header_->LockMode = mode;
-    }
-
-
-    void Lock(TTransaction* transaction, int index, ERowLockMode mode)
-    {
-        Header_->Transaction = transaction;
-        Header_->LockIndex = index;
-        Header_->LockMode = mode;
-    }
-
-    void Unlock()
-    {
-        Header_->Transaction = nullptr;
-        Header_->LockIndex = InvalidLockIndex;
-        Header_->LockMode = ERowLockMode::None;
-        Header_->PrepareTimestamp = NTransactionClient::MaxTimestamp;
+        Header_->NullKeyMask = value;
     }
 
 
-
-    TTimestamp GetPrepareTimestamp() const
+    bool GetDeleteLockFlag() const
     {
-        return Header_->PrepareTimestamp;
+        return Header_->DeleteLockFlag;
     }
 
-    void SetPrepareTimestamp(TTimestamp timestamp) const
+    void SetDeleteLockFlag(bool value)
     {
-        Header_->PrepareTimestamp = timestamp;
-    }
-
-
-    TTimestamp GetLastCommitTimestamp() const
-    {
-        return Header_->LastCommitTimestamp;
-    }
-
-    void SetLastCommitTimestamp(TTimestamp timestamp) const
-    {
-        Header_->LastCommitTimestamp = timestamp;
+        Header_->DeleteLockFlag = value;
     }
 
 
-    const TUnversionedValue& operator [](int id) const
+    const TLockDescriptor* BeginLocks(int keyColumnCount) const
     {
-        return GetKeys()[id];
+        return reinterpret_cast<const TLockDescriptor*>(BeginKeys() + keyColumnCount);
     }
 
-    const TUnversionedValue* GetKeys() const
+    TLockDescriptor* BeginLocks(int keyColumnCount)
     {
-        return reinterpret_cast<NVersionedTableClient::TUnversionedValue*>(Header_ + 1);
-    }
-
-    TUnversionedValue* GetKeys()
-    {
-        return reinterpret_cast<TUnversionedValue*>(Header_ + 1);
+        return reinterpret_cast<TLockDescriptor*>(BeginKeys() + keyColumnCount);
     }
 
 
-    TValueList GetFixedValueList(int index, int keyCount) const
+    TValueList GetFixedValueList(int columnIndex, int keyColumnCount, int columnLockCount) const
     {
-        return TValueList(GetLists(keyCount)[index + ETimestampListKind::GetDomainSize()]);
+        YASSERT(columnIndex >= keyColumnCount);
+        return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + ETimestampListKind::GetDomainSize()]);
     }
 
-    void SetFixedValueList(int index, TValueList list, int keyCount)
+    void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
     {
-        GetLists(keyCount)[index + ETimestampListKind::GetDomainSize()] = list.Header_;
+        YASSERT(columnIndex >= keyColumnCount);
+        GetLists(keyColumnCount, columnLockCount)[columnIndex  - keyColumnCount + ETimestampListKind::GetDomainSize()] = list.Header_;
     }
 
 
-    TTimestampList GetTimestampList(ETimestampListKind kind, int keyCount) const
+    TTimestampList GetTimestampList(ETimestampListKind kind, int keyColumnCount, int columnLockCount) const
     {
-        return TTimestampList(GetLists(keyCount)[static_cast<int>(kind)]);
+        return TTimestampList(GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)]);
     }
 
-    void SetTimestampList(TTimestampList list, ETimestampListKind kind, int keyCount)
+    void SetTimestampList(TTimestampList list, ETimestampListKind kind, int keyColumnCount, int columnLockCount)
     {
-        GetLists(keyCount)[static_cast<int>(kind)] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)] = list.Header_;
     }
 
 
@@ -380,15 +381,17 @@ public:
 private:
     TDynamicRowHeader* Header_;
 
-    TEditListHeader** GetLists(int keyCount) const
+
+    TEditListHeader** GetLists(int keyColumnCount, int columnLockCount) const
     {
-        auto* keys = reinterpret_cast<TUnversionedValue*>(Header_ + 1);
-        return reinterpret_cast<TEditListHeader**>(keys + keyCount);
+        return reinterpret_cast<TEditListHeader**>(const_cast<TLockDescriptor*>(BeginLocks(keyColumnCount)) + columnLockCount);
     }
 
 };
 
-static_assert(sizeof (TDynamicRow) == sizeof (intptr_t), "TDynamicRow size must match that of a pointer.");
+static_assert(
+    sizeof(TDynamicRow) == sizeof(intptr_t),
+    "TDynamicRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -415,7 +418,9 @@ struct TDynamicRowRef
 
     bool operator == (const TDynamicRowRef& other) const
     {
-        return Store == other.Store && Row == other.Row;
+        return
+            Store == other.Store &&
+            Row == other.Row;
     }
 
     bool operator != (const TDynamicRowRef& other) const
@@ -427,6 +432,42 @@ struct TDynamicRowRef
     TDynamicMemoryStore* Store;
     TDynamicRow Row;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Provides a comparer functor for dynamic row keys.
+class TDynamicRowKeyComparer
+{
+public:
+    TDynamicRowKeyComparer(int keyColumnCount, const TTableSchema& schema);
+
+    int operator()(TDynamicRow lhs, TUnversionedRow rhs) const;
+    int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
+
+private:
+    int KeyColumnCount_;
+    const TTableSchema& Schema_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SaveRowKeys(
+    TSaveContext& context,
+    TDynamicRow row,
+    TTablet* tablet);
+
+void LoadRowKeys(
+    TLoadContext& context,
+    TDynamicRow row,
+    TTablet* tablet,
+    TChunkedMemoryPool* alignedPool);
+
+void LoadRowKeys(
+    TLoadContext& context,
+    NVersionedTableClient::TUnversionedRowBuilder* builder,
+    TTablet* tablet,
+    TChunkedMemoryPool* unalignedPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

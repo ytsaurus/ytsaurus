@@ -11,11 +11,27 @@ namespace NTabletClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TColumnFilter;
+class TReqLookupRows;
+class TReqWriteRow;
+class TReqDeleteRow;
+
+} // namespace NProto
+
+///////////////////////////////////////////////////////////////////////////////
+
 DECLARE_ENUM(ETabletState,
     ((Mounting)        (0))
     ((Mounted)         (1))
     ((Unmounting)      (2))
     ((Unmounted)       (3))
+);
+
+DECLARE_ENUM(ELockMode,
+    ((Row)             (0))
+    ((Column)          (1))
 );
 
 static const int TypicalCellSize = 5;

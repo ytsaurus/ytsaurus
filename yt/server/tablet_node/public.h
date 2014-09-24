@@ -16,6 +16,7 @@
 #include <server/hydra/public.h>
 
 #include <server/hive/public.h>
+#include <ytlib/new_table_client/schema.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -32,6 +33,7 @@ using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
 using NTabletClient::NullStoreId;
 
+using NTabletClient::ELockMode;
 using NTabletClient::TTabletCellConfig;
 using NTabletClient::TTabletCellConfigPtr;
 using NTabletClient::TTabletCellOptions;
@@ -45,6 +47,7 @@ using NTransactionClient::NullTimestamp;
 using NTransactionClient::LastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 
+using NVersionedTableClient::EValueType;
 using NVersionedTableClient::TKey;
 using NVersionedTableClient::TOwningKey;
 using NVersionedTableClient::TUnversionedValue;
@@ -54,6 +57,8 @@ using NVersionedTableClient::TUnversionedOwningRow;
 using NVersionedTableClient::TVersionedRow;
 using NVersionedTableClient::TVersionedOwningRow;
 using NVersionedTableClient::TColumnFilter;
+using NVersionedTableClient::TTableSchema;
+using NVersionedTableClient::TColumnSchema;
 
 using NHive::ETransactionState;
 

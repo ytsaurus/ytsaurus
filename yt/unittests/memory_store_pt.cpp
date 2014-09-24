@@ -19,15 +19,6 @@ class TMemoryStorePerfTest
     : public TMemoryStoreTestBase
 {
 public:
-    TMemoryStorePerfTest()
-    {
-        auto config = New<TTabletManagerConfig>();
-        DynamicStore = New<TDynamicMemoryStore>(
-            config,
-            TStoreId(),
-            Tablet.get());
-    }
-
     void RunDynamic(
         int iterationCount,
         int writePercentage)
@@ -46,7 +37,7 @@ public:
             auto key = builder.FinishRow();
             auto keySuccessor = GetKeySuccessor(key.Get());
 
-            auto reader = DynamicStore->CreateReader(
+            auto reader = Store_->CreateReader(
                 std::move(key),
                 std::move(keySuccessor),
                 LastCommittedTimestamp,
@@ -66,16 +57,17 @@ public:
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
             auto row = builder.FinishRow();
 
-            auto dynamicRow = DynamicStore->WriteRow(
+            auto dynamicRow = Store_->WriteRow(
                 transaction.get(),
                 row.Get(),
-                false);
+                false,
+                TDynamicRow::PrimaryLockMask);
 
             PrepareTransaction(transaction.get());
-            DynamicStore->PrepareRow(dynamicRow);
+            Store_->PrepareRow(transaction.get(), dynamicRow);
 
             CommitTransaction(transaction.get());
-            DynamicStore->CommitRow(dynamicRow);
+            Store_->CommitRow(transaction.get(), dynamicRow);
         };
 
         Cerr << "Warming up..." << Endl;
@@ -102,7 +94,19 @@ public:
     }
 
 private:
-    TDynamicMemoryStorePtr DynamicStore;
+    virtual void SetUp() override
+    {
+        TMemoryStoreTestBase::SetUp();
+
+        auto config = New<TTabletManagerConfig>();
+        Store_ = New<TDynamicMemoryStore>(
+            config,
+            TStoreId(),
+            Tablet_.get());
+    }
+
+
+    TDynamicMemoryStorePtr Store_;
 
 };
 

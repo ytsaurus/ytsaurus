@@ -29,15 +29,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsIntegralType(EValueType type)
-{
-    return type == EValueType::Int64 || type == EValueType::Uint64;
-}
-
-bool IsArithmeticType(EValueType type)
-{
-    return IsIntegralType(type) || type == EValueType::Double;
-}
+static Stroka SerializedNullRow("");
+struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,7 +201,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
 void Save(TStreamSaveContext& context, const TUnversionedValue& value)
 {
     auto* output = context.GetOutput();
-    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+    if (IsStringLikeType(EValueType(value.Type))) {
         output->Write(&value, sizeof (ui16) + sizeof (ui16) + sizeof (ui32)); // Id, Type, Length
         if (value.Length != 0) {
             output->Write(value.Data.String, value.Length);
@@ -223,7 +216,7 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
     auto* input = context.GetInput();
     const size_t fixedSize = sizeof (ui16) + sizeof (ui16) + sizeof (ui32); // Id, Type, Length
     YCHECK(input->Load(&value, fixedSize) == fixedSize);
-    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+    if (IsStringLikeType(EValueType(value.Type))) {
         if (value.Length != 0) {
             value.Data.String = pool->AllocateUnaligned(value.Length);
             YCHECK(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
@@ -624,8 +617,8 @@ static void ValidateValueLength(const TUnversionedValue& value)
         value.Type == EValueType::Any)
     {
         if (value.Length > MaxStringValueLength) {
-            THROW_ERROR_EXCEPTION("Value is too long: length %" PRId64 ", limit %" PRId64,
-                static_cast<i64>(value.Length),
+            THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+                value.Length,
                 MaxStringValueLength);
         }
     }
@@ -649,7 +642,7 @@ void ValidateRowValueCount(int count)
         THROW_ERROR_EXCEPTION("Negative number of values in row");
     }
     if (count > MaxValuesPerRow) {
-        THROW_ERROR_EXCEPTION("Too many values in row: actual %d, limit %d",
+        THROW_ERROR_EXCEPTION("Too many values in row: actual %v, limit %v",
             count,
             MaxValuesPerRow);
     }
@@ -661,7 +654,7 @@ void ValidateKeyColumnCount(int count)
         THROW_ERROR_EXCEPTION("Non-positive number of key columns");
     }
     if (count > MaxKeyColumnCount) {
-        THROW_ERROR_EXCEPTION("Too many columns in key: actual %d, limit %d",
+        THROW_ERROR_EXCEPTION("Too many columns in key: actual %v, limit %v",
             count,
             MaxKeyColumnCount);
     }
@@ -673,7 +666,7 @@ void ValidateRowCount(int count)
         THROW_ERROR_EXCEPTION("Negative number of rows in rowset");
     }
     if (count > MaxRowsPerRowset) {
-        THROW_ERROR_EXCEPTION("Too many rows in rowset: actual %d, limit %d",
+        THROW_ERROR_EXCEPTION("Too many rows in rowset: actual %v, limit %v",
             count,
             MaxRowsPerRowset);
     }
@@ -701,7 +694,7 @@ void ValidateClientDataRow(
         int schemaId = idMapping[valueId];
         if (schemaId < keyColumnCount) {
             if (keyColumnFlags[schemaId]) {
-                THROW_ERROR_EXCEPTION("Duplicate key component with id %d",
+                THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
                     schemaId);
             }
             keyColumnFlags[schemaId] = true;
@@ -717,7 +710,7 @@ void ValidateClientDataRow(
     }
 
     if (keyColumnSeen != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Some key components are missing: actual %d, expected %d",
+        THROW_ERROR_EXCEPTION("Some key components are missing: actual %v, expected %v",
             keyColumnSeen,
             keyColumnCount);
     }
@@ -730,6 +723,12 @@ void ValidateServerDataRow(
 {
     ValidateRowValueCount(row.GetCount());
 
+    if (row.GetCount() < keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
+            row.GetCount(),
+            keyColumnCount);
+    }
+    
     int schemaColumnCount = schema.Columns().size();
     for (int index = 0; index < row.GetCount(); ++index) {
         const auto& value = row[index];
@@ -737,13 +736,13 @@ void ValidateServerDataRow(
         int id = value.Id;
         if (index < keyColumnCount) {
             if (id != index) {
-                THROW_ERROR_EXCEPTION("Invalid key component id: actual %d, expected %d",
+                THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
                     id,
                     index);
             }
         } else {
             if (id < keyColumnCount) {
-                THROW_ERROR_EXCEPTION("Misplaced key component: id %d, position %d",
+                THROW_ERROR_EXCEPTION("Misplaced key component: id %v, position %v",
                     id,
                     index);
             }
@@ -773,7 +772,7 @@ void ValidateClientKey(
     }
 
     if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %d, actual %d",
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
             keyColumnCount,
             key.GetCount());
     }
@@ -784,12 +783,12 @@ void ValidateClientKey(
         ValidateKeyValue(value);
         int id = value.Id;
         if (id >= keyColumnCount) {
-            THROW_ERROR_EXCEPTION("Invalid value id: actual %d, expected in range [0, %d]",
+            THROW_ERROR_EXCEPTION("Invalid value id: actual %v, expected in range [0, %v]",
                 id,
                 keyColumnCount - 1);
         }
         if (keyColumnFlags[id]) {
-            THROW_ERROR_EXCEPTION("Duplicate key component with id %d",
+            THROW_ERROR_EXCEPTION("Duplicate key component with id %v",
                 id);
         }
         if (value.Type != EValueType::Null && value.Type != schema.Columns()[id].Type) {
@@ -813,7 +812,7 @@ void ValidateServerKey(
     }
 
     if (key.GetCount() != keyColumnCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %d, actual %d",
+        THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
                 keyColumnCount,
                 key.GetCount());
     }
@@ -823,7 +822,7 @@ void ValidateServerKey(
         ValidateKeyValue(value);
         int id = value.Id;
         if (id != index) {
-            THROW_ERROR_EXCEPTION("Invalid key component id: actual %d, expected %d",
+            THROW_ERROR_EXCEPTION("Invalid key component id: actual %v, expected %v",
                 id,
                 index);
         }
@@ -914,8 +913,6 @@ const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static Stroka SerializedNullRow("");
 
 Stroka SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
@@ -1366,8 +1363,11 @@ TUnversionedOwningRow BuildRow(
     // Key
     for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {
         auto it = rowParts.find(nameTable->GetName(id));
-        YCHECK(it != rowParts.end());
-        addValue(id, it->second);
+        if (it == rowParts.end()) {
+            rowBuilder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
+        } else {
+            addValue(id, it->second);
+        }
     }
 
     // Fixed values

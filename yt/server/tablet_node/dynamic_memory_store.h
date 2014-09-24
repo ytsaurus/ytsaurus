@@ -3,6 +3,7 @@
 #include "public.h"
 #include "store_detail.h"
 #include "dynamic_memory_store_bits.h"
+#include "transaction.h"
 
 #include <core/misc/public.h>
 
@@ -37,24 +38,27 @@ public:
     TDynamicRow WriteRow(
         TTransaction* transaction,
         NVersionedTableClient::TUnversionedRow row,
-        bool prelock);
+        bool prelock,
+        ui32 lockMask);
 
     TDynamicRow DeleteRow(
         TTransaction* transaction,
         TKey key,
         bool prelock);
 
-    TDynamicRow MigrateRow(const TDynamicRowRef& rowRef);
+    TDynamicRow MigrateRow(
+        TTransaction* transaction,
+        const TDynamicRowRef& rowRef);
 
-    TDynamicRow FindRowAndCheckLocks(
+    void CheckRowLocks(
         TKey key,
         TTransaction* transaction,
-        ERowLockMode mode);
+        ui32 lockMask);
 
-    void ConfirmRow(TDynamicRow row);
-    void PrepareRow(TDynamicRow row);
-    void CommitRow(TDynamicRow row);
-    void AbortRow(TDynamicRow row);
+    void ConfirmRow(TTransaction* transaction, TDynamicRow row);
+    void PrepareRow(TTransaction* transaction, TDynamicRow row);
+    void CommitRow(TTransaction* transaction, TDynamicRow row);
+    void AbortRow(TTransaction* transaction, TDynamicRow row);
 
     int GetValueCount() const;
     int GetKeyCount() const;
@@ -86,7 +90,9 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual TTimestamp GetLatestCommitTimestamp(TKey key) override;
+    virtual TTimestamp GetLatestCommitTimestamp(
+        TKey key,
+        ui32 lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;
     virtual void Load(TLoadContext& context) override;
@@ -98,7 +104,7 @@ public:
 
     DEFINE_SIGNAL(void(i64 delta), MemoryUsageUpdated)
     
-    DEFINE_SIGNAL(void(TDynamicRow row), RowBlocked)
+    DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
 
 private:
     class TFetcherBase;
@@ -109,12 +115,13 @@ private:
 
     int KeyColumnCount_;
     int SchemaColumnCount_;
+    int ColumnLockCount_;
 
-    int LockCount_ = 0;
-    int ValueCount_ = 0;
+    int StoreLockCount_ = 0;
+    int StoreValueCount_ = 0;
 
     NVersionedTableClient::TRowBuffer RowBuffer_;
-    std::unique_ptr<TSkipList<TDynamicRow, NVersionedTableClient::TKeyComparer>> Rows_;
+    std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     i64 MemoryUsage_ = 0;
 
@@ -124,33 +131,36 @@ private:
 
     TDynamicRow AllocateRow();
     
-    void CheckRowLock(
+    void CheckRowLocks(
         TDynamicRow row,
         TTransaction* transaction,
-        ERowLockMode mode);
-    bool LockRow(
+        ui32 lockMask);
+    void AcquireRowLocks(
         TDynamicRow row,
         TTransaction* transaction,
-        ERowLockMode mode,
-        bool prelock);
+        bool prelock,
+        ui32 lockMask,
+        bool deleteFlag);
 
     void DropUncommittedValues(TDynamicRow row);
 
     void AddFixedValue(
         TDynamicRow row,
-        int listIndex,
+        int columnIndex,
         const TVersionedValue& value);
     void AddUncommittedFixedValue(
         TDynamicRow row,
-        int listIndex,
+        int columnIndex,
         const TUnversionedValue& value);
 
     void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
-    void AddUncommittedTimestamp(TDynamicRow row, ETimestampListKind kind);
+    void SetKeys(TDynamicRow row, TUnversionedRow key);
 
     void CaptureValue(TUnversionedValue* dst, const TUnversionedValue& src);
     void CaptureValue(TVersionedValue* dst, const TVersionedValue& src);
     void CaptureValueData(TUnversionedValue* dst, const TUnversionedValue& src);
+    TDynamicValueData CaptureStringValue(TDynamicValueData src);
+    TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     void OnMemoryUsageUpdated();
 

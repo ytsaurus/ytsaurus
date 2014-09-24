@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/name_table.cpp
   ${BASE}/pipe.cpp
+  ${BASE}/public.cpp
   ${BASE}/private.cpp
   ${BASE}/row_base.cpp
   ${BASE}/row_buffer.cpp

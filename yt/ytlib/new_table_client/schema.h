@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
-
-#include <core/yson/public.h>
-
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 #include <core/misc/serialize.h>
+
+#include <core/ytree/public.h>
+
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -19,7 +19,10 @@ namespace NVersionedTableClient {
 struct TColumnSchema
 {
     TColumnSchema();
-    TColumnSchema(const Stroka& name, EValueType type);
+    TColumnSchema(
+        const Stroka& name,
+        EValueType type,
+        const TNullable<Stroka>& lock = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -29,6 +32,7 @@ struct TColumnSchema
 
     Stroka Name;
     EValueType Type;
+    TNullable<Stroka> Lock;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);

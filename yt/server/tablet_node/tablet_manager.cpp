@@ -25,6 +25,7 @@
 
 #include <ytlib/tablet_client/config.h>
 #include <ytlib/tablet_client/wire_protocol.h>
+#include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 
@@ -54,6 +55,7 @@ using namespace NYTree;
 using namespace NHydra;
 using namespace NCellNode;
 using namespace NTabletClient;
+using namespace NTabletClient::NProto;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NVersionedTableClient;
@@ -206,7 +208,7 @@ public:
         TCurrentInvokerGuard guard(tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         int commandsSucceded = 0;
-        int prelockedRowCountBefore = PrelockedRows_.size();
+        int prelockedCountBefore = PrelockedTransactions_.size();
         TError error;
         try {
             TWireProtocolReader reader(requestData);
@@ -217,13 +219,13 @@ public:
             error = ex;
         }
 
-        int prelockedRowCountAfter = PrelockedRows_.size();
-        int prelockedRowCountDelta = prelockedRowCountAfter - prelockedRowCountBefore;
+        int prelockedCountAfter = PrelockedTransactions_.size();
+        int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
 
         LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, CommandsSucceded: %v)",
             transaction->GetId(),
             tablet->GetId(),
-            prelockedRowCountDelta,
+            prelockedCountDelta,
             commandsSucceded);
 
         auto compressedRequestData = ChangelogCodec_->Compress(requestData);
@@ -235,7 +237,7 @@ public:
         hydraRequest.set_codec(ChangelogCodec_->GetId());
         hydraRequest.set_compressed_data(ToString(compressedRequestData));
         CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedRowCountDelta))
+            ->SetAction(BIND(&TImpl::HydraLeaderExecuteWrite, MakeStrong(this), prelockedCountDelta))
             ->Commit();
 
         if (!error.IsOK()) {
@@ -325,7 +327,7 @@ private:
     TEntityMap<TTabletId, TTablet, TTabletTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    TRingQueue<TDynamicRowRef> PrelockedRows_;
+    TRingQueue<TTransaction*> PrelockedTransactions_;
 
     yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
 
@@ -412,7 +414,7 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
-        YCHECK(PrelockedRows_.empty());
+        YCHECK(PrelockedTransactions_.empty());
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
@@ -424,14 +426,19 @@ private:
 
     virtual void OnStopLeading() override
     {
-        while (!PrelockedRows_.empty()) {
-            auto rowRef = PrelockedRows_.front();
-            PrelockedRows_.pop();
+        while (!PrelockedTransactions_.empty()) {
+            auto* transaction = PrelockedTransactions_.front();
+            PrelockedTransactions_.pop();
+
+            auto rowRef = transaction->PrelockedRows().front();
+            transaction->PrelockedRows().pop();
+
             if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
             }
         }
 
+        // Actually redundant: all prelocked rows were popped above.
         auto transactionManager = Slot_->GetTransactionManager();
         for (const auto& pair : transactionManager->Transactions()) {
             auto* transaction = pair.second;
@@ -449,7 +456,7 @@ private:
 
     virtual void OnStartFollowing() override
     {
-        YCHECK(PrelockedRows_.empty());
+        YCHECK(PrelockedTransactions_.empty());
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
@@ -459,7 +466,7 @@ private:
 
     virtual void OnStopFollowing() override
     {
-        YCHECK(PrelockedRows_.empty());
+        YCHECK(PrelockedTransactions_.empty());
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
@@ -656,19 +663,15 @@ private:
     void HydraLeaderExecuteWrite(int rowCount)
     {
         for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!PrelockedRows_.empty());
-            auto rowRef = PrelockedRows_.front();
-            PrelockedRows_.pop();
+            YASSERT(!PrelockedTransactions_.empty());
+            auto* transaction = PrelockedTransactions_.front();
+            PrelockedTransactions_.pop();
 
-            auto* transaction = rowRef.Row.GetTransaction();
-            YASSERT(transaction);
-
-            YASSERT(!transaction->PrelockedRows().empty());
-            YASSERT(transaction->PrelockedRows().front() == rowRef);
+            auto rowRef = transaction->PrelockedRows().front();
             transaction->PrelockedRows().pop();
 
             if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(rowRef);
+                rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(transaction, rowRef);
             }
         }
 
@@ -906,7 +909,7 @@ private:
             auto handleRow = [&] (const TDynamicRowRef& rowRef) {
                 // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
                 if (ValidateRowRef(rowRef)) {
-                    rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(rowRef);
+                    rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(transaction, rowRef);
                 }
             };
 
@@ -933,7 +936,7 @@ private:
         if (!transaction->LockedRows().empty()) {
             auto handleRow = [&] (const TDynamicRowRef& rowRef) {
                 if (ValidateAndDiscardRowRef(rowRef)) {
-                    rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(rowRef);
+                    rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(transaction, rowRef);
                 }
             };
 
@@ -957,7 +960,7 @@ private:
         if (!transaction->LockedRows().empty()) {
             auto handleRow = [&] (const TDynamicRowRef& rowRef) {
                 if (ValidateAndDiscardRowRef(rowRef)) {
-                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(rowRef);
+                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
                 }
             };
 
@@ -1074,14 +1077,25 @@ private:
         TDynamicRowRef rowRef;
         switch (command) {
             case EWireProtocolCommand::WriteRow: {
+                TReqWriteRow req;
+                reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
-                rowRef = storeManager->WriteRow(transaction, row, prelock);
+                rowRef = storeManager->WriteRow(
+                    transaction,
+                    row,
+                    prelock,
+                    ELockMode(req.lock_mode()));
                 break;
             }
 
             case EWireProtocolCommand::DeleteRow: {
+                TReqDeleteRow req;
+                reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
-                rowRef = storeManager->DeleteRow(transaction, key, prelock);
+                rowRef = storeManager->DeleteRow(
+                    transaction,
+                    key,
+                    prelock);
                 break;
             }
 
@@ -1090,8 +1104,8 @@ private:
                     command);
         }
 
-        if (prelock && rowRef) {
-            PrelockedRows_.push(rowRef);
+        if (prelock) {
+            PrelockedTransactions_.push(transaction);
             transaction->PrelockedRows().push(rowRef);
         }
 

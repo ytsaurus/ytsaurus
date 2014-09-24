@@ -96,18 +96,6 @@ public:
         WriteInt64(command);
     }
 
-    void WriteColumnFilter(const TColumnFilter& filter)
-    {
-        if (filter.All) {
-            WriteInt64(-1);
-        } else {
-            WriteInt64(filter.Indexes.size());
-            for (int index : filter.Indexes) {
-                WriteInt64(index);
-            }
-        }
-    }
-
     void WriteTableSchema(const TTableSchema& schema)
     {
         WriteMessage(ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema));
@@ -221,9 +209,9 @@ private:
 
     void WriteRowValue(const TUnversionedValue& value)
     {
-        // This includes value and possible serialization alignment.
+        // This includes the value itself and possible serialization alignment.
         i64 bytes = 2 * sizeof (i64);
-        if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+        if (IsStringLikeType(EValueType(value.Type))) {
             bytes += value.Length;
         }
         EnsureCapacity(bytes);
@@ -306,11 +294,6 @@ std::vector<TSharedRef> TWireProtocolWriter::Flush()
 void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
 {
     Impl_->WriteCommand(command);
-}
-
-void TWireProtocolWriter::WriteColumnFilter(const TColumnFilter& filter)
-{
-    Impl_->WriteColumnFilter(filter);
 }
 
 void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
@@ -425,20 +408,6 @@ public:
     EWireProtocolCommand ReadCommand()
     {
         return EWireProtocolCommand(ReadInt64());
-    }
-
-    TColumnFilter ReadColumnFilter()
-    {
-        TColumnFilter filter;
-        int columnCount = ReadInt32();
-        if (columnCount != -1) {
-            filter.All = false;
-            for (int index = 0; index < columnCount; ++index) {
-                filter.Indexes.push_back(ReadInt64());
-            }
-            std::sort(filter.Indexes.begin(), filter.Indexes.end());
-        }
-        return filter;
     }
 
     TTableSchema ReadTableSchema()
@@ -575,11 +544,6 @@ TWireProtocolReader::~TWireProtocolReader()
 EWireProtocolCommand TWireProtocolReader::ReadCommand()
 {
     return Impl_->ReadCommand();
-}
-
-TColumnFilter TWireProtocolReader::ReadColumnFilter()
-{
-    return Impl_->ReadColumnFilter();
 }
 
 TTableSchema TWireProtocolReader::ReadTableSchema()

@@ -26,7 +26,7 @@ DECLARE_ENUM(EWireProtocolCommand,
     // Finds rows with given keys and fetches their components.
     //
     // Input:
-    //   * Column filter
+    //   * TReqLookupRows
     //   * Unversioned rowset containing N keys
     //
     // Output:
@@ -39,6 +39,7 @@ DECLARE_ENUM(EWireProtocolCommand,
     // Inserts a new row or completely replaces an existing one with matching key.
     //
     // Input:
+    //   * TReqWriteRow
     //   * Unversioned row
     // Output:
     //   None
@@ -47,6 +48,7 @@ DECLARE_ENUM(EWireProtocolCommand,
     // Deletes a row with a given key, if it exists.
     //
     // Input:
+    //   * TReqDeleteRow
     //   * Key
     // Output:
     //   None
@@ -67,8 +69,6 @@ public:
     ~TWireProtocolWriter();
 
     void WriteCommand(EWireProtocolCommand command);
-
-    void WriteColumnFilter(const NVersionedTableClient::TColumnFilter& filter);
 
     void WriteTableSchema(const NVersionedTableClient::TTableSchema& schema);
 
@@ -104,8 +104,6 @@ public:
     ~TWireProtocolReader();
 
     EWireProtocolCommand ReadCommand();
-    
-    NVersionedTableClient::TColumnFilter ReadColumnFilter();
 
     NVersionedTableClient::TTableSchema ReadTableSchema();
 

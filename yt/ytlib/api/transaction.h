@@ -5,8 +5,20 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/tablet_client/public.h>
+
 namespace NYT {
 namespace NApi {
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TWriteRowOptions
+{
+    NTabletClient::ELockMode LockMode = NTabletClient::ELockMode::Column;
+};
+
+struct TDeleteRowOptions
+{ };
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -36,22 +48,26 @@ struct ITransaction
     virtual void WriteRow(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::TUnversionedRow row) = 0;
+        NVersionedTableClient::TUnversionedRow row,
+        const TWriteRowOptions& options = TWriteRowOptions()) = 0;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TUnversionedRow> rows) = 0;
+        std::vector<NVersionedTableClient::TUnversionedRow> rows,
+        const TWriteRowOptions& options = TWriteRowOptions()) = 0;
     
     virtual void DeleteRow(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key) = 0;
+        NVersionedTableClient::TKey key,
+        const TDeleteRowOptions& options = TDeleteRowOptions()) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TKey> keys) = 0;
+        std::vector<NVersionedTableClient::TKey> keys,
+        const TDeleteRowOptions& options = TDeleteRowOptions()) = 0;
 
 };
 

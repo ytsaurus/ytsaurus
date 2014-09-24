@@ -54,7 +54,9 @@ TTablet::TTablet(
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(this, TPartition::EdenIndex))
-{ }
+{
+    Initialize();
+}
 
 TTablet::~TTablet()
 { }
@@ -182,6 +184,8 @@ void TTablet::Load(TLoadContext& context)
         auto partition = loadPartition(index);
         Partitions_.push_back(std::move(partition));
     }
+
+    Initialize();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const
@@ -321,18 +325,6 @@ TPartition* TTablet::GetContainingPartition(
     return Eden_.get();
 }
 
-TPartition* TTablet::GetContainingPartition(IStorePtr store)
-{
-    // Dynamic stores must reside in Eden.
-    if (store->GetState() == EStoreState::ActiveDynamic ||
-        store->GetState() == EStoreState::PassiveDynamic)
-    {
-        return Eden_.get();
-    }
-
-    return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
-}
-
 std::pair<TTablet::TPartitionListIterator, TTablet::TPartitionListIterator> TTablet::GetIntersectingPartitions(
     const TOwningKey& lowerBound,
     const TOwningKey& upperBound)
@@ -416,6 +408,11 @@ int TTablet::GetKeyColumnCount() const
     return static_cast<int>(KeyColumns_.size());
 }
 
+int TTablet::GetColumnLockCount() const
+{
+    return ColumnLockCount_;
+}
+
 void TTablet::StartEpoch(TTabletSlotPtr slot)
 {
     CancelableContext_ = New<TCancelableContext>();
@@ -440,6 +437,51 @@ void TTablet::StopEpoch()
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 {
     return EpochAutomatonInvokers_[queue];
+}
+
+void TTablet::Initialize()
+{
+    ColumnIndexToLockIndex_.resize(Schema_.Columns().size());
+    LockIndexToName_.push_back(PrimaryLockName);
+
+    // Assign dummy lock indexes to key components.
+    for (int index = 0; index < KeyColumns_.size(); ++index) {
+        ColumnIndexToLockIndex_[index] = -1;
+    }
+
+    // Assign lock indexes to data components.
+    yhash_map<Stroka, int> groupToIndex;
+    for (int index = KeyColumns_.size(); index < Schema_.Columns().size(); ++index) {
+        const auto& columnSchema = Schema_.Columns()[index];
+        int lockIndex = TDynamicRow::PrimaryLockIndex;
+        if (columnSchema.Lock) {
+            auto it = groupToIndex.find(*columnSchema.Lock);
+            if (it == groupToIndex.end()) {
+                lockIndex = groupToIndex.size() + 1;
+                YCHECK(groupToIndex.insert(std::make_pair(*columnSchema.Lock, lockIndex)).second);
+                LockIndexToName_.push_back(*columnSchema.Lock);
+            } else {
+                lockIndex = it->second;
+            }
+        } else {
+            lockIndex = TDynamicRow::PrimaryLockIndex;
+        }
+        ColumnIndexToLockIndex_[index] = lockIndex;
+    }
+
+    ColumnLockCount_ = static_cast<int>(1 + groupToIndex.size());
+}
+
+TPartition* TTablet::GetContainingPartition(IStorePtr store)
+{
+    // Dynamic stores must reside in Eden.
+    if (store->GetState() == EStoreState::ActiveDynamic ||
+        store->GetState() == EStoreState::PassiveDynamic)
+    {
+        return Eden_.get();
+    }
+
+    return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

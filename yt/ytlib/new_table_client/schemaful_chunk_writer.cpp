@@ -192,7 +192,7 @@ void TChunkWriter::Open(
         descriptor.OutputIndex = OutputNameTable->RegisterName(column.Name);
         descriptor.Type = column.Type;
 
-        if (column.Type == EValueType::String || column.Type == EValueType::Any) {
+        if (IsStringLikeType(column.Type)) {
             ColumnSizes.push_back(4);
         } else {
             ColumnSizes.push_back(8);

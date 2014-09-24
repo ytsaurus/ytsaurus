@@ -252,7 +252,9 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
         timestamp);
 }
 
-TTimestamp TChunkStore::GetLatestCommitTimestamp(TKey key)
+TTimestamp TChunkStore::GetLatestCommitTimestamp(
+    TKey key,
+    ui32 lockMask)
 {
     // TODO(babenko): fixme
     return NullTimestamp;

@@ -50,7 +50,9 @@ using NTableClient::TKeyColumns; // TODO(babenko): remove after migration
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalColumnCount = 64;
-const int MaxKeyColumnCount = 64;
+const int MaxKeyColumnCount = 32;
+const int MaxColumnLockCount = 32;
+extern const Stroka PrimaryLockName;
 const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024; // 1 MB
@@ -62,7 +64,7 @@ DECLARE_ENUM(EValueType,
 
     ((TheBottom)   (0x01))
     ((Null)        (0x02))
-
+    
     ((Int64)       (0x03))
     ((Uint64)      (0x04))
     ((Double)      (0x05))
