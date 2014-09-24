@@ -496,7 +496,7 @@ private:
 
         void AddKey(int index, NVersionedTableClient::TKey key)
         {
-            if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerRead) {
+            if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest) {
                 Batches_.emplace_back(new TBatch());
             }
 
@@ -1402,7 +1402,7 @@ private:
         
         TWireProtocolWriter* GetWriter()
         {
-            if (Batches_.empty() || CurrentRowCount_ >= Config_->MaxRowsPerWrite) {
+            if (Batches_.empty() || CurrentRowCount_ >= Config_->MaxRowsPerWriteRequest) {
                 Batches_.emplace_back(new TBatch());
                 CurrentRowCount_ = 0;
             }

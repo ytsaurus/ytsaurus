@@ -56,10 +56,10 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("select_response_codec", SelectResponseCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("max_rows_per_read", MaxRowsPerRead)
+    RegisterParameter("max_rows_per_read_request", MaxRowsPerReadRequest)
         .GreaterThan(0)
         .Default(1000);
-    RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
+    RegisterParameter("max_rows_per_write_request", MaxRowsPerWriteRequest)
         .GreaterThan(0)
         .Default(1000);
 

@@ -66,8 +66,8 @@ public:
     NCompression::ECodec LookupResponseCodec;
     NCompression::ECodec SelectResponseCodec;
 
-    int MaxRowsPerRead;
-    int MaxRowsPerWrite;
+    int MaxRowsPerReadRequest;
+    int MaxRowsPerWriteRequest;
 
     int MaxRowsPerTransaction;
 
