@@ -127,6 +127,14 @@ public:
 
         auto config = host->GetConfig();
 
+        if (UserJobSpec.enable_accounting() || config->ForceEnableAccounting) {
+            CreateCGroup(CpuAccounting);
+            CreateCGroup(BlockIO);
+            if (config->EnableCGroupMemoryHierarchy) {
+                CreateCGroup(Memory);
+            }
+        }
+
         ProcessStartTime = TInstant::Now();
 
         Process.AddArgument("--executor");
