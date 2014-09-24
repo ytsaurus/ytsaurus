@@ -21,13 +21,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TChunkStripeStatistics::TChunkStripeStatistics()
-    : ChunkCount(0)
-    , DataSize(0)
-    , RowCount(0)
-    , MaxBlockSize(0)
-{ }
-
 void TChunkStripeStatistics::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;

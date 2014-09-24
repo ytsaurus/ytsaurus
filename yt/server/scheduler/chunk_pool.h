@@ -18,15 +18,12 @@ namespace NScheduler {
 
 struct TChunkStripeStatistics
 {
-    int ChunkCount;
-    i64 DataSize;
-    i64 RowCount;
-    i64 MaxBlockSize;
-
-    TChunkStripeStatistics();
+    int ChunkCount = 0;
+    i64 DataSize = 0;
+    i64 RowCount = 0;
+    i64 MaxBlockSize = 0;
 
     void Persist(TPersistenceContext& context);
-
 };
 
 TChunkStripeStatistics operator + (

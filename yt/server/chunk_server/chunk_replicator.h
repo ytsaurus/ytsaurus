@@ -85,7 +85,10 @@ public:
 private:
     struct TJobRequest
     {
-        TJobRequest(int index, int count);
+        TJobRequest(int index, int count)
+            : Index(index)
+            , Count(count)
+        { }
 
         //! Replica index the request applies to.
         int Index;
@@ -96,15 +99,13 @@ private:
 
     struct TChunkStatistics
     {
-        TChunkStatistics();
-
         EChunkStatus Status;
 
         //! Number of active replicas, per each replica index.
-        int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
+        std::array<int, NChunkClient::ChunkReplicaIndexBound> ReplicaCount = { };
         
         //! Number of decommissioned replicas, per each replica index.
-        int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
+        std::array<int, NChunkClient::ChunkReplicaIndexBound> DecommissionedReplicaCount = { };
 
         //! Recommended replications.
         SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;

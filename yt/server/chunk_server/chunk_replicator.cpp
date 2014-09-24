@@ -62,21 +62,6 @@ static auto& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplicator::TJobRequest::TJobRequest(int index, int count)
-    : Index(index)
-    , Count(count)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkReplicator::TChunkStatistics::TChunkStatistics()
-{
-    Zero(ReplicaCount);
-    Zero(DecommissionedReplicaCount);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
