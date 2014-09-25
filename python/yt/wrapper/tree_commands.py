@@ -196,7 +196,7 @@ def get_attribute(path, attribute, default=None, client=None):
     :param path: (string)
     :param attribute: (string)
     :param default: (any) return it if node hasn't attribute `attribute`."""
-    if default is not None and attribute not in list_attributes(path):
+    if default is not None and attribute not in list_attributes(path, client=client):
         return default
     return get("%s/@%s" % (path, attribute), client=client)
 
