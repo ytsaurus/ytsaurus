@@ -65,6 +65,10 @@ else()
   target_link_libraries( yt
     ytext-lfalloc
   )
+  set_target_properties( yt
+    PROPERTIES
+    LINK_FLAGS "-static-libstdc++"
+  )
 endif()
 
 install(
