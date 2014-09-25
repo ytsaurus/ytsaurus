@@ -30,8 +30,7 @@ public:
         TExecutorConfigPtr config,
         IInvokerPtr invoker,
         IEvaluateCallbacks* callbacks)
-        : Config_(std::move(config))
-        , Invoker_(std::move(invoker))
+        : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
         , Evaluator_(std::move(config))
     { }
@@ -54,7 +53,6 @@ public:
     }
 
 private:
-    TExecutorConfigPtr Config_;
     IInvokerPtr Invoker_;
     IEvaluateCallbacks* Callbacks_;
 
