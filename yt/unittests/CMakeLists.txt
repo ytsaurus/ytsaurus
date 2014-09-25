@@ -45,7 +45,6 @@ set( SRCS
   ${BASE}/statistics_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
-  #${BASE}/snapshot_ut.cpp
   ${BASE}/string_ut.cpp
   ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
