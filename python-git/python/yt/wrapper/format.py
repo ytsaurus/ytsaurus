@@ -456,7 +456,7 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
-    def __init__(self, attributes=None, process_table_index=False, table_index_field_name="table_index"):
+    def __init__(self, attributes=None, process_table_index=True, table_index_field_name="table_index"):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes)
         self.process_table_index = process_table_index
