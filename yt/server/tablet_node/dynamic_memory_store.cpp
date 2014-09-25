@@ -714,7 +714,8 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
                     if (srcValue.Timestamp == UncommittedTimestamp) {
                         auto migratedList = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
                         migratedRow.SetFixedValueList(columnIndex, migratedList, KeyColumnCount_, ColumnLockCount_);
-                        CaptureValue(migratedList.Push(), srcValue);
+                        CaptureValue(migratedList.BeginPush(), srcValue);
+                        migratedList.EndPush();
                         ++StoreValueCount_;
                     }
                 }
@@ -1027,7 +1028,8 @@ void TDynamicMemoryStore::AddFixedValue(
         row.SetFixedValueList(columnIndex, list, KeyColumnCount_, ColumnLockCount_);
     }
 
-    CaptureValue(list.Push(), value);
+    CaptureValue(list.BeginPush(), value);
+    list.EndPush();
     ++StoreValueCount_;
 }
 

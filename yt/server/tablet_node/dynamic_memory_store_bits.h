@@ -205,12 +205,15 @@ public:
         ++Header_->Size;
     }
 
-    T* Push()
+    T* BeginPush()
     {
         YASSERT(Header_->Size < Header_->Capacity);
-        auto* result = End();
+        return End();
+    }
+
+    void EndPush()
+    {
         ++Header_->Size;
-        return result;
     }
 
     int Pop()
