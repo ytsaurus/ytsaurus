@@ -149,6 +149,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, *Config_);
     Load(context, *WriterOptions_);
 
+    // NB: Call Initialize here since stores that we're about to create
+    // may request some tablet properties (e.g. column lock count) during construction.
+    Initialize();
+
     auto loadStore = [&] () -> IStorePtr {
         auto storeId = Load<TStoreId>(context);
         auto tabletManager = Slot_->GetTabletManager();
@@ -184,8 +188,6 @@ void TTablet::Load(TLoadContext& context)
         auto partition = loadPartition(index);
         Partitions_.push_back(std::move(partition));
     }
-
-    Initialize();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::Partitions() const
