@@ -189,7 +189,7 @@ class DsvFormat(Format):
     def load_rows(self, stream):
         while True:
             row = self.load_row(stream)
-            if not row:
+            if row is None:
                 break
             yield row
 
