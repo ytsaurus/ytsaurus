@@ -51,7 +51,7 @@ struct TSerializableColumnSchema
         RegisterParameter("name", Name)
             .NonEmpty();
         RegisterParameter("type", Type);
-        RegisterParameter("lock_group", Lock)
+        RegisterParameter("lock", Lock)
             .Default();
 
         RegisterValidator([&] () {
@@ -91,12 +91,18 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name);
     protoSchema->set_type(schema.Type);
+    if (schema.Lock) {
+        protoSchema->set_lock(*schema.Lock);
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->Name = protoSchema.name();
     schema->Type = EValueType(protoSchema.type());
+    if (protoSchema.has_lock()) {
+        schema->Lock = protoSchema.lock();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
