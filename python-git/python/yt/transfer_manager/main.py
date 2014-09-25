@@ -284,6 +284,10 @@ class Application(object):
             self._tasks[id].state = new_state
             self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
 
+    def _dump_task(self, id):
+        with self._mutex:
+            self._yt.set(os.path.join(self._tasks_path, id), self._tasks[id].dict())
+
     def _get_token(self, authorization_header):
         words = authorization_header.split()
         if len(words) != 2 or words[0].lower() != "oauth":
@@ -359,6 +363,7 @@ class Application(object):
                             error = message["error"]
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
+                            self._dump_task(id)
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
@@ -369,8 +374,8 @@ class Application(object):
                         elif error is None:
                             self._change_task_state(id, "completed")
                         else:
-                            self._change_task_state(id, "failed")
                             self._tasks[id].error = error
+                            self._change_task_state(id, "failed")
 
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
@@ -573,6 +578,7 @@ class Application(object):
         self._tasks[id].finish_time = None
         self._tasks[id].progress = None
         self._tasks[id].error = None
+        self._dump_task(id)
         self._pending_tasks.append(id)
 
         return ""
