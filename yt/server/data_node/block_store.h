@@ -132,13 +132,13 @@ public:
     explicit operator bool() const;
     i64 GetSize() const;
 
+    friend void swap(TPendingReadSizeGuard& lhs, TPendingReadSizeGuard& rhs);
+
 private:
     friend TBlockStore;
 
     TPendingReadSizeGuard(i64 size, TBlockStorePtr owner);
         
-    void Destroy();
-
     i64 Size_ = 0;
     TBlockStorePtr Owner_;
 

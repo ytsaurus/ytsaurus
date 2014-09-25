@@ -395,18 +395,15 @@ TPendingReadSizeGuard::TPendingReadSizeGuard(
 
 TPendingReadSizeGuard& TPendingReadSizeGuard::operator=(TPendingReadSizeGuard&& other)
 {
-    if (this != &other) {
-        Destroy();
-        Owner_ = std::move(other.Owner_);
-        Size_ = other.Size_;
-        other.Size_ = 0;
-    }
+    swap(*this, other);
     return *this;
 }
 
 TPendingReadSizeGuard::~TPendingReadSizeGuard()
 {
-    Destroy();
+    if (Owner_) {
+        Owner_->StoreImpl_->DecreasePendingReadSize(Size_);
+    }
 }
 
 TPendingReadSizeGuard::operator bool() const
@@ -419,11 +416,11 @@ i64 TPendingReadSizeGuard::GetSize() const
     return Size_;
 }
 
-void TPendingReadSizeGuard::Destroy()
+void swap(TPendingReadSizeGuard& lhs, TPendingReadSizeGuard& rhs)
 {
-    if (Owner_) {
-        Owner_->StoreImpl_->DecreasePendingReadSize(Size_);
-    }
+    using std::swap;
+    swap(lhs.Size_, rhs.Size_);
+    swap(lhs.Owner_, rhs.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
