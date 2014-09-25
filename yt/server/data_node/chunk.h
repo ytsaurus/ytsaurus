@@ -110,6 +110,30 @@ DEFINE_REFCOUNTED_TYPE(IChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkReadGuard
+{
+public:
+    TChunkReadGuard() = default;
+    TChunkReadGuard(TChunkReadGuard&& other) = default;
+    ~TChunkReadGuard();
+
+    TChunkReadGuard& operator = (TChunkReadGuard&& other);
+
+    explicit operator bool() const;
+
+    friend void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs);
+
+    static TChunkReadGuard TryAcquire(IChunkPtr chunk);
+
+private:
+    explicit TChunkReadGuard(IChunkPtr chunk);
+
+    IChunkPtr Chunk_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDataNode
 } // namespace NYT
 

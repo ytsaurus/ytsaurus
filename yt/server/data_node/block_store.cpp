@@ -144,7 +144,12 @@ public:
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
-        if (!chunk || !chunk->TryAcquireReadLock()) {
+        if (!chunk) {
+            return MakeFuture<TGetBlockResult>(TSharedRef());
+        }
+
+        auto readGuard = TChunkReadGuard::TryAcquire(chunk);
+        if (!readGuard) {
             return MakeFuture<TGetBlockResult>(TSharedRef());
         }
 
@@ -154,7 +159,8 @@ public:
                 &TStoreImpl::OnBlockRead,
                 chunk,
                 blockIndex,
-                Passed(std::move(cookie))));
+                Passed(std::move(cookie)),
+                Passed(std::move(readGuard))));
     }
 
     TAsyncGetBlocksResult GetBlocks(
@@ -171,7 +177,8 @@ public:
             return MakeFuture<TGetBlocksResult>(std::vector<TSharedRef>());
         }
 
-        if (!chunk->TryAcquireReadLock()) {
+        auto readGuard = TChunkReadGuard::TryAcquire(chunk);
+        if (!readGuard) {
             return MakeFuture<TGetBlocksResult>(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "Cannot read chunk %v since it is scheduled for removal",
@@ -180,7 +187,9 @@ public:
 
         return chunk
             ->ReadBlocks(firstBlockIndex, blockCount, priority)
-            .Apply(BIND(&TStoreImpl::OnBlocksRead, chunk));
+             .Apply(BIND(
+                &TStoreImpl::OnBlocksRead,
+                Passed(std::move(readGuard))));
     }
 
     TCachedBlockPtr FindBlock(const TBlockId& id)
@@ -251,11 +260,10 @@ private:
         IChunkPtr chunk,
         int blockIndex,
         TInsertCookie cookie,
+        TChunkReadGuard /*readGuard*/,
         IChunk::TReadBlocksResult result)
     {
         TBlockId blockId(chunk->GetId(), blockIndex);
-
-        chunk->ReleaseReadLock();
 
         if (!result.IsOK()) {
             return TError(result);
@@ -276,9 +284,10 @@ private:
         return block;
     }
 
-    static TGetBlocksResult OnBlocksRead(IChunkPtr chunk, IChunk::TReadBlocksResult result)
+    static TGetBlocksResult OnBlocksRead(
+        TChunkReadGuard /*readGuard*/,
+        IChunk::TReadBlocksResult result)
     {
-        chunk->ReleaseReadLock();
         return result;
     }
 

@@ -195,20 +195,27 @@ void TBlobChunkBase::DoReadBlocks(
 
 TAsyncError TBlobChunkBase::ReadMeta(i64 priority)
 {
-    if (!TryAcquireReadLock()) {
+    auto readGuard = TChunkReadGuard::TryAcquire(this);
+    if (!readGuard) {
         return MakeFuture(TError("Cannot read meta of chunk %v: chunk is scheduled for removal",
             Id_));
     }
 
     auto promise = NewPromise<TError>();
-    auto callback = BIND(&TBlobChunkBase::DoReadMeta, MakeStrong(this), promise);
+    auto callback = BIND(
+        &TBlobChunkBase::DoReadMeta,
+        MakeStrong(this),
+        Passed(std::move(readGuard)),
+        promise);
     Location_
         ->GetMetaReadInvoker()
         ->Invoke(callback, priority);
     return promise;
 }
 
-void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
+void TBlobChunkBase::DoReadMeta(
+    TChunkReadGuard /*readGuard*/,
+    TPromise<TError> promise)
 {
     auto& Profiler = Location_->Profiler();
     LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v)",
@@ -221,7 +228,6 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
         try {
             reader = readerCache->GetReader(this);
         } catch (const std::exception& ex) {
-            ReleaseReadLock();
             LOG_WARNING(ex, "Error reading chunk meta (ChunkId: %v)",
                 Id_);
             promise.Set(ex);
@@ -230,7 +236,6 @@ void TBlobChunkBase::DoReadMeta(TPromise<TError> promise)
     }
 
     InitializeCachedMeta(reader->GetMeta());
-    ReleaseReadLock();
 
     LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v)",
         Id_,

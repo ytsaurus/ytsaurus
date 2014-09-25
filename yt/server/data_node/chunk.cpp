@@ -41,5 +41,42 @@ TJournalChunkPtr IChunk::AsJournalChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReadGuard::TChunkReadGuard(IChunkPtr chunk)
+    : Chunk_(chunk)
+{ }
+
+TChunkReadGuard& TChunkReadGuard::operator=(TChunkReadGuard&& other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+TChunkReadGuard::~TChunkReadGuard()
+{
+    if (Chunk_) {
+        Chunk_->ReleaseReadLock();
+    }
+}
+
+TChunkReadGuard::operator bool() const
+{
+    return Chunk_ != nullptr;
+}
+
+void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs)
+{
+    using std::swap;
+    swap(lhs.Chunk_, rhs.Chunk_);
+}
+
+TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)
+{
+    return chunk->TryAcquireReadLock()
+        ? TChunkReadGuard(chunk)
+        : TChunkReadGuard();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDataNode
 } // namespace NYT

@@ -49,7 +49,9 @@ private:
     void DoSyncRemove(const Stroka& dataFileName);
 
     TAsyncError ReadMeta(i64 priority);
-    void DoReadMeta(TPromise<TError> promise);
+    void DoReadMeta(
+        TChunkReadGuard readGuard,
+        TPromise<TError> promise);
     void InitializeCachedMeta(const NChunkClient::NProto::TChunkMeta& meta);
 
     void AdjustReadRange(
