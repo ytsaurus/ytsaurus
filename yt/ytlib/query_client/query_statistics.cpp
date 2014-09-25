@@ -2,9 +2,23 @@
 #include "query_statistics.h"
 
 #include <ytlib/query_client/query_statistics.pb.h>
+#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
+{
+    RowsRead += other.RowsRead;
+    RowsWritten += other.RowsWritten;
+    SyncTime += other.SyncTime;
+    AsyncTime += other.AsyncTime;
+    IncompleteInput |= other.IncompleteInput;
+    IncompleteOutput |= other.IncompleteOutput;
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +45,6 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
 
     return result;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

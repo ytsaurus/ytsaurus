@@ -15,6 +15,9 @@ struct TQueryStatistics
     TDuration AsyncTime;
     bool IncompleteInput = false;
     bool IncompleteOutput = false;
+
+    TQueryStatistics& operator += (const TQueryStatistics& other);
+
 };
 
 void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& original);

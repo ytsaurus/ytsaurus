@@ -13,7 +13,7 @@ namespace NQueryClient {
 
 #ifndef YT_USE_LLVM
 
-static TFuture<TErrorOr<TQueryStatistics>> GetQueriesNotSupportedErrror()
+static TFuture<TErrorOr<TQueryStatistics>> GetQueriesNotSupportedError()
 {
     return MakeFuture(TErrorOr<TQueryStatistics>(TError("Query evaluation is not supported in this build")));
 }
@@ -49,7 +49,7 @@ public:
             .AsyncVia(Invoker_)
             .Run();
 #else
-        return GetQueriesNotSupportedErrror();
+        return GetQueriesNotSupportedError();
 #endif
     }
 
@@ -99,30 +99,21 @@ public:
 
         return BIND([this, this_, fragment, writer] () -> TQueryStatistics {
                 TCoordinator coordinator(Callbacks_, fragment);
-
                 coordinator.Run();
 
                 auto result = Evaluator_.Run(
                     &coordinator,
                     coordinator.GetCoordinatorFragment(),
                     std::move(writer));
-
-                auto subqueryResult = coordinator.GetStatistics();
-
-                result.RowsRead += subqueryResult.RowsRead;
-                result.RowsWritten += subqueryResult.RowsWritten;
-                result.SyncTime += subqueryResult.SyncTime;
-                result.AsyncTime += subqueryResult.AsyncTime;
-                result.IncompleteInput |= subqueryResult.IncompleteInput;
-                result.IncompleteOutput |= subqueryResult.IncompleteOutput;
-
+                result += coordinator.GetStatistics();
+            
                 return result;
             })
             .Guarded()
             .AsyncVia(Invoker_)
             .Run();
 #else
-        return GetQueriesNotSupportedErrror();
+        return GetQueriesNotSupportedError();
 #endif
     }
 
