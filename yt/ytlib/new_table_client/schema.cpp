@@ -100,9 +100,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->Name = protoSchema.name();
     schema->Type = EValueType(protoSchema.type());
-    if (protoSchema.has_lock()) {
-        schema->Lock = protoSchema.lock();
-    }
+    schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
