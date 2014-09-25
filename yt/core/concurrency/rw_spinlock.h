@@ -20,43 +20,13 @@ namespace NConcurrency {
 class TReaderWriterSpinLock
 {
 public:
-    TReaderWriterSpinLock()
-        : Value_(0)
-    { }
+    TReaderWriterSpinLock();
 
-    void AcquireReader()
-    {
-        for (int counter = 0; ;++counter) {
-            if (TryAcquireReader())
-                break;
-            if (counter > YieldThreshold) {
-                SpinLockPause();
-            }
-        }
-    }
+    void AcquireReader();
+    void ReleaseReader();
 
-    void ReleaseReader()
-    {
-        ui32 prevValue = Value_.fetch_sub(ReaderDelta, std::memory_order_release);
-        YASSERT((prevValue & ~WriterMask) != 0);
-    }
-
-    void AcquireWriter()
-    {
-        for (int counter = 0; ;++counter) {
-            if (TryAcquireWriter())
-                break;
-            if (counter > YieldThreshold) {
-                SpinLockPause();
-            }
-        }
-    }
-
-    void ReleaseWriter()
-    {
-        ui32 prevValue = Value_.fetch_and(~WriterMask, std::memory_order_release);
-        YASSERT(prevValue & WriterMask);
-    }
+    void AcquireWriter();
+    void ReleaseWriter();
 
 private:
     std::atomic<ui32> Value_;
@@ -67,24 +37,8 @@ private:
     static const int YieldThreshold = 1000;
 
 
-    bool TryAcquireReader()
-    {
-        ui32 oldValue = Value_.fetch_add(ReaderDelta, std::memory_order_acquire);
-        if (oldValue & WriterMask) {
-            Value_.fetch_sub(ReaderDelta, std::memory_order_relaxed);
-            return false;
-        }
-        return true;
-    }
-
-    bool TryAcquireWriter()
-    {
-        ui32 expected = 0;
-        if (!Value_.compare_exchange_weak(expected, WriterMask, std::memory_order_acquire)) {
-            return false;
-        }
-        return true;
-    }
+    bool TryAcquireReader();
+    bool TryAcquireWriter();
 
 };
 
@@ -123,3 +77,7 @@ typedef TGuard<TReaderWriterSpinLock, TWriterSpinlockTraits> TWriterGuard;
 
 } // namespace NConcurrency
 } // namespace NYT
+
+#define RW_SPINLOCK_INL_H_
+#include "rw_spinlock-inl.h"
+#undef RW_SPINLOCK_INL_H_

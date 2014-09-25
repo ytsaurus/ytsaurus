@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
   ${BASE}/rw_spinlock.h
+  ${BASE}/rw_spinlock-inl.h
   ${BASE}/coroutine.h
   ${BASE}/thread.h
   ${BASE}/scheduler.h
