@@ -306,6 +306,7 @@ def build_python_packages(options):
     def extract_version(package):
         output = run_captured(
             """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes"'""".format(package),
+            ignore_return_code=True,
             shell=True)
         filenames = filter(None, output.split("\n"))
         filenames = filter(lambda filename: not "REJECT" in filename, filenames)
