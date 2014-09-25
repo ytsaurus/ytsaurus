@@ -26,7 +26,6 @@ set( SRCS
   ${BASE}/json_writer_ut.cpp
   ${BASE}/lexer_ut.cpp
   ${BASE}/logging_ut.cpp
-  #${BASE}/meta_state_map_ut.cpp
   ${BASE}/mpl_ut.cpp
   ${BASE}/network_address_ut.cpp
   ${BASE}/nonblocking_queue_ut.cpp
