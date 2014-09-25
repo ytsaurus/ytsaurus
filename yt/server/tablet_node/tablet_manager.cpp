@@ -1207,7 +1207,7 @@ private:
 
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {
-        store->SetBackingStore(store);
+        store->SetBackingStore(backingStore);
 
         auto this_ = MakeStrong(this);
         auto callback = BIND([this, this_, store] () {
