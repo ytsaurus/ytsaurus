@@ -2,7 +2,6 @@
 #include "query_statistics.h"
 
 #include <ytlib/query_client/query_statistics.pb.h>
-#include <Foundation/Foundation.h>
 
 namespace NYT {
 namespace NQueryClient {
