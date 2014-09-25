@@ -68,6 +68,10 @@ def main():
     else:
         __output_format.dump_rows(__result, sys.stdout)
 
+    # Read out all input
+    #for rec in __records:
+    #    pass
+
 if __name__ == "__main__":
     main()
 
