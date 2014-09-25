@@ -3,6 +3,7 @@
 #include "tablet.h"
 #include "config.h"
 #include "automaton.h"
+#include "transaction.h"
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/delayed_executor.h>
@@ -252,47 +253,21 @@ IVersionedLookuperPtr TChunkStore::CreateLookuper(
         timestamp);
 }
 
-TTimestamp TChunkStore::GetLatestCommitTimestamp(
+void TChunkStore::CheckRowLocks(
     TKey key,
+    TTransaction* transaction,
     ui32 lockMask)
 {
-    // TODO(babenko): fixme
-    return NullTimestamp;
-    
-    if (key < MinKey_.Get() || key > MaxKey_.Get()) {
-        return NullTimestamp;
+    if (BackingStore_) {
+        return BackingStore_->CheckRowLocks(key, transaction, lockMask);
     }
 
-    auto lowerKey = TOwningKey(key);
-    auto upperKey = GetKeySuccessor(lowerKey.Get());
-
-    TColumnFilter columnFilter;
-    columnFilter.All = false; // need no columns
-
-    // TODO(babenko): limit the number of fetched versions to 1
-    auto reader = CreateReader(
-        lowerKey,
-        upperKey,
-        LastCommittedTimestamp,
-        columnFilter);
-    if (!reader) {
-        return NullTimestamp;
-    }
-
-    {
-        auto result = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
-
-    PooledRows_.reserve(1);
-    if (!reader->Read(&PooledRows_)) {
-        return false;
-    }
-
-    auto row = PooledRows_[0];
-    auto timestamp = row.GetLatestTimestamp();
-    YASSERT(timestamp != NullTimestamp);
-    return timestamp;
+    THROW_ERROR_EXCEPTION(
+        "Checking for transaction conflicts against chunk stores is not supported; "
+        "consider reducing transaction duration or increasing store retention time")
+        << TErrorAttribute("transaction_id", transaction->GetId())
+        << TErrorAttribute("tablet_id", Tablet_->GetId())
+        << TErrorAttribute("key", key);
 }
 
 void TChunkStore::Save(TSaveContext& context) const

@@ -291,11 +291,12 @@ TEST_F(TSingleLockStoreManagerTest, WriteSameRowWithRotation)
 
     auto transaction = StartTransaction();
 
-    StoreManager_->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), false);
+    StoreManager_->WriteRow(transaction.get(), BuildRow("key=1;a=1").Get(), true);
+
     Rotate();
 
     EXPECT_ANY_THROW({
-        StoreManager_->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), false);
+        StoreManager_->WriteRow(transaction.get(), BuildRow("key=1;a=2").Get(), true);
     });
 }
 

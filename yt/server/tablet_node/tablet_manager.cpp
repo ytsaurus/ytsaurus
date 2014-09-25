@@ -1207,13 +1207,15 @@ private:
 
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {
+        store->SetBackingStore(store);
+
         auto this_ = MakeStrong(this);
         auto callback = BIND([this, this_, store] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
             store->SetBackingStore(nullptr);
             LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
         }).Via(tablet->GetEpochAutomatonInvoker());
-        TDelayedExecutor::Submit(callback, tablet->GetConfig()->BackingStoreReleaseTime);
+        TDelayedExecutor::Submit(callback, tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
 

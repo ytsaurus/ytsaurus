@@ -95,9 +95,7 @@ private:
     TInstant LastRotated_;
 
     yhash_set<TDynamicMemoryStorePtr> LockedStores_;
-    yhash_set<TDynamicMemoryStorePtr> PassiveStores_;
-
-    std::multimap<TTimestamp, IStorePtr> LatestTimestampToStore_;
+    std::multimap<TTimestamp, IStorePtr> MaxTimestampToStore_;
 
     NLog::TLogger Logger;
 
@@ -109,7 +107,6 @@ private:
     void CheckInactiveStoresLocks(
         TTransaction* transaction,
         TUnversionedRow key,
-        bool prelock,
         ui32 lockMask);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);

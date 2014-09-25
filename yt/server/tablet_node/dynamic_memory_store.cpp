@@ -787,19 +787,6 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(
     return result;
 }
 
-void TDynamicMemoryStore::CheckRowLocks(
-    NVersionedTableClient::TKey key,
-    TTransaction* transaction,
-    ui32 lockMask)
-{
-    auto it = Rows_->FindEqualTo(key);
-    if (!it.IsValid())
-        return;
-
-    auto row = it.GetCurrent();
-    CheckRowLocks(row, transaction, lockMask);
-}
-
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
     int rowIndex = static_cast<int>(transaction->LockedRows().size());
@@ -1205,27 +1192,17 @@ IVersionedLookuperPtr TDynamicMemoryStore::CreateLookuper(
     return New<TLookuper>(this, timestamp, columnFilter);
 }
 
-TTimestamp TDynamicMemoryStore::GetLatestCommitTimestamp(
-    TKey key,
+void TDynamicMemoryStore::CheckRowLocks(
+    NVersionedTableClient::TKey key,
+    TTransaction* transaction,
     ui32 lockMask)
 {
     auto it = Rows_->FindEqualTo(key);
-    if (!it.IsValid()) {
-        return NullTimestamp;
-    }
+    if (!it.IsValid())
+        return;
 
     auto row = it.GetCurrent();
-    auto timestamp = MinTimestamp;
-    {
-        ui32 lockMaskBit = 1;
-        const auto* lock = row.BeginLocks(KeyColumnCount_);
-        for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
-            if (lockMask & lockMaskBit) {
-                timestamp = std::max(timestamp, lock->LastCommitTimestamp);
-            }
-        }
-    }
-    return timestamp;
+    CheckRowLocks(row, transaction, lockMask);
 }
 
 void TDynamicMemoryStore::Save(TSaveContext& context) const

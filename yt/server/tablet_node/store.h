@@ -69,9 +69,11 @@ struct IStore
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;
 
-    //! Returns the latest commit timestamp for a given #key.
-    virtual TTimestamp GetLatestCommitTimestamp(
+    //! Checks that #transaction attempting to take locks indicated by #lockMask
+    //! has no conflicts within the store. Throws on failure.
+    virtual void CheckRowLocks(
         TKey key,
+        TTransaction* transaction,
         ui32 lockMask) = 0;
 
 

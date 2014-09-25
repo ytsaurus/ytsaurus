@@ -50,11 +50,6 @@ public:
         TTransaction* transaction,
         const TDynamicRowRef& rowRef);
 
-    void CheckRowLocks(
-        TKey key,
-        TTransaction* transaction,
-        ui32 lockMask);
-
     void ConfirmRow(TTransaction* transaction, TDynamicRow row);
     void PrepareRow(TTransaction* transaction, TDynamicRow row);
     void CommitRow(TTransaction* transaction, TDynamicRow row);
@@ -90,8 +85,9 @@ public:
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual TTimestamp GetLatestCommitTimestamp(
+    virtual void CheckRowLocks(
         TKey key,
+        TTransaction* transaction,
         ui32 lockMask) override;
 
     virtual void Save(TSaveContext& context) const override;

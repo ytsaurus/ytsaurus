@@ -76,7 +76,7 @@ public:
 
     int SamplesPerPartition;
 
-    TDuration BackingStoreReleaseTime;
+    TDuration BackingStoreRetentionTime;
 
     TTableMountConfig()
     {
@@ -131,7 +131,7 @@ public:
             .Default(1)
             .GreaterThanOrEqual(1);
 
-        RegisterParameter("backing_store_release_time", BackingStoreReleaseTime)
+        RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
             .Default(TDuration::Seconds(60));
 
         RegisterValidator([&] () {
