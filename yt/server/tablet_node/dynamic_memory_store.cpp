@@ -1223,8 +1223,8 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
         SaveRowKeys(context, row, Tablet_);
 
         // Values.
-        for (int listIndex = 0; listIndex < SchemaColumnCount_ - KeyColumnCount_; ++listIndex) {
-            auto topList = row.GetFixedValueList(listIndex, KeyColumnCount_, ColumnLockCount_);
+        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
+            auto topList = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
             if (!topList) {
                 Save(context, static_cast<int>(0));
                 continue;
