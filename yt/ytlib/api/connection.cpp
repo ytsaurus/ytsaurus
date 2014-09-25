@@ -195,6 +195,7 @@ public:
             CellDirectory_);
 
         QueryExecutor_ = CreateCoordinator(
+            Config_->QueryExecutor,
             NDriver::TDispatcher::Get()->GetHeavyInvoker(),
             this);
     }

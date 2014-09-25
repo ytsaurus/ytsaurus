@@ -26,9 +26,14 @@ class TEvaluatorProxy
     : public IExecutor
 {
 public:
-    TEvaluatorProxy(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
-        : Invoker_(std::move(invoker))
+    TEvaluatorProxy(
+        TExecutorConfigPtr config,
+        IInvokerPtr invoker,
+        IEvaluateCallbacks* callbacks)
+        : Config_(std::move(config))
+        , Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+        , Evaluator_(std::move(config))
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
@@ -49,13 +54,26 @@ public:
     }
 
 private:
+    TExecutorConfigPtr Config_;
     IInvokerPtr Invoker_;
     IEvaluateCallbacks* Callbacks_;
+
 #ifdef YT_USE_LLVM
     TEvaluator Evaluator_;
 #endif
 
 };
+
+IExecutorPtr CreateEvaluator(
+    TExecutorConfigPtr config,
+    IInvokerPtr invoker,
+    IEvaluateCallbacks* callbacks)
+{
+    return New<TEvaluatorProxy>(
+        std::move(config),
+        std::move(invoker),
+        callbacks);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +81,13 @@ class TCoordinatorProxy
     : public IExecutor
 {
 public:
-    TCoordinatorProxy(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
+    TCoordinatorProxy(
+        TExecutorConfigPtr config,
+        IInvokerPtr invoker,
+        ICoordinateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+        , Evaluator_(std::move(config))
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
@@ -107,22 +129,22 @@ public:
 private:
     IInvokerPtr Invoker_;
     ICoordinateCallbacks* Callbacks_;
+
 #ifdef YT_USE_LLVM
     TEvaluator Evaluator_;
 #endif
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-IExecutorPtr CreateEvaluator(IInvokerPtr invoker, IEvaluateCallbacks* callbacks)
+IExecutorPtr CreateCoordinator(
+    TExecutorConfigPtr config,
+    IInvokerPtr invoker,
+    ICoordinateCallbacks* callbacks)
 {
-    return New<TEvaluatorProxy>(std::move(invoker), callbacks);
-}
-
-IExecutorPtr CreateCoordinator(IInvokerPtr invoker, ICoordinateCallbacks* callbacks)
-{
-    return New<TCoordinatorProxy>(std::move(invoker), callbacks);
+    return New<TCoordinatorProxy>(
+        std::move(config),
+        std::move(invoker),
+        callbacks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

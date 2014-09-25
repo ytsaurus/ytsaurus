@@ -1,9 +1,12 @@
 #include "stdafx.h"
 #include "framework.h"
+#include "versioned_table_client_ut.h"
 
 #include <core/concurrency/action_queue.h>
 
 #include <ytlib/object_client/helpers.h>
+
+#include <ytlib/query_client/config.h>
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
@@ -20,8 +23,6 @@
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schemaful_reader.h>
 #include <ytlib/new_table_client/schemaful_writer.h>
-
-#include "versioned_table_client_ut.h"
 
 #define _MIN_ "<\"type\"=\"min\">#"
 #define _MAX_ "<\"type\"=\"max\">#"
@@ -1654,7 +1655,7 @@ protected:
                 .WillOnce(Return(WrapVoidInFuture()));
         }
 
-        TEvaluator evaluator;
+        TEvaluator evaluator(New<TExecutorConfig>());
         evaluator.Run(
             &EvaluateMock_,
             PreparePlanFragment(&PrepareMock_, query, inputRowLimit, outputRowLimit),

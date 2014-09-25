@@ -8,6 +8,7 @@
 #include "cg_fragment.h"
 #include "cg_fragment_compiler.h"
 #include "cg_routines.h"
+#include "config.h"
 
 #include <ytlib/new_table_client/schemaful_writer.h>
 #include <ytlib/new_table_client/row_buffer.h>
@@ -222,8 +223,8 @@ class TEvaluator::TImpl
     : public TSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
 {
 public:
-    explicit TImpl(TSlruCacheConfigPtr config)
-        : TSlruCacheBase(std::move(config))
+    explicit TImpl(TExecutorConfigPtr config)
+        : TSlruCacheBase(config->CGCache)
     {
         InitializeLlvm();
         RegisterCGRoutines();
@@ -399,8 +400,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEvaluator::TEvaluator()
-    : Impl_(New<TEvaluator::TImpl>(New<TSlruCacheConfig>(100)))
+TEvaluator::TEvaluator(TExecutorConfigPtr config)
+    : Impl_(New<TEvaluator::TImpl>(config))
 { }
 
 TEvaluator::~TEvaluator()

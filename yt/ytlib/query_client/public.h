@@ -20,6 +20,7 @@ namespace NProto {
 class TExpression;
 class TOperator;
 class TPlanFragment;
+class TQueryStatistics;
 
 } // namespace NProto
 
@@ -44,7 +45,11 @@ struct IPrepareCallbacks;
 struct ICoordinateCallbacks;
 struct IEvaluateCallbacks;
 
+struct TQueryStatistics;
+
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
+
+DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
@@ -55,14 +60,16 @@ using NVersionedTableClient::ISchemafulReader;
 using NVersionedTableClient::ISchemafulReaderPtr;
 using NVersionedTableClient::ISchemafulWriter;
 using NVersionedTableClient::ISchemafulWriterPtr;
-
 using NVersionedTableClient::EValueType;
-
 using NVersionedTableClient::TTableSchema;
 using NVersionedTableClient::TKeyColumns;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+
+using NVersionedTableClient::TRowBuffer;
+
+using NNodeTrackerClient::TNodeDirectoryPtr;
 
 typedef NVersionedTableClient::TUnversionedRow TRow;
 typedef NVersionedTableClient::TUnversionedRowHeader TRowHeader;
@@ -70,28 +77,9 @@ typedef NVersionedTableClient::TUnversionedValue TValue;
 typedef NVersionedTableClient::TUnversionedValueData TValueData;
 typedef NVersionedTableClient::TUnversionedOwningRow TOwningRow;
 typedef NVersionedTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
-
 typedef NVersionedTableClient::TOwningKey TKey;
+
 typedef std::pair<TKey, TKey> TKeyRange;
-
-using NVersionedTableClient::TRowBuffer;
-
-using NNodeTrackerClient::TNodeDirectoryPtr;
-
-struct TQueryStatistics;
-
-namespace NProto {
-
-class TQueryStatistics;
-
-} // namespace NProto
-
-TPlanFragmentPtr PreparePlanFragment(
-    IPrepareCallbacks* callbacks,
-    const Stroka& source,
-    i64 inputRowLimit = std::numeric_limits<i64>::max(),
-    i64 outputRowLimit = std::numeric_limits<i64>::max(),
-    TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

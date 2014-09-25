@@ -4,13 +4,15 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/query_client/config.h>
+
 namespace NYT {
 namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryAgentConfig
-    : public NYTree::TYsonSerializable
+    : public NQueryClient::TExecutorConfig
 {
 public:
     int ThreadPoolSize;

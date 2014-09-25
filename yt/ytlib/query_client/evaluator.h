@@ -10,7 +10,7 @@ namespace NQueryClient {
 class TEvaluator
 {
 public:
-    TEvaluator();
+    explicit TEvaluator(TExecutorConfigPtr config);
     ~TEvaluator();
 
     TQueryStatistics Run(

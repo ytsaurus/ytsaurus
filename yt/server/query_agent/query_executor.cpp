@@ -128,12 +128,14 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Coordinator_(CreateCoordinator(
+            Config_,
             // NB: Don't bound concurrency here.
             // Doing otherwise may lead to deadlock and makes no sense since coordination
             // is cheap.
             Bootstrap_->GetQueryPoolInvoker(),
             this))
         , Evaluator_(CreateEvaluator(
+            Config_,
             Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker(),
             this))
     { }

@@ -26,10 +26,12 @@ DEFINE_REFCOUNTED_TYPE(IExecutor)
 ////////////////////////////////////////////////////////////////////////////////
 
 IExecutorPtr CreateEvaluator(
+    TExecutorConfigPtr config,
     IInvokerPtr invoker,
     IEvaluateCallbacks* callbacks);
 
 IExecutorPtr CreateCoordinator(
+    TExecutorConfigPtr config,
     IInvokerPtr invoker,
     ICoordinateCallbacks* callbacks);
 

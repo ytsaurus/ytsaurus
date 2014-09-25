@@ -320,6 +320,13 @@ DEFINE_REFCOUNTED_TYPE(const TPlanFragment)
 void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fragment);
 TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 
+TPlanFragmentPtr PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    const Stroka& source,
+    i64 inputRowLimit = std::numeric_limits<i64>::max(),
+    i64 outputRowLimit = std::numeric_limits<i64>::max(),
+    TTimestamp timestamp = NullTimestamp);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

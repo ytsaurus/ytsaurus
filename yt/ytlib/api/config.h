@@ -26,6 +26,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
+#include <ytlib/query_client/config.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -58,7 +60,8 @@ public:
     TSlruCacheConfigPtr CompressedBlockCache;
     TSlruCacheConfigPtr UncompressedBlockCache;
     NTabletClient::TTableMountCacheConfigPtr TableMountCache;
-    
+
+    NQueryClient::TExecutorConfigPtr QueryExecutor;
     TDuration QueryTimeout;
     
     NCompression::ECodec WriteRequestCodec;

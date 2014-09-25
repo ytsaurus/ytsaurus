@@ -18,6 +18,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/helpers.h
   ${BASE}/callbacks.h
+  ${BASE}/config.h
   ${BASE}/plan_helpers.h
   ${BASE}/coordinator.h
   ${BASE}/executor.h
