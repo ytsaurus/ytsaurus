@@ -286,7 +286,7 @@ public:
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
                 lock->RowIndex = TLockDescriptor::InvalidRowIndex;
                 lock->PrepareTimestamp = NVersionedTableClient::MaxTimestamp;
-                lock->LastCommitTimestamp = NVersionedTableClient::NullTimestamp;
+                lock->LastCommitTimestamp = NVersionedTableClient::MinTimestamp;
             }
         }
 

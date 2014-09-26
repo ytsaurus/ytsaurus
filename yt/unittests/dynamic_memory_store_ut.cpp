@@ -261,11 +261,10 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAndAbort)
 TEST_F(TSingleLockDynamicMemoryStoreTest, Delete)
 {
     auto key = BuildKey("1");
-
-    auto transaction = StartTransaction();
-    DeleteRow(transaction.get(), key, false);
+    auto ts = DeleteRow(key);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
 }
 
@@ -278,6 +277,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
     auto transaction2 = StartTransaction();
 
     auto row = DeleteRow(transaction2.get(), key, false);
+    EXPECT_EQ(ts1, GetLock(row).LastCommitTimestamp);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Stroka("key=1;c=value")));
@@ -292,6 +292,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;c=value")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, LastCommittedTimestamp), Null));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Null));
+    EXPECT_EQ(ts2, GetLock(row).LastCommitTimestamp);
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWrite)
@@ -578,7 +579,7 @@ protected:
 
 };
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites)
+TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites1)
 {
     auto key = BuildKey("1");
 
@@ -595,7 +596,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites)
     CommitRow(transaction1.get(), row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
-    EXPECT_EQ(ts1, GetLock(row).LastCommitTimestamp);
+    EXPECT_EQ(MinTimestamp, GetLock(row).LastCommitTimestamp);
     EXPECT_EQ(ts1, GetLock(row, 1).LastCommitTimestamp);
 
     PrepareTransaction(transaction2.get());
@@ -604,8 +605,44 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites)
     auto ts2 = CommitTransaction(transaction2.get());
     CommitRow(transaction2.get(), row);
 
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1")));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;a=1;b=3.14")));
-    EXPECT_EQ(ts2, GetLock(row).LastCommitTimestamp);
+    EXPECT_EQ(MinTimestamp, GetLock(row).LastCommitTimestamp);
+    EXPECT_EQ(ts1, GetLock(row, 1).LastCommitTimestamp);
+    EXPECT_EQ(ts2, GetLock(row, 2).LastCommitTimestamp);
+}
+
+TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites2)
+{
+    auto key = BuildKey("1");
+
+    auto transaction1 = StartTransaction();
+
+    auto transaction2 = StartTransaction();
+    auto row = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), row);
+
+    auto ts2 = CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), row);
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;b=3.14")));
+    EXPECT_EQ(MinTimestamp, GetLock(row).LastCommitTimestamp);
+    EXPECT_EQ(MinTimestamp, GetLock(row, 1).LastCommitTimestamp);
+    EXPECT_EQ(ts2, GetLock(row, 2).LastCommitTimestamp);
+
+    EXPECT_EQ(row, WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), true, LockMask1));
+
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row);
+
+    auto ts1 = CommitTransaction(transaction1.get());
+    CommitRow(transaction1.get(), row);
+
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), Stroka("key=1;a=1;b=3.14")));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), Stroka("key=1;b=3.14")));
+    EXPECT_EQ(MinTimestamp, GetLock(row).LastCommitTimestamp);
     EXPECT_EQ(ts1, GetLock(row, 1).LastCommitTimestamp);
     EXPECT_EQ(ts2, GetLock(row, 2).LastCommitTimestamp);
 }
@@ -667,6 +704,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteDeleteConflict1)
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
+
     WriteRow(transaction.get(), BuildRow("key=1;a=1", false), true, LockMask1);
 
     EXPECT_ANY_THROW({
@@ -692,10 +730,11 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict1)
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
-    WriteRow(transaction.get(), BuildRow("key=1;a=1", false), LockMask1);
+
+    DeleteRow(key);
 
     EXPECT_ANY_THROW({
-        DeleteRow(key);
+        WriteRow(transaction.get(), BuildRow("key=1;a=1", false), LockMask1);
     });
 }
 
@@ -705,10 +744,10 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict2)
 
     auto transaction = StartTransaction();
 
-    WriteRow(BuildRow("key=1;a=1", false), LockMask1);
+    DeleteRow(transaction.get(), key, true);
 
     EXPECT_ANY_THROW({
-        DeleteRow(transaction.get(), key, true);
+        WriteRow(BuildRow("key=1;a=1", false), LockMask1);
     });
 }
 

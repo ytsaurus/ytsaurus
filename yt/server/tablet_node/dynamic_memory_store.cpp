@@ -849,8 +849,6 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
     {
         auto* lock = locks;
-        YASSERT(lock[TDynamicRow::PrimaryLockIndex].LastCommitTimestamp <= commitTimestamp);
-        lock[TDynamicRow::PrimaryLockIndex].LastCommitTimestamp = commitTimestamp;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
@@ -928,7 +926,7 @@ void TDynamicMemoryStore::CheckRowLocks(
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", Tablet_->LockIndexToName()[index]);
             }
-            if (lock->LastCommitTimestamp >= transaction->GetStartTimestamp()) {
+            if (lock->LastCommitTimestamp > transaction->GetStartTimestamp()) {
                 THROW_ERROR_EXCEPTION("Row lock conflict")
                     << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_commit_timestamp", lock->LastCommitTimestamp)
