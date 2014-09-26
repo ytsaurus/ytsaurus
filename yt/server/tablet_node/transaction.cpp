@@ -136,13 +136,12 @@ void TTransaction::Load(TLoadContext& context)
         bool deleteLockFlag = Load<bool>(context);
         ui32 lockMask = Load<ui32>(context);
 
-        auto deserializedRow = rowBuilder->GetRow();
-
         TDynamicRow dynamicRow;
+        auto row = rowBuilder->GetRow();
         if ((lockMask & TDynamicRow::PrimaryLockMask) && deleteLockFlag) {
-            dynamicRow = store->DeleteRow(this, deserializedRow, false);
+            dynamicRow = store->DeleteRow(this, row, false);
         } else {
-            dynamicRow = store->WriteRow(this, deserializedRow, false, lockMask);
+            dynamicRow = store->WriteRow(this, row, false, lockMask);
         }
 
         if (PrepareTimestamp_ != NullTimestamp) {
