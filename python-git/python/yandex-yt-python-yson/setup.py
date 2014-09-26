@@ -12,8 +12,8 @@ def main():
     setup(
         name = "yandex-yt-yson-bindings",
         version = get_version(),
-        packages = ["yt.bindings", "yt.bindings.yson"],
-        package_data = {"yt.bindings.yson": ["yson_lib.so"] },
+        packages = ["yt.bindings", "yt.bindings.yson", "yt_yson_bindings"],
+        package_data = {"yt.bindings.yson": ["yson_lib.so"], "yt_yson_bindings": ["yson_lib.so"] },
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",

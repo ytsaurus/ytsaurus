@@ -3,7 +3,7 @@ import parser
 import yson_types
 
 try:
-    from yt.bindings.yson import load, loads, dump, dumps
+    from yt_yson_bindings import load, loads, dump, dumps
     TYPE = "BINARY"
 except ImportError as error:
     from parser import load, loads
