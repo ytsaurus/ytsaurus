@@ -581,7 +581,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     auto addValues = [&] (TDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
-            AddUncommittedFixedValue(dynamicRow, value.Id, value);
+            AddUncommittedFixedValue(dynamicRow, value);
         }
     };
 
@@ -991,12 +991,9 @@ void TDynamicMemoryStore::DropUncommittedValues(TDynamicRow row)
     }
 }
 
-void TDynamicMemoryStore::AddFixedValue(
-    TDynamicRow row,
-    int columnIndex,
-    const TVersionedValue& value)
+void TDynamicMemoryStore::AddFixedValue(TDynamicRow row, const TVersionedValue& value)
 {
-    auto list = row.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
+    auto list = row.GetFixedValueList(value.Id, KeyColumnCount_, ColumnLockCount_);
 
     if (list) {
         auto& lastValue = list.Back();
@@ -1006,11 +1003,11 @@ void TDynamicMemoryStore::AddFixedValue(
         }
 
         if (AllocateListForPushIfNeeded(&list, RowBuffer_.GetAlignedPool())) {
-            row.SetFixedValueList(columnIndex, list, KeyColumnCount_, ColumnLockCount_);
+            row.SetFixedValueList(value.Id, list, KeyColumnCount_, ColumnLockCount_);
         }
     } else {
         list = TValueList::Allocate(RowBuffer_.GetAlignedPool(), InitialEditListCapacity);
-        row.SetFixedValueList(columnIndex, list, KeyColumnCount_, ColumnLockCount_);
+        row.SetFixedValueList(value.Id, list, KeyColumnCount_, ColumnLockCount_);
     }
 
     CaptureValue(list.BeginPush(), value);
@@ -1018,12 +1015,9 @@ void TDynamicMemoryStore::AddFixedValue(
     ++StoreValueCount_;
 }
 
-void TDynamicMemoryStore::AddUncommittedFixedValue(
-    TDynamicRow row,
-    int columnIndex,
-    const TUnversionedValue& value)
+void TDynamicMemoryStore::AddUncommittedFixedValue(TDynamicRow row, const TUnversionedValue& value)
 {
-    AddFixedValue(row, columnIndex, MakeVersionedValue(value, UncommittedTimestamp));
+    AddFixedValue(row, MakeVersionedValue(value, UncommittedTimestamp));
 }
 
 void TDynamicMemoryStore::AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind)
@@ -1295,7 +1289,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
             for (int valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 TVersionedValue value;
                 NVersionedTableClient::Load(context, value, RowBuffer_.GetUnalignedPool());
-                AddFixedValue(row, columnIndex, value);
+                AddFixedValue(row, value);
             }
         }
 

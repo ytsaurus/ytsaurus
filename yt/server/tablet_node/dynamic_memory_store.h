@@ -140,14 +140,8 @@ private:
 
     void DropUncommittedValues(TDynamicRow row);
 
-    void AddFixedValue(
-        TDynamicRow row,
-        int columnIndex,
-        const TVersionedValue& value);
-    void AddUncommittedFixedValue(
-        TDynamicRow row,
-        int columnIndex,
-        const TUnversionedValue& value);
+    void AddFixedValue(TDynamicRow row, const TVersionedValue& value);
+    void AddUncommittedFixedValue(TDynamicRow row, const TUnversionedValue& value);
 
     void AddTimestamp(TDynamicRow row, TTimestamp timestamp, ETimestampListKind kind);
     void SetKeys(TDynamicRow row, TUnversionedRow key);
