@@ -32,7 +32,9 @@ public:
         IEvaluateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+#ifdef YT_USE_LLVM
         , Evaluator_(std::move(config))
+#endif
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
@@ -85,7 +87,9 @@ public:
         ICoordinateCallbacks* callbacks)
         : Invoker_(std::move(invoker))
         , Callbacks_(callbacks)
+#ifdef YT_USE_LLVM
         , Evaluator_(std::move(config))
+#endif
     { }
 
     virtual TFuture<TErrorOr<TQueryStatistics>> Execute(
