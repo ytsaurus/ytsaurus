@@ -83,7 +83,6 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
-        , TabletMap_(TTabletTraits(this))
         , OnStoreMemoryUsageUpdated_(BIND(&TImpl::OnStoreMemoryUsageUpdated, MakeWeak(this)))
     {
         VERIFY_INVOKER_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -300,31 +299,11 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
-    class TTabletTraits
-    {
-    public:
-        explicit TTabletTraits(TImpl* owner)
-            : Owner_(owner)
-        { }
-
-        std::unique_ptr<TTablet> Create(const TTabletId& id)
-        {
-            auto tablet = std::make_unique<TTablet>(id);
-            auto storeManager = Owner_->CreateStoreManager(tablet.get());
-            tablet->SetStoreManager(storeManager);
-            return tablet;
-        }
-
-    private:
-        TImpl* Owner_;
-
-    };
-
     TTabletManagerConfigPtr Config_;
 
     ICodec* ChangelogCodec_;
 
-    TEntityMap<TTabletId, TTablet, TTabletTraits> TabletMap_;
+    TEntityMap<TTabletId, TTablet> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
     TRingQueue<TTransaction*> PrelockedTransactions_;
@@ -366,6 +345,12 @@ private:
     void LoadValues(TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            auto storeManager = CreateStoreManager(tablet);
+            tablet->SetStoreManager(storeManager);
+        }
 
         TabletMap_.LoadValues(context);
     }

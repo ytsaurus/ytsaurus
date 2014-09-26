@@ -226,22 +226,23 @@ TStoreManager::TStoreManager(
     : Config_(config)
     , Tablet_(Tablet_)
     , ReadWorkerInvoker_(readPoolInvoker)
-    , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , RotationScheduled_(false)
     , LastRotated_(TInstant::Now())
     , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
     YCHECK(Tablet_);
-
-    Logger.AddTag("TabletId: %v", Tablet_->GetId());
-    if (Tablet_->GetSlot()) {
-        Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
-    }
 }
 
 void TStoreManager::Initialize()
 {
+    Logger.AddTag("TabletId: %v", Tablet_->GetId());
+    if (Tablet_->GetSlot()) {
+        Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellGuid());
+    }
+
+    KeyColumnCount_ = Tablet_->GetKeyColumnCount();
+
     for (const auto& pair : Tablet_->Stores()) {
         auto store = pair.second;
         if (store->GetState() != EStoreState::ActiveDynamic) {

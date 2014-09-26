@@ -26,6 +26,9 @@ protected:
         StoreManager_ = New<TStoreManager>(
             New<TTabletManagerConfig>(),
             Tablet_.get());
+        StoreManager_->Initialize();
+        Tablet_->SetStoreManager(StoreManager_);
+
         StoreManager_->CreateActiveStore();
     }
 
