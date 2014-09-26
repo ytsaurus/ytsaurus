@@ -30,26 +30,26 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
     ui32 nullKeyBit = 1;
     ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
     const auto* lhsValue = lhs.BeginKeys();
+    const auto* rhsValue = rhs.Begin();
     auto columnIt = Schema_.Columns().begin();
     int lhsLength = KeyColumnCount_;
     int rhsLength = std::min(KeyColumnCount_, rhs.GetCount());
     int minLength = std::min(lhsLength, rhsLength);
     for (int index = 0;
          index < minLength;
-         ++index, nullKeyBit <<= 1, ++lhsValue, ++columnIt)
+         ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
     {
-        const auto& rhsValue = rhs[index];
         auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
-        if (lhsType < rhsValue.Type) {
+        if (lhsType < rhsValue->Type) {
             return -1;
-        } else if (lhsType > rhsValue.Type) {
+        } else if (lhsType > rhsValue->Type) {
             return +1;
         }
 
         switch (lhsType) {
             case EValueType::Int64: {
                 i64 lhsData = lhsValue->Int64;
-                i64 rhsData = rhsValue.Data.Int64;
+                i64 rhsData = rhsValue->Data.Int64;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {
@@ -60,7 +60,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
 
             case EValueType::Uint64: {
                 ui64 lhsData = lhsValue->Uint64;
-                ui64 rhsData = rhsValue.Data.Uint64;
+                ui64 rhsData = rhsValue->Data.Uint64;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {
@@ -71,7 +71,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
 
             case EValueType::Double: {
                 double lhsData = lhsValue->Double;
-                double rhsData = rhsValue.Data.Double;
+                double rhsData = rhsValue->Data.Double;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {
@@ -82,7 +82,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
 
             case EValueType::Boolean: {
                 bool lhsData = lhsValue->Boolean;
-                bool rhsData = rhsValue.Data.Boolean;
+                bool rhsData = rhsValue->Data.Boolean;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {
@@ -93,9 +93,9 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
 
             case EValueType::String: {
                 size_t lhsLength = lhsValue->String->Length;
-                size_t rhsLength = rhsValue.Length;
+                size_t rhsLength = rhsValue->Length;
                 size_t minLength = std::min(lhsLength, rhsLength);
-                int result = ::memcmp(lhsValue->String->Data, rhsValue.Data.String, minLength);
+                int result = ::memcmp(lhsValue->String->Data, rhsValue->Data.String, minLength);
                 if (result != 0) {
                     return result;
                 } else if (lhsLength < rhsLength) {
@@ -126,7 +126,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TDynamicRow rhs) const
     auto columnIt = Schema_.Columns().begin();
     for (int index = 0;
          index < KeyColumnCount_;
-         ++index, nullKeyBit <<= 1, ++lhsValue, ++columnIt)
+         ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
     {
         bool lhsNull = (lhsNullKeyMask & nullKeyBit);
         bool rhsNull = (rhsNullKeyMask & nullKeyBit);
