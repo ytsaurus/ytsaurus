@@ -39,7 +39,6 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
          ++index, nullKeyBit <<= 1, ++lhsValue, ++columnIt)
     {
         const auto& rhsValue = rhs[index];
-        YASSERT(rhsValue.Id == index);
         auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
         if (lhsType < rhsValue.Type) {
             return -1;
