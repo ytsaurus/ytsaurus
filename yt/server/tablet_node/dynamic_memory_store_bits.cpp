@@ -322,6 +322,7 @@ void LoadRowKeys(
         if (nullKeyMask & nullKeyBit) {
             value.Type = EValueType::Null;
         } else {
+            value.Type = columnIt->Type;
             switch (columnIt->Type) {
                 case EValueType::Int64:
                     value.Data.Int64 = Load<i64>(context);
