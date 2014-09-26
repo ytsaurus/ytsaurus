@@ -39,6 +39,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
          ++index, nullKeyBit <<= 1, ++lhsValue, ++columnIt)
     {
         const auto& rhsValue = rhs[index];
+        YASSERT(rhsValue.Id == index);
         auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
         if (lhsType < rhsValue.Type) {
             return -1;
@@ -48,8 +49,8 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
 
         switch (lhsType) {
             case EValueType::Int64: {
-                auto lhsData = lhsValue->Int64;
-                auto rhsData = rhsValue.Data.Int64;
+                i64 lhsData = lhsValue->Int64;
+                i64 rhsData = rhsValue.Data.Int64;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {
@@ -59,8 +60,8 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) con
             }
 
             case EValueType::Uint64: {
-                auto lhsData = lhsValue->Uint64;
-                auto rhsData = rhsValue.Data.Uint64;
+                ui64 lhsData = lhsValue->Uint64;
+                ui64 rhsData = rhsValue.Data.Uint64;
                 if (lhsData < rhsData) {
                     return -1;
                 } else if (lhsData > rhsData) {

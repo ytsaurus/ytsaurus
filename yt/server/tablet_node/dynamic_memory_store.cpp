@@ -1051,9 +1051,11 @@ void TDynamicMemoryStore::SetKeys(TDynamicRow dst, TUnversionedRow src)
          ++index, nullKeyBit <<= 1, ++dstValue, ++columnIt)
     {
         const auto& srcValue = src[index];
+        YASSERT(srcValue.Id == index);
         if (srcValue.Type == EValueType::Null) {
             nullKeyMask |= nullKeyBit;
         } else {
+            YASSERT(srcValue.Type == columnIt->Type);
             if (IsStringLikeType(columnIt->Type)) {
                 *dstValue = CaptureStringValue(srcValue);
             } else {
