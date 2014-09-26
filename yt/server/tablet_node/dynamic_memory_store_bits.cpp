@@ -220,13 +220,14 @@ void SaveRowKeys(
     Save(context, nullKeyMask);
     for (int index = 0;
          index < tablet->GetKeyColumnCount();
-         ++index, nullKeyMask <<= 1, ++key, ++columnIt)
+         ++index, nullKeyBit <<= 1, ++key, ++columnIt)
     {
         if (!(nullKeyMask & nullKeyBit)) {
             switch (columnIt->Type) {
                 case EValueType::Int64:
                     Save(context, key->Int64);
                     break;
+
                 case EValueType::Uint64:
                     Save(context, key->Uint64);
                     break;
