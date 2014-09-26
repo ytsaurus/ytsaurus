@@ -3427,6 +3427,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
+    jobSpec->set_check_input_fully_consumed(config->CheckInputStreamFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);

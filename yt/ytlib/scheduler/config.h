@@ -134,11 +134,11 @@ public:
     double MemoryReserveFactor;
 
     bool UseYamrDescriptors;
+    bool CheckInputStreamFullyConsumed;
     bool EnableCoreDump;
     bool EnableIOPrio;
 
     i64 MaxStderrSize;
-
 
     TUserJobSpec()
     {
@@ -163,6 +163,8 @@ public:
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
+            .Default(false);
+        RegisterParameter("check_input_fully_consumed", CheckInputStreamFullyConsumed)
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
