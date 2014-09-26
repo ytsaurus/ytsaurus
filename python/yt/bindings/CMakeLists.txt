@@ -62,7 +62,7 @@ exec_program(
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
   ${CMAKE_BINARY_DIR}/lib/libyt-yson-python.so
-  ${CMAKE_SOURCE_DIR}/yt_yson_bindings/yson_lib.so
+  ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib.so
 )
 
 exec_program(
