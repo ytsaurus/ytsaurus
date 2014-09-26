@@ -336,6 +336,10 @@ class YsonParserBase(object):
                     self._get_position_info())
         elif numeric_type == _SEEMS_UINT64:
             try:
+                if string.endswith("u"):
+                    string = string[:-1]
+                else:
+                    raise ValueError()
                 result = long(string)
                 if result > 2 ** 64 - 1:
                     raise ValueError()
