@@ -39,8 +39,10 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 TNode::TNode(
     TNodeId id,
     const TNodeDescriptor& descriptor,
-    TNodeConfigPtr config)
+    TNodeConfigPtr config,
+    TInstant registerTime)
     : Id_(id)
+    , RegisterTime_(registerTime)
     , Descriptor_(descriptor)
     , Config_(config)
 {
@@ -65,9 +67,6 @@ void TNode::Init()
     ResetHints();
 }
 
-TNode::~TNode()
-{ }
-
 const TNodeDescriptor& TNode::GetDescriptor() const
 {
     return Descriptor_;
@@ -88,6 +87,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Descriptor_.Addresses());
     Save(context, State_);
+    Save(context, RegisterTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
     Save(context, Transaction_);
@@ -100,11 +100,12 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    TNodeDescriptor::TAddressMap addresses;
-    Load(context, addresses);
-    Descriptor_ = TNodeDescriptor(addresses);
-
+    Descriptor_ = TNodeDescriptor(Load<TNodeDescriptor::TAddressMap>(context));
     Load(context, State_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 102) {
+        Load(context, RegisterTime_);
+    }
     Load(context, Statistics_);
     Load(context, Alerts_);
     Load(context, Transaction_);

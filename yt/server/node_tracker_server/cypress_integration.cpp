@@ -68,6 +68,7 @@ private:
     {
         const auto* node = FindNode();
         attributes->push_back("state");
+        attributes->push_back(TAttributeInfo("register_time", node));
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
         attributes->push_back(TAttributeInfo("addresses", node));
@@ -90,6 +91,12 @@ private:
         }
 
         if (node) {
+            if (key == "register_time") {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetRegisterTime());
+                return true;
+            }
+
             if (key == "transaction_id" && node->GetTransaction()) {
                 BuildYsonFluently(consumer)
                     .Value(node->GetTransaction()->GetId());

@@ -643,7 +643,14 @@ private:
             auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
-            auto* node = new TNode(nodeId, descriptor, config);
+            auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+            const auto* mutationContext = hydraManager->GetMutationContext();
+
+            auto* node = new TNode(
+                nodeId,
+                descriptor,
+                config,
+                mutationContext->GetTimestamp());
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
 

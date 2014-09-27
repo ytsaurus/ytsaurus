@@ -47,6 +47,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
     
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, Alerts);
@@ -103,10 +104,9 @@ public:
     TNode(
         TNodeId id,
         const TNodeDescriptor& descriptor,
-        TNodeConfigPtr config);
+        TNodeConfigPtr config,
+        TInstant registerTime);
     explicit TNode(TNodeId id);
-
-    ~TNode();
 
     const TNodeDescriptor& GetDescriptor() const;
     const Stroka& GetAddress() const;
