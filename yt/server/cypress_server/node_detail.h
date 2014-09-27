@@ -273,6 +273,7 @@ template <class TValue>
 class TScalarNode
     : public TCypressNodeBase
 {
+public:
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
@@ -373,6 +374,7 @@ typedef TScalarNodeTypeHandler<bool>   TBooleanNodeTypeHandler;
 class TMapNode
     : public TCypressNodeBase
 {
+public:
     typedef yhash_map<Stroka, TCypressNodeBase*> TKeyToChild;
     typedef yhash_map<TCypressNodeBase*, Stroka> TChildToKey;
 
@@ -427,6 +429,7 @@ private:
 class TListNode
     : public TCypressNodeBase
 {
+public:
     typedef std::vector<TCypressNodeBase*> TIndexToChild;
     typedef yhash_map<TCypressNodeBase*, int> TChildToIndex;
 
@@ -480,6 +483,7 @@ private:
 class TLinkNode
     : public TCypressNodeBase
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectServer::TObjectId, TargetId);
 
 public:
@@ -531,6 +535,7 @@ private:
 class TDocumentNode
     : public TCypressNodeBase
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Value);
 
 public:
