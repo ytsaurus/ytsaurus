@@ -157,11 +157,11 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TNonReparingReader
+class TNonRepairingReader
     : public IReader
 {
 public:
-    explicit TNonReparingReader(const std::vector<IReaderPtr>& readers)
+    explicit TNonRepairingReader(const std::vector<IReaderPtr>& readers)
         : Readers_(readers)
     {
         YCHECK(!Readers_.empty());
@@ -212,7 +212,7 @@ private:
         }
 
         return GetPlacementMeta(this).Apply(
-            BIND(&TNonReparingReader::OnGotPlacementMeta, MakeStrong(this))
+            BIND(&TNonRepairingReader::OnGotPlacementMeta, MakeStrong(this))
                 .Guarded()
                 .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -233,10 +233,10 @@ private:
 
 };
 
-IReaderPtr CreateNonReparingErasureReader(
+IReaderPtr CreateNonRepairingErasureReader(
     const std::vector<IReaderPtr>& dataBlockReaders)
 {
-    return New<TNonReparingReader>(dataBlockReaders);
+    return New<TNonRepairingReader>(dataBlockReaders);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

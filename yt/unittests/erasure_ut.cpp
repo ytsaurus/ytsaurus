@@ -149,7 +149,7 @@ public:
             reader->Open();
             readers.push_back(reader);
         }
-        return CreateNonReparingErasureReader(readers);
+        return CreateNonRepairingErasureReader(readers);
     }
 
     static void Cleanup(ICodec* codec)

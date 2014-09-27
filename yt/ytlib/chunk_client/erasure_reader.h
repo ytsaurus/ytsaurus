@@ -14,7 +14,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IReaderPtr CreateNonReparingErasureReader(
+IReaderPtr CreateNonRepairingErasureReader(
     const std::vector<IReaderPtr>& dataBlocksReaders);
 
 typedef TCallback<void(double)> TRepairProgressHandler;

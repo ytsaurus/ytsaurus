@@ -162,7 +162,7 @@ void TOldMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
             chunkId,
             replicas,
             erasureCodec);
-        asyncReader = CreateNonReparingErasureReader(readers);
+        asyncReader = CreateNonRepairingErasureReader(readers);
     } else {
         asyncReader = CreateReplicationReader(
             Config,
