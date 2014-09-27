@@ -23,8 +23,10 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! For a sequence of block indexes fetches and outputs these blocks in the given order.
-//! Prefetches and stores a configured number of blocks in its internal cyclic buffer.
+//! For a sequence of block indexes, fetches and uncompresses these blocks in the given order.
+/*!
+ *  Internally, blocks are prefetched obeying a given memory limit.
+ */
 class TSequentialReader
     : public TRefCounted
 {

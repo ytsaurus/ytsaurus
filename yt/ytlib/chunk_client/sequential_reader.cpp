@@ -136,7 +136,6 @@ void TSequentialReader::DecompressBlocks(
         const auto& compressedBlock = compressedBlocks[i];
         int windowIndex = windowIndexes[i];
         const auto& blockInfo = BlockInfos_[windowIndex];
-        YCHECK(compressedBlock.Size() == blockInfo.Size);
         TBlockId blockId(ChunkReader_->GetChunkId(), blockInfo.Index);
 
         LOG_DEBUG("Started decompressing block (Block: %v)",
@@ -148,7 +147,7 @@ void TSequentialReader::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlock.Size();
 
-        i64 delta = uncompressedBlock.Size() - compressedBlock.Size();
+        i64 delta = uncompressedBlock.Size() - blockInfo.Size;
         if (delta > 0) {
             AsyncSemaphore_.Acquire(delta);
         } else {
