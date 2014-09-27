@@ -4,11 +4,16 @@ from setuptools import setup
 
 from setuptools.dist import Distribution
 
+import os
+import shutil
+
 class BinaryDistribution(Distribution):
     def is_pure(self):
         return False
 
 def main():
+    if not os.path.exists("yt/bindings/yson"):
+        shutil.copytree("yt_yson_bindings", "yt/bindings/yson")
     setup(
         name = "yandex-yt-yson-bindings",
         version = get_version(),
