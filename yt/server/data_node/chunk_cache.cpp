@@ -266,13 +266,13 @@ private:
                 LOG_INFO("Downloading block (BlockIndex: %v)",
                     blockIndex);
 
-                auto blockResult = WaitFor(sequentialReader->AsyncNextBlock());
+                auto blockResult = WaitFor(sequentialReader->FetchNextBlock());
                 THROW_ERROR_EXCEPTION_IF_FAILED(blockResult);
 
                 LOG_INFO("Writing block (BlockIndex: %v)",
                     blockIndex);
                 // NB: This is always done synchronously.
-                auto block = sequentialReader->GetBlock();
+                auto block = sequentialReader->GetCurrentBlock();
                 if (!chunkWriter->WriteBlock(block)) {
                     THROW_ERROR_EXCEPTION(chunkWriter->GetReadyEvent().Get());
                 }

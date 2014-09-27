@@ -56,21 +56,24 @@ public:
         IBlockCachePtr uncompressedBlockCache,
         NCompression::ECodec codecId);
 
-    bool HasNext() const;
+    //! Returns |true| if the current block is not the last one.
+    bool HasMoreBlocks() const;
 
     //! Asynchronously fetches the next block.
     /*!
      *  It is not allowed to ask for the next block until the previous one is retrieved.
      *  If an error occurs during fetching then the whole session is failed.
      */
-    TAsyncError AsyncNextBlock();
+    TAsyncError FetchNextBlock();
 
     //! Returns the current block.
     /*!
-     *  The block must have been already fetched by #AsyncNextBlock.
+     *  The block must have been already fetched by #FetchNextBlock.
      */
-    TSharedRef GetBlock();
+    TSharedRef GetCurrentBlock();
 
+    //! Returns a asynchronous flag that becomes set when all
+    //! blocks are fetched.
     TFuture<void> GetFetchingCompleteEvent();
 
 private:
@@ -79,7 +82,7 @@ private:
     void RequestBlocks(
         const std::vector<int>& windowIndexes,
         const std::vector<int>& blockIndexes,
-        i64 groupSize);
+        i64 compressedSize);
 
     void OnGotBlocks(
         const std::vector<int>& windowIndexes,
@@ -96,14 +99,20 @@ private:
     IReaderPtr ChunkReader_;
     IBlockCachePtr UncompressedBlockCache_;
 
-    std::vector<TPromise<TSharedRef>> BlockWindow_;
+    struct TWindowSlot
+    {
+        TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
+        bool Cached = false;
+    };
+
+    std::vector<TWindowSlot> Window_;
 
     NConcurrency::TAsyncSemaphore AsyncSemaphore_;
 
     volatile int FirstReadyWindowIndex_ = -1;
     int FirstUnfetchedWindowIndex_ = 0;
  
-    TPromise<void> FetchingComplete_ = NewPromise();
+    TPromise<void> FetchingComplete_ = NewPromise<void>();
 
     TAsyncStreamState State_;
     NCompression::ICodec* Codec_;

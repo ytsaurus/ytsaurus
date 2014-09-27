@@ -181,7 +181,7 @@ bool TVersionedChunkReader<TBlockReader>::Read(std::vector<TVersionedRow>* rows)
 
         if (!BlockReader_->NextRow()) {
             PreviousBlockReader_.swap(BlockReader_);
-            if (SequentialReader_->HasNext()) {
+            if (SequentialReader_->HasMoreBlocks()) {
                 ReadyEvent_ = NewPromise<TError>();
                 BIND(&TVersionedChunkReader<TBlockReader>::DoSwitchBlock, MakeWeak(this))
                     .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
@@ -333,7 +333,7 @@ void TVersionedChunkReader<TBlockReader>::DoOpen()
         NCompression::ECodec(CachedChunkMeta_->Misc().compression_codec()));
 
     {
-        auto error = WaitFor(SequentialReader_->AsyncNextBlock());
+        auto error = WaitFor(SequentialReader_->FetchNextBlock());
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
@@ -352,7 +352,7 @@ template <class TBlockReader>
 TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
 {
     return new TBlockReader(
-        SequentialReader_->GetBlock(),
+        SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().entries(CurrentBlockIndex_),
         CachedChunkMeta_->ChunkSchema(),
         CachedChunkMeta_->KeyColumns(),
@@ -363,7 +363,7 @@ TBlockReader* TVersionedChunkReader<TBlockReader>::NewBlockReader()
 template <class TBlockReader>
 void TVersionedChunkReader<TBlockReader>::DoSwitchBlock()
 {
-    auto error = WaitFor(SequentialReader_->AsyncNextBlock());
+    auto error = WaitFor(SequentialReader_->FetchNextBlock());
     ++CurrentBlockIndex_;
     if (error.IsOK()) {
         BlockReader_.reset(NewBlockReader());

@@ -254,12 +254,12 @@ void TChunkReader::DoOpen()
         UncompressedBlockCache,
         NCompression::ECodec(misc.compression_codec()));
 
-    if (SequentialReader->HasNext()) {
-        auto error = WaitFor(SequentialReader->AsyncNextBlock());
+    if (SequentialReader->HasMoreBlocks()) {
+        auto error = WaitFor(SequentialReader->FetchNextBlock());
         if (error.IsOK()) {
             BlockReader.reset(new TBlockReader(
                 BlockMeta.entries(CurrentBlockIndex),
-                SequentialReader->GetBlock(),
+                SequentialReader->GetCurrentBlock(),
                 BlockColumnTypes));
         }
         State.FinishOperation(error);
@@ -282,7 +282,7 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
         ++CurrentBlockIndex;
         BlockReader.reset(new TBlockReader(
             BlockMeta.entries(CurrentBlockIndex),
-            SequentialReader->GetBlock(),
+            SequentialReader->GetCurrentBlock(),
             BlockColumnTypes));
     }
 
@@ -325,9 +325,9 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
 
         BlockReader->NextRow();
         if (BlockReader->EndOfBlock()) {
-            if (SequentialReader->HasNext()) {
+            if (SequentialReader->HasMoreBlocks()) {
                 State.StartOperation();
-                SequentialReader->AsyncNextBlock().Subscribe(BIND(
+                SequentialReader->FetchNextBlock().Subscribe(BIND(
                     &TChunkReader::OnNextBlock,
                     MakeWeak(this)));
             } else {

@@ -120,8 +120,8 @@ void TPartitionChunkReader::OnGotMeta(IReader::TGetMetaResult result)
 
     Blocks.reserve(blockSequence.size());
 
-    if (SequentialReader->HasNext()) {
-        SequentialReader->AsyncNextBlock().Subscribe(BIND(
+    if (SequentialReader->HasMoreBlocks()) {
+        SequentialReader->FetchNextBlock().Subscribe(BIND(
             &TPartitionChunkReader::OnNextBlock,
             MakeWeak(this)));
     } else {
@@ -138,7 +138,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
 
     LOG_DEBUG("Switching to next block at row %" PRId64, RowIndex_);
 
-    Blocks.push_back(SequentialReader->GetBlock());
+    Blocks.push_back(SequentialReader->GetCurrentBlock());
     YCHECK(Blocks.back().Size() > 0);
 
     TMemoryInput input(Blocks.back().Begin(), Blocks.back().Size());
@@ -195,9 +195,9 @@ auto TPartitionChunkReader::GetFacade() const -> const TFacade*
 
 bool TPartitionChunkReader::FetchNext()
 {
-    if (!NextRow() && SequentialReader->HasNext()) {
+    if (!NextRow() && SequentialReader->HasMoreBlocks()) {
         State.StartOperation();
-        SequentialReader->AsyncNextBlock().Subscribe(BIND(
+        SequentialReader->FetchNextBlock().Subscribe(BIND(
             &TPartitionChunkReader::OnNextBlock,
             MakeWeak(this)));
         return false;

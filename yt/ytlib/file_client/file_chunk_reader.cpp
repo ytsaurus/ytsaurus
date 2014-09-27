@@ -142,8 +142,8 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IReader::TGetMetaResult result)
 
     LOG_INFO("File reader opened");
 
-    if (SequentialReader->HasNext()) {
-        SequentialReader->AsyncNextBlock().Subscribe(BIND(
+    if (SequentialReader->HasMoreBlocks()) {
+        SequentialReader->FetchNextBlock().Subscribe(BIND(
             &TFileChunkReader::OnNextBlock,
             MakeWeak(this)));
     } else {
@@ -167,13 +167,13 @@ void TFileChunkReader::OnNextBlock(TError error)
 bool TFileChunkReader::FetchNext()
 {
     YCHECK(!State.HasRunningOperation());
-    auto block = SequentialReader->GetBlock();
+    auto block = SequentialReader->GetCurrentBlock();
     StartOffset = std::max(StartOffset - static_cast<i64>(block.Size()), (i64)0);
     EndOffset = std::max(EndOffset - static_cast<i64>(block.Size()), (i64)0);
 
-    if (SequentialReader->HasNext()) {
+    if (SequentialReader->HasMoreBlocks()) {
         State.StartOperation();
-        SequentialReader->AsyncNextBlock().Subscribe(BIND(
+        SequentialReader->FetchNextBlock().Subscribe(BIND(
             &TFileChunkReader::OnNextBlock,
             MakeWeak(this)));
         return false;
@@ -196,7 +196,7 @@ auto TFileChunkReader::GetFacade() const -> const TFacade*
 
 TSharedRef TFileChunkReader::GetBlock() const
 {
-    auto block = SequentialReader->GetBlock();
+    auto block = SequentialReader->GetCurrentBlock();
 
     auto* begin = block.Begin();
     auto* end = block.End();

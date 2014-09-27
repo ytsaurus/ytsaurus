@@ -362,7 +362,7 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
+        chunkReader->SequentialReader->FetchNextBlock().Subscribe(
             BIND(&TRegularInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -518,7 +518,7 @@ private:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(ChunkChannels[channelIdx]));
 
         auto& channelReader = chunkReader->ChannelReaders.back();
-        auto decompressedBlock = chunkReader->SequentialReader->GetBlock();
+        auto decompressedBlock = chunkReader->SequentialReader->GetCurrentBlock();
         if (chunkReader->Options->KeepBlocks)
             chunkReader->FetchedBlocks.push_back(decompressedBlock);
         channelReader->SetBlock(decompressedBlock);
@@ -534,7 +534,7 @@ private:
 
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
-            chunkReader->SequentialReader->AsyncNextBlock()
+            chunkReader->SequentialReader->FetchNextBlock()
                 .Subscribe(BIND(
                     &TRegularInitializer::OnStartingBlockReceived,
                     MakeWeak(this),
@@ -864,7 +864,7 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
-        auto decompressedBlock = SequentialReader->GetBlock();
+        auto decompressedBlock = SequentialReader->GetCurrentBlock();
         if (Options->KeepBlocks)
             FetchedBlocks.push_back(decompressedBlock);
         channel->SetBlock(decompressedBlock);
@@ -875,11 +875,11 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
     while (channelIndex < ChannelReaders.size()) {
         auto& channel = ChannelReaders[channelIndex];
         if (!channel->NextRow()) {
-            YCHECK(SequentialReader->HasNext());
+            YCHECK(SequentialReader->HasMoreBlocks());
 
             RowState.StartOperation();
 
-            SequentialReader->AsyncNextBlock().Subscribe(BIND(
+            SequentialReader->FetchNextBlock().Subscribe(BIND(
                 IgnoreResult(&TTableChunkReader::ContinueFetchNextRow),
                 MakeWeak(this),
                 channelIndex));
