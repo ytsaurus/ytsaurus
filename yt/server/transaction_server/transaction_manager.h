@@ -31,6 +31,7 @@ class TTransactionManager
     : public NCellMaster::TMasterAutomatonPart
     , public NHive::ITransactionManager
 {
+public:
     //! Raised when a new transaction is started.
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
 
