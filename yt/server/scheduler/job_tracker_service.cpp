@@ -55,8 +55,6 @@ private:
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
-        // This ensures that all available nodes are registered during grace delay
-        // introduced by Master Connector.
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(descriptor);
         scheduler->ProcessHeartbeat(node, context);
