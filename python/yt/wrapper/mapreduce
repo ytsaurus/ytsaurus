@@ -9,7 +9,7 @@ from yt.wrapper.table_commands import copy_table, _remove_locks, _get_format_fro
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die, get_version
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die, get_version, writelines_silently
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.wrapper as yt
@@ -90,21 +90,6 @@ class SortingHelpFormatter(RawTextHelpFormatter):
     def add_arguments(self, actions):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
-
-def writelines_silently(lines):
-    try:
-        for line in lines:
-            sys.stdout.write(line)
-    except Exception:
-        raise
-    except:
-        # Trying to detect case of broken pipe
-        try:
-            sys.stdout.flush()
-        except IOError:
-            # Case of broken pipe
-            sys.exit(1)
-        raise
 
 def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexisting_tables=False):
     if not (smart_format_flag or "YT_SMART_FORMAT" in os.environ):

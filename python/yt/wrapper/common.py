@@ -144,3 +144,21 @@ def get_version():
     except:
         return "unknown"
 
+def writelines_silently(lines):
+    try:
+        for line in lines:
+            sys.stdout.write(line)
+    except IOError as err:
+        # Trying to detect case of broken pipe
+        if err.errno == 32:
+            sys.exit(1)
+        raise
+    except Exception:
+        raise
+    except:
+        # Case of keyboard abort
+        try:
+            sys.stdout.flush()
+        except IOError:
+            sys.exit(1)
+        raise
