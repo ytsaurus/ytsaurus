@@ -74,6 +74,7 @@ import os
 import sys
 import types
 import exceptions
+import tempfile
 import simplejson as json
 from cStringIO import StringIO
 
@@ -123,7 +124,7 @@ def _prepare_sort_by(sort_by):
     _check_columns(sort_by, "sort")
     return sort_by
 
-def _prepare_files(files, client=None):
+def _reliably_upload_files(files, client=None):
     if files is None:
         return []
 
@@ -165,16 +166,32 @@ def _prepare_format(format):
             YtError("You should specify format"))
     return format
 
+class TempfilesManager(object):
+    def __init__(self):
+        self._tempfiles_pool = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if config.REMOVE_TEMP_FILES:
+            for file in self._tempfiles_pool:
+                os.remove(file)
+
+    def create_tempfile(self, *args, **kwargs):
+        """Use syntax tempfile.mkstemp"""
+        _, filepath = tempfile.mkstemp(*args, **kwargs)
+        self._tempfiles_pool.append(filepath)
+        return filepath
+
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
     if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
-        binary, binary_file, files = py_wrapper.wrap(binary, operation_type,
-                                                     input_format, output_format, reduce_by)
-        uploaded_files = _prepare_files([binary_file] + files, client=client)
-        if config.REMOVE_TEMP_FILES:
-            for file in files:
-                os.remove(file)
-        return binary, uploaded_files
+        with TempfilesManager() as tempfiles_manager:
+            binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
+                                                         input_format, output_format, reduce_by)
+            uploaded_files = _reliably_upload_files([binary_file] + files, client=client)
+            return binary, uploaded_files
     else:
         return binary, []
 
@@ -227,7 +244,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         require(file_paths is None, "You cannot specify yt_files and file_paths simultaneously")
         file_paths = yt_files
 
-    files = _prepare_files(files, client=client)
+    files = _reliably_upload_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
                                                reduce_by, client=client)
