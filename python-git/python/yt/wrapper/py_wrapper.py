@@ -13,7 +13,6 @@ import inspect
 import os
 import sys
 import shutil
-import tempfile
 import types
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -61,12 +60,13 @@ def find_file(path):
             return path
         path = os.path.dirname(path)
 
-def create_modules_archive():
+def create_modules_archive(tempfiles_manager):
     if config.PYTHON_CREATE_MODULES_ARCHIVE is not None:
         return config.PYTHON_CREATE_MODULES_ARCHIVE()
 
     compressed_files = set()
-    zip_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=".modules.zip")[1]
+    zip_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+                                                     prefix=".modules.zip")
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
             if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
@@ -100,9 +100,10 @@ def get_function_name(function):
     else:
         return "operation"
 
-def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
+def wrap(function, operation_type, tempfiles_manager, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
-    function_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix=get_function_name(function) + ".")[1]
+    function_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+                                                          prefix=get_function_name(function) + ".")
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
@@ -112,7 +113,8 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                       "is forbidden because of memory limit issues. "
                       "Install yandex-yt-python-yson to fix this problem.")
 
-    config_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="config_dump")[1]
+    config_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+                                                        prefix="config_dump")
     config_dict = {}
     for key in dir(format_config):
         value = format_config.__dict__[key]
@@ -131,8 +133,9 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                 os.path.join(LOCATION, "_py_runner.py"),
                 [function_filename, config_filename])
 
-    zip_filename = create_modules_archive()
-    main_filename = tempfile.mkstemp(dir=config.LOCAL_TMP_DIR, prefix="_main_module", suffix=".py")[1]
+    zip_filename = create_modules_archive(tempfiles_manager)
+    main_filename = tempfiles_manager.create_tempfile(dir=config.LOCAL_TMP_DIR,
+                                                      prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
     if is_running_interactively():
         function_source_filename = inspect.getfile(function)

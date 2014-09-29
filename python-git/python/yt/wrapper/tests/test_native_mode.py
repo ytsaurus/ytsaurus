@@ -12,6 +12,7 @@ import time
 import tempfile
 import subprocess
 import simplejson as json
+import shutil
 
 import pytest
 
@@ -31,6 +32,28 @@ def test_docs_exist():
         methods_without_doc = [method for name, method in public_methods
                                                             if (not inspect.getdoc(method))]
         assert not methods_without_doc
+
+def test_reliable_remove_tempfiles():
+    def dummy_buggy_upload(*args, **kwargs):
+        raise TypeError
+
+    def foo(rec):
+        yield rec
+
+    real_upload = yt.table_commands._prepare_binary.func_globals['_reliably_upload_files']
+    yt.table_commands._prepare_binary.func_globals['_reliably_upload_files'] = dummy_buggy_upload
+    old_tmp_dir = yt.config.LOCAL_TMP_DIR
+    yt.config.LOCAL_TMP_DIR = tempfile.mkdtemp(dir=old_tmp_dir)
+    try:
+        files_before_fail = os.listdir(yt.config.LOCAL_TMP_DIR)
+        with pytest.raises(TypeError):
+            yt.table_commands._prepare_binary(foo, "mapper")
+        files_after_fail = os.listdir(yt.config.LOCAL_TMP_DIR)
+        assert files_after_fail == files_before_fail
+    finally:
+        yt.table_commands._prepare_binary.func_globals['_reliably_upload_files'] = real_upload
+        shutil.rmtree(yt.config.LOCAL_TMP_DIR)
+        yt.config.LOCAL_TMP_DIR = old_tmp_dir
 
 class TestNativeMode(YtTestBase, YTEnv):
     @classmethod
