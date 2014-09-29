@@ -7,6 +7,11 @@ from tornado import iostream
 from tornado import gen
 from tornado import options
 
+try:
+    from raven.handlers.logging import SentryHandler
+except ImportError:
+    pass
+
 import requests
 
 import atexit
@@ -655,7 +660,16 @@ def run():
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
     options.define("verbose", default=False, help="vervose mode")
 
+    options.define("sentry_endpoint", default="", help="sentry endpoint")
+
     options.parse_command_line()
+
+    sentry_endpoint = options.options["sentry_endpoint"]
+    if sentry_endpoint:
+        root_logger = logging.getLogger("")
+        sentry_handler = SentryHandler(sentry_endpoint)
+        sentry_handler.setLevel(logging.ERROR)
+        root_logger.addHandler(sentry_handler)
 
     logging.debug("Started")
 
