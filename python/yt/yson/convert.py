@@ -24,7 +24,7 @@ def to_yson_type(value, attributes = None):
 
 def json_to_yson(json_tree):
     """ Converts json representation to yson representation """
-    has_attrs = hasattr(json_tree, "__contains__") and "$value" in json_tree
+    has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
     if isinstance(value, unicode):
         result = YsonString(str(bytearray(value, 'utf-8')))
