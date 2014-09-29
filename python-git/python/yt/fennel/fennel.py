@@ -197,11 +197,18 @@ class EventLog(object):
                 sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 
     def archive(self, count = None):
+        self.log.info("%d rows has been requested to archive", count)
+
         desired_chunk_size = 2 * 1024 ** 3
         ratio = 0.137
         data_size_per_job = max(1, int(desired_chunk_size / ratio))
 
         count = count or yt.get(self._table_name + "/@row_count")
+        max_count = yt.get(self._row_to_save_attr) - yt.get(self._number_of_first_row_attr)
+
+        if count > max_count:
+            self.log.info("One of rows which are requested to archive is not pushed to LogBroker yet. Set count to %d", max_count)
+            count = max_count
 
         self.log.info("Archive %s rows from event log", count)
 
