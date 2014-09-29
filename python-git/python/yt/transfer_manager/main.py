@@ -377,6 +377,7 @@ class Application(object):
                             self._tasks[id].error = error
                             self._change_task_state(id, "failed")
 
+                        self._dump_task(id)
                         self._running_task_queues[self._tasks[id].get_queue_id()].remove(id)
                         del self._task_processes[id]
 
