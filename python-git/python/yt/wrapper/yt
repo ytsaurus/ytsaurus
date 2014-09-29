@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
-from yt.wrapper.common import die
+from yt.wrapper.common import die, writelines_silently
 import yt.wrapper as yt
 import yt.yson as yson
 
@@ -100,15 +100,6 @@ See also:
     ACL                     https://wiki.yandex-team.ru/yt/userdoc/accesscontrol
     transactions            https://wiki.yandex-team.ru/yt/userdoc/transactions
 '''
-
-def writelines_silently(lines):
-    try:
-        for line in lines:
-            sys.stdout.write(line)
-    except IOError:
-        sys.exit(1)
-    except:
-        raise
 
 def fix_parser(parser):
     old_add_argument = parser.add_argument
