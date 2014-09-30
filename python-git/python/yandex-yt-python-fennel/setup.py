@@ -5,9 +5,13 @@ from setuptools import setup
 def main():
     scripts, data_files = prepare_files(["yt/fennel/binaries/fennel.py"])
 
+    version = get_version()
+    with open("yt/fennel/version.py", "w") as version_output:
+        version_output.write("VERSION='{0}'".format(version))
+
     setup(
         name="yandex-yt-fennel",
-        version=get_version(),
+        version=version,
         packages = [ "yt.fennel" ],
 
         scripts = scripts,

@@ -1,12 +1,16 @@
 PYTHON ?= `which python`
-PROJECT = `dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
+PROJECT = $(shell dpkg-parsechangelog | awk -F': ' '$$1 == "Source" { print $$2; }')
 BUILDIR = $(CURDIR)/debian/$(PROJECT)
+VERSION = $(shell dpkg-parsechangelog -l$(PROJECT)/debian/changelog | grep "Version:" | awk '{print $$2}')
 WRAPPER_VERSION=$(shell dpkg-parsechangelog -lyandex-yt-python/debian/changelog | grep "Version:" | awk '{print $$2}')
 
 all:
 	@echo "make source - Create source package"
 	@echo "make deb - Generate a deb package"
 	@echo "make clean - Get rid of scratch and byte files"
+
+yandex-yt-python-fennel-version:
+	echo "VERSION='$(VERSION)'" > yt/fennel/version.py
 
 version:
 	echo "VERSION='$(WRAPPER_VERSION)'" > yt/wrapper/version.py
