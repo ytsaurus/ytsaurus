@@ -53,7 +53,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
                    is_prefix, get_value, compose, bool_to_string, chunk_iter_lines, get_version
 from errors import YtError, YtNetworkError
-from driver import read_content, get_host_for_heavy_operation, make_request
+from driver import read_content, get_host_for_heavy_operation, make_request, ResponseStream
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -490,6 +490,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
 
         return read_content(response, raw, format, get_value(response_type, "iter_lines"))
     else:
+        if response_type is not None:
+            logger.info("read_table with retries ignore response_type option")
+
         title = "Python wrapper: read {0}".format(to_name(table, client=client))
         tx = PingableTransaction(timeout=config.http.REQUEST_TIMEOUT,
                                  attributes={"title": title},
@@ -520,9 +523,9 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             try:
                 for attempt in xrange(config.http.REQUEST_RETRY_COUNT):
                     try:
-                        for elem in iter:
+                        for elem in iter():
                             yield elem
-                    except tuple(NETWORK_ERRORS) as err:
+                    except tuple(list(NETWORK_ERRORS) + [YtNetworkError]) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
                         logger.warning(err.message)
@@ -554,8 +557,12 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 params,
                 return_content=False,
                 proxy=get_host_for_heavy_operation(client=client))
-            for record in read_content(response, raw, format, get_value(response_type, "iter_lines")):
-                yield record
+            response_stream = ResponseStream(response, None)
+            while True:
+                row = format.load_row(response_stream, unparsed=raw)
+                if row is None or row == "":
+                    break
+                yield row
                 index.increment()
 
         try:
@@ -564,7 +571,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             if index.get() is None:
                 tx.__exit__(None, None, None)
                 return (_ for _ in [])
-            return iter_with_retries(read_iter(index))
+            return iter_with_retries(lambda: read_iter(index))
         except:
             tx.__exit__(*sys.exc_info())
             raise
