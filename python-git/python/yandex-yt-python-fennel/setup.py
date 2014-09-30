@@ -7,7 +7,7 @@ def main():
 
     version = get_version()
     with open("yt/fennel/version.py", "w") as version_output:
-        version_output.write("VERSION='{0}'".format(version))
+        version_output.write("VERSION='{0}'\n".format(version))
 
     setup(
         name="yandex-yt-fennel",
