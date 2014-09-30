@@ -388,6 +388,10 @@ test_dstsorted()
 
     ./mapreduce -reduce "grep x" -src ignat/some_table -dstsorted ignat/some_table
     check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+
+    echo -e "x\t10\ny\t15" | ./mapreduce -write ignat/some_table
+    ./mapreduce -reduce "grep x" -src ignat/some_table -dstsorted ignat/some_table
+    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
 }
 
 test_custom_fs_rs()
