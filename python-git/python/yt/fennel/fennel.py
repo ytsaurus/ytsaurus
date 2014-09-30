@@ -656,6 +656,7 @@ def run():
     options.define("init", default=False, help="init and exit")
     options.define("truncate", default=False, help="truncate and exit")
     options.define("monitor", default=False, help="output status and exit")
+    options.define("version", default=False, help="output version and exit")
     options.define("archive", default=False, help="archive and exit")
 
     options.define("log_dir", metavar="PATH", default="/var/log/fennel", help="log directory")
@@ -664,6 +665,10 @@ def run():
     options.define("sentry_endpoint", default="", help="sentry endpoint")
 
     options.parse_command_line()
+
+    if options.options["version"]:
+        sys.stdout.write("Version: {0}\n".format(version.VERSION))
+        return
 
     sentry_endpoint = options.options["sentry_endpoint"]
     if sentry_endpoint:
