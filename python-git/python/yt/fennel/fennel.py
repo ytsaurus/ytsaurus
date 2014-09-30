@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import yt.wrapper as yt
+from yt.fennel import version
 
 from tornado import ioloop
 from tornado import iostream
@@ -671,7 +672,7 @@ def run():
         sentry_handler.setLevel(logging.ERROR)
         root_logger.addHandler(sentry_handler)
 
-    logging.debug("Started")
+    logging.debug("Started. Version: %s", version.VERSION)
 
     @atexit.register
     def log_exit():
