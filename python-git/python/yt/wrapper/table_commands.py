@@ -1078,6 +1078,15 @@ def _run_operation(binary, source_table, destination_table,
         return spec
     op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor,
+                                                    compression_codec, client=client)
+
+    are_sorted_output = False
+    for table in destination_table:
+        if table.attributes.get("sorted_by") is not None:
+            are_sorted_output = True
+
+    finalize = None
 
     if op_name == "reduce":
         sort_by = _prepare_sort_by(reduce_by)
@@ -1093,7 +1102,7 @@ def _run_operation(binary, source_table, destination_table,
                 if not is_prefix(reduce_by, sorted_by):
                     raise YtError("reduce_by parameter {0} conflicts with sorted_by attribute {1} of input table {2}".format(reduce_by, sorted_by, table.name))
 
-            if are_tables_not_sorted:
+            if are_tables_not_sorted and not are_sorted_output:
                 if job_count is not None:
                     spec = update({"partition_count": job_count}, spec)
                 run_map_reduce(
@@ -1116,8 +1125,13 @@ def _run_operation(binary, source_table, destination_table,
                     spec=spec)
                 return
 
-    destination_table = _prepare_destination_tables(destination_table, replication_factor,
-                                                    compression_codec, client=client)
+            if are_sorted_output and are_tables_not_sorted:
+                logger.info("Sorting %s", source_table)
+                temp_table = create_temp_table(client=client)
+                run_sort(source_table, temp_table, sort_by=reduce_by, client=client)
+                finalize = lambda: remove(temp_table, client=client)
+                source_table = [TablePath(temp_table)]
+
 
     if config.TREAT_UNEXISTING_AS_EMPTY and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
@@ -1127,23 +1141,27 @@ def _run_operation(binary, source_table, destination_table,
     if op_name == "map": op_type = "mapper"
     if op_name == "reduce": op_type = "reducer"
 
-    spec = compose(
-        _configure_spec,
-        lambda _: _add_table_writer_spec("job_io", table_writer, _),
-        lambda _: _add_input_output_spec(source_table, destination_table, _),
-        lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
-        lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
-            format, input_format, output_format,
-            files, file_paths,
-            local_files, yt_files,
-            memory_limit, reduce_by, _, client=client)),
-        lambda _: get_value(_, {})
-    )(spec)
+    try:
+        spec = compose(
+            _configure_spec,
+            lambda _: _add_table_writer_spec("job_io", table_writer, _),
+            lambda _: _add_input_output_spec(source_table, destination_table, _),
+            lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
+            lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
+            lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
+                format, input_format, output_format,
+                files, file_paths,
+                local_files, yt_files,
+                memory_limit, reduce_by, _, client=client)),
+            lambda _: get_value(_, {})
+        )(spec)
 
-    _make_operation_request(op_name, spec, strategy,
-                            Finalizer(_run_operation.files, destination_table, client=client),
-                            client=client)
+        _make_operation_request(op_name, spec, strategy,
+                                Finalizer(_run_operation.files, destination_table, client=client),
+                                client=client)
+    finally:
+        if finalize is not None:
+            finalize()
 
 def run_map(binary, source_table, destination_table, **kwargs):
     """Run map operation.

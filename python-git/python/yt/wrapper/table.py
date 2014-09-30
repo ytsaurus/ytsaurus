@@ -102,6 +102,10 @@ class TablePath(object):
             attributes["upper_limit"] = {"row_index": end_index}
 
     @property
+    def attributes(self):
+        return self.name.attributes
+
+    @property
     def append(self):
         return self._append
 
