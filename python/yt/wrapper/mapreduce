@@ -438,11 +438,12 @@ Examples:
     if args.listfiles:
         writelines_silently(imap(add_eoln, list_all_entities("file")))
     if args.read is not None:
+        response_type = None if yt.config.RETRY_READ else "iter_content"
         writelines_silently(
             yt.read_table(
                 yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
                 format=inputformat,
-                response_type="iter_content"))
+                response_type=response_type))
     if args.createtable is not None:
         yt.create_table(args.createtable, attributes=attributes)
     if args.write is not None:
