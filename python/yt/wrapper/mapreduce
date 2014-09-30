@@ -408,6 +408,11 @@ Examples:
          lambda: get_smart_format([dst, args.write], args.smartformat, args.subkey, args.lenval),
          config.DEFAULT_FORMAT]))
 
+    if isinstance(outputformat, str):
+        outputformat = yt.create_format(outputformat)
+    if not (isinstance(outputformat, yt.YamrFormat) or isinstance(outputformat, yt.YamredDsvFormat)) and args.dstsorted is not None:
+        die("Output format must be yamr or yamred_dsv if dstsorted is non-trivial")
+
     if args.tx is not None:
         config.TRANSACTION = args.tx
     config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
