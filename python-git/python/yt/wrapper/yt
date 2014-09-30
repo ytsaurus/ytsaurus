@@ -249,6 +249,7 @@ def add_find_parser(add_parser):
     parser.set_defaults(func=find)
 
 def read(**args):
+    args["response_type"] = None if yt.config.RETRY_READ else "iter_content"
     writelines_silently(yt.read_table(**args))
 
 def add_read_parser(add_parser):
