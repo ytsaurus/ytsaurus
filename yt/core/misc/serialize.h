@@ -474,8 +474,7 @@ struct TSharedRefArraySerializer
     {
         using NYT::Load;
         size_t size = TSizeSerializer::Load(context);
-        std::vector<TSharedRef> parts;
-        parts.reserve(size);
+        std::vector<TSharedRef> parts(size);
         for (int index = 0; index < static_cast<int>(size); ++index) {
             Load(context, parts[index]);
         }
