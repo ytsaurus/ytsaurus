@@ -956,7 +956,7 @@ void TObjectManager::SuppressMutation()
 
 bool TObjectManager::AdviceYield(TInstant startTime) const
 {
-    return TInstant::Now() > startTime + Config->YieldTimeout;
+    return TInstant::Now() > startTime + Config_->YieldTimeout;
 }
 
 void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
