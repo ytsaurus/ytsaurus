@@ -332,6 +332,11 @@ def get_proxy_config():
     "neighbours" : [  ],
 
     "logging" : {
+        "level": "debug",
+        "silent": false,
+        "colorize": false,
+        "timestamp": true,
+        "json": true,
         "filename" : "/dev/null"
     },
 
