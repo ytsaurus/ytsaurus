@@ -12,12 +12,12 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TWriteRowOptions
+struct TWriteRowsOptions
 {
     NTabletClient::ELockMode LockMode = NTabletClient::ELockMode::Column;
 };
 
-struct TDeleteRowOptions
+struct TDeleteRowsOptions
 { };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,25 +49,25 @@ struct ITransaction
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TUnversionedRow row,
-        const TWriteRowOptions& options = TWriteRowOptions()) = 0;
+        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TUnversionedRow> rows,
-        const TWriteRowOptions& options = TWriteRowOptions()) = 0;
+        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
     
     virtual void DeleteRow(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
-        const TDeleteRowOptions& options = TDeleteRowOptions()) = 0;
+        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NVersionedTableClient::TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TKey> keys,
-        const TDeleteRowOptions& options = TDeleteRowOptions()) = 0;
+        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
 };
 
