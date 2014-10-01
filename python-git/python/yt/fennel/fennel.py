@@ -1,7 +1,11 @@
 #!/usr/bin/python
 
 import yt.wrapper as yt
-from yt.fennel import version
+
+try:
+    from yt.fennel.version import VERSION
+except ImportError:
+    VERSION="unknown"
 
 from tornado import ioloop
 from tornado import iostream
@@ -667,7 +671,7 @@ def run():
     options.parse_command_line()
 
     if options.options["version"]:
-        sys.stdout.write("Version: {0}\n".format(version.VERSION))
+        sys.stdout.write("Version: {0}\n".format(VERSION))
         return
 
     sentry_endpoint = options.options["sentry_endpoint"]
@@ -677,7 +681,7 @@ def run():
         sentry_handler.setLevel(logging.ERROR)
         root_logger.addHandler(sentry_handler)
 
-    logging.debug("Started. Version: %s", version.VERSION)
+    logging.debug("Started. Version: %s", VERSION)
 
     @atexit.register
     def log_exit():
