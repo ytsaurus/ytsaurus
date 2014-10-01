@@ -46,6 +46,7 @@ def get_master_config():
 {
     master = {
         addresses = [ ];
+        cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
     };
 
     timestamp_provider = {
@@ -112,6 +113,16 @@ def get_scheduler_config():
     cluster_connection = {
         master = {
             addresses = [ ];
+            cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+            rpc_timeout = 5000;
+        };
+
+        master_cache = {
+            addresses = [ ];
+            cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+            soft_backoff_time = 100;
+            hard_backoff_time = 100;
+            rpc_timeout = 5000;
         };
 
         timestamp_provider = {
@@ -161,14 +172,27 @@ def get_node_config():
 
     cluster_connection = {
         master = {
-            addresses = [];
-            rpc_timeout = 5000
+            addresses = [ ];
+            cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+            rpc_timeout = 5000;
+        };
+
+        master_cache = {
+            addresses = [ ];
+            cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+            soft_backoff_time = 100;
+            hard_backoff_time = 100;
+            rpc_timeout = 5000;
         };
 
         timestamp_provider = {
             addresses = [ ];
             soft_backoff_time = 100;
             hard_backoff_time = 100;
+        };
+
+        transaction_manager = {
+            ping_period = 500;
         };
     };
 
@@ -276,7 +300,16 @@ def get_driver_config():
 {
     master = {
         addresses = [ ];
-        rpc_timeout = 30000;
+        cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+        rpc_timeout = 5000;
+    };
+
+    master_cache = {
+        addresses = [ ];
+        cell_guid = "ffffffff-ffffffff-ffffffff-ffffffff";
+        soft_backoff_time = 100;
+        hard_backoff_time = 100;
+        rpc_timeout = 5000;
     };
 
     timestamp_provider = {
@@ -285,15 +318,8 @@ def get_driver_config():
         hard_backoff_time = 100;
     };
 
-    master_cache = {
-        addresses = [ ];
-        soft_backoff_time = 100;
-        hard_backoff_time = 100;
-        rpc_timeout = 30000;
-    };
-
     transaction_manager = {
-        ping_period = 5000
+        ping_period = 500;
     };
 
     format_defaults = {

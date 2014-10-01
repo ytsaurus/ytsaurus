@@ -19,7 +19,7 @@ TOldMultiChunkParallelReader<TChunkReader>::TOldMultiChunkParallelReader(
     : TOldMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
-    compressedBlockCache,
+        compressedBlockCache,
         nodeDirectory,
         std::move(chunkSpecs),
         readerProvider)

@@ -48,8 +48,7 @@ public:
     NQueryAgent::TQueryAgentConfigPtr QueryAgent;
 
     //! Metadata cache service configuration.
-    NObjectServer::TMasterCacheServiceConfigPtr MasterCache;
-
+    NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
 
     yhash_map<Stroka, Stroka> Addresses;
 
@@ -73,7 +72,7 @@ public:
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
-        RegisterParameter("caching_object_service", MasterCache)
+        RegisterParameter("master_cache_service", MasterCacheService)
             .DefaultNew();
 
         SetKeepOptions(true);

@@ -176,7 +176,7 @@ TJobResult TJobProxy::DoRun()
     SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
     SupervisorProxy->SetDefaultTimeout(Config->SupervisorRpcTimeout);
 
-    MasterChannel = CreateBusChannel(supervisorClient);
+    MasterChannel = CreateRealmChannel(CreateBusChannel(supervisorClient), Config->CellGuid);
 
     RetrieveJobSpec();
 

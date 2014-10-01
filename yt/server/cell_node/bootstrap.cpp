@@ -193,7 +193,7 @@ void TBootstrap::DoRun()
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
     auto throttlingMasterChannel = CreateThrottlingChannel(
-        Config->MasterCache,
+        Config->MasterCacheService,
         MasterClient->GetMasterChannel());
     RpcServer->RegisterService(CreateRedirectorService(
         NChunkClient::TChunkServiceProxy::GetServiceName(),
@@ -255,6 +255,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
+    JobProxyConfig->CellGuid = GetCellGuid();
 
     SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
 
@@ -322,10 +323,11 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateTimestampProxyService(
         clusterConnection->GetTimestampProvider()));
 
-    RpcServer->RegisterService(
-        CreateMasterCacheService(
-            Config->MasterCache,
-            clusterConnection->GetMasterChannel()));
+    RpcServer->RegisterService(CreateMasterCacheService(
+        Config->MasterCacheService,
+        clusterConnection->GetMasterChannel(),
+        GetCellGuid()
+    ));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
