@@ -3,7 +3,7 @@ from helpers import get_version, prepare_files
 from setuptools import setup
 
 def main():
-    requires =["yandex-yt-python", "python-sh"]
+    requires =["yandex-yt", "sh", "subprocess32"]
 
     scripts, data_files = prepare_files([
         "yt/tools/binaries/import_from_mr.py",

@@ -4,7 +4,7 @@ from yt.wrapper.common import generate_uuid
 
 import os
 import sh
-import subprocess
+import subprocess32 as subprocess
 import simplejson as json
 from urllib import quote_plus
 
@@ -55,6 +55,8 @@ class Yamr(object):
         self.opts = opts
         self.fastbone = fastbone
 
+        self._light_command_timeout = 5.0
+
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
 
@@ -82,6 +84,7 @@ class Yamr(object):
             output = _check_output(
                 "{0} -server {1} -list -prefix {2} -jsonoutput"\
                     .format(self.binary, self.server, table),
+                timeout=self._light_command_timeout,
                 shell=True)
             table_info = filter(lambda obj: obj["name"] == table, json.loads(output))
             if table_info:
@@ -122,10 +125,10 @@ class Yamr(object):
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        _check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True)
+        _check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True, timeout=self._light_command_timeout)
 
     def copy(self, src, dst):
-        _check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True)
+        _check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True, timeout=self._light_command_timeout)
 
     def _as_int(self, obj):
         if obj is None:
