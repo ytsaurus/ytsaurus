@@ -30,10 +30,10 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         YtTestBase._setup_class(YTEnv)
         config.set_mapreduce_mode()
         config.TREAT_UNEXISTING_AS_EMPTY = False
-        if not yt.exists("//sys/empty_table"):
-            yt.create("table", "//sys/empty_table", recursive=True)
-        if not yt.is_sorted("//sys/empty_table"):
-            yt.run_sort("//sys/empty_table", "//sys/empty_table", sort_by=["key", "subkey"])
+        if not yt.exists("//sys/empty_yamr_table"):
+            yt.create("table", "//sys/empty_yamr_table", recursive=True)
+        if not yt.is_sorted("//sys/empty_yamr_table"):
+            yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
         config.TREAT_UNEXISTING_AS_EMPTY = True
 
     @classmethod
