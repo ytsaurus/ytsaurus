@@ -207,6 +207,11 @@ class EventLog(object):
                 sys.stdout.write("0; Lag equals to: %d\n" % (lag,))
 
     def archive(self, count = None):
+        try:
+            self.log.debug("Archive table has %d rows", yt.get(self._archive_table_name + "/@row_count"))
+        except:
+            pass
+
         self.log.info("%d rows has been requested to archive", count)
 
         desired_chunk_size = 2 * 1024 ** 3
@@ -227,31 +232,44 @@ class EventLog(object):
             start_index=0,
             end_index=count)
 
-        with self.yt.Transaction():
-            self.yt.create_table(
-                self._archive_table_name,
+        tries = 0
+        finished = False
+        backoff_time = 5
+        while not finished:
+            try:
+                with self.yt.Transaction():
+                    self.yt.create_table(
+                        self._archive_table_name,
                         attributes={
                             "erasure_codec": "lrc_12_2_2",
                             "compression_codec": "gzip_best_compression"
                         },
                         ignore_existing=True)
 
-            self.log.info("Run merge...")
-            self.yt.run_merge(
-                source_table=partition,
-                destination_table=yt.TablePath(self._archive_table_name, append=True),
-                compression_codec="gzip_best_compression",
-                spec={
-                    "combine_chunks": "true",
-                    "force_transform": "true",
-                    "data_size_per_job": data_size_per_job,
-                    "job_io": {
-                        "table_writer": {
-                            "desired_chunk_size": desired_chunk_size
+                    self.log.info("Run merge...")
+                    self.yt.run_merge(
+                        source_table=partition,
+                        destination_table=yt.TablePath(self._archive_table_name, append=True),
+                        mode="ordered",
+                        compression_codec="gzip_best_compression",
+                        spec={
+                            "combine_chunks": "true",
+                            "force_transform": "true",
+                            "data_size_per_job": data_size_per_job,
+                            "job_io": {
+                                "table_writer": {
+                                    "desired_chunk_size": desired_chunk_size
+                                }
+                            }
                         }
-                    }
-                }
-            )
+                    )
+                    finished = True
+            except yt.common.YtError as e:
+                self.log.error("Unhandled exception", exc_info=True)
+                self.log.info("Retry again in %d seconds...", backoff_time)
+                time.sleep(backoff_time)
+                tries += 1
+                backoff_time = min(backoff_time * 2, 180)
 
         self.log.info("Truncate event log...")
 
@@ -273,6 +291,12 @@ class EventLog(object):
                 time.sleep(backoff_time)
                 tries += 1
                 backoff_time = min(backoff_time * 2, 180)
+
+        try:
+            self.log.debug("Archive table has %d rows", yt.get(self._archive_table_name + "/@row_count"))
+        except:
+            pass
+
 
     def set_next_row_to_save(self, row_number):
         self.yt.set(self._row_to_save_attr, row_number)
