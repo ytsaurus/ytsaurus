@@ -70,7 +70,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
         stream,
         destination,
         params,
-        lambda path: create("file", path, ignore_existing=True),
+        lambda path: create("file", path, ignore_existing=True, client=client),
         config.USE_RETRIES_DURING_UPLOAD,
         client=client)
 

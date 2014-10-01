@@ -33,7 +33,7 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, cl
     :return: (string) new transaction id
     .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#starttx>`_
     """
-    params = transaction_params(parent_transaction)
+    params = transaction_params(parent_transaction, client=client)
     timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
     if timeout is not None:
         params["timeout"] = int(timeout)
@@ -46,7 +46,7 @@ def abort_transaction(transaction, client=None):
     :param transaction: (string) transaction id
     .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#aborttx>`_
     """
-    make_request("abort_tx", transaction_params(transaction), client=client)
+    make_request("abort_tx", transaction_params(transaction, client=client), client=client)
 
 def commit_transaction(transaction, client=None):
     """Save all transaction changes.
@@ -54,7 +54,7 @@ def commit_transaction(transaction, client=None):
     :param transaction: (string) transaction id
     .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#committx>`_
     """
-    make_request("commit_tx", transaction_params(transaction), client=client)
+    make_request("commit_tx", transaction_params(transaction, client=client), client=client)
 
 def ping_transaction(transaction, client=None):
     """Prolong transaction lifetime.
@@ -62,4 +62,4 @@ def ping_transaction(transaction, client=None):
     :param transaction: (string) transaction id
     .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#pingtx>`_
     """
-    make_request("ping_tx", transaction_params(transaction), client=client)
+    make_request("ping_tx", transaction_params(transaction, client=client), client=client)
