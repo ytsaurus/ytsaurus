@@ -11,6 +11,12 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A keeper instance whose state is persisted by Hydra.
+/*!
+ *  \note
+ *  IResponseKeeper::EndRequest only remembers the response if Hydra mutation
+ *  is in progress.
+ */
 class TPersistentResponseKeeper
     : public TRefCounted
 {
