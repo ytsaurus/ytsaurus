@@ -79,7 +79,7 @@ from cStringIO import StringIO
 
 # Auxiliary methods
 
-DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_table", simplify=False)
+DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
