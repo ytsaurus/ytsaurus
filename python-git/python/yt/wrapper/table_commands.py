@@ -241,7 +241,8 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                     yson_to_json,
                     flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, [])))
                 ),
-                "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
+                "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS),
+                "check_input_fully_consumed": bool_to_string(config.CHECK_INPUT_FULLY_CONSUMED)
             }
         },
         spec)
