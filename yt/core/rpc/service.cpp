@@ -18,10 +18,9 @@ void IServiceContext::SetResponseInfo()
 
 void IServiceContext::Reply(TFuture<TSharedRefArray> message)
 {
-    auto this_ = MakeStrong(this);
-    message.Subscribe(BIND([this, this_] (TSharedRefArray message) {
-        Reply(message);
-    }));
+    message.Subscribe(BIND(
+        static_cast<void (IServiceContext::*)(TSharedRefArray)>(&IServiceContext::Reply),
+        MakeStrong(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
