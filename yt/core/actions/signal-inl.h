@@ -1,3 +1,5 @@
+#include <core/misc/ref.h>
+
 #ifndef SIGNAL_INL_H_
 #error "Direct inclusion of this file is not allowed, include signal.h"
 #endif
@@ -43,6 +45,23 @@ void TCallbackList<void(TArgs...)>::Fire(const TArgs&... args) const
         return;
 
     std::vector<TCallback> callbacks(Callbacks_);
+    guard.Release();
+
+    for (const auto& callback : callbacks) {
+        callback.Run(args...);
+    }
+}
+
+template <class... TArgs>
+void TCallbackList<void(TArgs...)>::FireAndClear(const TArgs&... args) const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+
+    if (Callbacks_.empty())
+        return;
+
+    std::vector<TCallback> callbacks;
+    swap(callbacks, Callbacks_);
     guard.Release();
 
     for (const auto& callback : callbacks) {

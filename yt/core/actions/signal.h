@@ -42,6 +42,9 @@ public:
     //! Runs all callbacks in the list.
     void Fire(const TArgs&... args) const;
 
+    //! Runs all callbacks in the list and clears the list.
+    void FireAndClear(const TArgs&... args) const;
+
 private:
     mutable TSpinLock SpinLock_;
     std::vector<TCallback> Callbacks_;
