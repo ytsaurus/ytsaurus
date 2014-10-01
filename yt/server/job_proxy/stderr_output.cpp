@@ -5,8 +5,6 @@
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_output.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <ytlib/security_client/public.h>
 
 #include <core/rpc/channel.h>

@@ -21,8 +21,6 @@
 
 #include <core/rpc/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/helpers.h>

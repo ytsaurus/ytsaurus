@@ -16,11 +16,6 @@ struct TTransactionYPathProxy
     {
         return "Transaction";
     }
-
-    // NB: Not logged.
-    DEFINE_YPATH_PROXY_METHOD(NProto, Ping);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Commit);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Abort);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

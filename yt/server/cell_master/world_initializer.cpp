@@ -21,8 +21,6 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
@@ -45,7 +43,6 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NTransactionClient::NProto;
 using namespace NHive;
 using namespace NHive::NProto;
 using namespace NObjectClient;
@@ -66,20 +63,20 @@ public:
     TImpl(
         TCellMasterConfigPtr config,
         TBootstrap* bootstrap)
-        : Config(config)
-        , Bootstrap(bootstrap)
+        : Config_(config)
+        , Bootstrap_(bootstrap)
     {
-        YCHECK(Config);
-        YCHECK(Bootstrap);
+        YCHECK(Config_);
+        YCHECK(Bootstrap_);
 
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
     }
 
 
     bool IsInitialized() const
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto* root = dynamic_cast<TMapNode*>(cypressManager->GetRootNode());
         YCHECK(root);
         return !root->KeyToChild().empty();
@@ -93,8 +90,8 @@ public:
     }
 
 private:
-    TCellMasterConfigPtr Config;
-    TBootstrap* Bootstrap;
+    TCellMasterConfigPtr Config_;
+    TBootstrap* Bootstrap_;
 
 
     void OnLeaderActive()
@@ -116,7 +113,7 @@ private:
     {
         TDelayedExecutor::Submit(
             BIND(&TImpl::InitializeIfNeeded, MakeStrong(this))
-                .Via(Bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker()),
+                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()),
             delay);
     }
 
@@ -127,7 +124,7 @@ private:
         try {
             // Check for pre-existing transactions to avoid collisions with previous (failed)
             // initialization attempts.
-            auto transactionManager = Bootstrap->GetTransactionManager();
+            auto transactionManager = Bootstrap_->GetTransactionManager();
             if (transactionManager->Transactions().GetSize() > 0) {
                 LOG_INFO("World initialization aborted: transactions found");
                 AbortTransactions();
@@ -135,9 +132,9 @@ private:
                 return;
             }
 
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto cypressManager = Bootstrap->GetCypressManager();
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto objectManager = Bootstrap_->GetObjectManager();
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            auto securityManager = Bootstrap_->GetSecurityManager();
 
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
@@ -148,8 +145,8 @@ private:
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("cell_id").Value(Bootstrap->GetCellId())
-                        .Item("cell_guid").Value(Bootstrap->GetCellGuid())
+                        .Item("cell_id").Value(Bootstrap_->GetCellId())
+                        .Item("cell_guid").Value(Bootstrap_->GetCellGuid())
                     .EndMap());
 
             CreateNode(
@@ -278,7 +275,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            for (const auto& address : Config->Master->Addresses) {
+            for (const auto& address : Config_->Master->Addresses) {
                 auto addressPath = "/" + ToYPathLiteral(address);
 
                 CreateNode(
@@ -421,9 +418,9 @@ private:
 
     void AbortTransactions()
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto transactionIds = ToObjectIds(GetValues(transactionManager->Transactions()));
-        auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
+        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         for (const auto& transactionId : transactionIds) {
             transactionSupervisor->AbortTransaction(transactionId);
         }
@@ -431,7 +428,7 @@ private:
 
     TTransactionId StartTransaction()
     {
-        auto service = Bootstrap->GetObjectManager()->GetRootService();
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
 
@@ -447,10 +444,9 @@ private:
 
     void CommitTransaction(const TTransactionId& transactionId)
     {
-        auto service = Bootstrap->GetObjectManager()->GetRootService();
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(transactionId));
-        auto rsp = WaitFor(ExecuteVerb(service, req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        auto error = WaitFor(transactionSupervisor->CommitTransaction(transactionId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     void CreateNode(
@@ -459,7 +455,7 @@ private:
         EObjectType type,
         const TYsonString& attributes = TYsonString("{}"))
     {
-        auto service = Bootstrap->GetObjectManager()->GetRootService();
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(type);
@@ -475,7 +471,7 @@ private:
 TWorldInitializer::TWorldInitializer(
     TCellMasterConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(New<TImpl>(config, bootstrap))
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TWorldInitializer::~TWorldInitializer()
@@ -483,12 +479,12 @@ TWorldInitializer::~TWorldInitializer()
 
 bool TWorldInitializer::IsInitialized()
 {
-    return Impl->IsInitialized();
+    return Impl_->IsInitialized();
 }
 
 void TWorldInitializer::ValidateInitialized()
 {
-    return Impl->ValidateInitialized();
+    return Impl_->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

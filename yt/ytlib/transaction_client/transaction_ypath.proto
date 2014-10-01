@@ -1,35 +1,7 @@
 package NYT.NTransactionClient.NProto;
 
-import "yt/core/misc/guid.proto";
-import "yt/core/ytree/attributes.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
 import "yt/ytlib/hive/transaction_supervisor_service.proto";
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCommit
-{ }
-
-message TRspCommit
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqAbort
-{ }
-
-message TRspAbort
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqPing
-{
-    optional bool ping_ancestors = 1 [default = false];
-}
-
-message TRspPing
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

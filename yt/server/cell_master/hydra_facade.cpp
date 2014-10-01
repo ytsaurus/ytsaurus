@@ -25,8 +25,6 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <ytlib/election/cell_manager.h>
 
 #include <server/election/election_manager.h>
@@ -63,7 +61,6 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
-using namespace NTransactionClient::NProto;
 using namespace NHive;
 using namespace NHive::NProto;
 using namespace NObjectClient;

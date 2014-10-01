@@ -7,8 +7,6 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <server/chunk_server/chunk_list.h>
 
 namespace NYT {
@@ -26,7 +24,7 @@ TChunkListPool::TChunkListPool(
     NRpc::IChannelPtr masterChannel,
     IInvokerPtr controlInvoker,
     const TOperationId& operationId,
-    const NTransactionClient::TTransactionId& transactionId)
+    const TTransactionId& transactionId)
     : Config(config)
     , MasterChannel(masterChannel)
     , ControlInvoker(controlInvoker)

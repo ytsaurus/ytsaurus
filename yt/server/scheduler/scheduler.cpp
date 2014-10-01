@@ -30,7 +30,6 @@
 #include <core/logging/log.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
