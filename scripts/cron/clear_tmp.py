@@ -32,9 +32,12 @@ def is_locked(obj):
 def main():
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
     parser.add_argument('--max-count', type=int, default=50000)
-    parser.add_argument('--max-size', type=int, default=50 * 1024 ** 4)
+    parser.add_argument('--max-size', type=int, default=None)
     parser.add_argument('--days', type=int, default=7)
     args = parser.parse_args()
+
+    if args.max_size is None:
+        args.max_size = yt.get("//sys/accounts/tmp/@resource_limits/disk_space") / 2.0
 
     # collect links
     links = yt.search("//tmp", node_type="link")
