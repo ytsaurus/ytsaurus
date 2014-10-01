@@ -9,7 +9,7 @@
 
 #include <ytlib/chunk_client/writer.h>
 #include <ytlib/chunk_client/reader.h>
-#include <ytlib/chunk_client/chunk_helpers.h>
+#include <ytlib/chunk_client/helpers.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/erasure_reader.h>
 #include <ytlib/chunk_client/replication_writer.h>

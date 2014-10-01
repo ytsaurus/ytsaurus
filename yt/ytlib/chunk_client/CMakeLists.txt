@@ -2,7 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_client )
 set( SRCS
   ${BASE}/block_id.cpp
-  ${BASE}/chunk_helpers.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/chunk_slice.cpp
@@ -34,7 +34,7 @@ set( HDRS
   ${BASE}/writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
-  ${BASE}/chunk_helpers.h
+  ${BASE}/helpers.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_owner_ypath_proxy.h

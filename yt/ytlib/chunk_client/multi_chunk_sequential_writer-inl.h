@@ -8,7 +8,7 @@
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
 #include "chunk_ypath_proxy.h"
-#include "chunk_helpers.h"
+#include "helpers.h"
 #include "erasure_writer.h"
 #include "private.h"
 #include "replication_writer.h"
