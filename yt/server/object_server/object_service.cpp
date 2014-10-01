@@ -21,7 +21,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/hydra_service.h>
+#include <server/cell_master/master_hydra_service.h>
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
@@ -49,17 +49,15 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectService
-    : public NCellMaster::THydraServiceBase
+    : public NCellMaster::TMasterHydraServiceBase
 {
 public:
     TObjectService(
-        TObjectManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : THydraServiceBase(
+        : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
             ObjectServerLogger)
-        , Config(config)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
@@ -69,21 +67,15 @@ public:
 private:
     class TExecuteSession;
 
-    TObjectManagerConfigPtr Config;
-
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, BuildSnapshot);
 
 };
 
-IServicePtr CreateObjectService(
-    TObjectManagerConfigPtr config,
-    TBootstrap* bootstrap)
+IServicePtr CreateObjectService(TBootstrap* bootstrap)
 {
-    return New<TObjectService>(
-        config,
-        bootstrap);
+    return New<TObjectService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,10 +86,8 @@ class TObjectService::TExecuteSession
 public:
     TExecuteSession(
         TBootstrap* boostrap,
-        TObjectManagerConfigPtr config,
         TCtxExecutePtr context)
         : Bootstrap(boostrap)
-        , Config(std::move(config))
         , Context(std::move(context))
         , LastMutationCommitted(VoidFuture)
         , Replied(false)
@@ -131,7 +121,6 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    TObjectManagerConfigPtr Config;
     TCtxExecutePtr Context;
 
     TFuture<void> LastMutationCommitted;
@@ -154,6 +143,7 @@ private:
             auto hydraFacade = Bootstrap->GetHydraFacade();
 
             auto startTime = TInstant::Now();
+
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
             
@@ -165,7 +155,7 @@ private:
 
             while (CurrentRequestIndex < request.part_counts_size()) {
                 // Don't allow the thread to be blocked for too long by a single batch.
-                if (TInstant::Now() > startTime + Config->YieldTimeout) {
+                if (objectManager->AdviceYield(startTime)) {
                     hydraFacade->GetEpochAutomatonInvoker()->Invoke(
                         BIND(&TExecuteSession::Continue, MakeStrong(this)));
                     return;
@@ -231,9 +221,7 @@ private:
                     std::move(requestMessage));
 
                 // Optimize for the (typical) case of synchronous response.
-                if (asyncResponseMessage.IsSet() &&
-                    TInstant::Now() < startTime + Config->YieldTimeout)
-                {
+                if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(startTime)) {
                     OnResponse(
                         CurrentRequestIndex,
                         mutating,
@@ -415,7 +403,6 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
     auto session = New<TExecuteSession>(
         Bootstrap,
-        Config,
         std::move(context));
     session->Run();
 }

@@ -16,13 +16,12 @@
 
 #include <ytlib/chunk_client/job.pb.h>
 
-#include <server/cell_master/hydra_service.h>
-
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
 #include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/master_hydra_service.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -37,11 +36,11 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobTrackerService
-    : public NCellMaster::THydraServiceBase
+    : public NCellMaster::TMasterHydraServiceBase
 {
 public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
-        : THydraServiceBase(
+        : TMasterHydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
             ChunkServerLogger)

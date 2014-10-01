@@ -178,6 +178,9 @@ public:
 
     void SuppressMutation();
 
+    //! Advices a client to yield if it spent a lot of time already.
+    bool AdviceYield(TInstant startTime) const;
+
     DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:

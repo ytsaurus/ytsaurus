@@ -32,7 +32,7 @@ using NNodeTrackerClient::NProto::TChunkRemoveInfo;
 TNodeTrackerService::TNodeTrackerService(
     TNodeTrackerConfigPtr config,
     TBootstrap* bootstrap)
-    : THydraServiceBase(
+    : TMasterHydraServiceBase(
         bootstrap,
         TNodeTrackerServiceProxy::GetServiceName(),
         NodeTrackerServerLogger)

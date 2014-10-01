@@ -58,21 +58,21 @@ class THiveManager::TImpl
 {
 public:
     TImpl(
-        const TCellGuid& cellGuid,
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
+        const TCellGuid& selfCellGuid,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
             hydraManager,
             automatonInvoker,
-            TServiceId(THiveServiceProxy::GetServiceName(), cellGuid),
+            TServiceId(THiveServiceProxy::GetServiceName(), selfCellGuid),
             HiveLogger)
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)
-        , SelfCellGuid_(cellGuid)
+        , SelfCellGuid_(selfCellGuid)
         , Config_(config)
         , CellDirectory_(cellDirectory)
     {
@@ -108,7 +108,6 @@ public:
     {
         return SelfCellGuid_;
     }
-
 
     TMailbox* CreateMailbox(const TCellGuid& cellGuid)
     {
@@ -665,16 +664,16 @@ DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellGuid, M
 ////////////////////////////////////////////////////////////////////////////////
 
 THiveManager::THiveManager(
-    const TCellGuid& selfCellGuid,
     THiveManagerConfigPtr config,
     TCellDirectoryPtr cellDirectory,
+    const TCellGuid& selfCellGuid,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton)
     : Impl_(New<TImpl>(
-        selfCellGuid,
         config,
         cellDirectory,
+        selfCellGuid,
         automatonInvoker,
         hydraManager,
         automaton))

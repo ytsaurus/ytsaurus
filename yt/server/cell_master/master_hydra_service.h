@@ -9,13 +9,13 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THydraServiceBase
+class TMasterHydraServiceBase
     : public NHydra::THydraServiceBase
 {
 protected:
     TBootstrap* Bootstrap;
 
-    THydraServiceBase(
+    TMasterHydraServiceBase(
         TBootstrap* bootstrap,
         const Stroka& serviceName,
         const NLog::TLogger& logger);

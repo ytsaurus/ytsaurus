@@ -954,6 +954,11 @@ void TObjectManager::SuppressMutation()
     LOG_DEBUG_UNLESS(IsRecovery(), "Mutation suppressed");
 }
 
+bool TObjectManager::AdviceYield(TInstant startTime) const
+{
+    return TInstant::Now() > startTime + Config->YieldTimeout;
+}
+
 void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);

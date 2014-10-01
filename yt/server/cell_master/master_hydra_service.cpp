@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "hydra_service.h"
 #include "hydra_facade.h"
+#include "master_hydra_service.h"
 #include "world_initializer.h"
 #include "bootstrap.h"
 
@@ -9,21 +9,21 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THydraServiceBase::THydraServiceBase(
+TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
     const Stroka& serviceName,
     const NLog::TLogger& logger)
     : NHydra::THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
-        serviceName,
+        NRpc::TServiceId(serviceName, bootstrap->GetCellGuid()),
         logger)
     , Bootstrap(bootstrap)
 {
     YCHECK(Bootstrap);
 }
 
-void THydraServiceBase::BeforeInvoke()
+void TMasterHydraServiceBase::BeforeInvoke()
 {
     Bootstrap->GetWorldInitializer()->ValidateInitialized();
 }

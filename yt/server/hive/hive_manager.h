@@ -27,9 +27,9 @@ class THiveManager
 {
 public:
     THiveManager(
-        const TCellGuid& selfCellGuid,
         THiveManagerConfigPtr config,
         TCellDirectoryPtr cellDirectory,
+        const TCellGuid& selfCellGuid,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);

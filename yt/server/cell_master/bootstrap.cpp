@@ -256,16 +256,17 @@ void TBootstrap::DoRun()
     if (GetCellGuid() == TCellGuid()) {
         LOG_ERROR("No custom cell GUID is set, cluster can only be used for testing purposes");
     }
+
     if (GetCellId() == 0) {
         LOG_ERROR("No custom cell ID is set, cluster can only be used for testing purposes");
     }
+
+    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 
     auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer = CreateBusServer(busServer);
-
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
 
     auto selfAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
@@ -309,9 +310,9 @@ void TBootstrap::DoRun()
     CellDirectory->RegisterCell(Config->Master);
 
     HiveManager = New<THiveManager>(
-        GetCellGuid(),
         Config->HiveManager,
         CellDirectory,
+        GetCellGuid(),
         HydraFacade->GetAutomatonInvoker(),
         HydraFacade->GetHydraManager(),
         HydraFacade->GetAutomaton());
@@ -386,15 +387,15 @@ void TBootstrap::DoRun()
     
     SetBuildAttributes(orchidRoot, "master");
 
-    RpcServer->RegisterService(timestampManager->GetRpcService());
-    RpcServer->RegisterService(HiveManager->GetRpcService());
-    RpcServer->RegisterService(TransactionSupervisor->GetRpcService());
-    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore));
-    RpcServer->RegisterService(CreateObjectService(Config->ObjectManager, this));
-    RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
-    RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
-    RpcServer->RegisterService(CreateJobTrackerService(this));
-    RpcServer->RegisterService(CreateChunkService(this));
+    RpcServer->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
+    RpcServer->RegisterService(timestampManager->GetRpcService()); // null realm
+    RpcServer->RegisterService(HiveManager->GetRpcService()); // cell realm
+    RpcServer->RegisterService(TransactionSupervisor->GetRpcService()); // cell realm
+    RpcServer->RegisterService(New<TLocalSnapshotService>(GetCellGuid(), fileSnapshotStore)); // cell realm
+    RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this)); // master hydra service
+    RpcServer->RegisterService(CreateObjectService(this)); // master hydra service
+    RpcServer->RegisterService(CreateJobTrackerService(this)); // master hydra service
+    RpcServer->RegisterService(CreateChunkService(this)); // master hydra service
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));

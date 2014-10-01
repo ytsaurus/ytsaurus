@@ -4,15 +4,13 @@
 #include "chunk.h"
 #include "private.h"
 
-#include <core/misc/protobuf_helpers.h>
-
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <server/node_tracker_server/node_directory_builder.h>
 
-#include <server/cell_master/hydra_service.h>
-#include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/master_hydra_service.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -24,11 +22,11 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkService
-    : public NCellMaster::THydraServiceBase
+    : public NCellMaster::TMasterHydraServiceBase
 {
 public:
     explicit TChunkService(TBootstrap* bootstrap)
-        : THydraServiceBase(
+        : TMasterHydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
             ChunkServerLogger)

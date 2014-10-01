@@ -309,9 +309,9 @@ public:
                 Automaton_);
 
             HiveManager_ = New<THiveManager>(
-                CellGuid_,
                 Config_->HiveManager,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory(),
+                CellGuid_,
                 GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_);

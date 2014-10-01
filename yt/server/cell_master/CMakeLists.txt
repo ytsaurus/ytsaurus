@@ -5,7 +5,7 @@ set( SRCS
   ${BASE}/automaton.cpp
   ${BASE}/hydra_facade.cpp
   ${BASE}/world_initializer.cpp
-  ${BASE}/hydra_service.cpp
+  ${BASE}/master_hydra_service.cpp
   ${BASE}/serialize.cpp
 )
 set( HDRS
@@ -14,7 +14,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/hydra_facade.h
   ${BASE}/world_initializer.h
-  ${BASE}/hydra_service.h
+  ${BASE}/master_hydra_service.h
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
