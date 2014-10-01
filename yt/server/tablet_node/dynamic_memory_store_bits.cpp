@@ -25,97 +25,6 @@ TDynamicRowKeyComparer::TDynamicRowKeyComparer(int keyColumnCount, const TTableS
     , Schema_(schema)
 { }
 
-int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TUnversionedRow rhs) const
-{
-    ui32 nullKeyBit = 1;
-    ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
-    const auto* lhsValue = lhs.BeginKeys();
-    const auto* rhsValue = rhs.Begin();
-    auto columnIt = Schema_.Columns().begin();
-    int lhsLength = KeyColumnCount_;
-    int rhsLength = std::min(KeyColumnCount_, rhs.GetCount());
-    int minLength = std::min(lhsLength, rhsLength);
-    for (int index = 0;
-         index < minLength;
-         ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
-    {
-        auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
-        if (lhsType < rhsValue->Type) {
-            return -1;
-        } else if (lhsType > rhsValue->Type) {
-            return +1;
-        }
-
-        switch (lhsType) {
-            case EValueType::Int64: {
-                i64 lhsData = lhsValue->Int64;
-                i64 rhsData = rhsValue->Data.Int64;
-                if (lhsData < rhsData) {
-                    return -1;
-                } else if (lhsData > rhsData) {
-                    return +1;
-                }
-                break;
-            }
-
-            case EValueType::Uint64: {
-                ui64 lhsData = lhsValue->Uint64;
-                ui64 rhsData = rhsValue->Data.Uint64;
-                if (lhsData < rhsData) {
-                    return -1;
-                } else if (lhsData > rhsData) {
-                    return +1;
-                }
-                break;
-            }
-
-            case EValueType::Double: {
-                double lhsData = lhsValue->Double;
-                double rhsData = rhsValue->Data.Double;
-                if (lhsData < rhsData) {
-                    return -1;
-                } else if (lhsData > rhsData) {
-                    return +1;
-                }
-                break;
-            }
-
-            case EValueType::Boolean: {
-                bool lhsData = lhsValue->Boolean;
-                bool rhsData = rhsValue->Data.Boolean;
-                if (lhsData < rhsData) {
-                    return -1;
-                } else if (lhsData > rhsData) {
-                    return +1;
-                }
-                break;
-            }
-
-            case EValueType::String: {
-                size_t lhsLength = lhsValue->String->Length;
-                size_t rhsLength = rhsValue->Length;
-                size_t minLength = std::min(lhsLength, rhsLength);
-                int result = ::memcmp(lhsValue->String->Data, rhsValue->Data.String, minLength);
-                if (result != 0) {
-                    return result;
-                } else if (lhsLength < rhsLength) {
-                    return -1;
-                } else if (lhsLength > rhsLength) {
-                    return +1;
-                }
-                break;
-            }
-
-            case EValueType::Null:
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-    return lhsLength - rhsLength;
-}
-
 int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TDynamicRow rhs) const
 {
     ui32 nullKeyBit = 1;
@@ -203,6 +112,107 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TDynamicRow rhs) const
         }
     }
     return 0;
+}
+
+int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TRowWrapper rhs) const
+{
+    YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
+    return Compare(lhs,rhs.Row.Begin(),KeyColumnCount_);
+}
+
+int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
+{
+    return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
+}
+
+int TDynamicRowKeyComparer::Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin, int rhsLength) const
+{
+    ui32 nullKeyBit = 1;
+    ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
+    const auto* lhsValue = lhs.BeginKeys();
+    const auto* rhsValue = rhsBegin;
+    auto columnIt = Schema_.Columns().begin();
+    int lhsLength = KeyColumnCount_;
+    int minLength = std::min(lhsLength, rhsLength);
+    for (int index = 0;
+         index < minLength;
+         ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
+    {
+        auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
+        if (lhsType < rhsValue->Type) {
+            return -1;
+        } else if (lhsType > rhsValue->Type) {
+            return +1;
+        }
+
+        switch (lhsType) {
+            case EValueType::Int64: {
+                i64 lhsData = lhsValue->Int64;
+                i64 rhsData = rhsValue->Data.Int64;
+                if (lhsData < rhsData) {
+                    return -1;
+                } else if (lhsData > rhsData) {
+                    return +1;
+                }
+                break;
+            }
+
+            case EValueType::Uint64: {
+                ui64 lhsData = lhsValue->Uint64;
+                ui64 rhsData = rhsValue->Data.Uint64;
+                if (lhsData < rhsData) {
+                    return -1;
+                } else if (lhsData > rhsData) {
+                    return +1;
+                }
+                break;
+            }
+
+            case EValueType::Double: {
+                double lhsData = lhsValue->Double;
+                double rhsData = rhsValue->Data.Double;
+                if (lhsData < rhsData) {
+                    return -1;
+                } else if (lhsData > rhsData) {
+                    return +1;
+                }
+                break;
+            }
+
+            case EValueType::Boolean: {
+                bool lhsData = lhsValue->Boolean;
+                bool rhsData = rhsValue->Data.Boolean;
+                if (lhsData < rhsData) {
+                    return -1;
+                } else if (lhsData > rhsData) {
+                    return +1;
+                }
+                break;
+            }
+
+            case EValueType::String: {
+                size_t lhsLength = lhsValue->String->Length;
+                size_t rhsLength = rhsValue->Length;
+                size_t minLength = std::min(lhsLength, rhsLength);
+                int result = ::memcmp(lhsValue->String->Data, rhsValue->Data.String, minLength);
+                if (result != 0) {
+                    return result;
+                } else if (lhsLength < rhsLength) {
+                    return -1;
+                } else if (lhsLength > rhsLength) {
+                    return +1;
+                }
+                break;
+            }
+
+            case EValueType::Null:
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+    return lhsLength - rhsLength;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

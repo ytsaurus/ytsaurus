@@ -557,6 +557,27 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     EXPECT_TRUE(blocked);
 }
 
+TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
+{
+    WriteRow(BuildRow("key=1;a=1"));
+
+    auto reader = Store_->CreateReader(
+        BuildKey("1"),
+        BuildKey("1;<type=max>#"),
+        LastCommittedTimestamp,
+        TColumnFilter());
+
+    EXPECT_TRUE(reader->Open().Get().IsOK());
+
+    std::vector<TVersionedRow> rows;
+    rows.reserve(10);
+
+    EXPECT_TRUE(reader->Read(&rows));
+    EXPECT_EQ(1, rows.size());
+
+    EXPECT_FALSE(reader->Read(&rows));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMultiLockDynamicMemoryStoreTest

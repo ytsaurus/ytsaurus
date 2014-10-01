@@ -414,7 +414,7 @@ public:
 
     virtual TAsyncError Open() override
     {
-        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(LowerKey_.Get());
+        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_.Get()});
         return OKFuture;
     }
 
@@ -431,7 +431,7 @@ public:
         TDynamicRowKeyComparer keyComparer(KeyColumnCount_, Store_->GetTablet()->Schema());
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
-            if (keyComparer(Iterator_.GetCurrent(), UpperKey_.Get()) >= 0)
+            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)
                 break;
 
             auto row = ProduceRow();
@@ -494,7 +494,7 @@ public:
 
     virtual TFuture<TErrorOr<TVersionedRow>> Lookup(TKey key) override
     {
-        auto iterator = Store_->Rows_->FindEqualTo(key);
+        auto iterator = Store_->Rows_->FindEqualTo(TRowWrapper{key});
         if (!iterator.IsValid()) {
             return NullRow_;
         }
@@ -613,10 +613,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
         addValues(dynamicRow);
     };
 
-    Rows_->Insert(
-        row,
-        newKeyProvider,
-        existingKeyConsumer);
+    Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
 
     OnMemoryUsageUpdated();
 
@@ -653,10 +650,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
         AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
     };
 
-    Rows_->Insert(
-        key,
-        newKeyProvider,
-        existingKeyConsumer);
+    Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
 
     OnMemoryUsageUpdated();
 
@@ -1191,7 +1185,7 @@ void TDynamicMemoryStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
-    auto it = Rows_->FindEqualTo(key);
+    auto it = Rows_->FindEqualTo(TRowWrapper{key});
     if (!it.IsValid())
         return;
 
@@ -1210,7 +1204,10 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
 
     // Rows
     Save(context, Rows_->GetSize());
-    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(MinKey().Get()); rowIt.IsValid(); rowIt.MoveNext()) {
+    for (auto rowIt = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey().Get()});
+         rowIt.IsValid();
+         rowIt.MoveNext())
+    {
         auto row = rowIt.GetCurrent();
 
         // Keys.
