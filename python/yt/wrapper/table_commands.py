@@ -516,7 +516,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 except YtNetworkError as err:
                     if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                         raise
-                    logger.warning(err.message)
+                    logger.warning(str(err))
                     logger.warning("New retry (%d) ...", attempt + 2)
 
         def iter_with_retries(iter):
@@ -528,7 +528,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     except tuple(list(NETWORK_ERRORS) + [YtNetworkError]) as err:
                         if attempt + 1 == config.http.REQUEST_RETRY_COUNT:
                             raise
-                        logger.warning(err.message)
+                        logger.warning(str(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
                 tx.__exit__(None, None, None)
