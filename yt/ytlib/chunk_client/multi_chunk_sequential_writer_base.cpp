@@ -13,8 +13,6 @@
 #include "private.h"
 #include "replication_writer.h"
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -29,6 +27,7 @@
 #include <core/misc/address.h>
 
 #include <core/rpc/channel.h>
+#include <core/rpc/helpers.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -36,7 +35,6 @@ namespace NChunkClient {
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NErasure;
-using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;

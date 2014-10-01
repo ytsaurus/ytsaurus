@@ -19,6 +19,7 @@
 #include <core/concurrency/scheduler.h>
 
 #include <core/rpc/serialized_channel.h>
+#include <core/rpc/helpers.h>
 
 #include <core/yson/consumer.h>
 
@@ -40,8 +41,6 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/scheduler/helpers.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -67,7 +66,6 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using namespace NHydra;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;

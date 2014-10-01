@@ -8,7 +8,7 @@
 #include <core/misc/string.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 

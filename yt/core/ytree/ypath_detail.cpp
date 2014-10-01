@@ -959,40 +959,34 @@ class TYPathServiceContext
 public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
-        TYPathResponseHandler responseHandler,
         NLog::TLogger logger)
         : TServiceContextBase(
             std::move(requestMessage),
             std::move(logger))
-        , ResponseHandler_(std::move(responseHandler))
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
-        TYPathResponseHandler responseHandler,
         NLog::TLogger logger)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
             std::move(logger))
-        , ResponseHandler_(std::move(responseHandler))
     { }
 
 protected:
-    TYPathResponseHandler ResponseHandler_;
-
-
     virtual void DoReply() override
-    {
-        if (ResponseHandler_) {
-            ResponseHandler_.Run(GetResponseMessage());
-        }
-    }
+    { }
 
     virtual void LogRequest() override
     {
         TStringBuilder builder;
+
+        auto mutationId = GetMutationId(*RequestHeader_);
+        if (mutationId != NullMutationId) {
+            AppendInfo(&builder, "MutationId: %v", mutationId);
+        }
 
         if (!RequestInfo_.empty()) {
             AppendInfo(&builder, "%v", RequestInfo_);
@@ -1026,29 +1020,25 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    NLog::TLogger logger,
-    TYPathResponseHandler responseHandler)
+    NLog::TLogger logger)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
-        std::move(responseHandler),
         std::move(logger));
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    NLog::TLogger logger,
-    TYPathResponseHandler responseHandler)
+    NLog::TLogger logger)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestHeader),
         std::move(requestMessage),
-        std::move(responseHandler),
         std::move(logger));
 }
 

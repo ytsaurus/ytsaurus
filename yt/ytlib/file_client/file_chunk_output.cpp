@@ -12,6 +12,8 @@
 
 #include <core/compression/codec.h>
 
+#include <core/rpc/helpers.h>
+
 #include <ytlib/api/config.h>
 
 #include <ytlib/chunk_client/writer.h>
@@ -26,8 +28,6 @@
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -126,7 +126,7 @@ void TFileChunkOutput::DoFinish()
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error confirming chunk");

@@ -176,6 +176,8 @@ public:
 
     IObjectResolver* GetObjectResolver();
 
+    void SuppressMutation();
+
     DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -186,7 +188,7 @@ private:
 
     class TObjectResolver;
 
-    TObjectManagerConfigPtr Config;
+    TObjectManagerConfigPtr Config_;
 
     NProfiling::TProfiler Profiler;
 
@@ -198,32 +200,35 @@ private:
         NProfiling::TTagId TagId;
     };
 
-    std::vector<EObjectType> RegisteredTypes;
-    TTypeEntry TypeToEntry[NObjectClient::MaxObjectType];
+    std::vector<EObjectType> RegisteredTypes_;
+    std::array<TTypeEntry, NObjectClient::MaxObjectType> TypeToEntry_;
 
-    yhash_map<Stroka, NProfiling::TTagId> MethodToTag;
+    yhash_map<Stroka, NProfiling::TTagId> MethodToTag_;
 
-    TRootServicePtr RootService;
+    TRootServicePtr RootService_;
 
-    std::unique_ptr<TObjectResolver> ObjectResolver;
+    std::unique_ptr<TObjectResolver> ObjectResolver_;
 
-    TObjectId MasterObjectId;
-    std::unique_ptr<TMasterObject> MasterObject;
+    TObjectId MasterObjectId_;
+    std::unique_ptr<TMasterObject> MasterObject_;
 
-    IObjectProxyPtr MasterProxy;
+    IObjectProxyPtr MasterProxy_;
 
-    mutable TGuid CachedCellGuild;
+    mutable TGuid CachedCellGuid_;
 
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TGarbageCollectorPtr GarbageCollector;
+    TGarbageCollectorPtr GarbageCollector_;
 
-    i64 CreatedObjectCount = 0;
-    i64 DestroyedObjectCount = 0;
-    int LockedObjectCount = 0;
+    i64 CreatedObjectCount_ = 0;
+    i64 DestroyedObjectCount_ = 0;
+    int LockedObjectCount_ = 0;
 
     //! Stores deltas from parent transaction.
-    NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> Attributes;
+    NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> AttributeMap_;
+
+    bool MutationSuppressed_ = false;
+
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
@@ -248,6 +253,7 @@ private:
         NRpc::IServiceContextPtr context);
     void ExecuteMutatingRequest(
         const NSecurityServer::TUserId& userId,
+        const NRpc::TMutationId& mutationId,
         NRpc::IServiceContextPtr context);
 
     void HydraExecute(const NProto::TReqExecute& request);

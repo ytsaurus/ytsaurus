@@ -16,6 +16,10 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an RPC request at server-side.
+/*!
+ *  \note
+ *  Implementations are not thread-safe.
+ */
 struct IServiceContext
     : public virtual TIntrinsicRefCounted
 {
@@ -61,8 +65,18 @@ struct IServiceContext
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
 
+    //! Returns a future representing the response message.
+    /*!
+     *  \note
+     *  Can only be called before the request invocation is started.
+     */
+    virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const = 0;
+
     //! Returns the serialized response message.
-    //! Can only be called after #Reply.
+    /*!
+     *  \note
+     *  Can only be called after the context is replied.
+     */
     virtual TSharedRefArray GetResponseMessage() const = 0;
 
     //! Returns the error that was previously set by #Reply.
@@ -111,6 +125,8 @@ struct IServiceContext
 
     template <class... TArgs>
     void SetResponseInfo(const char* format, const TArgs&... args);
+
+    void Reply(TFuture<TSharedRefArray> message);
 
 };
 

@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_CLASS(TMutation)
 class TSaveContext;
 class TLoadContext;
 
+DECLARE_REFCOUNTED_CLASS(TPersistentResponseKeeper)
+
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)

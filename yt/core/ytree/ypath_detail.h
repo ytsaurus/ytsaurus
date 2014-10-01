@@ -449,18 +449,14 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<void(TSharedRefArray)> TYPathResponseHandler;
-
 NRpc::IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
-    NLog::TLogger logger,
-    TYPathResponseHandler responseHandler);
+    NLog::TLogger logger = NLog::TLogger());
 
 NRpc::IServiceContextPtr CreateYPathContext(
     std::unique_ptr<NRpc::NProto::TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
-    NLog::TLogger logger,
-    TYPathResponseHandler responseHandler);
+    NLog::TLogger logger = NLog::TLogger());
 
 IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 

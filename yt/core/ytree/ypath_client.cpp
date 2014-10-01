@@ -223,34 +223,13 @@ void ResolveYPath(
     }
 }
 
-void OnYPathResponse(
-    TPromise<TSharedRefArray> asyncResponseMessage,
-    TSharedRefArray responseMessage)
-{
-    NRpc::NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-
-    auto error = NYT::FromProto<TError>(responseHeader.error());
-
-    if (error.IsOK()) {
-        asyncResponseMessage.Set(responseMessage);
-    } else {
-        ToProto(responseHeader.mutable_error(), error);
-        auto updatedResponseMessage = SetResponseHeader(responseMessage, responseHeader);
-        asyncResponseMessage.Set(updatedResponseMessage);
-    }
-}
-
 TFuture<TSharedRefArray>
 ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
-        auto resolveContext = CreateYPathContext(
-            requestMessage,
-            NLog::TLogger(),
-            TYPathResponseHandler());
+        auto resolveContext = CreateYPathContext(requestMessage);
         ResolveYPath(
             service,
             resolveContext,
@@ -266,12 +245,12 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-    auto asyncResponseMessage = NewPromise<TSharedRefArray>();
-
     auto invokeContext = CreateYPathContext(
-        updatedRequestMessage,
-        suffixService->GetLogger(),
-        BIND(&OnYPathResponse, asyncResponseMessage));
+        std::move(updatedRequestMessage),
+        suffixService->GetLogger());
+
+    // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
+    auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();
 
     // This should never throw.
     suffixService->Invoke(invokeContext);

@@ -24,7 +24,7 @@ message TReqOnTransactionCommitPrepared
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid participant_cell_guid = 2;
-    optional NYT.NProto.TError error = 3;
+    required NYT.NProto.TError error = 3;
 }
 
 message TReqFinalizeDistributedCommit
@@ -44,7 +44,8 @@ message TReqCommitPreparedTransaction
 message TReqHydraAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    optional bool force = 2 [default = false];
+    required NYT.NProto.TGuid mutation_id = 2;
+    optional bool force = 3 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

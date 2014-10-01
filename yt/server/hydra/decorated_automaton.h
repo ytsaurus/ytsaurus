@@ -137,8 +137,6 @@ private:
     ISnapshotStorePtr SnapshotStore_;
     IChangelogStorePtr ChangelogStore_;
 
-    NRpc::TResponseKeeperPtr ResponseKeeper_;
-
     TEpochId Epoch_;
     TMutationContext* MutationContext_;
     IChangelogPtr Changelog_;

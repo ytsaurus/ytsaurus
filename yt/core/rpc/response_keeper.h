@@ -2,47 +2,23 @@
 
 #include "public.h"
 
-#include <core/misc/public.h>
 #include <core/misc/ref.h>
 
-#include <core/profiling/profiler.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResponseKeeper
-    : public TRefCounted
+struct IResponseKeeper
+    : public virtual TRefCounted
 {
-public:
-    explicit TResponseKeeper(
-        TResponseKeeperConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
-
-    ~TResponseKeeper();
-
-    TSharedRefArray FindResponse(const TMutationId& id);
-
-    void RegisterResponse(
-        const TMutationId& id,
-        const TSharedRefArray& data,
-        TInstant now = Now());
-
-    void RemoveExpiredResponses(TInstant now = Now());
-
-    void Clear();
-
-    void Save(TStreamSaveContext& context) const;
-    void Load(TStreamLoadContext& context);
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
+    virtual TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id) = 0;
+    virtual void EndRequest(const TMutationId& id, TSharedRefArray response) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TResponseKeeper)
+DEFINE_REFCOUNTED_TYPE(IResponseKeeper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

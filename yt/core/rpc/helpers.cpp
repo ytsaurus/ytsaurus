@@ -178,5 +178,47 @@ void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContext& cont
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMutationId GenerateMutationId()
+{
+    return TMutationId::Create();
+}
+
+TMutationId GetMutationId(const TRequestHeader& header)
+{
+    if (!header.HasExtension(TMutatingExt::mutating_ext)) {
+        return NullMutationId;
+    }
+    const auto& ext = header.GetExtension(TMutatingExt::mutating_ext);
+    return FromProto<TMutationId>(ext.mutation_id());
+}
+
+TMutationId GetMutationId(IServiceContextPtr context)
+{
+    return GetMutationId(context->RequestHeader());
+}
+
+void GenerateMutationId(IClientRequestPtr request)
+{
+    SetMutationId(request, GenerateMutationId());
+}
+
+void SetMutationId(TRequestHeader* header, const TMutationId& id)
+{
+    auto* ext = header->MutableExtension(TMutatingExt::mutating_ext);
+    ToProto(ext->mutable_mutation_id(), id);
+}
+
+void SetMutationId(IClientRequestPtr request, const TMutationId& id)
+{
+    SetMutationId(&request->Header(), id);
+}
+
+void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id)
+{
+    SetMutationId(request, id == NullMutationId ? TMutationId::Create() : id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRpc
 } // namespace NYT

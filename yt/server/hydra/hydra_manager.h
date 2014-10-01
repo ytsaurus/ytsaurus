@@ -77,18 +77,6 @@ struct IHydraManager
      */
     virtual TFuture<TErrorOr<TMutationResponse>> CommitMutation(const TMutationRequest& request) = 0;
 
-    //! Registers a response for the current mutation.
-    virtual void RegisterKeptResponse(
-        const TMutationId& mutationId,
-        const TMutationResponse& response) = 0;
-
-    //! Finds the response for an earlier committed mutation with a given id.
-    //! Returns |Null| if nothing is found.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) = 0;
-
     //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     /*!
      *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"

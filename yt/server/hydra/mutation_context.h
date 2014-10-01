@@ -25,16 +25,14 @@ struct TMutationRequest
     Stroka Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Action;
-    TMutationId Id;
 };
 
 struct TMutationResponse
 {
     TMutationResponse();
-    TMutationResponse(TSharedRefArray data, bool isKept);
+    explicit TMutationResponse(TSharedRefArray data);
 
     TSharedRefArray Data;
-    bool IsKept;
 };
 
 class TMutationContext
@@ -57,9 +55,6 @@ public:
 
     TMutationResponse& Response();
 
-    void SuppressMutation();
-    bool IsMutationSuppressed() const;
-
 private:
     TMutationContext* Parent_;
     TVersion Version_;
@@ -67,7 +62,6 @@ private:
     TMutationResponse Response_;
     TInstant Timestamp_;
     TRandomGenerator RandomGenerator_;
-    bool MutationSuppressed_;
 
 };
 

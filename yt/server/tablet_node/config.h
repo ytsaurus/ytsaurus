@@ -6,6 +6,8 @@
 
 #include <core/compression/public.h>
 
+#include <core/rpc/config.h>
+
 #include <ytlib/new_table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -20,6 +22,23 @@
 
 namespace NYT {
 namespace NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletHydraManageConfig
+    : public NHydra::TDistributedHydraManagerConfig
+{
+public:
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+
+    TTabletHydraManageConfig()
+    {
+        RegisterParameter("response_keeper", ResponseKeeper)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletHydraManageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,7 +346,7 @@ public:
     NHydra::TRemoteChangelogStoreConfigPtr Changelogs;
 
     //! Generic configuration for all Hydra instances.
-    NHydra::TDistributedHydraManagerConfigPtr HydraManager;
+    TTabletHydraManageConfigPtr HydraManager;
 
     //! Generic configuration for all Hive instances.
     NHive::THiveManagerConfigPtr HiveManager;

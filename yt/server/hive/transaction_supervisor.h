@@ -2,11 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/invoker.h>
-
 #include <core/rpc/public.h>
-
-#include <ytlib/hive/transaction_supervisor_service.pb.h>
 
 #include <server/hydra/public.h>
 
@@ -24,6 +20,7 @@ public:
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
+        NRpc::IResponseKeeperPtr responseKeeper,
         THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
         NTransactionClient::ITimestampProviderPtr timestampProvider);
@@ -32,9 +29,11 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    TAsyncError AbortTransaction(
+    TAsyncError CommitTransaction(
         const TTransactionId& transactionId,
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+        const std::vector<NHydra::TCellGuid>& participantCellGuids = std::vector<NHydra::TCellGuid>());
+
+    TAsyncError AbortTransaction(const TTransactionId& transactionId);
 
 private:
     class TImpl;

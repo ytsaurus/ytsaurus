@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/hydra )
 set( SRCS
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/persistent_response_keeper.cpp
   ${BASE}/file_helpers.cpp
   ${BASE}/sync_file_changelog.cpp
   ${BASE}/sync_file_changelog_impl.cpp
@@ -37,6 +38,7 @@ set( SRCS
 set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/persistent_response_keeper.h
   ${BASE}/file_helpers.h
   ${BASE}/file_helpers-inl.h
   ${BASE}/changelog.h
@@ -83,3 +85,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/snapshot_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/persistent_response_keeper.proto YT_SOURCE_FILES )

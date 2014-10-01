@@ -16,10 +16,9 @@
 #include <core/rpc/message.h>
 #include <core/rpc/caching_channel_factory.h>
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/orchid/orchid_service_proxy.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -82,8 +81,8 @@ public:
         
         // Prevent regarding the request as a mutating one.
         if (hydraManager->IsMutating()) {
-            auto* mutationContext = hydraManager->GetMutationContext();
-            mutationContext->SuppressMutation();
+            auto objectManager = Bootstrap->GetObjectManager();
+            objectManager->SuppressMutation();
         }
 
         // Prevent doing anything during recovery and at followers.

@@ -5,14 +5,18 @@
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/rpc/helpers.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/hydra/rpc_helpers.h>
+
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NRpc;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +41,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
 
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);
-    NHydra::GenerateMutationId(req);
+    GenerateMutationId(req);
     req->set_type(chunkType);
     req->set_account(options->Account);
 

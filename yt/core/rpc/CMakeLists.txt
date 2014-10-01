@@ -25,6 +25,8 @@ set( SRCS
   ${BASE}/caching_channel_factory.cpp
   ${BASE}/local_channel.cpp
   ${BASE}/response_keeper.cpp
+  ${BASE}/response_keeper_detail.cpp
+  ${BASE}/transient_response_keeper.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
@@ -55,6 +57,8 @@ set( HDRS
   ${BASE}/caching_channel_factory.h
   ${BASE}/local_channel.h
   ${BASE}/response_keeper.h
+  ${BASE}/response_keeper_detail.h
+  ${BASE}/transient_response_keeper.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -43,8 +43,6 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/cgroup/statistics.h>
 
 #include <ytlib/api/connection.h>
@@ -74,6 +72,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1188,7 +1187,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
             operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "start_async_tx");
     }
 
@@ -1241,7 +1240,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
             operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "start_sync_tx");
     }
 
@@ -1288,7 +1287,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
             operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
 
@@ -1333,7 +1332,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
             operationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
     }
 
@@ -1496,7 +1495,7 @@ void TOperationControllerBase::CommitResults()
             auto addChunkTree = [&] (const TChunkTreeId chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-                    NHydra::GenerateMutationId(req);
+                    GenerateMutationId(req);
                 }
                 ToProto(req->add_children_ids(), chunkTreeId);
                 ++reqSize;
@@ -1558,7 +1557,7 @@ void TOperationControllerBase::CommitResults()
             auto req = TTableYPathProxy::SetSorted(path);
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -2565,7 +2564,7 @@ void TOperationControllerBase::RequestInputObjects()
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
             SetTransactionId(req, Operation->GetInputTransaction());
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
@@ -2655,7 +2654,7 @@ void TOperationControllerBase::RequestOutputObjects()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(table.LockMode);
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "lock_out");
         }
@@ -2676,7 +2675,7 @@ void TOperationControllerBase::RequestOutputObjects()
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             req->set_mode(table.Clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
@@ -2755,7 +2754,7 @@ void TOperationControllerBase::RequestFileObjects()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_regular_file");
         }
@@ -2786,7 +2785,7 @@ void TOperationControllerBase::RequestFileObjects()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_table_file");
         }

@@ -295,10 +295,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     Logger.AddTag("CellGuid: %v", CellManager_->GetCellGuid());
 
-    ResponseKeeper_ = New<TResponseKeeper>(
-        Config_->ResponseKeeper,
-        Profiler);
-
     Reset();
 }
 
@@ -368,7 +364,6 @@ void TDecoratedAutomaton::Clear()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Automaton_->Clear();
-    ResponseKeeper_->Clear();
     Reset();
 
     {
@@ -452,9 +447,6 @@ void TDecoratedAutomaton::LogLeaderMutation(
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
     MutationHeader_.set_mutation_type(request.Type);
-    if (request.Id != NullMutationId) {
-        ToProto(MutationHeader_.mutable_mutation_id(), request.Id);
-    }
     MutationHeader_.set_timestamp(pendingMutation.Timestamp.GetValue());
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(LoggedVersion_.SegmentId);
@@ -462,10 +454,9 @@ void TDecoratedAutomaton::LogLeaderMutation(
     
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
 
-    LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v, MutationId: %v)",
+    LOG_DEBUG("Logging mutation (Version: %v, MutationType: %v)",
         LoggedVersion_,
-        request.Type,
-        request.Id);
+        request.Type);
 
     *logResult = Changelog_->Append(*recordData);
     
@@ -499,10 +490,6 @@ void TDecoratedAutomaton::LogFollowerMutation(
     pendingMutation.Version = LoggedVersion_;
     pendingMutation.Request.Type = MutationHeader_.mutation_type();
     pendingMutation.Request.Data = mutationData;
-    pendingMutation.Request.Id =
-        MutationHeader_.has_mutation_id()
-        ? FromProto<TMutationId>(MutationHeader_.mutation_id())
-        : NullMutationId;
     pendingMutation.Timestamp = TInstant(MutationHeader_.timestamp());
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
@@ -638,31 +625,15 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
     MutationContext_ = context;
 
     const auto& request = context->Request();
-    auto& response = context->Response();
 
-    if (request.Id != NullMutationId) {
-        auto keptData = ResponseKeeper_->FindResponse(request.Id);
-        if (keptData) {
-            LOG_DEBUG_UNLESS(recovery, "Suppressing duplicate mutation (Version: %v, MutationId: %v)",
-                AutomatonVersion_,
-                request.Id);
-            response.Data = std::move(keptData);
-            response.IsKept = true;
-            context->SuppressMutation();
-        }
-    }
+    LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
+        AutomatonVersion_,
+        request.Type);
 
-    if (!context->IsMutationSuppressed()) {
-        LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v, MutationId: %v)",
-            AutomatonVersion_,
-            request.Type,
-            request.Id);
-
-        if (request.Action) {
-            request.Action.Run(context);
-        } else {
-            Automaton_->ApplyMutation(context);
-        }
+    if (request.Action) {
+        request.Action.Run(context);
+    } else {
+        Automaton_->ApplyMutation(context);
     }
 
     {
@@ -670,40 +641,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
         AutomatonVersion_.Advance();
     }
 
-    if (!context->IsMutationSuppressed()) {
-        auto timestamp = context->GetTimestamp();
-        if (context->Request().Id != NullMutationId) {
-            ResponseKeeper_->RegisterResponse(request.Id, response.Data, timestamp);
-        }
-        ResponseKeeper_->RemoveExpiredResponses(timestamp);
-    }
-
     MutationContext_ = nullptr;
-}
-
-void TDecoratedAutomaton::RegisterKeptResponse(
-    const TMutationId& mutationId,
-    const TMutationResponse& response)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YASSERT(MutationContext_);
-
-    ResponseKeeper_->RegisterResponse(
-        mutationId,
-        response.Data,
-        MutationContext_->GetTimestamp());
-}
-
-TNullable<TMutationResponse> TDecoratedAutomaton::FindKeptResponse(const TMutationId& mutationId)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    auto data = ResponseKeeper_->FindResponse(mutationId);
-    if (!data) {
-        return Null;
-    }
-
-    return TMutationResponse(std::move(data), true);
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const

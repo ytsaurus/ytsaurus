@@ -24,6 +24,7 @@ class TSaveContext
 class TLoadContext
     : public NHydra::TLoadContext
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
 
 public:

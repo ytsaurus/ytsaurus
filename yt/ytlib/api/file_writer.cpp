@@ -6,6 +6,8 @@
 
 #include <core/concurrency/scheduler.h>
 
+#include <core/rpc/helpers.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -24,12 +26,11 @@
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/helpers.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 namespace NYT {
 namespace NApi {
 
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressClient;
@@ -157,7 +158,7 @@ private:
         {
             auto req = TFileYPathProxy::PrepareForUpdate(Path_);
             req->set_mode(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite);
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction_);
             batchReq->AddRequest(req, "prepare_for_update");
         }

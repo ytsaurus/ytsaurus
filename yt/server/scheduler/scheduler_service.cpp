@@ -8,8 +8,6 @@
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/security_client/public.h>
 
 #include <server/cell_scheduler/bootstrap.h>
@@ -21,7 +19,6 @@ using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
-using namespace NHydra;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////
@@ -63,10 +60,9 @@ private:
                 << ex;
         }
 
-        context->SetRequestInfo("Type: %v, TransactionId: %v, MutationId: %v",
+        context->SetRequestInfo("Type: %v, TransactionId: %v",
             type,
-            transactionId,
-            mutationId);
+            transactionId);
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();

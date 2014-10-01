@@ -19,6 +19,8 @@
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
 
+#include <core/rpc/helpers.h>
+
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -26,8 +28,6 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -314,7 +314,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::OnChunkClosed(
     {
         auto req = TChunkYPathProxy::Confirm(
             NObjectClient::FromObjectId(currentSession.ChunkId));
-        NHydra::GenerateMutationId(req);
+        NRpc::GenerateMutationId(req);
         *req->mutable_chunk_info() = asyncWriter->GetChunkInfo();
         NYT::ToProto(req->mutable_replicas(), replicas);
         *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
@@ -415,7 +415,7 @@ void TOldMultiChunkSequentialWriter<TProvider>::AttachChunks()
         auto req = TChunkListYPathProxy::Attach(
             NObjectClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = chunkSpec.chunk_id();
-        NHydra::GenerateMutationId(req);
+        NRpc::GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
 

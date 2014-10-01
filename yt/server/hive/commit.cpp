@@ -19,7 +19,6 @@ TCommit::TCommit(const TTransactionId& transationId)
 }
 
 TCommit::TCommit(
-    bool persistent,
     const TTransactionId& transationId,
     const TMutationId& mutationId,
     const std::vector<TCellGuid>& participantCellGuids)

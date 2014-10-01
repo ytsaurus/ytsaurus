@@ -36,6 +36,7 @@
 #include <server/hydra/snapshot.h>
 #include <server/hydra/distributed_hydra_manager.h>
 #include <server/hydra/sync_file_changelog.h>
+#include <server/hydra/persistent_response_keeper.h>
 
 #include <server/hive/transaction_supervisor.h>
 
@@ -47,6 +48,8 @@
 #include <server/security_server/security_manager.h>
 #include <server/security_server/acl.h>
 #include <server/security_server/group.h>
+
+#include <server/object_server/private.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -71,7 +74,7 @@ using namespace NSecurityServer;
 
 static NLog::TLogger Logger("Bootstrap");
 
-static const auto CleanupPeriod = TDuration::Seconds(10);
+static const auto SnapshotCleanupPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,17 +115,23 @@ public:
             GuardedInvokers_.push_back(HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker));
         }
 
+        ResponseKeeper_ = New<TPersistentResponseKeeper>(
+            Config_->HydraManager->ResponseKeeper,
+            GetAutomatonInvoker(),
+            HydraManager_,
+            Automaton_,
+            NHydra::HydraProfiler);
     }
 
     void Start()
     {
         HydraManager_->Start();
 
-        CleanupExecutor_ = New<TPeriodicExecutor>(
+        SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
             GetHydraIOInvoker(),
-            BIND(&TImpl::OnCleanup, MakeWeak(this)),
-            CleanupPeriod);
-        CleanupExecutor_->Start();
+            BIND(&TImpl::OnSnapshotCleanup, MakeWeak(this)),
+            SnapshotCleanupPeriod);
+        SnapshotCleanupExecutor_->Start();
     }
 
     TMasterAutomatonPtr GetAutomaton() const
@@ -133,6 +142,11 @@ public:
     IHydraManagerPtr GetHydraManager() const
     {
         return HydraManager_;
+    }
+
+    IResponseKeeperPtr GetResponseKeeper() const
+    {
+        return ResponseKeeper_->GetResponseKeeper();
     }
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
@@ -166,10 +180,13 @@ private:
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
+
+    TPersistentResponseKeeperPtr ResponseKeeper_;
+
     std::vector<IInvokerPtr> GuardedInvokers_;
     std::vector<IInvokerPtr> EpochInvokers_;
 
-    TPeriodicExecutorPtr CleanupExecutor_;
+    TPeriodicExecutorPtr SnapshotCleanupExecutor_;
 
 
     void OnStartEpoch()
@@ -190,7 +207,7 @@ private:
     }
 
 
-    void OnCleanup()
+    void OnSnapshotCleanup()
     {
         auto snapshotsPath = Config_->Snapshots->Path;
 
@@ -278,6 +295,11 @@ TMasterAutomatonPtr THydraFacade::GetAutomaton() const
 IHydraManagerPtr THydraFacade::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
+}
+
+IResponseKeeperPtr THydraFacade::GetResponseKeeper() const
+{
+    return Impl_->GetResponseKeeper();
 }
 
 IInvokerPtr THydraFacade::GetAutomatonInvoker(EAutomatonThreadQueue queue) const

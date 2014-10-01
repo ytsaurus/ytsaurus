@@ -38,6 +38,7 @@
 #include <server/hydra/remote_snapshot_store.h>
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
+#include <server/hydra/persistent_response_keeper.h>
 
 #include <server/hive/hive_manager.h>
 #include <server/hive/mailbox.h>
@@ -52,6 +53,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NElection;
@@ -144,6 +146,11 @@ public:
     IHydraManagerPtr GetHydraManager() const
     {
         return HydraManager_;
+    }
+
+    IResponseKeeperPtr GetResponseKeeper() const
+    {
+        return ResponseKeeper_->GetResponseKeeper();
     }
 
     TTabletAutomatonPtr GetAutomaton() const
@@ -295,6 +302,12 @@ public:
                 }
             }
 
+            ResponseKeeper_ = New<TPersistentResponseKeeper>(
+                Config_->HydraManager->ResponseKeeper,
+                GetAutomatonInvoker(),
+                HydraManager_,
+                Automaton_);
+
             HiveManager_ = New<THiveManager>(
                 CellGuid_,
                 Config_->HiveManager,
@@ -320,6 +333,7 @@ public:
                 GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_,
+                GetResponseKeeper(),
                 HiveManager_,
                 TransactionManager_,
                 Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider());
@@ -329,6 +343,7 @@ public:
                 Bootstrap_);
 
             TabletManager_->Initialize();
+
             HydraManager_->Start();
 
             rpcServer->RegisterService(TransactionSupervisor_->GetRpcService());
@@ -402,7 +417,10 @@ private:
     TTabletCellOptionsPtr Options_;
 
     TCellManagerPtr CellManager_;
+
     IHydraManagerPtr HydraManager_;
+
+    TPersistentResponseKeeperPtr ResponseKeeper_;
     
     THiveManagerPtr HiveManager_;
 
@@ -581,6 +599,11 @@ TTabletCellConfigPtr TTabletSlot::GetCellConfig() const
 IHydraManagerPtr TTabletSlot::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
+}
+
+IResponseKeeperPtr TTabletSlot::GetResponseKeeper() const
+{
+    return Impl_->GetResponseKeeper();
 }
 
 TTabletAutomatonPtr TTabletSlot::GetAutomaton() const

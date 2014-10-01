@@ -28,7 +28,6 @@ public:
 public:
     explicit TCommit(const TTransactionId& transactionId);
     TCommit(
-        bool persistent,
         const TTransactionId& transactionId,
         const NHydra::TMutationId& mutationId,
         const std::vector<TCellGuid>& participantCellGuids);

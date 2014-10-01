@@ -16,6 +16,14 @@ void IServiceContext::SetResponseInfo()
     SetRawResponseInfo("");
 }
 
+void IServiceContext::Reply(TFuture<TSharedRefArray> message)
+{
+    auto this_ = MakeStrong(this);
+    message.Subscribe(BIND([this, this_] (TSharedRefArray message) {
+        Reply(message);
+    }));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceId::TServiceId()

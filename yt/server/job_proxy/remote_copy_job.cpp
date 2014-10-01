@@ -23,8 +23,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -34,6 +32,8 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/erasure/codec.h>
+
+#include <core/rpc/helpers.h>
 
 #include <fstream>
 #include <iostream>
@@ -312,7 +312,7 @@ private:
 
             auto req = TChunkYPathProxy::Confirm(
                 NObjectClient::FromObjectId(outputChunkId));
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), replicas);
@@ -326,7 +326,7 @@ private:
         {
             auto req = TChunkListYPathProxy::Attach(NObjectClient::FromObjectId(OutputChunkListId_));
             ToProto(req->add_children_ids(), outputChunkId);
-            NHydra::GenerateMutationId(req);
+            GenerateMutationId(req);
 
             auto rsp = WaitFor(objectProxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");

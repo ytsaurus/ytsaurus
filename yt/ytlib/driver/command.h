@@ -15,12 +15,10 @@
 #include <core/yson/parser.h>
 #include <core/yson/writer.h>
 
-#include <core/rpc/public.h>
 #include <core/rpc/channel.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/chunk_client/public.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -74,12 +72,12 @@ typedef TIntrusivePtr<TTransactionalRequest> TTransactionalRequestPtr;
 struct TMutatingRequest
     : public virtual TRequest
 {
-    NHydra::TMutationId MutationId;
+    NRpc::TMutationId MutationId;
 
     TMutatingRequest()
     {
         RegisterParameter("mutation_id", MutationId)
-            .Default(NHydra::NullMutationId);
+            .Default(NRpc::NullMutationId);
     }
 };
 
@@ -279,7 +277,7 @@ class TMutatingCommandBase <
 protected:
     void GenerateMutationId(NRpc::IClientRequestPtr request)
     {
-        NHydra::SetMutationId(request, this->GenerateMutationId());
+        NRpc::SetMutationId(request, this->GenerateMutationId());
     }
 
     void SetMutatingOptions(NApi::TMutatingOptions* options)
@@ -287,25 +285,25 @@ protected:
         options->MutationId = this->GenerateMutationId();
     }
 
-    NHydra::TMutationId GenerateMutationId()
+    NRpc::TMutationId GenerateMutationId()
     {
         auto result = this->CurrentMutationId;
-        if (this->CurrentMutationId != NHydra::NullMutationId) {
+        if (this->CurrentMutationId != NRpc::NullMutationId) {
             ++(this->CurrentMutationId).Parts[0];
         }
         return result;
     }
 
 private:
-    NHydra::TMutationId CurrentMutationId;
+    NRpc::TMutationId CurrentMutationId;
 
     virtual void Prepare() override
     {
         TTypedCommandBase<TRequest>::Prepare();
 
         this->CurrentMutationId =
-            this->Request_->MutationId == NHydra::NullMutationId
-            ? NHydra::GenerateMutationId()
+            this->Request_->MutationId == NRpc::NullMutationId
+            ? NRpc::GenerateMutationId()
             : this->Request_->MutationId;
     }
 

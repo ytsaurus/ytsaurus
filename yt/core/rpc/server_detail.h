@@ -39,6 +39,7 @@ public:
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
 
+    virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
 
     virtual const TError& GetError() const override;
@@ -106,6 +107,7 @@ protected:
 
 private:
     mutable TSharedRefArray ResponseMessage_; // cached
+    mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
 
     void Initialize();
@@ -138,6 +140,8 @@ public:
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+
+    virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
 
     virtual const TError& GetError() const override;
@@ -163,25 +167,7 @@ protected:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TReplyInterceptorContext
-    : public TServiceContextWrapper
-{
-public:
-    TReplyInterceptorContext(
-        IServiceContextPtr underlyingContext,
-        TClosure onReply);
-
-    virtual void Reply(const TError& error) override;
-    virtual void Reply(TSharedRefArray responseMessage) override;
-
-private:
-    TClosure OnReply_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////̃////////////////////////////
 
 class TServerBase
     : public IServer

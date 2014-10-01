@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/rpc/config.h>
+
 #include <ytlib/election/config.h>
 
 #include <ytlib/hive/config.h>
@@ -54,11 +56,16 @@ class TMasterHydraManagerConfig
 public:
     int MaxSnapshotsToKeep;
 
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+
     TMasterHydraManagerConfig()
     {
         RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
             .GreaterThanOrEqual(0)
             .Default(3);
+
+        RegisterParameter("response_keeper", ResponseKeeper)
+            .DefaultNew();
     }
 };
 

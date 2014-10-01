@@ -73,6 +73,10 @@ void TServiceContextBase::Reply(const TError& error)
         DoReply();
     }
 
+    if (AsyncResponseMessage_) {
+        AsyncResponseMessage_.Set(GetResponseMessage());
+    }
+
     if (Logger.IsEnabled(NLog::ELogLevel::Debug)) {
         LogResponse(error);
     }
@@ -84,6 +88,8 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
     YASSERT(!IsOneWay());
     YASSERT(responseMessage.Size() >= 1);
 
+    // NB: One must parse responseMessage and only use its content since,
+    // e.g., responseMessage may contain invalid request id.
     TResponseHeader header;
     YCHECK(DeserializeFromProto(&header, responseMessage[0]));
 
@@ -100,9 +106,25 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
     }
 
     Replied_ = true;
+
     DoReply();
+
+    if (AsyncResponseMessage_) {
+        AsyncResponseMessage_.Set(GetResponseMessage());
+    }
     
     LogResponse(Error_);
+}
+
+TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
+{
+    YCHECK(!Replied_);
+
+    if (!AsyncResponseMessage_) {
+        AsyncResponseMessage_ = NewPromise<TSharedRefArray>();
+    }
+
+    return AsyncResponseMessage_;
 }
 
 TSharedRefArray TServiceContextBase::GetResponseMessage() const
@@ -318,6 +340,11 @@ void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
     UnderlyingContext_->Reply(responseMessage);
 }
 
+TFuture<TSharedRefArray> TServiceContextWrapper::GetAsyncResponseMessage() const
+{
+    return UnderlyingContext_->GetAsyncResponseMessage();
+}
+
 TSharedRefArray TServiceContextWrapper::GetResponseMessage() const
 {
     return UnderlyingContext_->GetResponseMessage();
@@ -376,27 +403,6 @@ void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
 NLog::TLogger& TServiceContextWrapper::GetLogger()
 {
     return UnderlyingContext_->GetLogger();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TReplyInterceptorContext::TReplyInterceptorContext(
-    IServiceContextPtr underlyingContext,
-    TClosure onReply)
-    : TServiceContextWrapper(std::move(underlyingContext))
-    , OnReply_(std::move(onReply))
-{ }
-
-void TReplyInterceptorContext::Reply(const TError& error)
-{
-    TServiceContextWrapper::Reply(error);
-    OnReply_.Run();
-}
-
-void TReplyInterceptorContext::Reply(TSharedRefArray responseMessage)
-{
-    TServiceContextWrapper::Reply(std::move(responseMessage));
-    OnReply_.Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

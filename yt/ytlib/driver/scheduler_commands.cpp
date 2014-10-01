@@ -12,8 +12,6 @@
 
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 namespace NYT {
 namespace NDriver {
 

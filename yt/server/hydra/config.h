@@ -8,8 +8,6 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <core/rpc/config.h>
-
 #include <ytlib/api/config.h>
 
 #include <server/election/config.h>
@@ -259,8 +257,6 @@ public:
 
     TLeaderCommitterConfigPtr LeaderCommitter;
 
-    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
-
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
@@ -281,8 +277,6 @@ public:
         RegisterParameter("follower_tracker", FollowerTracker)
             .DefaultNew();
         RegisterParameter("leader_committer", LeaderCommitter)
-            .DefaultNew();
-        RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
 };

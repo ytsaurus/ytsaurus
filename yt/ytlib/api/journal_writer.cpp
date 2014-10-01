@@ -15,6 +15,8 @@
 
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/rpc/helpers.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -37,8 +39,6 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <queue>
@@ -50,6 +50,7 @@ namespace NApi {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NRpc;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -364,7 +365,7 @@ private:
             {
                 auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
                 req->set_mode(EUpdateMode::Append);
-                NHydra::GenerateMutationId(req);
+                GenerateMutationId(req);
                 SetTransactionId(req, UploadTransaction_->GetId());
                 batchReq->AddRequest(req, "prepare_for_update");
             }
@@ -517,13 +518,13 @@ private:
                     meta->set_version(0);
                     TMiscExt miscExt;
                     SetProtoExtension(meta->mutable_extensions(), miscExt);
-                    NHydra::GenerateMutationId(req);
+                    GenerateMutationId(req);
                     batchReq->AddRequest(req, "confirm");
                 }
                 {
                     auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
                     ToProto(req->add_children_ids(), CurrentSession_->ChunkId);
-                    NHydra::GenerateMutationId(req);
+                    GenerateMutationId(req);
                     batchReq->AddRequest(req, "attach");
                 }
 

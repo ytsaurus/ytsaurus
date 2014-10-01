@@ -23,8 +23,6 @@
 
 #include <core/ytree/fluent.h>
 
-#include <core/rpc/response_keeper.h>
-
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
@@ -364,33 +362,7 @@ public:
                 "Not an active leader"));
         }
 
-        if (request.Id != NullMutationId) {
-            LOG_DEBUG("Returning kept response (MutationId: %v)", request.Id);
-            auto keptResponse = DecoratedAutomaton_->FindKeptResponse(request.Id);
-            if (keptResponse) {
-                return MakeFuture<TErrorOr<TMutationResponse>>(*keptResponse);
-            }
-        }
-
         return epochContext->LeaderCommitter->Commit(request);
-    }
-
-    virtual void RegisterKeptResponse(
-        const TMutationId& mutationId,
-        const TMutationResponse& response) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        DecoratedAutomaton_->RegisterKeptResponse(
-            mutationId,
-            response);
-    }
-
-    virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return DecoratedAutomaton_->FindKeptResponse(mutationId);
     }
 
     virtual TMutationContext* GetMutationContext() override

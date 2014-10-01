@@ -24,8 +24,6 @@ message TRequestHeader
     extensions 100 to max;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 message TAuthenticatedExt
 {
     extend NRpc.NProto.TRequestHeader
@@ -47,6 +45,18 @@ message TTracingExt
     optional uint64 span_id = 2;
     optional uint64 parent_span_id = 3;
 }
+
+message TMutatingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TMutatingExt mutating_ext = 107;
+    }
+
+    required NYT.NProto.TGuid mutation_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TResponseHeader
 {

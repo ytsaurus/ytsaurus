@@ -47,8 +47,6 @@
 #include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/new_table_client/schemaful_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
@@ -70,7 +68,6 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
-using namespace NHydra;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,7 +428,7 @@ private:
     static TMutationId GenerateMutationId(TMutatingOptions& commandOptions)
     {
         if (commandOptions.MutationId == NullMutationId) {
-            commandOptions.MutationId = NHydra::GenerateMutationId();
+            commandOptions.MutationId = NRpc::GenerateMutationId();
         }
         auto result = commandOptions.MutationId;
         ++commandOptions.MutationId.Parts[0];

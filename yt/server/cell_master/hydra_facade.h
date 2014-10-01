@@ -43,6 +43,7 @@ public:
 
     TMasterAutomatonPtr GetAutomaton() const;
     NHydra::IHydraManagerPtr GetHydraManager() const;
+    NRpc::IResponseKeeperPtr GetResponseKeeper() const;
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;

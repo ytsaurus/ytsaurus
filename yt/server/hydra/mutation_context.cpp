@@ -21,12 +21,10 @@ TMutationRequest::TMutationRequest(
 ///////////////////////////////////////////////////////////////////////////////
 
 TMutationResponse::TMutationResponse()
-    : IsKept(false)
 { }
 
-TMutationResponse::TMutationResponse(TSharedRefArray data, bool isKept)
+TMutationResponse::TMutationResponse(TSharedRefArray data)
     : Data(std::move(data))
-    , IsKept(isKept)
 { }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,7 +36,6 @@ TMutationContext::TMutationContext(
     , Version_(Parent_->GetVersion())
     , Request_(request)
     , Timestamp_(Parent_->GetTimestamp())
-    , MutationSuppressed_(false)
 { }
 
 TMutationContext::TMutationContext(
@@ -51,7 +48,6 @@ TMutationContext::TMutationContext(
     , Request_(request)
     , Timestamp_(timestamp)
     , RandomGenerator_(randomSeed)
-    , MutationSuppressed_(false)
 { }
 
 TVersion TMutationContext::GetVersion() const
@@ -77,16 +73,6 @@ TRandomGenerator& TMutationContext::RandomGenerator()
 TMutationResponse& TMutationContext::Response()
 {
     return Response_;
-}
-
-void TMutationContext::SuppressMutation()
-{
-    MutationSuppressed_ = true;
-}
-
-bool TMutationContext::IsMutationSuppressed() const
-{
-    return MutationSuppressed_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

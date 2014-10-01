@@ -136,6 +136,11 @@ private:
             AppendInfo(&builder, "User: %v", *user);
         }
 
+        auto mutationId = GetMutationId(*RequestHeader_);
+        if (mutationId != NullMutationId) {
+            AppendInfo(&builder, "MutationId: %v", mutationId);
+        }
+
         AppendInfo(&builder, "%v", RequestInfo_);
 
         LOG_DEBUG("%v <- %v",

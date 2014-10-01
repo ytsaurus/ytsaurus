@@ -19,8 +19,6 @@ public:
 
     TFuture<TErrorOr<TMutationResponse>> Commit();
 
-    TMutationPtr SetId(const TMutationId& id);
-
     TMutationPtr SetRequestData(TSharedRef data, Stroka type);
     template <class TRequest>
     TMutationPtr SetRequestData(const TRequest& request);

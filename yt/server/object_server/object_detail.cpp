@@ -15,6 +15,7 @@
 #include <core/ypath/tokenizer.h>
 
 #include <core/rpc/message.h>
+#include <core/rpc/helpers.h>
 #include <core/rpc/rpc.pb.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -23,8 +24,6 @@
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/election/cell_manager.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/election/election_manager.h>
 
@@ -43,6 +42,7 @@
 #include <server/security_server/user.h>
 
 #include <server/object_server/type_handler.h>
+#include <server/object_server/object_manager.h>
 
 #include <stdexcept>
 
@@ -56,7 +56,6 @@ using namespace NYson;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NHydra;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 
@@ -758,8 +757,8 @@ void TObjectProxyBase::DeclareNonMutating()
 {
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     if (hydraManager->IsMutating()) {
-        auto* mutationContext = hydraManager->GetMutationContext();
-        mutationContext->SuppressMutation();
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->SuppressMutation();
     }
 }
 

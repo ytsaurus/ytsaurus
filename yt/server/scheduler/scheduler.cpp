@@ -56,9 +56,6 @@
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/fluent.h>
 
-#include <ytlib/hydra/public.h>
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/hive/cluster_directory.h>
 
 #include <server/cell_scheduler/config.h>

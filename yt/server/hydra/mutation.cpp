@@ -17,12 +17,6 @@ TFuture<TErrorOr<TMutationResponse>>  TMutation::Commit()
     return HydraManager_->CommitMutation(Request_);
 }
 
-TMutationPtr TMutation::SetId(const TMutationId& id)
-{
-    Request_.Id = id;
-    return this;
-}
-
 TMutationPtr TMutation::SetRequestData(TSharedRef data, Stroka type)
 {
     Request_.Data = std::move(data);

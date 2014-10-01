@@ -12,6 +12,8 @@
 
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/rpc/helpers.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -21,8 +23,6 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -224,7 +224,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
     {
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
         batchReq->AddRequest(req, "prepare_for_update");
     }
@@ -345,7 +345,7 @@ void TAsyncTableWriter::Close()
 
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
-        NHydra::GenerateMutationId(req);
+        GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
         auto rsp = WaitFor(ObjectProxy.Execute(req));

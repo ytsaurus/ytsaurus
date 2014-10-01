@@ -31,9 +31,11 @@ DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
 
 DECLARE_REFCOUNTED_CLASS(TClientContext)
 DECLARE_REFCOUNTED_CLASS(TServiceBase)
-DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
 DECLARE_REFCOUNTED_CLASS(TOneWayClientResponse)
 DECLARE_REFCOUNTED_CLASS(TStaticChannelFactory)
+
+
+DECLARE_REFCOUNTED_STRUCT(IResponseKeeper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

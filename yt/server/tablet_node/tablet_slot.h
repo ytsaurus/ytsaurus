@@ -4,6 +4,8 @@
 
 #include <core/yson/public.h>
 
+#include <core/rpc/public.h>
+
 #include <ytlib/hydra/public.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -42,6 +44,7 @@ public:
     TTabletCellConfigPtr GetCellConfig() const;
     
     NHydra::IHydraManagerPtr GetHydraManager() const;
+    NRpc::IResponseKeeperPtr GetResponseKeeper() const;
     TTabletAutomatonPtr GetAutomaton() const;
 
     // These methods are thread-safe.

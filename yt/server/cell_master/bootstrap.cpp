@@ -347,6 +347,7 @@ void TBootstrap::DoRun()
         HydraFacade->GetAutomatonInvoker(),
         HydraFacade->GetHydraManager(),
         HydraFacade->GetAutomaton(),
+        HydraFacade->GetResponseKeeper(),
         HiveManager,
         TransactionManager,
         timestampProvider);

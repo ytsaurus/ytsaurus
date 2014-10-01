@@ -14,18 +14,20 @@
 
 #include <core/rpc/message.h>
 #include <core/rpc/server_detail.h>
+#include <core/rpc/helpers.h>
+#include <core/rpc/response_keeper.h>
 
 #include <core/erasure/public.h>
 
 #include <core/profiling/profile_manager.h>
-
-#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
+
+#include <server/hydra/hydra_manager.h>
 
 #include <server/cell_master/serialize.h>
 
@@ -75,14 +77,14 @@ class TObjectManager::TRootService
 {
 public:
     explicit TRootService(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
         IServiceContextPtr context) override
     {
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& headerExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         if (headerExt.mutating() && !hydraManager->IsMutating() && !hydraManager->IsRecovery()) {
             return TResolveResult::Here(path);
@@ -93,11 +95,29 @@ public:
 
     virtual void Invoke(IServiceContextPtr context) override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         auto userId = user->GetId();
-        
+
+        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        bool recovery = hydraManager->IsRecovery();
+
+        auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         auto mutationId = GetMutationId(context);
+        if (mutationId != NullMutationId) {
+            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId);
+            if (asyncResponseMessage) {
+                LOG_DEBUG_UNLESS(recovery, "Returning kept response (RequestId: %v, MutationId: %v)",
+                    context->GetRequestId(),
+                    mutationId);
+                context->Reply(std::move(asyncResponseMessage));
+                return;
+            }
+
+            LOG_DEBUG_UNLESS(recovery, "Response will be kept (RequestId: %v, MutationId: %v)",
+                context->GetRequestId(),
+                mutationId);
+        }
 
         NProto::TReqExecute request;
         ToProto(request.mutable_user_id(), userId);
@@ -107,26 +127,19 @@ public:
             request.add_request_parts(part.Begin(), part.Size());
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager
             ->CreateExecuteMutation(request)
-            ->SetId(mutationId)
             ->SetAction(BIND(
                 &TObjectManager::ExecuteMutatingRequest,
                 objectManager,
                 userId,
+                mutationId,
                 context))
             ->Commit()
             .Subscribe(BIND([=] (TErrorOr<TMutationResponse> result) {
-                if (result.IsOK()) {
-                    const auto& response = result.Value();
-                    if (response.IsKept) {
-                        // Reply with kept response.
-                        context->Reply(response.Data);
-                    } else {
-                        // Do nothing: context is already replied by the mutation handler.
-                    }
-                } else {
+                if (!result.IsOK()) {
+                    // Reply with commit error.
                     context->Reply(TError(result));
                 }
             }));
@@ -147,15 +160,16 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap_;
+
 
     TResolveResult DoResolve(
         const TYPath& path,
         IServiceContextPtr context)
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
 
         TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
@@ -208,13 +222,13 @@ class TObjectManager::TObjectResolver
 {
 public:
     explicit TObjectResolver(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
     virtual IObjectProxyPtr ResolvePath(const TYPath& path, TTransaction* transaction) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto cypressManager = Bootstrap_->GetCypressManager();
 
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
@@ -267,7 +281,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap_;
 
 
     static IObjectProxyPtr DoResolvePath(IObjectProxyPtr proxy, const TYPath& path)
@@ -299,11 +313,11 @@ TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap)
-    , Config(config)
+    , Config_(config)
     , Profiler(ObjectServerProfiler)
-    , RootService(New<TRootService>(bootstrap))
-    , ObjectResolver(new TObjectResolver(bootstrap))
-    , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
+    , RootService_(New<TRootService>(Bootstrap))
+    , ObjectResolver_(new TObjectResolver(Bootstrap))
+    , GarbageCollector_(New<TGarbageCollector>(Config_, Bootstrap))
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -336,37 +350,37 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraExecute, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
 
-    MasterObjectId = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellId());
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellId());
 }
 
 void TObjectManager::Initialize()
 {
-    ProfilingExecutor = New<TPeriodicExecutor>(
+    ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap->GetHydraFacade()->GetAutomatonInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
-    ProfilingExecutor->Start();
+    ProfilingExecutor_->Start();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return RootService;
+    return RootService_;
 }
 
 TObjectBase* TObjectManager::GetMasterObject()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return MasterObject.get();
+    return MasterObject_.get();
 }
 
 IObjectProxyPtr TObjectManager::GetMasterProxy()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return MasterProxy;
+    return MasterProxy_;
 }
 
 TObjectBase* TObjectManager::FindSchema(EObjectType type)
@@ -378,7 +392,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
         return nullptr;
     }
 
-    return TypeToEntry[typeValue].SchemaObject.get();
+    return TypeToEntry_[typeValue].SchemaObject.get();
 }
 
 TObjectBase* TObjectManager::GetSchema(EObjectType type)
@@ -397,7 +411,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
     int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
 
-    const auto& entry = TypeToEntry[typeValue];
+    const auto& entry = TypeToEntry_[typeValue];
     YCHECK(entry.SchemaProxy);
     return entry.SchemaProxy;
 }
@@ -411,15 +425,15 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     auto type = handler->GetType();
     int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    YCHECK(!TypeToEntry[typeValue].Handler);
+    YCHECK(!TypeToEntry_[typeValue].Handler);
 
-    RegisteredTypes.push_back(type);
-    auto& entry = TypeToEntry[typeValue];
+    RegisteredTypes_.push_back(type);
+    auto& entry = TypeToEntry_[typeValue];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
+        auto& schemaEntry = TypeToEntry_[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
@@ -439,7 +453,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
         return nullptr;
     }
 
-    return TypeToEntry[typeValue].Handler;
+    return TypeToEntry_[typeValue].Handler;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
@@ -458,7 +472,7 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
 
 const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
 {
-    return RegisteredTypes;
+    return RegisteredTypes_;
 }
 
 TObjectId TObjectManager::GenerateId(EObjectType type)
@@ -483,7 +497,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
         version.RecordId,
         version.SegmentId);
 
-    ++CreatedObjectCount;
+    ++CreatedObjectCount_;
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %v, Id: %v)",
         type,
@@ -516,7 +530,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
-        GarbageCollector->Enqueue(object);
+        GarbageCollector_->Enqueue(object);
     }
 }
 
@@ -526,7 +540,7 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
-        ++LockedObjectCount;
+        ++LockedObjectCount_;
     }
 }
 
@@ -536,34 +550,34 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {
-        --LockedObjectCount;
+        --LockedObjectCount_;
         if (!object->IsAlive()) {
-            GarbageCollector->Unlock(object);
+            GarbageCollector_->Unlock(object);
         }
     }
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
-    Attributes.SaveKeys(context);
+    AttributeMap_.SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
-    Attributes.SaveValues(context);
-    GarbageCollector->Save(context);
+    AttributeMap_.SaveValues(context);
+    GarbageCollector_->Save(context);
 }
 
 void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
 {
     // Make sure the ordering of RegisteredTypes does not matter.
-    auto types = RegisteredTypes;
+    auto types = RegisteredTypes_;
     std::sort(types.begin(), types.end());
 
     for (auto type : types) {
         if (HasSchema(type)) {
             Save(context, type);
-            const auto& entry = TypeToEntry[static_cast<int>(type)];
+            const auto& entry = TypeToEntry_[static_cast<int>(type)];
             entry.SchemaObject->Save(context);
         }
     }
@@ -583,15 +597,15 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Attributes.LoadKeys(context);
+    AttributeMap_.LoadKeys(context);
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Attributes.LoadValues(context);
-    GarbageCollector->Load(context);
+    AttributeMap_.LoadValues(context);
+    GarbageCollector_->Load(context);
 }
 
 void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
@@ -604,20 +618,20 @@ void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
         if (type == EObjectType::Null)
             break;
 
-        const auto& entry = TypeToEntry[static_cast<int>(type)];
+        const auto& entry = TypeToEntry_[static_cast<int>(type)];
         entry.SchemaObject->Load(context);
     }
 }
 
 void TObjectManager::DoClear()
 {
-    MasterObject.reset(new TMasterObject(MasterObjectId));
-    MasterObject->RefObject();
+    MasterObject_.reset(new TMasterObject(MasterObjectId_));
+    MasterObject_->RefObject();
 
-    MasterProxy = CreateMasterProxy(Bootstrap, MasterObject.get());
+    MasterProxy_ = CreateMasterProxy(Bootstrap, MasterObject_.get());
 
-    for (auto type : RegisteredTypes)  {
-        auto& entry = TypeToEntry[static_cast<int>(type)];
+    for (auto type : RegisteredTypes_)  {
+        auto& entry = TypeToEntry_[static_cast<int>(type)];
         if (HasSchema(type)) {
             entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
             entry.SchemaObject->RefObject();
@@ -625,13 +639,13 @@ void TObjectManager::DoClear()
         }
     }
 
-    Attributes.Clear();
+    AttributeMap_.Clear();
 
-    GarbageCollector->Clear();
+    GarbageCollector_->Clear();
 
-    CreatedObjectCount = 0;
-    DestroyedObjectCount = 0;
-    LockedObjectCount = 0;
+    CreatedObjectCount_ = 0;
+    DestroyedObjectCount_ = 0;
+    LockedObjectCount_ = 0;
 }
 
 void TObjectManager::Clear()
@@ -645,8 +659,8 @@ void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
 
-    GarbageCollector->UnlockAll();
-    LockedObjectCount = 0;
+    GarbageCollector_->UnlockAll();
+    LockedObjectCount_ = 0;
 }
 
 void TObjectManager::OnRecoveryComplete()
@@ -658,14 +672,14 @@ void TObjectManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector->StartSweep();
+    GarbageCollector_->StartSweep();
 }
 
 void TObjectManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    GarbageCollector->StopSweep();
+    GarbageCollector_->StopSweep();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)
@@ -737,7 +751,7 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto result = new TAttributeSet();
-    Attributes.Insert(id, result);
+    AttributeMap_.Insert(id, result);
     return result;
 }
 
@@ -745,14 +759,14 @@ void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Attributes.Remove(id);
+    AttributeMap_.Remove(id);
 }
 
 bool TObjectManager::TryRemoveAttributes(const TVersionedObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return Attributes.TryRemove(id);
+    return AttributeMap_.TryRemove(id);
 }
 
 void TObjectManager::BranchAttributes(
@@ -778,8 +792,8 @@ void TObjectManager::MergeAttributes(
     }
 
     if (!originatingAttributes) {
-        auto attributeSet = Attributes.Release(branchedId);
-        Attributes.Insert(originatingId, attributeSet.release());
+        auto attributeSet = AttributeMap_.Release(branchedId);
+        AttributeMap_.Insert(originatingId, attributeSet.release());
     } else {
         for (const auto& pair : branchedAttributes->Attributes()) {
             if (!pair.second && !originatingId.IsBranched()) {
@@ -788,7 +802,7 @@ void TObjectManager::MergeAttributes(
                 originatingAttributes->Attributes()[pair.first] = pair.second;
             }
         }
-        Attributes.Remove(branchedId);
+        AttributeMap_.Remove(branchedId);
     }
 }
 
@@ -814,7 +828,7 @@ TFuture<void> TObjectManager::GCCollect()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return GarbageCollector->Collect();
+    return GarbageCollector_->Collect();
 }
 
 TObjectBase* TObjectManager::CreateObject(
@@ -930,7 +944,14 @@ TObjectBase* TObjectManager::CreateObject(
 
 IObjectResolver* TObjectManager::GetObjectResolver()
 {
-    return ObjectResolver.get();
+    return ObjectResolver_.get();
+}
+
+void TObjectManager::SuppressMutation()
+{
+    MutationSuppressed_ = true;
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Mutation suppressed");
 }
 
 void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceContextPtr context)
@@ -968,22 +989,38 @@ void TObjectManager::InterceptProxyInvocation(TObjectProxyBase* proxy, IServiceC
 
 void TObjectManager::ExecuteMutatingRequest(
     const TUserId& userId,
+    const TMutationId& mutationId,
     IServiceContextPtr context)
 {
     try {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
-        ExecuteVerb(RootService, context);
+        MutationSuppressed_ = false;
+        ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
     }
 
     auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
     auto* mutationContext = hydraManager->GetMutationContext();
-    if (mutationContext && !mutationContext->IsMutationSuppressed()) {
-        mutationContext->Response().Data = context->GetResponseMessage();
+    YASSERT(mutationContext);
+
+    TSharedRefArray responseMessage;
+    if (MutationSuppressed_) {
+        responseMessage = CreateErrorResponseMessage(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Mutation suppressed"));
+    } else {
+        responseMessage = context->GetResponseMessage();
     }
+
+    if (mutationId != NullMutationId) {
+        auto responseKeeper = Bootstrap->GetHydraFacade()->GetResponseKeeper();
+        responseKeeper->EndRequest(mutationId, responseMessage);
+    }
+
+    mutationContext->Response().Data = std::move(responseMessage);
 }
 
 void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
@@ -999,13 +1036,13 @@ void TObjectManager::HydraExecute(const NProto::TReqExecute& request)
 
     auto requestMessage = TSharedRefArray(std::move(parts));
 
-    auto context = CreateYPathContext(
-        std::move(requestMessage),
-        NLog::TLogger(), // disable logging
-        TYPathResponseHandler());
+    auto context = CreateYPathContext(std::move(requestMessage));
+
+    auto mutationId = GetMutationId(context);
 
     ExecuteMutatingRequest(
         userId,
+        mutationId,
         std::move(context));
 }
 
@@ -1021,31 +1058,31 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         // CheckEmpty will raise CollectPromise when GC queue becomes empty.
         // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
-        GarbageCollector->Dequeue(object);
+        GarbageCollector_->Dequeue(object);
         handler->Destroy(object);
-        ++DestroyedObjectCount;
+        ++DestroyedObjectCount_;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %v, Id: %v)",
             type,
             id);
     }
 
-    GarbageCollector->CheckEmpty();
+    GarbageCollector_->CheckEmpty();
 }
 
 NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)
 {
-    return TypeToEntry[type].TagId;
+    return TypeToEntry_[type].TagId;
 }
 
 NProfiling::TTagId TObjectManager::GetMethodTagId(const Stroka& method)
 {
-    auto it = MethodToTag.find(method);
-    if (it != MethodToTag.end()) {
+    auto it = MethodToTag_.find(method);
+    if (it != MethodToTag_.end()) {
         return it->second;
     }
     auto tag = NProfiling::TProfileManager::Get()->RegisterTag("method", method);
-    YCHECK(MethodToTag.insert(std::make_pair(method, tag)).second);
+    YCHECK(MethodToTag_.insert(std::make_pair(method, tag)).second);
     return tag;
 }
 
@@ -1053,14 +1090,14 @@ void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/gc_queue_size", GarbageCollector->GetGCQueueSize());
-    Profiler.Enqueue("/gc_lock_queue_size", GarbageCollector->GetLockedGCQueueSize());
-    Profiler.Enqueue("/created_object_count", CreatedObjectCount);
-    Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount);
-    Profiler.Enqueue("/locked_object_count", LockedObjectCount);
+    Profiler.Enqueue("/gc_queue_size", GarbageCollector_->GetGCQueueSize());
+    Profiler.Enqueue("/gc_lock_queue_size", GarbageCollector_->GetLockedGCQueueSize());
+    Profiler.Enqueue("/created_object_count", CreatedObjectCount_);
+    Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
+    Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
 
-DEFINE_ENTITY_MAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
+DEFINE_ENTITY_MAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, AttributeMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

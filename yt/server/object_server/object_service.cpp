@@ -14,8 +14,6 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/transaction_server/transaction.h>
@@ -224,8 +222,8 @@ private:
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
-                    ~requestHeader.service(),
-                    ~requestHeader.method(),
+                    requestHeader.service(),
+                    requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
                 auto asyncResponseMessage = ExecuteVerb(

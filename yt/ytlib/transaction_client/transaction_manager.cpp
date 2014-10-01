@@ -10,9 +10,9 @@
 
 #include <core/ytree/public.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <core/rpc/helpers.h>
 
-#include <ytlib/hydra/rpc_helpers.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -947,12 +947,12 @@ TTransactionPtr TTransaction::Create(TIntrusivePtr<TImpl> impl)
 TTransaction::~TTransaction()
 { }
 
-TAsyncError TTransaction::Commit(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
+TAsyncError TTransaction::Commit(const TMutationId& mutationId /*= NullMutationId*/)
 {
     return Impl_->Commit(mutationId);
 }
 
-TAsyncError TTransaction::Abort(const NHydra::TMutationId& mutationId /*= NHydra::NullMutationId*/)
+TAsyncError TTransaction::Abort(const TMutationId& mutationId /*= NullMutationId*/)
 {
     return Impl_->Abort(mutationId);
 }
