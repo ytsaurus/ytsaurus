@@ -1097,7 +1097,7 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         TUnversionedRow row,
-        const TWriteRowOptions& options) override
+        const TWriteRowsOptions& options) override
     {
         WriteRows(
             path,
@@ -1110,7 +1110,7 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         std::vector<TUnversionedRow> rows,
-        const TWriteRowOptions& options) override
+        const TWriteRowsOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
             this,
@@ -1125,7 +1125,7 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         NVersionedTableClient::TKey key,
-        const TDeleteRowOptions& options) override
+        const TDeleteRowsOptions& options) override
     {
         DeleteRows(
             path,
@@ -1138,7 +1138,7 @@ public:
         const TYPath& path,
         TNameTablePtr nameTable,
         std::vector<NVersionedTableClient::TKey> keys,
-        const TDeleteRowOptions& options) override
+        const TDeleteRowsOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
             this,
@@ -1314,7 +1314,7 @@ private:
             const TYPath& path,
             TNameTablePtr nameTable,
             std::vector<TUnversionedRow> rows,
-            const TWriteRowOptions& options)
+            const TWriteRowsOptions& options)
             : TRequestBase(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
             , Options_(options)
@@ -1342,7 +1342,7 @@ private:
 
     private:
         std::vector<TUnversionedRow> Rows_;
-        TWriteRowOptions Options_;
+        TWriteRowsOptions Options_;
 
     };
 
@@ -1355,7 +1355,7 @@ private:
             const TYPath& path,
             TNameTablePtr nameTable,
             std::vector<NVersionedTableClient::TKey> keys,
-            const TDeleteRowOptions& options)
+            const TDeleteRowsOptions& options)
             : TRequestBase(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
             , Options_(options)
@@ -1382,7 +1382,7 @@ private:
 
     private:
         std::vector<TUnversionedRow> Keys_;
-        TDeleteRowOptions Options_;
+        TDeleteRowsOptions Options_;
 
     };
 
