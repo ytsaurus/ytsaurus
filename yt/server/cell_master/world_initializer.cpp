@@ -215,9 +215,16 @@ private:
                     .EndMap());
             
             CreateNode(
-                "//sys/empty_table",
+                "//sys/empty_yamr_table",
                 transactionId,
-                EObjectType::Table);
+                EObjectType::Table,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("key_columns").BeginList()
+                            .Item().Value("key")
+                            .Item().Value("subkey")
+                        .EndList()
+                    .EndMap());
 
             CreateNode(
                 "//sys/scheduler/instances",
