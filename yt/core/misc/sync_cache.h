@@ -42,7 +42,7 @@ public:
 
     TValuePtr Find(const TKey& key);
 
-    bool Insert(TValuePtr value, TValuePtr* existingValue = nullptr);
+    bool TryInsert(TValuePtr value, TValuePtr* existingValue = nullptr);
     bool Remove(const TKey& key);
     bool Remove(TValuePtr value);
     void Clear();

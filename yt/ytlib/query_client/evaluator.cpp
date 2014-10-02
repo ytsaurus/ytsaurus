@@ -347,7 +347,7 @@ private:
                     cgFragment->Embody(Compiler_(fragment, *cgFragment, binding));
                     cgFragment->GetCompiledBody();
                     LOG_DEBUG("Finished compiling fragment");
-                    Insert(cgFragment);
+                    TryInsert(cgFragment);
                 }
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Failed to compile a fragment");

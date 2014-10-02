@@ -51,13 +51,14 @@ public:
         const TNullable<TNodeDescriptor>& /*source*/) override
     {
         auto block = New<TCachedBlock>(id, data);
-        if (Insert(block)) {
+        if (TryInsert(block)) {
             LOG_DEBUG("Block is put into cache (BlockId: %v, BlockSize: %v)",
                 id,
                 data.Size());
         } else {
             // Already have the block cached, do nothing.
-            LOG_DEBUG("Block is already in cache (BlockId: %v)", id);
+            LOG_DEBUG("Block is already in cache (BlockId: %v)",
+                id);
         }
     }
 

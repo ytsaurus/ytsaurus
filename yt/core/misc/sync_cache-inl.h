@@ -88,7 +88,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-bool TSyncSlruCacheBase<TKey, TValue, THash>::Insert(TValuePtr value, TValuePtr* existingValue)
+bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValuePtr* existingValue)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
