@@ -267,6 +267,7 @@ void TChunkStore::CheckRowLocks(
         "consider reducing transaction duration or increasing store retention time")
         << TErrorAttribute("transaction_id", transaction->GetId())
         << TErrorAttribute("tablet_id", Tablet_->GetId())
+        << TErrorAttribute("store_id", Id_)
         << TErrorAttribute("key", key);
 }
 
