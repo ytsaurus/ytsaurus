@@ -115,6 +115,7 @@ void TResponseKeeperBase::Clear()
         FinishedResponses_.clear();
         ResponseEvictionQueue_.clear();
         FinishedResponseSpace_ = 0;
+        FinishedResponseCount_ = 0;
     }
 
     OnProfiling();
