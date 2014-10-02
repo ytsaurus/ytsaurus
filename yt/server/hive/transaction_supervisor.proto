@@ -30,14 +30,16 @@ message TReqOnTransactionCommitPrepared
 message TReqFinalizeDistributedCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
+    required NYT.NProto.TGuid mutation_id = 2;
+    required int64 commit_timestamp = 3;
 }
 
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required int64 commit_timestamp = 2;
-    required bool is_distributed = 3;
+    required NYT.NProto.TGuid mutation_id = 2;
+    required int64 commit_timestamp = 3;
+    required bool is_distributed = 4;
 }
 
 // Not to be confused with TReqAbortTransaction from RPC.

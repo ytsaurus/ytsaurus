@@ -431,8 +431,21 @@ private:
     void HydraCommitPreparedTransaction(const TReqCommitPreparedTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto mutationId = FromProto<TTransactionId>(request.mutation_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
         bool isDistributed = request.is_distributed();
+
+        auto* commit = FindCommit(transactionId);
+        if (!commit) {
+            // Commit could be missing (e.g. at followers).
+            // Let's recreate it since it's needed below in SetCommitCompleted.
+            YCHECK(!isDistributed);
+            commit = new TCommit(
+                transactionId,
+                mutationId,
+                std::vector<TCellGuid>());
+            TransientCommitMap_.Insert(transactionId, commit);
+        }
 
         DoCommitPrepared(
             transactionId,
@@ -440,18 +453,13 @@ private:
             isDistributed,
             false);
 
-        if (!isDistributed) {
-            // Commit could be missing (e.g. at followers).
-            auto* commit = FindCommit(transactionId);
-            if (commit) {
-                SetCommitCompleted(commit, commitTimestamp);
-            }
-        }
+        SetCommitCompleted(commit, commitTimestamp);
     }
 
     void HydraFinalizeDistributedCommit(const TReqFinalizeDistributedCommit& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto mutationId = FromProto<TTransactionId>(request.mutation_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
 
         auto* commit = FindCommit(transactionId);
@@ -474,6 +482,7 @@ private:
         {
             TReqCommitPreparedTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_mutation_id(), mutationId);
             hydraRequest.set_commit_timestamp(commitTimestamp);
             hydraRequest.set_is_distributed(true);
 
@@ -623,12 +632,14 @@ private:
         if (commit->IsDistributed()) {
             TReqFinalizeDistributedCommit hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager, hydraRequest)
                 ->Commit();
         } else {
             TReqCommitPreparedTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
             hydraRequest.set_is_distributed(false);
             CreateMutation(HydraManager, hydraRequest)
