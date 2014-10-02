@@ -9,7 +9,6 @@
 #include <server/election/election_manager.h>
 
 #include <server/hydra/persistent_response_keeper.pb.h>
-#include <AppKit/AppKit.h>
 
 namespace NYT {
 namespace NHydra {
