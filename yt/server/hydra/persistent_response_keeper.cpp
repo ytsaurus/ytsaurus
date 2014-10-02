@@ -9,6 +9,7 @@
 #include <server/election/election_manager.h>
 
 #include <server/hydra/persistent_response_keeper.pb.h>
+#include <AppKit/AppKit.h>
 
 namespace NYT {
 namespace NHydra {
@@ -100,7 +101,10 @@ private:
 
     void Load(TLoadContext& context)
     {
-        TResponseKeeperBase::Load(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() == GetCurrentSnapshotVersion()) {
+            TResponseKeeperBase::Load(context);
+        }
     }
 
     void Save(TSaveContext& context)
@@ -111,6 +115,11 @@ private:
     virtual void Clear() override
     {
         TResponseKeeperBase::Clear();
+    }
+
+    virtual int GetCurrentSnapshotVersion() override
+    {
+        return 1;
     }
 
 };
