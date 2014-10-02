@@ -23,7 +23,6 @@ static const auto EvictionPeriod = TDuration::Seconds(1);
 class TPersistentResponseKeeper::TImpl
     : public TResponseKeeperBase
     , public TCompositeAutomatonPart
-    , public IResponseKeeper
 {
 public:
     TImpl(
@@ -47,12 +46,12 @@ public:
             BIND(&TImpl::Save, Unretained(this)));
     }
 
-    virtual TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id) override
+    TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id)
     {
         return TResponseKeeperBase::TryBeginRequest(id);
     }
 
-    virtual void EndRequest(const TMutationId& id, TSharedRefArray response) override
+    void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
         const auto* mutationContext = HydraManager->GetMutationContext();
         TResponseKeeperBase::EndRequest(
@@ -135,9 +134,14 @@ TPersistentResponseKeeper::TPersistentResponseKeeper(
 TPersistentResponseKeeper::~TPersistentResponseKeeper()
 { }
 
-IResponseKeeperPtr TPersistentResponseKeeper::GetResponseKeeper()
+TFuture<TSharedRefArray> TPersistentResponseKeeper::TryBeginRequest(const TMutationId& id)
 {
-    return Impl_;
+    return Impl_->TryBeginRequest(id);
+}
+
+void TPersistentResponseKeeper::EndRequest(const TMutationId& id, TSharedRefArray response)
+{
+    Impl_->EndRequest(id, std::move(response));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

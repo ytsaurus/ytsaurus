@@ -5,6 +5,7 @@
 #include <core/rpc/public.h>
 
 #include <core/profiling/profiler.h>
+#include <core/rpc/response_keeper.h>
 
 namespace NYT {
 namespace NHydra {
@@ -18,7 +19,7 @@ namespace NHydra {
  *  is in progress.
  */
 class TPersistentResponseKeeper
-    : public TRefCounted
+    : public NRpc::IResponseKeeper
 {
 public:
     TPersistentResponseKeeper(
@@ -30,7 +31,8 @@ public:
 
     ~TPersistentResponseKeeper();
 
-    NRpc::IResponseKeeperPtr GetResponseKeeper();
+    virtual TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id) override;
+    virtual void EndRequest(const TMutationId& id, TSharedRefArray response) override;
 
 private:
     class TImpl;

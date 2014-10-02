@@ -150,7 +150,7 @@ public:
 
     IResponseKeeperPtr GetResponseKeeper() const
     {
-        return ResponseKeeper_->GetResponseKeeper();
+        return ResponseKeeper_;
     }
 
     TTabletAutomatonPtr GetAutomaton() const

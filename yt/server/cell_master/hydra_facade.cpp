@@ -143,7 +143,7 @@ public:
 
     IResponseKeeperPtr GetResponseKeeper() const
     {
-        return ResponseKeeper_->GetResponseKeeper();
+        return ResponseKeeper_;
     }
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
