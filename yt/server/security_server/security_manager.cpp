@@ -1129,7 +1129,7 @@ private:
         GroupMap.LoadValues(context);
 
         // COMPAT(babenko)
-        if (context.GetVersion() < 22) {
+        if (context.GetVersion() < 43) {
             RecomputeResources = true;
         }
     }
