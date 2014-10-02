@@ -137,12 +137,6 @@ private:
     NLog::TLogger Logger;
 
 
-    virtual i64 GetWeight(TCachedLocalChangelog* /*changelog*/) const override
-    {
-        return 1;
-    }
-
-
     Stroka GetChangelogPath(int id)
     {
         return NFS::CombinePaths(

@@ -99,11 +99,6 @@ public:
     }
 
 private:
-    virtual i64 GetWeight(TCachedReader* /*reader*/) const override
-    {
-        return 1;
-    }
-
     virtual void OnAdded(TCachedReader* reader) override
     {
         LOG_DEBUG("Block chunk reader added to cache (ChunkId: %v)",

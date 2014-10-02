@@ -371,6 +371,12 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
+i64 TAsyncSlruCacheBase<TKey, TValue, THash>::GetWeight(TValue* /*value*/) const
+{
+    return 1;
+}
+
+template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::OnAdded(TValue* /*value*/)
 { }
 

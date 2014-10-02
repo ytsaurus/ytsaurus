@@ -97,7 +97,7 @@ protected:
 
     explicit TAsyncSlruCacheBase(TSlruCacheConfigPtr config);
 
-    virtual i64 GetWeight(TValue* value) const = 0;
+    virtual i64 GetWeight(TValue* value) const;
 
     virtual void OnAdded(TValue* value);
     virtual void OnRemoved(TValue* value);

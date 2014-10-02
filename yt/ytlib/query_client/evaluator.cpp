@@ -383,10 +383,6 @@ private:
 private:
     TCGFragmentCompiler Compiler_;
 
-    virtual i64 GetWeight(TCachedCGFragment* /*fragment*/) const override
-    {
-        return 1;
-    }
 
     static NLog::TLogger BuildLogger(const TPlanFragmentPtr& fragment)
     {

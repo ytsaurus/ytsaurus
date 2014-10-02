@@ -177,12 +177,6 @@ private:
     TPeriodicExecutorPtr CleanupExecutor_;
 
 
-    virtual i64 GetWeight(TCachedChangelog* /*changelog*/) const override
-    {
-        return 1;
-    }
-
-
     IChangelogPtr DoCreateChangelog(IChunkPtr chunk)
     {
         const auto& chunkId = chunk->GetId();
