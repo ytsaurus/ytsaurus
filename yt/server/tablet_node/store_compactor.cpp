@@ -38,7 +38,6 @@
 #include <server/hydra/mutation.h>
 
 #include <server/cell_node/bootstrap.h>
-#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTabletNode {
