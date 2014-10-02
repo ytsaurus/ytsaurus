@@ -240,7 +240,6 @@ void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
             LOG_INFO("Skipping unknown automaton part (Name: %v, Version: %v)",
                 name,
                 version);
-            input->SkipToCheckpoint();
         } else {
             LOG_INFO("Loading automaton part (Name: %v, Version: %v)",
                 name,
@@ -250,6 +249,8 @@ void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
             const auto& info = it->second;
             info.Loader.Run();
         }
+
+        input->SkipToCheckpoint();
     }
 
     for (auto part : Parts) {
