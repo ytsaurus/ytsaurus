@@ -78,6 +78,7 @@ public:
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStoreAlignedPoolSize;
     i64 MaxMemoryStoreUnalignedPoolSize;
+    TDuration MemoryStoreAutoFlushPeriod;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -111,6 +112,8 @@ public:
         RegisterParameter("max_memory_store_unaligned_pool_size", MaxMemoryStoreUnalignedPoolSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 256 * 1024 * 1024)
@@ -206,8 +209,6 @@ public:
 
     TDuration ErrorBackoffTime;
 
-    TDuration AutoFlushPeriod;
-
     NCompression::ECodec ChangelogCodec;
 
     TTabletManagerConfig()
@@ -224,9 +225,6 @@ public:
 
         RegisterParameter("error_backoff_time", ErrorBackoffTime)
             .Default(TDuration::Minutes(1));
-
-        RegisterParameter("auto_flush_period", AutoFlushPeriod)
-            .Default(TDuration::Minutes(5));
 
         RegisterParameter("changelog_codec", ChangelogCodec)
             .Default(NCompression::ECodec::Lz4);

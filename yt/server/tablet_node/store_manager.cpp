@@ -471,8 +471,9 @@ bool TStoreManager::IsPeriodicRotationNeeded() const
     }
 
     const auto& store = Tablet_->GetActiveStore();
+    const auto& config = Tablet_->GetConfig();
     return
-        TInstant::Now() > LastRotated_ + Config_->AutoFlushPeriod &&
+        TInstant::Now() > LastRotated_ + config->MemoryStoreAutoFlushPeriod &&
         store->GetKeyCount() > 0;
 }
 
