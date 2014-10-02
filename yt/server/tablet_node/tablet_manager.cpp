@@ -1193,6 +1193,9 @@ private:
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
+        LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
+            store->GetId(),
+            backingStore->GetId());
 
         auto this_ = MakeStrong(this);
         auto callback = BIND([this, this_, store] () {
