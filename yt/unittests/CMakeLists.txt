@@ -1,7 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
-  #${BASE}/async_change_log_ut.cpp
+  ${BASE}/file_changelog_ut.cpp
   ${BASE}/future_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp
