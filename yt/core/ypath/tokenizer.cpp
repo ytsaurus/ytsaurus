@@ -146,10 +146,10 @@ void TTokenizer::Expect(ETokenType expectedType)
 {
     if (expectedType != Type_) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %Qv",
+            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %Qlv",
                 expectedType);
         } else {
-            THROW_ERROR_EXCEPTION("Expected %Qv but found %Qv token %Qv",
+            THROW_ERROR_EXCEPTION("Expected %Qlv but found %Qlv token %Qv",
                 expectedType,
                 Type_,
                 Token_);
@@ -162,7 +162,7 @@ void TTokenizer::ThrowUnexpected()
     if (Type_ == ETokenType::EndOfStream) {
         THROW_ERROR_EXCEPTION("Unexpected end-of-stream");
     } else {
-        THROW_ERROR_EXCEPTION("Unexpected %Qv token %Qv",
+        THROW_ERROR_EXCEPTION("Unexpected %Qlv token %Qv",
             Type_,
             Token_);
     }

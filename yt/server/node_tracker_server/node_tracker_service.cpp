@@ -116,7 +116,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
-            "Cannot process a full heartbeat in %Qv state",
+            "Cannot process a full heartbeat in %Qlv state",
             node->GetState()));
         return;
     }
@@ -145,7 +145,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
-            "Cannot process an incremental heartbeat in %v state",
+            "Cannot process an incremental heartbeat in %lv state",
             node->GetState()));
         return;
     }

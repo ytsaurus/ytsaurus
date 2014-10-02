@@ -80,13 +80,13 @@ TErrorOr<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::DoLoad(
 void TCachedVersionedChunkMeta::ValidateChunkMeta()
 {
     if (ChunkMeta_.type() != EChunkType::Table) {
-        THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qv, expected %Qv",
+        THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
             EChunkType(ChunkMeta_.type()),
             EChunkType(EChunkType::Table));
     }
 
     if (ChunkMeta_.version() != ETableChunkFormat::VersionedSimple) {
-        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qv, expected: %Qv",
+        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected: %Qlv",
             ETableChunkFormat(ChunkMeta_.version()),
             ETableChunkFormat(ETableChunkFormat::VersionedSimple));
     }
@@ -115,7 +115,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         }
 
         if (chunkColumn->Type != column.Type) {
-            THROW_ERROR_EXCEPTION("Incompatible type for column %Qv: actual: %Qv, expected %Qv",
+            THROW_ERROR_EXCEPTION("Incompatible type for column %Qv: actual: %Qlv, expected %Qlv",
                 column.Name,
                 chunkColumn->Type,
                 column.Type);

@@ -65,7 +65,7 @@ void TMemoryUsageTracker<EMemoryConsumer>::Acquire(EMemoryConsumer consumer, i64
     guard.Release();
 
     if (freeMemory < 0) {
-        LOG_ERROR("Memory overcommit by %v after %Qv request for %v",
+        LOG_ERROR("Memory overcommit by %v after %Qlv request for %v",
             -freeMemory,
             consumer,
             size);
@@ -95,7 +95,7 @@ TError TMemoryUsageTracker<EMemoryConsumer>::TryAcquire(EMemoryConsumer consumer
     guard.Release();
 
     return TError(
-        "Not enough memory to serve %Qv request: free %v, requested %v",
+        "Not enough memory to serve %Qlv request: free %v, requested %v",
         consumer,
         freeMemory,
         size);

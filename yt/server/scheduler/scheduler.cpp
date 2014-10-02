@@ -388,7 +388,7 @@ public:
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
-                "Cannot suspend operation in %Qv state",
+                "Cannot suspend operation in %Qlv state",
                 operation->GetState()));
         }
 
@@ -406,7 +406,7 @@ public:
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
-                "Operation is not suspended",
+                "Operation is not suspended. Its state %Qlv",
                 operation->GetState()));
         }
 

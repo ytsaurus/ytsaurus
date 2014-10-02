@@ -31,7 +31,7 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
-        "%v has invalid type: expected %Qv, actual %Qv",
+        "%v has invalid type: expected %Qlv, actual %Qlv",
         GetNodePathHelper(node),
         expectedType,
         actualType);

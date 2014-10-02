@@ -176,7 +176,7 @@ private:
 
             auto type = attributes.Get<EObjectType>("type");
             if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qv, actual %Qv",
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     ~Path_,
                     EObjectType(EObjectType::File),
                     type);

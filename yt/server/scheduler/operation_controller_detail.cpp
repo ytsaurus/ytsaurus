@@ -2447,7 +2447,7 @@ void TOperationControllerBase::GetInputObjectIds()
                 auto type = EObjectType(rsp->type());
 
                 if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv, actual %Qv",
+                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
                         EObjectType(EObjectType::Table),
                         type);
@@ -2487,7 +2487,7 @@ void TOperationControllerBase::GetOutputObjectIds()
                 auto type = EObjectType(rsp->type());
 
                 if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv, actual %Qv",
+                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
                         EObjectType(EObjectType::Table),
                         type);
@@ -2538,7 +2538,7 @@ void TOperationControllerBase::ValidateFileTypes()
                 file = &TableFiles.back();
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qv or %Qv, actual %Qv",
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
                     path,
                     EObjectType(EObjectType::File),
                     EObjectType(EObjectType::Table),

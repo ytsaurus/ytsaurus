@@ -706,7 +706,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
     {
-        THROW_ERROR_EXCEPTION("Invalid lock mode %Qv",
+        THROW_ERROR_EXCEPTION("Invalid lock mode %Qlv",
             mode);
     }
 

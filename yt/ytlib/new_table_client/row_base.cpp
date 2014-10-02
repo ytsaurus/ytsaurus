@@ -19,7 +19,7 @@ void ValidateDataValueType(EValueType type)
         type != EValueType::String &&
         type != EValueType::Null)
     {
-        THROW_ERROR_EXCEPTION("Invalid date value type %Qv", type);
+        THROW_ERROR_EXCEPTION("Invalid date value type %Qlv", type);
     }       
 }
 
@@ -35,7 +35,7 @@ void ValidateKeyValueType(EValueType type)
         type != EValueType::Min &&
         type != EValueType::Max)
     {
-        THROW_ERROR_EXCEPTION("Invalid key value type %Qv", type);
+        THROW_ERROR_EXCEPTION("Invalid key value type %Qlv", type);
     }       
 }
 
@@ -48,7 +48,7 @@ void ValidateSchemaValueType(EValueType type)
         type != EValueType::Boolean &&
         type != EValueType::String)
     {
-        THROW_ERROR_EXCEPTION("Invalid schema value type %Qv", type);
+        THROW_ERROR_EXCEPTION("Invalid schema value type %Qlv", type);
     }       
 }
 

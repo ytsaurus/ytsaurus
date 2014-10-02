@@ -794,7 +794,7 @@ public:
             if (result.Object && result.Subject) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qv permission for %v is denied for %Qv by ACE at %v",
+                    "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
                     permission,
                     objectManager->GetHandler(object)->GetName(object),
                     result.Subject->GetName(),
@@ -802,7 +802,7 @@ public:
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qv permission for %v is not allowed by any matching ACE",
+                    "Access denied: %Qlv permission for %v is not allowed by any matching ACE",
                     permission,
                     objectManager->GetHandler(object)->GetName(object));
             }

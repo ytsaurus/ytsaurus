@@ -894,7 +894,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     if (State != EPeerState::Following) {
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidState,
-            "Received ping in invalid state: expected %Qv, actual %Qv",
+            "Received ping in invalid state: expected %Qlv, actual %Qlv",
             EPeerState(EPeerState::Following),
             State);
     }

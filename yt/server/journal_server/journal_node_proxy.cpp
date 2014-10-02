@@ -187,7 +187,7 @@ private:
 
         auto mode = EUpdateMode(request->mode());
         if (mode != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %Qv update mode",
+            THROW_ERROR_EXCEPTION("Journals only support %Qlv update mode",
                 EUpdateMode(EUpdateMode::Append));
         }
 

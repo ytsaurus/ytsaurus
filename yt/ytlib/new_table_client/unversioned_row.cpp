@@ -1145,7 +1145,7 @@ void Deserialize(TOwningKey& key, INodePtr node)
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Key cannot contain %Qv components",
+                THROW_ERROR_EXCEPTION("Key cannot contain %Qlv components",
                     item->GetType());
         }
         ++id;

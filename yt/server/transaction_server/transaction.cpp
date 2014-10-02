@@ -79,7 +79,7 @@ ETransactionState TTransaction::GetPersistentState() const
 
 void TTransaction::ThrowInvalidState() const
 {
-    THROW_ERROR_EXCEPTION("Transaction %v is in %Qv state",
+    THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         Id,
         State_);
 }

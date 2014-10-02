@@ -32,7 +32,7 @@ struct TWriterConfig
             if (Type == EWriterType::File && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("Missing \"file_name\" attribute for \"file\" writer");
             } else if (Type != EWriterType::File && !FileName.empty()) {
-                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qv writer", Type);
+                THROW_ERROR_EXCEPTION("Unused \"file_name\" attribute for %Qlv writer", Type);
             }
         });
     }

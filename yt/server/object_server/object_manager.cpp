@@ -849,21 +849,21 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto options = handler->GetCreationOptions();
     if (!options) {
-        THROW_ERROR_EXCEPTION("Instances of type %Qv cannot be created directly",
+        THROW_ERROR_EXCEPTION("Instances of type %Qlv cannot be created directly",
             type);
     }
 
     switch (options->TransactionMode) {
         case EObjectTransactionMode::Required:
             if (!transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv outside of a transaction",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv outside of a transaction",
                     type);
             }
             break;
 
         case EObjectTransactionMode::Forbidden:
             if (transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv inside of a transaction",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv inside of a transaction",
                     type);
             }
             break;
@@ -878,14 +878,14 @@ TObjectBase* TObjectManager::CreateObject(
     switch (options->AccountMode) {
         case EObjectAccountMode::Required:
             if (!account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv without an account",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv without an account",
                     type);
             }
             break;
 
         case EObjectAccountMode::Forbidden:
             if (account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qv with an account",
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with an account",
                     type);
             }
             break;

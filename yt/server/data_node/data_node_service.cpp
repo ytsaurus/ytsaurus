@@ -669,7 +669,7 @@ private:
         const auto& chunkMeta = *result.Value();
 
         if (chunkMeta.type() != EChunkType::Table) {
-            auto error =  TError("Invalid type of chunk %v: expected %Qv, actual %Qv",
+            auto error =  TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
                 EChunkType(EChunkType::Table),
                 EChunkType(chunkMeta.type()));
@@ -923,7 +923,7 @@ private:
 
         const auto& chunkMeta = *result.Value();
         if (chunkMeta.type() != EChunkType::Table) {
-            auto error = TError("Invalid type of chunk %v: expected %Qv, actual %Qv",
+            auto error = TError("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
                 chunkId,
                 EChunkType(EChunkType::Table),
                 EChunkType(chunkMeta.type()));

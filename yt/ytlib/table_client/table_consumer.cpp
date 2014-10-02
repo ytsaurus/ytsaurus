@@ -574,7 +574,7 @@ void TTableConsumerBase::ThrowInvalidSchemaColumnType(int columnId, NVersionedTa
 
 void TTableConsumerBase::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 {
-    THROW_ERROR AttachLocationAttributes(TError("Control attribute %Qv cannot %v",
+    THROW_ERROR AttachLocationAttributes(TError("Control attribute %Qlv cannot %v",
         ControlAttribute_,
         whatsWrong));
 }

@@ -96,7 +96,7 @@ void TAsyncTableReader::Open()
 
         auto type = EObjectType(rsp->type());
         if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qv, actual %Qv",
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 RichPath.GetPath(),
                 EObjectType(EObjectType::Table),
                 type);

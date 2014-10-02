@@ -890,7 +890,7 @@ TNodeSetterBase::~TNodeSetterBase()
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type: expected %Qv, actual %Qv",
+    THROW_ERROR_EXCEPTION("Invalid node type: expected %Qlv, actual %Qlv",
         GetExpectedType(),
         actualType);
 }
