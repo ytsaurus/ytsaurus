@@ -152,6 +152,7 @@ void TResponseKeeperBase::Load(TStreamLoadContext& context)
     }
 
     FinishedResponseSpace_ = 0;
+    FinishedResponseCount_ = 0;
     for (const auto& pair : FinishedResponses_) {
         UpdateCounters(pair.second, +1);
     }
