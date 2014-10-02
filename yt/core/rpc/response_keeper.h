@@ -28,7 +28,7 @@ struct IResponseKeeper
 {
     //! Called upon receiving a request with a given mutation #id.
     //! Either returns a valid future for the response (which can either be unset
-    //! if the request is still being served or set if it is was completed) or
+    //! if the request is still being served or set if it is already completed) or
     //! a null future if #id is not known. In the latter case subsequent
     //! calls to #TryBeginRequest will be returning the same future over and
     //! over again.
