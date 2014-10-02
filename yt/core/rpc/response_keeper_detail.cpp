@@ -129,6 +129,7 @@ void TResponseKeeperBase::Save(TStreamSaveContext& context) const
 
     Save(context, FinishedResponses_);
 
+    YCHECK(ResponseEvictionQueue_.size() == FinishedResponses_.size());
     for (const auto& item : ResponseEvictionQueue_) {
         Save(context, item.Iterator->first);
         Save(context, item.When);
