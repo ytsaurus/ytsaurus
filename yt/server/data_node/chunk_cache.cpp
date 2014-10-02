@@ -50,11 +50,11 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkCache::TImpl
-    : public TSlruCacheBase<TChunkId, TCachedBlobChunk>
+    : public TAsyncSlruCacheBase<TChunkId, TCachedBlobChunk>
 {
 public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
-        : TSlruCacheBase(New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())))
+        : TAsyncSlruCacheBase(New<TSlruCacheConfig>(config->CacheLocation->Quota.Get(std::numeric_limits<i64>::max())))
         , Config_(config)
         , Bootstrap_(bootstrap)
     {
@@ -184,7 +184,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TSlruCacheBase::OnAdded(value);
+        TAsyncSlruCacheBase::OnAdded(value);
         ChunkAdded_.Fire(value);
     }
 
@@ -192,7 +192,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TSlruCacheBase::OnRemoved(value);
+        TAsyncSlruCacheBase::OnRemoved(value);
         ChunkRemoved_.Fire(value);
     }
 

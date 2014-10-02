@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 #include <core/misc/string.h>
 #include <core/misc/property.h>
 
@@ -100,7 +100,7 @@ private:
     };
 
     class TEntry
-        : public TCacheValueBase<TKey, TEntry>
+        : public TAsyncCacheValueBase<TKey, TEntry>
     {
     public:
         TEntry(
@@ -108,7 +108,7 @@ private:
             bool success,
             TInstant timestamp,
             TSharedRefArray responseMessage)
-            : TCacheValueBase(key)
+            : TAsyncCacheValueBase(key)
             , Success_(success)
             , ResponseMessage_(std::move(responseMessage))
             , TotalSpace_(ResponseMessage_.ByteSize())
@@ -124,11 +124,11 @@ private:
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
     class TCache
-        : public TSlruCacheBase<TKey, TEntry>
+        : public TAsyncSlruCacheBase<TKey, TEntry>
     {
     public:
         explicit TCache(TMasterCacheService* owner)
-            : TSlruCacheBase(owner->Config_)
+            : TAsyncSlruCacheBase(owner->Config_)
             , Owner_(owner)
             , Logger(ObjectServerLogger)
         { }

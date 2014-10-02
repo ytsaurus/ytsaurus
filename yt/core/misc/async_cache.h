@@ -15,23 +15,23 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-class TSlruCacheBase;
+class TAsyncSlruCacheBase;
 
-template <class TKey, class TValue, class THash = ::hash<TKey> >
-class TCacheValueBase
+template <class TKey, class TValue, class THash = ::hash<TKey>>
+class TAsyncCacheValueBase
     : public virtual TRefCounted
 {
 public:
-    virtual ~TCacheValueBase();
+    virtual ~TAsyncCacheValueBase();
 
     const TKey& GetKey() const;
 
 protected:
-    explicit TCacheValueBase(const TKey& key);
+    explicit TAsyncCacheValueBase(const TKey& key);
 
 private:
-    typedef TSlruCacheBase<TKey, TValue, THash> TCache;
-    friend class TSlruCacheBase<TKey, TValue, THash>;
+    typedef TAsyncSlruCacheBase<TKey, TValue, THash> TCache;
+    friend class TAsyncSlruCacheBase<TKey, TValue, THash>;
 
     TIntrusivePtr<TCache> Cache_;
     TKey Key_;
@@ -41,7 +41,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash = hash<TKey> >
-class TSlruCacheBase
+class TAsyncSlruCacheBase
     : public virtual TRefCounted
 {
 public:
@@ -49,14 +49,6 @@ public:
     typedef TErrorOr<TValuePtr> TValuePtrOrError;
     typedef TFuture<TValuePtrOrError> TValuePtrOrErrorFuture;
     typedef TPromise<TValuePtrOrError> TValuePtrOrErrorPromise;
-
-    void Clear();
-    int GetSize() const;
-    TValuePtr Find(const TKey& key);
-    std::vector<TValuePtr> GetAll();
-
-protected:
-    TSlruCacheConfigPtr Config_;
 
     class TInsertCookie
     {
@@ -70,7 +62,7 @@ protected:
         TInsertCookie& operator = (TInsertCookie&& other);
         TInsertCookie& operator = (const TInsertCookie& other) = delete;
 
-        TKey GetKey() const;
+        const TKey& GetKey() const;
         TValuePtrOrErrorFuture GetValue() const;
         bool IsActive() const;
 
@@ -78,10 +70,10 @@ protected:
         void EndInsert(TValuePtr value);
 
     private:
-        friend class TSlruCacheBase;
+        friend class TAsyncSlruCacheBase;
 
         TKey Key_;
-        TIntrusivePtr<TSlruCacheBase> Cache_;
+        TIntrusivePtr<TAsyncSlruCacheBase> Cache_;
         TValuePtrOrErrorFuture ValueOrErrorPromise_;
         bool Active_;
 
@@ -89,19 +81,29 @@ protected:
 
     };
 
-    explicit TSlruCacheBase(TSlruCacheConfigPtr config);
+    int GetSize() const;
+    std::vector<TValuePtr> GetAll();
 
+    TValuePtr Find(const TKey& key);
     TValuePtrOrErrorFuture Lookup(const TKey& key);
+
     bool BeginInsert(TInsertCookie* cookie);
     bool Remove(const TKey& key);
     bool Remove(TValuePtr value);
+    void Clear();
+
+protected:
+    TSlruCacheConfigPtr Config_;
+
+    explicit TAsyncSlruCacheBase(TSlruCacheConfigPtr config);
 
     virtual i64 GetWeight(TValue* value) const = 0;
+
     virtual void OnAdded(TValue* value);
     virtual void OnRemoved(TValue* value);
 
 private:
-    friend class TCacheValueBase<TKey, TValue, THash>;
+    friend class TAsyncCacheValueBase<TKey, TValue, THash>;
 
     struct TItem
         : public TIntrusiveListItem<TItem>
@@ -152,6 +154,6 @@ private:
 
 } // namespace NYT
 
-#define CACHE_INL_H_
-#include "cache-inl.h"
-#undef CACHE_INL_H_
+#define ASYNC_CACHE_INL_H_
+#include "async_cache-inl.h"
+#undef ASYNC_CACHE_INL_H_

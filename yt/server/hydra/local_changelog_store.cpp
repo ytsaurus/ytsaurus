@@ -6,7 +6,7 @@
 #include "private.h"
 
 #include <core/misc/fs.h>
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 
 #include <core/logging/log.h>
 
@@ -18,14 +18,14 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedLocalChangelog
-    : public TCacheValueBase<int, TCachedLocalChangelog>
+    : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
     , public IChangelog
 {
 public:
     explicit TCachedLocalChangelog(
         int id,
         IChangelogPtr underlyingChangelog)
-        : TCacheValueBase(id)
+        : TAsyncCacheValueBase(id)
         , UnderlyingChangelog_(underlyingChangelog)
     { }
 
@@ -83,14 +83,14 @@ private:
 };
 
 class TFileChangelogStore
-    : public TSlruCacheBase<int, TCachedLocalChangelog>
+    : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
     , public IChangelogStore
 {
 public:
     TFileChangelogStore(
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
-        : TSlruCacheBase(config->ChangelogReaderCache)
+        : TAsyncSlruCacheBase(config->ChangelogReaderCache)
         , Dispatcher_(New<TFileChangelogDispatcher>(threadName))
         , Config_(config)
         , Logger(HydraLogger)

@@ -40,7 +40,7 @@ TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
     const TNullable<TNodeDescriptor>& source)
-    : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
+    : TAsyncCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
     , Source_(source)
 { }
@@ -53,13 +53,13 @@ TCachedBlock::~TCachedBlock()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlockStore::TStoreImpl
-    : public TSlruCacheBase<TBlockId, TCachedBlock>
+    : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
     TStoreImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TSlruCacheBase(config->CompressedBlockCache)
+        : TAsyncSlruCacheBase(config->CompressedBlockCache)
         , Config_(config)
         , Bootstrap_(bootstrap)
         , PendingReadSize_(0)
@@ -194,7 +194,7 @@ public:
 
     TCachedBlockPtr FindBlock(const TBlockId& id)
     {
-        auto block = TSlruCacheBase::Find(id);
+        auto block = TAsyncSlruCacheBase::Find(id);
         if (block) {
             LogCacheHit(block);
         }

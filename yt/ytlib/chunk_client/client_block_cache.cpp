@@ -4,7 +4,7 @@
 #include "block_cache.h"
 #include "client_block_cache.h"
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 #include <core/misc/property.h>
 #include <core/misc/singleton.h>
 
@@ -24,25 +24,25 @@ static const auto& Logger = ChunkClientLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TCachedBlock
-    : public TCacheValueBase<TBlockId, TCachedBlock>
+    : public TAsyncCacheValueBase<TBlockId, TCachedBlock>
 {
     DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
 
 public:
     TCachedBlock(const TBlockId& id, const TSharedRef& data)
-        : TCacheValueBase<TBlockId, TCachedBlock>(id)
+        : TAsyncCacheValueBase<TBlockId, TCachedBlock>(id)
         , Data_(data)
     { }
 
 };
 
 class TClientBlockCache
-    : public TSlruCacheBase<TBlockId, TCachedBlock>
+    : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
     , public IBlockCache
 {
 public:
     explicit TClientBlockCache(TSlruCacheConfigPtr config)
-        : TSlruCacheBase(config)
+        : TAsyncSlruCacheBase(config)
     { }
 
     virtual void Put(
@@ -66,7 +66,7 @@ public:
 
     virtual TSharedRef Find(const TBlockId& id) override
     {
-        auto block = TSlruCacheBase::Find(id);
+        auto block = TAsyncSlruCacheBase::Find(id);
         if (block) {
             LOG_DEBUG("Block cache hit (BlockId: %v)", id);
             return block->GetData();

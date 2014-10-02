@@ -8,7 +8,7 @@
 #include "chunk_store.h"
 #include "journal_chunk.h"
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 #include <core/misc/fs.h>
 
 #include <core/concurrency/thread_affinity.h>
@@ -105,13 +105,13 @@ int ParseChangelogId(const Stroka& str, const Stroka& fileName)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalDispatcher::TImpl
-    : public TSlruCacheBase<TChunkId, TCachedChangelog>
+    : public TAsyncSlruCacheBase<TChunkId, TCachedChangelog>
 {
 public:
     explicit TImpl(
         NCellNode::TBootstrap* bootstrap,
         TDataNodeConfigPtr config)
-        : TSlruCacheBase<TChunkId, TCachedChangelog>(config->ChangelogReaderCache)
+        : TAsyncSlruCacheBase<TChunkId, TCachedChangelog>(config->ChangelogReaderCache)
         , Bootstrap_(bootstrap)
         , Config_(config)
         , ChangelogDispatcher_(New<TFileChangelogDispatcher>("JournalFlush"))
@@ -149,7 +149,7 @@ public:
 
     void EvictChangelog(IChunkPtr chunk)
     {
-        TSlruCacheBase::Remove(chunk->GetId());
+        TAsyncSlruCacheBase::Remove(chunk->GetId());
     }
 
 private:
@@ -384,7 +384,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalDispatcher::TCachedChangelog
-    : public TCacheValueBase<TChunkId, TCachedChangelog>
+    : public TAsyncCacheValueBase<TChunkId, TCachedChangelog>
     , public IChangelog
 {
 public:
@@ -393,7 +393,7 @@ public:
         const TChunkId& chunkId,
         TFuture<TErrorOr<IChangelogPtr>> futureChangelogOrError,
         bool enableMultiplexing)
-        : TCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
+        : TAsyncCacheValueBase<TChunkId, TCachedChangelog>(chunkId)
         , Owner_(owner)
         , FutureChangelogOrError_(futureChangelogOrError)
         , EnableMultiplexing_(enableMultiplexing)

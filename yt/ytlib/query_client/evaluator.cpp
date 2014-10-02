@@ -18,7 +18,7 @@
 #include <core/concurrency/scheduler.h>
 #include <core/profiling/scoped_timer.h>
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 
 #include <core/logging/log.h>
 
@@ -205,7 +205,7 @@ struct TFoldingHasher
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedCGFragment
-    : public TCacheValueBase<
+    : public TAsyncCacheValueBase<
         llvm::FoldingSetNodeID,
         TCachedCGFragment,
         TFoldingHasher>
@@ -213,18 +213,18 @@ class TCachedCGFragment
 {
 public:
     explicit TCachedCGFragment(const llvm::FoldingSetNodeID& id)
-        : TCacheValueBase(id)
+        : TAsyncCacheValueBase(id)
         , TCGFragment()
     { }
 
 };
 
 class TEvaluator::TImpl
-    : public TSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
+    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
 {
 public:
     explicit TImpl(TExecutorConfigPtr config)
-        : TSlruCacheBase(config->CGCache)
+        : TAsyncSlruCacheBase(config->CGCache)
     {
         InitializeLlvm();
         RegisterCGRoutines();

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 #include <core/misc/ref.h>
 
 #include <ytlib/chunk_client/public.h>
@@ -18,7 +18,7 @@ namespace NDataNode {
 
 //! Represents a cached block of chunk.
 class TCachedBlock
-    : public TCacheValueBase<TBlockId, TCachedBlock>
+    : public TAsyncCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
     //! Constructs a new block from id and data.

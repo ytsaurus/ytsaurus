@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_detail.h"
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -90,7 +90,7 @@ DEFINE_REFCOUNTED_TYPE(TStoredBlobChunk)
 //! A blob chunk owned by TChunkCache.
 class TCachedBlobChunk
     : public TBlobChunkBase
-    , public TCacheValueBase<TChunkId, TCachedBlobChunk>
+    , public TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>
 {
 public:
     TCachedBlobChunk(

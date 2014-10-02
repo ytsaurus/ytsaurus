@@ -355,7 +355,7 @@ TCachedBlobChunk::TCachedBlobChunk(
         location,
         descriptor,
         meta)
-    , TCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
+    , TAsyncCacheValueBase<TChunkId, TCachedBlobChunk>(GetId())
     , ChunkCache_(Bootstrap_->GetChunkCache())
 { }
 

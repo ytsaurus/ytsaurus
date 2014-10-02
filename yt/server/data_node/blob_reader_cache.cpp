@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/file_reader.h>
 
-#include <core/misc/cache.h>
+#include <core/misc/async_cache.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -21,12 +21,12 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobReaderCache::TCachedReader
-    : public TCacheValueBase<TChunkId, TCachedReader>
+    : public TAsyncCacheValueBase<TChunkId, TCachedReader>
     , public TFileReader
 {
 public:
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
-        : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
+        : TAsyncCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TFileReader(fileName)
         , ChunkId_(chunkId)
     { }
@@ -44,11 +44,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBlobReaderCache::TImpl
-    : public TSlruCacheBase<TChunkId, TCachedReader>
+    : public TAsyncSlruCacheBase<TChunkId, TCachedReader>
 {
 public:
     explicit TImpl(TDataNodeConfigPtr config)
-        : TSlruCacheBase(config->BlobReaderCache)
+        : TAsyncSlruCacheBase(config->BlobReaderCache)
     { }
 
     TFileReaderPtr GetReader(IChunkPtr chunk)
@@ -95,7 +95,7 @@ public:
 
     void EvictReader(IChunk* chunk)
     {
-        TSlruCacheBase::Remove(chunk->GetId());
+        TAsyncSlruCacheBase::Remove(chunk->GetId());
     }
 
 private:

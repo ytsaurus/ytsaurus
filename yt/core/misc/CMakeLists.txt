@@ -51,8 +51,8 @@ set( HDRS
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
-  ${BASE}/cache-inl.h
-  ${BASE}/cache.h
+  ${BASE}/async_cache-inl.h
+  ${BASE}/async_cache.h
   ${BASE}/checkpointable_stream.h
   ${BASE}/checksum.h
   ${BASE}/chunked_memory_pool.h
