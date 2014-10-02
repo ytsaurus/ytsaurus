@@ -232,7 +232,7 @@ public:
 
         Compiler_ = CreateFragmentCompiler();
 
-        CallCgFunctionPtr_ = &CallCgFunction;
+        CallCGFunctionPtr_ = &CallCGFunction;
     }
 
     TQueryStatistics Run(
@@ -288,7 +288,7 @@ public:
                 executionContext.InputRowLimit = fragment->GetInputRowLimit();
                 executionContext.OutputRowLimit = fragment->GetOutputRowLimit();
 
-                CallCgFunctionPtr_(cgFunction, constants, &executionContext);
+                CallCGFunctionPtr_(cgFunction, constants, &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {
@@ -363,7 +363,7 @@ private:
         return std::make_pair(cgFunction, std::move(variables));
     }
 
-    static void CallCgFunction(
+    static void CallCGFunction(
         TCGFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext)
@@ -375,7 +375,7 @@ private:
         cgFunction(constants, executionContext);
     }
 
-    void(* volatile CallCgFunctionPtr_)(
+    void(* volatile CallCGFunctionPtr_)(
         TCGFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext);
