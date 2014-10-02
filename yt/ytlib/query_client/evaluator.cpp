@@ -16,9 +16,10 @@
 #include <ytlib/query_client/plan_fragment.pb.h>
 
 #include <core/concurrency/scheduler.h>
+
 #include <core/profiling/scoped_timer.h>
 
-#include <core/misc/async_cache.h>
+#include <core/misc/sync_cache.h>
 
 #include <core/logging/log.h>
 
@@ -205,7 +206,7 @@ struct TFoldingHasher
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedCGFragment
-    : public TAsyncCacheValueBase<
+    : public TSyncCacheValueBase<
         llvm::FoldingSetNodeID,
         TCachedCGFragment,
         TFoldingHasher>
@@ -213,18 +214,18 @@ class TCachedCGFragment
 {
 public:
     explicit TCachedCGFragment(const llvm::FoldingSetNodeID& id)
-        : TAsyncCacheValueBase(id)
+        : TSyncCacheValueBase(id)
         , TCGFragment()
     { }
 
 };
 
 class TEvaluator::TImpl
-    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
+    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
 {
 public:
     explicit TImpl(TExecutorConfigPtr config)
-        : TAsyncSlruCacheBase(config->CGCache)
+        : TSyncSlruCacheBase(config->CGCache)
     {
         InitializeLlvm();
         RegisterCGRoutines();
@@ -250,7 +251,7 @@ public:
             try {
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
-                TCgFunction cgFunction;
+                TCGFunction cgFunction;
                 TCGVariables fragmentParams;
 
                 std::tie(cgFunction, fragmentParams) = Codegen(fragment);
@@ -327,7 +328,7 @@ public:
     }
 
 private:
-    std::pair<TCgFunction, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
+    std::pair<TCGFunction, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
@@ -336,36 +337,34 @@ private:
         TFoldingProfiler(id, binding, variables).Profile(fragment->Head);
         auto Logger = BuildLogger(fragment);
 
-        TInsertCookie cookie(id);
-        if (BeginInsert(&cookie)) {
+        auto cgFragment = Find(id);
+        if (!cgFragment) {
             LOG_DEBUG("Codegen cache miss");
             try {
                 TRACE_CHILD("QueryClient", "Compile") {
                     LOG_DEBUG("Started compiling fragment");
-                    auto newCGFragment = New<TCachedCGFragment>(id);
-                    newCGFragment->Embody(Compiler_(fragment, *newCGFragment, binding));
-                    newCGFragment->GetCompiledBody();
+                    cgFragment = New<TCachedCGFragment>(id);
+                    cgFragment->Embody(Compiler_(fragment, *cgFragment, binding));
+                    cgFragment->GetCompiledBody();
                     LOG_DEBUG("Finished compiling fragment");
-                    cookie.EndInsert(std::move(newCGFragment));
+                    Insert(cgFragment);
                 }
             } catch (const std::exception& ex) {
-                LOG_DEBUG(ex, "Failed to compile fragment");
-                cookie.Cancel(ex);
+                LOG_ERROR(ex, "Failed to compile a fragment");
+                throw;
             }
         } else {
             LOG_DEBUG("Codegen cache hit");
         }
 
-        auto cgFragment = cookie.GetValue().Get().ValueOrThrow();
         auto cgFunction = cgFragment->GetCompiledBody();
-
         YCHECK(cgFunction);
 
         return std::make_pair(cgFunction, std::move(variables));
     }
 
     static void CallCgFunction(
-        TCgFunction cgFunction,
+        TCGFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext)
     {
@@ -377,7 +376,7 @@ private:
     }
 
     void(* volatile CallCgFunctionPtr_)(
-        TCgFunction cgFunction,
+        TCGFunction cgFunction,
         TRow constants,
         TExecutionContext* executionContext);
 

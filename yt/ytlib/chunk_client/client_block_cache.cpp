@@ -4,7 +4,7 @@
 #include "block_cache.h"
 #include "client_block_cache.h"
 
-#include <core/misc/async_cache.h>
+#include <core/misc/sync_cache.h>
 #include <core/misc/property.h>
 #include <core/misc/singleton.h>
 
@@ -24,25 +24,25 @@ static const auto& Logger = ChunkClientLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 class TCachedBlock
-    : public TAsyncCacheValueBase<TBlockId, TCachedBlock>
+    : public TSyncCacheValueBase<TBlockId, TCachedBlock>
 {
     DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
 
 public:
     TCachedBlock(const TBlockId& id, const TSharedRef& data)
-        : TAsyncCacheValueBase<TBlockId, TCachedBlock>(id)
+        : TSyncCacheValueBase(id)
         , Data_(data)
     { }
 
 };
 
 class TClientBlockCache
-    : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
+    : public TSyncSlruCacheBase<TBlockId, TCachedBlock>
     , public IBlockCache
 {
 public:
     explicit TClientBlockCache(TSlruCacheConfigPtr config)
-        : TAsyncSlruCacheBase(config)
+        : TSyncSlruCacheBase(config)
     { }
 
     virtual void Put(
@@ -50,11 +50,8 @@ public:
         const TSharedRef& data,
         const TNullable<TNodeDescriptor>& /*source*/) override
     {
-        TInsertCookie cookie(id);
-        if (BeginInsert(&cookie)) {
-            auto block = New<TCachedBlock>(id, data);
-            cookie.EndInsert(block);
-
+        auto block = New<TCachedBlock>(id, data);
+        if (Insert(block)) {
             LOG_DEBUG("Block is put into cache (BlockId: %v, BlockSize: %v)",
                 id,
                 data.Size());
@@ -66,7 +63,7 @@ public:
 
     virtual TSharedRef Find(const TBlockId& id) override
     {
-        auto block = TAsyncSlruCacheBase::Find(id);
+        auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
             LOG_DEBUG("Block cache hit (BlockId: %v)", id);
             return block->GetData();
