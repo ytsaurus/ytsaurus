@@ -306,11 +306,15 @@ private:
                     store->GetId(),
                     tabletId));
                 options.Attributes = attributes.get();
+
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+
                 transaction = transactionOrError.Value();
+                LOG_INFO("Store flush transaction created (TransactionId: %v)",
+                    transaction->GetId());
             }
 
             auto writer = CreateVersionedMultiChunkWriter(

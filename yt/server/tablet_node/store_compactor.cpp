@@ -38,6 +38,7 @@
 #include <server/hydra/mutation.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -322,11 +323,15 @@ private:
                 attributes->Set("title", Format("Eden partitioning, tablet %v",
                     tabletId));
                 options.Attributes = attributes.get();
+
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+
                 transaction = transactionOrError.Value();
+                LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
+                    transaction->GetId());
             }
 
             std::vector<TVersionedRow> writeRows;
@@ -567,11 +572,15 @@ private:
                 attributes->Set("title", Format("Partition compaction, tablet %v",
                     tabletId));
                 options.Attributes = attributes.get();
+
                 auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
                     options));
                 THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+
                 transaction = transactionOrError.Value();
+                LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
+                    transaction->GetId());
             }
 
             TReqCommitTabletStoresUpdate updateStoresRequest;
