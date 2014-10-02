@@ -786,15 +786,15 @@ private:
         YCHECK(GetAutomatonState() == EPeerState::Leading);
         YCHECK(epochContext->IsActiveLeader);
 
-        auto changelogRotation = epochContext->Checkpointer;
+        auto checkpointer = epochContext->Checkpointer;
         TAsyncError result;
-        if (changelogRotation->CanBuildSnapshot()) {
-            result = changelogRotation->BuildSnapshot().Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> result) {
+        if (checkpointer->CanBuildSnapshot()) {
+            result = checkpointer->BuildSnapshot().Apply(BIND([] (TErrorOr<TRemoteSnapshotParams> result) {
                 return TError(result);
             }));
-        } else if (changelogRotation->CanRotateChangelogs()) {
+        } else if (checkpointer->CanRotateChangelogs()) {
             LOG_WARNING("Snapshot is still being built, just rotating changlogs");
-            result = changelogRotation->RotateChangelog();
+            result = checkpointer->RotateChangelog();
         } else {
             LOG_WARNING("Cannot neither build a snapshot nor rotate changelogs");
             return;
