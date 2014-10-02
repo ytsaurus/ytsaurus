@@ -126,10 +126,8 @@ private:
             // initialization attempts.
             auto transactionManager = Bootstrap_->GetTransactionManager();
             if (transactionManager->Transactions().GetSize() > 0) {
-                LOG_INFO("World initialization aborted: transactions found");
                 AbortTransactions();
-                ScheduleInitialize(InitRetryPeriod);
-                return;
+                THROW_ERROR_EXCEPTION("World initialization aborted: transactions found");
             }
 
             auto objectManager = Bootstrap_->GetObjectManager();
@@ -420,6 +418,7 @@ private:
             LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "World initialization failed");
+            ScheduleInitialize(InitRetryPeriod);
         }
     }
 
