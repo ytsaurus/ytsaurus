@@ -6,6 +6,8 @@
 
 #include <core/rpc/response_keeper_detail.h>
 
+#include <server/election/election_manager.h>
+
 #include <server/hydra/persistent_response_keeper.pb.h>
 
 namespace NYT {
@@ -71,7 +73,7 @@ private:
     {
         YCHECK(!EvictionExecutor_);
         EvictionExecutor_ = New<TPeriodicExecutor>(
-            AutomatonInvoker_,
+            HydraManager->GetAutomatonEpochContext()->CancelableContext->CreateInvoker(AutomatonInvoker_),
             BIND(&TImpl::OnEvict, MakeWeak(this)),
             EvictionPeriod);
         EvictionExecutor_->Start();
@@ -79,8 +81,6 @@ private:
 
     virtual void OnStopLeading() override
     {
-        YCHECK(EvictionExecutor_);
-        EvictionExecutor_->Stop();
         EvictionExecutor_.Reset();
     }
 
