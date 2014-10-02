@@ -220,6 +220,8 @@ public:
 
 };
 
+typedef TIntrusivePtr<TCachedCGFragment> TCachedCGFragmentPtr;
+
 class TEvaluator::TImpl
     : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGFragment, TFoldingHasher>
 {
@@ -251,10 +253,12 @@ public:
             try {
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
-                TCGFunction cgFunction;
+                TCachedCGFragmentPtr cgFragment;
                 TCGVariables fragmentParams;
 
-                std::tie(cgFunction, fragmentParams) = Codegen(fragment);
+                std::tie(cgFragment, fragmentParams) = Codegen(fragment);
+
+                TCGFunction cgFunction = cgFragment->GetCompiledBody();
 
                 auto constants = fragment->Literals.Get();
 
@@ -328,7 +332,7 @@ public:
     }
 
 private:
-    std::pair<TCGFunction, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
+    std::pair<TCachedCGFragmentPtr, TCGVariables> Codegen(const TPlanFragmentPtr& fragment)
     {
         llvm::FoldingSetNodeID id;
         TCGBinding binding;
@@ -357,10 +361,7 @@ private:
             LOG_DEBUG("Codegen cache hit");
         }
 
-        auto cgFunction = cgFragment->GetCompiledBody();
-        YCHECK(cgFunction);
-
-        return std::make_pair(cgFunction, std::move(variables));
+        return std::make_pair(cgFragment, std::move(variables));
     }
 
     static void CallCGFunction(
