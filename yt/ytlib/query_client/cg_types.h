@@ -73,12 +73,12 @@ struct TCGVariables
     std::vector<TDataSplits> DataSplitsArray;
 };
 
-typedef void (*TCgFunction)(
+typedef void (*TCGFunction)(
     TRow constants,
     TExecutionContext* executionContext);
 
 typedef
-    std::remove_pointer<TCgFunction>::type
+    std::remove_pointer<TCGFunction>::type
     TCgFunctionSignature;
 
 const int MaxRowsPerRead = 1024;

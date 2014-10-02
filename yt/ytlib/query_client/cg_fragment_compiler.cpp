@@ -1245,7 +1245,7 @@ Function* TCGContext::CodegenEvaluate(
     auto* module = cgFragment.GetModule();
     auto& context = module->getContext();
 
-    // See TCgFunction.
+    // See TCGFunction.
     Function* function = Function::Create(
         TypeBuilder<TCgFunctionSignature, false>::get(context),
         Function::ExternalLinkage,
