@@ -23,6 +23,7 @@ DECLARE_ENUM(EExpressionKind,
     (Reference)
     (Function)
     (BinaryOp)
+    (InOp)
 );
 
 DECLARE_ENUM(EOperatorKind,
@@ -115,11 +116,11 @@ struct TReferenceExpression
 
 };
 
+typedef std::vector<TConstExpressionPtr> TArguments;
+
 struct TFunctionExpression
     : public TExpression
 {
-    typedef std::vector<TConstExpressionPtr> TArguments;
-
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         EValueType type)
@@ -168,6 +169,32 @@ struct TBinaryOpExpression
 
 };
 
+struct TInOpExpression
+    : public TExpression
+{
+    TInOpExpression(
+        const TSourceLocation& sourceLocation,
+        EValueType type)
+        : TExpression(sourceLocation, type)
+    { }
+
+    TInOpExpression(
+        const TSourceLocation& sourceLocation,
+        const TArguments& arguments,
+        size_t rowBegin,
+        size_t rowEnd)
+        : TExpression(sourceLocation, EValueType::Boolean)
+        , Arguments(arguments)
+        , RowBegin(rowBegin)
+        , RowEnd(rowEnd)
+    { }
+
+    TArguments Arguments;
+    size_t RowBegin;
+    size_t RowEnd;
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperator
@@ -208,7 +235,7 @@ struct TFilterOperator
 {
     TConstOperatorPtr Source;
 
-    TExpressionPtr Predicate;
+    TConstExpressionPtr Predicate;
 
     virtual TTableSchema GetTableSchema() const override;
     
@@ -313,7 +340,6 @@ public:
     TOwningRow Literals;
 
     TRowBuffer RowBuffer;
-
     std::vector<TRow> LiteralRows;
 
 };

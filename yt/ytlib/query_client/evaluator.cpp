@@ -66,6 +66,7 @@ DECLARE_ENUM(EFoldingObjectType,
     (ReferenceExpr)
     (FunctionExpr)
     (BinaryOpExpr)
+    (InOpExpr)
 
     (NamedExpression)
     (AggregateItem)
@@ -168,6 +169,15 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
 
         Profile(binaryOp->Lhs);
         Profile(binaryOp->Rhs);
+    } else if (auto inOp = expr->As<TInOpExpression>()) {
+        Id_.AddInteger(EFoldingObjectType::InOpExpr);
+
+        for (const auto& argument : inOp->Arguments) {
+            Profile(argument);
+        }
+
+        Id_.AddInteger(inOp->RowBegin);
+        Id_.AddInteger(inOp->RowEnd);
     } else {
         YUNREACHABLE();
     }
@@ -284,6 +294,7 @@ public:
                 executionContext.Callbacks = callbacks;
                 executionContext.NodeDirectory = fragment->NodeDirectory;
                 executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
+                executionContext.LiteralRows = fragment->LiteralRows;
                 executionContext.RowBuffer = &rowBuffer;
                 executionContext.ScratchSpace = &scratchSpace;
                 executionContext.Writer = writer.Get();

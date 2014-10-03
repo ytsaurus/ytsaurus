@@ -253,6 +253,16 @@ char* ToLower(
     return result;
 }
 
+char IsRowInArray(
+    TExecutionContext* executionContext,
+    TRow row,
+    int rowsBegin,
+    int rowsEnd)
+{
+    auto rows = executionContext->LiteralRows.data();
+    return std::binary_search(rows + rowsBegin, rows + rowsEnd, row);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -276,6 +286,7 @@ void RegisterCGRoutinesImpl()
     REGISTER_ROUTINE(NotEqual);
     REGISTER_ROUTINE(LexicographicalCompare);
     REGISTER_ROUTINE(ToLower);
+    REGISTER_ROUTINE(IsRowInArray);
 #undef REGISTER_ROUTINE
 }
 

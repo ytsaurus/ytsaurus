@@ -109,7 +109,7 @@ std::vector<TBound> IntersectBounds(
     return result;
 }
 
-TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRowBuffer* rowBuffer)
+TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 {
     if (lhs.Offset < rhs.Offset) {
         return rhs;
@@ -129,7 +129,7 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRow
         auto found = result.Next.find(next.first);
 
         if (found != result.Next.end()) {
-            found->second = UniteKeyTrie(found->second, next.second, rowBuffer);
+            found->second = UniteKeyTrie(found->second, next.second);
         } else {
             result.Next.insert(next);
 
@@ -153,18 +153,18 @@ TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRow
     return result;
 };
 
-TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRowBuffer* rowBuffer)
+TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 {
     if (lhs.Offset < rhs.Offset) {
         TKeyTrieNode result = lhs;
         for (auto& next : result.Next) {
-            next.second = IntersectKeyTrie(next.second, rhs, rowBuffer);
+            next.second = IntersectKeyTrie(next.second, rhs);
         }
         return result;
     } else if (lhs.Offset > rhs.Offset) {
         TKeyTrieNode result = rhs;
         for (auto& next : result.Next) {
-            next.second = IntersectKeyTrie(next.second, lhs, rowBuffer);
+            next.second = IntersectKeyTrie(next.second, lhs);
         }
         return result;
     }
@@ -204,7 +204,7 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, 
     for (const auto& next : lhs.Next) {
         auto found = rhs.Next.find(next.first);
         if (found != rhs.Next.end()) {
-            result.Next[next.first] = IntersectKeyTrie(found->second, next.second, rowBuffer);
+            result.Next[next.first] = IntersectKeyTrie(found->second, next.second);
         } 
     }
     return result;

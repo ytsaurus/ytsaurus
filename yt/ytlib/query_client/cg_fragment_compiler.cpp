@@ -404,6 +404,12 @@ private:
         const TTableSchema& schema,
         Value* row);
 
+    TCGValue CodegenInOpExpr(
+        TCGIRBuilder& builder,
+        const TInOpExpression* expr,
+        const TTableSchema& schema,
+        Value* row);
+
     void CodegenOp(
         TCGIRBuilder& builder,
         const TConstOperatorPtr& op,
@@ -947,6 +953,47 @@ TCGValue TCGContext::CodegenBinaryOpExpr(
         }, type, nameTwine);
 }
 
+
+TCGValue TCGContext::CodegenInOpExpr(
+    TCGIRBuilder& builder,
+    const TInOpExpression* expr,
+    const TTableSchema& schema,
+    Value* row)
+{    
+    auto type = expr->Type;
+    size_t keySize = expr->Arguments.size();
+
+    Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+    Value* executionContextPtrRef = GetExecutionContextPtr(builder);
+
+    builder.CreateCall3(
+        Fragment_.GetRoutine("AllocateRow"),
+        executionContextPtrRef,
+        builder.getInt32(keySize),
+        newRowPtr);
+
+    Value* newRowRef = builder.CreateLoad(newRowPtr);
+
+    for (int index = 0; index < keySize; ++index) {
+        const auto& argExpr = expr->Arguments[index];
+        auto id = index;
+        auto type = argExpr->Type;
+
+        CodegenExpr(builder, argExpr, schema, row)
+            .SetTypeIfNotNull(type)
+            .StoreToRow(newRowRef, index, id);
+    }
+
+    Value* result = builder.CreateCall4(
+        Fragment_.GetRoutine("IsRowInArray"),
+        executionContextPtrRef,
+        newRowRef,
+        builder.getInt32(expr->RowBegin),
+        builder.getInt32(expr->RowEnd));
+
+    return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
+}
+
 TCGValue TCGContext::CodegenExpr(
     TCGIRBuilder& builder,
     const TConstExpressionPtr& expr,
@@ -971,16 +1018,22 @@ TCGValue TCGContext::CodegenExpr(
             "reference." + Twine(column.c_str()));
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         return CodegenFunctionExpr(
-                builder,
-                functionExpr,
-                schema,
-                row);
+            builder,
+            functionExpr,
+            schema,
+            row);
     } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
         return CodegenBinaryOpExpr(
-                builder,
-                binaryOpExpr,
-                schema,
-                row);
+            builder,
+            binaryOpExpr,
+            schema,
+            row);
+    } else if (auto inOpExpr = expr->As<TInOpExpression>()) {
+        return CodegenInOpExpr(
+            builder,
+            inOpExpr,
+            schema,
+            row);
     } else {
         YUNREACHABLE();
     }

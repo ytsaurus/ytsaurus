@@ -43,6 +43,7 @@ struct TExecutionContext
     IEvaluateCallbacks* Callbacks;
     TNodeDirectoryPtr NodeDirectory;
     std::vector<TDataSplits>* DataSplitsArray;
+    std::vector<TRow> LiteralRows;
     TRowBuffer* RowBuffer;
     TChunkedMemoryPool* ScratchSpace;
     ISchemafulWriter* Writer;

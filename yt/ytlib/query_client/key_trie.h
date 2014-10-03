@@ -44,9 +44,9 @@ struct TKeyTrieNode
     std::vector<TBound> Bounds;
 };
 
-TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRowBuffer* rowBuffer);
+TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
-TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs, TRowBuffer* rowBuffer);
+TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,

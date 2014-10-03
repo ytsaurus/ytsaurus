@@ -264,7 +264,7 @@ EValueType InferFunctionExprType(Stroka functionName, const std::vector<EValueTy
 void CheckDepth(const TOperatorPtr& head)
 {
     std::function<int(const TConstExpressionPtr& op)> getExpressionDepth = [&] (const TConstExpressionPtr& op) -> int {
-        if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>()) {
+        if (op->As<TLiteralExpression>() || op->As<TReferenceExpression>() || op->As<TInOpExpression>()) {
             return 1;
         } else if (auto functionExpr = op->As<TFunctionExpression>()) {
             int maxChildDepth = 0;
@@ -420,20 +420,40 @@ TPlanFragmentPtr PreparePlanFragment(
 
     TOwningRowBuilder rowBuilder;
 
-    
+    auto captureRows = [&] (const NAst::TValueTupleList& literalTuples, size_t keySize) {
+        TUnversionedRowBuilder rowBuilder;
 
-    
+        std::pair<size_t, size_t> result;
+        result.first = planFragment->LiteralRows.size();
+        for (const auto & tuple : literalTuples) {
+            rowBuilder.Reset();
 
-    std::function<std::vector<TExpressionPtr>(
+            for (auto literal : tuple) {
+                rowBuilder.AddValue(literal);
+            }            
+
+            auto capturedRow = planFragment->RowBuffer.Capture(rowBuilder.GetRow());
+            planFragment->LiteralRows.push_back(capturedRow);
+        }
+        result.second = planFragment->LiteralRows.size();
+
+        std::sort(
+            planFragment->LiteralRows.begin() + result.first,
+            planFragment->LiteralRows.begin() + result.second);
+
+        return result;
+    };
+
+    std::function<std::vector<TConstExpressionPtr>(
         const TTableSchemaProxy&,
         const NAst::TExpression*,
         TGroupOperatorProxy*)>
         buildTypedExpression = [&] (
             const TTableSchemaProxy& tableSchema,
             const NAst::TExpression* expr,
-            TGroupOperatorProxy* groupProxy) -> std::vector<TExpressionPtr> {
+            TGroupOperatorProxy* groupProxy) -> std::vector<TConstExpressionPtr> {
 
-        std::vector<TExpressionPtr> result;
+        std::vector<TConstExpressionPtr> result;
         if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
             auto typedLhsExprs = buildTypedExpression(tableSchema, commaExpr->Lhs.Get(), groupProxy);
             auto typedRhsExprs = buildTypedExpression(tableSchema, commaExpr->Rhs.Get(), groupProxy);
@@ -503,13 +523,13 @@ TPlanFragmentPtr PreparePlanFragment(
                     functionExpr->SourceLocation,
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(querySourceString)),
                     functionName,
-                    TFunctionExpression::TArguments(typedOperands.begin(), typedOperands.end())));
+                    typedOperands));
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
             auto typedLhsExpr = buildTypedExpression(tableSchema, binaryExpr->Lhs.Get(), groupProxy);
             auto typedRhsExpr = buildTypedExpression(tableSchema, binaryExpr->Rhs.Get(), groupProxy);
 
-            auto makeBinaryExpr = [&] (EBinaryOp op, const TExpressionPtr& lhs, const TExpressionPtr& rhs) {
+            auto makeBinaryExpr = [&] (EBinaryOp op, const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs) {
                 return New<TBinaryOpExpression>(
                     binaryExpr->SourceLocation,
                     InferBinaryExprType(
@@ -582,45 +602,15 @@ TPlanFragmentPtr PreparePlanFragment(
             auto sourceLocation = inExpr->SourceLocation;
             auto inExprOperands = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
 
-            if (inExprOperands.size() != 1) {
-                THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                    << TErrorAttribute("source", inExpr->Expr->GetSource(querySourceString));
-            }
+            size_t keySize = inExprOperands.size();
 
-            std::function<TExpressionPtr(const std::vector<TValue>*, const std::vector<TValue>*)> makeOrExpression = 
-                [&] (const std::vector<TValue>* begin, const std::vector<TValue>* end) -> TExpressionPtr {
-                if (begin == end) {
-                    return New<TLiteralExpression>(
-                        sourceLocation,
-                        EValueType::Boolean,
-                        rowBuilder.AddValue(MakeUnversionedBooleanValue(false)));
-                } else if (begin + 1 == end) {
-                    auto literalExpr = New<TLiteralExpression>(
-                        sourceLocation,
-                        EValueType(begin->front().Type),
-                        rowBuilder.AddValue(begin->front()));
+            auto caturedRows = captureRows(inExpr->Values, keySize);
 
-                    return New<TBinaryOpExpression>(
-                        sourceLocation,
-                        EValueType::Boolean,
-                        EBinaryOp::Equal,
-                        inExprOperands.front(),
-                        literalExpr);
-                } else {
-                    auto middle = (end - begin) / 2;
-
-                    return New<TBinaryOpExpression>(
-                        sourceLocation,
-                        EValueType::Boolean,
-                        EBinaryOp::Or, 
-                        makeOrExpression(begin, begin + middle),
-                        makeOrExpression(begin + middle, end));
-                }
-            };
-
-            result.push_back(makeOrExpression(
-                inExpr->Values.data(),
-                inExpr->Values.data() + inExpr->Values.size()));
+            result.push_back(New<TInOpExpression>(
+                inExpr->SourceLocation,
+                inExprOperands,
+                caturedRows.first,
+                caturedRows.second));
         }
 
         return result;
@@ -750,6 +740,8 @@ TPlanFragmentPtr TPlanFragment::RewriteWith(const TConstOperatorPtr& head) const
     fragment->NodeDirectory = NodeDirectory;
     fragment->Literals = Literals;
     fragment->Head = head;
+
+    fragment->LiteralRows = fragment->RowBuffer.Capture(LiteralRows);
     
     return fragment;
 }
@@ -780,6 +772,12 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         proto->set_opcode(binaryOpExpr->Opcode);
         ToProto(proto->mutable_lhs(), binaryOpExpr->Lhs);
         ToProto(proto->mutable_rhs(), binaryOpExpr->Rhs);
+    } else if (auto inOpExpr = original->As<TInOpExpression>()) {
+        serialized->set_kind(EExpressionKind::InOp);
+        auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
+        ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
+        proto->set_rows_begin(inOpExpr->RowBegin);
+        proto->set_rows_end(inOpExpr->RowEnd);
     } else {
         YUNREACHABLE();
     }
@@ -823,6 +821,20 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             typedResult->Opcode = EBinaryOp(data.opcode());
             typedResult->Lhs = FromProto(data.lhs());
             typedResult->Rhs = FromProto(data.rhs());
+            return typedResult;
+        } 
+
+        case EExpressionKind::InOp: {
+            auto typedResult = New<TInOpExpression>(sourceLocation, type);
+            auto data = serialized.GetExtension(NProto::TInOpExpression::in_op_expression);
+            typedResult->Arguments.reserve(data.arguments_size());
+            for (int i = 0; i < data.arguments_size(); ++i) {
+                typedResult->Arguments.push_back(FromProto(data.arguments(i)));
+            }
+
+            typedResult->RowBegin = data.rows_begin();
+            typedResult->RowEnd = data.rows_end();
+
             return typedResult;
         } 
     }
@@ -949,6 +961,8 @@ void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fra
     ToProto(serialized->mutable_id(), fragment->GetId());
     ToProto(serialized->mutable_head(), fragment->Head);
     ToProto(serialized->mutable_literals(), fragment->Literals);
+
+    ToProto(serialized->mutable_literal_rows(), fragment->LiteralRows);
     
     serialized->set_timestamp(fragment->GetTimestamp());
     serialized->set_input_row_limit(fragment->GetInputRowLimit());
@@ -969,6 +983,11 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
 
     result->Head = FromProto(serialized.head());
     FromProto(&result->Literals, serialized.literals());
+
+    auto owningRows = FromProto<TOwningRow>(serialized.literal_rows());
+    for (const auto& owningRow : owningRows) {
+        result->LiteralRows.push_back(result->RowBuffer.Capture(owningRow.Get()));
+    }
 
     return result;
 }

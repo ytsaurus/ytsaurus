@@ -56,7 +56,21 @@ Stroka InferName(const TExpression* expr)
             if (i) {
                 result += ", ";
             }
-            result += ToString(inExpr->Values[i]);
+
+            if (inExpr->Values[i].size() > 1) {
+                result += "(";
+            }
+
+            for (int j = 0; j < inExpr->Values[i].size(); ++j) {
+                if (j) {
+                    result += ", ";
+                }
+                result += ToString(inExpr->Values[i][j]);
+            }
+
+            if (inExpr->Values[i].size() > 1) {
+                result += ")";
+            }
         }
         result += ")";
         return result;

@@ -560,9 +560,12 @@ TKeyRange RefineKeyRange(
 {
     TRowBuffer rowBuffer;
 
+    std::vector<TRow> literalRows;
+
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         literals,
+        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1122,9 +1125,12 @@ TEST_F(TRefineKeyRangeTest, Lookup0)
 
     auto keyColumns = GetSampleKeyColumns();
 
+    std::vector<TRow> literalRows;
+
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         Literals(),
+        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1311,9 +1317,12 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 
     auto keyColumns = GetSampleKeyColumns();
 
+    std::vector<TRow> literalRows;
+
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         Literals(),
+        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1358,9 +1367,12 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 
     auto keyColumns = GetSampleKeyColumns();
 
+    std::vector<TRow> literalRows;
+
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         Literals(),
+        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1417,11 +1429,14 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
     auto keyColumns = GetSampleKeyColumns();
 
+    std::vector<TRow> literalRows;
+
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         Literals(),
+        literalRows,
         keyColumns,
-        &rowBuffer );
+        &rowBuffer);
 
     std::vector<TKeyRange> result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),

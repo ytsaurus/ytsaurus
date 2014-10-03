@@ -35,6 +35,7 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
     const TOwningRow& literals,
+    const std::vector<TRow>& literalRows,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer)
 {
@@ -45,14 +46,12 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         if (opcode == EBinaryOp::And) {
             return IntersectKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, literals, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, literals, keyColumns, rowBuffer),
-                rowBuffer);
+                ExtractMultipleConstraints(lhsExpr, literals, literalRows, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, literals, literalRows, keyColumns, rowBuffer));
         } if (opcode == EBinaryOp::Or) {
             return UniteKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, literals, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, literals, keyColumns, rowBuffer),
-                rowBuffer);
+                ExtractMultipleConstraints(lhsExpr, literals, literalRows, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, literals, literalRows, keyColumns, rowBuffer));
         } else {
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
@@ -167,6 +166,33 @@ TKeyTrieNode ExtractMultipleConstraints(
                     value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
                 }
                 result.Bounds.emplace_back(value, false);
+            }
+        }
+
+        return result;
+    } else if (auto inExpr = expr->As<TInOpExpression>()) {
+        size_t keySize = inExpr->Arguments.size();
+        auto emitConstraint = [&] (size_t index, const TRow& literalTuple) {
+            auto referenceExpr = inExpr->Arguments[index]->As<TReferenceExpression>();
+
+            TKeyTrieNode result;
+            if (referenceExpr) {
+                int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+
+                if (keyPartIndex >= 0) {
+                    result.Offset = keyPartIndex;
+                    result.Next[literalTuple[index]] = TKeyTrieNode();
+                }
+            }
+
+            return TKeyTrieNode();
+        };
+
+        TKeyTrieNode result;
+
+        for (size_t rowIndex = inExpr->RowBegin; rowIndex < inExpr->RowEnd; ++rowIndex) {
+            for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
+                result = IntersectKeyTrie(result, emitConstraint(keyIndex, literalRows[rowIndex]));
             }
         }
 

@@ -51,6 +51,17 @@ message TBinaryOpExpression
     required TExpression rhs = 3;
 }
 
+message TInOpExpression
+{
+    extend TExpression {
+        optional TInOpExpression in_op_expression = 108;
+    }
+    repeated TExpression arguments = 1;
+
+    required uint32 rows_begin = 2;
+    required uint32 rows_end = 3;
+}
+
 message TNamedItem
 {
     required TExpression expression = 1;
@@ -116,8 +127,8 @@ message TPlanFragment
     required int64 output_row_limit = 5;
 
     required bytes literals = 6;
-
     required string source = 7;
+    repeated bytes literal_rows = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

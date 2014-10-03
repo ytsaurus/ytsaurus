@@ -150,9 +150,10 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
         auto predicateConstraints = ExtractMultipleConstraints(
             filterOp->Predicate,
             Fragment_->Literals,
+            Fragment_->LiteralRows,
             filterOp->Source->GetKeyColumns(),
             &rowBuffer);
-        auto resultConstraints = IntersectKeyTrie(predicateConstraints, keyTrie, &rowBuffer);            
+        auto resultConstraints = IntersectKeyTrie(predicateConstraints, keyTrie);            
 
         resultOps = Scatter(filterOp->Source, resultConstraints);
         for (auto& resultOp : resultOps) {
