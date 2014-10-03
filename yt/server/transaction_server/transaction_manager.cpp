@@ -30,6 +30,7 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
+#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -673,12 +674,12 @@ void TTransactionManager::PrepareTransactionCommit(
         persistent);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId)
+void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = GetTransactionOrThrow(transactionId);
-    if (transaction->GetState() != ETransactionState::Active) {
+    if (transaction->GetState() != ETransactionState::Active && !force) {
         transaction->ThrowInvalidState();
     }
 

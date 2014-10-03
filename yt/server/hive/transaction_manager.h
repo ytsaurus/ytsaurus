@@ -24,7 +24,8 @@ struct ITransactionManager
         TTimestamp prepareTimestamp) = 0;
 
     virtual void PrepareTransactionAbort(
-        const TTransactionId& transactionId) = 0;
+        const TTransactionId& transactionId,
+        bool force) = 0;
 
     //! Once #PrepareTransactionCommit succeeded, #CommitTransaction cannot throw.
     virtual void CommitTransaction(

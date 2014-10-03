@@ -160,12 +160,12 @@ public:
             prepareTimestamp);
     }
 
-    void PrepareTransactionAbort(const TTransactionId& transactionId)
+    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetState() != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
 
@@ -494,9 +494,9 @@ void TTransactionManager::PrepareTransactionCommit(
         prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId)
+void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
 {
-    Impl_->PrepareTransactionAbort(transactionId);    
+    Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
 void TTransactionManager::CommitTransaction(const TTransactionId& transactionId, TTimestamp commitTimestamp)

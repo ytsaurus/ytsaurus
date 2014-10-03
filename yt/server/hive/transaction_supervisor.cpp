@@ -262,7 +262,6 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
         ToProto(hydraRequest.mutable_participant_cell_guids(), commit->ParticipantCellGuids());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
-
         CreateMutation(HydraManager, hydraRequest)
             ->Commit();
     }
@@ -396,7 +395,6 @@ private:
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             ToProto(hydraRequest.mutable_coordinator_cell_guid(), coordinatorCellGuid);
-
             PostToParticipants(commit, hydraRequest);
         }
     }
@@ -425,7 +423,6 @@ private:
             ToProto(hydraResponse.mutable_transaction_id(), transactionId);
             ToProto(hydraResponse.mutable_participant_cell_guid(), HiveManager_->GetSelfCellGuid());
             ToProto(hydraResponse.mutable_error(), error);
-
             PostToCoordinator(coordinatorCellGuid, hydraResponse);
         }
     }
@@ -450,7 +447,22 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant has failed to prepare (TransactionId: %v, ParticipantCellGuid: %v)",
                 transactionId,
                 participantCellGuid);
+
             SetCommitFailed(commit, error);
+
+            try {
+                TransactionManager_->AbortTransaction(transactionId, true);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error aborting transaction, ignored (TransactionId: %v)",
+                    transactionId);
+            }
+
+            TReqHydraAbortTransaction hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_mutation_id(), NullMutationId);
+            hydraRequest.set_force(true);
+            PostToParticipants(commit, hydraRequest);
+
             RemoveCommit(commit);
             return;
         }
@@ -496,7 +508,6 @@ private:
             TReqCommitPreparedTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(commitTimestamp);
-
             PostToParticipants(commit, hydraRequest);
         }
 
@@ -545,8 +556,8 @@ private:
         if (commit) {
             TReqHydraAbortTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_mutation_id(), NullMutationId);
             hydraRequest.set_force(true);
-
             PostToParticipants(commit, hydraRequest);
 
             SetCommitFailed(
@@ -596,11 +607,11 @@ private:
 
         auto responseMessage = CreateErrorResponseMessage(error);
         SetCommitResponse(commit, responseMessage);
-
-        if (IsLeader()) {
-            // Fire-and-forget.
-            AbortTransaction(commit->GetTransactionId(), true);
-        }
+//
+//        if (IsLeader()) {
+//            // Fire-and-forget.
+//            AbortTransaction(commit->GetTransactionId(), true);
+//        }
     }
 
 
@@ -666,6 +677,7 @@ private:
                 << timestampOrError;
             SetCommitFailed(commit, error);
             RemoveCommit(commit);
+            // TODO(babenko): transient, need some error handling here
             return;
         }
 

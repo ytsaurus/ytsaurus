@@ -759,7 +759,7 @@ private:
                     BIND(&TAbortSession::OnResponse, MakeStrong(this), cellGuid));
             }
 
-            Transaction_ = nullptr; // avoid producing dangling reference
+            Transaction_ = nullptr; // avoid producing dangling referencep
 
             Awaiter_->Complete(
                 BIND(&TAbortSession::OnComplete, MakeStrong(this)));
