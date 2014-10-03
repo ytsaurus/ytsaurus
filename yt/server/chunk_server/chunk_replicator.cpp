@@ -62,6 +62,14 @@ static auto& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReplicator::TChunkStatistics::TChunkStatistics()
+{
+    Zero(ReplicaCount);
+    Zero(DecommissionedReplicaCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,

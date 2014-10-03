@@ -99,13 +99,15 @@ private:
 
     struct TChunkStatistics
     {
+        TChunkStatistics();
+
         EChunkStatus Status;
 
         //! Number of active replicas, per each replica index.
-        std::array<int, NChunkClient::ChunkReplicaIndexBound> ReplicaCount = { };
+        int ReplicaCount[NChunkClient::ChunkReplicaIndexBound];
         
         //! Number of decommissioned replicas, per each replica index.
-        std::array<int, NChunkClient::ChunkReplicaIndexBound> DecommissionedReplicaCount = { };
+        int DecommissionedReplicaCount[NChunkClient::ChunkReplicaIndexBound];
 
         //! Recommended replications.
         SmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
