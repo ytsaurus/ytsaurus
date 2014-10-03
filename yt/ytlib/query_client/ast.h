@@ -15,6 +15,7 @@ namespace NAst {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::vector<TValue> TValueList;
+typedef std::vector<std::vector<TValue>> TValueTupleList;
 
 struct TExpression
     : public TIntrinsicRefCounted
@@ -74,20 +75,36 @@ struct TReferenceExpression
 
 };
 
+struct TCommaExpression
+    : public TExpression
+{
+    TCommaExpression(
+        const TSourceLocation& sourceLocation,
+        const TExpressionPtr& lhs,
+        const TExpressionPtr& rhs)
+        : TExpression(sourceLocation)
+        , Lhs(lhs)
+        , Rhs(rhs)
+    { }
+
+    TExpressionPtr Lhs;
+    TExpressionPtr Rhs;
+};
+
 struct TFunctionExpression
     : public TExpression
 {
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName,
-        const TExpressionList& arguments)
+        const TExpressionPtr& arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
         , Arguments(arguments)
     { }
 
     Stroka FunctionName;
-    TExpressionList Arguments;
+    TExpressionPtr Arguments;
 
 };
 
@@ -117,14 +134,14 @@ struct TInExpression
     TInExpression(
         const TSourceLocation& sourceLocation,
         const TExpressionPtr& expression,
-        const TValueList& values)
+        const TValueTupleList& values)
         : TExpression(sourceLocation)
         , Expr(expression)
         , Values(values)
     { }
 
     TExpressionPtr Expr;
-    TValueList Values;
+    TValueTupleList Values;
 
 };
 

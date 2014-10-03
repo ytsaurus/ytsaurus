@@ -107,9 +107,11 @@
 %type <TExpressionPtr> multiplicative-op-expr
 %type <TExpressionPtr> additive-op-expr
 %type <TExpressionPtr> atomic-expr
+%type <TExpressionPtr> comma-expr
 %type <TUnversionedValue> literal-expr
-%type <TExpressionList> expr-list
 %type <TValueList> literal-list
+%type <TValueList> literal-tuple
+%type <TValueTupleList> literal-tuple-list
 
 %type <EBinaryOp> relational-op
 %type <EBinaryOp> multiplicative-op
@@ -240,7 +242,7 @@ relational-op-expr
                 New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
-    | atomic-expr[expr] KwIn LeftParenthesis literal-list[args] RightParenthesis
+    | atomic-expr[expr] KwIn LeftParenthesis literal-tuple-list[args] RightParenthesis
         {
             $$ = New<TInExpression>(@$, $expr, $args);
         }
@@ -297,16 +299,25 @@ multiplicative-op
         { $$ = EBinaryOp::Modulo; }
 ;
 
+comma-expr
+    : comma-expr[lhs] Comma expression[rhs]
+        {
+            $$ = New<TCommaExpression>(@$, $lhs, $rhs);
+        }
+    | expression
+        { $$ = $1; }
+;
+
 atomic-expr
     : Identifier[name]
         {
             $$ = New<TReferenceExpression>(@$, $name);
         }
-    | Identifier[name] LeftParenthesis expr-list[args] RightParenthesis
+    | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
             $$ = New<TFunctionExpression>(@$, $name, $args);
         }
-    | LeftParenthesis or-op-expr[expr] RightParenthesis
+    | LeftParenthesis comma-expr[expr] RightParenthesis
         {
             $$ = $expr;
         }
@@ -327,18 +338,6 @@ literal-expr
         { $$ = $1; }
 ;
 
-expr-list
-    : expr-list[as] Comma expression[a]
-        {
-            $$.swap($as);
-            $$.push_back($a);
-        }
-    | expression[a]
-        {
-            $$.push_back($a);
-        }
-;
-
 literal-list
     : literal-list[as] Comma literal-expr[a]
         {
@@ -346,6 +345,29 @@ literal-list
             $$.push_back($a);
         }
     | literal-expr[a]
+        {
+            $$.push_back($a);
+        }
+;
+
+literal-tuple
+    : literal-expr[a]
+        {
+            $$.push_back($a);
+        }
+    | LeftParenthesis literal-list[a] RightParenthesis
+        {
+            $$ = $a;
+        }
+;
+
+literal-tuple-list
+    : literal-tuple-list[as] Comma literal-tuple[a]
+        {
+            $$.swap($as);
+            $$.push_back($a);
+        }
+    | literal-tuple[a]
         {
             $$.push_back($a);
         }

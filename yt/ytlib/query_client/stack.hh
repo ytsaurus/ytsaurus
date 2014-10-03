@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.
+// A Bison parser, made by GNU Bison 3.0.2.
 
 // Stack handling for Bison parsers in C++
 
@@ -31,16 +31,18 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/stack.hh
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/stack.hh
  ** Define the NYT::NQueryClient::NAst::stack class.
  */
 
-#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
-# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
 
 # include <vector>
 
+#line 5 "/home/lukyan/yt/src/yt/ytlib/query_client/parser.yy" // stack.hh:133
 namespace NYT { namespace NQueryClient { namespace NAst {
+#line 46 "/home/lukyan/yt/src/yt/ytlib/query_client/stack.hh" // stack.hh:133
   template <class T, class S = std::vector<T> >
   class stack
   {
@@ -149,6 +151,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     unsigned int range_;
   };
 
+#line 5 "/home/lukyan/yt/src/yt/ytlib/query_client/parser.yy" // stack.hh:133
 } } } // NYT::NQueryClient::NAst
+#line 157 "/home/lukyan/yt/src/yt/ytlib/query_client/stack.hh" // stack.hh:133
 
-#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED

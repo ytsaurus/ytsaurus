@@ -312,6 +312,10 @@ public:
     TConstOperatorPtr Head;
     TOwningRow Literals;
 
+    TRowBuffer RowBuffer;
+
+    std::vector<TRow> LiteralRows;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)

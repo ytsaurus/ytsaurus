@@ -420,30 +420,39 @@ TPlanFragmentPtr PreparePlanFragment(
 
     TOwningRowBuilder rowBuilder;
 
-    std::function<TExpressionPtr(
-        const TTableSchemaProxy& tableSchema,
-        const NAst::TExpression* expr,
-        TGroupOperatorProxy* groupProxy)>
+    
+
+    
+
+    std::function<std::vector<TExpressionPtr>(
+        const TTableSchemaProxy&,
+        const NAst::TExpression*,
+        TGroupOperatorProxy*)>
         buildTypedExpression = [&] (
             const TTableSchemaProxy& tableSchema,
             const NAst::TExpression* expr,
-            TGroupOperatorProxy* groupProxy) -> TExpressionPtr {
+            TGroupOperatorProxy* groupProxy) -> std::vector<TExpressionPtr> {
 
-        if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
-            return New<TLiteralExpression>(
+        std::vector<TExpressionPtr> result;
+        if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
+            auto typedLhsExprs = buildTypedExpression(tableSchema, commaExpr->Lhs.Get(), groupProxy);
+            auto typedRhsExprs = buildTypedExpression(tableSchema, commaExpr->Rhs.Get(), groupProxy);
+
+            result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
+            result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
+        } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
+            result.push_back(New<TLiteralExpression>(
                 literalExpr->SourceLocation,
                 EValueType(literalExpr->Value.Type),
-                rowBuilder.AddValue(literalExpr->Value));
+                rowBuilder.AddValue(literalExpr->Value)));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             size_t index = tableSchema.GetColumnIndex(referenceExpr->ColumnName);
-
-            return New<TReferenceExpression>(
+            result.push_back(New<TReferenceExpression>(
                 referenceExpr->SourceLocation,
                 tableSchema[index].Type,
-                referenceExpr->ColumnName);
+                referenceExpr->ColumnName));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
-
             auto aggregateFunction = getAggregate(functionName);
 
             if (aggregateFunction) {
@@ -456,66 +465,130 @@ TPlanFragmentPtr PreparePlanFragment(
                 
                 auto& groupOp = groupProxy->Op;
 
-                if (functionExpr->Arguments.size() != 1) {
-                    THROW_ERROR_EXCEPTION(
-                        "Aggregate function %Qv must have exactly one argument",
-                        aggregateFunction.Get())
-                        << TErrorAttribute("source", functionExpr->GetSource(querySourceString));
-                }
-
                 auto subexprName = InferName(functionExpr);
                 auto emplaced = groupProxy->SubexprNames.emplace(subexprName, groupOp.AggregateItems.size());
                 if (emplaced.second) {
+                    auto typedOperands = buildTypedExpression(
+                        groupProxy->SourceSchemaProxy,
+                        functionExpr->Arguments.Get(),
+                        nullptr);
+
+                    if (typedOperands.size() != 1) {
+                        THROW_ERROR_EXCEPTION(
+                            "Aggregate function %Qv must have exactly one argument",
+                            aggregateFunction.Get())
+                            << TErrorAttribute("source", functionExpr->GetSource(querySourceString));
+                    }
+
                     groupOp.AggregateItems.emplace_back(
-                        buildTypedExpression(
-                            groupProxy->SourceSchemaProxy,
-                            functionExpr->Arguments.front().Get(),
-                            nullptr),
+                        typedOperands.front(),
                         aggregateFunction.Get(),
                         subexprName);
                 }
 
-                return New<TReferenceExpression>(
+                result.push_back(New<TReferenceExpression>(
                     NullSourceLocation,
                     groupOp.AggregateItems[emplaced.first->second].Expression->Type,
-                    subexprName);
+                    subexprName));
             } else {
-                TFunctionExpression::TArguments arguments;
                 std::vector<EValueType> types;
 
-                for (const auto& argument : functionExpr->Arguments) {
-                    auto typedArgument = buildTypedExpression(tableSchema, argument.Get(), groupProxy);
+                auto typedOperands = buildTypedExpression(tableSchema, functionExpr->Arguments.Get(), groupProxy);
 
-                    arguments.push_back(typedArgument);
-                    types.push_back(typedArgument->Type);
+                for (const auto& typedOperand : typedOperands) {
+                    types.push_back(typedOperand->Type);
                 }
 
-                return New<TFunctionExpression>(
+                result.push_back(New<TFunctionExpression>(
                     functionExpr->SourceLocation,
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(querySourceString)),
                     functionName,
-                    arguments);
+                    TFunctionExpression::TArguments(typedOperands.begin(), typedOperands.end())));
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
             auto typedLhsExpr = buildTypedExpression(tableSchema, binaryExpr->Lhs.Get(), groupProxy);
             auto typedRhsExpr = buildTypedExpression(tableSchema, binaryExpr->Rhs.Get(), groupProxy);
 
-            return New<TBinaryOpExpression>(
-                binaryExpr->SourceLocation,
-                InferBinaryExprType(
-                    binaryExpr->Opcode,
-                    typedLhsExpr->Type,
-                    typedRhsExpr->Type,
-                    binaryExpr->GetSource(querySourceString)),
-                binaryExpr->Opcode,
-                typedLhsExpr,
-                typedRhsExpr);
+            auto makeBinaryExpr = [&] (EBinaryOp op, const TExpressionPtr& lhs, const TExpressionPtr& rhs) {
+                return New<TBinaryOpExpression>(
+                    binaryExpr->SourceLocation,
+                    InferBinaryExprType(
+                        op,
+                        lhs->Type,
+                        rhs->Type,
+                        binaryExpr->GetSource(querySourceString)),
+                    op,
+                    lhs,
+                    rhs);
+            };
+
+            std::function<TExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TExpressionPtr {
+                if (offset < keySize) {
+                    auto next = gen(offset + 1, keySize, op);
+                    auto eq = makeBinaryExpr(EBinaryOp::And,
+                            makeBinaryExpr(EBinaryOp::Equal, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            next);
+                    if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
+                        return makeBinaryExpr(EBinaryOp::Or,
+                            makeBinaryExpr(EBinaryOp::Less, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            eq);
+                    } else if (op == EBinaryOp::Greater || op == EBinaryOp::GreaterOrEqual)  {
+                        return makeBinaryExpr(EBinaryOp::Or,
+                            makeBinaryExpr(EBinaryOp::Greater, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            eq);
+                    } else {
+                        return eq;
+                    }                  
+                } else {
+                    bool canBeEqual = op == EBinaryOp::GreaterOrEqual
+                        || op == EBinaryOp::LessOrEqual
+                        || op == EBinaryOp::Equal;
+
+                    return New<TLiteralExpression>(
+                        NullSourceLocation,
+                        EValueType::Boolean,
+                        rowBuilder.AddValue(MakeUnversionedBooleanValue(canBeEqual)));
+                }
+            };
+
+            if (binaryExpr->Opcode == EBinaryOp::Less
+                || binaryExpr->Opcode == EBinaryOp::LessOrEqual
+                || binaryExpr->Opcode == EBinaryOp::Greater
+                || binaryExpr->Opcode == EBinaryOp::GreaterOrEqual
+                || binaryExpr->Opcode == EBinaryOp::Equal) {
+
+                if (typedLhsExpr.size() != typedRhsExpr.size()) {
+                    THROW_ERROR_EXCEPTION("Expecting tuples of same size")
+                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(querySourceString));
+                }
+
+                size_t keySize = typedLhsExpr.size();
+
+                result.push_back(gen(0, keySize, binaryExpr->Opcode));            
+            } else {
+                if (typedLhsExpr.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                        << TErrorAttribute("source", binaryExpr->Lhs->GetSource(querySourceString));
+                }
+
+                if (typedRhsExpr.size() != 1) {
+                    THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(querySourceString));
+                }
+
+                result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
+            }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             auto sourceLocation = inExpr->SourceLocation;
-            auto inExprOperand = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
+            auto inExprOperands = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
 
-            std::function<TExpressionPtr(const TValue*, const TValue*)> makeOrExpression = 
-                [&] (const TValue* begin, const TValue* end) -> TExpressionPtr {
+            if (inExprOperands.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                    << TErrorAttribute("source", inExpr->Expr->GetSource(querySourceString));
+            }
+
+            std::function<TExpressionPtr(const std::vector<TValue>*, const std::vector<TValue>*)> makeOrExpression = 
+                [&] (const std::vector<TValue>* begin, const std::vector<TValue>* end) -> TExpressionPtr {
                 if (begin == end) {
                     return New<TLiteralExpression>(
                         sourceLocation,
@@ -524,14 +597,14 @@ TPlanFragmentPtr PreparePlanFragment(
                 } else if (begin + 1 == end) {
                     auto literalExpr = New<TLiteralExpression>(
                         sourceLocation,
-                        EValueType(begin->Type),
-                        rowBuilder.AddValue(*begin));
+                        EValueType(begin->front().Type),
+                        rowBuilder.AddValue(begin->front()));
 
                     return New<TBinaryOpExpression>(
                         sourceLocation,
                         EValueType::Boolean,
                         EBinaryOp::Equal,
-                        inExprOperand,
+                        inExprOperands.front(),
                         literalExpr);
                 } else {
                     auto middle = (end - begin) / 2;
@@ -545,10 +618,12 @@ TPlanFragmentPtr PreparePlanFragment(
                 }
             };
 
-            return makeOrExpression(inExpr->Values.data(), inExpr->Values.data() + inExpr->Values.size());
+            result.push_back(makeOrExpression(
+                inExpr->Values.data(),
+                inExpr->Values.data() + inExpr->Values.size()));
         }
 
-        YUNREACHABLE();
+        return result;
     };
     
     ////////////////////////////////////
@@ -565,7 +640,15 @@ TPlanFragmentPtr PreparePlanFragment(
     if (query.WherePredicate) {
         auto filterOp = New<TFilterOperator>();
         filterOp->Source = head;
-        filterOp->Predicate = buildTypedExpression(tableSchemaProxy, query.WherePredicate.Get(), nullptr);
+
+        auto typedPredicate = buildTypedExpression(tableSchemaProxy, query.WherePredicate.Get(), nullptr);
+
+        if (typedPredicate.size() != 1) {
+            THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                << TErrorAttribute("source", query.WherePredicate->GetSource(querySourceString));
+        }
+
+        filterOp->Predicate = typedPredicate.front();
 
         auto actualType = filterOp->Predicate->Type;
         EValueType expectedType(EValueType::Boolean);
@@ -584,9 +667,15 @@ TPlanFragmentPtr PreparePlanFragment(
 
         TTableSchema tableSchema;
         for (const auto& expr : query.GroupExprs.Get()) {
-            auto typedExpr = buildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr);
-            groupOp->GroupItems.emplace_back(typedExpr, expr.second);
-            tableSchema.Columns().emplace_back(expr.second, typedExpr->Type);
+            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), nullptr);
+            
+            if (typedExprs.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                    << TErrorAttribute("source", expr.first->GetSource(querySourceString));
+            }
+
+            groupOp->GroupItems.emplace_back(typedExprs.front(), expr.second);
+            tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
         ValidateTableScheme(tableSchema);
@@ -602,9 +691,15 @@ TPlanFragmentPtr PreparePlanFragment(
 
         TTableSchema tableSchema;
         for (const auto& expr : query.SelectExprs.Get()) {
-            auto typedExpr = buildTypedExpression(tableSchemaProxy, expr.first.Get(), groupOpProxy.GetPtr());
-            projectOp->Projections.emplace_back(typedExpr, expr.second);
-            tableSchema.Columns().emplace_back(expr.second, typedExpr->Type);
+            auto typedExprs = buildTypedExpression(tableSchemaProxy, expr.first.Get(), groupOpProxy.GetPtr());
+            
+            if (typedExprs.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expecting scalar expression")
+                    << TErrorAttribute("source", expr.first->GetSource(querySourceString));
+            }
+
+            projectOp->Projections.emplace_back(typedExprs.front(), expr.second);
+            tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
         }
 
         ValidateTableScheme(tableSchema);

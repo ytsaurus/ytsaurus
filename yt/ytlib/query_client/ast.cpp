@@ -18,40 +18,48 @@ TStringBuf TExpression::GetSource(const TStringBuf& source) const
 
 Stroka InferName(const TExpression* expr)
 {
-    if (auto typedExpr = expr->As<TLiteralExpression>()) {
-        return ToString(typedExpr->Value);
-    } else if (auto typedExpr = expr->As<TReferenceExpression>()) {
-        return typedExpr->ColumnName;
-    } else if (auto typedExpr = expr->As<TFunctionExpression>()) {
-        Stroka result = typedExpr->FunctionName;
+    if (auto commaExpr = expr->As<TCommaExpression>()) {
+        return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
+    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return ToString(literalExpr->Value);
+    } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        return referenceExpr->ColumnName;
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        Stroka result = functionExpr->FunctionName;
         result += "(";
-        for (int i = 0; i < typedExpr->Arguments.size(); ++i) {
-            if (i) {
-                result += ", ";
-            }
-            result += InferName(typedExpr->Arguments[i].Get());
-        }
+        result += InferName(functionExpr->Arguments.Get());
         result += ")";
         return result;
-    } else if (auto typedExpr = expr->As<TBinaryOpExpression>()) {
+    } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
         auto canOmitParenthesis = [] (const TExpression* expr) {
             return 
                 expr->As<TLiteralExpression>() ||
                 expr->As<TReferenceExpression>() ||
                 expr->As<TFunctionExpression>();
         };
-        auto lhsName = InferName(typedExpr->Lhs.Get());
-        if (!canOmitParenthesis(typedExpr->Lhs.Get())) {
+        auto lhsName = InferName(binaryExpr->Lhs.Get());
+        if (!canOmitParenthesis(binaryExpr->Lhs.Get())) {
             lhsName = "(" + lhsName + ")";
         }
-        auto rhsName = InferName(typedExpr->Rhs.Get());
-        if (!canOmitParenthesis(typedExpr->Rhs.Get())) {
+        auto rhsName = InferName(binaryExpr->Rhs.Get());
+        if (!canOmitParenthesis(binaryExpr->Rhs.Get())) {
             rhsName = "(" + rhsName + ")";
         }
         return
             lhsName +
-            " " + GetBinaryOpcodeLexeme(typedExpr->Opcode) + " " +
+            " " + GetBinaryOpcodeLexeme(binaryExpr->Opcode) + " " +
             rhsName;
+    } else if (auto inExpr = expr->As<TInExpression>()) {
+        Stroka result = InferName(inExpr->Expr.Get());
+        result += " in (";
+        for (int i = 0; i < inExpr->Values.size(); ++i) {
+            if (i) {
+                result += ", ";
+            }
+            result += ToString(inExpr->Values[i]);
+        }
+        result += ")";
+        return result;
     } else {
         YUNREACHABLE();
     }
