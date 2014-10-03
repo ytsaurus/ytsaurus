@@ -47,9 +47,6 @@ class Response(object):
         self._process_return_code()
         return not hasattr(self, "_error")
 
-    def is_json(self):
-        return self.raw_response.headers.get("content-type") == "application/json"
-
     def json(self):
         return self.raw_response.json()
 
@@ -87,7 +84,7 @@ def _process_request_backoff(current_time):
             time.sleep(float(http_config.REQUEST_BACKOFF) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, **kwargs):
+def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, **kwargs):
     yt.packages.requests.adapters.DEFAULT_TIMEOUT = http_config.REQUEST_RETRY_TIMEOUT / 1000.0
 
     network_errors = list(NETWORK_ERRORS)
@@ -110,10 +107,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
 
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
             # So we should retry this request.
-            if not kwargs.get("stream", False) and response.is_json() and not response.content():
-                raise YtIncorrectResponse(
-                        "Response has empty body and JSON content type (Headers: %s)" %
-                        repr(response.headers()))
+            if response_should_be_json and not response.content():
+                raise YtIncorrectResponse("Response should be json but has empty body")
             if response.raw_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             if not response.is_ok():

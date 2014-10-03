@@ -139,7 +139,8 @@ def get_host_for_heavy_operation(client=None):
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_content=True, verbose=False,
-                 retry_unavailable_proxy=True, client=None):
+                 retry_unavailable_proxy=True, client=None,
+                 response_should_be_json=False):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     """
@@ -232,7 +233,8 @@ def make_request(command_name, params,
         retry_unavailable_proxy=retry_unavailable_proxy,
         headers=headers,
         data=data,
-        stream=stream)
+        stream=stream,
+        response_should_be_json=response_should_be_json)
 
     # Hide token for security reasons
     if "Authorization" in headers:
@@ -253,7 +255,8 @@ def make_formatted_request(command_name, params, format, **kwargs):
     else:
         params["output_format"] = format.json()
 
-    result = make_request(command_name, params, **kwargs)
+    response_should_be_json = format is None
+    result = make_request(command_name, params, response_should_be_json=response_should_be_json, **kwargs)
 
     if format is None:
         return json_to_yson(json.loads(result))
