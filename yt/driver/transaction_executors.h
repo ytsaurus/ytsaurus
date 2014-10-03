@@ -51,7 +51,10 @@ public:
     TAbortTransactionExecutor();
 
 private:
+    TCLAP::SwitchArg ForceArg;
+
     virtual Stroka GetCommandName() const override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,7 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result = WaitFor(transaction->Abort(GenerateMutationId()));
+    auto result = WaitFor(transaction->Abort(Request_->Force, GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 

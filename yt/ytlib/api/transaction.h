@@ -42,7 +42,7 @@ struct ITransaction
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
 
     virtual TAsyncError Commit() = 0;
-    virtual TAsyncError Abort() = 0;
+    virtual TAsyncError Abort(bool force = false) = 0;
 
     // Tables
     virtual void WriteRow(

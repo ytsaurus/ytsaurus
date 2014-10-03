@@ -1072,9 +1072,9 @@ public:
             .Run();
     }
 
-    virtual TAsyncError Abort() override
+    virtual TAsyncError Abort(bool force) override
     {
-        return Transaction_->Abort();
+        return Transaction_->Abort(force);
     }
 
 

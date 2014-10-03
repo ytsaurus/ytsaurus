@@ -71,7 +71,15 @@ private:
 struct TAbortTransactionRequest
     : public TTransactionalRequest
     , public TMutatingRequest
-{ };
+{
+    bool Force;
+
+    TAbortTransactionRequest()
+    {
+        RegisterParameter("force", Force)
+            .Default(false);
+    }
+};
 
 typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 

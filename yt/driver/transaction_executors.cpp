@@ -1,7 +1,6 @@
 #include "transaction_executors.h"
 
-#include <server/job_proxy/config.h>
-#include <ytlib/driver/driver.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {
@@ -45,11 +44,22 @@ Stroka TCommitTransactionExecutor::GetCommandName() const
 
 TAbortTransactionExecutor::TAbortTransactionExecutor()
     : TTransactedExecutor(true, false)
-{ }
+    , ForceArg("", "force", "force abort in any state", false)
+{
+    CmdLine.add(ForceArg);
+}
 
 Stroka TAbortTransactionExecutor::GetCommandName() const
 {
     return "abort_tx";
+}
+
+void TAbortTransactionExecutor::BuildArgs(NYson::IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("force").Value(ForceArg.getValue());
+
+    TTransactedExecutor::BuildArgs(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

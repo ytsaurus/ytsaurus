@@ -30,10 +30,13 @@ public:
      *
      *  \note Thread affinity: ClientThread
      */
-    TAsyncError Commit(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+    TAsyncError Commit(
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
 
     //! Aborts the transaction asynchronously.
-    TAsyncError Abort(const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
+    TAsyncError Abort(
+        bool force = false,
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId);
 
     //! Detaches the transaction, i.e. stops pings.
     /*!
