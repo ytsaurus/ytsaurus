@@ -46,6 +46,19 @@ struct TKeyTrieNode
 
     std::map<TUnversionedValue, TKeyTrieNode> Next;
     std::vector<TBound> Bounds;
+
+    static TKeyTrieNode Empty()
+    {
+        TKeyTrieNode result;
+        result.Offset = std::numeric_limits<int>::min();
+        return result;
+    }
+
+    static TKeyTrieNode Universal()
+    {
+        return TKeyTrieNode();
+    }
+
 };
 
 TKeyTrieNode UniteKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);

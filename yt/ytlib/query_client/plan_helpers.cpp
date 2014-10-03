@@ -186,7 +186,7 @@ TKeyTrieNode ExtractMultipleConstraints(
             return TKeyTrieNode();
         };
 
-        TKeyTrieNode result;
+        auto result = TKeyTrieNode::Empty();
 
         for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
 
