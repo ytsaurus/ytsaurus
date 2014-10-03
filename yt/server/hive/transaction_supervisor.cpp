@@ -246,6 +246,8 @@ private:
         } catch (const std::exception& ex) {
             SetCommitFailed(commit, ex);
             RemoveCommit(commit);
+            // Best effort, fire-and-forget.
+            AbortTransaction(transactionId, false);
             return;
         }
 
@@ -383,6 +385,8 @@ private:
         } catch (const std::exception& ex) {
             SetCommitFailed(commit, ex);
             RemoveCommit(commit);
+            // Best effort, fire-and-forget.
+            AbortTransaction(transactionId, false);
             return;
         }
 
@@ -450,6 +454,8 @@ private:
 
             SetCommitFailed(commit, error);
 
+            // Transaction is already prepared at coordinator and (possibly) at some participants.
+            // We _must_ forcefully abort it.
             try {
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
@@ -557,9 +563,8 @@ private:
             hydraRequest.set_force(true);
             PostToParticipants(commit, hydraRequest);
 
-            SetCommitFailed(
-                commit,
-                TError("Transaction %v was aborted", transactionId));
+            auto error = TError("Transaction %v was aborted", transactionId);
+            SetCommitFailed(commit, error);
             RemoveCommit(commit);
         }
 
@@ -667,8 +672,9 @@ private:
             auto error = TError("Error generating commit timestamp")
                 << timestampOrError;
             SetCommitFailed(commit, error);
-            // Fire-and-forget.
-            AbortTransaction(transactionId, true);
+            // If this is a distributed transaction then is already prepared at coordinator and
+            // at all participants. We _must_ forcefully abort it.
+            AbortTransaction(transactionId, commit->IsDistributed());
             RemoveCommit(commit);
             return;
         }
