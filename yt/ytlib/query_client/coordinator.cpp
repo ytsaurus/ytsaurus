@@ -149,8 +149,6 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
         TRowBuffer rowBuffer;
         auto predicateConstraints = ExtractMultipleConstraints(
             filterOp->Predicate,
-            Fragment_->Literals,
-            Fragment_->LiteralRows,
             filterOp->Source->GetKeyColumns(),
             &rowBuffer);
         auto resultConstraints = IntersectKeyTrie(predicateConstraints, keyTrie);            
@@ -159,7 +157,34 @@ std::vector<TOperatorPtr> TCoordinator::Scatter(
         for (auto& resultOp : resultOps) {
             auto newFilterOp = New<TFilterOperator>();
             newFilterOp->Source = resultOp;
-            newFilterOp->Predicate = filterOp->Predicate;
+
+            auto predicate = filterOp->Predicate;
+
+            if (auto scanOp = resultOp->As<TScanOperator>()) {
+                if (scanOp->DataSplits.size() > 0) {
+                    TKeyRange keyRange = GetBothBoundsFromDataSplit(scanOp->DataSplits[0]);
+                    auto keyColumns = GetKeyColumnsFromDataSplit(scanOp->DataSplits[0]);
+                    
+                    for (size_t i = 1; i < scanOp->DataSplits.size(); ++i) {
+                        keyRange = Unite(keyRange, GetBothBoundsFromDataSplit(scanOp->DataSplits[i]));
+                    }
+
+                    int rangeSize = std::min(keyRange.first.GetCount(), keyRange.second.GetCount());
+
+                    size_t commonPrefixSize = 0;
+                    while (commonPrefixSize < rangeSize && keyRange.first[commonPrefixSize] == keyRange.second[commonPrefixSize]) {
+                        commonPrefixSize++;
+                    }
+
+                    if (commonPrefixSize < rangeSize) {
+                        commonPrefixSize++;
+                    }
+
+                    predicate = RefinePredicate(keyRange, commonPrefixSize, predicate, keyColumns);
+                }
+            }
+
+            newFilterOp->Predicate = predicate;
             resultOp = std::move(newFilterOp);
         }
     } else if (auto groupOp = op->As<TGroupOperator>()) {
@@ -329,11 +354,8 @@ TGroupedDataSplits TCoordinator::SplitAndRegroup(
         for (const auto& split : allSplits) {
             auto originalRange = GetBothBoundsFromDataSplit(split);
 
-            auto keySize = GetKeyColumnsFromDataSplit(split).size();
-
-            TRowBuffer rowBuffer;
             std::vector<TKeyRange> ranges = 
-                GetRangesFromTrieWithinRange(originalRange, &rowBuffer, keySize, keyTrie);
+                GetRangesFromTrieWithinRange(originalRange, keyTrie);
 
             for (const auto& range : ranges) {
                 auto splitCopy = split;

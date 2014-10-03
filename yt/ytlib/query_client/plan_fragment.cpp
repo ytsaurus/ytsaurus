@@ -3,6 +3,7 @@
 #include "plan_fragment.h"
 #include "private.h"
 #include "helpers.h"
+#include "plan_helpers.h"
 #include "lexer.h"
 #include "parser.hpp"
 #include "callbacks.h"
@@ -531,18 +532,18 @@ TPlanFragmentPtr PreparePlanFragment(
                     rhs);
             };
 
-            std::function<TExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TExpressionPtr {
+            std::function<TConstExpressionPtr(size_t, size_t, EBinaryOp)> gen = [&] (size_t offset, size_t keySize, EBinaryOp op) -> TConstExpressionPtr {
                 if (offset < keySize) {
                     auto next = gen(offset + 1, keySize, op);
-                    auto eq = makeBinaryExpr(EBinaryOp::And,
+                    auto eq = MakeAndExpression(
                             makeBinaryExpr(EBinaryOp::Equal, typedLhsExpr[offset], typedRhsExpr[offset]),
                             next);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
-                        return makeBinaryExpr(EBinaryOp::Or,
+                        return MakeOrExpression(
                             makeBinaryExpr(EBinaryOp::Less, typedLhsExpr[offset], typedRhsExpr[offset]),
                             eq);
                     } else if (op == EBinaryOp::Greater || op == EBinaryOp::GreaterOrEqual)  {
-                        return makeBinaryExpr(EBinaryOp::Or,
+                        return MakeOrExpression(
                             makeBinaryExpr(EBinaryOp::Greater, typedLhsExpr[offset], typedRhsExpr[offset]),
                             eq);
                     } else {

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "key_trie.h"
+#include "plan_helpers.h"
 
 namespace NYT {
 namespace NQueryClient {
@@ -212,49 +213,33 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs)
 
 void GetRangesFromTrieWithinRangeImpl(
     const TKeyRange& keyRange,
-    TRowBuffer* rowBuffer,
-    int keySize,
     std::vector<TKeyRange>* result,
     const TKeyTrieNode& trie,
     std::vector<TUnversionedValue> prefix = std::vector<TUnversionedValue>(),
     bool refineLower = true,
     bool refineUpper = true)
 {
+    auto lowerBoundSize = keyRange.first.GetCount();
+    auto upperBoundSize = keyRange.second.GetCount();
+
     size_t offset = prefix.size();
     
-    if (refineLower && offset >= keyRange.first.GetCount()) {
+    if (refineLower && offset >= lowerBoundSize) {
         refineLower = false;
     }
 
-    if (refineUpper && offset >= keyRange.second.GetCount()) {
+    if (refineUpper && offset >= upperBoundSize) {
         return;
     }
 
-    YCHECK(offset <= keySize);
-    YCHECK(!refineLower || offset < keyRange.first.GetCount());
-    YCHECK(!refineUpper || offset < keyRange.second.GetCount());
-
-    auto getFirstKeyRangeComponent = [&] (size_t index) {
-        // EValueType::Min because lower bound from keyRange is included
-        return index < keyRange.first.GetCount()
-            ? keyRange.first[index]
-            : MakeUnversionedSentinelValue(EValueType::Min);
-    };
-
-    auto getSecondKeyRangeComponent = [&] (size_t index) {
-        // EValueType::Min because upper bound from keyRange is excluded
-        return index < keyRange.second.GetCount()
-            ? keyRange.second[index]
-            : MakeUnversionedSentinelValue(EValueType::Min);
-    };
+    YCHECK(!refineLower || offset < lowerBoundSize);
+    YCHECK(!refineUpper || offset < upperBoundSize);
 
     if (trie.Offset > offset) {
         if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
             prefix.emplace_back(keyRange.first[offset]);
             GetRangesFromTrieWithinRangeImpl(
                 keyRange,
-                rowBuffer,
-                keySize,
                 result,
                 trie,
                 prefix,
@@ -262,34 +247,36 @@ void GetRangesFromTrieWithinRangeImpl(
                 true);
         } else {
             TKeyRange range;
-            TUnversionedOwningRowBuilder builder(prefix.size());
+            TUnversionedOwningRowBuilder builder(offset);
 
-            for (size_t i = 0; i < prefix.size(); ++i) {
+            for (size_t i = 0; i < offset; ++i) {
                 builder.AddValue(prefix[i]);
             }
-            for (size_t i = prefix.size(); i < keySize; ++i) {
-                // EValueType::Min because lower bound from prefix is included
-                builder.AddValue(refineLower
-                    ? getFirstKeyRangeComponent(i)
-                    : MakeUnversionedSentinelValue(EValueType::Min));
+
+            if (refineLower) {
+                for (size_t i = offset; i < lowerBoundSize; ++i) {
+                    builder.AddValue(keyRange.first[i]);
+                }
             }
             range.first = builder.FinishRow();
 
-            for (size_t i = 0; i < prefix.size(); ++i) {
-                // We need to make result range with excluded upper bound
-                // it could also be done outside this function
-                builder.AddValue(i + 1 != keySize
-                    ? prefix[i]
-                    : GetValueSuccessor(prefix[i], rowBuffer));
+
+            for (size_t i = 0; i < offset; ++i) {
+                builder.AddValue(prefix[i]);
             }
-            for (size_t i = prefix.size(); i < std::max(keySize, keyRange.second.GetCount()); ++i) {
-                // EValueType::Max because upper bound from prefix is included 
-                builder.AddValue(refineUpper
-                    ? getSecondKeyRangeComponent(i)
-                    : MakeUnversionedSentinelValue(EValueType::Max));
+
+            if (refineUpper) {
+                for (size_t i = offset; i < upperBoundSize; ++i) {
+                    builder.AddValue(keyRange.second[i]);
+                }
+            } else {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             }
             range.second = builder.FinishRow();
-            result->push_back(range);
+
+            if (!IsEmpty(range)) {
+                result->push_back(range);
+            }            
         }
         return;
     }
@@ -307,7 +294,7 @@ void GetRangesFromTrieWithinRangeImpl(
         YCHECK(lower.Value < upper.Value);
 
         auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
-        auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 != keyRange.second.GetCount());
+        auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
 
         bool lowerBoundRefined = false;
         if (refineLower) {
@@ -328,55 +315,39 @@ void GetRangesFromTrieWithinRangeImpl(
         }
 
         TKeyRange range;
-        TUnversionedOwningRowBuilder builder(prefix.size());
+        TUnversionedOwningRowBuilder builder(offset);
 
-        for (size_t j = 0; j < prefix.size(); ++j) {
+        for (size_t j = 0; j < offset; ++j) {
             builder.AddValue(prefix[j]);
         }
 
         if (lowerBoundRefined) {
-            for (size_t j = offset; j < keySize; ++j) {
-                builder.AddValue(getFirstKeyRangeComponent(j));
+            for (size_t j = offset; j < lowerBoundSize; ++j) {
+                builder.AddValue(keyRange.first[j]);
             }
         } else {
-            size_t rangeSize = keySize;
+            builder.AddValue(lower.Value);
 
-            builder.AddValue(
-                offset + 1 == rangeSize && !lower.Included
-                    ? GetValueSuccessor(lower.Value, rowBuffer)
-                    : lower.Value);
-
-            for (size_t j = offset + 1; j < rangeSize; ++j) {
-                builder.AddValue(MakeUnversionedSentinelValue(
-                    lower.Included
-                        ? EValueType::Min
-                        : EValueType::Max));
+            if (!lower.Included) {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             }
         }
         
         range.first = builder.FinishRow();
 
-        for (size_t j = 0; j < prefix.size(); ++j) {
+        for (size_t j = 0; j < offset; ++j) {
             builder.AddValue(prefix[j]);
         }
 
         if (upperBoundRefined) {
-            for (size_t j = offset; j < std::max(keySize, keyRange.second.GetCount()); ++j) {
-                builder.AddValue(getSecondKeyRangeComponent(j));
+            for (size_t j = offset; j < upperBoundSize; ++j) {
+                builder.AddValue(keyRange.second[j]);
             }
         } else {
-            size_t rangeSize = std::max(keySize, keyRange.second.GetCount());
+            builder.AddValue(upper.Value);
 
-            builder.AddValue(
-                offset + 1 == rangeSize && upper.Included
-                    ? GetValueSuccessor(upper.Value, rowBuffer)
-                    : upper.Value);
-
-            for (size_t j = offset + 1; j < rangeSize; ++j) {
-                builder.AddValue(MakeUnversionedSentinelValue(
-                    upper.Included
-                        ? EValueType::Max
-                        : EValueType::Min));
+            if (upper.Included) {
+                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             }
         }
 
@@ -411,8 +382,6 @@ void GetRangesFromTrieWithinRangeImpl(
 
         GetRangesFromTrieWithinRangeImpl(
             keyRange,
-            rowBuffer,
-            keySize,
             result,
             next.second,
             prefix,
@@ -423,13 +392,11 @@ void GetRangesFromTrieWithinRangeImpl(
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    TRowBuffer* rowBuffer,
-    int keySize,
     const TKeyTrieNode& trie)
 {
     std::vector<TKeyRange> result;
 
-    GetRangesFromTrieWithinRangeImpl(keyRange, rowBuffer, keySize, &result, trie);
+    GetRangesFromTrieWithinRangeImpl(keyRange, &result, trie);
     return result;
 }
 ////////////////////////////////////////////////////////////////////////////////

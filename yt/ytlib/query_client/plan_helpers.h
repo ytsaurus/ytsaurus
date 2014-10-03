@@ -27,6 +27,15 @@ TKeyRange Intersect(const TKeyRange& first, const TKeyRange& second);
 //! Checks whether key range is empty.
 bool IsEmpty(const TKeyRange& keyRange);
 
+TConstExpressionPtr MakeAndExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
+TConstExpressionPtr MakeOrExpression(const TConstExpressionPtr& lhs, const TConstExpressionPtr& rhs);
+
+TConstExpressionPtr RefinePredicate(
+    const TKeyRange& keyRange,
+    size_t commonPrefixSize,
+    const TConstExpressionPtr& expr,
+    const TKeyColumns& keyColumns);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

@@ -36,6 +36,10 @@ struct TBound
 
 };
 
+std::vector<TBound> IntersectBounds(
+    const std::vector<TBound>& lhs,
+    const std::vector<TBound>& rhs);
+
 struct TKeyTrieNode
 {
     int Offset = std::numeric_limits<int>::max();
@@ -50,8 +54,6 @@ TKeyTrieNode IntersectKeyTrie(const TKeyTrieNode& lhs, const TKeyTrieNode& rhs);
 
 std::vector<TKeyRange> GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
-    TRowBuffer* rowBuffer,
-    int keySize,
     const TKeyTrieNode& trie);
 
 ////////////////////////////////////////////////////////////////////////////////

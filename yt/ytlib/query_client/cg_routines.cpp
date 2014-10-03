@@ -271,6 +271,7 @@ char IsRowInArray(
     TRow row,
     int index)
 {
+    // TODO(lukyan): check null
     auto rows = executionContext->LiteralRows->at(index);
     return std::binary_search(rows.begin(), rows.end(), row, TRowCompare());
 }
