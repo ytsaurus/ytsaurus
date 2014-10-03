@@ -270,8 +270,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     request_attributes.append("type")
     request_attributes.append("opaque")
 
-    exclude = deepcopy(flatten(get_value(exclude, [])))
-    exclude.append("//sys/operations")
+    exclude = deepcopy(flatten(get_value(exclude, ["//sys/operations"])))
 
     def safe_get(path):
         try:
