@@ -21,6 +21,7 @@ message TRspCommitTransaction
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
+    optional bool force = 2 [default = false];
 }
 
 message TRspAbortTransaction

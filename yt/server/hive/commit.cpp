@@ -14,9 +14,7 @@ using namespace NHydra;
 
 TCommit::TCommit(const TTransactionId& transationId)
     : TransactionId_(transationId)
-{
-    Init();
-}
+{ }
 
 TCommit::TCommit(
     const TTransactionId& transationId,
@@ -25,18 +23,16 @@ TCommit::TCommit(
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellGuids_(participantCellGuids)
+{ }
+
+TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
 {
-    Init();
+    return ResponseMessagePromise_;
 }
 
-TFuture<TSharedRefArray> TCommit::GetResult()
+void TCommit::SetResponseMessage(TSharedRefArray message)
 {
-    return Result_;
-}
-
-void TCommit::SetResult(TSharedRefArray result)
-{
-    Result_.Set(std::move(result));
+    ResponseMessagePromise_.Set(std::move(message));
 }
 
 bool TCommit::IsDistributed() const
@@ -62,11 +58,6 @@ void TCommit::Load(TLoadContext& context)
     Load(context, MutationId_);
     Load(context, ParticipantCellGuids_);
     Load(context, PreparedParticipantCellGuids_);
-}
-
-void TCommit::Init()
-{
-    Result_ = NewPromise<TSharedRefArray>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

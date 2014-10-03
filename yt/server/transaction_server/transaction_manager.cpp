@@ -379,8 +379,9 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
-        id);
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        id,
+        force);
 }
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)

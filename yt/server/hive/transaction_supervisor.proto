@@ -5,7 +5,14 @@ import "yt/core/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartDistributedCommit
+message TReqCommitSimpleTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid mutation_id = 2;
+    required int64 commit_timestamp = 3;
+}
+
+message TReqCommitDistributedTransactionPhaseOne
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
@@ -27,19 +34,16 @@ message TReqOnTransactionCommitPrepared
     required NYT.NProto.TError error = 3;
 }
 
-message TReqFinalizeDistributedCommit
+message TReqCommitDistributedTransactionPhaseTwo
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid mutation_id = 2;
-    required int64 commit_timestamp = 3;
+    required int64 commit_timestamp = 2;
 }
 
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid mutation_id = 2;
-    required int64 commit_timestamp = 3;
-    required bool is_distributed = 4;
+    required int64 commit_timestamp = 2;
 }
 
 // Not to be confused with TReqAbortTransaction from RPC.
@@ -47,7 +51,7 @@ message TReqHydraAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid mutation_id = 2;
-    optional bool force = 3 [default = false];
+    required bool force = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

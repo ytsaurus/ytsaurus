@@ -33,7 +33,9 @@ public:
         const TTransactionId& transactionId,
         const std::vector<NHydra::TCellGuid>& participantCellGuids = std::vector<NHydra::TCellGuid>());
 
-    TAsyncError AbortTransaction(const TTransactionId& transactionId);
+    TAsyncError AbortTransaction(
+        const TTransactionId& transactionId,
+        bool force = false);
 
 private:
     class TImpl;

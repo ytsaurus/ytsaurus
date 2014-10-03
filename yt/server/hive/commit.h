@@ -32,8 +32,8 @@ public:
         const NHydra::TMutationId& mutationId,
         const std::vector<TCellGuid>& participantCellGuids);
 
-    TFuture<TSharedRefArray> GetResult();
-    void SetResult(TSharedRefArray result);
+    TFuture<TSharedRefArray> GetAsyncResponseMessage();
+    void SetResponseMessage(TSharedRefArray message);
 
     bool IsDistributed() const;
 
@@ -41,9 +41,7 @@ public:
     void Load(NHydra::TLoadContext& context);
 
 private:
-    TPromise<TSharedRefArray> Result_;
-
-    void Init();
+    TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();
 
 };
 

@@ -224,8 +224,9 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v)",
-            transactionId);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+            transactionId,
+            force);
     }
 
     void PingTransaction(const TTransactionId& transactionId, const TReqPingTransaction& request)
