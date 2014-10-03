@@ -37,20 +37,17 @@ protected:
 private:
     TResponseKeeperConfigPtr Config_;
 
-    typedef yhash_map<TMutationId, TSharedRefArray> TFinishedResponseMap;
-    TFinishedResponseMap FinishedResponses_;
-
+    yhash_map<TMutationId, TSharedRefArray> FinishedResponses_;
     volatile int FinishedResponseCount_ = 0;
     volatile i64 FinishedResponseSpace_ = 0;
 
-    struct TItem
+    struct TEvictionItem
     {
-        TFinishedResponseMap::iterator Iterator;
+        TMutationId Id;
         TInstant When;
     };
 
-    typedef std::deque<TItem> TResponseQueue;
-    TResponseQueue ResponseEvictionQueue_;
+    std::deque<TEvictionItem> ResponseEvictionQueue_;
 
     yhash_map<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 

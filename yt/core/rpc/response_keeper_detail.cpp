@@ -61,13 +61,8 @@ void TResponseKeeperBase::EndRequest(
         PendingResponses_.erase(pendingIt);
 
         if (remember) {
-            auto finishedPair = FinishedResponses_.insert(std::make_pair(id, data));
-            YCHECK(finishedPair.second);
-
-            TItem item;
-            item.Iterator = finishedPair.first;
-            item.When = now;
-            ResponseEvictionQueue_.push_back(item);
+            YCHECK(FinishedResponses_.insert(std::make_pair(id, data)).second);
+            ResponseEvictionQueue_.push_back(TEvictionItem{id, now});
         }
     }
 
@@ -91,8 +86,10 @@ void TResponseKeeperBase::EvictExpiredResponses(TInstant now)
                 break;
             }
 
-            UpdateCounters(item.Iterator->second, -1);
-            FinishedResponses_.erase(item.Iterator);
+            auto it = FinishedResponses_.find(item.Id);
+            YCHECK(it != FinishedResponses_.end());
+            UpdateCounters(it->second, -1);
+            FinishedResponses_.erase(it);
             ResponseEvictionQueue_.pop_front();
             changed = true;
         }
@@ -131,7 +128,7 @@ void TResponseKeeperBase::Save(TStreamSaveContext& context) const
 
     YCHECK(ResponseEvictionQueue_.size() == FinishedResponses_.size());
     for (const auto& item : ResponseEvictionQueue_) {
-        Save(context, item.Iterator->first);
+        Save(context, item.Id);
         Save(context, item.When);
     }
 }
@@ -146,11 +143,10 @@ void TResponseKeeperBase::Load(TStreamLoadContext& context)
 
     ResponseEvictionQueue_.clear();
     for (int index = 0; index < static_cast<int>(FinishedResponses_.size()); ++index) {
-        TItem item;
-        auto id = Load<TMutationId>(context);
-        item.Iterator = FinishedResponses_.find(id);
-        YCHECK(item.Iterator != FinishedResponses_.end());
-        item.When = Load<TInstant>(context);
+        TEvictionItem item;
+        Load(context, item.Id);
+        Load(context, item.When);
+        ResponseEvictionQueue_.push_back(item);
     }
 
     FinishedResponseSpace_ = 0;
