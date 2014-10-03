@@ -19,6 +19,7 @@ import time
 import signal
 import socket
 import argparse
+import traceback
 from copy import deepcopy
 from datetime import datetime
 from collections import defaultdict
@@ -482,7 +483,7 @@ class Application(object):
             message_queue.put({
                 "type": "error",
                 "error": {
-                    "message": str(error),
+                    "message": "\n".join([traceback.format_exc(), str(error)]),
                     "code": 1
                 }
             })
