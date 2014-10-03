@@ -295,32 +295,42 @@ def build_snapshot(*args, **kwargs):
 def gc_collect():
     get_driver().gc_collect()
 
-def create_account(name):
-    command('create', {'type': 'account', 'attributes': {'name': name}})
+def create_account(name, **kwargs):
+    kwargs["type"] = "account"
+    kwargs["attributes"] = {'name': name}
+    command('create', kwargs)
 
-def remove_account(name):
-    remove('//sys/accounts/' + name)
+def remove_account(name, **kwargs):
+    remove('//sys/accounts/' + name, **kwargs)
     gc_collect()
 
-def create_user(name):
-    command('create', {'type': 'user', 'attributes': {'name': name}})
+def create_user(name, **kwargs):
+    kwargs["type"] = "user"
+    kwargs["attributes"] = {'name': name}
+    command('create', kwargs)
 
-def remove_user(name):
-    remove('//sys/users/' + name)
+def remove_user(name, **kwargs):
+    remove('//sys/users/' + name, **kwargs)
     gc_collect()
 
-def create_group(name):
-    command('create', {'type': 'group', 'attributes': {'name': name}})
+def create_group(name, **kwargs):
+    kwargs["type"] = "group"
+    kwargs["attributes"] = {'name': name}
+    command('create', kwargs)
 
-def remove_group(name):
-    remove('//sys/groups/' + name)
+def remove_group(name, **kwargs):
+    remove('//sys/groups/' + name, **kwargs)
     gc_collect()
 
-def add_member(member, group):
-    command('add_member', {"member": member, "group": group})
+def add_member(member, group, **kwargs):
+    kwargs["member"] = member
+    kwargs["group"] = group
+    command('add_member', kwargs)
 
-def remove_member(member, group):
-    command('remove_member', {"member": member, "group": group})
+def remove_member(member, group, **kwargs):
+    kwargs["member"] = member
+    kwargs["group"] = group
+    command('remove_member', kwargs)
 
 #########################################
 
