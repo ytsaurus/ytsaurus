@@ -223,7 +223,7 @@ def get_node_config():
         job_controller = {
             resource_limits = {
                 memory = 8000000000;
-                slots = 1;
+                user_slots = 1;
             };
         };
 
