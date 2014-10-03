@@ -201,6 +201,8 @@ private:
         const std::vector<TCellGuid>& participantCellGuids,
         const TMutationId& mutationId)
     {
+        YASSERT(!HydraManager->IsMutating());
+
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
             if (asyncResponseMessage) {
@@ -273,6 +275,8 @@ private:
         const TMutationId& mutationId,
         bool force)
     {
+        YASSERT(!HydraManager->IsMutating());
+
         if (mutationId != NullMutationId) {
             auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(mutationId);
             if (asyncResponseMessage) {
