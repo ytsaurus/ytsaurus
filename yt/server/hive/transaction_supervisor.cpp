@@ -543,9 +543,6 @@ private:
         try {
             // All exceptions thrown here are caught below.
             TransactionManager_->AbortTransaction(transactionId, force);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
-                transactionId,
-                force);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error aborting transaction, ignored (TransactionId: %v)",
                 transactionId);
@@ -607,13 +604,7 @@ private:
 
         auto responseMessage = CreateErrorResponseMessage(error);
         SetCommitResponse(commit, responseMessage);
-//
-//        if (IsLeader()) {
-//            // Fire-and-forget.
-//            AbortTransaction(commit->GetTransactionId(), true);
-//        }
     }
-
 
     void SetCommitSucceeded(TCommit* commit, TTimestamp commitTimestamp)
     {
@@ -676,8 +667,9 @@ private:
             auto error = TError("Error generating commit timestamp")
                 << timestampOrError;
             SetCommitFailed(commit, error);
+            // Fire-and-forget.
+            AbortTransaction(transactionId, true);
             RemoveCommit(commit);
-            // TODO(babenko): transient, need some error handling here
             return;
         }
 
