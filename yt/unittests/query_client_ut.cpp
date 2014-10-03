@@ -1090,46 +1090,6 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
     ExpectIsEmpty(result);
 }
 
-TEST_F(TRefineKeyRangeTest, Lookup0)
-{
-    auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(10)));
-    auto conj2 = Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
-        Make<TReferenceExpression>("l"),
-        Make<TLiteralExpression>(MakeInt64(20)));
-
-    auto disj1 = Make<TBinaryOpExpression>(EBinaryOp::Greater,
-        Make<TReferenceExpression>("k"),
-        Make<TLiteralExpression>(MakeInt64(10)));
-
-    auto expr = Make<TBinaryOpExpression>(
-        EBinaryOp::Or,
-        Make<TBinaryOpExpression>(EBinaryOp::And, conj1, conj2),
-        disj1);
-
-    TRowBuffer rowBuffer;
-
-    auto keyColumns = GetSampleKeyColumns();
-
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
-        keyColumns,
-        &rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        keyTrie);
-
-    auto bound0 = result[0].first.Get();
-    auto bound1 = result[0].second.Get();
-
-    auto bound2 = result[1].first.Get();
-    auto bound3 = result[1].second.Get();
-
-    result.size();
-}
-
 TEST_F(TRefineKeyRangeTest, Lookup1)
 {
     auto conj1 = Make<TBinaryOpExpression>(EBinaryOp::Equal,
