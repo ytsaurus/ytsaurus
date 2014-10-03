@@ -280,7 +280,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->PrepareTransactionAbort(transactionId);
+            TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
             auto responseMessage = CreateErrorResponseMessage(ex);
             if (mutationId != NullMutationId) {
