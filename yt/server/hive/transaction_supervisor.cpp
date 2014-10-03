@@ -398,7 +398,10 @@ private:
             SetCommitFailed(commit, ex);
             RemoveCommit(commit);
             // Best effort, fire-and-forget.
-            AbortTransaction(transactionId, false);
+            auto this_ = MakeStrong(this);
+            EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
+                AbortTransaction(transactionId, false);
+            }));
             return;
         }
 
