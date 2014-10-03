@@ -374,7 +374,7 @@ class YTEnv(object):
             config['exec_agent']['slot_manager']['path'] = os.path.join(current, 'slots')
             config['tablet_node']['snapshots']['temp_path'] = os.path.join(current, 'snapshots')
 
-            current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
+            current_user += config['exec_agent']['job_controller']['resource_limits']['user_slots'] + 1
 
             config['logging'] = init_logging(config['logging'], current, 'node-%d' % i)
             config['tracing'] = init_tracing(config['rpc_port'])

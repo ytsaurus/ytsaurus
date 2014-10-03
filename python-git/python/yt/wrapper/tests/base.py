@@ -17,6 +17,14 @@ class YtTestBase(object):
         test_class.NUM_SCHEDULERS = 1
         test_class.START_PROXY = True
 
+        test_class.DELTA_NODE_CONFIG = {
+            'exec_agent' : {
+                'slot_manager' : {
+                    'enable_cgroups' : 'false'
+                }
+            }
+        }
+
         # (TODO): remake this strange stuff.
         cls.env = test_class()
 
