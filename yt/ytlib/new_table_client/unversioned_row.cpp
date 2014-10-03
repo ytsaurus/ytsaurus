@@ -1174,7 +1174,7 @@ TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/
     Reset();
 }
 
-void TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
+int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
@@ -1183,7 +1183,7 @@ void TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 
     auto* header = GetHeader();
     *GetValue(header->Count) = value;
-    ++header->Count;
+    return header->Count++;
 }
 
 TUnversionedRow TUnversionedRowBuilder::GetRow()

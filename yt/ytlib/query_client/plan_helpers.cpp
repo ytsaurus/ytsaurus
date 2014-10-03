@@ -34,8 +34,6 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 // Descend down to conjuncts and disjuncts and extract all constraints.
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
-    const TOwningRow& literals,
-    const std::vector<TRow>& literalRows,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer)
 {
@@ -46,12 +44,12 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         if (opcode == EBinaryOp::And) {
             return IntersectKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, literals, literalRows, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, literals, literalRows, keyColumns, rowBuffer));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer));
         } if (opcode == EBinaryOp::Or) {
             return UniteKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, literals, literalRows, keyColumns, rowBuffer),
-                ExtractMultipleConstraints(rhsExpr, literals, literalRows, keyColumns, rowBuffer));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer));
         } else {
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
@@ -80,7 +78,7 @@ TKeyTrieNode ExtractMultipleConstraints(
             if (referenceExpr && constantExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
                 if (keyPartIndex >= 0) {
-                    auto value = literals[constantExpr->Index];
+                    auto value = TValue(constantExpr->Value);
 
                     auto& bounds = result.Bounds;
                     switch (opcode) {
@@ -143,7 +141,7 @@ TKeyTrieNode ExtractMultipleConstraints(
         if (functionName == "is_prefix" && referenceExpr && constantExpr) {
             int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
             if (keyPartIndex >= 0) {
-                auto value = literals[constantExpr->Index];
+                auto value = TValue(constantExpr->Value);
 
                 YCHECK(value.Type == EValueType::String);
 
@@ -190,9 +188,9 @@ TKeyTrieNode ExtractMultipleConstraints(
 
         TKeyTrieNode result;
 
-        for (size_t rowIndex = inExpr->RowBegin; rowIndex < inExpr->RowEnd; ++rowIndex) {
+        for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {
             for (size_t keyIndex = 0; keyIndex < keySize; ++keyIndex) {
-                result = IntersectKeyTrie(result, emitConstraint(keyIndex, literalRows[rowIndex]));
+                result = IntersectKeyTrie(result, emitConstraint(keyIndex, inExpr->Values[rowIndex].Get()));
             }
         }
 

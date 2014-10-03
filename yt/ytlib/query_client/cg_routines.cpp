@@ -253,14 +253,26 @@ char* ToLower(
     return result;
 }
 
+struct TRowCompare
+{
+    bool operator () (const TRow& key, const TOwningRow& current) const
+    {
+        return key < current.Get();
+    }
+
+    bool operator () (const TOwningRow& current, const TRow& key) const
+    {
+        return current.Get() < key;
+    }
+};
+
 char IsRowInArray(
     TExecutionContext* executionContext,
     TRow row,
-    int rowsBegin,
-    int rowsEnd)
+    int index)
 {
-    auto rows = executionContext->LiteralRows.data();
-    return std::binary_search(rows + rowsBegin, rows + rowsEnd, row);
+    auto rows = executionContext->LiteralRows->at(index);
+    return std::binary_search(rows.begin(), rows.end(), row, TRowCompare());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

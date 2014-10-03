@@ -418,28 +418,17 @@ TPlanFragmentPtr PreparePlanFragment(
 
     auto querySourceString = planFragment->GetSource();
 
-    TOwningRowBuilder rowBuilder;
-
     auto captureRows = [&] (const NAst::TValueTupleList& literalTuples, size_t keySize) {
-        TUnversionedRowBuilder rowBuilder;
+        TUnversionedOwningRowBuilder rowBuilder;
 
-        std::pair<size_t, size_t> result;
-        result.first = planFragment->LiteralRows.size();
+        std::vector<TOwningRow> result;
         for (const auto & tuple : literalTuples) {
-            rowBuilder.Reset();
-
             for (auto literal : tuple) {
                 rowBuilder.AddValue(literal);
-            }            
-
-            auto capturedRow = planFragment->RowBuffer.Capture(rowBuilder.GetRow());
-            planFragment->LiteralRows.push_back(capturedRow);
+            }
+            result.push_back(rowBuilder.FinishRow());
         }
-        result.second = planFragment->LiteralRows.size();
-
-        std::sort(
-            planFragment->LiteralRows.begin() + result.first,
-            planFragment->LiteralRows.begin() + result.second);
+        std::sort(result.begin(), result.end());
 
         return result;
     };
@@ -464,7 +453,7 @@ TPlanFragmentPtr PreparePlanFragment(
             result.push_back(New<TLiteralExpression>(
                 literalExpr->SourceLocation,
                 EValueType(literalExpr->Value.Type),
-                rowBuilder.AddValue(literalExpr->Value)));
+                literalExpr->Value));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             size_t index = tableSchema.GetColumnIndex(referenceExpr->ColumnName);
             result.push_back(New<TReferenceExpression>(
@@ -567,7 +556,7 @@ TPlanFragmentPtr PreparePlanFragment(
                     return New<TLiteralExpression>(
                         NullSourceLocation,
                         EValueType::Boolean,
-                        rowBuilder.AddValue(MakeUnversionedBooleanValue(canBeEqual)));
+                        MakeUnversionedBooleanValue(canBeEqual));
                 }
             };
 
@@ -599,7 +588,6 @@ TPlanFragmentPtr PreparePlanFragment(
                 result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto sourceLocation = inExpr->SourceLocation;
             auto inExprOperands = buildTypedExpression(tableSchema, inExpr->Expr.Get(), groupProxy);
 
             size_t keySize = inExprOperands.size();
@@ -609,14 +597,11 @@ TPlanFragmentPtr PreparePlanFragment(
             result.push_back(New<TInOpExpression>(
                 inExpr->SourceLocation,
                 inExprOperands,
-                caturedRows.first,
-                caturedRows.second));
+                caturedRows));
         }
 
         return result;
     };
-    
-    ////////////////////////////////////
     
     std::set<Stroka> liveColumns;
     auto scanOp = New<TScanOperator>();
@@ -699,8 +684,6 @@ TPlanFragmentPtr PreparePlanFragment(
         tableSchemaProxy = TTableSchemaProxy(tableSchema);
     }
 
-    planFragment->Literals = rowBuilder.FinishRow();
-
     // Now we have planOperator and tableSchemaProxy
     
     // Prune references
@@ -738,11 +721,8 @@ TPlanFragmentPtr TPlanFragment::RewriteWith(const TConstOperatorPtr& head) const
         GetSource());
 
     fragment->NodeDirectory = NodeDirectory;
-    fragment->Literals = Literals;
     fragment->Head = head;
 
-    fragment->LiteralRows = fragment->RowBuffer.Capture(LiteralRows);
-    
     return fragment;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,7 +736,39 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     if (auto literalExpr = original->As<TLiteralExpression>()) {
         serialized->set_kind(EExpressionKind::Literal);
         auto* proto = serialized->MutableExtension(NProto::TLiteralExpression::literal_expression);
-        proto->set_index(literalExpr->Index);
+        auto value = TValue(literalExpr->Value);
+        auto data = value.Data;
+
+        switch (value.Type) {
+            case EValueType::Int64: {
+                proto->set_int64_value(data.Int64);
+                break;
+            }
+
+            case EValueType::Uint64: {
+                proto->set_uint64_value(data.Uint64);
+                break;
+            }
+                
+            case EValueType::Double: {
+                proto->set_double_value(data.Double);
+                break;
+            }
+
+            case EValueType::String: {
+                proto->set_string_value(data.String, value.Length);
+                break;
+            }
+
+            case EValueType::Boolean: {
+                proto->set_boolean_value(data.Boolean);
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+
     } else if (auto referenceExpr = original->As<TReferenceExpression>()) {
         serialized->set_kind(EExpressionKind::Reference);
         auto* proto = serialized->MutableExtension(NProto::TReferenceExpression::reference_expression);
@@ -776,8 +788,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         serialized->set_kind(EExpressionKind::InOp);
         auto* proto = serialized->MutableExtension(NProto::TInOpExpression::in_op_expression);
         ToProto(proto->mutable_arguments(), inOpExpr->Arguments);
-        proto->set_rows_begin(inOpExpr->RowBegin);
-        proto->set_rows_end(inOpExpr->RowEnd);
+        ToProto(proto->mutable_values(), inOpExpr->Values);
     } else {
         YUNREACHABLE();
     }
@@ -793,7 +804,37 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
         case EExpressionKind::Literal: {
             auto typedResult = New<TLiteralExpression>(sourceLocation, type);
             auto data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
-            typedResult->Index = data.index();
+
+            switch (type) {
+                case EValueType::Int64: {
+                    typedResult->Value = MakeUnversionedInt64Value(data.int64_value());
+                    break;
+                }
+
+                case EValueType::Uint64: {
+                    typedResult->Value = MakeUnversionedUint64Value(data.uint64_value());
+                    break;
+                }
+
+                case EValueType::Double: {
+                    typedResult->Value = MakeUnversionedDoubleValue(data.double_value());
+                    break;
+                }
+
+                case EValueType::String: {
+                    typedResult->Value = MakeUnversionedStringValue(data.string_value());
+                    break;
+                }
+
+                case EValueType::Boolean: {
+                    typedResult->Value = MakeUnversionedBooleanValue(data.boolean_value());
+                    break;
+                }
+
+                default:
+                    YUNREACHABLE();
+            }
+
             return typedResult;
         }
 
@@ -832,8 +873,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
                 typedResult->Arguments.push_back(FromProto(data.arguments(i)));
             }
 
-            typedResult->RowBegin = data.rows_begin();
-            typedResult->RowEnd = data.rows_end();
+            typedResult->Values = FromProto<TOwningRow>(data.values());
 
             return typedResult;
         } 
@@ -960,9 +1000,6 @@ void ToProto(NProto::TPlanFragment* serialized, const TConstPlanFragmentPtr& fra
 {
     ToProto(serialized->mutable_id(), fragment->GetId());
     ToProto(serialized->mutable_head(), fragment->Head);
-    ToProto(serialized->mutable_literals(), fragment->Literals);
-
-    ToProto(serialized->mutable_literal_rows(), fragment->LiteralRows);
     
     serialized->set_timestamp(fragment->GetTimestamp());
     serialized->set_input_row_limit(fragment->GetInputRowLimit());
@@ -982,12 +1019,6 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->NodeDirectory = New<TNodeDirectory>();
 
     result->Head = FromProto(serialized.head());
-    FromProto(&result->Literals, serialized.literals());
-
-    auto owningRows = FromProto<TOwningRow>(serialized.literal_rows());
-    for (const auto& owningRow : owningRows) {
-        result->LiteralRows.push_back(result->RowBuffer.Capture(owningRow.Get()));
-    }
 
     return result;
 }

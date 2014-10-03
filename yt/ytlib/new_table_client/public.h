@@ -111,6 +111,8 @@ union TUnversionedValueData;
 struct TUnversionedValue;
 struct TVersionedValue;
 
+class TUnversionedOwningValue;
+
 struct TUnversionedRowHeader;
 struct TVersionedRowHeader;
 

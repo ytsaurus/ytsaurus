@@ -152,7 +152,10 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
     Id_.AddInteger(expr->Type);
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
         Id_.AddInteger(EFoldingObjectType::LiteralExpr);
-        Id_.AddInteger(literalExpr->Index);
+        Id_.AddInteger(TValue(literalExpr->Value).Type);
+
+        int index = Variables_.ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
+        Binding_.NodeToConstantIndex[expr.Get()] = index;
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         Id_.AddInteger(EFoldingObjectType::ReferenceExpr);
         Id_.AddString(referenceExpr->ColumnName.c_str());
@@ -176,8 +179,10 @@ void TFoldingProfiler::Profile(const TConstExpressionPtr& expr)
             Profile(argument);
         }
 
-        Id_.AddInteger(inOp->RowBegin);
-        Id_.AddInteger(inOp->RowEnd);
+        int index = Variables_.LiteralRows.size();
+        Variables_.LiteralRows.push_back(inOp->Values);
+        Binding_.NodeToRows[expr.Get()] = index;
+
     } else {
         YUNREACHABLE();
     }
@@ -270,8 +275,6 @@ public:
 
                 TCGFunction cgFunction = cgFragment->GetCompiledBody();
 
-                auto constants = fragment->Literals.Get();
-
                 LOG_DEBUG("Evaluating plan fragment");
 
                 LOG_DEBUG("Opening writer");
@@ -294,7 +297,7 @@ public:
                 executionContext.Callbacks = callbacks;
                 executionContext.NodeDirectory = fragment->NodeDirectory;
                 executionContext.DataSplitsArray = &fragmentParams.DataSplitsArray;
-                executionContext.LiteralRows = fragment->LiteralRows;
+                executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.RowBuffer = &rowBuffer;
                 executionContext.ScratchSpace = &scratchSpace;
                 executionContext.Writer = writer.Get();
@@ -303,7 +306,7 @@ public:
                 executionContext.InputRowLimit = fragment->GetInputRowLimit();
                 executionContext.OutputRowLimit = fragment->GetOutputRowLimit();
 
-                CallCGFunctionPtr_(cgFunction, constants, &executionContext);
+                CallCGFunctionPtr_(cgFunction, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
 
                 LOG_DEBUG("Flushing writer");
                 if (!batch.empty()) {

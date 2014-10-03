@@ -74,8 +74,10 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 typedef NVersionedTableClient::TUnversionedRow TRow;
 typedef NVersionedTableClient::TUnversionedRowHeader TRowHeader;
 typedef NVersionedTableClient::TUnversionedValue TValue;
+typedef NVersionedTableClient::TUnversionedOwningValue TOwningValue;
 typedef NVersionedTableClient::TUnversionedValueData TValueData;
 typedef NVersionedTableClient::TUnversionedOwningRow TOwningRow;
+typedef NVersionedTableClient::TUnversionedRowBuilder TRowBuilder;
 typedef NVersionedTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
 typedef NVersionedTableClient::TOwningKey TKey;
 

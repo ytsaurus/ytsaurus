@@ -984,12 +984,15 @@ TCGValue TCGContext::CodegenInOpExpr(
             .StoreToRow(newRowRef, index, id);
     }
 
-    Value* result = builder.CreateCall4(
+    auto it = Binding_.NodeToRows.find(expr);
+    YCHECK(it != Binding_.NodeToRows.end());
+    auto index = it->second;
+
+    Value* result = builder.CreateCall3(
         Fragment_.GetRoutine("IsRowInArray"),
         executionContextPtrRef,
         newRowRef,
-        builder.getInt32(expr->RowBegin),
-        builder.getInt32(expr->RowEnd));
+        builder.getInt32(index));
 
     return TCGValue::CreateFromValue(builder, builder.getInt16(type), nullptr, result);
 }
@@ -1001,11 +1004,14 @@ TCGValue TCGContext::CodegenExpr(
     Value* row)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        auto it = Binding_.NodeToConstantIndex.find(expr.Get());
+        YCHECK(it != Binding_.NodeToConstantIndex.end());
+        auto index = it->second;
         return TCGValue::CreateFromRow(
             builder,
             GetConstantsRows(builder),
-            literalExpr->Index,
-            "literal." + Twine(literalExpr->Index))
+            index,
+            "literal." + Twine(index))
             .SetType(expr->Type) // Force type as constants are non-NULL.
             .Steal();
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {

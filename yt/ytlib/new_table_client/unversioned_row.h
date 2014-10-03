@@ -53,6 +53,71 @@ struct TUnversionedValue
     TUnversionedValueData Data;
 };
 
+class TUnversionedOwningValue
+{
+private:
+    TUnversionedValue Value_;
+
+    void assign(const TUnversionedValue& other)
+    {
+        
+        Value_ = other;
+        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+            auto newString = new char[Value_.Length];
+            ::memcpy(newString, Value_.Data.String, Value_.Length);
+            Value_.Data.String = newString;                
+        }
+    }
+
+public:
+    TUnversionedOwningValue()
+    {
+        Value_.Type = EValueType::TheBottom;
+        Value_.Length = 0;
+    }
+
+    TUnversionedOwningValue(const TUnversionedOwningValue& other)
+    {
+        assign(other);
+    }
+
+    TUnversionedOwningValue(const TUnversionedValue& other)
+    {
+        assign(other);
+    }
+
+    operator TUnversionedValue() const
+    {
+        return Value_;
+    }
+
+    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
+    {
+        clear();
+        assign(other);
+        return *this;
+    }
+
+    TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
+    {
+        clear();
+        assign(other);
+        return *this;
+    }
+
+    void clear()
+    {
+        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+            delete [] Value_.Data.String;
+        }
+    }
+
+    ~TUnversionedOwningValue()
+    {
+        clear();
+    }
+};
+
 static_assert(
     sizeof(TUnversionedValue) == 16,
     "TUnversionedValue has to be exactly 16 bytes.");
@@ -558,7 +623,7 @@ public:
 
     explicit TUnversionedRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
-    void AddValue(const TUnversionedValue& value);
+    int AddValue(const TUnversionedValue& value);
     TUnversionedRow GetRow();
     void Reset();
 

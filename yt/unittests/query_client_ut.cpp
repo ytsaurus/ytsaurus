@@ -555,17 +555,12 @@ TEST(TKeyRangeTest, IsEmpty)
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
-    const TConstExpressionPtr& predicate,
-    const TOwningRow& literals)
+    const TConstExpressionPtr& predicate)
 {
     TRowBuffer rowBuffer;
 
-    std::vector<TRow> literalRows;
-
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
-        literals,
-        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -638,25 +633,19 @@ protected:
             std::forward<TArgs>(args)...);
     }
 
-    TOwningRowBuilder RowBuilder;
-
-    size_t MakeInt64(i64 value)
+    TValue MakeInt64(i64 value)
     {
-        return RowBuilder.AddValue(MakeUnversionedInt64Value(value));
+        return MakeUnversionedInt64Value(value);
     }
-    size_t MakeUint64(ui64 value)
+    TValue MakeUint64(ui64 value)
     {
-        return RowBuilder.AddValue(MakeUnversionedUint64Value(value));
+        return MakeUnversionedUint64Value(value);
     }
-    size_t MakeString(const TStringBuf& value)
+    TValue MakeString(const TStringBuf& value)
     {
-        return RowBuilder.AddValue(MakeUnversionedStringValue(value));
+        return MakeUnversionedStringValue(value);
     }
 
-    TOwningRow Literals()
-    {
-        return RowBuilder.FinishRow();
-    }
 };
 
 void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
@@ -689,8 +678,7 @@ TEST_P(TRefineKeyRangeTest, Basic)
         std::make_pair(
             testCase.GetInitialLeftBound(),
             testCase.GetInitialRightBound()),
-        expr,
-        Literals());
+        expr);
 
     if (testCase.ResultIsEmpty) {
         ExpectIsEmpty(result);
@@ -1097,8 +1085,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     ExpectIsEmpty(result);
 }
@@ -1125,12 +1112,8 @@ TEST_F(TRefineKeyRangeTest, Lookup0)
 
     auto keyColumns = GetSampleKeyColumns();
 
-    std::vector<TRow> literalRows;
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        Literals(),
-        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1163,8 +1146,7 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("50;50;" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;50;" _MAX_), result.second);
@@ -1189,8 +1171,7 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("50;50;50"), result.first);
     EXPECT_EQ(BuildKey("50;50;51"), result.second);
@@ -1213,8 +1194,7 @@ TEST_F(TRefineKeyRangeTest, Range1)
     auto result = RefineKeyRange(
         keyColumns,
         std::make_pair(BuildKey(""), BuildKey("1000000000")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("1"), result.first);
     EXPECT_EQ(BuildKey("100"), result.second);
@@ -1234,8 +1214,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("10;" _MIN_ ";" _MIN_), result.first);
     EXPECT_EQ(BuildKey("90;" _MIN_ ";" _MIN_), result.second);
@@ -1263,8 +1242,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("50;10;" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;90;" _MIN_), result.second);
@@ -1284,8 +1262,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("50;" _MIN_ ";" _MIN_), result.first);
     EXPECT_EQ(BuildKey("50;" _MAX_ ";" _MAX_), result.second);
@@ -1317,12 +1294,8 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 
     auto keyColumns = GetSampleKeyColumns();
 
-    std::vector<TRow> literalRows;
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        Literals(),
-        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1367,12 +1340,8 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 
     auto keyColumns = GetSampleKeyColumns();
 
-    std::vector<TRow> literalRows;
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        Literals(),
-        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1429,12 +1398,8 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 
     auto keyColumns = GetSampleKeyColumns();
 
-    std::vector<TRow> literalRows;
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
-        Literals(),
-        literalRows,
         keyColumns,
         &rowBuffer);
 
@@ -1493,8 +1458,7 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
         std::make_pair(BuildKey("1"), BuildKey("2")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("1;2;3"), result.first);
     EXPECT_EQ(BuildKey("1;2;4"), result.second);
@@ -1525,8 +1489,7 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
         std::make_pair(BuildKey("1;1;1;aaaa"), BuildKey("100;100;100;bbbbb")),
-        expr,
-        Literals());
+        expr);
 
     EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
     EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);

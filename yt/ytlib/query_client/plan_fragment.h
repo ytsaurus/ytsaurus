@@ -86,12 +86,12 @@ struct TLiteralExpression
     TLiteralExpression(
         const TSourceLocation& sourceLocation,
         EValueType type,
-        size_t index)
+        TOwningValue value)
         : TExpression(sourceLocation, type)
-        , Index(index)
+        , Value(value)
     { }
 
-    size_t Index;
+    TOwningValue Value;
 
 };
 
@@ -181,19 +181,18 @@ struct TInOpExpression
     TInOpExpression(
         const TSourceLocation& sourceLocation,
         const TArguments& arguments,
-        size_t rowBegin,
-        size_t rowEnd)
+        const std::vector<TOwningRow>& values)
         : TExpression(sourceLocation, EValueType::Boolean)
         , Arguments(arguments)
-        , RowBegin(rowBegin)
-        , RowEnd(rowEnd)
+        , Values(values)
     { }
 
     TArguments Arguments;
-    size_t RowBegin;
-    size_t RowEnd;
+    std::vector<TOwningRow> Values;
 
 };
+
+EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,10 +336,6 @@ public:
     
     TNodeDirectoryPtr NodeDirectory;
     TConstOperatorPtr Head;
-    TOwningRow Literals;
-
-    TRowBuffer RowBuffer;
-    std::vector<TRow> LiteralRows;
 
 };
 

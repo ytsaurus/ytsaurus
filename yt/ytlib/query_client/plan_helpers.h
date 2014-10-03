@@ -13,8 +13,6 @@ namespace NQueryClient {
 
 TKeyTrieNode ExtractMultipleConstraints(
     const TConstExpressionPtr& expr,
-    const TOwningRow& literals,
-    const std::vector<TRow>& literalRows,
     const TKeyColumns& keyColumns,
     TRowBuffer* rowBuffer);
 

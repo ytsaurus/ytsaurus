@@ -21,7 +21,12 @@ message TLiteralExpression
     extend TExpression {
         optional TLiteralExpression literal_expression = 107;
     }
-    required uint32 index = 1;
+
+    optional int64 int64_value = 1;
+    optional uint64 uint64_value = 2;
+    optional double double_value = 3;
+    optional string string_value = 4;
+    optional bool boolean_value = 5;
 }
 
 message TReferenceExpression
@@ -57,9 +62,7 @@ message TInOpExpression
         optional TInOpExpression in_op_expression = 108;
     }
     repeated TExpression arguments = 1;
-
-    required uint32 rows_begin = 2;
-    required uint32 rows_end = 3;
+    repeated bytes values = 2;
 }
 
 message TNamedItem
@@ -126,9 +129,7 @@ message TPlanFragment
     required int64 input_row_limit = 4;
     required int64 output_row_limit = 5;
 
-    required bytes literals = 6;
-    required string source = 7;
-    repeated bytes literal_rows = 8;
+    required string source = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

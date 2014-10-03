@@ -43,7 +43,7 @@ struct TExecutionContext
     IEvaluateCallbacks* Callbacks;
     TNodeDirectoryPtr NodeDirectory;
     std::vector<TDataSplits>* DataSplitsArray;
-    std::vector<TRow> LiteralRows;
+    std::vector<std::vector<TOwningRow>>* LiteralRows;
     TRowBuffer* RowBuffer;
     TChunkedMemoryPool* ScratchSpace;
     ISchemafulWriter* Writer;
@@ -65,13 +65,17 @@ typedef
 
 struct TCGBinding
 {
+    std::unordered_map<const TExpression*, int> NodeToConstantIndex;
     std::unordered_map<const TOperator*, int> ScanOpToDataSplits;
+    std::unordered_map<const TExpression*, int> NodeToRows;
+    
 };
 
 struct TCGVariables
 {
-    std::vector<TValue> ConstantArray;
+    TRowBuilder ConstantsRowBuilder;
     std::vector<TDataSplits> DataSplitsArray;
+    std::vector<std::vector<TOwningRow>> LiteralRows;
 };
 
 typedef void (*TCGFunction)(
