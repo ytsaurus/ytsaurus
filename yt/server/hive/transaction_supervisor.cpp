@@ -246,6 +246,8 @@ private:
                 false,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v)",
+                transactionId);
             SetCommitFailed(commit, ex);
             RemoveCommit(commit);
             // Best effort, fire-and-forget.
@@ -288,6 +290,9 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->PrepareTransactionAbort(transactionId, force);
         } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v)",
+                transactionId,
+                force);
             auto responseMessage = CreateErrorResponseMessage(ex);
             if (mutationId != NullMutationId) {
                 ResponseKeeper_->EndRequest(mutationId, responseMessage);
@@ -331,8 +336,9 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error committing simple prepared transaction (TransactionId: %v)",
+            LOG_ERROR(ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
+            return;
         }
 
         auto* commit = TransientCommitMap_.Find(transactionId);
@@ -387,6 +393,8 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error preparing transaction commit at coordinator (TransactionId: %v)",
+                transactionId);
             SetCommitFailed(commit, ex);
             RemoveCommit(commit);
             // Best effort, fire-and-forget.
@@ -423,6 +431,8 @@ private:
                 true,
                 prepareTimestamp);
         } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error preparing transaction commit at participant (TransactionId: %v)",
+                transactionId);
             error = ex;
         }
 
@@ -506,7 +516,7 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error committing prepared transaction at coordinator (TransactionId: %v)",
+            LOG_FATAL(ex, "Error committing transaction at coordinator (TransactionId: %v)",
                 transactionId);
         }
 
@@ -536,7 +546,7 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error committing prepared transaction at participant (TransactionId: %v)",
+            LOG_FATAL(ex, "Error committing transaction at participant (TransactionId: %v)",
                 transactionId);
         }
 
