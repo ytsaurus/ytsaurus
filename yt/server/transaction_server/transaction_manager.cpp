@@ -30,7 +30,6 @@
 #include <server/security_server/security_manager.h>
 
 #include <server/hive/transaction_supervisor.h>
-#include <StoreKit/StoreKit.h>
 
 namespace NYT {
 namespace NTransactionServer {
