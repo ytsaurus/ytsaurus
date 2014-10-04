@@ -199,7 +199,6 @@ private:
     int DoGetLatestChangelogId(int initialId)
     {
         int latestId = NonexistingSegmentId;
-        yhash_set<int> ids;
 
         auto fileNames = NFS::EnumerateFiles(Config_->Path);
         for (const auto& fileName : fileNames) {
@@ -209,21 +208,11 @@ private:
             auto name = NFS::GetFileNameWithoutExtension(fileName);
             try {
                 int id = FromString<int>(name);
-                YCHECK(ids.insert(id).second);
                 if (id >= initialId && (id > latestId || latestId == NonexistingSegmentId)) {
                     latestId = id;
                 }
             } catch (const std::exception&) {
                 LOG_WARNING("Found unrecognized file %Qv", fileName);
-            }
-        }
-
-        if (latestId != NonexistingSegmentId) {
-            for (int id = initialId; id <= latestId; ++id) {
-                if (ids.find(id) == ids.end()) {
-                    LOG_FATAL("Interim changelog %v is missing",
-                        id);                    
-                }
             }
         }
 
