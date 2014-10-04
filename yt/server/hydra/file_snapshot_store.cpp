@@ -148,7 +148,7 @@ public:
                 FileInput_.reset(new TBufferedFileInput(*File_));
 
                 auto codec = ECodec(Header_.Codec);
-                if (IsRaw_ || codec == ECodec::None) {
+                if (IsRaw_) {
                     CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
                 } else {
                     switch (codec) {
