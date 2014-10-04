@@ -38,14 +38,6 @@ public:
         , AutomatonInvoker_(automatonInvoker)
     {
         RegisterMethod(BIND(&TImpl::HydraEvictExpiredResponses, Unretained(this)));
-
-        RegisterLoader(
-            "ResponseKeeper",
-            BIND(&TImpl::Load, Unretained(this)));
-        RegisterSaver(
-            ESerializationPriority::Values,
-            "ResponseKeeper",
-            BIND(&TImpl::Save, Unretained(this)));
     }
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id)
@@ -98,27 +90,9 @@ private:
     }
 
 
-    void Load(TLoadContext& context)
-    {
-        // COMPAT(babenko)
-        if (context.GetVersion() == GetCurrentSnapshotVersion()) {
-            TResponseKeeperBase::Load(context);
-        }
-    }
-
-    void Save(TSaveContext& context)
-    {
-        TResponseKeeperBase::Save(context);
-    }
-
     virtual void Clear() override
     {
         TResponseKeeperBase::Clear();
-    }
-
-    virtual int GetCurrentSnapshotVersion() override
-    {
-        return 3;
     }
 
 };
