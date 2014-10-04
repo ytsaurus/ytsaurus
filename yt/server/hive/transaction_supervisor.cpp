@@ -251,7 +251,7 @@ private:
             LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v)",
                 transactionId);
             SetCommitFailed(commit, ex);
-            RemoveCommit(commit);
+            TransientCommitMap_.Remove(transactionId);
             // Best effort, fire-and-forget.
             AbortTransaction(transactionId, false);
             return;
@@ -355,7 +355,7 @@ private:
         }
 
         SetCommitSucceeded(commit, commitTimestamp);
-        RemoveCommit(commit);
+        TransientCommitMap_.Remove(transactionId);
     }
 
     void HydraCommitDistributedTransactionPhaseOne(const TReqCommitDistributedTransactionPhaseOne& request)
@@ -398,7 +398,7 @@ private:
             LOG_DEBUG(ex, "Error preparing transaction commit at coordinator (TransactionId: %v)",
                 transactionId);
             SetCommitFailed(commit, ex);
-            RemoveCommit(commit);
+            PersistentCommitMap_.Remove(transactionId);
             // Best effort, fire-and-forget.
             auto this_ = MakeStrong(this);
             EpochAutomatonInvoker_->Invoke(BIND([this, this_, transactionId] () {
@@ -488,7 +488,7 @@ private:
             hydraRequest.set_force(true);
             PostToParticipants(commit, hydraRequest);
 
-            RemoveCommit(commit);
+            PersistentCommitMap_.Remove(transactionId);
             return;
         }
 
@@ -524,7 +524,7 @@ private:
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error committing transaction at coordinator (TransactionId: %v)",
                 transactionId);
             SetCommitFailed(commit, ex);
-            RemoveCommit(commit);
+            PersistentCommitMap_.Remove(transactionId);
             return;
         }
 
@@ -540,15 +540,13 @@ private:
         }
 
         SetCommitSucceeded(commit, commitTimestamp);
-        RemoveCommit(commit);
+        PersistentCommitMap_.Remove(transactionId);
     }
 
     void HydraCommitPreparedTransaction(const TReqCommitPreparedTransaction& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
-
-        YCHECK(!FindCommit(transactionId));
 
         try {
             // Any exception thrown here is caught below.
@@ -588,7 +586,8 @@ private:
 
             auto error = TError("Transaction %v was aborted", transactionId);
             SetCommitFailed(commit, error);
-            RemoveCommit(commit);
+
+            YCHECK(PersistentCommitMap_.TryRemove(transactionId) || TransientCommitMap_.TryRemove(transactionId));
         }
 
         {
@@ -614,14 +613,6 @@ private:
             return commit;
         }
         return nullptr;
-    }
-
-    void RemoveCommit(TCommit* commit)
-    {
-        auto transactionId = commit->GetTransactionId();
-        YCHECK(
-            TransientCommitMap_.TryRemove(transactionId) ||
-            PersistentCommitMap_.TryRemove(transactionId));
     }
 
 
@@ -692,13 +683,9 @@ private:
         }
 
         if (!timestampOrError.IsOK()) {
-            auto error = TError("Error generating commit timestamp")
-                << timestampOrError;
-            SetCommitFailed(commit, error);
-            // If this is a distributed transaction then is already prepared at coordinator and
+            // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
             AbortTransaction(transactionId, commit->IsDistributed());
-            RemoveCommit(commit);
             return;
         }
 
