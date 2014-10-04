@@ -33,6 +33,7 @@
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -112,7 +113,7 @@ private:
             , Path_(path)
             , Options_(options)
             , Config_(config ? config : New<TJournalWriterConfig>())
-            , Proxy_(Client_->GetMasterChannel())
+            , ObjectProxy_(Client_->GetMasterChannel())
             , Logger(ApiLogger)
         {
             if (Options_.TransactionId != NullTransactionId) {
@@ -182,7 +183,7 @@ private:
         TJournalWriterConfigPtr Config_;
 
         IInvokerPtr Invoker_;
-        TObjectServiceProxy Proxy_;
+        TObjectServiceProxy ObjectProxy_;
 
         NLog::TLogger Logger;
 
@@ -425,8 +426,6 @@ private:
 
             LOG_INFO("Creating chunk");
 
-            std::vector<TChunkReplica> replicas;
-            std::vector<TNodeDescriptor> targets;
             {
                 auto req = TMasterYPathProxy::CreateObjects();
                 req->set_type(EObjectType::JournalChunk);
@@ -434,40 +433,46 @@ private:
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
 
                 auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
-                ToProto(reqExt->mutable_forbidden_addresses(), GetBannedNodes());
-                if (Config_->PreferLocalHost) {
-                    reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-                }
                 reqExt->set_replication_factor(ReplicationFactor_);
-                reqExt->set_upload_replication_factor(ReplicationFactor_);
                 reqExt->set_read_quorum(ReadQuorum_);
                 reqExt->set_write_quorum(WriteQuorum_);
                 reqExt->set_movable(true);
                 reqExt->set_vital(true);
                 reqExt->set_erasure_codec(NErasure::ECodec::None);
 
-                auto rsp = WaitFor(Proxy_.Execute(req));
+                auto rsp = WaitFor(ObjectProxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating chunk");
                 CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_ids(0));
+            }
 
-                const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
-                NodeDirectory_->MergeFrom(rspExt.node_directory());
+            LOG_INFO("Chunk created (ChunkId: %v)",
+                CurrentSession_->ChunkId);
 
-                replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-                if (replicas.size() < ReplicationFactor_) {
-                    THROW_ERROR_EXCEPTION("Not enough data nodes available: %v received, %v needed",
-                        replicas.size(),
-                        ReplicationFactor_);
+            std::vector<TChunkReplica> replicas;
+            std::vector<TNodeDescriptor> targets;
+            {
+                TChunkServiceProxy chunkProxy(Client_->GetMasterChannel());
+                auto req = chunkProxy.AllocateWriteTargets();
+                ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
+                ToProto(req->mutable_forbidden_addresses(), GetBannedNodes());
+                if (Config_->PreferLocalHost) {
+                    req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
                 }
+                req->set_upload_replication_factor(ReplicationFactor_);
 
+                auto rsp = WaitFor(req->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error allocating write targets");
+
+                NodeDirectory_->MergeFrom(rsp->node_directory());
+
+                replicas = NYT::FromProto<TChunkReplica>(rsp->replicas());
                 for (auto replica : replicas) {
                     const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
                     targets.push_back(descriptor);
                 }
             }
 
-            LOG_INFO("Chunk created (ChunkId: %v, Targets: [%v])",
-                CurrentSession_->ChunkId,
+            LOG_INFO("Write targets allocated (Targets: [%v])",
                 JoinToString(targets));
 
             for (int index = 0; index < ReplicationFactor_; ++index) {
@@ -509,7 +514,7 @@ private:
 
             LOG_INFO("Attaching chunk");
             {
-                auto batchReq = Proxy_.ExecuteBatch();
+                auto batchReq = ObjectProxy_.ExecuteBatch();
                 batchReq->PrerequisiteTransactions().push_back(UploadTransaction_->GetId());
 
                 {
@@ -663,7 +668,7 @@ private:
                 info->set_row_count(session->FlushedRowCount);
                 info->set_uncompressed_data_size(session->FlushedDataSize);
                 info->set_compressed_data_size(session->FlushedDataSize);
-                auto rsp = WaitFor(Proxy_.Execute(req));
+                auto rsp = WaitFor(ObjectProxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error sealing chunk %v",
                     session->ChunkId);
             }

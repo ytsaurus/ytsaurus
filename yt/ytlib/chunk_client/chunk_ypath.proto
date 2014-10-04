@@ -38,26 +38,14 @@ message TReqCreateChunkExt
         optional TReqCreateChunkExt create_chunk_ext = 100;
     }
 
-    // Requested number of nodes to write.
-    optional int32 upload_replication_factor = 1 [default = 1];
- 
     // Desired number of copies (including those created by background replication).
-    optional int32 replication_factor = 2 [default = 1];
+    optional int32 replication_factor = 1 [default = 1];
 
     // Minimum number of replicas to read during seal. Journal chunks only.
-    optional int32 read_quorum = 8 [default = 0];
+    optional int32 read_quorum = 2 [default = 0];
  
     // Minimum number of replicas to flush during write. Journal chunks only.
-    optional int32 write_quorum = 9 [default = 0];
-
-    // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
-    // This does not prevent further balancing to move chunk there.
-    repeated string forbidden_addresses = 7;
-
-    // Host name (without port number!) to be preferred for upload.
-    // The client typically puts the name of the local host here to
-    // facilitate local uploads.
-    optional string preferred_host_name = 3;
+    optional int32 write_quorum = 3 [default = 0];
 
     // See NErasure::ECodec.
     optional int32 erasure_codec = 4 [default = 0];
@@ -66,17 +54,6 @@ message TReqCreateChunkExt
     optional bool movable = 5 [default = true];
 
     required bool vital = 6 [default = false];
-}
-
-message TRspCreateChunkExt
-{
-    extend NObjectClient.NProto.TRspCreateObjects
-    {
-        optional TRspCreateChunkExt create_chunk_ext = 100;
-    }
-
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated fixed32 replicas = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

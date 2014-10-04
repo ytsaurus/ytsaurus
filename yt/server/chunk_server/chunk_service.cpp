@@ -15,6 +15,7 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
+#include <ImageCaptureCore/ImageCaptureCore.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -116,6 +117,10 @@ private:
             &forbiddenNodeSet,
             preferredHostName,
             chunk->GetType());
+
+        if (targets.empty()) {
+            THROW_ERROR_EXCEPTION("Not enough data nodes available");
+        }
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {

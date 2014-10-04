@@ -46,11 +46,11 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     req->set_account(options->Account);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk_ext);
-    if (config->PreferLocalHost && options->ErasureCodec == NErasure::ECodec::None) {
-        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-    }
+//    if (config->PreferLocalHost && options->ErasureCodec == NErasure::ECodec::None) {
+//        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+//    }
     reqExt->set_replication_factor(options->ReplicationFactor);
-    reqExt->set_upload_replication_factor(uploadReplicationFactor);
+//    reqExt->set_upload_replication_factor(uploadReplicationFactor);
     reqExt->set_movable(config->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(options->ErasureCodec);
@@ -75,12 +75,12 @@ void OnChunkCreated(
 
     *chunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
-    const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
-    nodeDirectory->MergeFrom(rspExt.node_directory());
-    *replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-    if (replicas->empty()) {
-        THROW_ERROR_EXCEPTION("Not enough data nodes available");
-    }
+//    const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
+//    nodeDirectory->MergeFrom(rspExt.node_directory());
+//    *replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
+//    if (replicas->empty()) {
+//        THROW_ERROR_EXCEPTION("Not enough data nodes available");
+//    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

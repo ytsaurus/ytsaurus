@@ -1389,7 +1389,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
     TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    TRspCreateObjects* /*response*/)
 {
     YCHECK(transaction);
     YCHECK(account);
@@ -1430,64 +1430,6 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
         erasureCodecId,
         requestExt.movable(),
         requestExt.vital());
-
-    if (Owner_->IsLeader()) {
-        TNodeSet forbiddenNodeSet;
-        TNodeList forbiddenNodeList;
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-        for (const auto& address : requestExt.forbidden_addresses()) {
-            auto* node = nodeTracker->FindNodeByAddress(address);
-            if (node) {
-                forbiddenNodeSet.insert(node);
-                forbiddenNodeList.push_back(node);
-            }
-        }
-
-        auto preferredHostName = requestExt.has_preferred_host_name()
-            ? TNullable<Stroka>(requestExt.preferred_host_name())
-            : Null;
-
-        int uploadReplicationFactor = isErasure
-            ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
-            : requestExt.upload_replication_factor();
-
-        auto targets = Owner_->AllocateWriteTargets(
-            uploadReplicationFactor,
-            &forbiddenNodeSet,
-            preferredHostName,
-            chunkType);
-
-        auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
-        NNodeTrackerServer::TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
-        for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
-            auto* target = targets[index];
-            NChunkServer::TNodePtrWithIndex replica(
-                target,
-                isErasure ? index : 0);
-            builder.Add(replica);
-            responseExt->add_replicas(NYT::ToProto<ui32>(replica));
-        }
-
-        LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
-            "Allocated nodes for new chunk "
-                "(ChunkId: %v, TransactionId: %v, Account: %v, Targets: [%v], "
-                "ForbiddenAddresses: [%v], PreferredHostName: %v, ReplicationFactor: %v, "
-                "UploadReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, "
-                "ErasureCodec: %v, Movable: %v, Vital: %v)",
-            chunk->GetId(),
-            transaction->GetId(),
-            account->GetName(),
-            JoinToString(targets, TNodePtrAddressFormatter()),
-            JoinToString(forbiddenNodeList, TNodePtrAddressFormatter()),
-            preferredHostName,
-            chunk->GetReplicationFactor(),
-            uploadReplicationFactor,
-            chunk->GetReadQuorum(),
-            chunk->GetWriteQuorum(),
-            erasureCodecId,
-            requestExt.movable(),
-            requestExt.vital());
-    }
 
     return chunk;
 }

@@ -19,6 +19,8 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 
@@ -144,47 +146,57 @@ void TMultiChunkSequentialWriterBase::CreateNextSession()
         Options_->ReplicationFactor,
         UploadReplicationFactor_);
 
-    TObjectServiceProxy objectProxy(MasterChannel_);
+    {
+        TObjectServiceProxy objectProxy(MasterChannel_);
 
-    auto req = TMasterYPathProxy::CreateObjects();
-    ToProto(req->mutable_transaction_id(), TransactionId_);
+        auto req = TMasterYPathProxy::CreateObjects();
+        ToProto(req->mutable_transaction_id(), TransactionId_);
 
-    req->set_type(Options_->ErasureCodec == ECodec::None
-        ? EObjectType::Chunk
-        : EObjectType::ErasureChunk);
+        req->set_type(Options_->ErasureCodec == ECodec::None
+            ? EObjectType::Chunk
+            : EObjectType::ErasureChunk);
 
-    req->set_account(Options_->Account);
-    GenerateMutationId(req);
+        req->set_account(Options_->Account);
+        GenerateMutationId(req);
 
-    auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
-    if (Config_->PreferLocalHost) {
-        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
+        reqExt->set_replication_factor(Options_->ReplicationFactor);
+        reqExt->set_movable(Config_->ChunksMovable);
+        reqExt->set_vital(Options_->ChunksVital);
+        reqExt->set_erasure_codec(Options_->ErasureCodec);
+
+        auto rsp = WaitFor(objectProxy.Execute(req));
+        if (!rsp->IsOK()) {
+            CompletionError_.TrySet(TError(
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Error creating chunk")
+                << *rsp);
+            return;
+        }
+
+        NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
     }
-    reqExt->set_replication_factor(Options_->ReplicationFactor);
-    reqExt->set_upload_replication_factor(UploadReplicationFactor_);
-    reqExt->set_movable(Config_->ChunksMovable);
-    reqExt->set_vital(Options_->ChunksVital);
-    reqExt->set_erasure_codec(Options_->ErasureCodec);
 
-    auto rsp = WaitFor(objectProxy.Execute(req));
+    {
+        TChunkServiceProxy chunkProxy(MasterChannel_);
+        auto req = chunkProxy.AllocateWriteTargets();
+        ToProto(req->mutable_chunk_id(), NextSession_.ChunkId);
+        if (Config_->PreferLocalHost) {
+            req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+        }
+        req->set_upload_replication_factor(UploadReplicationFactor_);
 
-    if (!rsp->IsOK()) {
-        CompletionError_.TrySet(TError(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk")
-            << *rsp);
-        return;
-    }
+        auto rsp = WaitFor(req->Invoke());
+        if (!rsp->IsOK()) {
+            CompletionError_.TrySet(TError(
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Error allocating write targers")
+                << *rsp);
+            return;
+        }
 
-    NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
-    const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
-
-    NodeDirectory_->MergeFrom(rspExt.node_directory());
-
-    NextSession_.Replicas = NYT::FromProto<TChunkReplica>(rspExt.replicas());
-    if (NextSession_.Replicas.empty()) {
-        CompletionError_.TrySet(TError("Not enough data nodes available"));
-        return;
+        NodeDirectory_->MergeFrom(rsp->node_directory());
+        NextSession_.Replicas = NYT::FromProto<TChunkReplica>(rsp->replicas());
     }
 
     LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
