@@ -23,3 +23,28 @@ message TRspLocateChunks
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqAllocateWriteTargets
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+
+    // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
+    // This does not prevent further balancing to move chunk there.
+    repeated string forbidden_addresses = 2;
+
+    // Host name (without port number!) to be preferred for upload.
+    // The client typically puts the name of the local host here to
+    // facilitate local uploads.
+    optional string preferred_host_name = 3;
+
+   // Requested number of nodes to write.
+    optional int32 upload_replication_factor = 4 [default = 1];
+}
+
+message TRspAllocateWriteTargets
+{
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated fixed32 replicas = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1417,6 +1417,20 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     chunk->SetStagingTransaction(transaction);
     chunk->SetStagingAccount(account);
 
+    LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
+        "Chunk created "
+        "(ChunkId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+        "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
+        chunk->GetId(),
+        transaction->GetId(),
+        account->GetName(),
+        chunk->GetReplicationFactor(),
+        chunk->GetReadQuorum(),
+        chunk->GetWriteQuorum(),
+        erasureCodecId,
+        requestExt.movable(),
+        requestExt.vital());
+
     if (Owner_->IsLeader()) {
         TNodeSet forbiddenNodeSet;
         TNodeList forbiddenNodeList;
@@ -1456,10 +1470,10 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
             "Allocated nodes for new chunk "
-            "(ChunkId: %v, TransactionId: %v, Account: %v, Targets: [%v], "
-            "ForbiddenAddresses: [%v], PreferredHostName: %v, ReplicationFactor: %v, "
-            "UploadReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, "
-            "ErasureCodec: %v, Movable: %v, Vital: %v)",
+                "(ChunkId: %v, TransactionId: %v, Account: %v, Targets: [%v], "
+                "ForbiddenAddresses: [%v], PreferredHostName: %v, ReplicationFactor: %v, "
+                "UploadReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, "
+                "ErasureCodec: %v, Movable: %v, Vital: %v)",
             chunk->GetId(),
             transaction->GetId(),
             account->GetName(),

@@ -25,6 +25,7 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
+    DEFINE_RPC_PROXY_METHOD(NProto, AllocateWriteTargets);
 
 };
 
