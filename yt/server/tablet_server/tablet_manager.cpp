@@ -1103,7 +1103,8 @@ private:
         if (!peer.Address || peer.Node)
             return;
 
-        const auto& address = *peer.Address;
+        // NB: Take by value, RevokePeer will erase it.
+        auto address = *peer.Address;
         RemoveFromAddressToCellMap(address, cell);
         cell->RevokePeer(peerId);
 
