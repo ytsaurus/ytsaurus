@@ -78,6 +78,8 @@ public:
         YCHECK(TransactionManager_);
         YCHECK(TimestampProvider_);
 
+        Logger.AddTag("CellGuid: %v", hiveManager->GetSelfCellGuid());
+
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
@@ -476,7 +478,7 @@ private:
             try {
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error aborting transaction, ignored (TransactionId: %v)",
+                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator, ignored (TransactionId: %v)",
                     transactionId);
             }
 
@@ -519,8 +521,11 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error committing transaction at coordinator (TransactionId: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error committing transaction at coordinator (TransactionId: %v)",
                 transactionId);
+            SetCommitFailed(commit, ex);
+            RemoveCommit(commit);
+            return;
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator has committed transaction (TransactionId: %v)",
@@ -549,8 +554,9 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error committing transaction at participant (TransactionId: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error committing transaction at participant (TransactionId: %v)",
                 transactionId);
+            return;
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Participant has committed transaction (TransactionId: %v)",
