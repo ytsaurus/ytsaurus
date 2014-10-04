@@ -1103,16 +1103,15 @@ private:
         if (!peer.Address || peer.Node)
             return;
 
-        // NB: Take by value, RevokePeer will erase it.
-        auto address = *peer.Address;
-        RemoveFromAddressToCellMap(address, cell);
-        cell->RevokePeer(peerId);
+        const auto& address = *peer.Address;
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             address,
             peerId);
 
+        RemoveFromAddressToCellMap(address, cell);
+        cell->RevokePeer(peerId);
         ReconfigureCell(cell);
     }
 
