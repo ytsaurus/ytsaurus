@@ -142,10 +142,11 @@ private:
             }
             LatestTimestamp_ = latestTimestamp;
         } else {
-            LOG_WARNING(*rsp, "Error generating fresh timestamps");
-
+            auto error = TError("Error generating fresh timestamps")
+                << *rsp;
+            LOG_ERROR(error);
             for (auto& request : requests) {
-                request.Promise.Set(rsp->GetError());
+                request.Promise.Set(error);
             }
         }
 
