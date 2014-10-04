@@ -152,6 +152,8 @@ public:
                     CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
                 } else {
                     switch (codec) {
+                        case ECodec::None:
+                            break;
                         case ECodec::Snappy:
                             CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
                             break;
@@ -161,7 +163,9 @@ public:
                         default:
                             YUNREACHABLE();
                     }
-                    CheckpointableInput_ = CreateCheckpointableInputStream(CodecInput_.get());
+                    CheckpointableInput_ = CreateCheckpointableInputStream(CodecInput_
+                        ? CodecInput_.get()
+                        : FileInput_.get());
                 }
             } else if (signature == TSnapshotHeader_0_16::ExpectedSignature) {
                 TSnapshotHeader_0_16 legacyHeader;
