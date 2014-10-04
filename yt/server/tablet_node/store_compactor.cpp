@@ -110,13 +110,13 @@ private:
         if (eden->GetState() != EPartitionState::None)
             return;
 
-        std::vector<IStorePtr> stores;
+        auto stores = PickStoresForPartitioning(eden);
+        if (stores.empty())
+            return;
+
         i64 dataSize = 0;
-        for (auto store : eden->Stores()) {
-            if (store->GetState() == EStoreState::Persistent) {
-                dataSize += store->GetDataSize();
-                stores.push_back(std::move(store));
-            }
+        for (auto store : stores) {
+            dataSize += store->GetDataSize();
         }
 
         // Check if partitioning is needed.
@@ -195,15 +195,38 @@ private:
     }
 
 
+    std::vector<IStorePtr> PickStoresForPartitioning(TPartition* eden)
+    {
+        std::vector<IStorePtr> stores;
+        for (auto store : eden->Stores()) {
+            if (store->GetState() != EStoreState::Persistent)
+                continue;
+            auto chunkStore = store->AsChunk();
+
+            // NB: Partitioning chunk stores with backing ones may interfere with conflict checking.
+            if (chunkStore->HasBackingStore())
+                continue;
+
+            stores.push_back(std::move(store));
+        }
+        return stores;
+    }
+
     std::vector<IStorePtr> PickStoresForCompaction(
         TTableMountConfigPtr config,
         TPartition* partition)
     {
         std::vector<TChunkStorePtr> candidates;
         for (auto store : partition->Stores()) {
-            if (store->GetState() == EStoreState::Persistent) {
-                candidates.push_back(store->AsChunk());
-            }
+            if (store->GetState() != EStoreState::Persistent)
+                continue;
+            auto chunkStore = store->AsChunk();
+
+            // NB: Compacting chunk stores with backing ones may interfere with conflict checking.
+            if (chunkStore->HasBackingStore())
+                continue;
+
+            candidates.push_back(store->AsChunk());
         }
 
         std::sort(

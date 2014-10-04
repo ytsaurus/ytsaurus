@@ -163,6 +163,11 @@ void TChunkStore::SetBackingStore(IStorePtr store)
     BackingStore_ = store;
 }
 
+bool TChunkStore::HasBackingStore() const
+{
+    return BackingStore_ != nullptr;
+}
+
 EStoreType TChunkStore::GetType() const
 {
     return EStoreType::Chunk;

@@ -42,6 +42,7 @@ public:
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
     void SetBackingStore(IStorePtr store);
+    bool HasBackingStore() const;
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
