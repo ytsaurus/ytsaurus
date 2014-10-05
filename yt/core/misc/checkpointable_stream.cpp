@@ -122,7 +122,7 @@ public:
         size_t underlyingStreamLength)
         : UnderlyingStream_(underlyingStream)
         , FakeHeaderOffset_(0)
-        , FakeHeader_{underlyingStreamLength | TBlockHeader::CheckpointsDisabledMask}
+        , FakeHeader_({underlyingStreamLength | TBlockHeader::CheckpointsDisabledMask})
     { }
 
     ~TFakeCheckpointableInputStream() throw()
