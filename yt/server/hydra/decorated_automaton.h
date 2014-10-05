@@ -87,7 +87,7 @@ public:
     IAutomatonPtr GetAutomaton();
 
     void Clear();
-    void LoadSnapshot(TVersion version, ICheckpointableInputStream* input);
+    void LoadSnapshot(TVersion version, TInputStream* input);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
@@ -180,7 +180,7 @@ private:
 
     void DoRotateChangelog();
 
-    void SaveSnapshot(ICheckpointableOutputStream* output);
+    void SaveSnapshot(TOutputStream* output);
     void MaybeStartSnapshotBuilder();
 
 

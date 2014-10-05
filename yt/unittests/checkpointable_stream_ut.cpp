@@ -4,6 +4,7 @@
 #include <core/misc/checkpointable_stream.h>
 
 #include <util/stream/str.h>
+#include <util/stream/mem.h>
 
 #include <array>
 
@@ -73,6 +74,16 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     input->SkipToCheckpoint();
 
     EXPECT_EQ(0, input->Read(buffer.data(), 10));
+}
+
+TEST(TCheckpointableStreamTest, Fake)
+{
+    Stroka data("this is a test");
+    TStringInput rawInput(data);
+    auto fakeInput = CreateFakeCheckpointableInputStream(&rawInput, data.length());
+    auto checkpointableInput = CreateCheckpointableInputStream(fakeInput.get());
+    checkpointableInput->SkipToCheckpoint();
+    EXPECT_EQ(data, checkpointableInput->ReadAll());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

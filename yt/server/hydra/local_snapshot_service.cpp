@@ -6,7 +6,6 @@
 #include "private.h"
 
 #include <core/misc/string.h>
-#include <core/misc/checkpointable_stream.h>
 
 #include <core/rpc/service_detail.h>
 

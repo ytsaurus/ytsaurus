@@ -9,11 +9,10 @@ namespace {
 
 struct TBlockHeader
 {
-    explicit TBlockHeader(i64 length = -1)
-        : Length(length)
-    { }
+    static const ui64 CheckpointSentinel = 0;
+    static const ui64 CheckpointsDisabledMask = 0x80000000U;
 
-    i64 Length;
+    ui64 Length;
 };
 
 } // namespace
@@ -36,15 +35,18 @@ public:
     virtual void SkipToCheckpoint() override
     {
         while (true) {
-            if (!ReadHeader()) {
+            if (!EnsureBlock()) {
                 break;
             }
-            if (BlockLength_ == 0) {
-                BlockStarted_ = false;
+            if (CheckpointsDisabled_) {
                 break;
             }
-            UnderlyingStream_->Skip(BlockLength_ - Offset_);
-            BlockStarted_ = false;
+            if (BlockLength_ == TBlockHeader::CheckpointSentinel) {
+                HasBlock_ = false;
+                break;
+            }
+            UnderlyingStream_->Skip(BlockLength_ - BlockOffset_);
+            HasBlock_ = false;
         }
     }
 
@@ -54,34 +56,35 @@ public:
 private:
     TInputStream* UnderlyingStream_;
 
-    i64 BlockLength_;
-    i64 Offset_;
-    bool BlockStarted_ = false;
+    size_t BlockLength_;
+    size_t BlockOffset_;
+    bool HasBlock_ = false;
+    bool CheckpointsDisabled_ = false;
 
 
     virtual size_t DoRead(void* buf_, size_t len) override
     {
         char* buf = reinterpret_cast<char*>(buf_);
 
-        i64 pos = 0;
+        size_t pos = 0;
         while (pos < len) {
-            if (!ReadHeader()) {
+            if (!EnsureBlock()) {
                 break;
             }
-            i64 size = std::min(BlockLength_ - Offset_, static_cast<i64>(len) - pos);
+            i64 size = std::min(BlockLength_ - BlockOffset_, len - pos);
             YCHECK(UnderlyingStream_->Load(buf + pos, size) == size);
             pos += size;
-            Offset_ += size;
-            if (Offset_ == BlockLength_) {
-                BlockStarted_ = false;
+            BlockOffset_ += size;
+            if (BlockOffset_ == BlockLength_) {
+                HasBlock_ = false;
             }
         }
         return pos;
     }
 
-    bool ReadHeader()
+    bool EnsureBlock()
     {
-        if (!BlockStarted_) {
+        if (!HasBlock_) {
             TBlockHeader header;
             size_t len = UnderlyingStream_->Load(&header, sizeof(header));
             YCHECK(len == 0 || len == sizeof(TBlockHeader));
@@ -90,9 +93,10 @@ private:
                 return false;
             }
 
-            BlockStarted_ = true;
-            BlockLength_ = header.Length;
-            Offset_ = 0;
+            HasBlock_ = true;
+            BlockLength_ = header.Length & ~TBlockHeader::CheckpointsDisabledMask;
+            BlockOffset_ = 0;
+            CheckpointsDisabled_ = header.Length & TBlockHeader::CheckpointsDisabledMask;
         }
 
         return true;
@@ -103,24 +107,23 @@ private:
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
     TInputStream* underlyingStream)
 {
-    return std::unique_ptr<ICheckpointableInputStream>(
-        new TCheckpointableInputStream(underlyingStream));
+    return std::unique_ptr<ICheckpointableInputStream>(new TCheckpointableInputStream(
+        underlyingStream));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFakeCheckpointableInputStream
-    : public ICheckpointableInputStream
+    : public TInputStream
 {
 public:
-    explicit TFakeCheckpointableInputStream(TInputStream* underlyingStream)
+    explicit TFakeCheckpointableInputStream(
+        TInputStream* underlyingStream,
+        size_t underlyingStreamLength)
         : UnderlyingStream_(underlyingStream)
+        , FakeHeaderOffset_(0)
+        , FakeHeader_{underlyingStreamLength | TBlockHeader::CheckpointsDisabledMask}
     { }
-
-    virtual void SkipToCheckpoint() override
-    {
-        YUNREACHABLE();
-    }
 
     ~TFakeCheckpointableInputStream() throw()
     { }
@@ -128,19 +131,31 @@ public:
 private:
     TInputStream* UnderlyingStream_;
 
+    int FakeHeaderOffset_;
+    TBlockHeader FakeHeader_;
+
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
-        return UnderlyingStream_->Read(buf, len);
+        if (FakeHeaderOffset_ < sizeof(FakeHeader_)) {
+            size_t bytes = std::min(len, sizeof(FakeHeader_) - FakeHeaderOffset_);
+            memcpy(buf, reinterpret_cast<const char*>(&FakeHeader_) + FakeHeaderOffset_, bytes);
+            FakeHeaderOffset_ += bytes;
+            return bytes;
+        } else {
+            return UnderlyingStream_->Read(buf, len);
+        }
     }
 
 };
 
-std::unique_ptr<ICheckpointableInputStream> CreateFakeCheckpointableInputStream(
-    TInputStream* underlyingStream)
+std::unique_ptr<TInputStream> CreateFakeCheckpointableInputStream(
+    TInputStream* underlyingStream,
+    size_t underlyingStreamLength)
 {
-    return std::unique_ptr<ICheckpointableInputStream>(
-        new TFakeCheckpointableInputStream(underlyingStream));
+    return std::unique_ptr<TInputStream>(new TFakeCheckpointableInputStream(
+        underlyingStream,
+        underlyingStreamLength));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +170,7 @@ public:
 
     virtual void MakeCheckpoint() override
     {
-        WritePod(*UnderlyingStream_, TBlockHeader(0));
+        WritePod(*UnderlyingStream_, TBlockHeader{TBlockHeader::CheckpointSentinel});
     }
 
     ~TCheckpointableOutputStream() throw()
@@ -171,7 +186,7 @@ private:
             return;
         }
 
-        WritePod(*UnderlyingStream_, TBlockHeader(len));
+        WritePod(*UnderlyingStream_, TBlockHeader{len});
         UnderlyingStream_->Write(buf, len);
     }
 
@@ -180,90 +195,8 @@ private:
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
     TOutputStream* underlyingStream)
 {
-    return std::unique_ptr<ICheckpointableOutputStream>(
-        new TCheckpointableOutputStream(underlyingStream));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFakeCheckpointableOutputStream
-    : public ICheckpointableOutputStream
-{
-public:
-    explicit TFakeCheckpointableOutputStream(TOutputStream* underlyingStream)
-        : UnderlyingStream_(underlyingStream)
-    { }
-
-    virtual void MakeCheckpoint() override
-    { }
-
-    ~TFakeCheckpointableOutputStream() throw()
-    { }
-
-private:
-    TOutputStream* UnderlyingStream_;
-
-
-    virtual void DoWrite(const void* buf, size_t len) override
-    {
-        UnderlyingStream_->Write(buf, len);
-    }
-
-};
-
-std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStream(
-    TOutputStream* underlyingStream)
-{
-    return std::unique_ptr<ICheckpointableOutputStream>(
-        new TFakeCheckpointableOutputStream(underlyingStream));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBufferedCheckpointableOutputStream
-    : public ICheckpointableOutputStream
-{
-public:
-    TBufferedCheckpointableOutputStream(
-        ICheckpointableOutputStream* underlyingStream,
-        size_t bufferSize)
-        : UnderlyingStream_(underlyingStream)
-        , BufferedOutput_(UnderlyingStream_)
-    { }
-
-    virtual void MakeCheckpoint()  override
-    {
-        BufferedOutput_.Flush();
-        UnderlyingStream_->MakeCheckpoint();
-    }
-
-private:
-    ICheckpointableOutputStream* UnderlyingStream_;
-    TBufferedOutput BufferedOutput_;
-
-    virtual void DoWrite(const void* buf, size_t len) override
-    {
-        BufferedOutput_.Write(buf, len);
-    }
-
-    virtual void DoFlush() override
-    {
-        BufferedOutput_.Flush();
-    }
-
-    virtual void DoFinish() override
-    {
-        BufferedOutput_.Finish();
-    }
-
-};
-
-std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
-    ICheckpointableOutputStream* underlyingStream,
-    size_t bufferSize)
-{
-    return std::unique_ptr<ICheckpointableOutputStream>(
-        new TBufferedCheckpointableOutputStream(underlyingStream, bufferSize));
+    return std::unique_ptr<ICheckpointableOutputStream>(new TCheckpointableOutputStream(
+        underlyingStream));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

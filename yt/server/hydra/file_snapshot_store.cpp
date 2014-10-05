@@ -15,6 +15,8 @@
 #include <ytlib/hydra/hydra_manager.pb.h>
 
 #include <util/stream/lz.h>
+#include <util/stream/file.h>
+#include <util/stream/buffered.h>
 
 namespace NYT {
 namespace NHydra {
@@ -149,7 +151,7 @@ public:
 
                 auto codec = ECodec(Header_.Codec);
                 if (IsRaw_) {
-                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
+                    FacadeInput_ = FileInput_.get();
                 } else {
                     switch (codec) {
                         case ECodec::None:
@@ -163,9 +165,7 @@ public:
                         default:
                             YUNREACHABLE();
                     }
-                    CheckpointableInput_ = CreateCheckpointableInputStream(CodecInput_
-                        ? CodecInput_.get()
-                        : FileInput_.get());
+                    FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
                 }
             } else if (signature == TSnapshotHeader_0_16::ExpectedSignature) {
                 TSnapshotHeader_0_16 legacyHeader;
@@ -184,7 +184,7 @@ public:
                 if (Header_.CompressedLength != File_->GetLength()) {
                     THROW_ERROR_EXCEPTION(
                         "Invalid compressed length in header of %v: expected %v, got %v",
-                        ~FileName_.Quote(),
+                        FileName_,
                         File_->GetLength(),
                         Header_.CompressedLength);
                 }
@@ -205,10 +205,11 @@ public:
                 FileInput_.reset(new TBufferedFileInput(*File_));
 
                 if (IsRaw_) {
-                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(FileInput_.get());
+                    FacadeInput_ = FileInput_.get();
                 } else {
                     CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
-                    CheckpointableInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get());
+                    FakeCheckpointableInput_ = CreateFakeCheckpointableInputStream(CodecInput_.get(), legacyHeader.DataLength);
+                    FacadeInput_ = FakeCheckpointableInput_.get();
                 }
             } else {
                 THROW_ERROR_EXCEPTION("Unrecognized snapshot signature %" PRIx64,
@@ -221,9 +222,9 @@ public:
         }
     }
 
-    virtual ICheckpointableInputStream* GetStream() override
+    virtual TInputStream* GetStream() override
     {
-        return CheckpointableInput_.get();
+        return FacadeInput_;
     }
 
     virtual TSnapshotParams GetParams() const override
@@ -246,7 +247,8 @@ private:
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TBufferedFileInput> FileInput_;
     std::unique_ptr<TInputStream> CodecInput_;
-    std::unique_ptr<ICheckpointableInputStream> CheckpointableInput_;
+    std::unique_ptr<TInputStream> FakeCheckpointableInput_;
+    TInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
     TSharedRef Meta_;
@@ -297,7 +299,8 @@ public:
             FileOutput_.reset(new TFileOutput(*File_));
 
             if (IsRaw_) {
-                CheckpointableOutput_ = CreateFakeCheckpointableOutputStream(FileOutput_.get());
+                BufferedOutput_.reset(new TBufferedOutput(FileOutput_.get()));
+                FacadeOutput_ = BufferedOutput_.get();
             } else {
                 TSnapshotHeader header;
                 WritePod(*File_, header);
@@ -305,26 +308,24 @@ public:
                 File_->Flush();
 
                 ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
-
-                if (Codec_ == ECodec::None) {
-                    LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(ChecksumOutput_.get()));
-                } else {
-                    switch (Codec_) {
-                        case ECodec::Snappy:
-                            CodecOutput_.reset(new TSnappyCompress(ChecksumOutput_.get()));
-                            break;
-                        case ECodec::Lz4:
-                            CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
-                            break;
-                        default:
-                            YUNREACHABLE();
-                    }
-                    LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_.get()));
+                switch (Codec_) {
+                    case ECodec::None:
+                        break;
+                    case ECodec::Snappy:
+                        CodecOutput_.reset(new TSnappyCompress(ChecksumOutput_.get()));
+                        break;
+                    case ECodec::Lz4:
+                        CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
+                        break;
+                    default:
+                        YUNREACHABLE();
                 }
-                CheckpointableOutput_ = CreateCheckpointableOutputStream(LengthMeasureOutput_.get());
+                LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_
+                    ? CodecOutput_.get()
+                    : ChecksumOutput_.get()));
+                BufferedOutput_.reset(new TBufferedOutput(LengthMeasureOutput_.get()));
+                FacadeOutput_ = BufferedOutput_.get();
             }
-
-            BufferedOutput_ = CreateBufferedCheckpointableOutputStream(CheckpointableOutput_.get());
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
@@ -332,9 +333,9 @@ public:
         }
     }
 
-    virtual ICheckpointableOutputStream* GetStream() override
+    virtual TOutputStream* GetStream() override
     {
-        return BufferedOutput_.get();
+        return FacadeOutput_;
     }
 
     virtual void Close() override
@@ -342,8 +343,8 @@ public:
         // NB: Avoid logging here, this might be the forked child process.
 
         // NB: Some calls might be redundant.
+        FacadeOutput_->Finish();
         BufferedOutput_->Finish();
-        CheckpointableOutput_->Finish();
         if (LengthMeasureOutput_) {
             LengthMeasureOutput_->Finish();
         }
@@ -383,8 +384,9 @@ private:
     std::unique_ptr<TOutputStream> CodecOutput_;
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
     std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
-    std::unique_ptr<ICheckpointableOutputStream> CheckpointableOutput_;
-    std::unique_ptr<ICheckpointableOutputStream> BufferedOutput_;
+    std::unique_ptr<TOutputStream> CheckpointableOutput_;
+    std::unique_ptr<TOutputStream> BufferedOutput_;
+    TOutputStream* FacadeOutput_;
 
 };
 

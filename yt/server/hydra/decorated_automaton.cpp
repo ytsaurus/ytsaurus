@@ -372,7 +372,7 @@ void TDecoratedAutomaton::Clear()
     }
 }
 
-void TDecoratedAutomaton::SaveSnapshot(ICheckpointableOutputStream* output)
+void TDecoratedAutomaton::SaveSnapshot(TOutputStream* output)
 {
     YCHECK(output);
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -380,7 +380,7 @@ void TDecoratedAutomaton::SaveSnapshot(ICheckpointableOutputStream* output)
     Automaton_->SaveSnapshot(output);
 }
 
-void TDecoratedAutomaton::LoadSnapshot(TVersion version, ICheckpointableInputStream* input)
+void TDecoratedAutomaton::LoadSnapshot(TVersion version, TInputStream* input)
 {
     YCHECK(input);
     VERIFY_THREAD_AFFINITY(AutomatonThread);

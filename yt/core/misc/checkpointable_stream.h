@@ -25,18 +25,20 @@ struct ICheckpointableOutputStream
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Wraps an input stream making it checkpointable.
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
     TInputStream* underlyingStream);
-std::unique_ptr<ICheckpointableInputStream> CreateFakeCheckpointableInputStream(
-    TInputStream* underlyingStream);
 
+//! Wraps an output stream making it checkpointable.
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
     TOutputStream* underlyingStream);
-std::unique_ptr<ICheckpointableOutputStream> CreateFakeCheckpointableOutputStream(
-    TOutputStream* underlyingStream);
-std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
-    ICheckpointableOutputStream* underlyingStream,
-    size_t bufferSize = 8192);
+
+//! Wraps an input stream constructing another one whose binary content
+//! can be parsed by a checkpointable stream parser as a single block.
+//! Used for migrating pre-0.17 snapshots that were not checkpointable.
+std::unique_ptr<TInputStream> CreateFakeCheckpointableInputStream(
+    TInputStream* underlyingStream,
+    size_t underlyingStreamLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 

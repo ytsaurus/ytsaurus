@@ -184,7 +184,7 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
     Parts.push_back(part);
 }
 
-void TCompositeAutomaton::SaveSnapshot(ICheckpointableOutputStream* output)
+void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
 {
     using NYT::Save;
 
@@ -202,25 +202,29 @@ void TCompositeAutomaton::SaveSnapshot(ICheckpointableOutputStream* output)
                 (lhs.Priority == rhs.Priority && lhs.Name < rhs.Name);
         });
 
+    auto checkpointableOutput = CreateCheckpointableOutputStream(output);
+
     auto& context = SaveContext();
-    context.SetOutput(output);
+    context.SetOutput(checkpointableOutput.get());
 
     Save(context, static_cast<i32>(infos.size()));
 
     for (const auto& info : infos) {
-        output->MakeCheckpoint();
+        checkpointableOutput->MakeCheckpoint();
         Save(context, info.Name);
         Save(context, static_cast<i32>(info.Part->GetCurrentSnapshotVersion()));
         info.Saver.Run();
     }
 }
 
-void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
+void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
 {
     using NYT::Load;
 
+    auto checkpointableInput = CreateCheckpointableInputStream(input);
+
     auto& context = LoadContext();
-    context.SetInput(input);
+    context.SetInput(checkpointableInput.get());
 
     int partCount = Load<i32>(context);
 
@@ -250,7 +254,7 @@ void TCompositeAutomaton::LoadSnapshot(ICheckpointableInputStream* input)
             info.Loader.Run();
         }
 
-        input->SkipToCheckpoint();
+        checkpointableInput->SkipToCheckpoint();
     }
 
     for (auto part : Parts) {
