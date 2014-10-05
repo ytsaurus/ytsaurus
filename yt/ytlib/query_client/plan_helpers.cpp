@@ -183,7 +183,7 @@ TKeyTrieNode ExtractMultipleConstraints(
                 }
             }
 
-            return TKeyTrieNode();
+            return result;
         };
 
         auto result = TKeyTrieNode::Empty();
@@ -394,7 +394,7 @@ TConstExpressionPtr RefinePredicate(
                 }
             }
 
-            return TKeyTrieNode();
+            return result;
         };
 
         for (size_t rowIndex = 0; rowIndex < inExpr->Values.size(); ++rowIndex) {

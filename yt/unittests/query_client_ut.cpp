@@ -477,18 +477,81 @@ TEST_F(TQueryCoordinateTest, SingleSplit)
 
     singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
     singleGroupedSplit.push_back(singleSplit);
+    singleGroupedSplit.push_back(singleSplit);
+    singleGroupedSplit.push_back(singleSplit);
 
     EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
         .WillOnce(Return(true));
     EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
         .WillOnce(Return(WrapInFuture(singleSplit)));
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(3), _))
+        .WillOnce(Return(singleGroupedSplit));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(3)))
+        .WillOnce(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
+
+    EXPECT_NO_THROW({
+        Coordinate("k from [//t]");
+    });
+}
+
+TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
+{
+    TDataSplits splits;
+    TGroupedDataSplits groupedSplits;
+
+    splits.emplace_back(MakeSimpleSplit("//t", 1));
+    SetSorted(&splits.back(), true);
+    SetLowerBound(&splits.back(), BuildKey("0;0;0"));
+    SetUpperBound(&splits.back(), BuildKey("1;0;0"));
+
+    splits.emplace_back(MakeSimpleSplit("//t", 2));
+    SetSorted(&splits.back(), true);
+    SetLowerBound(&splits.back(), BuildKey("1;0;0"));
+    SetUpperBound(&splits.back(), BuildKey("2;0;0"));
+
+    splits.emplace_back(MakeSimpleSplit("//t", 3));
+    SetSorted(&splits.back(), true);
+    SetLowerBound(&splits.back(), BuildKey("2;0;0"));
+    SetUpperBound(&splits.back(), BuildKey("3;0;0"));
+
+    groupedSplits.push_back(splits);
+
+    EXPECT_CALL(CoordinateMock_, CanSplit(_))
+        .WillRepeatedly(Return(false));
+    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
+        .WillOnce(Return(true))
+        .RetiresOnSaturation();
+    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
+        .WillOnce(Return(WrapInFuture(splits)));
     EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
+        .WillOnce(Return(groupedSplits));
+    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
+        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
+
+    EXPECT_NO_THROW({
+        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3");
+    });
+}
+
+TEST_F(TQueryCoordinateTest, SimpleIn)
+{
+    TDataSplits singleSplit;
+    TGroupedDataSplits singleGroupedSplit;
+
+    singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
+    singleGroupedSplit.push_back(singleSplit);
+
+    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
+        .WillOnce(Return(true));
+    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
+        .WillOnce(Return(WrapInFuture(singleSplit)));
+    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(3), _))
         .WillOnce(Return(singleGroupedSplit));
     EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
         .WillOnce(Return(std::make_pair(nullptr, TFuture<TErrorOr<NQueryClient::TQueryStatistics>>())));
 
     EXPECT_NO_THROW({
-        Coordinate("k from [//t]");
+        Coordinate("k from [//t] where k in (1, 2, 3)");
     });
 }
 
@@ -1446,47 +1509,6 @@ TEST_F(TRefineKeyRangeTest, LookupIsPrefix)
     EXPECT_EQ(BuildKey("50;50;50;abc"), result.first);
     EXPECT_EQ(BuildKey("50;50;50;abd"), result.second);
 }
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
-{
-    TDataSplits splits;
-    TGroupedDataSplits groupedSplits;
-
-    splits.emplace_back(MakeSimpleSplit("//t", 1));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("0;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("1;0;0"));
-
-    splits.emplace_back(MakeSimpleSplit("//t", 2));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("1;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("2;0;0"));
-
-    splits.emplace_back(MakeSimpleSplit("//t", 3));
-    SetSorted(&splits.back(), true);
-    SetLowerBound(&splits.back(), BuildKey("2;0;0"));
-    SetUpperBound(&splits.back(), BuildKey("3;0;0"));
-
-    groupedSplits.push_back(splits);
-
-    EXPECT_CALL(CoordinateMock_, CanSplit(_))
-        .WillRepeatedly(Return(false));
-    EXPECT_CALL(CoordinateMock_, CanSplit(HasCounter(0)))
-        .WillOnce(Return(true))
-        .RetiresOnSaturation();
-    EXPECT_CALL(CoordinateMock_, SplitFurther(HasCounter(0), _))
-        .WillOnce(Return(WrapInFuture(splits)));
-    EXPECT_CALL(CoordinateMock_, Regroup(HasSplitsCount(1), _))
-        .WillOnce(Return(groupedSplits));
-    EXPECT_CALL(CoordinateMock_, Delegate(_, HasCounter(1)))
-        .WillOnce(Return(std::make_pair(nullptr, NYT::TFuture<NYT::TErrorOr<NYT::NQueryClient::TQueryStatistics>>())));
-
-    EXPECT_NO_THROW({
-        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3");
-    });
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_USE_LLVM
